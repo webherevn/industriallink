@@ -1,4 +1,11 @@
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/api/v1`;
+/** Production: same-origin `/api/v1` (aaPanel proxy → Nest). Dev: set NEXT_PUBLIC_API_URL. */
+function apiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (raw) return `${raw}/api/v1`;
+  return '/api/v1';
+}
+
+const API_BASE = apiBase();
 
 const TOKEN_KEY = 'il_access_token';
 
