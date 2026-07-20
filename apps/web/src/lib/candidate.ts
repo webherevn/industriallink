@@ -7,7 +7,12 @@ import type {
 } from '@industriallink/contracts';
 import { apiRequest, tokenStore } from './api';
 
-const API_BASE = '/api/v1';
+function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api/v1`;
+  }
+  return '/api/v1';
+}
 
 export async function uploadResume(file: File): Promise<ResumeUploadResponse> {
   const form = new FormData();
@@ -57,7 +62,7 @@ export async function draftCvFromFile(file: File): Promise<CvDraftFromTextRespon
 export async function fetchMyAvatarObjectUrl(): Promise<string | null> {
   const token = tokenStore.get();
   if (!token) return null;
-  const res = await fetch(`${API_BASE}/candidates/me/avatar`, {
+  const res = await fetch(`${getApiBase()}/candidates/me/avatar`, {
     headers: { Authorization: `Bearer ${token}` },
     credentials: 'include',
   });

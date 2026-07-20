@@ -1,5 +1,10 @@
-/** Luôn same-origin — nginx proxy /api → Nest. */
-const API_BASE = '/api/v1';
+/** Client luôn lấy origin trang hiện tại — tránh bundle cũ / CDN nhúng localhost. */
+function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api/v1`;
+  }
+  return '/api/v1';
+}
 
 const TOKEN_KEY = 'il_access_token';
 
@@ -36,7 +41,7 @@ interface RequestOptions {
 
 async function tryRefresh(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    const res = await fetch(`${getApiBase()}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -57,7 +62,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (token) headers.Authorization = `Bearer ${token}`;
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method,
     headers,
     credentials: 'include',
