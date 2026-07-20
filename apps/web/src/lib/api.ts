@@ -1,8 +1,8 @@
-/** Production: same-origin `/api/v1` (aaPanel proxy → Nest). Dev: set NEXT_PUBLIC_API_URL. */
+/** Production luôn same-origin. Dev mới dùng NEXT_PUBLIC_API_URL / localhost. */
 function apiBase(): string {
+  if (process.env.NODE_ENV === 'production') return '/api/v1';
   const raw = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (raw) return `${raw}/api/v1`;
-  return '/api/v1';
+  return `${raw || 'http://localhost:3001'}/api/v1`;
 }
 
 const API_BASE = apiBase();
