@@ -18,6 +18,7 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -337,7 +338,7 @@ function ResultCard({
   );
 }
 
-export default function SearchPage() {
+function SearchPageInner() {
   const searchParams = useSearchParams();
   const initialQ = searchParams.get('q') ?? '';
   const [filters, setFilters] = useState<FilterState>({ ...EMPTY, q: initialQ });
@@ -921,5 +922,19 @@ export default function SearchPage() {
         </section>
       </div>
     </AppShell>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppShell>
+          <p className="py-16 text-center text-slate-500">Đang tải...</p>
+        </AppShell>
+      }
+    >
+      <SearchPageInner />
+    </Suspense>
   );
 }
