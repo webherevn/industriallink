@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-[#F5F7FB] font-sans text-slate-900 antialiased;
+}
+
+/* Tiến trình — hover/transition nhẹ theo mockup */
+@layer components {
+  .progress-card {
+    @apply rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progress-card:hover {
+    @apply -translate-y-0.5 border-slate-300/90 shadow-[0_8px_24px_rgba(15,23,42,0.08)];
+  }
+  .progress-nav-item {
+    @apply relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-600 transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progress-nav-item::before {
+    content: '';
+    @apply absolute left-0 top-1/2 h-0 w-0.5 -translate-y-1/2 rounded-full bg-brand-500 opacity-0 transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progress-nav-item:hover {
+    @apply bg-slate-50 text-slate-900;
+  }
+  .progress-nav-item:hover::before {
+    @apply h-4 opacity-100;
+  }
+  .progress-nav-item-active {
+    @apply bg-brand-50 text-brand-600;
+  }
+  .progress-nav-item-active::before {
+    @apply h-5 opacity-100;
+  }
+  .progress-btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progress-btn:active {
+    @apply scale-[0.98];
+  }
+
+  .profile-card {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .profile-card:hover {
+    @apply -translate-y-1 border-slate-300/90 shadow-[0_10px_28px_rgba(15,23,42,0.08)];
+  }
+  .profile-skill-pill {
+    @apply rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition-all duration-200;
+  }
+  .profile-skill-pill:hover {
+    background-color: #feefc7;
+    color: #b45309;
+  }
+}

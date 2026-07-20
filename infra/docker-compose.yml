@@ -1,0 +1,151 @@
+# Hạ tầng phát triển cục bộ cho IndustrialLink.
+# Chạy:  docker compose -f infra/docker-compose.yml up -d
+name: industriallink
+
+services:
+  postgres:
+    # Image PostgreSQL 16 đã tích hợp sẵn extension pgvector.
+    image: pgvector/pgvector:pg16
+    container_name: il-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: industriallink
+      POSTGRES_PASSWORD: industriallink
+      POSTGRES_DB: industriallink
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./.data/postgres:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U industriallink -d industriallink"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: il-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./.data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: il-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: industriallink
+      MINIO_ROOT_PASSWORD: industriallink
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./.data/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Hộp thư local để xem email mời PV (UI http://localhost:8025, SMTP :1025)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: il-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # OpenTelemetry traces UI (OTLP :4317/:4318, UI :16686)
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: il-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
+  # Prometheus scrapes OTEL metrics exporter trên API (:9464)
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: il-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./.data/prometheus:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # OpenSearch (AI Search full-text projection; Postgres vẫn là nguồn chính)
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: il-opensearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./.data/opensearch:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # Event Bus (Management UI http://localhost:15672 — guest/guest)
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: il-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ./.data/rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Tạo sẵn bucket cho MinIO khi khởi động.
+  minio-setup:
+    image: minio/mc:latest
+    container_name: il-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 industriallink industriallink;
+      mc mb --ignore-existing local/industriallink-resumes;
+      echo 'MinIO bucket ready';
+      "

@@ -1,0 +1,670 @@
+// Prisma schema cho IndustrialLink.
+// Multi-schema theo Business Domain. Mọi entity kế thừa nhóm trường Base
+// (created/updated/deleted + version + soft delete + tenant) theo chuẩn Chương 4.4.1.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment"]
+}
+
+// =========================================================================
+// SHARED
+// =========================================================================
+
+/// Bộ đếm dùng để sinh Business Code dạng CAN-2026-000001.
+model Sequence {
+  key   String @id
+  value BigInt @default(0)
+
+  @@map("sequence")
+  @@schema("shared")
+}
+
+/// Thông báo in-app (MVP). Email thật để giai đoạn sau.
+model Notification {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id")
+  userId     String    @map("user_id") @db.Uuid
+  type       String
+  title      String
+  body       String
+  link       String?
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([tenantId])
+  @@map("notification")
+  @@schema("shared")
+}
+
+// =========================================================================
+// IDENTITY DOMAIN
+// =========================================================================
+
+model User {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String  @unique
+  tenantId     String  @map("tenant_id")
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  displayName  String  @map("display_name")
+  role         String
+  status       String  @default("created")
+  isVerified   Boolean @default(false) @map("is_verified")
+  /// Bật MFA: sau khi nhập mật khẩu đúng phải xác thực OTP email/TOTP mới cấp JWT.
+  mfaEnabled Boolean @default(false) @map("mfa_enabled")
+  /// Phương thức MFA đang bật: "email_otp" | "totp". null nếu mfaEnabled=false.
+  mfaMethod  String? @map("mfa_method")
+  /// Secret TOTP đã xác nhận (chỉ có khi mfaMethod="totp").
+  totpSecret String? @map("totp_secret")
+  /// Secret TOTP tạm sinh ra khi setup, chờ xác nhận bằng 1 mã đúng.
+  totpPendingSecret String? @map("totp_pending_secret")
+
+  // Base fields
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  candidate         Candidate?
+  otpCodes          OtpCode[]
+  jobBookmarks      JobBookmark[]
+  refreshTokens     RefreshToken[]
+  companyMemberships CompanyMember[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("user")
+  @@schema("identity")
+}
+
+/// Mã OTP xác thực email khi đăng ký.
+model OtpCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  code      String
+  purpose   String    @default("register")
+  expiresAt DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("otp_code")
+  @@schema("identity")
+}
+
+/// Refresh token (lưu hash) phục vụ xoay vòng token an toàn.
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdByIp String? @map("created_by_ip")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_token")
+  @@schema("identity")
+}
+
+/// Nhật ký thay đổi dữ liệu (Audit Log) - phục vụ compliance & truy vết.
+model AuditLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id")
+  actorId       String?  @map("actor_id") @db.Uuid
+  action        String
+  entityType    String   @map("entity_type")
+  entityId      String?  @map("entity_id")
+  before        Json?
+  after         Json?
+  ip            String?
+  userAgent     String?  @map("user_agent")
+  correlationId String?  @map("correlation_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, entityType])
+  @@index([actorId])
+  @@map("audit_log")
+  @@schema("identity")
+}
+
+// =========================================================================
+// KNOWLEDGE DOMAIN (Taxonomy)
+// =========================================================================
+
+/// Kỹ năng chuẩn hoá (không lưu text tự do). Nền tảng cho AI Matching.
+model Skill {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code       String   @unique
+  name       String
+  slug       String   @unique
+  category   String?
+  parentId   String?  @map("parent_id") @db.Uuid
+  aliases    String[] @default([])
+  industry   String?
+  difficulty String?
+  demand     String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  parent   Skill?  @relation("SkillHierarchy", fields: [parentId], references: [id])
+  children Skill[] @relation("SkillHierarchy")
+
+  candidateSkills CandidateSkill[]
+  jobSkills       JobSkill[]
+
+  @@index([category])
+  @@map("skill")
+  @@schema("knowledge")
+}
+
+// =========================================================================
+// CANDIDATE DOMAIN
+// =========================================================================
+
+model Candidate {
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String @unique
+  tenantId          String @map("tenant_id")
+  userId            String @unique @map("user_id") @db.Uuid
+  displayName       String @map("display_name")
+  status            String @default("registered")
+  profileCompletion Int    @default(0) @map("profile_completion")
+  /// Ảnh đại diện tải lên (Object Storage key). null → frontend dùng Gravatar/email.
+  avatarStorageKey  String? @map("avatar_storage_key")
+  avatarMime        String? @map("avatar_mime")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile      CandidateProfile?
+  aiProfile    CandidateAiProfile?
+  searchIndex  CandidateSearchIndex?
+  resumes      CandidateResume[]
+  skills       CandidateSkill[]
+  timeline     CandidateTimeline[]
+  applications Application[]
+  interviews   Interview[]
+  offers       Offer[]
+  onboardings  Onboarding[]
+
+  @@index([tenantId, status])
+  @@map("candidate")
+  @@schema("candidate")
+}
+
+model CandidateProfile {
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId          String  @unique @map("candidate_id") @db.Uuid
+  currentPosition      String? @map("current_position")
+  jobLevel             String? @map("job_level")
+  totalExperienceYears Float?  @map("total_experience_years")
+  industry             String?
+  /// Nhiều ngành đã làm (bộ lọc chính Sales B2B).
+  industriesExperienced String[] @default([]) @map("industries_experienced")
+  specialization       String?
+  summary              String?
+  careerObjective      String? @map("career_objective")
+
+  /// Sản phẩm / giải pháp đã bán.
+  productsSold       String[] @default([]) @map("products_sold")
+  /// Tệp khách hàng đã bán.
+  customerSegments   String[] @default([]) @map("customer_segments")
+  /// Kinh nghiệm Sales B2B (under_1 | 1_3 | 3_5 | 5_10 | 10_plus).
+  b2bExperienceBand  String?  @map("b2b_experience_band")
+  /// Khu vực / thị trường đã phụ trách.
+  marketsCovered     String[] @default([]) @map("markets_covered")
+
+  /// Thành tích & đánh giá nâng cao.
+  latestRevenue        Float?  @map("latest_revenue")
+  kpiAchievementPct    Float?  @map("kpi_achievement_pct")
+  salesHighlights      String? @map("sales_highlights")
+  customerDevStyle     String? @map("customer_dev_style")
+  newCustomerRatioPct  Float?  @map("new_customer_ratio_pct")
+  dealType             String? @map("deal_type")
+  typicalDealValue     Float?  @map("typical_deal_value")
+  maxDealValue         Float?  @map("max_deal_value")
+  sellingStages        String[] @default([]) @map("selling_stages")
+  jobReadiness         String? @map("job_readiness")
+  noticePeriodDays     Int?    @map("notice_period_days")
+  expectedSalaryMin    Int?    @map("expected_salary_min")
+  expectedSalaryMax    Int?    @map("expected_salary_max")
+  languages            String[] @default([])
+  hasB2License         Boolean? @map("has_b2_license")
+  willingToTravel      Boolean? @map("willing_to_travel")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_profile")
+  @@schema("candidate")
+}
+
+/// Metadata của file CV. File thật lưu ở Object Storage (MinIO/S3).
+model CandidateResume {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String  @map("candidate_id") @db.Uuid
+  tenantId    String  @map("tenant_id")
+  fileName    String  @map("file_name")
+  storageKey  String  @map("storage_key")
+  mime        String
+  size        Int
+  hash        String?
+  parseStatus String  @default("pending") @map("parse_status")
+  parseError  String? @map("parse_error")
+  jobId       String? @map("job_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@map("candidate_resume")
+  @@schema("candidate")
+}
+
+model CandidateSkill {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId       String  @map("candidate_id") @db.Uuid
+  skillId           String? @map("skill_id") @db.Uuid
+  name              String
+  level             String  @default("intermediate")
+  yearsOfExperience Float?  @map("years_of_experience")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  skill     Skill?    @relation(fields: [skillId], references: [id])
+
+  @@unique([candidateId, name])
+  @@index([skillId])
+  @@map("candidate_skill")
+  @@schema("candidate")
+}
+
+/// Hồ sơ AI của ứng viên - do AI sinh, không phải người dùng nhập.
+model CandidateAiProfile {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId    String   @unique @map("candidate_id") @db.Uuid
+  summary        String?
+  strengths      String[] @default([])
+  weaknesses     String[] @default([])
+  careerPath     String?  @map("career_path")
+  aiScore        Float?   @map("ai_score")
+  confidence     Float?
+  // Vector embedding (pgvector). Ghi/đọc qua raw SQL; Prisma bỏ qua cột này.
+  embedding      Unsupported("vector(768)")?
+  lastAnalyzedAt DateTime? @map("last_analyzed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_ai_profile")
+  @@schema("candidate")
+}
+
+/// Chỉ mục tìm kiếm của ứng viên (full-text + vector). Search không query bảng giao dịch.
+model CandidateSearchIndex {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String  @unique @map("candidate_id") @db.Uuid
+  tenantId    String  @map("tenant_id")
+  searchText  String  @map("search_text")
+  embedding   Unsupported("vector(768)")?
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_search_index")
+  @@schema("candidate")
+}
+
+/// Dòng thời gian nghiệp vụ của ứng viên (khác Audit Log).
+model CandidateTimeline {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String   @map("candidate_id") @db.Uuid
+  tenantId    String   @map("tenant_id")
+  type        String
+  title       String
+  description String?
+  meta        Json?
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@map("candidate_timeline")
+  @@schema("candidate")
+}
+
+// =========================================================================
+// COMPANY DOMAIN
+// =========================================================================
+
+model Company {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String  @unique
+  tenantId    String  @map("tenant_id")
+  name        String
+  taxCode     String? @map("tax_code")
+  industry    String?
+  size        String?
+  address     String?
+  website     String?
+  description String?
+  status      String  @default("active")
+  /// Hồ sơ thương hiệu công khai (banner, gallery, reviews…).
+  profile     Json?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  members CompanyMember[]
+  jobs    Job[]
+
+  @@index([tenantId])
+  @@map("company")
+  @@schema("company")
+}
+
+/// Thành viên của công ty (liên kết User <-> Company + vai trò trong công ty).
+model CompanyMember {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  roleInCompany String   @default("member") @map("role_in_company")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@map("company_member")
+  @@schema("company")
+}
+
+// =========================================================================
+// RECRUITMENT DOMAIN
+// =========================================================================
+
+model Job {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String  @unique
+  tenantId       String  @map("tenant_id")
+  companyId      String  @map("company_id") @db.Uuid
+  title          String
+  description    String
+  requirements   String?
+  benefits       String?
+  industry       String?
+  department     String?
+  jobLevel       String? @map("job_level")
+  employmentType String? @map("employment_type")
+  location       String?
+  headcount      Int?    @default(1)
+  deadline       DateTime? @db.Date
+  experienceBand String? @map("experience_band")
+  salaryMin      Int?    @map("salary_min")
+  salaryMax      Int?    @map("salary_max")
+  status         String  @default("draft")
+  // Embedding của mô tả công việc (JD) cho AI Matching, ghi/đọc qua raw SQL.
+  embedding      Unsupported("vector(768)")?
+  publishedAt    DateTime? @map("published_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  skills       JobSkill[]
+  applications Application[]
+  interviews   Interview[]
+  offers       Offer[]
+  onboardings  Onboarding[]
+  bookmarks    JobBookmark[]
+
+  @@index([tenantId, status])
+  @@index([companyId])
+  @@map("job")
+  @@schema("recruitment")
+}
+
+/// Tin tuyển dụng ứng viên đã lưu (bookmark).
+model JobBookmark {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@index([jobId])
+  @@map("job_bookmark")
+  @@schema("recruitment")
+}
+
+model JobSkill {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId    String  @map("job_id") @db.Uuid
+  skillId  String? @map("skill_id") @db.Uuid
+  name     String
+  required Boolean @default(true)
+  weight   Float   @default(1)
+
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill Skill? @relation(fields: [skillId], references: [id])
+
+  @@unique([jobId, name])
+  @@index([skillId])
+  @@map("job_skill")
+  @@schema("recruitment")
+}
+
+model Application {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String  @unique
+  tenantId    String  @map("tenant_id")
+  jobId       String  @map("job_id") @db.Uuid
+  candidateId String  @map("candidate_id") @db.Uuid
+  status      String  @default("applied")
+  matchScore  Float?  @map("match_score")
+  coverLetter String? @map("cover_letter")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  job       Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate Candidate             @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  timeline  ApplicationTimeline[]
+  interviews Interview[]
+  offers     Offer[]
+  onboardings Onboarding[]
+
+  @@unique([jobId, candidateId])
+  @@index([tenantId, status])
+  @@index([candidateId])
+  @@map("application")
+  @@schema("recruitment")
+}
+
+/// Buổi phỏng vấn gắn với hồ sơ ứng tuyển (Interview Engine MVP).
+model Interview {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String   @unique
+  tenantId        String   @map("tenant_id")
+  applicationId   String   @map("application_id") @db.Uuid
+  jobId           String   @map("job_id") @db.Uuid
+  candidateId     String   @map("candidate_id") @db.Uuid
+  type            String   @default("hr")
+  status          String   @default("scheduled")
+  scheduledAt     DateTime @map("scheduled_at")
+  durationMinutes Int      @default(60) @map("duration_minutes")
+  meetingLink     String?  @map("meeting_link")
+  location        String?
+  interviewerName String?  @map("interviewer_name")
+  notes           String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate   Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, scheduledAt])
+  @@index([jobId, scheduledAt])
+  @@index([candidateId, scheduledAt])
+  @@index([applicationId])
+  @@map("interview")
+  @@schema("recruitment")
+}
+
+/// Đề nghị tuyển dụng (Offer Engine MVP).
+model Offer {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String    @unique
+  tenantId      String    @map("tenant_id")
+  applicationId String    @map("application_id") @db.Uuid
+  jobId         String    @map("job_id") @db.Uuid
+  candidateId   String    @map("candidate_id") @db.Uuid
+  status        String    @default("pending")
+  salary        Int
+  currency      String    @default("VND")
+  startDate     DateTime? @map("start_date") @db.Date
+  expiresAt     DateTime? @map("expires_at") @db.Date
+  benefits      String?
+  notes         String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate   Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([applicationId])
+  @@map("offer")
+  @@schema("recruitment")
+}
+
+/// Onboarding nhân sự mới (sau khi nhận việc).
+model Onboarding {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String   @unique
+  tenantId       String   @map("tenant_id")
+  applicationId  String   @map("application_id") @db.Uuid
+  jobId          String   @map("job_id") @db.Uuid
+  candidateId    String   @map("candidate_id") @db.Uuid
+  status         String   @default("pending")
+  startDate      DateTime @map("start_date") @db.Date
+  reportLocation String?  @map("report_location")
+  contactName    String?  @map("contact_name")
+  contactPhone   String?  @map("contact_phone")
+  checklist      String?
+  notes          String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate   Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([applicationId])
+  @@map("onboarding")
+  @@schema("recruitment")
+}
+
+/// Dòng thời gian xử lý hồ sơ ứng tuyển (pipeline history).
+model ApplicationTimeline {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  tenantId      String   @map("tenant_id")
+  type          String
+  title         String
+  description   String?
+  occurredAt    DateTime @default(now()) @map("occurred_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("application_timeline")
+  @@schema("recruitment")
+}

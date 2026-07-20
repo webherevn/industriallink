@@ -1,0 +1,32 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Thống nhất một phiên bản ioredis duy nhất (tránh xung đột type giữa app và bullmq).
+overrides:
+  ioredis: "5.11.1"
+
+allowBuilds:
+  '@nestjs/core': set this to true or false
+  '@prisma/client': set this to true or false
+  '@prisma/engines': set this to true or false
+  '@scarf/scarf': set this to true or false
+  argon2: set this to true or false
+  msgpackr-extract: set this to true or false
+  prisma: set this to true or false
+  protobufjs: true
+  sharp: set this to true or false
+  unrs-resolver: set this to true or false
+
+# Cho phép chạy build script (native/postinstall) của các package tin cậy.
+onlyBuiltDependencies:
+  - argon2
+  - prisma
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@scarf/scarf"
+  - msgpackr-extract
+  - esbuild
+  - "@nestjs/core"
+  - sharp
+  - unrs-resolver

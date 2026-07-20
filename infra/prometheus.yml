@@ -1,0 +1,13 @@
+# Prometheus scrape config cho IndustrialLink (local).
+# OTEL PrometheusExporter của API lắng nghe trên host :9464.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: industriallink-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9464"]
+        labels:
+          service: industriallink-api

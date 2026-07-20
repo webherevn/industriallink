@@ -1,0 +1,31 @@
+{
+  "name": "industriallink",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IndustrialLink - Nền tảng kết nối nguồn nhân lực công nghiệp tích hợp AI",
+  "packageManager": "pnpm@11.13.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @industriallink/api db:generate",
+    "db:push": "pnpm --filter @industriallink/api db:push",
+    "db:migrate": "pnpm --filter @industriallink/api db:migrate",
+    "db:seed": "pnpm --filter @industriallink/api db:seed",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": ["protobufjs"]
+  }
+}

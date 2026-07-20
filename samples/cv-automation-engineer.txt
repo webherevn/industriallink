@@ -1,0 +1,25 @@
+HỒ SƠ ỨNG VIÊN (CV MẪU)
+
+Họ tên: Nguyễn Văn Nam
+Vị trí mong muốn: Senior Automation Engineer
+Kinh nghiệm: 8 năm trong lĩnh vực tự động hoá công nghiệp
+
+TÓM TẮT
+Kỹ sư tự động hoá với 8 năm kinh nghiệm triển khai hệ thống điều khiển cho nhà máy
+FDI Nhật Bản. Thành thạo lập trình PLC Siemens (S7-1200, S7-1500) trên TIA Portal,
+thiết kế giao diện HMI/SCADA với WinCC, tích hợp Robot ABB.
+
+KINH NGHIỆM
+- 2019-nay: Automation Engineer, Nhà máy Automotive (FDI Nhật).
+  Lập trình PLC Siemens, SCADA WinCC, bảo trì Robot ABB, áp dụng Lean/Kaizen/5S.
+- 2016-2019: PLC Engineer, Công ty tích hợp hệ thống.
+  Lập trình PLC Mitsubishi (GX Works), thiết kế tủ điện EPLAN, đọc bản vẽ AutoCAD.
+
+KỸ NĂNG
+PLC Siemens, TIA Portal, SCADA, WinCC, HMI, Robot ABB, EPLAN, AutoCAD, Lean Manufacturing.
+
+NGOẠI NGỮ
+Tiếng Anh: B2
+
+CHỨNG CHỈ
+Siemens TIA Portal Level 2, Lean Six Sigma Yellow Belt.
