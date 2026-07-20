@@ -1,11 +1,5 @@
-/** Production luôn same-origin. Dev mới dùng NEXT_PUBLIC_API_URL / localhost. */
-function apiBase(): string {
-  if (process.env.NODE_ENV === 'production') return '/api/v1';
-  const raw = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-  return `${raw || 'http://localhost:3001'}/api/v1`;
-}
-
-const API_BASE = apiBase();
+/** Luôn same-origin — nginx proxy /api → Nest. */
+const API_BASE = '/api/v1';
 
 const TOKEN_KEY = 'il_access_token';
 

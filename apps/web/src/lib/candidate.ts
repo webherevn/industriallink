@@ -7,10 +7,7 @@ import type {
 } from '@industriallink/contracts';
 import { apiRequest, tokenStore } from './api';
 
-const API_BASE =
-  process.env.NODE_ENV === 'production'
-    ? '/api/v1'
-    : `${(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '')}/api/v1`;
+const API_BASE = '/api/v1';
 
 export async function uploadResume(file: File): Promise<ResumeUploadResponse> {
   const form = new FormData();
