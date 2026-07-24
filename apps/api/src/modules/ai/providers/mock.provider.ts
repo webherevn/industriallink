@@ -66,6 +66,25 @@ export class MockAiProvider implements AiProvider {
       industry,
       specialization: skills[0]?.name ?? null,
       skills,
+      experiences: [
+        {
+          companyName: 'Atlas ABC',
+          jobTitle: isSales ? 'Sales Engineer' : 'Kỹ sư ứng dụng',
+          startYear: 2021,
+          endYear: 2024,
+          isCurrent: false,
+          productsSold: industry.includes('Khí') || /nen khi|compressor/i.test(haystack)
+            ? ['Máy nén khí']
+            : skills[0]
+              ? [skills[0].name]
+              : [],
+          customerSegments: ['Nhà máy FDI'],
+          marketsCovered: ['Bắc Ninh / Bắc Giang', 'Hải Phòng'],
+          industries: [industry],
+          highlights: 'Phụ trách khách hàng nhà máy FDI khu vực Bắc Ninh/Hải Phòng.',
+          missingFields: ['revenue', 'kpi', 'newCustomerRatio', 'dealValue', 'sellingStages'],
+        },
+      ],
       strengths: ['Kinh nghiệm thực chiến tại nhà máy', 'Thành thạo thiết bị công nghiệp chính'],
       weaknesses: totalExperienceYears < 8 ? ['Kinh nghiệm quản lý còn hạn chế'] : [],
       careerPath: ladder,

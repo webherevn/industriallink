@@ -110,8 +110,8 @@ function statusBadgeClass(status: ApplicationStatus): string {
 }
 
 function matchTone(score: number): string {
-  if (score >= 80) return 'text-emerald-600';
-  if (score >= 55) return 'text-brand-600';
+  if (score >= 80) return 'text-amber-600';
+  if (score >= 55) return 'text-amber-500';
   return 'text-slate-500';
 }
 
@@ -142,7 +142,7 @@ function NavItem({
       />
       <span className="flex-1 truncate">{label}</span>
       {badge && (
-        <span className="rounded bg-brand-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+        <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
           {badge}
         </span>
       )}
@@ -418,7 +418,7 @@ export default function ApplicationsPage() {
             </div>
             <Link
               href="/progress"
-              className="progress-btn border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100"
+              className="progress-btn border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
             >
               <Target className="h-3.5 w-3.5" />
               Xem tiến trình
@@ -430,7 +430,7 @@ export default function ApplicationsPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatCell
                 icon={<ClipboardList className="h-4 w-4" />}
-                iconClass="bg-brand-50 text-brand-600"
+                iconClass="bg-amber-50 text-amber-600"
                 label="Tổng đơn"
                 value={counts.total}
               />
@@ -466,7 +466,7 @@ export default function ApplicationsPage() {
                   setPage(1);
                 }}
                 placeholder="Tìm theo vị trí, công ty hoặc mã đơn…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-amber-200 focus:border-amber-300 focus:ring-2 focus:ring-amber-100"
               />
             </label>
             <div className="relative">
@@ -518,13 +518,13 @@ export default function ApplicationsPage() {
                 }}
                 className={clsx(
                   'relative px-3.5 py-2.5 text-[13px] font-semibold transition-colors duration-200',
-                  tab === t.id ? 'text-brand-600' : 'text-slate-500 hover:text-slate-800',
+                  tab === t.id ? 'text-amber-700' : 'text-slate-500 hover:text-slate-800',
                 )}
               >
                 {t.label} ({t.count})
                 <span
                   className={clsx(
-                    'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-brand-500 transition-all duration-200',
+                    'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-amber-500 transition-all duration-200',
                     tab === t.id ? 'scale-x-100 opacity-100' : 'scale-x-50 opacity-0',
                   )}
                 />
@@ -589,12 +589,12 @@ export default function ApplicationsPage() {
         {/* Right — ngữ cảnh & CTA */}
         <aside className="space-y-4 animate-soft-rise [animation-delay:120ms]">
           <div className="progress-card overflow-hidden p-0">
-            <div className="bg-gradient-to-br from-brand-600 to-sky-500 px-4 py-4 text-white">
-              <p className="text-xs font-medium text-brand-100">Độ phù hợp AI trung bình</p>
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 px-4 py-4 text-white">
+              <p className="text-xs font-medium text-amber-100">Độ phù hợp AI trung bình</p>
               <p className="mt-1 text-3xl font-bold tracking-tight">
                 {avgMatch != null ? `${avgMatch}%` : '—'}
               </p>
-              <p className="mt-1 text-[11px] text-brand-100">
+              <p className="mt-1 text-[11px] text-amber-100">
                 Trên {apps.filter((a) => a.matchScore != null).length} đơn có điểm khớp
               </p>
             </div>
@@ -642,13 +642,13 @@ export default function ApplicationsPage() {
                             ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }, 50);
                       }}
-                      className="group flex w-full items-start gap-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:bg-white hover:shadow-sm"
+                      className="group flex w-full items-start gap-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:bg-white hover:shadow-sm"
                     >
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white text-[11px] font-bold text-slate-500">
                         {companyInitials(a.companyName)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-slate-900 group-hover:text-brand-600">
+                        <p className="truncate text-xs font-bold text-slate-900 group-hover:text-amber-700">
                           {a.jobTitle}
                         </p>
                         <p className="truncate text-[11px] text-slate-500">{a.companyName}</p>
@@ -681,7 +681,7 @@ export default function ApplicationsPage() {
             </div>
             <ul className="mt-3 space-y-2.5 text-[12px] leading-relaxed text-slate-600">
               <li className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
                 Mở <strong className="font-semibold text-slate-800">Lịch sử</strong> để xem
                 từng mốc NTD đã cập nhật.
               </li>
@@ -763,7 +763,7 @@ function ApplicationRecordCard({
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/jobs/${app.jobId}`}
-                    className="text-[15px] font-bold text-slate-900 transition-colors hover:text-brand-600"
+                    className="text-[15px] font-bold text-slate-900 transition-colors hover:text-amber-700"
                   >
                     {app.jobTitle}
                   </Link>
@@ -815,7 +815,7 @@ function ApplicationRecordCard({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Link
                 href={`/jobs/${app.jobId}`}
-                className="progress-btn border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                className="progress-btn border border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
               >
                 Xem tin tuyển dụng
               </Link>

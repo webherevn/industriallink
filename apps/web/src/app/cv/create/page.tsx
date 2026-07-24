@@ -10,30 +10,35 @@ import {
   Download,
   FileUp,
   Loader2,
-  Mail,
-  MapPin,
   Monitor,
-  Phone,
   Save,
   Smartphone,
-  Sparkles,
+  UserRound,
   Upload,
   Wand2,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
+import { CvPreview } from '@/components/cv-preview';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { downloadElementAsPdf } from '@/lib/download-cv';
 import { draftCvFromFile, draftCvFromText, getMyCandidate, saveCvDraftToProfile } from '@/lib/candidate';
 import {
+  candidateHasCvSource,
+  draftFromCandidate,
+  fieldHintsFromDraft,
+} from '@/lib/cv-from-profile';
+import {
   CV_CREATE_STEPS,
   CV_TEMPLATE_FILTERS,
   CV_TEMPLATES,
+  emptyCvDraft,
+  normalizeCvDraft,
   type CvDraft,
   type CvTemplate,
   type CvTemplateCategory,
@@ -47,27 +52,22 @@ Có chứng chỉ An toàn lao động và ISO 9001 Awareness.
 Dự án: nâng cấp hệ thống PLC dây chuyền đóng gói, giảm 18% thời gian đổi mã.`;
 
 function toDraft(view: CvDraftView): CvDraft {
-  return { ...view };
+  return normalizeCvDraft(view);
 }
 
 function emptyDraft(name: string, email: string): CvDraft {
-  return {
-    fullName: name,
-    title: '',
-    email,
-    phone: '',
-    location: '',
-    summary: '',
-    skills: [],
-    softSkills: [],
-    experience: [],
-    education: [],
-    certificates: [],
-    projects: [],
-  };
+  return emptyCvDraft(name, email);
 }
 
-const CV_UPLOAD_ACCEPT = '.pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
+function splitCsv(value: string): string[] {
+  return value
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const CV_UPLOAD_ACCEPT =
+  '.pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
 
 export default function CreateCvPage() {
   const [step, setStep] = useState(1);
@@ -85,11 +85,14 @@ export default function CreateCvPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [importSource, setImportSource] = useState<'ai' | 'profile' | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cvPreviewRef = useRef<HTMLDivElement>(null);
+  const fieldsCardRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
-  const { data: candidate } = useQuery({
+  const { data: candidate, isLoading: candidateLoading } = useQuery({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
     retry: false,
@@ -98,6 +101,7 @@ export default function CreateCvPage() {
   const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
   const selected = CV_TEMPLATES.find((t) => t.id === selectedId) ?? CV_TEMPLATES[0];
   const activeDraft = draft ?? emptyDraft(displayName, me?.email ?? '');
+  const canImportFromProfile = candidateHasCvSource(candidate);
 
   const templates = useMemo(
     () =>
@@ -115,6 +119,45 @@ export default function CreateCvPage() {
     setAnalyzeMessage(res.message);
     setAiScore(res.aiScore);
     setAnalyzed(true);
+    setImportSource('ai');
+    setImportError(null);
+  }
+
+  function importFromProfile() {
+    setImportError(null);
+    if (!candidate) {
+      setImportError('Chưa có hồ sơ ứng viên. Hãy hoàn thiện hồ sơ trước.');
+      return;
+    }
+    if (!candidateHasCvSource(candidate)) {
+      setImportError('Hồ sơ còn trống. Cập nhật hồ sơ rồi thử lại.');
+      return;
+    }
+    const next = draftFromCandidate(candidate, me?.email ?? '');
+    setDraft(next);
+    setFields(fieldHintsFromDraft(next));
+    setAnalyzeMessage(
+      'Đã nạp thông tin từ hồ sơ của bạn. Kiểm tra các trường bên dưới rồi tiếp tục chọn mẫu CV.',
+    );
+    setAiScore(null);
+    setAnalyzed(true);
+    setImportSource('profile');
+    window.setTimeout(() => {
+      fieldsCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
+
+  function updateExperience(
+    index: number,
+    patch: Partial<CvDraft['experience'][number]>,
+  ) {
+    setDraft((prev) => {
+      const base = prev ?? activeDraft;
+      const experience = base.experience.map((row, i) =>
+        i === index ? { ...row, ...patch } : row,
+      );
+      return { ...base, experience };
+    });
   }
 
   const analyzeMutation = useMutation({
@@ -214,7 +257,8 @@ export default function CreateCvPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tạo CV bằng AI</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Upload CV có sẵn hoặc nhập tự do — AI trích xuất các trường và gợi ý phần còn thiếu.
+              Nạp từ hồ sơ, upload CV có sẵn hoặc nhập tự do — chỉnh sửa trường, chọn mẫu rồi tải
+              PDF.
             </p>
           </div>
 
@@ -229,7 +273,7 @@ export default function CreateCvPage() {
                       Bước 1: Nhập thông tin
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
-                      Upload file CV để AI phân tích ngay, hoặc viết tự nhiên bên dưới.
+                      Nạp từ hồ sơ đã lưu, upload file CV, hoặc viết tự nhiên bên dưới.
                     </p>
                   </div>
                   <button
@@ -239,6 +283,53 @@ export default function CreateCvPage() {
                   >
                     Dùng ví dụ mẫu
                   </button>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50/80 to-white px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600 shadow-sm ring-1 ring-brand-100">
+                        <UserRound className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">
+                          Nhập thông tin từ hồ sơ
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Điền sẵn họ tên, liên hệ, kỹ năng, kinh nghiệm công ty, học vấn từ hồ sơ
+                          đã cập nhật — rồi chọn mẫu và tải CV.
+                        </p>
+                        {candidate && (
+                          <p className="mt-1.5 text-[11px] font-medium text-brand-700">
+                            {candidate.experiences.length} kinh nghiệm ·{' '}
+                            {candidate.skills.length} kỹ năng · hồ sơ{' '}
+                            {candidate.profileCompletion}%
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={candidateLoading || analyzing || !canImportFromProfile}
+                      onClick={importFromProfile}
+                      className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <UserRound className="h-4 w-4" />
+                      {candidateLoading ? 'Đang tải hồ sơ…' : 'Dùng hồ sơ của tôi'}
+                    </button>
+                  </div>
+                  {importError && (
+                    <p className="mt-3 text-sm text-rose-600">{importError}</p>
+                  )}
+                  {!candidateLoading && !canImportFromProfile && (
+                    <p className="mt-3 text-xs text-amber-700">
+                      Hồ sơ còn trống.{' '}
+                      <Link href="/profile/edit" className="font-semibold underline">
+                        Cập nhật hồ sơ
+                      </Link>{' '}
+                      rồi quay lại đây.
+                    </p>
+                  )}
                 </div>
 
                 <input
@@ -252,7 +343,18 @@ export default function CreateCvPage() {
                   }}
                 />
 
-                <div className="mt-4 rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-4">
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center" aria-hidden>
+                    <div className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      hoặc upload / nhập văn bản
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600 shadow-sm ring-1 ring-brand-100">
@@ -346,15 +448,24 @@ export default function CreateCvPage() {
               </div>
 
               {analyzed && (
-                <div className="progress-card space-y-4 p-5">
+                <div ref={fieldsCardRef} className="progress-card space-y-4 p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-sm font-bold text-slate-900">Kết quả AI trích xuất</h2>
+                      <h2 className="text-sm font-bold text-slate-900">
+                        {importSource === 'profile'
+                          ? 'Thông tin từ hồ sơ'
+                          : 'Kết quả AI trích xuất'}
+                      </h2>
                       <p className="mt-1 text-xs text-slate-500">{analyzeMessage}</p>
                     </div>
                     {aiScore != null && (
                       <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 ring-1 ring-brand-100">
                         Điểm AI {aiScore}/100
+                      </span>
+                    )}
+                    {importSource === 'profile' && (
+                      <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                        Từ hồ sơ
                       </span>
                     )}
                   </div>
@@ -424,15 +535,7 @@ export default function CreateCvPage() {
                     <Field
                       label="Kỹ năng (phẩy)"
                       value={activeDraft.skills.join(', ')}
-                      onChange={(v) =>
-                        updateDraft(
-                          'skills',
-                          v
-                            .split(',')
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
+                      onChange={(v) => updateDraft('skills', splitCsv(v))}
                       hint={fields.find((f) => f.key === 'skills')}
                     />
                   </div>
@@ -450,24 +553,183 @@ export default function CreateCvPage() {
                     />
                   </label>
 
-                  <label className="block">
+                  <div>
                     <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      Kinh nghiệm (mô tả ngắn)
+                      Kinh nghiệm làm việc
                       <FieldStatusDot hint={fields.find((f) => f.key === 'experience')} />
                     </span>
-                    <textarea
-                      rows={3}
-                      value={activeDraft.experience[0]?.bullets ?? ''}
-                      onChange={(e) =>
-                        updateDraft('experience', [
+                    {activeDraft.experience.length === 0 ? (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Chưa có kinh nghiệm. Thêm trong hồ sơ hoặc mô tả sau khi phân tích AI.
+                      </p>
+                    ) : (
+                      <div className="mt-2 space-y-3">
+                        {activeDraft.experience.map((exp, index) => (
+                          <div
+                            key={`${exp.company}-${exp.role}-${index}`}
+                            className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+                          >
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <input
+                                value={exp.role}
+                                onChange={(e) =>
+                                  updateExperience(index, { role: e.target.value })
+                                }
+                                placeholder="Vị trí"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
+                                value={exp.company}
+                                onChange={(e) =>
+                                  updateExperience(index, { company: e.target.value })
+                                }
+                                placeholder="Công ty"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
+                                value={exp.period}
+                                onChange={(e) =>
+                                  updateExperience(index, { period: e.target.value })
+                                }
+                                placeholder="Thời gian"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                            </div>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                              <input
+                                value={exp.productsSold.join(', ')}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    productsSold: splitCsv(e.target.value),
+                                  })
+                                }
+                                placeholder="Sản phẩm bán (phẩy)"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
+                                value={exp.customerSegments.join(', ')}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    customerSegments: splitCsv(e.target.value),
+                                  })
+                                }
+                                placeholder="Tệp KH (phẩy)"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
+                                value={exp.marketsCovered.join(', ')}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    marketsCovered: splitCsv(e.target.value),
+                                  })
+                                }
+                                placeholder="Thị trường (phẩy)"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
+                                value={exp.sellingStages.join(', ')}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    sellingStages: splitCsv(e.target.value),
+                                  })
+                                }
+                                placeholder="Giai đoạn bán (phẩy)"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                            </div>
+                            <textarea
+                              rows={3}
+                              value={exp.bullets}
+                              onChange={(e) =>
+                                updateExperience(index, { bullets: e.target.value })
+                              }
+                              placeholder="Mô tả công việc / thành tích (mỗi dòng 1 ý)"
+                              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field
+                      label="Sản phẩm bán (tổng hợp)"
+                      value={activeDraft.productsSold.join(', ')}
+                      onChange={(v) => updateDraft('productsSold', splitCsv(v))}
+                      hint={fields.find((f) => f.key === 'products')}
+                    />
+                    <Field
+                      label="Tệp khách hàng"
+                      value={activeDraft.customerSegments.join(', ')}
+                      onChange={(v) => updateDraft('customerSegments', splitCsv(v))}
+                      hint={fields.find((f) => f.key === 'segments')}
+                    />
+                    <Field
+                      label="Thị trường phụ trách"
+                      value={activeDraft.marketsCovered.join(', ')}
+                      onChange={(v) => updateDraft('marketsCovered', splitCsv(v))}
+                      hint={fields.find((f) => f.key === 'markets')}
+                    />
+                    <Field
+                      label="Ngoại ngữ (phẩy)"
+                      value={activeDraft.languages.join(', ')}
+                      onChange={(v) => updateDraft('languages', splitCsv(v))}
+                      hint={fields.find((f) => f.key === 'languages')}
+                    />
+                    <Field
+                      label="Vị trí mong muốn (phẩy)"
+                      value={activeDraft.desiredPositions.join(', ')}
+                      onChange={(v) => updateDraft('desiredPositions', splitCsv(v))}
+                    />
+                    <Field
+                      label="Điểm mạnh / soft skills (phẩy)"
+                      value={activeDraft.softSkills.join(', ')}
+                      onChange={(v) => updateDraft('softSkills', splitCsv(v))}
+                    />
+                    <Field
+                      label="Học vấn (trường)"
+                      value={activeDraft.education[0]?.school ?? ''}
+                      onChange={(v) =>
+                        updateDraft('education', [
                           {
-                            role: activeDraft.title || 'Vị trí',
-                            company: activeDraft.experience[0]?.company || 'Công ty',
-                            period: activeDraft.experience[0]?.period || '',
-                            bullets: e.target.value,
+                            school: v,
+                            degree: activeDraft.education[0]?.degree ?? '',
+                            period: activeDraft.education[0]?.period ?? '',
                           },
                         ])
                       }
+                      hint={fields.find((f) => f.key === 'education')}
+                    />
+                    <Field
+                      label="Bằng cấp / chuyên ngành"
+                      value={activeDraft.education[0]?.degree ?? ''}
+                      onChange={(v) =>
+                        updateDraft('education', [
+                          {
+                            school: activeDraft.education[0]?.school ?? '',
+                            degree: v,
+                            period: activeDraft.education[0]?.period ?? '',
+                          },
+                        ])
+                      }
+                    />
+                    <Field
+                      label="Chứng chỉ (phẩy)"
+                      value={activeDraft.certificates.join(', ')}
+                      onChange={(v) => updateDraft('certificates', splitCsv(v))}
+                      hint={fields.find((f) => f.key === 'certificates')}
+                    />
+                  </div>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600">
+                      Điểm nổi bật Sales (tóm tắt)
+                    </span>
+                    <textarea
+                      rows={2}
+                      value={activeDraft.salesHighlights}
+                      onChange={(e) => updateDraft('salesHighlights', e.target.value)}
                       className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
                     />
                   </label>
@@ -678,18 +940,18 @@ export default function CreateCvPage() {
                   previewMode === 'mobile' && 'flex justify-center',
                 )}
               >
-                  <div
+                <div
                   className={clsx(
                     'overflow-hidden bg-white shadow-sm ring-1 ring-slate-200/80',
                     previewMode === 'mobile' ? 'w-[240px]' : 'w-full',
                   )}
                 >
-                    <CvPreview
-                      draft={activeDraft}
-                      template={selected}
-                      compact={previewMode === 'mobile'}
-                      empty={!analyzed && step === 1}
-                    />
+                  <CvPreview
+                    draft={activeDraft}
+                    template={selected}
+                    compact={previewMode === 'mobile'}
+                    empty={!analyzed && step === 1}
+                  />
                 </div>
               </div>
               <div className="space-y-2 border-t border-slate-100 p-4">
@@ -748,6 +1010,7 @@ export default function CreateCvPage() {
             draft={activeDraft}
             template={selected}
             empty={!analyzed && step === 1}
+            exportWidth={794}
           />
         </div>
       </div>
@@ -916,153 +1179,6 @@ function MiniTemplateThumb({ template }: { template: CvTemplate }) {
         <div className="h-1 rounded bg-slate-100" />
         <div className="h-1 w-5/6 rounded bg-slate-100" />
       </div>
-    </div>
-  );
-}
-
-function CvPreview({
-  draft,
-  template,
-  compact,
-  empty,
-}: {
-  draft: CvDraft;
-  template: CvTemplate;
-  compact?: boolean;
-  empty?: boolean;
-}) {
-  if (empty) {
-    return (
-      <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 bg-white p-6 text-center">
-        <Sparkles className="h-8 w-8 text-brand-300" />
-        <p className="text-xs font-semibold text-slate-600">Chưa có nội dung CV</p>
-        <p className="text-[11px] text-slate-400">
-          Nhập text và bấm Phân tích bằng AI để xem trước.
-        </p>
-      </div>
-    );
-  }
-
-  const text = compact ? 'text-[7px]' : 'text-[9px]';
-
-  return (
-    <div className={clsx('flex min-h-[360px] bg-white text-slate-800', text)}>
-      <aside
-        className={clsx('shrink-0 text-white', compact ? 'w-[38%] p-2' : 'w-[36%] p-3')}
-        style={{ backgroundColor: template.accent }}
-      >
-        <div
-          className={clsx(
-            'mx-auto flex items-center justify-center rounded-full bg-white/20 font-bold',
-            compact ? 'h-10 w-10 text-[10px]' : 'h-14 w-14 text-sm',
-          )}
-        >
-          {(draft.fullName || 'UV')
-            .split(/\s+/)
-            .map((w) => w[0])
-            .slice(-2)
-            .join('')
-            .toUpperCase()}
-        </div>
-        <p className={clsx('mt-2 text-center font-extrabold leading-tight', compact ? 'text-[9px]' : 'text-[11px]')}>
-          {draft.fullName || 'HỌ TÊN'}
-        </p>
-        <p className="mt-0.5 text-center text-[8px] uppercase tracking-wide text-white/80">
-          {draft.title || 'Vị trí'}
-        </p>
-        <div className="mt-3 space-y-1.5 text-[8px] text-white/90">
-          <p className="flex items-center gap-1">
-            <Mail className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">{draft.email || 'email'}</span>
-          </p>
-          <p className="flex items-center gap-1">
-            <Phone className="h-2.5 w-2.5 shrink-0" /> {draft.phone || 'SĐT'}
-          </p>
-          <p className="flex items-center gap-1">
-            <MapPin className="h-2.5 w-2.5 shrink-0" /> {draft.location || 'Địa điểm'}
-          </p>
-        </div>
-        <p className="mt-3 text-[8px] font-bold uppercase tracking-wide text-white/70">
-          Kỹ năng chuyên môn
-        </p>
-        <ul className="mt-1.5 space-y-1.5">
-          {(draft.skills.length ? draft.skills : ['Chưa có']).slice(0, 5).map((s, i) => (
-            <li key={s + i}>
-              <p className="truncate text-[8px]">{s}</p>
-              <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-white/20">
-                <div className="h-full rounded-full bg-white/80" style={{ width: `${88 - i * 8}%` }} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </aside>
-      <div className={clsx('min-w-0 flex-1', compact ? 'p-2' : 'p-3')}>
-        <Section title="Giới thiệu" accent={template.accent}>
-          {draft.summary || 'Chưa có giới thiệu'}
-        </Section>
-        <Section title="Kinh nghiệm làm việc" accent={template.accent}>
-          {draft.experience.length === 0 ? (
-            <p className="text-[8px] text-slate-400">Chưa có kinh nghiệm</p>
-          ) : (
-            draft.experience.map((e) => (
-              <div key={e.role + e.company} className="mb-2">
-                <p className="font-bold text-[9px]">
-                  {e.role} — {e.company}
-                </p>
-                <p className="text-[8px] text-slate-400">{e.period}</p>
-                <p className="mt-0.5 whitespace-pre-line text-[8px] leading-relaxed text-slate-600">
-                  {e.bullets}
-                </p>
-              </div>
-            ))
-          )}
-        </Section>
-        <Section title="Học vấn" accent={template.accent}>
-          {draft.education.length === 0 ? (
-            <p className="text-[8px] text-slate-400">Chưa có học vấn</p>
-          ) : (
-            draft.education.map((e) => (
-              <div key={e.school} className="mb-1">
-                <p className="font-bold text-[9px]">{e.school}</p>
-                <p className="text-[8px] text-slate-600">
-                  {e.degree} · {e.period}
-                </p>
-              </div>
-            ))
-          )}
-        </Section>
-        {draft.certificates.length > 0 && (
-          <Section title="Chứng chỉ" accent={template.accent}>
-            <ul className="list-disc space-y-0.5 pl-3 text-[8px]">
-              {draft.certificates.map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-          </Section>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  accent,
-  children,
-}: {
-  title: string;
-  accent: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="mb-2.5">
-      <p
-        className="border-b pb-0.5 text-[8px] font-bold uppercase tracking-wide"
-        style={{ color: accent, borderColor: `${accent}33` }}
-      >
-        {title}
-      </p>
-      <div className="mt-1.5">{children}</div>
     </div>
   );
 }

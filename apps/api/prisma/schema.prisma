@@ -1,6 +1,6 @@
 // Prisma schema cho IndustrialLink.
-// Multi-schema theo Business Domain. Mọi entity kế thừa nhóm trường Base
-// (created/updated/deleted + version + soft delete + tenant) theo chuẩn Chương 4.4.1.
+// Multi-schema theo Business Domain. Má»i entity káº¿ thá»«a nhÃ³m trÆ°á»ng Base
+// (created/updated/deleted + version + soft delete + tenant) theo chuáº©n ChÆ°Æ¡ng 4.4.1.
 
 generator client {
   provider        = "prisma-client-js"
@@ -17,7 +17,7 @@ datasource db {
 // SHARED
 // =========================================================================
 
-/// Bộ đếm dùng để sinh Business Code dạng CAN-2026-000001.
+/// Bá»™ Ä‘áº¿m dÃ¹ng Ä‘á»ƒ sinh Business Code dáº¡ng CAN-2026-000001.
 model Sequence {
   key   String @id
   value BigInt @default(0)
@@ -26,7 +26,7 @@ model Sequence {
   @@schema("shared")
 }
 
-/// Thông báo in-app (MVP). Email thật để giai đoạn sau.
+/// ThÃ´ng bÃ¡o in-app (MVP). Email tháº­t Ä‘á»ƒ giai Ä‘oáº¡n sau.
 model Notification {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId   String    @map("tenant_id")
@@ -61,13 +61,13 @@ model User {
   role         String
   status       String  @default("created")
   isVerified   Boolean @default(false) @map("is_verified")
-  /// Bật MFA: sau khi nhập mật khẩu đúng phải xác thực OTP email/TOTP mới cấp JWT.
+  /// Báº­t MFA: sau khi nháº­p máº­t kháº©u Ä‘Ãºng pháº£i xÃ¡c thá»±c OTP email/TOTP má»›i cáº¥p JWT.
   mfaEnabled Boolean @default(false) @map("mfa_enabled")
-  /// Phương thức MFA đang bật: "email_otp" | "totp". null nếu mfaEnabled=false.
+  /// PhÆ°Æ¡ng thá»©c MFA Ä‘ang báº­t: "email_otp" | "totp". null náº¿u mfaEnabled=false.
   mfaMethod  String? @map("mfa_method")
-  /// Secret TOTP đã xác nhận (chỉ có khi mfaMethod="totp").
+  /// Secret TOTP Ä‘Ã£ xÃ¡c nháº­n (chá»‰ cÃ³ khi mfaMethod="totp").
   totpSecret String? @map("totp_secret")
-  /// Secret TOTP tạm sinh ra khi setup, chờ xác nhận bằng 1 mã đúng.
+  /// Secret TOTP táº¡m sinh ra khi setup, chá» xÃ¡c nháº­n báº±ng 1 mÃ£ Ä‘Ãºng.
   totpPendingSecret String? @map("totp_pending_secret")
 
   // Base fields
@@ -92,7 +92,7 @@ model User {
   @@schema("identity")
 }
 
-/// Mã OTP xác thực email khi đăng ký.
+/// MÃ£ OTP xÃ¡c thá»±c email khi Ä‘Äƒng kÃ½.
 model OtpCode {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
@@ -109,7 +109,7 @@ model OtpCode {
   @@schema("identity")
 }
 
-/// Refresh token (lưu hash) phục vụ xoay vòng token an toàn.
+/// Refresh token (lÆ°u hash) phá»¥c vá»¥ xoay vÃ²ng token an toÃ n.
 model RefreshToken {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
@@ -126,7 +126,7 @@ model RefreshToken {
   @@schema("identity")
 }
 
-/// Nhật ký thay đổi dữ liệu (Audit Log) - phục vụ compliance & truy vết.
+/// Nháº­t kÃ½ thay Ä‘á»•i dá»¯ liá»‡u (Audit Log) - phá»¥c vá»¥ compliance & truy váº¿t.
 model AuditLog {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String   @map("tenant_id")
@@ -151,7 +151,7 @@ model AuditLog {
 // KNOWLEDGE DOMAIN (Taxonomy)
 // =========================================================================
 
-/// Kỹ năng chuẩn hoá (không lưu text tự do). Nền tảng cho AI Matching.
+/// Ká»¹ nÄƒng chuáº©n hoÃ¡ (khÃ´ng lÆ°u text tá»± do). Ná»n táº£ng cho AI Matching.
 model Skill {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code       String   @unique
@@ -190,7 +190,7 @@ model Candidate {
   displayName       String @map("display_name")
   status            String @default("registered")
   profileCompletion Int    @default(0) @map("profile_completion")
-  /// Ảnh đại diện tải lên (Object Storage key). null → frontend dùng Gravatar/email.
+  /// áº¢nh Ä‘áº¡i diá»‡n táº£i lÃªn (Object Storage key). null â†’ frontend dÃ¹ng Gravatar/email.
   avatarStorageKey  String? @map("avatar_storage_key")
   avatarMime        String? @map("avatar_mime")
 
@@ -209,6 +209,7 @@ model Candidate {
   searchIndex  CandidateSearchIndex?
   resumes      CandidateResume[]
   skills       CandidateSkill[]
+  experiences  CandidateExperience[]
   timeline     CandidateTimeline[]
   applications Application[]
   interviews   Interview[]
@@ -227,22 +228,22 @@ model CandidateProfile {
   jobLevel             String? @map("job_level")
   totalExperienceYears Float?  @map("total_experience_years")
   industry             String?
-  /// Nhiều ngành đã làm (bộ lọc chính Sales B2B).
+  /// Nhiá»u ngÃ nh Ä‘Ã£ lÃ m (bá»™ lá»c chÃ­nh Sales B2B).
   industriesExperienced String[] @default([]) @map("industries_experienced")
   specialization       String?
   summary              String?
   careerObjective      String? @map("career_objective")
 
-  /// Sản phẩm / giải pháp đã bán.
+  /// Sáº£n pháº©m / giáº£i phÃ¡p Ä‘Ã£ bÃ¡n.
   productsSold       String[] @default([]) @map("products_sold")
-  /// Tệp khách hàng đã bán.
+  /// Tá»‡p khÃ¡ch hÃ ng Ä‘Ã£ bÃ¡n.
   customerSegments   String[] @default([]) @map("customer_segments")
-  /// Kinh nghiệm Sales B2B (under_1 | 1_3 | 3_5 | 5_10 | 10_plus).
+  /// Kinh nghiá»‡m Sales B2B (under_1 | 1_3 | 3_5 | 5_10 | 10_plus).
   b2bExperienceBand  String?  @map("b2b_experience_band")
-  /// Khu vực / thị trường đã phụ trách.
+  /// Khu vá»±c / thá»‹ trÆ°á»ng Ä‘Ã£ phá»¥ trÃ¡ch.
   marketsCovered     String[] @default([]) @map("markets_covered")
 
-  /// Thành tích & đánh giá nâng cao.
+  /// ThÃ nh tÃ­ch & Ä‘Ã¡nh giÃ¡ nÃ¢ng cao.
   latestRevenue        Float?  @map("latest_revenue")
   kpiAchievementPct    Float?  @map("kpi_achievement_pct")
   salesHighlights      String? @map("sales_highlights")
@@ -252,13 +253,29 @@ model CandidateProfile {
   typicalDealValue     Float?  @map("typical_deal_value")
   maxDealValue         Float?  @map("max_deal_value")
   sellingStages        String[] @default([]) @map("selling_stages")
-  jobReadiness         String? @map("job_readiness")
+  jobReadiness         String?  @map("job_readiness")
+  availabilityBand     String?  @map("availability_band")
   noticePeriodDays     Int?    @map("notice_period_days")
   expectedSalaryMin    Int?    @map("expected_salary_min")
   expectedSalaryMax    Int?    @map("expected_salary_max")
+  expectedOte          Int?    @map("expected_ote")
   languages            String[] @default([])
   hasB2License         Boolean? @map("has_b2_license")
+  driverLicenseType    String?  @map("driver_license_type")
   willingToTravel      Boolean? @map("willing_to_travel")
+  travelAbility        String?  @map("travel_ability")
+  desiredPositions     String[] @default([]) @map("desired_positions")
+  desiredLocations     String[] @default([]) @map("desired_locations")
+  careerMotivations    String[] @default([]) @map("career_motivations")
+  workStyles           String[] @default([]) @map("work_styles")
+  careerOrientation    String?  @map("career_orientation")
+  educationLevel       String?  @map("education_level")
+  educationSchool      String?  @map("education_school")
+  educationMajor       String?  @map("education_major")
+  certificates         String[] @default([])
+  birthYear            Int?     @map("birth_year")
+  currentCity          String?  @map("current_city")
+  phone                String?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -269,7 +286,52 @@ model CandidateProfile {
   @@schema("candidate")
 }
 
-/// Metadata của file CV. File thật lưu ở Object Storage (MinIO/S3).
+/// Kinh nghiem theo tung cong ty (ma tran ho so Sales B2B).
+model CandidateExperience {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String  @map("candidate_id") @db.Uuid
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  companyName String  @map("company_name")
+  jobTitle    String  @map("job_title")
+  startYear   Int?    @map("start_year")
+  endYear     Int?    @map("end_year")
+  isCurrent   Boolean @default(false) @map("is_current")
+
+  industries       String[] @default([])
+  productsSold     String[] @default([]) @map("products_sold")
+  customerSegments String[] @default([]) @map("customer_segments")
+  marketsCovered   String[] @default([]) @map("markets_covered")
+  sellingStages    String[] @default([]) @map("selling_stages")
+
+  revenueBand          String? @map("revenue_band")
+  latestRevenue        Float?  @map("latest_revenue")
+  kpiBand              String? @map("kpi_band")
+  kpiAchievementPct    Float?  @map("kpi_achievement_pct")
+  newCustomerRatioBand String? @map("new_customer_ratio_band")
+  newCustomerRatioPct  Float?  @map("new_customer_ratio_pct")
+  dealType             String? @map("deal_type")
+  typicalDealValueBand String? @map("typical_deal_value_band")
+  typicalDealValue     Float?  @map("typical_deal_value")
+  maxDealValue         Float?  @map("max_deal_value")
+  maxDealRole          String? @map("max_deal_role")
+
+  highlights     String?
+  jobDescription String? @map("job_description")
+  missingFields  String[] @default([]) @map("missing_fields")
+  source         String   @default("manual")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId, sortOrder])
+  @@map("candidate_experience")
+  @@schema("candidate")
+}
+
+/// Metadata cá»§a file CV. File tháº­t lÆ°u á»Ÿ Object Storage (MinIO/S3).
 model CandidateResume {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   candidateId String  @map("candidate_id") @db.Uuid
@@ -312,7 +374,7 @@ model CandidateSkill {
   @@schema("candidate")
 }
 
-/// Hồ sơ AI của ứng viên - do AI sinh, không phải người dùng nhập.
+/// Há»“ sÆ¡ AI cá»§a á»©ng viÃªn - do AI sinh, khÃ´ng pháº£i ngÆ°á»i dÃ¹ng nháº­p.
 model CandidateAiProfile {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   candidateId    String   @unique @map("candidate_id") @db.Uuid
@@ -322,7 +384,7 @@ model CandidateAiProfile {
   careerPath     String?  @map("career_path")
   aiScore        Float?   @map("ai_score")
   confidence     Float?
-  // Vector embedding (pgvector). Ghi/đọc qua raw SQL; Prisma bỏ qua cột này.
+  // Vector embedding (pgvector). Ghi/Ä‘á»c qua raw SQL; Prisma bá» qua cá»™t nÃ y.
   embedding      Unsupported("vector(768)")?
   lastAnalyzedAt DateTime? @map("last_analyzed_at")
 
@@ -335,7 +397,7 @@ model CandidateAiProfile {
   @@schema("candidate")
 }
 
-/// Chỉ mục tìm kiếm của ứng viên (full-text + vector). Search không query bảng giao dịch.
+/// Chá»‰ má»¥c tÃ¬m kiáº¿m cá»§a á»©ng viÃªn (full-text + vector). Search khÃ´ng query báº£ng giao dá»‹ch.
 model CandidateSearchIndex {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   candidateId String  @unique @map("candidate_id") @db.Uuid
@@ -351,7 +413,7 @@ model CandidateSearchIndex {
   @@schema("candidate")
 }
 
-/// Dòng thời gian nghiệp vụ của ứng viên (khác Audit Log).
+/// DÃ²ng thá»i gian nghiá»‡p vá»¥ cá»§a á»©ng viÃªn (khÃ¡c Audit Log).
 model CandidateTimeline {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   candidateId String   @map("candidate_id") @db.Uuid
@@ -385,7 +447,7 @@ model Company {
   website     String?
   description String?
   status      String  @default("active")
-  /// Hồ sơ thương hiệu công khai (banner, gallery, reviews…).
+  /// Há»“ sÆ¡ thÆ°Æ¡ng hiá»‡u cÃ´ng khai (banner, gallery, reviewsâ€¦).
   profile     Json?
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -405,7 +467,7 @@ model Company {
   @@schema("company")
 }
 
-/// Thành viên của công ty (liên kết User <-> Company + vai trò trong công ty).
+/// ThÃ nh viÃªn cá»§a cÃ´ng ty (liÃªn káº¿t User <-> Company + vai trÃ² trong cÃ´ng ty).
 model CompanyMember {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId     String   @map("company_id") @db.Uuid
@@ -446,7 +508,7 @@ model Job {
   salaryMin      Int?    @map("salary_min")
   salaryMax      Int?    @map("salary_max")
   status         String  @default("draft")
-  // Embedding của mô tả công việc (JD) cho AI Matching, ghi/đọc qua raw SQL.
+  // Embedding cá»§a mÃ´ táº£ cÃ´ng viá»‡c (JD) cho AI Matching, ghi/Ä‘á»c qua raw SQL.
   embedding      Unsupported("vector(768)")?
   publishedAt    DateTime? @map("published_at")
 
@@ -473,7 +535,7 @@ model Job {
   @@schema("recruitment")
 }
 
-/// Tin tuyển dụng ứng viên đã lưu (bookmark).
+/// Tin tuyá»ƒn dá»¥ng á»©ng viÃªn Ä‘Ã£ lÆ°u (bookmark).
 model JobBookmark {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
@@ -540,7 +602,7 @@ model Application {
   @@schema("recruitment")
 }
 
-/// Buổi phỏng vấn gắn với hồ sơ ứng tuyển (Interview Engine MVP).
+/// Buá»•i phá»ng váº¥n gáº¯n vá»›i há»“ sÆ¡ á»©ng tuyá»ƒn (Interview Engine MVP).
 model Interview {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code            String   @unique
@@ -578,7 +640,7 @@ model Interview {
   @@schema("recruitment")
 }
 
-/// Đề nghị tuyển dụng (Offer Engine MVP).
+/// Äá» nghá»‹ tuyá»ƒn dá»¥ng (Offer Engine MVP).
 model Offer {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code          String    @unique
@@ -615,7 +677,7 @@ model Offer {
   @@schema("recruitment")
 }
 
-/// Onboarding nhân sự mới (sau khi nhận việc).
+/// Onboarding nhÃ¢n sá»± má»›i (sau khi nháº­n viá»‡c).
 model Onboarding {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code           String   @unique
@@ -652,7 +714,7 @@ model Onboarding {
   @@schema("recruitment")
 }
 
-/// Dòng thời gian xử lý hồ sơ ứng tuyển (pipeline history).
+/// DÃ²ng thá»i gian xá»­ lÃ½ há»“ sÆ¡ á»©ng tuyá»ƒn (pipeline history).
 model ApplicationTimeline {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId String   @map("application_id") @db.Uuid
@@ -668,3 +730,4 @@ model ApplicationTimeline {
   @@map("application_timeline")
   @@schema("recruitment")
 }
+

@@ -128,8 +128,8 @@ function Chip({
         'inline-flex items-center gap-1 rounded-lg border text-left font-medium transition-all duration-200 ease-soft',
         compact ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs',
         active
-          ? 'border-brand-500 bg-brand-500 text-white shadow-sm shadow-brand-500/25 scale-[1.02]'
-          : 'border-slate-200/90 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700',
+          ? 'border-amber-500 bg-amber-500 text-white shadow-sm shadow-amber-500/25 scale-[1.02]'
+          : 'border-slate-200/90 bg-white text-slate-600 hover:border-amber-200 hover:bg-amber-50/60 hover:text-amber-800',
       )}
     >
       {children}
@@ -163,7 +163,7 @@ function FilterSection({
         <ChevronDown
           className={clsx(
             'h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300 ease-soft',
-            open && 'rotate-180 text-brand-500',
+            open && 'rotate-180 text-amber-500',
           )}
         />
       </button>
@@ -187,11 +187,11 @@ function ScoreRing({ score }: { score: number }) {
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(1, Math.max(0, score)));
   const tone =
-    pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-brand-600' : 'text-amber-600';
+    pct >= 75 ? 'text-amber-600' : pct >= 50 ? 'text-amber-500' : 'text-slate-500';
   return (
     <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="#e2e8f0" strokeWidth="3.5" />
+        <circle cx="22" cy="22" r={r} fill="none" stroke="#fde68a" strokeWidth="3.5" />
         <circle
           cx="22"
           cy="22"
@@ -219,7 +219,7 @@ function ResultCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const criteria = (result.criteria ?? []).filter(
-    (c) => c.score != null && c.key !== 'semanticSkills',
+    (c) => c.score != null,
   );
 
   return (
@@ -237,9 +237,9 @@ function ResultCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="truncate text-base font-bold text-slate-900 transition group-hover:text-brand-700">
+              <h3 className="truncate text-base font-bold text-slate-900 transition group-hover:text-amber-800">
                 {result.displayName}
-                <span className="ml-2 text-xs font-semibold text-brand-500 opacity-0 transition group-hover:opacity-100">
+                <span className="ml-2 text-xs font-semibold text-amber-600 opacity-0 transition group-hover:opacity-100">
                   Xem hồ sơ →
                 </span>
               </h3>
@@ -262,7 +262,7 @@ function ResultCard({
                 <span className="font-mono text-xs text-slate-400">{result.code}</span>
               </p>
             </div>
-            <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-brand-100">
+            <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 ring-1 ring-amber-100">
               Phù hợp {Math.round(result.score * 100)}%
             </span>
           </div>
@@ -321,7 +321,7 @@ function ResultCard({
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                           <div
-                            className="h-full origin-left rounded-full bg-brand-500 animate-bar-grow"
+                            className="h-full origin-left rounded-full bg-amber-500 animate-bar-grow"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -502,21 +502,21 @@ function SearchPageInner() {
   return (
     <AppShell>
       <div className="animate-soft-rise space-y-5 pb-10">
-        <header className="relative overflow-hidden rounded-2xl border border-brand-100/80 bg-gradient-to-br from-brand-50 via-white to-sky-50/40 px-5 py-6 sm:px-7">
+        <header className="relative overflow-hidden rounded-2xl border border-amber-100/80 bg-gradient-to-br from-amber-50/80 via-white to-brand-50/40 px-5 py-6 sm:px-7">
           <div
-            className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl"
+            className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl"
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl"
+            className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-brand-400/10 blur-3xl"
             aria-hidden
           />
           <div className="relative">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-brand-100">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-100">
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               AI đối sánh · Kinh doanh B2B
               {searching && (
-                <span className="ml-1 inline-flex items-center gap-1 text-brand-500">
+                <span className="ml-1 inline-flex items-center gap-1 text-amber-600">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   đang phân tích
                 </span>
@@ -541,7 +541,7 @@ function SearchPageInner() {
                   value={filters.q}
                   onChange={(e) => patch({ q: e.target.value })}
                   placeholder={QUICK_PROMPTS[promptIndex]}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-brand-400 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-500/20"
                 />
               </div>
               <button
@@ -565,7 +565,7 @@ function SearchPageInner() {
                     setFilters(next);
                     runSearch(next);
                   }}
-                  className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                  className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
                 >
                   {p.length > 42 ? `${p.slice(0, 40)}…` : p}
                 </button>
@@ -675,7 +675,7 @@ function SearchPageInner() {
                 className={clsx(
                   'inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200',
                   advancedOpen
-                    ? 'bg-brand-500 text-white shadow-sm'
+                    ? 'bg-amber-500 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
                 )}
               >

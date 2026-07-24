@@ -5,6 +5,8 @@ import type {
   ResumeParseStatusResponse,
   ResumeUploadResponse,
   SaveCvDraftToProfileResponse,
+  UpdateCandidateProfileRequest,
+  UpdateCandidateProfileResponse,
   UploadAvatarResponse,
 } from '@industriallink/contracts';
 import { apiRequest, getApiBase, tokenStore } from './api';
@@ -21,6 +23,13 @@ export async function getResumeStatus(resumeId: string): Promise<ResumeParseStat
 
 export async function getMyCandidate(): Promise<CandidateView> {
   return apiRequest('/candidates/me');
+}
+
+/** Cập nhật toàn bộ hồ sơ ứng viên (trang Chỉnh sửa hồ sơ). */
+export async function updateMyProfile(
+  body: UpdateCandidateProfileRequest,
+): Promise<UpdateCandidateProfileResponse> {
+  return apiRequest('/candidates/me', { method: 'PATCH', body });
 }
 
 /** Hồ sơ ứng viên cho NTD xem từ Search / Matching. */

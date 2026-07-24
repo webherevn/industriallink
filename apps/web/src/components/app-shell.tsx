@@ -23,9 +23,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { UserRole } from '@industriallink/contracts';
 import { BrandMark } from '@/components/brand-logo';
 import { NotificationBell } from '@/components/notification-bell';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
+import { getMyCandidate } from '@/lib/candidate';
 
 /** Menu chính — hành trình ứng tuyển (không nhồi tài khoản/thông báo). */
 const CANDIDATE_PRIMARY_NAV = [
@@ -50,16 +52,6 @@ function isNavActive(pathname: string, href: string): boolean {
     return pathname === '/cv/create' || pathname.startsWith('/cv/');
   }
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function userInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .slice(-2)
-    .join('')
-    .toUpperCase();
 }
 
 /** Shell ứng viên (top nav) — NTD dùng RecruiterShell sidebar. */
@@ -87,6 +79,13 @@ export function AppShell({
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+  });
+
+  const { data: candidate } = useQuery({
+    queryKey: ['my-candidate'],
+    queryFn: getMyCandidate,
+    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    retry: false,
   });
 
   useEffect(() => {
@@ -140,13 +139,10 @@ export function AppShell({
     return <RecruiterShell>{children}</RecruiterShell>;
   }
 
-  const initials = userInitials(user.displayName || 'UV');
-
   return (
     <div className="min-h-screen bg-[#F5F7FB]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/85">
         <div className="mx-auto flex h-14 max-w-[1280px] items-stretch gap-4 px-4 sm:h-16 sm:px-6">
-          {/* Brand */}
           <BrandMark
             href="/jobs"
             size={32}
@@ -154,7 +150,6 @@ export function AppShell({
             wordmarkClassName="hidden sm:inline"
           />
 
-          {/* Primary nav */}
           <nav
             className="ml-1 hidden h-full min-w-0 flex-1 items-stretch gap-0.5 lg:flex"
             aria-label="Menu chính"
@@ -186,7 +181,6 @@ export function AppShell({
             })}
           </nav>
 
-          {/* Right actions */}
           <div className="ml-auto flex items-center gap-1 self-center sm:gap-1.5">
             <Link
               href="/jobs"
@@ -197,7 +191,6 @@ export function AppShell({
 
             <NotificationBell />
 
-            {/* Account menu */}
             <div className="relative" ref={accountRef}>
               <button
                 type="button"
@@ -211,9 +204,13 @@ export function AppShell({
                     : 'hover:bg-slate-50',
                 )}
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-sky-500 text-[11px] font-bold text-white shadow-sm">
-                  {initials}
-                </span>
+                <ProfileAvatar
+                  displayName={user.displayName || 'UV'}
+                  email={user.email}
+                  hasAvatar={Boolean(candidate?.hasAvatar)}
+                  size="sm"
+                  editable={false}
+                />
                 <span className="hidden max-w-[120px] truncate text-left text-[13px] font-semibold text-slate-700 xl:block">
                   {user.displayName}
                 </span>
@@ -231,11 +228,22 @@ export function AppShell({
                   className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg shadow-slate-200/60 animate-soft-rise"
                 >
                   <div className="border-b border-slate-100 px-3.5 py-3">
-                    <p className="truncate text-sm font-bold text-slate-900">
-                      {user.displayName}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-slate-500">{user.email}</p>
-                    <span className="mt-2 inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="flex items-center gap-3">
+                      <ProfileAvatar
+                        displayName={user.displayName || 'UV'}
+                        email={user.email}
+                        hasAvatar={Boolean(candidate?.hasAvatar)}
+                        size="sm"
+                        editable={false}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-slate-900">
+                          {user.displayName}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">{user.email}</p>
+                      </div>
+                    </div>
+                    <span className="mt-2 inline-flex rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 ring-1 ring-amber-100">
                       Ứng viên
                     </span>
                   </div>
@@ -288,7 +296,6 @@ export function AppShell({
           </div>
         </div>
 
-        {/* Mobile nav */}
         {mobileOpen && (
           <nav
             className="border-t border-slate-100 bg-white px-4 py-3 shadow-sm lg:hidden"

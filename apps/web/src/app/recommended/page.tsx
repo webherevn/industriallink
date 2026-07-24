@@ -319,7 +319,7 @@ export default function RecommendedPage() {
         <aside className="hidden lg:block">
           <div className="sticky top-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-500 text-sm font-bold text-white">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-amber-400 text-sm font-bold text-white">
                 {(candidate?.displayName ?? me?.displayName ?? 'U')
                   .split(/\s+/)
                   .map((w) => w[0])
@@ -421,7 +421,7 @@ export default function RecommendedPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900 sm:text-2xl">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
                   <Sparkles className="h-4 w-4" />
                 </span>
                 Gợi ý việc làm AI
@@ -441,37 +441,37 @@ export default function RecommendedPage() {
           </div>
 
           {/* AI banner */}
-          <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-r from-[#1e3a8a] via-[#3730a3] to-[#4f46e5] px-5 py-6 text-white sm:px-7">
+          <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-r from-[#072348] via-[#0B3A6E] to-[#1e4a7a] px-5 py-6 text-white sm:px-7">
             <div
-              className="pointer-events-none absolute inset-0 opacity-30"
+              className="pointer-events-none absolute inset-0 opacity-40"
               style={{
                 backgroundImage:
-                  'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.12), transparent 40%), linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.06) 41%, transparent 42%)',
+                  'radial-gradient(circle at 18% 45%, rgba(245,158,11,0.28), transparent 42%), radial-gradient(circle at 88% 20%, rgba(255,255,255,0.1), transparent 35%), linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.05) 41%, transparent 42%)',
               }}
             />
             <div className="relative grid items-center gap-4 sm:grid-cols-[auto_1fr_auto]">
               <div>
-                <p className="text-xs font-medium text-indigo-200">Độ phù hợp trung bình</p>
+                <p className="text-xs font-medium text-amber-200/90">Độ phù hợp trung bình</p>
                 <div className="mt-1 flex items-end gap-2">
                   <span className="text-4xl font-bold tracking-tight sm:text-5xl">
                     {allJobs.length ? `${avgScore}%` : '—'}
                   </span>
                   {allJobs.length > 0 && (
-                    <span className="mb-1.5 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-400/40">
+                    <span className="mb-1.5 rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200 ring-1 ring-amber-300/40">
                       {avgScoreLabel(avgScore)}
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-indigo-200">
+                <p className="mt-1 text-xs text-sky-100/80">
                   Từ {allJobs.length} tin AI đã phân tích
                 </p>
               </div>
               <div className="max-w-md">
                 <p className="text-sm font-medium leading-relaxed sm:text-[15px]">
                   AI đánh giá bạn phù hợp nhất với nhóm{' '}
-                  <span className="font-bold text-white">{fitGroup}</span>
+                  <span className="font-bold text-amber-200">{fitGroup}</span>
                 </p>
-                <p className="mt-1.5 text-xs text-indigo-200">
+                <p className="mt-1.5 text-xs text-sky-100/80">
                   Dựa trên {matchedSkillCount || candidate?.skills?.length || 0} kỹ năng nổi bật
                   {candidate?.aiProfile?.strengths?.length
                     ? ` và ${candidate.aiProfile.strengths.length} điểm mạnh AI`
@@ -480,7 +480,7 @@ export default function RecommendedPage() {
                 </p>
                 <Link
                   href="/dashboard"
-                  className="mt-3 inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50"
+                  className="mt-3 inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-sm hover:bg-amber-50"
                 >
                   Xem phân tích chi tiết →
                 </Link>
@@ -522,7 +522,7 @@ export default function RecommendedPage() {
             </div>
             <Link
               href="/upload"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-brand-600"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-600"
             >
               <Settings2 className="h-3.5 w-3.5" /> Tùy chỉnh gợi ý
             </Link>
@@ -543,7 +543,7 @@ export default function RecommendedPage() {
                 </p>
                 <Link
                   href="/upload"
-                  className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline"
+                  className="mt-3 inline-block text-sm font-medium text-amber-600 hover:underline"
                 >
                   Tải CV ngay
                 </Link>
@@ -581,9 +581,9 @@ export default function RecommendedPage() {
 
         {/* Right widgets */}
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-amber-100/80 bg-white p-4 shadow-sm">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-              <Sparkles className="h-4 w-4 text-violet-500" /> AI Insight cho bạn
+              <Sparkles className="h-4 w-4 text-amber-500" /> AI Insight cho bạn
             </p>
             <ul className="mt-3 space-y-3">
               {insights.length === 0 && (
@@ -593,7 +593,7 @@ export default function RecommendedPage() {
               )}
               {insights.map((text) => (
                 <li key={text} className="flex gap-2 text-xs leading-relaxed text-slate-600">
-                  <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-400" />
+                  <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
                   {text}
                 </li>
               ))}
@@ -608,13 +608,13 @@ export default function RecommendedPage() {
                 </div>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
                   <div
-                    className="h-full rounded-full bg-brand-500"
+                    className="h-full rounded-full bg-gradient-to-r from-brand-500 to-amber-400"
                     style={{ width: `${candidate.profileCompletion}%` }}
                   />
                 </div>
                 <Link
                   href="/upload"
-                  className="mt-2 inline-block text-[11px] font-semibold text-brand-600 hover:underline"
+                  className="mt-2 inline-block text-[11px] font-semibold text-amber-600 hover:underline"
                 >
                   Hoàn thiện ngay →
                 </Link>
@@ -625,7 +625,7 @@ export default function RecommendedPage() {
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-900">Kỹ năng của bạn</p>
-              <Link href="/dashboard" className="text-[11px] font-medium text-brand-600 hover:underline">
+              <Link href="/dashboard" className="text-[11px] font-medium text-amber-600 hover:underline">
                 Xem chi tiết
               </Link>
             </div>
@@ -643,7 +643,7 @@ export default function RecommendedPage() {
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500"
+                        className="h-full rounded-full bg-gradient-to-r from-brand-500 to-amber-400"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -658,7 +658,7 @@ export default function RecommendedPage() {
               <p className="text-sm font-semibold text-slate-900">Hoạt động tìm việc</p>
               <Link
                 href="/applications"
-                className="text-[11px] font-medium text-brand-600 hover:underline"
+                className="text-[11px] font-medium text-amber-600 hover:underline"
               >
                 Xem lịch sử
               </Link>
@@ -690,7 +690,7 @@ export default function RecommendedPage() {
                 </span>
               </li>
               <li className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
                   <FileText className="h-3.5 w-3.5" />
                 </span>
                 <span>
@@ -701,7 +701,7 @@ export default function RecommendedPage() {
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-brand-100 bg-gradient-to-b from-brand-50 to-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-amber-100 bg-gradient-to-b from-amber-50/80 via-white to-brand-50/50 p-4 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Nhận gợi ý chính xác hơn</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
               Cập nhật CV và kỹ năng để AI hiểu đúng năng lực công nghiệp của bạn.
@@ -731,12 +731,10 @@ function MatchJobCard({
   onToggleBookmark: () => void;
 }) {
   const label = matchLabel(job.match.score);
-  const ring = 2 * Math.PI * 28;
-  const dash = (job.match.score / 100) * ring;
 
   return (
     <li>
-      <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-brand-200 hover:shadow-md">
+      <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-amber-200 hover:shadow-md">
         <div className="flex gap-3.5">
           <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-sm font-bold text-slate-500">
             {companyInitials(job.companyName)}
@@ -748,7 +746,7 @@ function MatchJobCard({
                 className={clsx(
                   'rounded px-2 py-0.5 text-[11px] font-semibold',
                   label.tone === 'high' && 'bg-emerald-50 text-emerald-700',
-                  label.tone === 'medium' && 'bg-sky-50 text-sky-700',
+                  label.tone === 'medium' && 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
                   label.tone === 'low' && 'bg-slate-100 text-slate-600',
                 )}
               >
@@ -776,7 +774,7 @@ function MatchJobCard({
                   {job.companyId ? (
                     <Link
                       href={`/companies/${job.companyId}`}
-                      className="hover:text-brand-600 hover:underline"
+                      className="hover:text-amber-700 hover:underline"
                     >
                       {job.companyName}
                     </Link>
@@ -792,7 +790,7 @@ function MatchJobCard({
                 onClick={onToggleBookmark}
                 className={clsx(
                   'rounded-md p-1',
-                  saved ? 'text-brand-500' : 'text-slate-300 hover:text-brand-500',
+                  saved ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500',
                 )}
               >
                 <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} />
@@ -830,27 +828,49 @@ function MatchJobCard({
             )}
           </div>
 
-          {/* Match ring */}
+          {/* Match ring — điểm nhấn cam ILink */}
           <div className="hidden shrink-0 flex-col items-center sm:flex">
-            <div className="relative h-16 w-16">
-              <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" strokeWidth="5" />
-                <circle
-                  cx="32"
-                  cy="32"
-                  r="28"
-                  fill="none"
-                  stroke={job.match.score >= HIGH_MATCH ? '#10b981' : '#072348'}
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  strokeDasharray={`${dash} ${ring}`}
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-slate-800">
-                {job.match.score}%
-              </span>
+            <div className="relative flex h-[72px] w-[72px] items-center justify-center">
+              <div
+                className="pointer-events-none absolute inset-0 rounded-full bg-amber-400/25 blur-[10px]"
+                aria-hidden
+              />
+              <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-amber-50 to-white p-0.5 shadow-sm ring-1 ring-amber-200/80">
+                <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="26"
+                    fill="none"
+                    stroke="#fde68a"
+                    strokeWidth="6"
+                  />
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="26"
+                    fill="none"
+                    stroke={
+                      job.match.score >= HIGH_MATCH
+                        ? '#f59e0b'
+                        : job.match.score >= MEDIUM_MATCH
+                          ? '#fbbf24'
+                          : '#d97706'
+                    }
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(job.match.score / 100) * (2 * Math.PI * 26)} ${2 * Math.PI * 26}`}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-[15px] font-extrabold leading-none tracking-tight text-amber-600">
+                    {job.match.score}
+                    <span className="text-[10px] font-bold">%</span>
+                  </span>
+                </span>
+              </div>
             </div>
-            <p className="mt-1 text-center text-[10px] font-medium text-slate-500">
+            <p className="mt-1.5 text-center text-[10px] font-semibold text-amber-700">
               {matchRingLabel(job.match.score)}
             </p>
           </div>

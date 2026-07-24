@@ -113,10 +113,12 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 # ANTHROPIC_API_KEY=sk-ant-...
 # ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 
-# Hoặc Gemini
+# Hoặc Gemini (khuyến nghị Flash mới nhất — free tier AI Studio)
 # AI_PROVIDER=gemini
 # GEMINI_API_KEY=...
-# GEMINI_MODEL=gemini-1.5-flash
+# GEMINI_MODEL=gemini-3.6-flash
+# GEMINI_EMBEDDING_MODEL=text-embedding-004
+# Dự phòng: GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Nếu thiếu API key tương ứng, AI Gateway **tự fallback về mock** và ghi log cảnh báo. Không hardcode key trong code.

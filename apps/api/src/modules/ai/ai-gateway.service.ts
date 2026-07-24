@@ -56,6 +56,7 @@ export class AiGatewayService {
           return new GeminiProvider({
             apiKey: ai.geminiApiKey,
             model: ai.geminiModel,
+            embeddingModel: ai.geminiEmbeddingModel,
             embeddingDim: dim,
           });
         }

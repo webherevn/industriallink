@@ -5,6 +5,7 @@ import {
   Header,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   StreamableFile,
@@ -32,6 +33,7 @@ import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CandidateService } from './candidate.service';
 import { CvDraftFromTextDto } from './dto/cv-draft-from-text.dto';
 import { SaveCvDraftDto } from './dto/save-cv-draft.dto';
+import { UpdateCandidateProfileDto } from './dto/update-candidate-profile.dto';
 
 @ApiTags('Candidate')
 @ApiBearerAuth()
@@ -81,6 +83,16 @@ export class CandidateController {
   @ApiOperation({ summary: 'Hồ sơ ứng viên của tôi (Dashboard)' })
   getMyCandidate(@CurrentUser() user: AuthenticatedUser) {
     return this.candidates.getMyCandidate(user);
+  }
+
+  @Patch('me')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Cập nhật toàn bộ hồ sơ ứng viên (chỉnh sửa hồ sơ)' })
+  updateMyProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCandidateProfileDto,
+  ) {
+    return this.candidates.updateMyProfile(user, body);
   }
 
   @Get(':id')

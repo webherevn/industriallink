@@ -39,6 +39,7 @@ export interface AppConfig {
     anthropicModel: string;
     geminiApiKey?: string;
     geminiModel: string;
+    geminiEmbeddingModel: string;
   };
   email: {
     provider: 'mock' | 'smtp' | 'resend';
@@ -111,7 +112,9 @@ export default (): AppConfig => ({
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
     anthropicModel: process.env.ANTHROPIC_MODEL ?? 'claude-3-5-sonnet-latest',
     geminiApiKey: process.env.GEMINI_API_KEY || undefined,
-    geminiModel: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+    /** Flash mới nhất (GA): gemini-3.6-flash — miễn phí trên AI Studio Free/Paid. */
+    geminiModel: process.env.GEMINI_MODEL ?? 'gemini-3.6-flash',
+    geminiEmbeddingModel: process.env.GEMINI_EMBEDDING_MODEL ?? 'text-embedding-004',
   },
   email: {
     provider: (process.env.EMAIL_PROVIDER as AppConfig['email']['provider']) ?? 'mock',

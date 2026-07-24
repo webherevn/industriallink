@@ -1,5 +1,10 @@
-/** Client luôn lấy origin trang hiện tại — tránh bundle cũ / CDN nhúng localhost. */
-function getApiBase(): string {
+/**
+ * Dev: NEXT_PUBLIC_API_URL (vd. http://localhost:3001).
+ * Production (aaPanel proxy /api → Nest): same-origin /api/v1.
+ */
+export function getApiBase(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (fromEnv) return `${fromEnv}/api/v1`;
   if (typeof window !== 'undefined') {
     return `${window.location.origin}/api/v1`;
   }

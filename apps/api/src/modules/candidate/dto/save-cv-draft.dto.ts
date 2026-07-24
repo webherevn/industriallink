@@ -1,6 +1,19 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsArray, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+
+function nullOrNumber({ value }: { value: unknown }): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 class CvDraftExperienceDto {
   @IsString()
@@ -18,6 +31,38 @@ class CvDraftExperienceDto {
   @IsString()
   @MaxLength(4000)
   bullets!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  industries!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  productsSold!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  customerSegments!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  marketsCovered!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  sellingStages!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  latestRevenue!: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  kpiAchievementPct!: number | null;
 }
 
 class CvDraftEducationDto {
@@ -76,6 +121,30 @@ class CvDraftViewDto {
   @IsArray()
   @IsString({ each: true })
   softSkills!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  languages!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  productsSold!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  customerSegments!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  marketsCovered!: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  desiredPositions!: string[];
+
+  @IsString()
+  @MaxLength(4000)
+  salesHighlights!: string;
 
   @IsArray()
   @ValidateNested({ each: true })

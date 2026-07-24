@@ -1,4 +1,20 @@
-/** Bản nháp CV do AI trích từ văn bản tự do (hoặc form chỉnh tay). */
+/** Kinh nghiệm trên bản nháp CV — gồm trường Sales B2B. */
+export interface CvDraftExperienceView {
+  role: string;
+  company: string;
+  period: string;
+  /** Mô tả / thành tích (xuống dòng = bullet). */
+  bullets: string;
+  industries: string[];
+  productsSold: string[];
+  customerSegments: string[];
+  marketsCovered: string[];
+  sellingStages: string[];
+  latestRevenue: number | null;
+  kpiAchievementPct: number | null;
+}
+
+/** Bản nháp CV do AI trích / nạp từ hồ sơ / chỉnh tay. */
 export interface CvDraftView {
   fullName: string;
   title: string;
@@ -8,7 +24,13 @@ export interface CvDraftView {
   summary: string;
   skills: string[];
   softSkills: string[];
-  experience: { role: string; company: string; period: string; bullets: string }[];
+  languages: string[];
+  productsSold: string[];
+  customerSegments: string[];
+  marketsCovered: string[];
+  desiredPositions: string[];
+  salesHighlights: string;
+  experience: CvDraftExperienceView[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];
   projects: { name: string; detail: string }[];

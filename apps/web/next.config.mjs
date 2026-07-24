@@ -24,8 +24,14 @@ function loadRootPublicEnv() {
     ) {
       val = val.slice(1, -1);
     }
-    // Không nhúng localhost vào production build
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(val)) continue;
+    // Production build trên VPS: bỏ qua localhost (dùng same-origin /api proxy).
+    // Local `next dev`: vẫn load NEXT_PUBLIC_API_URL=http://localhost:3001.
+    if (
+      process.env.NODE_ENV === 'production' &&
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(val)
+    ) {
+      continue;
+    }
     process.env[key] = val;
   }
 }

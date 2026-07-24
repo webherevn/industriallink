@@ -1,20 +1,30 @@
 import { SkillLevel } from '@industriallink/contracts';
-import type { ParsedResume, ParsedResumeSkill, ResumeParseInput } from '../domain/types';
+import type {
+  ParsedResume,
+  ParsedResumeExperience,
+  ParsedResumeSkill,
+  ResumeParseInput,
+} from '../domain/types';
 
 export const RESUME_SYSTEM_PROMPT = [
-  'Bạn là chuyên gia tuyển dụng công nghiệp B2B tại Việt Nam.',
+  'Bạn là chuyên gia tuyển dụng Sales B2B công nghiệp tại Việt Nam.',
   'Đọc CV và trả về DUY NHẤT một JSON hợp lệ theo schema:',
   '{',
   '  "summary": string, "currentPosition": string|null, "jobLevel": string|null,',
   '  "totalExperienceYears": number|null, "industry": string|null, "specialization": string|null,',
   '  "skills": [{"name": string, "level": "beginner"|"intermediate"|"advanced"|"expert", "yearsOfExperience": number|null}],',
+  '  "experiences": [{',
+  '    "companyName": string, "jobTitle": string, "startYear": number|null, "endYear": number|null, "isCurrent": boolean,',
+  '    "productsSold": string[], "customerSegments": string[], "marketsCovered": string[], "industries": string[],',
+  '    "highlights": string|null,',
+  '    "missingFields": string[]',
+  '  }],',
   '  "strengths": string[], "weaknesses": string[], "careerPath": string|null,',
   '  "aiScore": number (0-100), "confidence": number (0-1)',
   '}',
-  'Với jobLevel, ưu tiên mã hoặc nhãn theo lộ trình VN:',
-  'Kinh doanh: sales.staff | sales.team_lead | sales.dept_head | sales.director | sales.company_director',
-  'Kỹ thuật: technical.staff | technical.team_lead | technical.dept_head | technical.director',
-  'careerPath nên mô tả lộ trình thăng tiến kiểu Việt Nam (nhân viên → trưởng nhóm → trưởng phòng → giám đốc).',
+  'Với mỗi công ty: điền những gì đọc được; nếu thiếu doanh số/KPI/tỷ lệ khách tự tìm/quy mô thương vụ/giai đoạn bán → ghi missingFields.',
+  'missingFields dùng mã: revenue|kpi|newCustomerRatio|dealValue|sellingStages|products|customerSegments|markets',
+  'Không hỏi ứng viên tự đánh giá giỏi/yếu; chỉ trích dữ liệu thực tế.',
   'Không thêm giải thích, không markdown, chỉ JSON.',
 ].join('\n');
 
@@ -36,7 +46,7 @@ export function extractJson(raw: string): unknown {
 
 function asSkillLevel(value: unknown): SkillLevel {
   const allowed = Object.values(SkillLevel) as string[];
-  return allowed.includes(value as string) ? (value as SkillLevel) : SkillLevel.Intermediate;
+  return allowed.includes(value as SkillLevel) ? (value as SkillLevel) : SkillLevel.Intermediate;
 }
 
 /** Chuẩn hoá JSON thô từ LLM về ParsedResume, điền mặc định an toàn. */
@@ -55,7 +65,39 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
 
   const num = (v: unknown): number | null => (typeof v === 'number' ? v : null);
   const strArr = (v: unknown): string[] =>
-    Array.isArray(v) ? v.map((x) => String(x)).slice(0, 20) : [];
+    Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, 40) : [];
+
+  const rawExps = Array.isArray(r.experiences) ? r.experiences : [];
+  const experiences: ParsedResumeExperience[] = rawExps.slice(0, 12).map((item) => {
+    const e = (item ?? {}) as Record<string, unknown>;
+    const productsSold = strArr(e.productsSold);
+    const customerSegments = strArr(e.customerSegments);
+    const marketsCovered = strArr(e.marketsCovered);
+    const missing = strArr(e.missingFields);
+    const defaultsMissing = [
+      ...(productsSold.length ? [] : ['products']),
+      ...(customerSegments.length ? [] : ['customerSegments']),
+      ...(marketsCovered.length ? [] : ['markets']),
+      'revenue',
+      'kpi',
+      'newCustomerRatio',
+      'dealValue',
+      'sellingStages',
+    ];
+    return {
+      companyName: String(e.companyName ?? '').trim() || 'Công ty chưa rõ',
+      jobTitle: String(e.jobTitle ?? '').trim() || 'Sales',
+      startYear: num(e.startYear),
+      endYear: num(e.endYear),
+      isCurrent: Boolean(e.isCurrent),
+      productsSold,
+      customerSegments,
+      marketsCovered,
+      industries: strArr(e.industries),
+      highlights: e.highlights ? String(e.highlights) : null,
+      missingFields: [...new Set([...missing, ...defaultsMissing])].slice(0, 12),
+    };
+  });
 
   return {
     summary: String(r.summary ?? '').trim(),
@@ -65,6 +107,7 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
     industry: r.industry ? String(r.industry) : null,
     specialization: r.specialization ? String(r.specialization) : null,
     skills: skills.filter((s) => s.name !== 'Unknown'),
+    experiences,
     strengths: strArr(r.strengths),
     weaknesses: strArr(r.weaknesses),
     careerPath: r.careerPath ? String(r.careerPath) : null,

@@ -113,6 +113,45 @@ export class ResumeParseService {
         });
       }
 
+      // 2b) Kinh nghiệm theo công ty + đánh dấu field còn thiếu
+      await this.prisma.candidateExperience.deleteMany({ where: { candidateId } });
+      const exps = parsed.experiences ?? [];
+      for (const [idx, exp] of exps.slice(0, 12).entries()) {
+        await this.prisma.candidateExperience.create({
+          data: {
+            candidateId,
+            sortOrder: idx,
+            companyName: exp.companyName,
+            jobTitle: exp.jobTitle,
+            startYear: exp.startYear,
+            endYear: exp.endYear,
+            isCurrent: exp.isCurrent,
+            industries: exp.industries,
+            productsSold: exp.productsSold,
+            customerSegments: exp.customerSegments,
+            marketsCovered: exp.marketsCovered,
+            highlights: exp.highlights,
+            missingFields: exp.missingFields,
+            source: 'cv_ai',
+          },
+        });
+      }
+
+      // Đồng bộ tổng hợp sản phẩm/tệp KH/thị trường lên profile
+      if (exps.length > 0) {
+        const union = (key: 'productsSold' | 'customerSegments' | 'marketsCovered' | 'industries') =>
+          [...new Set(exps.flatMap((e) => e[key]))];
+        await this.prisma.candidateProfile.update({
+          where: { candidateId },
+          data: {
+            productsSold: union('productsSold'),
+            customerSegments: union('customerSegments'),
+            marketsCovered: union('marketsCovered'),
+            industriesExperienced: union('industries'),
+          },
+        });
+      }
+
       // 3) Hồ sơ AI + embedding (pgvector qua raw SQL)
       const aiProfile = await this.prisma.candidateAiProfile.upsert({
         where: { candidateId },

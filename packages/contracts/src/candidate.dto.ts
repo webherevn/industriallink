@@ -4,6 +4,7 @@ import type {
   CustomerDevStyle,
   DealType,
   JobReadiness,
+  ProfileMissingFieldKey,
 } from './sales-b2b-criteria';
 
 export interface CandidateSkillView {
@@ -13,31 +14,68 @@ export interface CandidateSkillView {
   yearsOfExperience: number | null;
 }
 
-/** Hồ sơ Sales B2B — tiêu chí lọc / chấm điểm doanh nghiệp công nghiệp VN. */
+/** Kinh nghiệm theo từng công ty — ma trận hồ sơ Sales B2B. */
+export interface CandidateExperienceView {
+  id: string;
+  sortOrder: number;
+  companyName: string;
+  jobTitle: string;
+  startYear: number | null;
+  endYear: number | null;
+  isCurrent: boolean;
+  industries: string[];
+  productsSold: string[];
+  customerSegments: string[];
+  marketsCovered: string[];
+  sellingStages: string[];
+  revenueBand: string | null;
+  latestRevenue: number | null;
+  kpiBand: string | null;
+  kpiAchievementPct: number | null;
+  newCustomerRatioBand: string | null;
+  newCustomerRatioPct: number | null;
+  dealType: DealType | string | null;
+  typicalDealValueBand: string | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
+  maxDealRole: string | null;
+  highlights: string | null;
+  jobDescription: string | null;
+  missingFields: ProfileMissingFieldKey[] | string[];
+  source: 'cv_ai' | 'manual' | string;
+}
+
+/** Hồ sơ Sales B2B — tiêu chí lọc / chấm điểm (tổng hợp + cấp hồ sơ). */
 export interface CandidateSalesProfileView {
   productsSold: string[];
   customerSegments: string[];
   b2bExperienceBand: B2bExperienceBand | string | null;
   marketsCovered: string[];
-  /** Thành tích: doanh số gần nhất (VND). */
   latestRevenue: number | null;
-  /** % đạt KPI gần nhất. */
   kpiAchievementPct: number | null;
   salesHighlights: string | null;
   customerDevStyle: CustomerDevStyle | string | null;
-  /** Tỷ lệ khách mới tự phát triển 0–100. */
   newCustomerRatioPct: number | null;
   dealType: DealType | string | null;
   typicalDealValue: number | null;
   maxDealValue: number | null;
   sellingStages: string[];
   jobReadiness: JobReadiness | string | null;
+  availabilityBand: string | null;
   noticePeriodDays: number | null;
   expectedSalaryMin: number | null;
   expectedSalaryMax: number | null;
+  expectedOte: number | null;
   languages: string[];
   hasB2License: boolean | null;
+  driverLicenseType: string | null;
   willingToTravel: boolean | null;
+  travelAbility: string | null;
+  desiredPositions: string[];
+  desiredLocations: string[];
+  careerMotivations: string[];
+  workStyles: string[];
+  careerOrientation: string | null;
 }
 
 export interface CandidateProfileView {
@@ -45,11 +83,17 @@ export interface CandidateProfileView {
   jobLevel: string | null;
   totalExperienceYears: number | null;
   industry: string | null;
-  /** Nhiều ngành đã làm (bộ lọc chính). */
   industriesExperienced: string[];
   specialization: string | null;
   summary: string | null;
   careerObjective: string | null;
+  birthYear: number | null;
+  currentCity: string | null;
+  phone: string | null;
+  educationLevel: string | null;
+  educationSchool: string | null;
+  educationMajor: string | null;
+  certificates: string[];
   sales: CandidateSalesProfileView | null;
 }
 
@@ -69,11 +113,96 @@ export interface CandidateView {
   displayName: string;
   status: CandidateStatus;
   profileCompletion: number;
-  /** true nếu đã tải ảnh đại diện lên hệ thống (không phải Gravatar). */
   hasAvatar: boolean;
   profile: CandidateProfileView | null;
   aiProfile: CandidateAiProfileView | null;
   skills: CandidateSkillView[];
+  experiences: CandidateExperienceView[];
+}
+
+export interface CandidateExperienceInput {
+  id?: string | null;
+  companyName: string;
+  jobTitle: string;
+  startYear: number | null;
+  endYear: number | null;
+  isCurrent: boolean;
+  industries: string[];
+  productsSold: string[];
+  customerSegments: string[];
+  marketsCovered: string[];
+  sellingStages: string[];
+  revenueBand: string | null;
+  latestRevenue: number | null;
+  kpiBand: string | null;
+  kpiAchievementPct: number | null;
+  newCustomerRatioBand: string | null;
+  newCustomerRatioPct: number | null;
+  dealType: string | null;
+  typicalDealValueBand: string | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
+  maxDealRole: string | null;
+  highlights: string | null;
+  jobDescription: string | null;
+  missingFields?: string[];
+  source?: string;
+}
+
+/** Payload chỉnh sửa hồ sơ (wizard nhiều bước). */
+export interface UpdateCandidateProfileRequest {
+  displayName: string;
+  phone: string | null;
+  birthYear: number | null;
+  currentCity: string | null;
+  currentPosition: string | null;
+  jobLevel: string | null;
+  totalExperienceYears: number | null;
+  industry: string | null;
+  industriesExperienced: string[];
+  specialization: string | null;
+  summary: string | null;
+  careerObjective: string | null;
+  productsSold: string[];
+  customerSegments: string[];
+  b2bExperienceBand: string | null;
+  marketsCovered: string[];
+  salesHighlights: string | null;
+  customerDevStyle: string | null;
+  dealType: string | null;
+  latestRevenue: number | null;
+  kpiAchievementPct: number | null;
+  newCustomerRatioPct: number | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
+  sellingStages: string[];
+  jobReadiness: string | null;
+  availabilityBand: string | null;
+  noticePeriodDays: number | null;
+  expectedSalaryMin: number | null;
+  expectedSalaryMax: number | null;
+  expectedOte: number | null;
+  languages: string[];
+  hasB2License: boolean | null;
+  driverLicenseType: string | null;
+  willingToTravel: boolean | null;
+  travelAbility: string | null;
+  desiredPositions: string[];
+  desiredLocations: string[];
+  careerMotivations: string[];
+  workStyles: string[];
+  careerOrientation: string | null;
+  educationLevel: string | null;
+  educationSchool: string | null;
+  educationMajor: string | null;
+  certificates: string[];
+  skills: { name: string; level: SkillLevel | string }[];
+  experiences: CandidateExperienceInput[];
+}
+
+export interface UpdateCandidateProfileResponse {
+  message: string;
+  candidate: CandidateView;
 }
 
 export interface UploadAvatarResponse {

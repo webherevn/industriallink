@@ -233,7 +233,7 @@ function NavItem({
             'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase',
             badgeTone === 'red'
               ? 'bg-rose-500 text-white'
-              : 'bg-brand-500 text-white',
+              : 'bg-amber-500 text-white',
           )}
         >
           {badge}
@@ -671,14 +671,14 @@ export default function ProgressPage() {
                   className={clsx(
                     'relative px-3.5 py-2.5 text-[13px] font-semibold transition-colors duration-200',
                     tab === t.id
-                      ? 'text-brand-600'
+                      ? 'text-amber-700'
                       : 'text-slate-500 hover:text-slate-800',
                   )}
                 >
                   {t.label} ({t.count})
                   <span
                     className={clsx(
-                      'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-brand-500 transition-all duration-200 ease-soft',
+                      'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-amber-500 transition-all duration-200 ease-soft',
                       tab === t.id ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-50',
                     )}
                   />
@@ -777,7 +777,7 @@ export default function ProgressPage() {
           <div id="interviews" className="progress-card p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-900">Lịch phỏng vấn sắp tới</h2>
-              <CalendarDays className="h-4 w-4 text-brand-500" />
+              <CalendarDays className="h-4 w-4 text-amber-500" />
             </div>
             {upcomingInterviews.length === 0 ? (
               <p className="mt-4 text-xs leading-relaxed text-slate-500">
@@ -905,7 +905,7 @@ function ApplicationCard({
             <div className="min-w-0 flex-1">
               <Link
                 href={`/jobs/${app.jobId}`}
-                className="text-[15px] font-bold text-slate-900 transition-colors duration-200 hover:text-brand-600"
+                className="text-[15px] font-bold text-slate-900 transition-colors duration-200 hover:text-amber-700"
               >
                 {app.jobTitle}
               </Link>
@@ -1084,11 +1084,11 @@ function UpcomingInterviewCard({ interview }: { interview: InterviewView }) {
     : interview.location || 'Địa điểm cập nhật sau';
 
   return (
-    <li className="group rounded-xl border border-slate-100 bg-[#F8FAFC] p-3 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-slate-200 hover:bg-white hover:shadow-sm">
+    <li className="group rounded-xl border border-slate-100 bg-[#F8FAFC] p-3 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-amber-200 hover:bg-white hover:shadow-sm">
       <div className="flex gap-3">
-        <div className="flex w-[52px] shrink-0 flex-col items-center justify-center rounded-lg bg-white px-1 py-2 shadow-sm ring-1 ring-slate-100 transition-shadow duration-200 group-hover:shadow-md">
+        <div className="flex w-[52px] shrink-0 flex-col items-center justify-center rounded-lg bg-white px-1 py-2 shadow-sm ring-1 ring-amber-100/80 transition-shadow duration-200 group-hover:shadow-md">
           <p className="text-[10px] font-medium capitalize text-slate-500">{weekday}</p>
-          <p className="text-[22px] font-bold leading-none text-brand-600">{day}</p>
+          <p className="text-[22px] font-bold leading-none text-amber-600">{day}</p>
           <p className="mt-0.5 text-[9px] font-semibold tracking-wide text-slate-400">
             {month}
           </p>
@@ -1113,7 +1113,7 @@ function UpcomingInterviewCard({ interview }: { interview: InterviewView }) {
           </p>
           <Link
             href={`/jobs/${interview.jobId}`}
-            className="progress-btn mt-2.5 w-full border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+            className="progress-btn mt-2.5 w-full border border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
           >
             Xem chi tiết
           </Link>

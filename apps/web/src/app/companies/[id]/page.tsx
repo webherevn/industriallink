@@ -251,7 +251,7 @@ function CompanyProfileView({
 
       <div className="relative z-10 mx-auto max-w-[1280px] px-4 sm:px-6">
         {/* Identity card */}
-        <div className="-mt-10 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm animate-soft-rise sm:-mt-12 sm:p-6">
+        <div className="-mt-10 rounded-2xl border border-slate-200/80 border-t-amber-200/90 bg-white p-4 shadow-sm animate-soft-rise sm:-mt-12 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:h-20 sm:w-20">
@@ -337,7 +337,7 @@ function CompanyProfileView({
               <button
                 type="button"
                 onClick={onShare}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 active:scale-[0.98]"
               >
                 <Share2 className="h-4 w-4" />
                 Chia sẻ công ty
@@ -360,12 +360,12 @@ function CompanyProfileView({
                   onClick={() => onTab(t.id)}
                   className={clsx(
                     'relative shrink-0 px-3 py-3 text-sm font-semibold transition',
-                    active ? 'text-brand-600' : 'text-slate-500 hover:text-slate-800',
+                    active ? 'text-amber-700' : 'text-slate-500 hover:text-amber-700',
                   )}
                 >
                   {label}
                   {active && (
-                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand-600" />
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-amber-500" />
                   )}
                 </button>
               );
@@ -400,7 +400,7 @@ function CompanyProfileView({
                   {stats.map((s, i) => (
                     <div
                       key={s.label}
-                      className="rounded-xl bg-slate-50 px-3 py-3 text-center transition hover:-translate-y-0.5 hover:bg-brand-50/60"
+                      className="rounded-xl bg-slate-50 px-3 py-3 text-center transition hover:-translate-y-0.5 hover:bg-amber-50/70"
                       style={{ animationDelay: `${i * 40}ms` }}
                     >
                       <s.icon className="mx-auto h-5 w-5 text-brand-500" />
@@ -420,7 +420,7 @@ function CompanyProfileView({
                     {brand.coreActivities!.map((a) => (
                       <span
                         key={a}
-                        className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-100"
+                        className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-100"
                       >
                         {a}
                       </span>
@@ -453,14 +453,14 @@ function CompanyProfileView({
                     <li key={job.id}>
                       <Link
                         href={`/jobs/${job.id}`}
-                        className="group flex items-start gap-3 rounded-xl px-1 py-3 transition hover:bg-slate-50"
+                        className="group flex items-start gap-3 rounded-xl px-1 py-3 transition hover:bg-amber-50/50"
                       >
-                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100 transition group-hover:scale-105">
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 ring-1 ring-amber-100 transition group-hover:scale-105">
                           <Briefcase className="h-4 w-4" />
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-slate-900 group-hover:text-brand-700">
+                            <p className="font-semibold text-slate-900 group-hover:text-amber-800">
                               {job.title}
                             </p>
                             {job.isNew && (
@@ -661,8 +661,8 @@ function CompanyProfileView({
             </SectionCard>
 
             {(brand.whyChooseUs?.length ?? 0) > 0 && (
-              <div className="relative overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-sky-50/40 p-5 shadow-sm">
-                <Award className="pointer-events-none absolute -right-2 -bottom-2 h-24 w-24 text-brand-200/50" />
+              <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/80 via-white to-brand-50/40 p-5 shadow-sm">
+                <Award className="pointer-events-none absolute -right-2 -bottom-2 h-24 w-24 text-amber-200/60" />
                 <h3 className="relative text-sm font-bold text-slate-900">
                   Tại sao chọn {brand.internationalName ?? 'chúng tôi'}?
                 </h3>

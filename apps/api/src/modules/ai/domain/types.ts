@@ -6,6 +6,22 @@ export interface ParsedResumeSkill {
   yearsOfExperience: number | null;
 }
 
+/** Kinh nghiệm theo từng công ty — AI trích từ CV. */
+export interface ParsedResumeExperience {
+  companyName: string;
+  jobTitle: string;
+  startYear: number | null;
+  endYear: number | null;
+  isCurrent: boolean;
+  productsSold: string[];
+  customerSegments: string[];
+  marketsCovered: string[];
+  industries: string[];
+  highlights: string | null;
+  /** Field AI chưa đọc được → ứng viên bổ sung. */
+  missingFields: string[];
+}
+
 /** Kết quả AI "hiểu" một CV (không chỉ OCR/parse text). */
 export interface ParsedResume {
   summary: string;
@@ -15,6 +31,7 @@ export interface ParsedResume {
   industry: string | null;
   specialization: string | null;
   skills: ParsedResumeSkill[];
+  experiences: ParsedResumeExperience[];
   strengths: string[];
   weaknesses: string[];
   careerPath: string | null;

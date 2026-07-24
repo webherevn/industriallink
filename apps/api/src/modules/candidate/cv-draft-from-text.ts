@@ -1,5 +1,5 @@
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
-import type { ParsedResume } from '../ai/domain/types';
+import type { ParsedResume, ParsedResumeExperience } from '../ai/domain/types';
 
 function pickEmail(text: string): string {
   const m = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
@@ -24,9 +24,7 @@ function pickName(text: string, fallback: string): string {
 }
 
 function pickLocation(text: string): string {
-  const m = text.match(
-    /(?:tại|ở|sống tại|địa chỉ)\s+([^\n,.]{3,40})/i,
-  );
+  const m = text.match(/(?:tại|ở|sống tại|địa chỉ)\s+([^\n,.]{3,40})/i);
   if (m?.[1]) return m[1].trim();
   if (/hà nội|ha noi/i.test(text)) return 'Hà Nội';
   if (/hồ chí minh|tp\.?\s*hcm|sài gòn/i.test(text)) return 'TP. Hồ Chí Minh';
@@ -35,7 +33,33 @@ function pickLocation(text: string): string {
   return '';
 }
 
-function pickExperience(
+function experiencePeriod(exp: ParsedResumeExperience): string {
+  const start = exp.startYear != null ? String(exp.startYear) : '';
+  const end = exp.isCurrent ? 'Hiện tại' : exp.endYear != null ? String(exp.endYear) : '';
+  if (start && end) return `${start} – ${end}`;
+  return start || end || '';
+}
+
+function mapParsedExperience(
+  exp: ParsedResumeExperience,
+  fallbackTitle: string,
+): CvDraftView['experience'][number] {
+  return {
+    role: exp.jobTitle?.trim() || fallbackTitle || 'Sales',
+    company: exp.companyName?.trim() || 'Công ty',
+    period: experiencePeriod(exp),
+    bullets: (exp.highlights ?? '').trim(),
+    industries: exp.industries ?? [],
+    productsSold: exp.productsSold ?? [],
+    customerSegments: exp.customerSegments ?? [],
+    marketsCovered: exp.marketsCovered ?? [],
+    sellingStages: [],
+    latestRevenue: null,
+    kpiAchievementPct: null,
+  };
+}
+
+function pickExperienceHeuristic(
   text: string,
   title: string,
 ): CvDraftView['experience'] {
@@ -44,36 +68,61 @@ function pickExperience(
       /(?:công ty|cty|nhà máy|factory|tại)\s+([A-ZÀ-Ỵ0-9][\p{L}0-9 &.'-]{2,50})/iu,
     )?.[1]?.trim() ?? '';
   const years = text.match(/(\d+)\s*(?:năm|year)/i)?.[1];
-  const period = years ? `${new Date().getFullYear() - Number(years)} — Hiện tại` : '';
-  const hasExp = Boolean(company || years || /kinh nghiệm|làm việc|vận hành/i.test(text));
+  const period = years
+    ? `${new Date().getFullYear() - Number(years)} – Hiện tại`
+    : '';
+  const hasExp = Boolean(company || years || /kinh nghiệm|làm việc|bán hàng|sales/i.test(text));
   if (!hasExp) return [];
   return [
     {
-      role: title || 'Nhân viên kỹ thuật',
+      role: title || 'Nhân viên kinh doanh',
       company: company || 'Chưa rõ công ty',
       period: period || 'Chưa rõ thời gian',
       bullets: text
         .split(/[.\n]/)
         .map((s) => s.trim())
-        .filter((s) => s.length > 25 && /vận hành|bảo trì|tối ưu|phụ trách|thành thạo|triển khai/i.test(s))
-        .slice(0, 3)
-        .join('\n') || text.slice(0, 220).trim(),
+        .filter(
+          (s) =>
+            s.length > 25 &&
+            /bán hàng|doanh số|khách hàng|kpi|vận hành|bảo trì|tối ưu|phụ trách|thành thạo|triển khai/i.test(
+              s,
+            ),
+        )
+        .slice(0, 4)
+        .join('\n') || text.slice(0, 280).trim(),
+      industries: [],
+      productsSold: [],
+      customerSegments: [],
+      marketsCovered: [],
+      sellingStages: [],
+      latestRevenue: null,
+      kpiAchievementPct: null,
     },
   ];
 }
 
-function pickEducation(text: string): CvDraftView['education'] {
+function pickEducation(text: string, parsed: ParsedResume): CvDraftView['education'] {
+  if (parsed.specialization && /đại học|học viện|cao đẳng/i.test(text)) {
+    const school =
+      text.match(/((?:đại học|học viện|cao đẳng|trường)[\p{L}\s.]{2,60})/iu)?.[1]?.trim() ??
+      '';
+    return [
+      {
+        school: school || 'Chưa rõ trường',
+        degree: parsed.specialization,
+        period: '',
+      },
+    ];
+  }
   const school =
-    text.match(
-      /((?:đại học|học viện|cao đẳng|trường)[\p{L}\s.]{2,60})/iu,
-    )?.[1]?.trim() ?? '';
+    text.match(/((?:đại học|học viện|cao đẳng|trường)[\p{L}\s.]{2,60})/iu)?.[1]?.trim() ?? '';
   const year = text.match(/(20\d{2})\s*(?:[-–—]\s*(20\d{2}|nay|hiện tại))?/i);
   if (!school && !/tốt nghiệp|học vấn|cử nhân|kỹ sư/i.test(text)) return [];
   return [
     {
       school: school || 'Chưa rõ trường',
       degree: /kỹ sư|cử nhân|thạc sĩ/i.exec(text)?.[0] ?? 'Chưa rõ ngành',
-      period: year ? year[0].replace(/\s+/g, ' ') : 'Chưa rõ thời gian',
+      period: year ? year[0].replace(/\s+/g, ' ') : '',
     },
   ];
 }
@@ -82,16 +131,28 @@ function pickCertificates(text: string): string[] {
   const found: string[] = [];
   if (/iso\s*9001/i.test(text)) found.push('ISO 9001');
   if (/an toàn|atld|osh/i.test(text)) found.push('An toàn lao động');
-  if (/toeic|ielts|tiếng anh/i.test(text)) found.push('Ngoại ngữ');
+  if (/toeic|ielts/i.test(text)) found.push(/toeic|ielts/i.exec(text)?.[0]?.toUpperCase() ?? 'Ngoại ngữ');
+  if (/bằng\s*b2|giấy phép.*b2/i.test(text)) found.push('Bằng lái B2');
   return found;
 }
 
+function pickLanguages(text: string): string[] {
+  const out: string[] = [];
+  if (/tiếng anh|english|toeic|ielts/i.test(text)) out.push('Tiếng Anh');
+  if (/tiếng trung|chinese|hsk/i.test(text)) out.push('Tiếng Trung');
+  if (/tiếng nhật|japanese|jlpt/i.test(text)) out.push('Tiếng Nhật');
+  if (/tiếng hàn|korean|topik/i.test(text)) out.push('Tiếng Hàn');
+  return out;
+}
+
 function pickProjects(text: string): CvDraftView['projects'] {
-  const m = text.match(
-    /(?:dự án|project)\s*[:\-]?\s*([^\n.]{8,120})/i,
-  );
+  const m = text.match(/(?:dự án|project)\s*[:\-]?\s*([^\n.]{8,120})/i);
   if (!m?.[1]) return [];
   return [{ name: m[1].trim(), detail: 'Được trích từ mô tả của ứng viên.' }];
+}
+
+function union(...lists: string[][]): string[] {
+  return [...new Set(lists.flat().map((x) => x.trim()).filter(Boolean))];
 }
 
 function field(
@@ -111,7 +172,7 @@ function field(
   return { key, label, status: 'filled', value: v, suggestion };
 }
 
-/** Ghép kết quả AI parse + heuristic từ văn bản tự do → bản nháp CV + gợi ý thiếu. */
+/** Ghép kết quả AI parse (ưu tiên experiences Sales B2B) + heuristic → bản nháp CV. */
 export function buildCvDraftFromText(opts: {
   text: string;
   parsed: ParsedResume;
@@ -124,13 +185,28 @@ export function buildCvDraftFromText(opts: {
   const fullName = pickName(text, fallbackName);
   const location = pickLocation(text);
   const title = parsed.currentPosition?.trim() || '';
-  const skills = parsed.skills.map((s) => s.name).slice(0, 8);
-  const softSkills = parsed.strengths.slice(0, 5);
-  const experience = pickExperience(text, title);
-  const education = pickEducation(text);
+  const skills = parsed.skills.map((s) => s.name).slice(0, 16);
+  const softSkills = parsed.strengths.slice(0, 8);
+  const languages = pickLanguages(text);
+
+  const experience =
+    parsed.experiences?.length > 0
+      ? parsed.experiences.map((e) => mapParsedExperience(e, title))
+      : pickExperienceHeuristic(text, title);
+
+  const productsSold = union(...experience.map((e) => e.productsSold));
+  const customerSegments = union(...experience.map((e) => e.customerSegments));
+  const marketsCovered = union(...experience.map((e) => e.marketsCovered));
+
+  const education = pickEducation(text, parsed);
   const certificates = pickCertificates(text);
   const projects = pickProjects(text);
   const summary = parsed.summary?.trim() || '';
+  const salesHighlights = experience
+    .map((e) => e.bullets)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(' · ');
 
   const draft: CvDraftView = {
     fullName,
@@ -141,6 +217,12 @@ export function buildCvDraftFromText(opts: {
     summary,
     skills,
     softSkills,
+    languages,
+    productsSold,
+    customerSegments,
+    marketsCovered,
+    desiredPositions: title ? [title] : [],
+    salesHighlights,
     experience,
     education,
     certificates,
@@ -149,7 +231,7 @@ export function buildCvDraftFromText(opts: {
 
   const fields: CvDraftFieldHint[] = [
     field('fullName', 'Họ và tên', fullName, 'Thêm dòng: "Tôi tên ..."'),
-    field('title', 'Vị trí / cấp bậc', title, 'Ghi rõ vị trí mong muốn, ví dụ: Kỹ sư PLC'),
+    field('title', 'Vị trí / cấp bậc', title, 'Ghi rõ vị trí, ví dụ: Sales Engineer'),
     field('email', 'Email', email, 'Thêm email liên hệ'),
     field('phone', 'Số điện thoại', phone, 'Thêm SĐT (vd: 0901 234 567)'),
     field('location', 'Địa điểm', location, 'Ghi nơi ở / sẵn sàng làm việc'),
@@ -164,14 +246,32 @@ export function buildCvDraftFromText(opts: {
       'skills',
       'Kỹ năng chuyên môn',
       skills.join(', '),
-      'Liệt kê kỹ năng công nghiệp (PLC, SCADA, Lean...)',
+      'Liệt kê kỹ năng (sản phẩm, bán hàng, kỹ thuật...)',
       (v) => v.split(',').filter(Boolean).length < 2,
     ),
     field(
       'experience',
-      'Kinh nghiệm làm việc',
-      experience[0] ? `${experience[0].role} @ ${experience[0].company}` : '',
-      'Ghi công ty, số năm và việc đã làm',
+      'Kinh nghiệm công ty',
+      experience.map((e) => e.company).join(', '),
+      'Ghi công ty, vị trí, sản phẩm và tệp khách hàng',
+    ),
+    field(
+      'products',
+      'Sản phẩm bán',
+      productsSold.join(', '),
+      'Bổ sung sản phẩm / giải pháp đã bán',
+    ),
+    field(
+      'segments',
+      'Tệp khách hàng',
+      customerSegments.join(', '),
+      'Bổ sung phân khúc KH (FDI, SME...)',
+    ),
+    field(
+      'markets',
+      'Thị trường',
+      marketsCovered.join(', '),
+      'Bổ sung khu vực phụ trách',
     ),
     field(
       'education',
@@ -183,13 +283,13 @@ export function buildCvDraftFromText(opts: {
       'certificates',
       'Chứng chỉ',
       certificates.join(', '),
-      'Thêm chứng chỉ (ISO, an toàn, ngoại ngữ...) nếu có',
+      'Thêm chứng chỉ nếu có',
     ),
     field(
-      'projects',
-      'Dự án tiêu biểu',
-      projects[0]?.name ?? '',
-      'Mô tả 1–2 dự án nổi bật bạn đã tham gia',
+      'languages',
+      'Ngoại ngữ',
+      languages.join(', '),
+      'Thêm ngoại ngữ (Tiếng Anh...)',
     ),
   ];
 

@@ -290,10 +290,10 @@ function JobsPageInner() {
       {/* Hero — full-bleed trong vùng content */}
       <section className="relative mt-4 overflow-hidden rounded-2xl border border-sky-100/80 bg-[#E8F1FB]">
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          className="pointer-events-none absolute inset-0 opacity-[0.4]"
           style={{
             backgroundImage:
-              'radial-gradient(ellipse 80% 60% at 85% 40%, rgba(7,35,72,0.16), transparent 55%), radial-gradient(circle at 10% 80%, rgba(14,165,233,0.12), transparent 40%)',
+              'radial-gradient(ellipse 80% 60% at 85% 40%, rgba(7,35,72,0.14), transparent 55%), radial-gradient(circle at 12% 78%, rgba(245,158,11,0.14), transparent 42%), radial-gradient(circle at 70% 10%, rgba(14,165,233,0.1), transparent 40%)',
           }}
         />
         {/* Mô típ công nghiệp nhẹ bằng CSS */}
@@ -376,7 +376,7 @@ function JobsPageInner() {
               <button
                 key={kw}
                 type="button"
-                className="rounded-full border border-brand-200 bg-white/70 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50"
+                className="rounded-full border border-amber-200/80 bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
                 onClick={() => {
                   setDraftKeyword(kw);
                   setFilterParams({ keyword: kw, tab: 'all' });
@@ -402,7 +402,7 @@ function JobsPageInner() {
               <SlidersHorizontal className="h-4 w-4" /> Bộ lọc
             </Button>
             {hasActiveFilters && (
-              <button type="button" className="text-sm text-brand-500" onClick={clearFilters}>
+              <button type="button" className="text-sm text-amber-600 hover:text-amber-700" onClick={clearFilters}>
                 Xóa tất cả
               </button>
             )}
@@ -419,7 +419,7 @@ function JobsPageInner() {
               <button
                 type="button"
                 className={clsx(
-                  'text-xs font-medium text-brand-500 hover:underline',
+                  'text-xs font-medium text-amber-600 hover:underline',
                   !hasActiveFilters && 'invisible lg:visible lg:opacity-40',
                 )}
                 onClick={clearFilters}
@@ -539,7 +539,7 @@ function JobsPageInner() {
                   onClick={() => setFilterParams({ tab: t.id })}
                   className={clsx(
                     'relative whitespace-nowrap px-3 pb-3 pt-1 text-sm font-medium transition',
-                    tab === t.id ? 'text-brand-500' : 'text-slate-500 hover:text-slate-800',
+                    tab === t.id ? 'text-amber-700' : 'text-slate-500 hover:text-slate-800',
                   )}
                 >
                   {t.label}
@@ -547,14 +547,14 @@ function JobsPageInner() {
                     <span
                       className={clsx(
                         'ml-1.5 text-xs font-normal',
-                        tab === t.id ? 'text-brand-400' : 'text-slate-400',
+                        tab === t.id ? 'text-amber-600' : 'text-slate-400',
                       )}
                     >
                       {t.count.toLocaleString('vi-VN')}
                     </span>
                   )}
                   {tab === t.id && (
-                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand-500" />
+                    <span className="absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-amber-500" />
                   )}
                 </button>
               ))}
@@ -632,16 +632,16 @@ function JobsPageInner() {
 
         {/* Right widgets */}
         <aside className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-amber-100/90 bg-gradient-to-br from-amber-50/50 via-white to-white p-4 shadow-sm">
             <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-sky-400 text-white shadow-md shadow-brand-500/25">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-amber-400 text-white shadow-md shadow-amber-500/20">
                 <Sparkles className="h-6 w-6" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
                   AI Gợi ý việc làm phù hợp
                 </p>
-                <span className="mt-0.5 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                <span className="mt-0.5 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 ring-1 ring-amber-100">
                   Beta
                 </span>
               </div>
@@ -652,10 +652,10 @@ function JobsPageInner() {
                   <li key={m.jobId}>
                     <Link
                       href={`/jobs/${m.jobId}`}
-                      className="block rounded-lg bg-slate-50 px-3 py-2 transition hover:bg-brand-50"
+                      className="block rounded-lg bg-slate-50 px-3 py-2 transition hover:bg-amber-50/80"
                     >
                       <p className="line-clamp-1 text-sm font-medium text-slate-800">{m.title}</p>
-                      <p className="text-xs text-brand-500">Phù hợp {m.match.score}%</p>
+                      <p className="text-xs font-medium text-amber-600">Phù hợp {m.match.score}%</p>
                     </Link>
                   </li>
                 ))}
@@ -685,9 +685,9 @@ function JobsPageInner() {
                     className={clsx(
                       'flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold',
                       idx === 0
-                        ? 'bg-brand-500 text-white'
+                        ? 'bg-amber-500 text-white'
                         : idx === 1
-                          ? 'bg-brand-100 text-brand-600'
+                          ? 'bg-amber-100 text-amber-700'
                           : 'bg-slate-100 text-slate-600',
                     )}
                   >
@@ -713,7 +713,7 @@ function JobsPageInner() {
               </p>
               <span className="mb-1 text-xs font-semibold text-emerald-600">+8%</span>
             </div>
-            <svg viewBox="0 0 120 36" className="mt-2 h-9 w-full text-violet-400" aria-hidden>
+            <svg viewBox="0 0 120 36" className="mt-2 h-9 w-full text-amber-400" aria-hidden>
               <polyline
                 fill="none"
                 stroke="currentColor"
@@ -736,7 +736,7 @@ function JobsPageInner() {
             <p className="mt-1 text-[11px] text-slate-400">{salaryHighlight.range} · khung thị trường</p>
           </div>
 
-          <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-brand-50 to-white p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-amber-50/70 via-white to-brand-50/40 p-4 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Nhận việc làm mới mỗi ngày</p>
             <p className="mt-1 text-xs text-slate-500">Gửi tin phù hợp vào email của bạn.</p>
             <form
@@ -903,7 +903,7 @@ function JobCard({
 
   return (
     <li>
-      <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-brand-200 hover:shadow-md">
+      <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-amber-200 hover:shadow-md">
         <div className="flex gap-3.5">
           {/* Logo */}
           <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-sm font-bold text-slate-500">
@@ -921,7 +921,7 @@ function JobCard({
                     {job.title}
                   </Link>
                   {industryTag && (
-                    <span className="rounded bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600">
+                    <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-100">
                       {industryTag}
                     </span>
                   )}
@@ -935,7 +935,7 @@ function JobCard({
                   {job.companyId ? (
                     <Link
                       href={`/companies/${job.companyId}`}
-                      className="transition hover:text-brand-600 hover:underline"
+                      className="transition hover:text-amber-700 hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {job.companyName}
@@ -963,8 +963,8 @@ function JobCard({
                   className={clsx(
                     'rounded-md p-1 transition',
                     saved
-                      ? 'text-brand-500'
-                      : 'text-slate-300 hover:text-brand-500',
+                      ? 'text-amber-500'
+                      : 'text-slate-300 hover:text-amber-500',
                   )}
                 >
                   <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} />
@@ -1019,7 +1019,7 @@ function AppliedCard({ app }: { app: ApplicationView }) {
   return (
     <li>
       <Link href="/applications">
-        <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-brand-200">
+        <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-amber-200">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <p className="text-[15px] font-semibold text-slate-900">{app.jobTitle}</p>

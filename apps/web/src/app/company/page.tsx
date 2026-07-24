@@ -75,7 +75,7 @@ export default function CompanyPage() {
     return (
       <AppShell>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">
             <Building2 className="h-6 w-6" />
           </span>
           <div className="min-w-0 flex-1">
@@ -86,7 +86,7 @@ export default function CompanyPage() {
           </div>
           <Link
             href={`/companies/${company.id}`}
-            className="inline-flex items-center rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+            className="inline-flex items-center rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50"
           >
             Xem trang công khai
           </Link>
