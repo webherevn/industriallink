@@ -28,6 +28,7 @@ import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
+import { downloadElementAsPdf } from '@/lib/download-cv';
 import { draftCvFromFile, draftCvFromText, getMyCandidate, saveCvDraftToProfile } from '@/lib/candidate';
 import {
   CV_CREATE_STEPS,
@@ -82,7 +83,10 @@ export default function CreateCvPage() {
   const [draft, setDraft] = useState<CvDraft | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cvPreviewRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
   const { data: candidate } = useQuery({
@@ -146,6 +150,28 @@ export default function CreateCvPage() {
       return;
     }
     saveMutation.mutate();
+  }
+
+  async function onDownloadCv() {
+    setDownloadError(null);
+    const el = cvPreviewRef.current;
+    if (!el) {
+      setDownloadError('Không tìm thấy bản xem trước CV để tải.');
+      return;
+    }
+    if (!analyzed && !draft) {
+      setDownloadError('Hãy phân tích nội dung CV trước khi tải xuống.');
+      return;
+    }
+    setDownloading(true);
+    try {
+      const name = (activeDraft.fullName || 'CV').trim();
+      await downloadElementAsPdf(el, `CV-${name}`);
+    } catch {
+      setDownloadError('Không tải được PDF. Thử lại hoặc dùng trình duyệt khác.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   function onAnalyze() {
@@ -592,31 +618,36 @@ export default function CreateCvPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
+                  onClick={onDownloadCv}
+                  disabled={downloading || (!analyzed && !draft)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
                 >
-                  <Download className="h-4 w-4" />
-                  Tải xuống CV
+                  {downloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {downloading ? 'Đang tạo PDF…' : 'Tải xuống CV'}
                 </button>
               </div>
-              {(saveMessage || saveError) && (
+              {(saveMessage || saveError || downloadError) && (
                 <p
                   className={clsx(
                     'mt-3 text-xs font-medium',
-                    saveError ? 'text-rose-600' : 'text-emerald-600',
+                    saveError || downloadError ? 'text-rose-600' : 'text-emerald-600',
                   )}
                 >
-                  {saveError ?? saveMessage}
+                  {saveError ?? downloadError ?? saveMessage}
                 </p>
               )}
             </div>
           )}
         </section>
 
-        <aside className="hidden print:block xl:block">
-          <div className="sticky top-4 space-y-3 animate-soft-rise [animation-delay:60ms] print:static">
-            <div className="progress-card overflow-hidden p-0 print:border-0 print:shadow-none">
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 print:hidden">
+        <aside className="hidden xl:block">
+          <div className="sticky top-4 space-y-3 animate-soft-rise [animation-delay:60ms]">
+            <div className="progress-card overflow-hidden p-0">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                 <h2 className="text-sm font-bold text-slate-900">Xem trước CV</h2>
                 <div className="flex rounded-lg bg-slate-100 p-0.5">
                   <button
@@ -643,47 +674,81 @@ export default function CreateCvPage() {
               </div>
               <div
                 className={clsx(
-                  'bg-slate-100/80 p-3 print:bg-white print:p-0',
+                  'bg-slate-100/80 p-3',
                   previewMode === 'mobile' && 'flex justify-center',
                 )}
               >
-                <div
+                  <div
                   className={clsx(
-                    'overflow-hidden bg-white shadow-sm ring-1 ring-slate-200/80 print:shadow-none print:ring-0',
-                    previewMode === 'mobile' ? 'w-[240px] print:w-full' : 'w-full',
+                    'overflow-hidden bg-white shadow-sm ring-1 ring-slate-200/80',
+                    previewMode === 'mobile' ? 'w-[240px]' : 'w-full',
                   )}
                 >
-                  <CvPreview
-                    draft={activeDraft}
-                    template={selected}
-                    compact={previewMode === 'mobile'}
-                    empty={!analyzed && step === 1}
-                  />
+                    <CvPreview
+                      draft={activeDraft}
+                      template={selected}
+                      compact={previewMode === 'mobile'}
+                      empty={!analyzed && step === 1}
+                    />
                 </div>
               </div>
-              <div className="space-y-2 border-t border-slate-100 p-4 print:hidden">
+              <div className="space-y-2 border-t border-slate-100 p-4">
                 <p className="text-center text-xs text-slate-500">
                   {analyzed ? 'Hài lòng với CV này?' : 'Phân tích AI để xem trước nội dung thật'}
                 </p>
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  disabled={!analyzed}
+                  onClick={onDownloadCv}
+                  disabled={downloading || (!analyzed && !draft)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  Tải xuống CV
+                  {downloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  {downloading ? 'Đang tạo PDF…' : 'Tải xuống CV'}
                 </button>
+                {downloadError && (
+                  <p className="text-center text-[11px] font-medium text-rose-600">{downloadError}</p>
+                )}
               </div>
             </div>
           </div>
         </aside>
       </div>
 
-      <div className="mt-4 xl:hidden print:hidden">
+      <div className="mt-4 xl:hidden">
         <div className="progress-card p-3">
           <h2 className="mb-3 text-sm font-bold text-slate-900">Xem trước CV</h2>
           <CvPreview draft={activeDraft} template={selected} empty={!analyzed && step === 1} />
+          <button
+            type="button"
+            onClick={onDownloadCv}
+            disabled={downloading || (!analyzed && !draft)}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
+          >
+            {downloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {downloading ? 'Đang tạo PDF…' : 'Tải xuống CV'}
+          </button>
+        </div>
+      </div>
+
+      {/* Bản đầy đủ ẩn — chỉ dùng để render PDF tải về */}
+      <div
+        className="pointer-events-none fixed left-[-10000px] top-0 w-[794px] bg-white"
+        aria-hidden
+      >
+        <div ref={cvPreviewRef}>
+          <CvPreview
+            draft={activeDraft}
+            template={selected}
+            empty={!analyzed && step === 1}
+          />
         </div>
       </div>
     </AppShell>
