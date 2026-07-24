@@ -31,6 +31,7 @@ import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CandidateService } from './candidate.service';
 import { CvDraftFromTextDto } from './dto/cv-draft-from-text.dto';
+import { SaveCvDraftDto } from './dto/save-cv-draft.dto';
 
 @ApiTags('Candidate')
 @ApiBearerAuth()
@@ -119,6 +120,15 @@ export class CandidateController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.candidates.draftCvFromFile(user, file);
+  }
+
+  @Post('me/cv-draft/save')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({
+    summary: 'Lưu bản nháp CV vào hồ sơ ứng viên (tuỳ chọn từ wizard tạo CV)',
+  })
+  saveCvDraft(@CurrentUser() user: AuthenticatedUser, @Body() body: SaveCvDraftDto) {
+    return this.candidates.saveCvDraftToProfile(user, body.draft);
   }
 
   @Post('me/avatar')

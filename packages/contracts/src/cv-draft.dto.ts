@@ -35,3 +35,13 @@ export interface CvDraftFromTextResponse {
   aiScore: number | null;
   message: string;
 }
+
+/** Lưu bản nháp CV vào hồ sơ ứng viên (tuỳ chọn từ wizard tạo CV). */
+export interface SaveCvDraftToProfileRequest {
+  draft: CvDraftView;
+}
+
+export interface SaveCvDraftToProfileResponse {
+  message: string;
+  profileCompletion: number;
+}

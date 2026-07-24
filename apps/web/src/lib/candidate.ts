@@ -1,18 +1,13 @@
 import type {
   CandidateView,
   CvDraftFromTextResponse,
+  CvDraftView,
   ResumeParseStatusResponse,
   ResumeUploadResponse,
+  SaveCvDraftToProfileResponse,
   UploadAvatarResponse,
 } from '@industriallink/contracts';
-import { apiRequest, tokenStore } from './api';
-
-function getApiBase(): string {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/api/v1`;
-  }
-  return '/api/v1';
-}
+import { apiRequest, getApiBase, tokenStore } from './api';
 
 export async function uploadResume(file: File): Promise<ResumeUploadResponse> {
   const form = new FormData();
@@ -55,6 +50,16 @@ export async function draftCvFromFile(file: File): Promise<CvDraftFromTextRespon
     method: 'POST',
     body: form,
     isForm: true,
+  });
+}
+
+/** Lưu bản nháp CV vào hồ sơ ứng viên (tuỳ chọn từ wizard). */
+export async function saveCvDraftToProfile(
+  draft: CvDraftView,
+): Promise<SaveCvDraftToProfileResponse> {
+  return apiRequest('/candidates/me/cv-draft/save', {
+    method: 'POST',
+    body: { draft },
   });
 }
 

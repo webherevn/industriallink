@@ -13,12 +13,15 @@ export interface AppConfig {
     password?: string;
   };
   s3: {
+    /** s3 = MinIO/AWS; local = lưu file trên đĩa (phù hợp VPS chưa có MinIO). */
+    driver: 's3' | 'local';
     endpoint: string;
     region: string;
     accessKey: string;
     secretKey: string;
     bucket: string;
     forcePathStyle: boolean;
+    localPath: string;
   };
   jwt: {
     accessSecret: string;
@@ -84,12 +87,14 @@ export default (): AppConfig => ({
     password: process.env.REDIS_PASSWORD || undefined,
   },
   s3: {
+    driver: (process.env.STORAGE_DRIVER === 'local' ? 'local' : 's3') as 's3' | 'local',
     endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
     region: process.env.S3_REGION ?? 'us-east-1',
     accessKey: process.env.S3_ACCESS_KEY ?? 'industriallink',
     secretKey: process.env.S3_SECRET_KEY ?? 'industriallink',
     bucket: process.env.S3_BUCKET ?? 'industriallink-resumes',
     forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? 'true') === 'true',
+    localPath: process.env.STORAGE_LOCAL_PATH ?? 'storage/uploads',
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',

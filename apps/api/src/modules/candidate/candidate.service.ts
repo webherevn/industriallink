@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   CandidateStatus,
@@ -14,9 +15,11 @@ import {
   type CandidateView,
   type CareerAdviceView,
   type CvDraftFromTextResponse,
+  type CvDraftView,
   type ResumeParseStatusResponse,
   type ResumeParseStep,
   type ResumeUploadResponse,
+  type SaveCvDraftToProfileResponse,
   type UploadAvatarResponse,
 } from '@industriallink/contracts';
 import { Queue } from 'bullmq';
@@ -129,7 +132,15 @@ export class CandidateService {
       tenantId: candidate.tenantId,
       correlationId,
     };
-    const job = await this.queue.add('parse-resume', jobData, { jobId: resume.id });
+    let job;
+    try {
+      job = await this.queue.add('parse-resume', jobData, { jobId: resume.id });
+    } catch (err) {
+      this.logger.error(`Không enqueue parse-resume: ${String(err)}`);
+      throw new ServiceUnavailableException(
+        'Không đưa CV vào hàng đợi phân tích (Redis). Kiểm tra REDIS_HOST trên server.',
+      );
+    }
     await this.prisma.candidateResume.update({
       where: { id: resume.id },
       data: { jobId: job.id },
@@ -438,6 +449,98 @@ export class CandidateService {
       trimmed || `CV file: ${file.originalname}`,
       file.originalname || 'cv-upload.pdf',
     );
+  }
+
+  /**
+   * Lưu bản nháp CV (wizard) vào hồ sơ ứng viên — tuỳ chọn, không bắt buộc để tải CV.
+   */
+  async saveCvDraftToProfile(
+    user: AuthenticatedUser,
+    draft: CvDraftView,
+  ): Promise<SaveCvDraftToProfileResponse> {
+    const candidate = await this.getCandidateByUser(user.id);
+    const skills = [...new Set(draft.skills.map((s) => s.trim()).filter(Boolean))];
+    const soft = [...new Set(draft.softSkills.map((s) => s.trim()).filter(Boolean))];
+    const allSkillNames = [...new Set([...skills, ...soft])];
+
+    const filled = [
+      draft.fullName,
+      draft.title,
+      draft.summary,
+      draft.email,
+      draft.phone,
+      draft.location,
+      skills.length > 0,
+      draft.experience.length > 0,
+      draft.education.length > 0,
+    ].filter(Boolean).length;
+    const profileCompletion = Math.min(95, Math.round((filled / 9) * 100));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.candidate.update({
+        where: { id: candidate.id },
+        data: {
+          displayName: draft.fullName.trim() || candidate.displayName,
+          status: CandidateStatus.Completed,
+          profileCompletion,
+        },
+      });
+
+      const salesHighlights = [
+        ...draft.experience.map(
+          (e) => `${e.role} @ ${e.company} (${e.period}): ${e.bullets}`.trim(),
+        ),
+        ...draft.projects.map((p) => `${p.name}: ${p.detail}`.trim()),
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 4000);
+
+      await tx.candidateProfile.upsert({
+        where: { candidateId: candidate.id },
+        create: {
+          candidateId: candidate.id,
+          currentPosition: draft.title || null,
+          summary: draft.summary || null,
+          careerObjective: draft.summary || null,
+          specialization: draft.location || null,
+          salesHighlights: salesHighlights || null,
+        },
+        update: {
+          currentPosition: draft.title || null,
+          summary: draft.summary || null,
+          careerObjective: draft.summary || null,
+          specialization: draft.location || null,
+          salesHighlights: salesHighlights || null,
+        },
+      });
+
+      await tx.candidateSkill.deleteMany({ where: { candidateId: candidate.id } });
+      for (const name of allSkillNames.slice(0, 40)) {
+        await tx.candidateSkill.create({
+          data: {
+            candidateId: candidate.id,
+            name,
+            level: soft.includes(name) ? 'intermediate' : 'advanced',
+          },
+        });
+      }
+
+      await tx.candidateTimeline.create({
+        data: {
+          candidateId: candidate.id,
+          tenantId: candidate.tenantId,
+          type: 'profile_updated',
+          title: 'Đã lưu CV vào hồ sơ',
+          description: `Cập nhật từ wizard tạo CV (${allSkillNames.length} kỹ năng).`,
+        },
+      });
+    });
+
+    return {
+      message: 'Đã lưu thông tin CV vào hồ sơ của bạn.',
+      profileCompletion,
+    };
   }
 
   private async buildCvDraftResponse(

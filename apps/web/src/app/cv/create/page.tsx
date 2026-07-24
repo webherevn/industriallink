@@ -14,6 +14,7 @@ import {
   MapPin,
   Monitor,
   Phone,
+  Save,
   Smartphone,
   Sparkles,
   Upload,
@@ -27,7 +28,7 @@ import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
-import { draftCvFromFile, draftCvFromText, getMyCandidate } from '@/lib/candidate';
+import { draftCvFromFile, draftCvFromText, getMyCandidate, saveCvDraftToProfile } from '@/lib/candidate';
 import {
   CV_CREATE_STEPS,
   CV_TEMPLATE_FILTERS,
@@ -79,6 +80,8 @@ export default function CreateCvPage() {
   const [selectedId, setSelectedId] = useState(CV_TEMPLATES[0].id);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [draft, setDraft] = useState<CvDraft | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -120,8 +123,30 @@ export default function CreateCvPage() {
     onSuccess: applyAnalyzeResult,
   });
 
+  const saveMutation = useMutation({
+    mutationFn: () => saveCvDraftToProfile(activeDraft),
+    onSuccess: (res) => {
+      setSaveError(null);
+      setSaveMessage(res.message);
+    },
+    onError: (err) => {
+      setSaveMessage(null);
+      setSaveError(err instanceof ApiError ? err.message : 'Không lưu được hồ sơ');
+    },
+  });
+
   const analyzing = analyzeMutation.isPending || uploadMutation.isPending;
   const analyzeError = analyzeMutation.error ?? uploadMutation.error;
+
+  function onSaveToProfile() {
+    setSaveMessage(null);
+    setSaveError(null);
+    if (!draft && !analyzed) {
+      setSaveError('Hãy phân tích / nhập nội dung CV trước khi lưu hồ sơ.');
+      return;
+    }
+    saveMutation.mutate();
+  }
 
   function onAnalyze() {
     uploadMutation.reset();
@@ -493,15 +518,40 @@ export default function CreateCvPage() {
                 >
                   Quay lại chỉnh nội dung
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
-                >
-                  Tiếp tục
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onSaveToProfile}
+                    disabled={saveMutation.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60"
+                  >
+                    {saveMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    Lưu vào Hồ Sơ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(3)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
+                  >
+                    Tiếp tục
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
+              {(saveMessage || saveError) && (
+                <p
+                  className={clsx(
+                    'mt-3 text-xs font-medium',
+                    saveError ? 'text-rose-600' : 'text-emerald-600',
+                  )}
+                >
+                  {saveError ?? saveMessage}
+                </p>
+              )}
             </div>
           )}
 
@@ -509,7 +559,8 @@ export default function CreateCvPage() {
             <div className="progress-card p-5">
               <h2 className="text-sm font-bold text-slate-900">Bước 3: Xem trước & tải xuống</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Mẫu <strong>{selected.name}</strong> đã gắn với nội dung AI của bạn.
+                Mẫu <strong>{selected.name}</strong> đã gắn với nội dung AI của bạn. Bạn có thể lưu
+                vào hồ sơ (tuỳ chọn) rồi tải CV.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
@@ -528,6 +579,19 @@ export default function CreateCvPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={onSaveToProfile}
+                  disabled={saveMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60"
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Lưu vào Hồ Sơ
+                </button>
+                <button
+                  type="button"
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
                 >
@@ -535,6 +599,16 @@ export default function CreateCvPage() {
                   Tải xuống CV
                 </button>
               </div>
+              {(saveMessage || saveError) && (
+                <p
+                  className={clsx(
+                    'mt-3 text-xs font-medium',
+                    saveError ? 'text-rose-600' : 'text-emerald-600',
+                  )}
+                >
+                  {saveError ?? saveMessage}
+                </p>
+              )}
             </div>
           )}
         </section>
