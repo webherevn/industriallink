@@ -9,11 +9,39 @@ import {
 
 export { formatJobLevel, formatJobTitle, formatJobTrack };
 
+/** Format số tiền VND thông minh: tỷ / triệu / đ (không hiện "1000 triệu"). */
+export function formatVndAmount(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000_000) {
+    const ty = n / 1_000_000_000;
+    const text =
+      Math.abs(ty - Math.round(ty)) < 1e-9
+        ? Math.round(ty).toLocaleString('vi-VN')
+        : ty.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+    return `${text} tỷ`;
+  }
+  if (abs >= 1_000_000) {
+    const tr = n / 1_000_000;
+    const text =
+      Math.abs(tr - Math.round(tr)) < 1e-9
+        ? Math.round(tr).toLocaleString('vi-VN')
+        : tr.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+    return `${text} triệu`;
+  }
+  if (abs >= 1_000) {
+    return `${Math.round(n).toLocaleString('vi-VN')} đ`;
+  }
+  return `${n.toLocaleString('vi-VN')} đ`;
+}
+
+/** Lương / khoảng tiền: min=max → một giá trị; ≥1 tỷ dùng đơn vị tỷ. */
 export function formatSalary(min: number | null, max: number | null): string {
-  const fmt = (n: number) => `${(n / 1_000_000).toLocaleString('vi-VN')} triệu`;
-  if (min && max) return `${fmt(min)} – ${fmt(max)}`;
-  if (min) return `Từ ${fmt(min)}`;
-  if (max) return `Đến ${fmt(max)}`;
+  if (min != null && max != null) {
+    if (min === max) return formatVndAmount(min);
+    return `${formatVndAmount(min)} – ${formatVndAmount(max)}`;
+  }
+  if (min != null) return `Từ ${formatVndAmount(min)}`;
+  if (max != null) return `Đến ${formatVndAmount(max)}`;
   return 'Thoả thuận';
 }
 

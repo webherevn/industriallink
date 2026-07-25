@@ -44,7 +44,7 @@ import { PaginationBar } from '@/components/pagination-bar';
 import { fetchMe, logout } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
-import { APPLICATION_STATUS_LABEL, formatSalary } from '@/lib/format';
+import { APPLICATION_STATUS_LABEL, formatSalary, formatVndAmount } from '@/lib/format';
 import { listMyInterviews } from '@/lib/interviews';
 import { listMyOffers, respondToOffer } from '@/lib/offers';
 import { listMyOnboardings } from '@/lib/onboarding';
@@ -152,7 +152,7 @@ function formatTimeRange(iso: string, durationMinutes: number): string {
 
 function formatOfferSalary(n: number, currency: string): string {
   if (currency === 'VND' || !currency) {
-    return `${(n / 1_000_000).toLocaleString('vi-VN')} triệu`;
+    return formatVndAmount(n);
   }
   return `${n.toLocaleString('vi-VN')} ${currency}`;
 }

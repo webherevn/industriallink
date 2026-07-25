@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Mail, MapPin, Phone, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { CvDraft, CvTemplate } from '@/lib/cv-templates';
+import { formatVndAmount } from '@/lib/format';
 
 function initials(name: string): string {
   return (name || 'UV')
@@ -24,9 +25,7 @@ function bulletLines(text: string): string[] {
 
 function formatRevenue(v: number | null | undefined): string | null {
   if (v == null) return null;
-  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} tỷ`;
-  if (v >= 1_000_000) return `${Math.round(v / 1_000_000)} tr`;
-  return v.toLocaleString('vi-VN');
+  return formatVndAmount(v);
 }
 
 function Chip({ children, dark }: { children: ReactNode; dark?: boolean }) {

@@ -30,10 +30,11 @@ import {
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { ApiError } from '@/lib/api';
 import { getCandidateById } from '@/lib/candidate';
+import { formatVndAmount } from '@/lib/format';
 
 function money(v: number | null | undefined): string | null {
   if (v == null || !Number.isFinite(v)) return null;
-  return new Intl.NumberFormat('vi-VN').format(v) + ' đ';
+  return formatVndAmount(v);
 }
 
 function ChipList({ items, empty = 'Chưa cập nhật' }: { items?: string[]; empty?: string }) {
