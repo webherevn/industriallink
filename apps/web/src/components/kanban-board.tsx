@@ -1,5 +1,7 @@
 'use client';
 
+import { UserRound } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { ApplicationStatus, type ApplicantView, formatJobTitle } from '@industriallink/contracts';
 import { Badge } from '@/components/ui';
@@ -98,53 +100,64 @@ export function KanbanBoard({
                       ))}
                     </div>
                   )}
-                  {onSchedule &&
-                    (a.status === ApplicationStatus.Screening ||
-                      a.status === ApplicationStatus.Interview ||
-                      a.status === ApplicationStatus.Applied) && (
-                      <button
-                        type="button"
-                        className="mt-2 mr-2 text-[11px] font-semibold text-brand-600 hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSchedule(a.applicationId, a.displayName);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        Đặt lịch PV
-                      </button>
-                    )}
-                  {onOffer &&
-                    (a.status === ApplicationStatus.Interview ||
-                      a.status === ApplicationStatus.Offer ||
-                      a.status === ApplicationStatus.Screening) && (
-                      <button
-                        type="button"
-                        className="mt-2 mr-2 text-[11px] font-semibold text-teal-700 hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOffer(a.applicationId, a.displayName);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        Gửi đề nghị
-                      </button>
-                    )}
-                  {onOnboard &&
-                    (a.status === ApplicationStatus.Offer ||
-                      a.status === ApplicationStatus.Hired) && (
-                      <button
-                        type="button"
-                        className="mt-2 text-[11px] font-semibold text-indigo-700 hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOnboard(a.applicationId, a.displayName);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        Nhận việc
-                      </button>
-                    )}
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-slate-100 pt-2">
+                    <Link
+                      href={`/candidates/${a.candidateId}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-800 hover:text-brand-700"
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <UserRound className="h-3 w-3" />
+                      Xem hồ sơ
+                    </Link>
+                    {onSchedule &&
+                      (a.status === ApplicationStatus.Screening ||
+                        a.status === ApplicationStatus.Interview ||
+                        a.status === ApplicationStatus.Applied) && (
+                        <button
+                          type="button"
+                          className="text-[11px] font-semibold text-brand-600 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSchedule(a.applicationId, a.displayName);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          Đặt lịch PV
+                        </button>
+                      )}
+                    {onOffer &&
+                      (a.status === ApplicationStatus.Interview ||
+                        a.status === ApplicationStatus.Offer ||
+                        a.status === ApplicationStatus.Screening) && (
+                        <button
+                          type="button"
+                          className="text-[11px] font-semibold text-teal-700 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOffer(a.applicationId, a.displayName);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          Gửi đề nghị
+                        </button>
+                      )}
+                    {onOnboard &&
+                      (a.status === ApplicationStatus.Offer ||
+                        a.status === ApplicationStatus.Hired) && (
+                        <button
+                          type="button"
+                          className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOnboard(a.applicationId, a.displayName);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          Nhận việc
+                        </button>
+                      )}
+                  </div>
                 </article>
               ))}
 
