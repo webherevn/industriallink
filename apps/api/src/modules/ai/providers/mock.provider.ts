@@ -226,76 +226,97 @@ export class MockAiProvider implements AiProvider {
     const contextMatch = q.match(/Ngữ cảnh:\s*([\s\S]*?)\n\nCâu hỏi:\s*([\s\S]+)$/i);
     const context = contextMatch?.[1]?.trim() ?? '';
     const question = (contextMatch?.[2] ?? q).trim();
+    const shortQ = question.replace(/\s+/g, ' ').slice(0, 80);
 
     if (/pipeline|phễu|bao nhiêu|thống kê|tình hình/.test(lower)) {
+      const stats = extractPipelineStats(context);
       return [
-        'Dựa trên dữ liệu workspace hiện tại của bạn:',
-        context ? `\n${summarizeContext(context)}` : '',
-        '\nGợi ý: mở Inbox để xử lý hồ sơ mới, hoặc lịch PV nếu có buổi sắp tới.',
-        '\n(Mock AI — bật OPENAI/Anthropic/Gemini để câu trả lời sâu hơn.)',
-      ].join('');
+        'Mình vừa quét pipeline workspace của bạn.',
+        stats || 'Chưa có đủ số liệu pipeline.',
+        'Gợi ý tiếp: mở Hộp thư để sàng lọc hồ sơ mới, hoặc lịch PV nếu có buổi sắp tới.',
+      ].join(' ');
     }
 
-    if (/tìm|ứng viên|candidate|plc|hvac|sales|kỹ sư|engineer/.test(lower)) {
+    if (/tìm|ứng viên|candidate|plc|hvac|sales|kỹ sư|engineer|nhân viên|kinh doanh/.test(lower)) {
       const people = extractCandidateLines(context);
       if (people.length > 0) {
+        const top = people[0];
+        const pct = top.match(/phù hợp\s+(\d+)%/i)?.[1];
         return [
-          `Tôi đã đối chiếu câu hỏi «${question.slice(0, 120)}» với chỉ mục ứng viên:`,
-          ...people.slice(0, 5).map((p, i) => `${i + 1}. ${p}`),
-          '\nBạn có thể mở AI Search hoặc Pipeline để liên hệ / đặt lịch PV.',
-          '\n(Mock AI — semantic ranking dùng pgvector/OpenSearch khi có dữ liệu.)',
-        ].join('\n');
+          `Đã tìm thấy ${people.length} ứng viên liên quan tới «${shortQ}».`,
+          pct
+            ? `Ứng viên nổi bật khớp khoảng ${pct}% — xem thẻ bên dưới để chọn hồ sơ ưu tiên.`
+            : 'Xem thẻ ứng viên bên dưới để chọn hồ sơ ưu tiên.',
+          'Bạn có thể mở Tìm ứng viên AI để lọc sâu hơn hoặc Hộp thư để liên hệ.',
+        ].join(' ');
       }
       return [
-        `Chưa thấy ứng viên khớp rõ với «${question.slice(0, 100)}» trong chỉ mục.`,
-        'Thử mô tả kỹ năng (PLC, HVAC…) hoặc mở /search để tìm rộng hơn.',
-        '\n(Mock AI)',
-      ].join('\n');
+        `Chưa thấy ứng viên khớp rõ với «${shortQ}» trong chỉ mục hiện tại.`,
+        'Thử mô tả kỹ năng (PLC, HVAC, Kinh doanh…) hoặc mở Tìm ứng viên AI để tìm rộng hơn.',
+      ].join(' ');
     }
 
     if (/tin|đăng|job|tuyển dụng|jd/.test(lower)) {
       const jobs = extractJobLines(context);
-      return [
-        jobs.length
-          ? `Các tin đang mở của công ty:\n${jobs.slice(0, 8).map((j, i) => `${i + 1}. ${j}`).join('\n')}`
-          : 'Chưa có tin tuyển dụng trong ngữ cảnh. Vào «Đăng tin» để tạo JD mới (có AI draft).',
-        '\n(Mock AI)',
-      ].join('\n');
+      return jobs.length
+        ? `Công ty đang có ${jobs.length} tin trong ngữ cảnh. Ưu tiên tối ưu JD cho tin đang mở và đẩy sang Tìm ứng viên AI.`
+        : 'Chưa có tin tuyển dụng trong ngữ cảnh. Vào «Đăng tin» để tạo JD mới (có AI draft).';
     }
 
     return [
-      'Tôi là AI Copilot IndustrialLink (chế độ mock local).',
-      `Bạn hỏi: «${question.slice(0, 200)}»`,
-      context ? `\nTóm tắt dữ liệu nội bộ:\n${summarizeContext(context)}` : '',
-      '\nTôi có thể giúp: tìm ứng viên, xem pipeline, gợi ý tin tuyển dụng. Hỏi cụ thể hơn nhé.',
-    ].join('\n');
+      `Đã nhận câu hỏi «${shortQ}».`,
+      'Mình có thể giúp tìm ứng viên, xem pipeline hoặc gợi ý tin tuyển dụng — hỏi cụ thể hơn một chút nhé.',
+    ].join(' ');
   }
 }
 
-function summarizeContext(context: string): string {
-  return context
+function extractPipelineStats(context: string): string {
+  const block = sectionBlock(context, /pipeline workspace/i);
+  const lines = block
     .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .slice(0, 12)
-    .join('\n');
+    .map((l) => l.replace(/^[-•]\s*/, '').trim())
+    .filter((l) => l && !l.startsWith('#'));
+  if (!lines.length) return '';
+  return lines.slice(0, 4).join(' · ') + '.';
 }
 
 function extractCandidateLines(context: string): string[] {
-  return context
+  const block = sectionBlock(context, /ứng viên phù hợp|ứng viên liên quan|candidate/i);
+  return block
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => /^[-•]/.test(l) || /ứng viên|score|phù hợp/i.test(l))
-    .map((l) => l.replace(/^[-•]\s*/, ''));
+    .filter((l) => /^[-•]/.test(l) || /phù hợp\s+\d+%/i.test(l))
+    .map((l) => l.replace(/^[-•]\s*/, ''))
+    .filter(Boolean);
 }
 
 function extractJobLines(context: string): string[] {
-  const block = context.split(/###\s*Tin tuyển dụng/i)[1] ?? context;
+  const block = sectionBlock(context, /tin tuyển dụng/i);
   return block
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#') && !/pipeline|ứng viên/i.test(l))
+    .map((l) => l.replace(/^[-•]\s*/, ''))
     .slice(0, 10);
+}
+
+function sectionBlock(context: string, title: RegExp): string {
+  const lines = context.split('\n');
+  let start = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    const t = lines[i].replace(/^#+\s*/, '').trim();
+    if (title.test(t)) {
+      start = i + 1;
+      break;
+    }
+  }
+  if (start < 0) return '';
+  const out: string[] = [];
+  for (let i = start; i < lines.length; i += 1) {
+    if (/^#{1,6}\s+/.test(lines[i])) break;
+    out.push(lines[i]);
+  }
+  return out.join('\n');
 }
 
 function inferLevelFromYears(years: number, sales: boolean): JobLevelCode {

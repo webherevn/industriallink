@@ -24,8 +24,13 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { ApplicationStatus, formatJobTitle } from '@industriallink/contracts';
+import {
+  ApplicationStatus,
+  formatJobTitle,
+  type CopilotSource,
+} from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CopilotAnswer } from '@/components/copilot-answer';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { Button, Card, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -105,17 +110,20 @@ const COPILOT_CHIPS = [
 export default function RecruiterDashboardPage() {
   const [copilotQ, setCopilotQ] = useState('');
   const [copilotAnswer, setCopilotAnswer] = useState<string | null>(null);
-  const [copilotSources, setCopilotSources] = useState<string[]>([]);
+  const [copilotSources, setCopilotSources] = useState<CopilotSource[]>([]);
+  const [copilotProvider, setCopilotProvider] = useState<string | undefined>();
 
   const copilotMutation = useMutation({
     mutationFn: (message: string) => askCopilot({ message }),
     onSuccess: (res) => {
       setCopilotAnswer(res.answer);
-      setCopilotSources(res.sources.map((s) => s.title));
+      setCopilotSources(res.sources);
+      setCopilotProvider(res.provider);
     },
     onError: () => {
       setCopilotAnswer(null);
       setCopilotSources([]);
+      setCopilotProvider(undefined);
     },
   });
   const [jobFilter, setJobFilter] = useState('all');
@@ -239,7 +247,7 @@ export default function RecruiterDashboardPage() {
           ? `${top.displayName} khớp ${top.matchScore}% với tin «${top.jobTitle}»`
           : 'Kỹ sư PLC đạt độ khớp cao — dùng AI xếp hạng để ưu tiên hồ sơ',
         cta: 'Xem hồ sơ',
-        href: top ? `/jobs/${top.jobId}/applicants` : '/search',
+        href: top ? `/candidates/${top.candidateId}` : '/search',
       },
       {
         icon: 'wallet' as const,
@@ -404,7 +412,18 @@ export default function RecruiterDashboardPage() {
               </form>
 
               {copilotMutation.isPending && (
-                <p className="mt-3 text-[12px] text-white/80">Đang phân tích dữ liệu tuyển dụng…</p>
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3.5 py-3 text-[12px] text-white/85 backdrop-blur-sm">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-70" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
+                  </span>
+                  AI đang phân tích dữ liệu tuyển dụng
+                  <span className="inline-flex gap-0.5">
+                    <span className="animate-bounce [animation-delay:0ms]">.</span>
+                    <span className="animate-bounce [animation-delay:120ms]">.</span>
+                    <span className="animate-bounce [animation-delay:240ms]">.</span>
+                  </span>
+                </div>
               )}
               {copilotMutation.isError && (
                 <p className="mt-3 text-[12px] text-amber-200">
@@ -413,30 +432,41 @@ export default function RecruiterDashboardPage() {
                     : 'Không gọi được Copilot'}
                 </p>
               )}
-              {copilotAnswer && (
-                <div className="mt-3 rounded-xl border border-white/20 bg-white/10 p-3 text-[13px] leading-relaxed text-white/95 backdrop-blur-sm">
-                  <p className="whitespace-pre-wrap">{copilotAnswer}</p>
-                  {copilotSources.length > 0 && (
-                    <p className="mt-2 text-[11px] text-white/60">
-                      Nguồn: {copilotSources.join(' · ')}
-                    </p>
-                  )}
-                  <Link
-                    href={
-                      copilotQ.trim()
-                        ? `/search?q=${encodeURIComponent(copilotQ.trim())}`
-                        : '/search'
-                    }
-                    className="mt-2 inline-block text-[11px] font-semibold text-amber-200 hover:underline"
-                  >
-                    Tìm ứng viên AI →
-                  </Link>
-                </div>
+              {copilotAnswer && !copilotMutation.isPending && (
+                <CopilotAnswer
+                  answer={copilotAnswer}
+                  sources={copilotSources}
+                  provider={copilotProvider}
+                  searchHref={
+                    copilotQ.trim()
+                      ? `/search?q=${encodeURIComponent(copilotQ.trim())}`
+                      : '/search'
+                  }
+                />
               )}
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {COPILOT_CHIPS.map((chip) => {
                   const Icon = chip.icon;
+                  const isAskChip = chip.label === 'Tìm ứng viên phù hợp';
+                  if (isAskChip) {
+                    return (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        disabled={copilotMutation.isPending}
+                        onClick={() => {
+                          const q = 'Tìm ứng viên phù hợp với tin đang mở';
+                          setCopilotQ(q);
+                          copilotMutation.mutate(q);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-3.5 py-2 text-[12px] font-medium text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60"
+                      >
+                        <Icon className="h-3.5 w-3.5 opacity-90" strokeWidth={2} />
+                        {chip.label}
+                      </button>
+                    );
+                  }
                   return (
                     <Link
                       key={chip.label}
@@ -451,7 +481,7 @@ export default function RecruiterDashboardPage() {
               </div>
             </div>
 
-            <div className="relative hidden w-[140px] shrink-0 self-center sm:block lg:w-[168px]">
+            <div className="relative hidden w-[148px] shrink-0 self-end pb-2 sm:block lg:w-[180px]">
               <CopilotRobot className="h-auto w-full" />
             </div>
           </div>
@@ -600,36 +630,38 @@ export default function RecruiterDashboardPage() {
               </li>
             )}
             {topCandidates.map((a, idx) => (
-              <li key={a.applicationId} className="flex items-center gap-2.5">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
-                  {idx + 1}
-                </span>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE] text-[11px] font-bold text-[#1D4ED8]">
-                  {initials(a.displayName)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-slate-900">{a.displayName}</p>
-                  <p className="truncate text-[11px] text-slate-500">
-                    {a.currentPosition
-                      ? formatJobTitle(a.currentPosition)
-                      : a.jobTitle
-                        ? formatJobTitle(a.jobTitle)
-                        : '—'}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {a.matchScore != null && (
-                    <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-semibold text-[#059669]">
-                      Phù hợp {a.matchScore}%
-                    </span>
-                  )}
-                  <Link
-                    href={`/jobs/${a.jobId}/applicants`}
-                    className="text-[12px] font-semibold text-[#2563EB] hover:underline"
-                  >
-                    Xem hồ sơ
-                  </Link>
-                </div>
+              <li key={a.applicationId}>
+                <Link
+                  href={`/candidates/${a.candidateId}`}
+                  className="flex items-center gap-2.5 rounded-xl px-1 py-1 transition hover:bg-slate-50"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
+                    {idx + 1}
+                  </span>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE] text-[11px] font-bold text-[#1D4ED8]">
+                    {initials(a.displayName)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold text-slate-900">
+                      {a.displayName}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-500">
+                      {a.currentPosition
+                        ? formatJobTitle(a.currentPosition)
+                        : a.jobTitle
+                          ? formatJobTitle(a.jobTitle)
+                          : '—'}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {a.matchScore != null && (
+                      <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-semibold text-[#059669]">
+                        Phù hợp {a.matchScore}%
+                      </span>
+                    )}
+                    <span className="text-[12px] font-semibold text-[#2563EB]">Xem hồ sơ</span>
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
