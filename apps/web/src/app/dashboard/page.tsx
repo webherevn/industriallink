@@ -822,8 +822,10 @@ export default function DashboardPage() {
               <ProfileCard title="Định hướng & sở thích nghề" icon={<Heart className="h-4 w-4" />}>
                 {candidate?.profile?.careerObjective ||
                 candidate?.aiProfile?.careerPath ||
+                sales?.salesBehavior ||
                 (sales?.careerMotivations?.length ?? 0) > 0 ||
                 (sales?.workStyles?.length ?? 0) > 0 ||
+                (sales?.careerOrientations?.length ?? 0) > 0 ||
                 sales?.careerOrientation ? (
                   <div className="space-y-3 text-sm text-slate-600">
                     {candidate?.profile?.careerObjective && (
@@ -835,22 +837,40 @@ export default function DashboardPage() {
                         {sales.desiredPositions.join(', ')}
                       </p>
                     )}
+                    {(sales?.salesBehavior || sales?.customerDevStyle) && (
+                      <p>
+                        <span className="font-semibold text-slate-800">
+                          Phong cách & hành vi Sales:{' '}
+                        </span>
+                        {sales?.salesBehavior || sales?.customerDevStyle}
+                      </p>
+                    )}
                     {sales?.careerMotivations && sales.careerMotivations.length > 0 && (
                       <p>
-                        <span className="font-semibold text-slate-800">Động lực: </span>
+                        <span className="font-semibold text-slate-800">Động lực nghề nghiệp: </span>
                         {sales.careerMotivations.join(', ')}
                       </p>
                     )}
                     {sales?.workStyles && sales.workStyles.length > 0 && (
-                      <p>
-                        <span className="font-semibold text-slate-800">Phong cách làm việc: </span>
-                        {sales.workStyles.join(', ')}
-                      </p>
+                      <div>
+                        <p className="font-semibold text-slate-800">Phù hợp văn hóa:</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-5">
+                          {sales.workStyles.map((style) => (
+                            <li key={style}>{style}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                    {sales?.careerOrientation && (
+                    {((sales?.careerOrientations?.length ?? 0) > 0 ||
+                      sales?.careerOrientation) && (
                       <p>
-                        <span className="font-semibold text-slate-800">Định hướng: </span>
-                        {sales.careerOrientation}
+                        <span className="font-semibold text-slate-800">Định hướng nghề nghiệp: </span>
+                        {(sales?.careerOrientations?.length
+                          ? sales.careerOrientations
+                          : sales?.careerOrientation
+                            ? sales.careerOrientation.split(/\s*\|\s*/).map((s) => s.trim())
+                            : []
+                        ).join(', ')}
                       </p>
                     )}
                     {candidate?.aiProfile?.careerPath && (

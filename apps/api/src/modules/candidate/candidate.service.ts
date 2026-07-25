@@ -12,6 +12,7 @@ import {
   JobTrack,
   ResumeParseStatus,
   UserRole,
+  availabilityToNoticeDays,
   type CandidateView,
   type CareerAdviceView,
   type CvDraftFromTextResponse,
@@ -309,7 +310,6 @@ export class CandidateService {
       b2bExperienceBand: emptyToNull(input.b2bExperienceBand),
       marketsCovered,
       salesHighlights: emptyToNull(input.salesHighlights),
-      customerDevStyle: emptyToNull(input.customerDevStyle),
       dealType: emptyToNull(input.dealType) ?? firstExp?.dealType ?? null,
       latestRevenue: input.latestRevenue ?? firstExp?.latestRevenue ?? null,
       kpiAchievementPct: input.kpiAchievementPct ?? firstExp?.kpiAchievementPct ?? null,
@@ -330,9 +330,19 @@ export class CandidateService {
       travelAbility: emptyToNull(input.travelAbility),
       desiredPositions: cleanList(input.desiredPositions).slice(0, 3),
       desiredLocations: cleanList(input.desiredLocations),
-      careerMotivations: cleanList(input.careerMotivations),
+      careerMotivations: cleanList(input.careerMotivations).slice(0, 3),
       workStyles: cleanList(input.workStyles),
-      careerOrientation: emptyToNull(input.careerOrientation),
+      careerOrientation: (() => {
+        const orientations = cleanList(input.careerOrientations ?? []);
+        if (orientations.length) return orientations.join(' | ');
+        return emptyToNull(input.careerOrientation);
+      })(),
+      // Câu assessment phong cách Sales — lưu kèm map Hunter/Hybrid/Farmer
+      customerDevStyle: (() => {
+        const behavior = emptyToNull(input.salesBehavior);
+        if (behavior) return behavior;
+        return emptyToNull(input.customerDevStyle);
+      })(),
       educationLevel: emptyToNull(input.educationLevel),
       educationSchool: emptyToNull(input.educationSchool),
       educationMajor: emptyToNull(input.educationMajor),
@@ -619,8 +629,13 @@ export class CandidateService {
               travelAbility: p.travelAbility ?? null,
               desiredPositions: p.desiredPositions ?? [],
               desiredLocations: p.desiredLocations ?? [],
+              salesBehavior: p.customerDevStyle ?? null,
               careerMotivations: p.careerMotivations ?? [],
               workStyles: p.workStyles ?? [],
+              careerOrientations: (p.careerOrientation ?? '')
+                .split(/\s*\|\s*/)
+                .map((s) => s.trim())
+                .filter(Boolean),
               careerOrientation: p.careerOrientation ?? null,
             },
           }
@@ -814,44 +829,71 @@ export class CandidateService {
       const sellingStages = [
         ...new Set(draft.experience.flatMap((e) => e.sellingStages ?? [])),
       ];
+      const industriesExperienced = [
+        ...new Set([
+          ...(draft.industriesExperienced ?? []),
+          ...draft.experience.flatMap((e) => e.industries ?? []),
+        ]),
+      ];
+      const careerOrientations = cleanList(draft.careerOrientations ?? []);
+      const careerMotivations = cleanList(draft.careerMotivations ?? []).slice(0, 3);
+      const workStyles = cleanList(draft.workStyles ?? []);
+      const salesBehavior = emptyToNull(draft.salesBehavior);
+      const firstExp = draft.experience[0];
+
+      const profileData = {
+        currentPosition: draft.title || null,
+        summary: draft.summary || null,
+        careerObjective: draft.summary || null,
+        currentCity: draft.location || null,
+        phone: draft.phone || null,
+        birthYear: toIntOrNull(draft.birthYear),
+        educationLevel: emptyToNull(draft.educationLevel),
+        industriesExperienced,
+        productsSold,
+        customerSegments,
+        marketsCovered,
+        sellingStages,
+        b2bExperienceBand: emptyToNull(draft.b2bExperienceBand),
+        latestRevenue: firstExp?.latestRevenue ?? null,
+        kpiAchievementPct: firstExp?.kpiAchievementPct ?? null,
+        newCustomerRatioPct:
+          draft.newCustomerRatioPct ?? firstExp?.newCustomerRatioPct ?? null,
+        dealType: emptyToNull(draft.dealType) ?? emptyToNull(firstExp?.dealType ?? null),
+        typicalDealValue:
+          draft.typicalDealValue ?? firstExp?.typicalDealValue ?? null,
+        maxDealValue: draft.maxDealValue ?? firstExp?.maxDealValue ?? null,
+        salesHighlights: salesHighlights || null,
+        customerDevStyle: salesBehavior,
+        jobReadiness: emptyToNull(draft.jobReadiness),
+        availabilityBand: emptyToNull(draft.availabilityBand),
+        noticePeriodDays: availabilityToNoticeDays(draft.availabilityBand ?? null),
+        expectedSalaryMin: toIntOrNull(draft.expectedSalaryMin),
+        expectedSalaryMax: toIntOrNull(draft.expectedSalaryMax),
+        expectedOte: toIntOrNull(draft.expectedOte),
+        languages: draft.languages ?? [],
+        hasB2License: draft.hasB2License ?? null,
+        driverLicenseType: emptyToNull(draft.driverLicenseType),
+        travelAbility: emptyToNull(draft.travelAbility),
+        desiredPositions: (draft.desiredPositions ?? []).slice(0, 3),
+        desiredLocations: cleanList(draft.desiredLocations ?? []),
+        careerMotivations,
+        workStyles,
+        careerOrientation: careerOrientations.length
+          ? careerOrientations.join(' | ')
+          : null,
+        certificates: draft.certificates ?? [],
+        educationSchool: draft.education[0]?.school || null,
+        educationMajor: draft.education[0]?.degree || null,
+      };
 
       await tx.candidateProfile.upsert({
         where: { candidateId: candidate.id },
         create: {
           candidateId: candidate.id,
-          currentPosition: draft.title || null,
-          summary: draft.summary || null,
-          careerObjective: draft.summary || null,
-          currentCity: draft.location || null,
-          phone: draft.phone || null,
-          productsSold,
-          customerSegments,
-          marketsCovered,
-          sellingStages,
-          salesHighlights: salesHighlights || null,
-          languages: draft.languages ?? [],
-          desiredPositions: (draft.desiredPositions ?? []).slice(0, 3),
-          certificates: draft.certificates ?? [],
-          educationSchool: draft.education[0]?.school || null,
-          educationMajor: draft.education[0]?.degree || null,
+          ...profileData,
         },
-        update: {
-          currentPosition: draft.title || null,
-          summary: draft.summary || null,
-          careerObjective: draft.summary || null,
-          currentCity: draft.location || null,
-          phone: draft.phone || null,
-          productsSold,
-          customerSegments,
-          marketsCovered,
-          sellingStages,
-          salesHighlights: salesHighlights || null,
-          languages: draft.languages ?? [],
-          desiredPositions: (draft.desiredPositions ?? []).slice(0, 3),
-          certificates: draft.certificates ?? [],
-          educationSchool: draft.education[0]?.school || null,
-          educationMajor: draft.education[0]?.degree || null,
-        },
+        update: profileData,
       });
 
       await tx.candidateSkill.deleteMany({ where: { candidateId: candidate.id } });
@@ -871,10 +913,12 @@ export class CandidateService {
         const missingFields: string[] = [];
         if (exp.latestRevenue == null) missingFields.push('revenue');
         if (exp.kpiAchievementPct == null) missingFields.push('kpi');
+        if (exp.newCustomerRatioPct == null) missingFields.push('newCustomerRatio');
         if (!(exp.sellingStages?.length > 0)) missingFields.push('sellingStages');
         if (!(exp.productsSold?.length > 0)) missingFields.push('products');
         if (!(exp.customerSegments?.length > 0)) missingFields.push('customerSegments');
         if (!(exp.marketsCovered?.length > 0)) missingFields.push('markets');
+        if (!(exp.industries?.length > 0)) missingFields.push('industries');
         await tx.candidateExperience.create({
           data: {
             candidateId: candidate.id,
@@ -891,6 +935,10 @@ export class CandidateService {
             sellingStages: exp.sellingStages ?? [],
             latestRevenue: exp.latestRevenue ?? null,
             kpiAchievementPct: exp.kpiAchievementPct ?? null,
+            newCustomerRatioPct: exp.newCustomerRatioPct ?? null,
+            dealType: emptyToNull(exp.dealType),
+            typicalDealValue: exp.typicalDealValue ?? null,
+            maxDealValue: exp.maxDealValue ?? null,
             highlights: exp.bullets?.trim() || null,
             jobDescription: exp.bullets?.trim() || null,
             missingFields,

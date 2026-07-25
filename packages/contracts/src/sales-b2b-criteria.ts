@@ -312,43 +312,156 @@ export type DriverLicenseType = (typeof DRIVER_LICENSE_TYPES)[number];
 // C. MỨC ĐỘ PHÙ HỢP (13%)
 // ---------------------------------------------------------------------------
 
-/** 15. Phong cách & hành vi bán hàng (5%) — tái dùng CustomerDevStyle / assessment. */
+/** 15. Phong cách & hành vi bán hàng (5%). */
+export const SALES_BEHAVIOR_OPTIONS = [
+  'Chờ Marketing cung cấp thêm lead',
+  'Tập trung khách cũ có khả năng mua thêm',
+  'Chủ động xây danh sách khách mới và tiếp cận',
+  'Tập trung vài deal lớn đang gần chốt',
+] as const;
 
-/** 16. Động lực nghề nghiệp (3%). */
+export type SalesBehaviorOption = (typeof SALES_BEHAVIOR_OPTIONS)[number];
+
+export const SALES_BEHAVIOR_QUESTION =
+  'Bạn thường ưu tiên làm gì?';
+
+/** Map câu trả lời assessment → persona Hunter/Hybrid/Farmer (matching). */
+export function salesBehaviorToDevStyle(
+  behavior: string | null | undefined,
+): CustomerDevStyle | null {
+  if (!behavior) return null;
+  if (behavior.includes('khách mới') || behavior.includes('Chủ động')) {
+    return CustomerDevStyle.Hunter;
+  }
+  if (behavior.includes('deal lớn') || behavior.includes('gần chốt')) {
+    return CustomerDevStyle.Hybrid;
+  }
+  if (
+    behavior.includes('khách cũ') ||
+    behavior.includes('Marketing') ||
+    behavior.includes('lead')
+  ) {
+    return CustomerDevStyle.Farmer;
+  }
+  return null;
+}
+
+/** 16. Động lực nghề nghiệp (3%) — chọn tối đa 3. */
 export const CAREER_MOTIVATIONS = [
-  'Thu nhập',
-  'Thăng tiến',
-  'Học hỏi',
-  'Chủ động / tự chủ',
-  'Môi trường',
-  'Ổn định',
-  'Khác',
+  'Thu nhập cao',
+  'Hoa hồng/thưởng hấp dẫn',
+  'Cơ hội thăng tiến',
+  'Được học hỏi chuyên môn',
+  'Được tự chủ công việc',
+  'Sản phẩm/thương hiệu tốt',
+  'Môi trường và đồng nghiệp',
+  'Công việc ổn định',
+  'Được ghi nhận thành tích',
+  'Thử thách và cơ hội phát triển',
 ] as const;
 
 export type CareerMotivation = (typeof CAREER_MOTIVATIONS)[number];
 
-/** 17. Phù hợp văn hóa (3%). */
+export const CAREER_MOTIVATION_QUESTION =
+  'Hãy chọn 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
+
+/** 17. Phù hợp văn hóa (3%) — matching với doanh nghiệp. */
+export const CULTURE_FIT_QUESTIONS = [
+  {
+    id: 'effectiveness',
+    question: 'Bạn làm việc hiệu quả hơn khi:',
+    options: [
+      'Có quy trình và hướng dẫn rõ ràng',
+      'Được tự chủ cách đạt mục tiêu',
+    ],
+  },
+  {
+    id: 'environment',
+    question: 'Bạn thích môi trường:',
+    options: [
+      'Ổn định, ít thay đổi',
+      'Nhanh, nhiều thay đổi và cơ hội mới',
+    ],
+  },
+  {
+    id: 'management',
+    question: 'Phong cách quản lý bạn phù hợp:',
+    options: [
+      'Quản lý theo sát và hỗ trợ thường xuyên',
+      'Giao mục tiêu và trao quyền',
+    ],
+  },
+  {
+    id: 'achievement',
+    question: 'Bạn thích:',
+    options: ['Thành tích cá nhân rõ ràng', 'Thành tích đội nhóm'],
+  },
+  {
+    id: 'kpiPressure',
+    question: 'Mức độ áp lực KPI phù hợp:',
+    options: ['Thấp', 'Trung bình', 'Cao', 'Rất cao'],
+  },
+] as const;
+
+export type CultureFitQuestionId = (typeof CULTURE_FIT_QUESTIONS)[number]['id'];
+
+export type CultureFitAnswers = Partial<Record<CultureFitQuestionId, string>>;
+
+export const CULTURE_FIT_SECTION_TITLE = 'Phù hợp văn hóa';
+export const CULTURE_FIT_SUBTITLE = 'Matching với doanh nghiệp';
+
+/** Tag phẳng dùng cho matching (lấy từ các lựa chọn assessment). */
 export const WORK_STYLE_OPTIONS = [
-  'Có cấu trúc / quy trình rõ',
-  'Linh hoạt',
-  'Tốc độ cao',
-  'Tự chủ',
-  'Làm việc nhóm',
-  'Khác',
+  'Có quy trình và hướng dẫn rõ ràng',
+  'Được tự chủ cách đạt mục tiêu',
+  'Ổn định, ít thay đổi',
+  'Nhanh, nhiều thay đổi và cơ hội mới',
+  'Quản lý theo sát và hỗ trợ thường xuyên',
+  'Giao mục tiêu và trao quyền',
+  'Thành tích cá nhân rõ ràng',
+  'Thành tích đội nhóm',
+  'Thấp',
+  'Trung bình',
+  'Cao',
+  'Rất cao',
 ] as const;
 
 export type WorkStyleOption = (typeof WORK_STYLE_OPTIONS)[number];
 
+export function cultureFitAnswersToWorkStyles(answers: CultureFitAnswers): string[] {
+  return CULTURE_FIT_QUESTIONS.map((q) => answers[q.id])
+    .filter((v): v is string => Boolean(v && v.trim()))
+    .map((v) => v.trim());
+}
+
+export function workStylesToCultureFitAnswers(
+  styles: string[] | null | undefined,
+): CultureFitAnswers {
+  const list = styles ?? [];
+  const answers: CultureFitAnswers = {};
+  for (const q of CULTURE_FIT_QUESTIONS) {
+    const found = list.find((s) => (q.options as readonly string[]).includes(s));
+    if (found) answers[q.id] = found;
+  }
+  return answers;
+}
+
 /** 18. Định hướng nghề nghiệp (2%). */
 export const CAREER_ORIENTATIONS = [
-  'Chuyên gia',
-  'Quản lý',
-  'Kinh doanh / BD',
-  'Lãnh đạo đội ngũ',
+  'Sales B2B chuyên nghiệp',
+  'Sales Engineer/Chuyên gia giải pháp',
+  'Key Account',
+  'Business Development',
+  'Trưởng nhóm Sales',
+  'Sales Manager',
+  'Quản lý sản phẩm/ngành hàng',
   'Khác',
 ] as const;
 
 export type CareerOrientation = (typeof CAREER_ORIENTATIONS)[number];
+
+export const CAREER_ORIENTATION_QUESTION =
+  'Trong 2–3 năm tới anh/chị muốn phát triển theo hướng nào?';
 
 /** Vị trí mong muốn (hồ sơ — tối đa 3). */
 export const DESIRED_POSITIONS = [

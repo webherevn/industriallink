@@ -73,8 +73,13 @@ export interface CandidateSalesProfileView {
   travelAbility: string | null;
   desiredPositions: string[];
   desiredLocations: string[];
+  /** Phong cách & hành vi Sales (câu ưu tiên A–D). */
+  salesBehavior: string | null;
   careerMotivations: string[];
   workStyles: string[];
+  /** Một hoặc nhiều định hướng (lưu dạng mảng). */
+  careerOrientations: string[];
+  /** @deprecated dùng careerOrientations */
   careerOrientation: string | null;
 }
 
@@ -189,8 +194,12 @@ export interface UpdateCandidateProfileRequest {
   travelAbility: string | null;
   desiredPositions: string[];
   desiredLocations: string[];
+  /** Phong cách & hành vi Sales — lưu vào customerDevStyle. */
+  salesBehavior?: string | null;
   careerMotivations: string[];
   workStyles: string[];
+  /** Định hướng nghề — multi; API ghép vào careerOrientation. */
+  careerOrientations?: string[];
   careerOrientation: string | null;
   educationLevel: string | null;
   educationSchool: string | null;

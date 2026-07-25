@@ -85,7 +85,28 @@ export function MoneyInput({
   );
 }
 
-/** Chọn tháng/năm bằng lịch native; value dạng YYYY-MM. */
+const MONTH_OPTIONS = [
+  { value: '01', label: 'Tháng 1' },
+  { value: '02', label: 'Tháng 2' },
+  { value: '03', label: 'Tháng 3' },
+  { value: '04', label: 'Tháng 4' },
+  { value: '05', label: 'Tháng 5' },
+  { value: '06', label: 'Tháng 6' },
+  { value: '07', label: 'Tháng 7' },
+  { value: '08', label: 'Tháng 8' },
+  { value: '09', label: 'Tháng 9' },
+  { value: '10', label: 'Tháng 10' },
+  { value: '11', label: 'Tháng 11' },
+  { value: '12', label: 'Tháng 12' },
+] as const;
+
+const YEAR_OPTIONS: number[] = (() => {
+  const years: number[] = [];
+  for (let y = 2035; y >= 1980; y -= 1) years.push(y);
+  return years;
+})();
+
+/** Chọn tháng + năm (YYYY-MM) bằng 2 dropdown — dễ chọn năm hơn lịch native. */
 export function MonthYearInput({
   value,
   onChange,
@@ -97,16 +118,51 @@ export function MonthYearInput({
   disabled?: boolean;
   className?: string;
 }) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value.trim());
+  const year = match?.[1] ?? '';
+  const month = match?.[2] ?? '';
+
+  function emit(nextYear: string, nextMonth: string) {
+    if (!nextYear && !nextMonth) {
+      onChange('');
+      return;
+    }
+    const y = nextYear || String(new Date().getFullYear());
+    const m = nextMonth || '01';
+    onChange(`${y}-${m}`);
+  }
+
   return (
-    <input
-      type="month"
-      disabled={disabled}
-      min="1980-01"
-      max="2035-12"
-      className={clsx(inputClassName, className)}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <div className={clsx('grid grid-cols-2 gap-2', className)}>
+      <select
+        disabled={disabled}
+        aria-label="Tháng"
+        className={inputClassName}
+        value={month}
+        onChange={(e) => emit(year, e.target.value)}
+      >
+        <option value="">Tháng</option>
+        {MONTH_OPTIONS.map((m) => (
+          <option key={m.value} value={m.value}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      <select
+        disabled={disabled}
+        aria-label="Năm"
+        className={inputClassName}
+        value={year}
+        onChange={(e) => emit(e.target.value, month)}
+      >
+        <option value="">Năm</option>
+        {YEAR_OPTIONS.map((y) => (
+          <option key={y} value={String(y)}>
+            {y}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 

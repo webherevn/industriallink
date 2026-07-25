@@ -44,6 +44,10 @@ export interface CvDraftExperience {
   sellingStages: string[];
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
+  newCustomerRatioPct: number | null;
+  dealType: string | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
 }
 
 export interface CvDraft {
@@ -53,14 +57,35 @@ export interface CvDraft {
   phone: string;
   location: string;
   summary: string;
+  birthYear: number | null;
+  educationLevel: string | null;
   skills: string[];
   softSkills: string[];
   languages: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
+  industriesExperienced: string[];
   desiredPositions: string[];
+  desiredLocations: string[];
   salesHighlights: string;
+  b2bExperienceBand: string | null;
+  newCustomerRatioPct: number | null;
+  dealType: string | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
+  jobReadiness: string | null;
+  availabilityBand: string | null;
+  expectedSalaryMin: number | null;
+  expectedSalaryMax: number | null;
+  expectedOte: number | null;
+  travelAbility: string | null;
+  hasB2License: boolean | null;
+  driverLicenseType: string | null;
+  salesBehavior: string | null;
+  careerMotivations: string[];
+  careerOrientations: string[];
+  workStyles: string[];
   experience: CvDraftExperience[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];
@@ -80,6 +105,10 @@ export function emptyCvExperience(): CvDraftExperience {
     sellingStages: [],
     latestRevenue: null,
     kpiAchievementPct: null,
+    newCustomerRatioPct: null,
+    dealType: null,
+    typicalDealValue: null,
+    maxDealValue: null,
   };
 }
 
@@ -91,14 +120,35 @@ export function emptyCvDraft(name = '', email = ''): CvDraft {
     phone: '',
     location: '',
     summary: '',
+    birthYear: null,
+    educationLevel: null,
     skills: [],
     softSkills: [],
     languages: [],
     productsSold: [],
     customerSegments: [],
     marketsCovered: [],
+    industriesExperienced: [],
     desiredPositions: [],
+    desiredLocations: [],
     salesHighlights: '',
+    b2bExperienceBand: null,
+    newCustomerRatioPct: null,
+    dealType: null,
+    typicalDealValue: null,
+    maxDealValue: null,
+    jobReadiness: null,
+    availabilityBand: null,
+    expectedSalaryMin: null,
+    expectedSalaryMax: null,
+    expectedOte: null,
+    travelAbility: null,
+    hasB2License: null,
+    driverLicenseType: null,
+    salesBehavior: null,
+    careerMotivations: [],
+    careerOrientations: [],
+    workStyles: [],
     experience: [],
     education: [],
     certificates: [],
@@ -121,6 +171,10 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     sellingStages: e.sellingStages ?? [],
     latestRevenue: e.latestRevenue ?? null,
     kpiAchievementPct: e.kpiAchievementPct ?? null,
+    newCustomerRatioPct: e.newCustomerRatioPct ?? null,
+    dealType: e.dealType ?? null,
+    typicalDealValue: e.typicalDealValue ?? null,
+    maxDealValue: e.maxDealValue ?? null,
   }));
   return {
     fullName: raw?.fullName ?? base.fullName,
@@ -129,14 +183,35 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     phone: raw?.phone ?? base.phone,
     location: raw?.location ?? base.location,
     summary: raw?.summary ?? base.summary,
+    birthYear: raw?.birthYear ?? base.birthYear,
+    educationLevel: raw?.educationLevel ?? base.educationLevel,
     skills: raw?.skills ?? base.skills,
     softSkills: raw?.softSkills ?? base.softSkills,
     languages: raw?.languages ?? base.languages,
     productsSold: raw?.productsSold ?? base.productsSold,
     customerSegments: raw?.customerSegments ?? base.customerSegments,
     marketsCovered: raw?.marketsCovered ?? base.marketsCovered,
+    industriesExperienced: raw?.industriesExperienced ?? base.industriesExperienced,
     desiredPositions: raw?.desiredPositions ?? base.desiredPositions,
+    desiredLocations: raw?.desiredLocations ?? base.desiredLocations,
     salesHighlights: raw?.salesHighlights ?? base.salesHighlights,
+    b2bExperienceBand: raw?.b2bExperienceBand ?? base.b2bExperienceBand,
+    newCustomerRatioPct: raw?.newCustomerRatioPct ?? base.newCustomerRatioPct,
+    dealType: raw?.dealType ?? base.dealType,
+    typicalDealValue: raw?.typicalDealValue ?? base.typicalDealValue,
+    maxDealValue: raw?.maxDealValue ?? base.maxDealValue,
+    jobReadiness: raw?.jobReadiness ?? base.jobReadiness,
+    availabilityBand: raw?.availabilityBand ?? base.availabilityBand,
+    expectedSalaryMin: raw?.expectedSalaryMin ?? base.expectedSalaryMin,
+    expectedSalaryMax: raw?.expectedSalaryMax ?? base.expectedSalaryMax,
+    expectedOte: raw?.expectedOte ?? base.expectedOte,
+    travelAbility: raw?.travelAbility ?? base.travelAbility,
+    hasB2License: raw?.hasB2License ?? base.hasB2License,
+    driverLicenseType: raw?.driverLicenseType ?? base.driverLicenseType,
+    salesBehavior: raw?.salesBehavior ?? base.salesBehavior,
+    careerMotivations: raw?.careerMotivations ?? base.careerMotivations,
+    careerOrientations: raw?.careerOrientations ?? base.careerOrientations,
+    workStyles: raw?.workStyles ?? base.workStyles,
     experience,
     education: raw?.education ?? base.education,
     certificates: raw?.certificates ?? base.certificates,

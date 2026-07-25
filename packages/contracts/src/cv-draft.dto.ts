@@ -12,9 +12,13 @@ export interface CvDraftExperienceView {
   sellingStages: string[];
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
+  newCustomerRatioPct: number | null;
+  dealType: string | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
 }
 
-/** Bản nháp CV do AI trích / nạp từ hồ sơ / chỉnh tay. */
+/** Bản nháp CV do AI trích / nạp từ hồ sơ / chỉnh tay — đủ ma trận ~39 mục. */
 export interface CvDraftView {
   fullName: string;
   title: string;
@@ -22,14 +26,37 @@ export interface CvDraftView {
   phone: string;
   location: string;
   summary: string;
+  birthYear: number | null;
+  educationLevel: string | null;
   skills: string[];
   softSkills: string[];
   languages: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
+  industriesExperienced: string[];
   desiredPositions: string[];
+  desiredLocations: string[];
   salesHighlights: string;
+  b2bExperienceBand: string | null;
+  newCustomerRatioPct: number | null;
+  dealType: string | null;
+  typicalDealValue: number | null;
+  maxDealValue: number | null;
+  jobReadiness: string | null;
+  availabilityBand: string | null;
+  expectedSalaryMin: number | null;
+  expectedSalaryMax: number | null;
+  expectedOte: number | null;
+  travelAbility: string | null;
+  hasB2License: boolean | null;
+  driverLicenseType: string | null;
+  /** Phong cách & hành vi Sales (assessment). */
+  salesBehavior: string | null;
+  careerMotivations: string[];
+  careerOrientations: string[];
+  /** Phù hợp văn hóa — lưu các đáp án assessment. */
+  workStyles: string[];
   experience: CvDraftExperienceView[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];

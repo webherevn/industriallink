@@ -377,10 +377,22 @@ export class UpdateCandidateProfileDto {
   @IsString({ each: true })
   workStyles!: string[];
 
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  careerOrientations!: string[];
+
+  @ApiPropertyOptional({ description: 'Phong cách & hành vi Sales (câu ưu tiên)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  salesBehavior!: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(80)
+  @MaxLength(500)
   careerOrientation!: string | null;
 
   @ApiPropertyOptional()

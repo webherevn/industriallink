@@ -9,6 +9,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AVAILABILITY_BAND_LABEL,
   AvailabilityBand,
+  CAREER_MOTIVATIONS,
+  CAREER_MOTIVATION_QUESTION,
+  CAREER_ORIENTATIONS,
+  CAREER_ORIENTATION_QUESTION,
+  CULTURE_FIT_QUESTIONS,
+  CULTURE_FIT_SECTION_TITLE,
+  CULTURE_FIT_SUBTITLE,
   DEAL_TYPE_LABEL,
   DEAL_VALUE_BANDS,
   DESIRED_POSITIONS,
@@ -23,12 +30,18 @@ import {
   PRODUCTS_SOLD,
   CUSTOMER_SEGMENTS,
   PROFILE_MISSING_FIELD_LABEL,
+  SALES_BEHAVIOR_OPTIONS,
+  SALES_BEHAVIOR_QUESTION,
   SELLING_STAGES,
   TRAVEL_ABILITY_LABEL,
   TravelAbility,
+  cultureFitAnswersToWorkStyles,
   dealValueBandToVnd,
   kpiBandToPct,
   newCustomerBandToPct,
+  workStylesToCultureFitAnswers,
+  type CultureFitAnswers,
+  type CultureFitQuestionId,
   type ProfileMissingFieldKey,
   type UpdateCandidateProfileRequest,
   availabilityToNoticeDays,
@@ -110,7 +123,6 @@ type FormState = {
   careerObjective: string;
   b2bExperienceBand: string;
   salesHighlights: string;
-  customerDevStyle: string;
   dealType: string;
   latestRevenue: string;
   kpiAchievementPct: string;
@@ -119,9 +131,10 @@ type FormState = {
   maxDealValue: string;
   expectedSalaryMax: string;
   willingToTravel: '' | 'true' | 'false';
+  salesBehavior: string;
   careerMotivations: string[];
-  workStyles: string[];
-  careerOrientation: string;
+  cultureFit: CultureFitAnswers;
+  careerOrientations: string[];
   skills: SkillRow[];
 };
 
@@ -185,7 +198,6 @@ const EMPTY_FORM: FormState = {
   careerObjective: '',
   b2bExperienceBand: '',
   salesHighlights: '',
-  customerDevStyle: '',
   dealType: '',
   latestRevenue: '',
   kpiAchievementPct: '',
@@ -194,9 +206,10 @@ const EMPTY_FORM: FormState = {
   maxDealValue: '',
   expectedSalaryMax: '',
   willingToTravel: '',
+  salesBehavior: '',
   careerMotivations: [],
-  workStyles: [],
-  careerOrientation: '',
+  cultureFit: {},
+  careerOrientations: [],
   skills: [{ name: '', level: SkillLevel.Intermediate }],
 };
 
@@ -231,7 +244,8 @@ function yearToMonthValue(year: number | null | undefined): string {
 function formatMonthYearLabel(value: string): string {
   if (/^\d{4}-\d{2}$/.test(value)) {
     const [y, m] = value.split('-');
-    return `${m}/${y}`;
+    const monthNum = Number(m);
+    return Number.isFinite(monthNum) ? `Tháng ${monthNum}/${y}` : `${m}/${y}`;
   }
   return value || '?';
 }
@@ -414,7 +428,7 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
     b2bExperienceBand: form.b2bExperienceBand || null,
     marketsCovered,
     salesHighlights: form.salesHighlights.trim() || null,
-    customerDevStyle: form.customerDevStyle || null,
+    customerDevStyle: form.salesBehavior || null,
     dealType: form.dealType || firstExp?.dealType || null,
     latestRevenue:
       parseOptionalNumber(form.latestRevenue) ?? firstExp?.latestRevenue ?? null,
@@ -441,9 +455,13 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
     travelAbility: form.travelAbility || null,
     desiredPositions: form.desiredPositions,
     desiredLocations: form.desiredLocations,
-    careerMotivations: form.careerMotivations,
-    workStyles: form.workStyles,
-    careerOrientation: form.careerOrientation || null,
+    careerMotivations: form.careerMotivations.slice(0, 3),
+    workStyles: cultureFitAnswersToWorkStyles(form.cultureFit),
+    careerOrientations: form.careerOrientations,
+    salesBehavior: form.salesBehavior || null,
+    careerOrientation: form.careerOrientations.length
+      ? form.careerOrientations.join(' | ')
+      : null,
     educationLevel: form.educationLevel || null,
     educationSchool: form.educationSchool.trim() || null,
     educationMajor: form.educationMajor.trim() || null,
@@ -591,7 +609,6 @@ export default function ProfileEditPage() {
       careerObjective: p?.careerObjective ?? '',
       b2bExperienceBand: sales?.b2bExperienceBand ?? '',
       salesHighlights: sales?.salesHighlights ?? '',
-      customerDevStyle: sales?.customerDevStyle ?? '',
       dealType: sales?.dealType ?? '',
       latestRevenue: sales?.latestRevenue != null ? String(sales.latestRevenue) : '',
       kpiAchievementPct:
@@ -602,9 +619,22 @@ export default function ProfileEditPage() {
       maxDealValue: sales?.maxDealValue != null ? String(sales.maxDealValue) : '',
       expectedSalaryMax: sales?.expectedSalaryMax != null ? String(sales.expectedSalaryMax) : '',
       willingToTravel: boolToSelect(sales?.willingToTravel),
-      careerMotivations: [...(sales?.careerMotivations ?? [])],
-      workStyles: [...(sales?.workStyles ?? [])],
-      careerOrientation: sales?.careerOrientation ?? '',
+      salesBehavior: (() => {
+        const raw = sales?.salesBehavior ?? sales?.customerDevStyle ?? '';
+        return (SALES_BEHAVIOR_OPTIONS as readonly string[]).includes(raw) ? raw : '';
+      })(),
+      careerMotivations: [...(sales?.careerMotivations ?? [])].slice(0, 3),
+      cultureFit: workStylesToCultureFitAnswers(sales?.workStyles),
+      careerOrientations: [
+        ...((sales?.careerOrientations?.length
+          ? sales.careerOrientations
+          : sales?.careerOrientation
+            ? sales.careerOrientation
+                .split(/\s*\|\s*/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : []) ?? []),
+      ],
       skills:
         candidate.skills.length > 0
           ? candidate.skills.map((s) => ({ name: s.name, level: s.level }))
@@ -628,6 +658,13 @@ export default function ProfileEditPage() {
 
   function patch<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function patchCultureFit(id: CultureFitQuestionId, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      cultureFit: { ...prev.cultureFit, [id]: value },
+    }));
   }
 
   function patchExperience(index: number, patchExp: Partial<ExperienceRow>) {
@@ -1191,6 +1228,119 @@ export default function ProfileEditPage() {
                       </Select>
                     </Field>
                   </div>
+
+                  <div className="space-y-4 border-t border-slate-200 pt-6">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        Đánh giá nâng cao
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Tiêu chí assessment giúp matching phong cách Sales, động lực, định hướng và
+                        văn hóa làm việc.
+                      </p>
+                    </div>
+
+                    <Field label={`Phong cách & hành vi Sales — ${SALES_BEHAVIOR_QUESTION}`}>
+                      <div className="grid gap-2">
+                        {SALES_BEHAVIOR_OPTIONS.map((opt, i) => {
+                          const letter = String.fromCharCode(65 + i);
+                          const checked = form.salesBehavior === opt;
+                          return (
+                            <label
+                              key={opt}
+                              className={clsx(
+                                'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+                                checked
+                                  ? 'border-brand-300 bg-brand-50 text-brand-900'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                name="salesBehavior"
+                                className="mt-0.5"
+                                checked={checked}
+                                onChange={() => patch('salesBehavior', opt)}
+                              />
+                              <span>
+                                <span className="font-semibold">{letter}. </span>
+                                {opt}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </Field>
+
+                    <Field label={`Động lực nghề nghiệp — ${CAREER_MOTIVATION_QUESTION}`}>
+                      <p className="mb-2 text-xs text-amber-700">
+                        {form.careerMotivations.length
+                          ? `Đã chọn ${form.careerMotivations.length}/3`
+                          : 'Chọn đúng 3 yếu tố quan trọng nhất'}
+                      </p>
+                      <MultiCheck
+                        options={CAREER_MOTIVATIONS}
+                        selected={form.careerMotivations}
+                        onChange={(v) => patch('careerMotivations', v.slice(0, 3))}
+                        max={3}
+                        columns={2}
+                      />
+                    </Field>
+
+                    <Field label={`Định hướng nghề nghiệp — ${CAREER_ORIENTATION_QUESTION}`}>
+                      <MultiCheck
+                        options={CAREER_ORIENTATIONS}
+                        selected={form.careerOrientations}
+                        onChange={(v) => patch('careerOrientations', v)}
+                        columns={2}
+                      />
+                    </Field>
+
+                    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {CULTURE_FIT_SECTION_TITLE}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
+                      </div>
+                      {CULTURE_FIT_QUESTIONS.map((q) => (
+                        <Field key={q.id} label={q.question}>
+                          <div className="grid gap-2">
+                            {q.options.map((opt, i) => {
+                              const letter = String.fromCharCode(65 + i);
+                              const useLetter = q.options.length <= 2;
+                              const checked = form.cultureFit[q.id] === opt;
+                              return (
+                                <label
+                                  key={opt}
+                                  className={clsx(
+                                    'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+                                    checked
+                                      ? 'border-brand-300 bg-brand-50 text-brand-900'
+                                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                                  )}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`cultureFit-${q.id}`}
+                                    className="mt-0.5"
+                                    checked={checked}
+                                    onChange={() => patchCultureFit(q.id, opt)}
+                                  />
+                                  <span>
+                                    {useLetter ? (
+                                      <span className="font-semibold">{letter}. </span>
+                                    ) : null}
+                                    {opt}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </Field>
+                      ))}
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -1402,6 +1552,33 @@ export default function ProfileEditPage() {
                             : '—'
                         }
                       />
+                      <ReviewRow
+                        label="Phong cách Sales"
+                        value={form.salesBehavior || '—'}
+                      />
+                      <ReviewRow
+                        label="Động lực nghề"
+                        value={
+                          form.careerMotivations.length > 0
+                            ? form.careerMotivations.join(', ')
+                            : '—'
+                        }
+                      />
+                      <ReviewRow
+                        label="Định hướng nghề"
+                        value={
+                          form.careerOrientations.length > 0
+                            ? form.careerOrientations.join(', ')
+                            : '—'
+                        }
+                      />
+                      {CULTURE_FIT_QUESTIONS.map((q) => (
+                        <ReviewRow
+                          key={q.id}
+                          label={q.question}
+                          value={form.cultureFit[q.id] || '—'}
+                        />
+                      ))}
                     </div>
 
                     {(form.educationLevel ||

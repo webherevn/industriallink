@@ -14,6 +14,7 @@ import {
   getIndustryCatalog,
   normalizeSellingStage,
   noticeDaysToAvailability,
+  salesBehaviorToDevStyle,
   yearsToB2bBand,
   type B2bMatchCriterionKey,
 } from '@industriallink/contracts';
@@ -487,13 +488,20 @@ function salesStyleScore(
   persona?: string | null,
 ): { score: number | null; note?: string } {
   if (!style && !persona) return { score: null };
-  if (!persona) return { score: style ? 0.7 : null, note: style ?? undefined };
-  if (!style) return { score: 0, note: 'Chưa có phong cách Sales' };
-  if (norm(style) === norm(persona)) return { score: 1, note: `Khớp persona ${persona}` };
-  // Hunter vs Hybrid gần hơn Farmer
+  const mapped =
+    salesBehaviorToDevStyle(style) ??
+    (['hunter', 'hybrid', 'farmer'].includes(norm(style ?? ''))
+      ? (norm(style!) as string)
+      : null);
+  const styleKey = mapped ?? style;
+  if (!persona) return { score: styleKey ? 0.7 : null, note: style ?? undefined };
+  if (!styleKey) return { score: 0, note: 'Chưa có phong cách Sales' };
+  if (norm(String(styleKey)) === norm(persona)) {
+    return { score: 1, note: style ?? persona };
+  }
   const close =
-    (norm(style) === 'hybrid' || norm(persona) === 'hybrid') &&
-    norm(style) !== norm(persona);
+    (norm(String(styleKey)) === 'hybrid' || norm(persona) === 'hybrid') &&
+    norm(String(styleKey)) !== norm(persona);
   return { score: close ? 0.55 : 0.25, note: `${style} vs ${persona}` };
 }
 
@@ -515,14 +523,19 @@ function tagOverlapScore(
 }
 
 function careerOrientationScore(
-  orientation: string | null | undefined,
+  orientation: string | string[] | null | undefined,
   desired: string[] | undefined,
   pathTags?: string[],
 ): { score: number | null; note?: string } {
-  const have = [
-    ...(orientation ? [orientation] : []),
-    ...(desired ?? []),
-  ];
+  const orientationList = Array.isArray(orientation)
+    ? orientation
+    : orientation
+      ? orientation
+          .split(/\s*\|\s*/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+  const have = [...orientationList, ...(desired ?? [])];
   if (!pathTags?.length) {
     if (!have.length) return { score: null };
     return { score: 0.7, note: have.slice(0, 2).join(', ') };

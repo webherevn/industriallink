@@ -23,11 +23,20 @@ import { useMemo, useRef, useState } from 'react';
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
+import { CvDraftMatrixFields } from '@/components/cv-draft-fields';
 import { CvPreview } from '@/components/cv-preview';
+import { MY_AVATAR_QUERY_KEY } from '@/components/profile-avatar';
+import { MoneyInput } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { downloadElementAsPdf } from '@/lib/download-cv';
-import { draftCvFromFile, draftCvFromText, getMyCandidate, saveCvDraftToProfile } from '@/lib/candidate';
+import {
+  draftCvFromFile,
+  draftCvFromText,
+  fetchMyAvatarObjectUrl,
+  getMyCandidate,
+  saveCvDraftToProfile,
+} from '@/lib/candidate';
 import {
   candidateHasCvSource,
   draftFromCandidate,
@@ -97,6 +106,12 @@ export default function CreateCvPage() {
     queryFn: getMyCandidate,
     retry: false,
   });
+  const { data: avatarUrl } = useQuery({
+    queryKey: MY_AVATAR_QUERY_KEY,
+    queryFn: fetchMyAvatarObjectUrl,
+    enabled: Boolean(candidate?.hasAvatar),
+    staleTime: 5 * 60_000,
+  });
 
   const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
   const selected = CV_TEMPLATES.find((t) => t.id === selectedId) ?? CV_TEMPLATES[0];
@@ -109,13 +124,18 @@ export default function CreateCvPage() {
     [filter],
   );
 
-  const missingFields = fields.filter((f) => f.status === 'missing');
-  const weakFields = fields.filter((f) => f.status === 'weak');
-  const filledFields = fields.filter((f) => f.status === 'filled');
+  const liveFields = useMemo(
+    () => (analyzed && draft ? fieldHintsFromDraft(draft) : fields),
+    [analyzed, draft, fields],
+  );
+  const missingFields = liveFields.filter((f) => f.status === 'missing');
+  const weakFields = liveFields.filter((f) => f.status === 'weak');
+  const filledFields = liveFields.filter((f) => f.status === 'filled');
 
   function applyAnalyzeResult(res: Awaited<ReturnType<typeof draftCvFromText>>) {
-    setDraft(toDraft(res.draft));
-    setFields(res.fields);
+    const next = toDraft(res.draft);
+    setDraft(next);
+    setFields(fieldHintsFromDraft(next));
     setAnalyzeMessage(res.message);
     setAiScore(res.aiScore);
     setAnalyzed(true);
@@ -506,44 +526,44 @@ export default function CreateCvPage() {
                       label="Họ và tên"
                       value={activeDraft.fullName}
                       onChange={(v) => updateDraft('fullName', v)}
-                      hint={fields.find((f) => f.key === 'fullName')}
+                      hint={liveFields.find((f) => f.key === 'fullName')}
                     />
                     <Field
                       label="Vị trí ứng tuyển"
                       value={activeDraft.title}
                       onChange={(v) => updateDraft('title', v)}
-                      hint={fields.find((f) => f.key === 'title')}
+                      hint={liveFields.find((f) => f.key === 'title')}
                     />
                     <Field
                       label="Email"
                       value={activeDraft.email}
                       onChange={(v) => updateDraft('email', v)}
-                      hint={fields.find((f) => f.key === 'email')}
+                      hint={liveFields.find((f) => f.key === 'email')}
                     />
                     <Field
                       label="Số điện thoại"
                       value={activeDraft.phone}
                       onChange={(v) => updateDraft('phone', v)}
-                      hint={fields.find((f) => f.key === 'phone')}
+                      hint={liveFields.find((f) => f.key === 'phone')}
                     />
                     <Field
                       label="Địa điểm"
                       value={activeDraft.location}
                       onChange={(v) => updateDraft('location', v)}
-                      hint={fields.find((f) => f.key === 'location')}
+                      hint={liveFields.find((f) => f.key === 'location')}
                     />
                     <Field
                       label="Kỹ năng (phẩy)"
                       value={activeDraft.skills.join(', ')}
                       onChange={(v) => updateDraft('skills', splitCsv(v))}
-                      hint={fields.find((f) => f.key === 'skills')}
+                      hint={liveFields.find((f) => f.key === 'skills')}
                     />
                   </div>
 
                   <label className="block">
                     <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
                       Giới thiệu bản thân
-                      <FieldStatusDot hint={fields.find((f) => f.key === 'summary')} />
+                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'summary')} />
                     </span>
                     <textarea
                       rows={4}
@@ -556,7 +576,7 @@ export default function CreateCvPage() {
                   <div>
                     <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
                       Kinh nghiệm làm việc
-                      <FieldStatusDot hint={fields.find((f) => f.key === 'experience')} />
+                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'experience')} />
                     </span>
                     {activeDraft.experience.length === 0 ? (
                       <p className="mt-2 text-xs text-slate-500">
@@ -597,6 +617,16 @@ export default function CreateCvPage() {
                             </div>
                             <div className="mt-2 grid gap-2 sm:grid-cols-2">
                               <input
+                                value={exp.industries.join(', ')}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    industries: splitCsv(e.target.value),
+                                  })
+                                }
+                                placeholder="Ngành (phẩy)"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
                                 value={exp.productsSold.join(', ')}
                                 onChange={(e) =>
                                   updateExperience(index, {
@@ -636,6 +666,47 @@ export default function CreateCvPage() {
                                 placeholder="Giai đoạn bán (phẩy)"
                                 className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
                               />
+                              <div>
+                                <MoneyInput
+                                  value={
+                                    exp.latestRevenue != null ? String(exp.latestRevenue) : ''
+                                  }
+                                  onChange={(digits) =>
+                                    updateExperience(index, {
+                                      latestRevenue: digits ? Number(digits) : null,
+                                    })
+                                  }
+                                  placeholder="Doanh số gần nhất (VND)"
+                                />
+                              </div>
+                              <input
+                                type="number"
+                                min={0}
+                                max={200}
+                                value={exp.kpiAchievementPct ?? ''}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    kpiAchievementPct:
+                                      e.target.value === '' ? null : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="% KPI"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={exp.newCustomerRatioPct ?? ''}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    newCustomerRatioPct:
+                                      e.target.value === '' ? null : Number(e.target.value),
+                                  })
+                                }
+                                placeholder="% KH tự phát triển"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                              />
                             </div>
                             <textarea
                               rows={3}
@@ -657,30 +728,19 @@ export default function CreateCvPage() {
                       label="Sản phẩm bán (tổng hợp)"
                       value={activeDraft.productsSold.join(', ')}
                       onChange={(v) => updateDraft('productsSold', splitCsv(v))}
-                      hint={fields.find((f) => f.key === 'products')}
+                      hint={liveFields.find((f) => f.key === 'products')}
                     />
                     <Field
                       label="Tệp khách hàng"
                       value={activeDraft.customerSegments.join(', ')}
                       onChange={(v) => updateDraft('customerSegments', splitCsv(v))}
-                      hint={fields.find((f) => f.key === 'segments')}
+                      hint={liveFields.find((f) => f.key === 'segments')}
                     />
                     <Field
                       label="Thị trường phụ trách"
                       value={activeDraft.marketsCovered.join(', ')}
                       onChange={(v) => updateDraft('marketsCovered', splitCsv(v))}
-                      hint={fields.find((f) => f.key === 'markets')}
-                    />
-                    <Field
-                      label="Ngoại ngữ (phẩy)"
-                      value={activeDraft.languages.join(', ')}
-                      onChange={(v) => updateDraft('languages', splitCsv(v))}
-                      hint={fields.find((f) => f.key === 'languages')}
-                    />
-                    <Field
-                      label="Vị trí mong muốn (phẩy)"
-                      value={activeDraft.desiredPositions.join(', ')}
-                      onChange={(v) => updateDraft('desiredPositions', splitCsv(v))}
+                      hint={liveFields.find((f) => f.key === 'markets')}
                     />
                     <Field
                       label="Điểm mạnh / soft skills (phẩy)"
@@ -699,7 +759,7 @@ export default function CreateCvPage() {
                           },
                         ])
                       }
-                      hint={fields.find((f) => f.key === 'education')}
+                      hint={liveFields.find((f) => f.key === 'education')}
                     />
                     <Field
                       label="Bằng cấp / chuyên ngành"
@@ -718,7 +778,7 @@ export default function CreateCvPage() {
                       label="Chứng chỉ (phẩy)"
                       value={activeDraft.certificates.join(', ')}
                       onChange={(v) => updateDraft('certificates', splitCsv(v))}
-                      hint={fields.find((f) => f.key === 'certificates')}
+                      hint={liveFields.find((f) => f.key === 'certificates')}
                     />
                   </div>
 
@@ -733,6 +793,12 @@ export default function CreateCvPage() {
                       className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
                     />
                   </label>
+
+                  <CvDraftMatrixFields
+                    draft={activeDraft}
+                    fields={liveFields}
+                    onChange={updateDraft}
+                  />
 
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                     <Link
@@ -951,6 +1017,7 @@ export default function CreateCvPage() {
                     template={selected}
                     compact={previewMode === 'mobile'}
                     empty={!analyzed && step === 1}
+                    avatarUrl={avatarUrl}
                   />
                 </div>
               </div>
@@ -983,7 +1050,12 @@ export default function CreateCvPage() {
       <div className="mt-4 xl:hidden">
         <div className="progress-card p-3">
           <h2 className="mb-3 text-sm font-bold text-slate-900">Xem trước CV</h2>
-          <CvPreview draft={activeDraft} template={selected} empty={!analyzed && step === 1} />
+          <CvPreview
+            draft={activeDraft}
+            template={selected}
+            empty={!analyzed && step === 1}
+            avatarUrl={avatarUrl}
+          />
           <button
             type="button"
             onClick={onDownloadCv}
@@ -1011,6 +1083,7 @@ export default function CreateCvPage() {
             template={selected}
             empty={!analyzed && step === 1}
             exportWidth={794}
+            avatarUrl={avatarUrl}
           />
         </div>
       </div>

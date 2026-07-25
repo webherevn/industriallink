@@ -232,14 +232,15 @@ export default function CandidateDetailPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    Phong cách phát triển KH
+                    Phong cách & hành vi Sales
                   </p>
                   <p className="mt-1 text-sm font-medium text-slate-800">
-                    {sales?.customerDevStyle
-                      ? (CUSTOMER_DEV_STYLE_LABEL[
-                          sales.customerDevStyle as CustomerDevStyle
-                        ] ?? sales.customerDevStyle)
-                      : '—'}
+                    {sales?.salesBehavior ||
+                      (sales?.customerDevStyle
+                        ? (CUSTOMER_DEV_STYLE_LABEL[
+                            sales.customerDevStyle as CustomerDevStyle
+                          ] ?? sales.customerDevStyle)
+                        : '—')}
                   </p>
                 </div>
                 <div>
