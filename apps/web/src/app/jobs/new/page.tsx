@@ -22,10 +22,11 @@ import {
   JOB_TRACK_LABEL,
   JobLevelCode,
   JobTrack,
-  LOCATIONS,
   SALARY_PRESETS,
 } from '@industriallink/contracts';
+import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
+import { LocationPicker } from '@/components/location-picker';
 import { Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { estimateSalary } from '@/lib/career';
@@ -531,18 +532,16 @@ export default function NewJobPage() {
                   </Select>
                 </Field>
                 <Field label="Địa điểm làm việc">
-                  <Select
-                    value={form.location}
-                    onChange={(e) => patch({ location: e.target.value })}
+                  <LocationPicker
+                    variant="field"
+                    multiple
                     disabled={busy}
-                  >
-                    <option value="">-- Chọn địa điểm --</option>
-                    {LOCATIONS.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
-                  </Select>
+                    placeholder="-- Chọn địa điểm --"
+                    value={parseJoinedLocations(form.location)}
+                    onChange={(labels) =>
+                      patch({ location: joinLocationLabels(labels) })
+                    }
+                  />
                 </Field>
               </div>
 

@@ -290,6 +290,8 @@ export class JobService {
     keyword?: string;
     industry?: string;
     location?: string;
+    /** CSV hoặc đã tách sẵn. */
+    locations?: string | string[];
     experienceBand?: string;
     jobLevel?: string;
     jobTrack?: string;
@@ -301,13 +303,30 @@ export class JobService {
     const experienceBands = splitCsv(params.experienceBand);
     const jobLevels = splitCsv(params.jobLevel);
     const track = params.jobTrack?.trim().toLowerCase();
+    const locationFilters = resolveLocationFilters(params.location, params.locations);
+    const andFilters: Array<Record<string, unknown>> = [];
+    if (locationFilters.length === 1) {
+      andFilters.push({ location: locationFilters[0] });
+    } else if (locationFilters.length > 1) {
+      andFilters.push({
+        OR: locationFilters.map((loc) => ({ location: loc })),
+      });
+    }
+    if (keyword) {
+      andFilters.push({
+        OR: [
+          { title: { contains: keyword, mode: 'insensitive' } },
+          { description: { contains: keyword, mode: 'insensitive' } },
+          { skills: { some: { name: { contains: keyword, mode: 'insensitive' } } } },
+        ],
+      });
+    }
 
     const jobs = await this.prisma.job.findMany({
       where: {
         status: JobStatus.Published,
         isDeleted: false,
         ...(params.industry ? { industry: { equals: params.industry, mode: 'insensitive' } } : {}),
-        ...(params.location ? { location: { equals: params.location, mode: 'insensitive' } } : {}),
         ...(experienceBands.length === 1
           ? { experienceBand: experienceBands[0] }
           : experienceBands.length > 1
@@ -322,15 +341,11 @@ export class JobService {
               : {}),
         ...(params.salaryMin != null ? { salaryMax: { gte: params.salaryMin } } : {}),
         ...(params.salaryMax != null ? { salaryMin: { lte: params.salaryMax } } : {}),
-        ...(keyword
-          ? {
-              OR: [
-                { title: { contains: keyword, mode: 'insensitive' } },
-                { description: { contains: keyword, mode: 'insensitive' } },
-                { skills: { some: { name: { contains: keyword, mode: 'insensitive' } } } },
-              ],
-            }
-          : {}),
+        ...(andFilters.length === 1
+          ? andFilters[0]
+          : andFilters.length > 1
+            ? { AND: andFilters }
+            : {}),
       },
       orderBy: { publishedAt: 'desc' },
       include: {
@@ -471,4 +486,32 @@ function splitCsv(value?: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+const LOCATION_PART_SEP = ' · ';
+
+type LocationStringFilter =
+  | { equals: string; mode: 'insensitive' }
+  | { contains: string; mode: 'insensitive' };
+
+/** Gom `location` + `locations` CSV → điều kiện Prisma (equals cụ thể / contains cả tỉnh). */
+function resolveLocationFilters(
+  location?: string,
+  locations?: string | string[],
+): LocationStringFilter[] {
+  const fromList = Array.isArray(locations)
+    ? locations.map((s) => s.trim()).filter(Boolean)
+    : splitCsv(locations);
+  const labels = fromList.length
+    ? fromList
+    : location?.trim()
+      ? [location.trim()]
+      : [];
+
+  return labels.map((label) => {
+    if (label.includes(LOCATION_PART_SEP) || /^kcn\b/i.test(label)) {
+      return { equals: label, mode: 'insensitive' as const };
+    }
+    return { contains: label, mode: 'insensitive' as const };
+  });
 }

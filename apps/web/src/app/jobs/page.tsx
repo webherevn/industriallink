@@ -24,7 +24,6 @@ import {
   JOB_TRACK_LABEL,
   JobLevelCode,
   JobTrack,
-  LOCATIONS,
   POPULAR_JOB_KEYWORDS,
   SALARY_BANDS_VND,
   SALARY_PRESETS,
@@ -34,6 +33,7 @@ import {
   type ListPublishedJobsQuery,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { LocationPicker } from '@/components/location-picker';
 import { Badge, Button, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
 import {
@@ -117,7 +117,12 @@ function JobsPageInner() {
   const tab = (searchParams.get('tab') as TabId) || 'all';
   const keyword = searchParams.get('keyword') ?? '';
   const industry = searchParams.get('industry') ?? '';
-  const location = searchParams.get('location') ?? '';
+  const locations = useMemo(() => {
+    const multi = parseList(searchParams.get('locations'));
+    if (multi.length) return multi;
+    const single = searchParams.get('location')?.trim();
+    return single ? [single] : [];
+  }, [searchParams]);
   const jobLevels = parseList(searchParams.get('jobLevel'));
   const experienceBands = parseList(searchParams.get('experienceBand'));
   const salaryPreset = searchParams.get('salary') ?? '';
@@ -129,7 +134,7 @@ function JobsPageInner() {
     const q: ListPublishedJobsQuery = {};
     if (keyword) q.keyword = keyword;
     if (industry) q.industry = industry;
-    if (location) q.location = location;
+    if (locations.length) q.locations = locations;
     if (jobLevels.length) q.jobLevel = jobLevels.join(',');
     if (experienceBands.length) q.experienceBand = experienceBands.join(',');
     if (salaryPresetObj?.min && salaryPresetObj.min !== '__custom__') {
@@ -137,7 +142,7 @@ function JobsPageInner() {
       q.salaryMax = Number(salaryPresetObj.max);
     }
     return q;
-  }, [keyword, industry, location, jobLevels, experienceBands, salaryPresetObj]);
+  }, [keyword, industry, locations, jobLevels, experienceBands, salaryPresetObj]);
 
   const setParams = useCallback(
     (patch: Record<string, string | null>, replace = true) => {
@@ -160,6 +165,7 @@ function JobsPageInner() {
       keyword: null,
       industry: null,
       location: null,
+      locations: null,
       jobLevel: null,
       experienceBand: null,
       salary: null,
@@ -176,7 +182,7 @@ function JobsPageInner() {
   );
 
   const hasActiveFilters = Boolean(
-    keyword || industry || location || jobLevels.length || experienceBands.length || salaryPreset,
+    keyword || industry || locations.length || jobLevels.length || experienceBands.length || salaryPreset,
   );
 
   const { data: jobs, isLoading } = useQuery({
@@ -318,7 +324,7 @@ function JobsPageInner() {
 
           {/* Search card */}
           <form
-            className="mt-6 flex flex-col gap-0 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80 sm:flex-row sm:items-stretch"
+            className="relative z-20 mt-6 flex flex-col gap-0 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80 sm:flex-row sm:items-stretch"
             onSubmit={(e) => {
               e.preventDefault();
               setFilterParams({ keyword: draftKeyword.trim() || null, tab: 'all' });
@@ -347,20 +353,19 @@ function JobsPageInner() {
                 ))}
               </select>
             </div>
-            <div className="relative border-b border-slate-100 sm:w-[180px] sm:border-b-0 sm:border-r">
-              <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <select
-                value={location}
-                onChange={(e) => setFilterParams({ location: e.target.value || null })}
-                className="h-12 w-full appearance-none bg-transparent pl-10 pr-3 text-sm text-slate-700 outline-none"
-              >
-                <option value="">Tất cả địa điểm</option>
-                {LOCATIONS.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-              </select>
+            <div className="relative border-b border-slate-100 sm:w-[200px] sm:border-b-0 sm:border-r">
+              <MapPin className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <LocationPicker
+                variant="bar"
+                value={locations}
+                placeholder="Tất cả địa điểm"
+                onChange={(next) =>
+                  setFilterParams({
+                    locations: next.length ? next.join(',') : null,
+                    location: null,
+                  })
+                }
+              />
             </div>
             <button
               type="submit"

@@ -89,7 +89,10 @@ export interface JobListItem {
 export interface ListPublishedJobsQuery {
   keyword?: string;
   industry?: string;
+  /** Một địa điểm (tương thích ngược). */
   location?: string;
+  /** Nhiều địa điểm (CSV trên query string `locations`). */
+  locations?: string[];
   /** Một hoặc nhiều ExperienceBand, cách nhau bởi dấu phẩy. */
   experienceBand?: string;
   /** Một hoặc nhiều JobLevelCode, cách nhau bởi dấu phẩy. */

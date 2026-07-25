@@ -216,6 +216,10 @@ export const DEPARTMENTS = [
 
 export type DepartmentName = (typeof DEPARTMENTS)[number];
 
+/**
+ * Địa điểm ngắn (KCN + vài tỉnh phổ biến) — dùng nhóm KCN trong LocationPicker
+ * và tương thích seed/filter cũ. UI chọn địa điểm đầy đủ dùng `@industriallink/vn-admin`.
+ */
 export const LOCATIONS = [
   'KCN Bắc Ninh',
   'KCN Đồng Nai',

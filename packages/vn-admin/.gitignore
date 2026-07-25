@@ -1,0 +1,5 @@
+﻿# Raw downloads (regenerate via SOURCES.md + transform)
+scripts/dvhcvn-old.json
+scripts/hierarchy-new.json
+scripts/*-alt.json
+dist/

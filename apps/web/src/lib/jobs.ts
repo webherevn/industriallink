@@ -18,7 +18,8 @@ export async function listPublishedJobs(
   const qs = new URLSearchParams();
   if (params.keyword) qs.set('keyword', params.keyword);
   if (params.industry) qs.set('industry', params.industry);
-  if (params.location) qs.set('location', params.location);
+  if (params.locations?.length) qs.set('locations', params.locations.join(','));
+  else if (params.location) qs.set('location', params.location);
   if (params.experienceBand) qs.set('experienceBand', params.experienceBand);
   if (params.jobLevel) qs.set('jobLevel', params.jobLevel);
   if (params.jobTrack) qs.set('jobTrack', params.jobTrack);

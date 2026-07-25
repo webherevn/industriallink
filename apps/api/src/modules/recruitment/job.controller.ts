@@ -75,6 +75,7 @@ export class JobController {
   @ApiQuery({ name: 'keyword', required: false })
   @ApiQuery({ name: 'industry', required: false })
   @ApiQuery({ name: 'location', required: false })
+  @ApiQuery({ name: 'locations', required: false, description: 'CSV nhiều địa điểm' })
   @ApiQuery({ name: 'experienceBand', required: false })
   @ApiQuery({ name: 'jobLevel', required: false })
   @ApiQuery({ name: 'jobTrack', required: false })
@@ -85,6 +86,7 @@ export class JobController {
     @Query('keyword') keyword?: string,
     @Query('industry') industry?: string,
     @Query('location') location?: string,
+    @Query('locations') locations?: string,
     @Query('experienceBand') experienceBand?: string,
     @Query('jobLevel') jobLevel?: string,
     @Query('jobTrack') jobTrack?: string,
@@ -95,6 +97,7 @@ export class JobController {
       keyword,
       industry,
       location,
+      locations,
       experienceBand,
       jobLevel,
       jobTrack,
