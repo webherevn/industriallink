@@ -4,10 +4,45 @@
 
 :root {
   color-scheme: light;
+  --brand-navy: #072348;
+  --brand-accent: #E8872A;
+  --brand-accent-soft: #FFF8F1;
+  --brand-accent-border: #FFD0A3;
 }
 
 body {
   @apply bg-[#F5F7FB] font-sans text-slate-900 antialiased;
+}
+
+/* Điểm nhấn cam brand — dùng CSS thuần (tránh @apply custom color) */
+.brand-accent-dot {
+  display: inline-block;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background-color: var(--brand-accent);
+}
+.brand-accent-bar {
+  height: 0.25rem;
+  width: 2.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #f59a3d, var(--brand-accent));
+}
+.brand-card-accent {
+  border-left: 3px solid #f59a3d;
+}
+
+/** Viền cam nhẹ quanh panel/card — đồng bộ brand */
+.brand-panel {
+  border: 1px solid var(--brand-accent-border);
+  background-color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.brand-panel-soft {
+  border: 1px solid var(--brand-accent-border);
+  background-color: var(--brand-accent-soft);
+  border-radius: 1rem;
 }
 
 /* Trợ lý AI — robot animated (GIF-like) */

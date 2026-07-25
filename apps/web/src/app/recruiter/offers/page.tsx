@@ -57,8 +57,15 @@ export default function RecruiterOffersPage() {
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Đề nghị tuyển dụng</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            <span className="brand-accent-dot" />
+            Tuyển dụng
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+            Đề nghị tuyển dụng
+          </h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="mt-2 text-sm text-slate-500">
             Gửi đề nghị làm việc + email, theo dõi phản hồi ứng viên.
           </p>
         </div>
@@ -67,11 +74,11 @@ export default function RecruiterOffersPage() {
         </Link>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
+      <div className="brand-panel mt-5 flex flex-wrap gap-3 p-3.5">
         <Select
           value={jobId}
           onChange={(e) => setJobId(e.target.value)}
-          className="max-w-[240px] py-2 text-sm"
+          className="max-w-[240px] border-accent-200 bg-white py-2 text-sm"
         >
           <option value="all">Tất cả tin</option>
           {(jobs ?? []).map((j) => (
@@ -83,7 +90,7 @@ export default function RecruiterOffersPage() {
         <Select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="max-w-[180px] py-2 text-sm"
+          className="max-w-[180px] border-accent-200 bg-white py-2 text-sm"
         >
           <option value="all">Mọi trạng thái</option>
           {Object.values(OfferStatus).map((s) => (
@@ -174,7 +181,7 @@ function OfferCard({
   const pending = offer.status === OfferStatus.Pending;
   const accepted = offer.status === OfferStatus.Accepted;
   return (
-    <Card as="li" className="!p-4">
+    <li className="brand-panel brand-card-accent list-none p-4 transition hover:border-accent-300">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -186,7 +193,7 @@ function OfferCard({
                   : offer.status === OfferStatus.Declined ||
                       offer.status === OfferStatus.Withdrawn
                     ? 'red'
-                    : 'amber'
+                    : 'accent'
               }
             >
               {OFFER_STATUS_LABEL[offer.status] ?? offer.status}
@@ -194,7 +201,7 @@ function OfferCard({
             <span className="text-xs text-slate-400">{offer.code}</span>
           </div>
           <p className="mt-1 text-sm text-slate-500">{offer.jobTitle}</p>
-          <p className="mt-2 text-lg font-bold text-teal-700">
+          <p className="mt-2 text-lg font-bold text-accent-600">
             {formatSalary(offer.salary, offer.currency)}
           </p>
           <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
@@ -246,6 +253,6 @@ function OfferCard({
           )}
         </div>
       </div>
-    </Card>
+    </li>
   );
 }

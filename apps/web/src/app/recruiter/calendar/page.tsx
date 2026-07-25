@@ -89,8 +89,13 @@ export default function RecruiterCalendarPage() {
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Lịch phỏng vấn</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            <span className="brand-accent-dot" />
+            Tuyển dụng
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Lịch phỏng vấn</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="mt-2 text-sm text-slate-500">
             Đặt lịch HR / chuyên môn, theo dõi và cập nhật trạng thái.
           </p>
         </div>
@@ -122,27 +127,30 @@ export default function RecruiterCalendarPage() {
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Select
-          value={String(range)}
-          onChange={(e) => setRange(Number(e.target.value))}
-          className="max-w-[160px] py-2 text-sm"
-        >
-          <option value="7">7 ngày tới</option>
-          <option value="14">14 ngày tới</option>
-          <option value="30">30 ngày tới</option>
-        </Select>
-        <Select
-          value={jobId}
-          onChange={(e) => setJobId(e.target.value)}
-          className="max-w-[240px] py-2 text-sm"
-        >
-          <option value="all">Tất cả tin tuyển dụng</option>
-          {(jobs ?? []).map((j) => (
-            <option key={j.id} value={j.id}>
-              {j.title}
-            </option>
-          ))}
-        </Select>
+        <div className="brand-panel flex flex-wrap items-center gap-3 p-2.5">
+          <Select
+            value={String(range)}
+            onChange={(e) => setRange(Number(e.target.value))}
+            className="max-w-[160px] border-0 bg-transparent py-2 text-sm shadow-none"
+          >
+            <option value="7">7 ngày tới</option>
+            <option value="14">14 ngày tới</option>
+            <option value="30">30 ngày tới</option>
+          </Select>
+          <span className="hidden h-5 w-px bg-accent-200 sm:block" aria-hidden />
+          <Select
+            value={jobId}
+            onChange={(e) => setJobId(e.target.value)}
+            className="max-w-[240px] border-0 bg-transparent py-2 text-sm shadow-none"
+          >
+            <option value="all">Tất cả tin tuyển dụng</option>
+            {(jobs ?? []).map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Đang tải lịch...</p>}
@@ -199,11 +207,11 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <Card className="!p-4">
+    <div className="brand-panel p-4">
       <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-extrabold text-slate-900">{value}</p>
-      <p className="mt-1 text-[11px] text-emerald-600">{hint}</p>
-    </Card>
+      <p className="mt-1 text-[11px] font-medium text-accent-600">{hint}</p>
+    </div>
   );
 }
 
@@ -220,7 +228,7 @@ function InterviewCard({
 }) {
   const scheduled = interview.status === InterviewStatus.Scheduled;
   return (
-    <Card as="li" className="!p-4">
+    <li className="brand-panel brand-card-accent list-none p-4 transition hover:border-accent-300">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -293,7 +301,7 @@ function InterviewCard({
           )}
         </div>
       </div>
-    </Card>
+    </li>
   );
 }
 

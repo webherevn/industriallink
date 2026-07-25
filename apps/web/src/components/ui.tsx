@@ -235,7 +235,7 @@ export function Badge({
   tone = 'brand',
 }: {
   children: ReactNode;
-  tone?: 'brand' | 'slate' | 'green' | 'amber' | 'red';
+  tone?: 'brand' | 'slate' | 'green' | 'amber' | 'red' | 'accent';
 }) {
   return (
     <span
@@ -246,6 +246,7 @@ export function Badge({
         tone === 'green' && 'bg-green-50 text-green-700',
         tone === 'amber' && 'bg-amber-50 text-amber-700',
         tone === 'red' && 'bg-red-50 text-red-700',
+        tone === 'accent' && 'bg-accent-50 text-accent-700 ring-1 ring-accent-200/80',
       )}
     >
       {children}

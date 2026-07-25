@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss';
 
 /**
  * Brand navy chính: #072348 (theo brand iLink).
- * Chỉ đổi thang brand — emerald / amber / slate / sky giữ nguyên.
+ * Accent cam nhẹ: chấm cam trên logo iLink — dùng điểm nhấn, không thay navy.
  */
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
@@ -23,6 +23,19 @@ const config: Config = {
           700: '#051b38',
           800: '#04142a',
           900: '#020c1a',
+        },
+        /** Cam phụ brand (logo iLink) */
+        accent: {
+          50: '#FFF8F1',
+          100: '#FFE9D4',
+          200: '#FFD0A3',
+          300: '#FFB36A',
+          400: '#F59A3D',
+          500: '#E8872A',
+          600: '#D06F18',
+          700: '#A85512',
+          800: '#7C3F0E',
+          900: '#5C2E0A',
         },
       },
       keyframes: {

@@ -86,19 +86,21 @@ export default function RecruiterInboxPage() {
     <AppShell>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            <span className="brand-accent-dot" />
             Tuyển dụng
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
             Hộp thư ứng viên
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-slate-500">
+          <div className="brand-accent-bar mt-2" />
+          <p className="mt-2 max-w-xl text-sm text-slate-500">
             Theo dõi và xử lý toàn bộ hồ sơ ứng tuyển — ưu tiên điểm phù hợp AI cao.
           </p>
         </div>
         <Link href="/search">
           <Button>
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4 text-accent-300" />
             Tìm ứng viên AI
           </Button>
         </Link>
@@ -131,7 +133,7 @@ export default function RecruiterInboxPage() {
         />
       </div>
 
-      <div className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+      <div className="brand-panel mt-5 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -139,7 +141,7 @@ export default function RecruiterInboxPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Tìm theo tên, tin tuyển dụng, kỹ năng..."
-              className="border-slate-200 bg-[#F8FAFC] pl-9"
+              className="border-accent-200 bg-[#FFFBF7] pl-9"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -153,7 +155,7 @@ export default function RecruiterInboxPage() {
                   className={clsx(
                     'rounded-full px-3 py-1.5 text-[12px] font-semibold transition',
                     active
-                      ? 'bg-brand-600 text-white shadow-sm'
+                      ? 'bg-brand-600 text-white shadow-sm ring-2 ring-accent-300/70'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
                   )}
                 >
@@ -230,7 +232,7 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
   });
 
   return (
-    <article className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5">
+    <article className="brand-panel brand-card-accent group p-4 transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3.5">
           <div className="relative shrink-0">
@@ -308,7 +310,7 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <Link href={`/candidates/${a.candidateId}`}>
-              <Button className="h-9 px-3.5 text-[13px]">
+              <Button className="h-9 bg-accent-500 px-3.5 text-[13px] hover:bg-accent-600">
                 <UserRound className="h-4 w-4" />
                 Xem hồ sơ
               </Button>
@@ -327,9 +329,9 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
 }
 
 const STAT_TONE = {
-  blue: 'bg-[#DBEAFE] text-[#2563EB]',
-  teal: 'bg-[#CCFBF1] text-[#0D9488]',
-  amber: 'bg-[#FFEDD5] text-[#EA580C]',
+  blue: 'bg-brand-50 text-brand-700',
+  teal: 'bg-accent-50 text-accent-700',
+  amber: 'bg-accent-100 text-accent-700',
   green: 'bg-[#D1FAE5] text-[#059669]',
 } as const;
 
@@ -345,7 +347,7 @@ function StatCard({
   tone: keyof typeof STAT_TONE;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+    <div className="brand-panel p-4">
       <div
         className={clsx(
           'flex h-9 w-9 items-center justify-center rounded-full',
