@@ -36,9 +36,10 @@ import {
   SkillLevel,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { Badge, Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { getMyCandidate, updateMyProfile } from '@/lib/candidate';
+import { formatVndAmount } from '@/lib/format';
 
 const STEPS = [
   { id: 1, label: 'Cơ bản' },
@@ -211,6 +212,36 @@ function parseOptionalInt(value: string): number | null {
   return n != null ? Math.round(n) : null;
 }
 
+/** Form lưu YYYY-MM (từ lịch) hoặc YYYY — trả về năm số. */
+function parseYearFromMonthOrYear(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    const y = Number(trimmed.slice(0, 4));
+    return Number.isFinite(y) ? y : null;
+  }
+  return parseOptionalInt(trimmed);
+}
+
+function yearToMonthValue(year: number | null | undefined): string {
+  if (year == null || !Number.isFinite(year)) return '';
+  return `${year}-01`;
+}
+
+function formatMonthYearLabel(value: string): string {
+  if (/^\d{4}-\d{2}$/.test(value)) {
+    const [y, m] = value.split('-');
+    return `${m}/${y}`;
+  }
+  return value || '?';
+}
+
+function moneyHint(value: string): string | null {
+  const n = parseOptionalNumber(value);
+  if (n == null || n < 1_000) return null;
+  return `≈ ${formatVndAmount(n)}`;
+}
+
 function parseOptionalBool(value: '' | 'true' | 'false'): boolean | null {
   if (value === 'true') return true;
   if (value === 'false') return false;
@@ -271,8 +302,8 @@ function experienceFromView(exp: {
     id: exp.id,
     companyName: exp.companyName ?? '',
     jobTitle: exp.jobTitle ?? '',
-    startYear: exp.startYear != null ? String(exp.startYear) : '',
-    endYear: exp.endYear != null ? String(exp.endYear) : '',
+    startYear: yearToMonthValue(exp.startYear),
+    endYear: yearToMonthValue(exp.endYear),
     isCurrent: exp.isCurrent,
     industries: [...(exp.industries ?? [])],
     productsSold: [...(exp.productsSold ?? [])],
@@ -327,8 +358,8 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
         id: e.id,
         companyName: e.companyName.trim(),
         jobTitle: e.jobTitle.trim(),
-        startYear: parseOptionalInt(e.startYear),
-        endYear: e.isCurrent ? null : parseOptionalInt(e.endYear),
+        startYear: parseYearFromMonthOrYear(e.startYear),
+        endYear: e.isCurrent ? null : parseYearFromMonthOrYear(e.endYear),
         isCurrent: e.isCurrent,
         industries: e.industries,
         productsSold: e.productsSold,
@@ -821,21 +852,19 @@ export default function ProfileEditPage() {
                   </Field>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Lương cơ bản tối thiểu (VND/tháng)">
-                      <Input
-                        type="number"
-                        min={0}
+                      <MoneyInput
                         value={form.expectedSalaryMin}
-                        onChange={(e) => patch('expectedSalaryMin', e.target.value)}
-                        placeholder="VD: 15000000"
+                        onChange={(v) => patch('expectedSalaryMin', v)}
+                        placeholder="VD: 15,000,000"
+                        hint={moneyHint(form.expectedSalaryMin)}
                       />
                     </Field>
                     <Field label="Tổng thu nhập kỳ vọng — OTE (VND/tháng)">
-                      <Input
-                        type="number"
-                        min={0}
+                      <MoneyInput
                         value={form.expectedOte}
-                        onChange={(e) => patch('expectedOte', e.target.value)}
+                        onChange={(v) => patch('expectedOte', v)}
                         placeholder="Base + hoa hồng + thưởng"
+                        hint={moneyHint(form.expectedOte)}
                       />
                     </Field>
                     <Field label="Thời gian có thể nhận việc">
@@ -934,27 +963,17 @@ export default function ProfileEditPage() {
                                 placeholder="VD: Sales Engineer"
                               />
                             </Field>
-                            <Field label="Năm bắt đầu">
-                              <Input
-                                type="number"
-                                min={1980}
-                                max={2030}
+                            <Field label="Bắt đầu làm việc">
+                              <MonthYearInput
                                 value={exp.startYear}
-                                onChange={(e) =>
-                                  patchExperience(index, { startYear: e.target.value })
-                                }
+                                onChange={(v) => patchExperience(index, { startYear: v })}
                               />
                             </Field>
-                            <Field label="Năm kết thúc">
-                              <Input
-                                type="number"
-                                min={1980}
-                                max={2030}
+                            <Field label="Kết thúc">
+                              <MonthYearInput
                                 value={exp.endYear}
                                 disabled={exp.isCurrent}
-                                onChange={(e) =>
-                                  patchExperience(index, { endYear: e.target.value })
-                                }
+                                onChange={(v) => patchExperience(index, { endYear: v })}
                               />
                             </Field>
                           </div>
@@ -1013,13 +1032,13 @@ export default function ProfileEditPage() {
                             <div className="space-y-4 border-t border-slate-100 px-4 py-4">
                               <div className="grid gap-4 sm:grid-cols-2">
                                 <Field label="Doanh số gần nhất (VND)">
-                                  <Input
-                                    type="number"
-                                    min={0}
+                                  <MoneyInput
                                     value={exp.latestRevenue}
-                                    onChange={(e) =>
-                                      patchExperience(index, { latestRevenue: e.target.value })
+                                    onChange={(v) =>
+                                      patchExperience(index, { latestRevenue: v })
                                     }
+                                    placeholder="VD: 1,000,000,000"
+                                    hint={moneyHint(exp.latestRevenue)}
                                   />
                                 </Field>
                                 <Field label="% hoàn thành KPI">
@@ -1087,13 +1106,13 @@ export default function ProfileEditPage() {
                                   </Select>
                                 </Field>
                                 <Field label="Thương vụ lớn nhất (VND)">
-                                  <Input
-                                    type="number"
-                                    min={0}
+                                  <MoneyInput
                                     value={exp.maxDealValue}
-                                    onChange={(e) =>
-                                      patchExperience(index, { maxDealValue: e.target.value })
+                                    onChange={(v) =>
+                                      patchExperience(index, { maxDealValue: v })
                                     }
+                                    placeholder="VD: 500,000,000"
+                                    hint={moneyHint(exp.maxDealValue)}
                                   />
                                 </Field>
                               </div>
@@ -1344,8 +1363,8 @@ export default function ProfileEditPage() {
                               {exp.jobTitle || '—'} · {exp.companyName || '—'}
                             </p>
                             <p className="mt-0.5 text-xs text-slate-500">
-                              {exp.startYear || '?'} –{' '}
-                              {exp.isCurrent ? 'Hiện tại' : exp.endYear || '?'}
+                              {formatMonthYearLabel(exp.startYear)} –{' '}
+                              {exp.isCurrent ? 'Hiện tại' : formatMonthYearLabel(exp.endYear)}
                             </p>
                             {exp.missingFields.length > 0 && (
                               <div className="mt-2">

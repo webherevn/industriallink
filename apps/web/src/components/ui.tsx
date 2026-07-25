@@ -42,6 +42,74 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   },
 );
 
+const inputClassName =
+  'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
+/** Nhập số tiền: hiện 1,000,000; lưu chuỗi chỉ gồm chữ số. */
+export function MoneyInput({
+  value,
+  onChange,
+  placeholder,
+  hint,
+  className,
+  disabled,
+}: {
+  value: string;
+  onChange: (digits: string) => void;
+  placeholder?: string;
+  /** Gợi ý đơn vị thông minh bên dưới, vd. "≈ 1 tỷ". */
+  hint?: string | null;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const digits = value.replace(/\D/g, '');
+  const display = digits ? Number(digits).toLocaleString('en-US') : '';
+
+  return (
+    <div>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        disabled={disabled}
+        placeholder={placeholder ?? 'VD: 1,000,000'}
+        className={clsx(inputClassName, 'tabular-nums', className)}
+        value={display}
+        onChange={(e) => {
+          const next = e.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+          onChange(next);
+        }}
+      />
+      {hint ? <p className="mt-1 text-[11px] font-medium text-amber-700">{hint}</p> : null}
+    </div>
+  );
+}
+
+/** Chọn tháng/năm bằng lịch native; value dạng YYYY-MM. */
+export function MonthYearInput({
+  value,
+  onChange,
+  disabled,
+  className,
+}: {
+  value: string;
+  onChange: (yyyyMm: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <input
+      type="month"
+      disabled={disabled}
+      min="1980-01"
+      max="2035-12"
+      className={clsx(inputClassName, className)}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function Textarea({ className, ...props }, ref) {
     return (
