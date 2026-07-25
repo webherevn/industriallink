@@ -5,8 +5,11 @@ import type {
   CreateCompanyRequest,
   InviteCompanyMemberRequest,
   UpdateCompanyRequest,
+  UploadCompanyLogoResponse,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, getApiBase, tokenStore } from './api';
+
+export const MY_COMPANY_LOGO_QUERY_KEY = ['my-company-logo'] as const;
 
 export async function getMyCompany(): Promise<CompanyView> {
   return apiRequest('/companies/me');
@@ -22,6 +25,24 @@ export async function createCompany(input: CreateCompanyRequest): Promise<Compan
 
 export async function updateMyCompany(input: UpdateCompanyRequest): Promise<CompanyView> {
   return apiRequest('/companies/me', { method: 'PATCH', body: input });
+}
+
+export async function uploadCompanyLogo(file: File): Promise<UploadCompanyLogoResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest('/companies/me/logo', { method: 'POST', body: form, isForm: true });
+}
+
+/** Tải logo công ty (Bearer) → blob URL. */
+export async function fetchMyCompanyLogoObjectUrl(): Promise<string | null> {
+  const token = tokenStore.get();
+  if (!token) return null;
+  const res = await fetch(`${getApiBase()}/companies/me/logo`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export async function listCompanyMembers(): Promise<CompanyMemberView[]> {

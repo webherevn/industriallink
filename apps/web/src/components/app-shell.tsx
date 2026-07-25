@@ -15,6 +15,7 @@ import {
   Settings2,
   Sparkles,
   Target,
+  Users,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -35,6 +36,7 @@ const CANDIDATE_PRIMARY_NAV = [
   { href: '/cv/create', label: 'Tạo CV', icon: FilePenLine },
   { href: '/recommended', label: 'Gợi ý AI', icon: Sparkles },
   { href: '/applications', label: 'Đơn ứng tuyển', icon: ClipboardList },
+  { href: '/connections', label: 'Kết nối', icon: Users },
   { href: '/progress', label: 'Tiến trình', icon: Target },
 ] as const;
 

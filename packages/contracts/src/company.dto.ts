@@ -26,6 +26,13 @@ export interface CompanyView {
   memberCount: number;
   /** Quyền của người dùng hiện tại trong công ty này. */
   myRole: CompanyRole;
+  /** Đã có logo tải lên (stream qua GET /companies/me/logo hoặc /companies/:id/logo). */
+  hasLogo: boolean;
+}
+
+export interface UploadCompanyLogoResponse {
+  hasLogo: boolean;
+  message: string;
 }
 
 /** Ảnh văn hóa công ty. */

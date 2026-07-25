@@ -3,13 +3,18 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
+  NotFoundException,
   Param,
   Patch,
   Post,
+  StreamableFile,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
 import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { IdempotencyInterceptor } from '../../shared/common/idempotency.interceptor';
@@ -59,6 +64,38 @@ export class CompanyController {
     return this.companies.updateMyCompany(user, dto, correlationId);
   }
 
+  @Post('me/logo')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Tải lên logo công ty (chỉ owner/admin)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  uploadLogo(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.companies.uploadLogo(user, file);
+  }
+
+  @Get('me/logo')
+  @ApiOperation({ summary: 'Lấy logo công ty của tôi (binary)' })
+  @Header('Cache-Control', 'private, max-age=300')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
+  async getMyLogo(@CurrentUser() user: AuthenticatedUser): Promise<StreamableFile> {
+    const logo = await this.companies.getMyLogoBuffer(user);
+    if (!logo) {
+      throw new NotFoundException('Chưa có logo công ty');
+    }
+    return new StreamableFile(logo.buffer, {
+      type: logo.mime,
+      disposition: 'inline',
+    });
+  }
+
   @Get('me/members')
   @ApiOperation({ summary: 'Danh sách thành viên công ty của tôi' })
   listMembers(@CurrentUser() user: AuthenticatedUser) {
@@ -84,6 +121,28 @@ export class CompanyController {
     @CorrelationId() correlationId: string,
   ) {
     return this.companies.removeMember(user, id, correlationId);
+  }
+
+  @Get(':id/logo')
+  @Roles(
+    UserRole.Candidate,
+    UserRole.Recruiter,
+    UserRole.HiringManager,
+    UserRole.CompanyAdmin,
+    UserRole.SuperAdmin,
+  )
+  @ApiOperation({ summary: 'Logo công ty (binary, công khai trong app)' })
+  @Header('Cache-Control', 'private, max-age=300')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
+  async getLogo(@Param('id') id: string): Promise<StreamableFile> {
+    const logo = await this.companies.getCompanyLogoBuffer(id);
+    if (!logo) {
+      throw new NotFoundException('Chưa có logo công ty');
+    }
+    return new StreamableFile(logo.buffer, {
+      type: logo.mime,
+      disposition: 'inline',
+    });
   }
 
   @Get(':id/profile')

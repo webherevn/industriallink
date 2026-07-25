@@ -8,11 +8,26 @@ describe('CompanyService', () => {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const codeGen = { next: jest.fn().mockResolvedValue('COM-2026-000001') };
 
+  const storage = {
+    putObject: jest.fn().mockResolvedValue(undefined),
+    getObject: jest.fn().mockResolvedValue(null),
+    deleteObject: jest.fn().mockResolvedValue(undefined),
+  };
+
   function buildService(prisma: Record<string, unknown>) {
     events.publish.mockClear();
     audit.record.mockClear();
     codeGen.next.mockClear();
-    return new CompanyService(prisma as never, codeGen as never, events as never, audit as never);
+    storage.putObject.mockClear();
+    storage.getObject.mockClear();
+    storage.deleteObject.mockClear();
+    return new CompanyService(
+      prisma as never,
+      codeGen as never,
+      events as never,
+      audit as never,
+      storage as never,
+    );
   }
 
   const owner: AuthenticatedUser = {

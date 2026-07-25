@@ -1,14 +1,28 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Briefcase, Plus, Users } from 'lucide-react';
+import {
+  Briefcase,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+  Users,
+  XCircle,
+} from 'lucide-react';
 import Link from 'next/link';
 import { JobStatus } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Badge, Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { formatJobLevel, formatSalary } from '@/lib/format';
-import { listMyJobs, publishJob } from '@/lib/jobs';
+import {
+  deleteJob,
+  listMyJobs,
+  publishJob,
+  updateJobStatus,
+} from '@/lib/jobs';
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   [JobStatus.Draft]: 'Nháp',
@@ -16,6 +30,13 @@ const STATUS_LABEL: Record<JobStatus, string> = {
   [JobStatus.Paused]: 'Tạm dừng',
   [JobStatus.Closed]: 'Đã đóng',
 };
+
+function statusTone(status: JobStatus): 'green' | 'slate' | 'amber' | 'red' {
+  if (status === JobStatus.Published) return 'green';
+  if (status === JobStatus.Paused) return 'amber';
+  if (status === JobStatus.Closed) return 'red';
+  return 'slate';
+}
 
 export default function ManageJobsPage() {
   const queryClient = useQueryClient();
@@ -25,21 +46,46 @@ export default function ManageJobsPage() {
     retry: false,
   });
 
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
+
   const publishMutation = useMutation({
     mutationFn: (id: string) => publishJob(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-jobs'] }),
+    onSuccess: invalidate,
   });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: JobStatus }) =>
+      updateJobStatus(
+        id,
+        status as
+          | JobStatus.Published
+          | JobStatus.Paused
+          | JobStatus.Closed
+          | JobStatus.Draft,
+      ),
+    onSuccess: invalidate,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteJob(id),
+    onSuccess: invalidate,
+  });
+
+  const busy =
+    publishMutation.isPending || statusMutation.isPending || deleteMutation.isPending;
 
   return (
     <AppShell>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tin tuyển dụng</h1>
-          <p className="mt-1 text-slate-500">Quản lý tin đăng và xem ứng viên ứng tuyển.</p>
+          <p className="mt-1 text-slate-500">
+            Thêm, sửa, tạm dừng hoặc xoá tin đăng — xem ứng viên ứng tuyển.
+          </p>
         </div>
         <Link href="/jobs/new">
           <Button>
-            <Plus className="h-4 w-4" /> Đăng tin
+            <Plus className="h-4 w-4" /> Đăng tin mới
           </Button>
         </Link>
       </div>
@@ -74,34 +120,98 @@ export default function ManageJobsPage() {
       <div className="mt-6 space-y-3">
         {jobs?.map((job) => (
           <Card key={job.id} className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-slate-900">{job.title}</p>
-                <Badge tone={job.status === JobStatus.Published ? 'green' : 'slate'}>
-                  {STATUS_LABEL[job.status]}
-                </Badge>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/jobs/${job.id}/edit`}
+                  className="font-semibold text-slate-900 hover:text-brand-600 hover:underline"
+                >
+                  {job.title}
+                </Link>
+                <Badge tone={statusTone(job.status)}>{STATUS_LABEL[job.status]}</Badge>
               </div>
               <p className="mt-0.5 text-sm text-slate-500">
                 {job.code}
                 {job.jobLevel ? ` · ${formatJobLevel(job.jobLevel)}` : ''} ·{' '}
-                {job.location ?? 'Không rõ địa điểm'} · {formatSalary(job.salaryMin, job.salaryMax)}
+                {job.location ?? 'Không rõ địa điểm'} ·{' '}
+                {formatSalary(job.salaryMin, job.salaryMax)}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={`/jobs/${job.id}/edit`}>
+                <Button variant="outline" disabled={busy}>
+                  <Pencil className="h-4 w-4" /> Sửa
+                </Button>
+              </Link>
+
               {job.status === JobStatus.Draft && (
                 <Button
                   variant="outline"
                   onClick={() => publishMutation.mutate(job.id)}
-                  disabled={publishMutation.isPending}
+                  disabled={busy}
                 >
-                  Đăng công khai
+                  <Play className="h-4 w-4" /> Đăng công khai
                 </Button>
               )}
+
+              {job.status === JobStatus.Published && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    statusMutation.mutate({ id: job.id, status: JobStatus.Paused })
+                  }
+                  disabled={busy}
+                >
+                  <Pause className="h-4 w-4" /> Tạm dừng
+                </Button>
+              )}
+
+              {job.status === JobStatus.Paused && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    statusMutation.mutate({ id: job.id, status: JobStatus.Published })
+                  }
+                  disabled={busy}
+                >
+                  <Play className="h-4 w-4" /> Mở lại
+                </Button>
+              )}
+
+              {(job.status === JobStatus.Published || job.status === JobStatus.Paused) && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    statusMutation.mutate({ id: job.id, status: JobStatus.Closed })
+                  }
+                  disabled={busy}
+                >
+                  <XCircle className="h-4 w-4" /> Đóng
+                </Button>
+              )}
+
               <Link href={`/jobs/${job.id}/applicants`}>
                 <Button variant="outline">
                   <Users className="h-4 w-4" /> Ứng viên
                 </Button>
               </Link>
+
+              <Button
+                variant="ghost"
+                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Xoá tin «${job.title}»? Thao tác không hoàn tác từ danh sách.`,
+                    )
+                  ) {
+                    deleteMutation.mutate(job.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           </Card>
         ))}

@@ -139,3 +139,11 @@ export enum OnboardingStatus {
   Completed = 'completed',
   Cancelled = 'cancelled',
 }
+
+/** Trạng thái yêu cầu kết nối NTD ↔ ứng viên. */
+export enum ConnectionStatus {
+  Pending = 'pending',
+  Accepted = 'accepted',
+  Rejected = 'rejected',
+  Cancelled = 'cancelled',
+}

@@ -16,6 +16,7 @@ import {
   Sparkles,
   Target,
   UserRound,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -185,6 +186,12 @@ export function CandidateSidebar({
               label="Đơn ứng tuyển"
               icon={ClipboardList}
               active={isActivePath(pathname, '/applications')}
+            />
+            <NavItem
+              href="/connections"
+              label="Yêu cầu kết nối"
+              icon={Users}
+              active={isActivePath(pathname, '/connections')}
             />
             <NavItem
               href="/progress"

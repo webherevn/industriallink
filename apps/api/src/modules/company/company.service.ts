@@ -15,19 +15,30 @@ import {
   type CompanyMemberView,
   type CompanyPublicProfileView,
   type CompanyView,
+  type UploadCompanyLogoResponse,
 } from '@industriallink/contracts';
 import type { Company, Prisma } from '@prisma/client';
+import { v7 as uuidv7 } from 'uuid';
 import { createDomainEvent } from '../../shared/domain/domain-event';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { AuditService } from '../../shared/infrastructure/audit.service';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import type { CreateCompanyDto } from './dto/create-company.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
 
 /** Vai trò có quyền quản trị công ty (mời/gỡ thành viên, sửa hồ sơ). */
 const ADMIN_ROLES: CompanyRole[] = [CompanyRole.Owner, CompanyRole.Admin];
+
+const LOGO_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const LOGO_MAX_SIZE = 2 * 1024 * 1024;
+
+type BrandProfileStored = CompanyBrandProfile & {
+  logoStorageKey?: string | null;
+  logoMime?: string | null;
+};
 
 @Injectable()
 export class CompanyService {
@@ -38,6 +49,7 @@ export class CompanyService {
     private readonly codeGen: CodeGeneratorService,
     private readonly events: AppEventBus,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   async createCompany(
@@ -353,7 +365,93 @@ export class CompanyService {
     }
   }
 
+  async uploadLogo(
+    user: AuthenticatedUser,
+    file: Express.Multer.File | undefined,
+  ): Promise<UploadCompanyLogoResponse> {
+    if (!file) {
+      throw new BadRequestException('Thiếu file ảnh logo');
+    }
+    if (!LOGO_MIME.has(file.mimetype)) {
+      throw new BadRequestException('Chỉ chấp nhận JPEG, PNG, WebP hoặc GIF');
+    }
+    if (file.size > LOGO_MAX_SIZE) {
+      throw new BadRequestException('Ảnh vượt quá 2MB');
+    }
+
+    const membership = await this.requireMembership(user.id);
+    this.requireAdmin(membership.roleInCompany as CompanyRole);
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: membership.companyId },
+    });
+    if (!company || company.isDeleted) {
+      throw new NotFoundException('Không tìm thấy công ty');
+    }
+
+    const ext =
+      file.mimetype === 'image/png'
+        ? 'png'
+        : file.mimetype === 'image/webp'
+          ? 'webp'
+          : file.mimetype === 'image/gif'
+            ? 'gif'
+            : 'jpg';
+    const storageKey = `company-logos/${company.id}/${uuidv7()}.${ext}`;
+    await this.storage.putObject(storageKey, file.buffer, file.mimetype);
+
+    const prev = parseBrandProfileStored(company.profile);
+    const next: BrandProfileStored = {
+      ...prev,
+      logoStorageKey: storageKey,
+      logoMime: file.mimetype,
+      // Giữ URL công khai dạng endpoint stream (web dùng blob URL từ /me/logo)
+      logoUrl: `/companies/${company.id}/logo`,
+    };
+
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: {
+        profile: next as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+    });
+
+    return { hasLogo: true, message: 'Đã cập nhật logo công ty' };
+  }
+
+  async getMyLogoBuffer(
+    user: AuthenticatedUser,
+  ): Promise<{ buffer: Buffer; mime: string } | null> {
+    const membership = await this.prisma.companyMember.findFirst({
+      where: { userId: user.id },
+      include: { company: true },
+    });
+    if (!membership) return null;
+    return this.readLogoFromCompany(membership.company);
+  }
+
+  async getCompanyLogoBuffer(
+    companyId: string,
+  ): Promise<{ buffer: Buffer; mime: string } | null> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, isDeleted: false },
+    });
+    if (!company) return null;
+    return this.readLogoFromCompany(company);
+  }
+
+  private async readLogoFromCompany(
+    company: Company,
+  ): Promise<{ buffer: Buffer; mime: string } | null> {
+    const brand = parseBrandProfileStored(company.profile);
+    if (!brand.logoStorageKey) return null;
+    const buffer = await this.storage.getObject(brand.logoStorageKey);
+    return { buffer, mime: brand.logoMime ?? 'image/jpeg' };
+  }
+
   private toView(company: Company, memberCount: number, myRole: CompanyRole): CompanyView {
+    const brand = parseBrandProfileStored(company.profile);
     return {
       id: company.id,
       code: company.code,
@@ -367,13 +465,22 @@ export class CompanyService {
       status: company.status,
       memberCount,
       myRole,
+      hasLogo: Boolean(brand.logoStorageKey),
     };
   }
 }
 
 function parseBrandProfile(raw: Prisma.JsonValue | null | undefined): CompanyBrandProfile {
+  const stored = parseBrandProfileStored(raw);
+  const { logoStorageKey: _k, logoMime: _m, ...publicBrand } = stored;
+  return publicBrand;
+}
+
+function parseBrandProfileStored(
+  raw: Prisma.JsonValue | null | undefined,
+): BrandProfileStored {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {};
   }
-  return raw as CompanyBrandProfile;
+  return raw as BrandProfileStored;
 }

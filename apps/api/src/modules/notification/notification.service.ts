@@ -91,6 +91,31 @@ export class NotificationService {
     return { updated: result.count };
   }
 
+  /** Tạo thông báo in-app đơn giản (kết nối ứng viên, v.v.). */
+  async createInApp(input: {
+    tenantId: string;
+    userId: string;
+    type: string;
+    title: string;
+    body: string;
+    link?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
+  }): Promise<void> {
+    await this.prisma.notification.create({
+      data: {
+        tenantId: input.tenantId,
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        link: input.link ?? null,
+        entityType: input.entityType ?? null,
+        entityId: input.entityId ?? null,
+      },
+    });
+  }
+
   /** OtpIssued → gửi email OTP (đọc mã từ DB, không lấy từ payload). */
   async onOtpIssued(event: DomainEventEnvelope): Promise<void> {
     const payload = event.payload as {

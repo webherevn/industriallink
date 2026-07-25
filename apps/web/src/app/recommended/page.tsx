@@ -521,7 +521,7 @@ export default function RecommendedPage() {
               ))}
             </div>
             <Link
-              href="/upload"
+              href="/profile/edit"
               className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-600"
             >
               <Settings2 className="h-3.5 w-3.5" /> Tùy chỉnh gợi ý
@@ -613,7 +613,7 @@ export default function RecommendedPage() {
                   />
                 </div>
                 <Link
-                  href="/upload"
+                  href="/profile/edit"
                   className="mt-2 inline-block text-[11px] font-semibold text-amber-600 hover:underline"
                 >
                   Hoàn thiện ngay →
@@ -707,7 +707,7 @@ export default function RecommendedPage() {
               Cập nhật CV và kỹ năng để AI hiểu đúng năng lực công nghiệp của bạn.
             </p>
             <Link
-              href="/upload"
+              href="/profile/edit"
               className="mt-3 flex h-9 items-center justify-center rounded-lg bg-brand-500 text-xs font-semibold text-white hover:bg-brand-600"
             >
               Cập nhật hồ sơ ngay

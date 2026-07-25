@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   NotFoundException,
@@ -95,11 +96,64 @@ export class CandidateController {
     return this.candidates.updateMyProfile(user, body);
   }
 
+  @Get('me/connections')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Danh sách yêu cầu kết nối tới tôi' })
+  listMyConnections(@CurrentUser() user: AuthenticatedUser) {
+    return this.candidates.listMyConnections(user);
+  }
+
+  @Post('me/connections/:id/accept')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Đồng ý yêu cầu kết nối' })
+  acceptConnection(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.candidates.respondConnection(user, id, true);
+  }
+
+  @Post('me/connections/:id/reject')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Từ chối yêu cầu kết nối' })
+  rejectConnection(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.candidates.respondConnection(user, id, false);
+  }
+
   @Get(':id')
   @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
-  @ApiOperation({ summary: 'Xem hồ sơ ứng viên (NTD, cùng tenant)' })
+  @ApiOperation({ summary: 'Xem hồ sơ ứng viên (NTD, cùng tenant) — liên hệ ẩn đến khi kết nối' })
   getCandidateById(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.candidates.getCandidateForRecruiter(user, id);
+  }
+
+  @Post(':id/connection')
+  @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Gửi yêu cầu kết nối ứng viên' })
+  requestConnection(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body?: { message?: string },
+  ) {
+    return this.candidates.requestConnection(user, id, body?.message);
+  }
+
+  @Post(':id/connection/cancel')
+  @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Huỷ yêu cầu kết nối đang chờ' })
+  cancelConnection(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.candidates.cancelConnection(user, id);
+  }
+
+  @Post(':id/shortlist')
+  @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu CV vào shortlist công ty' })
+  addShortlist(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.candidates.addShortlist(user, id);
+  }
+
+  @Delete(':id/shortlist')
+  @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Bỏ lưu CV khỏi shortlist' })
+  removeShortlist(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.candidates.removeShortlist(user, id);
   }
 
   @Post('me/cv-draft/from-text')

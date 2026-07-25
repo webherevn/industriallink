@@ -7,8 +7,10 @@ import type {
   GenerateJobDraftRequest,
   GenerateJobDraftResponse,
   JobListItem,
+  JobStatus,
   JobView,
   ListPublishedJobsQuery,
+  UpdateJobRequest,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
 
@@ -62,6 +64,21 @@ export async function generateJobDraft(
 
 export async function publishJob(id: string): Promise<JobView> {
   return apiRequest(`/jobs/${id}/publish`, { method: 'POST' });
+}
+
+export async function updateJob(id: string, input: UpdateJobRequest): Promise<JobView> {
+  return apiRequest(`/jobs/${id}`, { method: 'PATCH', body: input });
+}
+
+export async function updateJobStatus(
+  id: string,
+  status: JobStatus.Published | JobStatus.Paused | JobStatus.Closed | JobStatus.Draft,
+): Promise<JobView> {
+  return apiRequest(`/jobs/${id}/status`, { method: 'PATCH', body: { status } });
+}
+
+export async function deleteJob(id: string): Promise<{ message: string }> {
+  return apiRequest(`/jobs/${id}`, { method: 'DELETE' });
 }
 
 export async function applyToJob(id: string, input: ApplyJobRequest): Promise<ApplicationView> {

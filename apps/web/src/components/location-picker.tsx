@@ -14,7 +14,7 @@ import {
 } from '@industriallink/vn-admin';
 import { LOCATIONS } from '@industriallink/contracts';
 import clsx from 'clsx';
-import { Check, ChevronRight, MapPin, Search, X } from 'lucide-react';
+import { ChevronRight, MapPin, Search, X } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -406,49 +406,39 @@ export function LocationPicker({
                       const partial = provincePartialSelected(p.name, pChildren);
                       const active = p.id === activeProvinceId;
                       return (
-                        <button
+                        <div
                           key={p.id}
-                          type="button"
-                          onClick={() => setActiveProvinceId(p.id)}
                           className={clsx(
-                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition',
+                            'flex w-full items-center gap-2 px-3 py-2 text-sm transition',
                             active ? 'bg-brand-50/80' : 'hover:bg-slate-50',
                           )}
                         >
-                          <span
-                            role="checkbox"
-                            aria-checked={all ? true : partial ? 'mixed' : false}
-                            tabIndex={0}
-                            className={clsx(
-                              'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-                              all || partial
-                                ? 'border-brand-500 bg-brand-500 text-white'
-                                : 'border-slate-300 bg-white',
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleProvinceAll(p.name, pChildren);
+                          <input
+                            type="checkbox"
+                            aria-label={`Chọn ${formatProvinceDisplay(p.name)}`}
+                            className="h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                            checked={all}
+                            ref={(el) => {
+                              if (el) el.indeterminate = !all && partial;
                             }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                toggleProvinceAll(p.name, pChildren);
-                              }
-                            }}
-                          >
-                            {(all || partial) && <Check className="h-3 w-3" strokeWidth={3} />}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-slate-800">
-                            {formatProvinceDisplay(p.name)}
-                          </span>
-                          <ChevronRight
-                            className={clsx(
-                              'h-4 w-4 shrink-0',
-                              active ? 'text-brand-500' : 'text-slate-300',
-                            )}
+                            onChange={() => toggleProvinceAll(p.name, pChildren)}
                           />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveProvinceId(p.id)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-slate-800">
+                              {formatProvinceDisplay(p.name)}
+                            </span>
+                            <ChevronRight
+                              className={clsx(
+                                'h-4 w-4 shrink-0',
+                                active ? 'text-brand-500' : 'text-slate-300',
+                              )}
+                            />
+                          </button>
+                        </div>
                       );
                     })}
                     {!provinces.length && (
@@ -550,7 +540,7 @@ export function LocationPicker({
       : null;
 
   return (
-    <div ref={rootRef} className={clsx('relative', className)}>
+    <div ref={rootRef} className={clsx('relative flex items-center', className)}>
       <button
         ref={triggerRef}
         type="button"
@@ -559,7 +549,7 @@ export function LocationPicker({
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         className={clsx(
-          'flex w-full items-center gap-2 text-left text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-50',
+          'flex min-w-0 flex-1 items-center gap-2 text-left text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-50',
           variant === 'bar' &&
             'h-12 bg-transparent pl-10 pr-3 text-slate-700',
           variant === 'field' &&
@@ -571,28 +561,22 @@ export function LocationPicker({
           <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
         )}
         <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
-        {value.length > 0 && (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label="Xóa địa điểm"
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange([]);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                onChange([]);
-              }
-            }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </span>
-        )}
       </button>
+      {value.length > 0 && (
+        <button
+          type="button"
+          aria-label="Xóa địa điểm"
+          disabled={disabled}
+          className={clsx(
+            'absolute right-2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50',
+            variant === 'bar' && 'top-1/2 -translate-y-1/2',
+            variant === 'field' && 'top-1/2 -translate-y-1/2',
+          )}
+          onClick={() => onChange([])}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
       {panel}
     </div>
   );

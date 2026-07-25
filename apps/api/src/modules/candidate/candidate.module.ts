@@ -2,7 +2,9 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { DomainEvents, type DomainEventEnvelope } from '@industriallink/contracts';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { AiModule } from '../ai/ai.module';
+import { CompanyModule } from '../company/company.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
+import { NotificationModule } from '../notification/notification.module';
 import { CandidateController } from './candidate.controller';
 import { CandidateService } from './candidate.service';
 import { resumeParseQueueProvider } from './resume/resume-parse.queue';
@@ -14,7 +16,7 @@ import { ResumeParseWorker } from './resume/resume-parse.worker';
  * không phụ thuộc trực tiếp Identity Domain).
  */
 @Module({
-  imports: [AiModule, KnowledgeModule],
+  imports: [AiModule, KnowledgeModule, CompanyModule, NotificationModule],
   controllers: [CandidateController],
   providers: [
     CandidateService,

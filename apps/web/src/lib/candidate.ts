@@ -1,7 +1,9 @@
 import type {
   CandidateView,
+  ConnectionView,
   CvDraftFromTextResponse,
   CvDraftView,
+  RecruiterCandidateView,
   ResumeParseStatusResponse,
   ResumeUploadResponse,
   SaveCvDraftToProfileResponse,
@@ -32,9 +34,49 @@ export async function updateMyProfile(
   return apiRequest('/candidates/me', { method: 'PATCH', body });
 }
 
-/** Hồ sơ ứng viên cho NTD xem từ Search / Matching. */
-export async function getCandidateById(candidateId: string): Promise<CandidateView> {
+/** Hồ sơ ứng viên cho NTD xem từ Search / Matching (liên hệ có thể bị ẩn). */
+export async function getCandidateById(candidateId: string): Promise<RecruiterCandidateView> {
   return apiRequest(`/candidates/${candidateId}`);
+}
+
+export async function requestCandidateConnection(
+  candidateId: string,
+  message?: string,
+): Promise<ConnectionView> {
+  return apiRequest(`/candidates/${candidateId}/connection`, {
+    method: 'POST',
+    body: message ? { message } : {},
+  });
+}
+
+export async function cancelCandidateConnection(
+  candidateId: string,
+): Promise<ConnectionView> {
+  return apiRequest(`/candidates/${candidateId}/connection/cancel`, { method: 'POST' });
+}
+
+export async function listMyConnections(): Promise<ConnectionView[]> {
+  return apiRequest('/candidates/me/connections');
+}
+
+export async function acceptConnection(connectionId: string): Promise<ConnectionView> {
+  return apiRequest(`/candidates/me/connections/${connectionId}/accept`, { method: 'POST' });
+}
+
+export async function rejectConnection(connectionId: string): Promise<ConnectionView> {
+  return apiRequest(`/candidates/me/connections/${connectionId}/reject`, { method: 'POST' });
+}
+
+export async function addCandidateShortlist(
+  candidateId: string,
+): Promise<{ ok: true; isShortlisted: true }> {
+  return apiRequest(`/candidates/${candidateId}/shortlist`, { method: 'POST' });
+}
+
+export async function removeCandidateShortlist(
+  candidateId: string,
+): Promise<{ ok: true; isShortlisted: false }> {
+  return apiRequest(`/candidates/${candidateId}/shortlist`, { method: 'DELETE' });
 }
 
 export async function uploadAvatar(file: File): Promise<UploadAvatarResponse> {

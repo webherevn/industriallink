@@ -44,6 +44,7 @@ import {
 } from '@/lib/cv-from-profile';
 import {
   CV_CREATE_STEPS,
+  CV_INDUSTRY_FILTERS,
   CV_TEMPLATE_FILTERS,
   CV_TEMPLATES,
   emptyCvDraft,
@@ -51,6 +52,7 @@ import {
   type CvDraft,
   type CvTemplate,
   type CvTemplateCategory,
+  type CvTemplateIndustry,
 } from '@/lib/cv-templates';
 
 const SAMPLE_PROMPT = `Tôi tên Nguyễn Văn A, kỹ sư tự động hóa PLC/SCADA với 5 năm kinh nghiệm tại Công ty ABC (KCN Bắc Ninh).
@@ -87,6 +89,8 @@ export default function CreateCvPage() {
   const [analyzeMessage, setAnalyzeMessage] = useState<string | null>(null);
   const [aiScore, setAiScore] = useState<number | null>(null);
   const [filter, setFilter] = useState<CvTemplateCategory>('all');
+  const [industryFilter, setIndustryFilter] = useState<CvTemplateIndustry>('all');
+  const [industryMenuOpen, setIndustryMenuOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(CV_TEMPLATES[0].id);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [draft, setDraft] = useState<CvDraft | null>(null);
@@ -118,11 +122,16 @@ export default function CreateCvPage() {
   const activeDraft = draft ?? emptyDraft(displayName, me?.email ?? '');
   const canImportFromProfile = candidateHasCvSource(candidate);
 
-  const templates = useMemo(
-    () =>
-      filter === 'all' ? CV_TEMPLATES : CV_TEMPLATES.filter((t) => t.category === filter),
-    [filter],
-  );
+  const templates = useMemo(() => {
+    return CV_TEMPLATES.filter((t) => {
+      if (filter !== 'all' && t.category !== filter) return false;
+      if (industryFilter === 'all') return true;
+      return t.industry === industryFilter;
+    });
+  }, [filter, industryFilter]);
+
+  const industryFilterLabel =
+    CV_INDUSTRY_FILTERS.find((f) => f.id === industryFilter)?.label ?? 'Theo ngành nghề';
 
   const liveFields = useMemo(
     () => (analyzed && draft ? fieldHintsFromDraft(draft) : fields),
@@ -844,13 +853,62 @@ export default function CreateCvPage() {
                     {f.label}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"
-                >
-                  Theo ngành nghề
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIndustryMenuOpen((v) => !v)}
+                    className={clsx(
+                      'inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition',
+                      industryFilter !== 'all'
+                        ? 'border-brand-200 bg-brand-50 text-brand-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                    )}
+                  >
+                    {industryFilter === 'all' ? 'Theo ngành nghề' : industryFilterLabel}
+                    <ChevronDown
+                      className={clsx(
+                        'h-3.5 w-3.5 transition',
+                        industryMenuOpen && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                  {industryMenuOpen && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Đóng menu ngành nghề"
+                        className="fixed inset-0 z-10 cursor-default"
+                        onClick={() => setIndustryMenuOpen(false)}
+                      />
+                      <div className="absolute left-0 z-20 mt-1 min-w-[14rem] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-900/10">
+                        {CV_INDUSTRY_FILTERS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setIndustryFilter(opt.id);
+                              setIndustryMenuOpen(false);
+                              const first = CV_TEMPLATES.find((t) => {
+                                if (filter !== 'all' && t.category !== filter) return false;
+                                if (opt.id === 'all') return true;
+                                return t.industry === opt.id;
+                              });
+                              if (first) setSelectedId(first.id);
+                            }}
+                            className={clsx(
+                              'flex w-full px-3.5 py-2 text-left text-xs font-medium transition',
+                              industryFilter === opt.id
+                                ? 'bg-brand-50 text-brand-700'
+                                : 'text-slate-700 hover:bg-slate-50',
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -863,6 +921,11 @@ export default function CreateCvPage() {
                   />
                 ))}
               </div>
+              {!templates.length && (
+                <p className="mt-4 text-center text-xs text-slate-400">
+                  Không có mẫu phù hợp bộ lọc. Thử đổi phong cách hoặc ngành nghề.
+                </p>
+              )}
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <button
@@ -1203,7 +1266,19 @@ function TemplateCard({
       </div>
       <div className="border-t border-slate-100 px-3 py-2">
         <p className="text-xs font-bold text-slate-800">{template.name}</p>
-        <p className="mt-0.5 text-[10px] capitalize text-slate-400">{template.category}</p>
+        <p className="mt-0.5 text-[10px] text-slate-400">
+          {template.industry === 'sales'
+            ? 'Nhân viên kinh doanh'
+            : template.industry === 'technical'
+              ? 'Kỹ thuật'
+              : template.category === 'modern'
+                ? 'Hiện đại'
+                : template.category === 'professional'
+                  ? 'Chuyên nghiệp'
+                  : template.category === 'creative'
+                    ? 'Sáng tạo'
+                    : 'Tối giản'}
+        </p>
       </div>
     </button>
   );

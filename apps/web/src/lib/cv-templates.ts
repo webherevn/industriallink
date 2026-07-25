@@ -1,9 +1,14 @@
 export type CvTemplateCategory = 'all' | 'modern' | 'professional' | 'creative' | 'minimal';
 
+/** Lọc mẫu theo ngành nghề (Sales / Kỹ thuật). */
+export type CvTemplateIndustry = 'all' | 'sales' | 'technical';
+
 export interface CvTemplate {
   id: string;
   name: string;
   category: Exclude<CvTemplateCategory, 'all'>;
+  /** Ngành nghề gắn với mẫu; bỏ trống = dùng chung. */
+  industry?: Exclude<CvTemplateIndustry, 'all'>;
   accent: string;
   layout: 'sidebar' | 'classic' | 'split';
 }
@@ -16,6 +21,12 @@ export const CV_TEMPLATE_FILTERS: { id: CvTemplateCategory; label: string }[] = 
   { id: 'minimal', label: 'Tối giản' },
 ];
 
+export const CV_INDUSTRY_FILTERS: { id: CvTemplateIndustry; label: string }[] = [
+  { id: 'all', label: 'Tất cả ngành' },
+  { id: 'sales', label: 'CV Nhân viên kinh doanh' },
+  { id: 'technical', label: 'CV Kỹ thuật' },
+];
+
 export const CV_TEMPLATES: CvTemplate[] = [
   { id: 'modern-01', name: 'Hiện đại 01', category: 'modern', accent: '#0B3A6E', layout: 'sidebar' },
   { id: 'modern-02', name: 'Hiện đại 02', category: 'modern', accent: '#0E7490', layout: 'split' },
@@ -23,6 +34,38 @@ export const CV_TEMPLATES: CvTemplate[] = [
   { id: 'pro-02', name: 'Chuyên nghiệp 02', category: 'professional', accent: '#334155', layout: 'sidebar' },
   { id: 'creative-01', name: 'Sáng tạo 01', category: 'creative', accent: '#5B21B6', layout: 'split' },
   { id: 'minimal-01', name: 'Tối giản 01', category: 'minimal', accent: '#0F172A', layout: 'classic' },
+  {
+    id: 'sales-01',
+    name: 'CV Nhân viên kinh doanh',
+    category: 'professional',
+    industry: 'sales',
+    accent: '#B45309',
+    layout: 'sidebar',
+  },
+  {
+    id: 'sales-02',
+    name: 'CV Sales B2B',
+    category: 'modern',
+    industry: 'sales',
+    accent: '#C2410C',
+    layout: 'split',
+  },
+  {
+    id: 'tech-01',
+    name: 'CV Kỹ thuật',
+    category: 'professional',
+    industry: 'technical',
+    accent: '#0F766E',
+    layout: 'classic',
+  },
+  {
+    id: 'tech-02',
+    name: 'CV Kỹ sư công nghiệp',
+    category: 'modern',
+    industry: 'technical',
+    accent: '#155E75',
+    layout: 'sidebar',
+  },
 ];
 
 /** Luồng Tạo CV: nhập → chọn mẫu → tải xuống. */

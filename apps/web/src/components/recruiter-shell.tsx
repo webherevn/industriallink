@@ -7,15 +7,16 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  ChevronDown,
   FileText,
   Gift,
   HelpCircle,
-  Shield,
   LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
   Search,
+  Shield,
   Target,
   UserPlus,
   Users,
@@ -24,12 +25,16 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { NotificationBell } from '@/components/notification-bell';
-import { Button } from '@/components/ui';
 import { tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
+import {
+  MY_COMPANY_LOGO_QUERY_KEY,
+  fetchMyCompanyLogoObjectUrl,
+  getMyCompany,
+} from '@/lib/company';
 
 type NavItem = {
   href: string;
@@ -75,15 +80,74 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+function CompanyAvatar({
+  logoUrl,
+  name,
+  sizeClass = 'h-9 w-9',
+  textClass = 'text-[11px]',
+}: {
+  logoUrl: string | null | undefined;
+  name: string;
+  sizeClass?: string;
+  textClass?: string;
+}) {
+  const initials = name
+    .split(' ')
+    .slice(-2)
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  if (logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt={name}
+        className={clsx(sizeClass, 'rounded-full object-cover ring-2 ring-white')}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={clsx(
+        sizeClass,
+        textClass,
+        'flex items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#93C5FD] font-bold text-[#1D4ED8] ring-2 ring-white',
+      )}
+    >
+      {initials || 'NT'}
+    </div>
+  );
+}
+
 export function RecruiterShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
 
   const { data: user, isError } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+  });
+
+  const { data: company } = useQuery({
+    queryKey: ['my-company'],
+    queryFn: getMyCompany,
+    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    retry: false,
+  });
+
+  const { data: logoUrl } = useQuery({
+    queryKey: MY_COMPANY_LOGO_QUERY_KEY,
+    queryFn: fetchMyCompanyLogoObjectUrl,
+    enabled: Boolean(company?.hasLogo),
+    staleTime: 5 * 60_000,
   });
 
   useEffect(() => {
@@ -98,7 +162,26 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMobileOpen(false);
+    setAccountOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAccountOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountOpen]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -112,6 +195,7 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   }, [router]);
 
   async function onLogout() {
+    setAccountOpen(false);
     await logout();
     router.replace('/login');
   }
@@ -119,24 +203,22 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   function isActive(href: string) {
     if (href === '#') return false;
     if (href === '/recruiter') return pathname === '/recruiter';
-    const matches = NAV_SECTIONS.flatMap((s) => s.items)
-      .filter((n) => !n.soon && n.href !== '#')
-      .filter((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
-    const best = matches.sort((a, b) => b.href.length - a.href.length)[0];
-    return best?.href === href;
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
+  const displayName = company?.name || user?.displayName || 'Nhà tuyển dụng';
+
   const sidebar = (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-5 py-5">
+    <aside className="flex h-full w-[260px] flex-col border-r border-slate-200/80 bg-white">
+      <div className="px-4 py-5">
         <BrandSidebarLockup href="/recruiter" />
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title ?? 'main'}>
             {section.title && (
-              <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
                 {section.title}
               </p>
             )}
@@ -146,11 +228,13 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                 const active = isActive(item.href);
                 if (item.soon) {
                   return (
-                    <li key={`${section.title}-${item.label}`}>
+                    <li key={`${item.href}-${item.label}`}>
                       <span className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-400">
                         <Icon className="h-4 w-4" />
                         <span className="flex-1">{item.label}</span>
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px]">Sắp có</span>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px]">
+                          Sắp có
+                        </span>
                       </span>
                     </li>
                   );
@@ -179,20 +263,19 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
 
       <div className="border-t border-slate-100 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">
-            {(user?.displayName ?? 'NT')
-              .split(' ')
-              .slice(-2)
-              .map((p) => p[0])
-              .join('')
-              .slice(0, 2)
-              .toUpperCase()}
-          </div>
+          <CompanyAvatar
+            logoUrl={logoUrl}
+            name={displayName}
+            sizeClass="h-10 w-10"
+            textClass="text-sm"
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900">
-              {user?.displayName ?? 'Nhà tuyển dụng'}
+              {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
             </p>
-            <p className="text-xs text-slate-500">Nhà tuyển dụng</p>
+            <p className="truncate text-xs text-slate-500">
+              {user?.displayName ?? 'Tài khoản NTD'}
+            </p>
           </div>
           <button
             type="button"
@@ -236,7 +319,11 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
               </button>
               <div className="min-w-0">
                 <p className="truncate text-[1.25rem] font-bold leading-tight text-slate-900">
-                  Xin chào {user?.displayName ? `Anh ${user.displayName.split(' ').slice(-1)[0]}` : 'bạn'}! 👋
+                  Xin chào{' '}
+                  {user?.displayName
+                    ? `Anh ${user.displayName.split(' ').slice(-1)[0]}`
+                    : 'bạn'}
+                  ! 👋
                 </p>
                 <p className="mt-1 hidden truncate text-[13px] text-slate-500 sm:block">
                   Trợ lý AI đã sẵn sàng hỗ trợ công việc tuyển dụng của bạn hôm nay.
@@ -273,14 +360,66 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
               >
                 <HelpCircle className="h-5 w-5" strokeWidth={1.75} />
               </a>
-              <div className="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#93C5FD] text-[11px] font-bold text-[#1D4ED8] ring-2 ring-white">
-                {(user?.displayName ?? 'NT')
-                  .split(' ')
-                  .slice(-2)
-                  .map((p) => p[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase()}
+
+              <div ref={accountRef} className="relative ml-1">
+                <button
+                  type="button"
+                  onClick={() => setAccountOpen((v) => !v)}
+                  className="flex items-center gap-1.5 rounded-full p-0.5 transition hover:bg-slate-100"
+                  aria-expanded={accountOpen}
+                  aria-haspopup="menu"
+                >
+                  <CompanyAvatar logoUrl={logoUrl} name={displayName} />
+                  <ChevronDown
+                    className={clsx(
+                      'hidden h-4 w-4 text-slate-400 transition sm:block',
+                      accountOpen && 'rotate-180',
+                    )}
+                  />
+                </button>
+
+                {accountOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-900/10"
+                  >
+                    <div className="border-b border-slate-100 px-3.5 py-2.5">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {company?.name ?? 'Chưa có công ty'}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {user?.email ?? user?.displayName}
+                      </p>
+                    </div>
+                    <Link
+                      href="/company"
+                      role="menuitem"
+                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => setAccountOpen(false)}
+                    >
+                      <Building2 className="h-4 w-4 text-slate-400" />
+                      Hồ sơ công ty
+                    </Link>
+                    <Link
+                      href="/account"
+                      role="menuitem"
+                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => setAccountOpen(false)}
+                    >
+                      <Shield className="h-4 w-4 text-slate-400" />
+                      Tài khoản & bảo mật
+                    </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={onLogout}
+                      className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -289,21 +428,5 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
         <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
-  );
-}
-
-/** Alias nhẹ nếu cần Button logout ngoài shell. */
-export function RecruiterLogoutButton() {
-  const router = useRouter();
-  return (
-    <Button
-      variant="ghost"
-      onClick={async () => {
-        await logout();
-        router.replace('/login');
-      }}
-    >
-      <LogOut className="h-4 w-4" /> Đăng xuất
-    </Button>
   );
 }

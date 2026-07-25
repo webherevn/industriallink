@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -24,6 +25,7 @@ import { ApplyJobDto } from './dto/apply-job.dto';
 import { BroadcastEmailDto } from './dto/broadcast-email.dto';
 import { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
 import { EstimateSalaryDto } from './dto/estimate-salary.dto';
+import { UpdateJobStatusDto } from './dto/update-job-status.dto';
 import { JobService } from './job.service';
 
 const RECRUITER_ROLES = [UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin];
@@ -139,6 +141,41 @@ export class JobController {
   @ApiOperation({ summary: 'Chi tiết tin tuyển dụng' })
   getOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.jobs.getJob(id, user);
+  }
+
+  @Patch(':id')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Cập nhật nội dung tin tuyển dụng' })
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateJobDto,
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.jobs.updateJob(user, id, dto, correlationId);
+  }
+
+  @Patch(':id/status')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Đổi trạng thái tin (đăng / tạm dừng / đóng / nháp)' })
+  updateStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateJobStatusDto,
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.jobs.updateJobStatus(user, id, dto.status, correlationId);
+  }
+
+  @Delete(':id')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Xoá tin tuyển dụng (soft-delete)' })
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.jobs.deleteJob(user, id, correlationId);
   }
 
   @Post(':id/publish')

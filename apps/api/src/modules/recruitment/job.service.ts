@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -196,17 +197,146 @@ export class JobService {
     jobId: string,
     correlationId: string,
   ): Promise<JobView> {
-    const job = await this.requireOwnedJob(user, jobId);
-    if (job.status === JobStatus.Published) {
-      return this.toView(job);
-    }
+    return this.updateJobStatus(user, jobId, JobStatus.Published, correlationId);
+  }
+
+  async updateJob(
+    user: AuthenticatedUser,
+    jobId: string,
+    dto: CreateJobDto,
+    correlationId: string,
+  ): Promise<JobView> {
+    await this.requireOwnedJob(user, jobId);
+
+    const skillInputs = dto.skills ?? [];
+    const skillData = await Promise.all(
+      skillInputs.map(async (s) => ({
+        skillId: await this.skills.resolveSkillId(s.name),
+        name: s.name.trim(),
+        required: s.required ?? true,
+        weight: s.weight ?? 1,
+      })),
+    );
+
+    await this.prisma.jobSkill.deleteMany({ where: { jobId } });
+
     const updated = await this.prisma.job.update({
       where: { id: jobId },
-      data: { status: JobStatus.Published, publishedAt: new Date(), updatedBy: user.id },
+      data: {
+        title: dto.title,
+        description: dto.description,
+        requirements: dto.requirements ?? null,
+        benefits: dto.benefits ?? null,
+        industry: dto.industry ?? null,
+        department: dto.department ?? null,
+        jobLevel: dto.jobLevel ?? null,
+        employmentType: dto.employmentType ?? null,
+        location: dto.location ?? null,
+        headcount: dto.headcount ?? 1,
+        deadline: dto.deadline ? new Date(dto.deadline) : null,
+        experienceBand: dto.experienceBand ?? null,
+        salaryMin: dto.salaryMin ?? null,
+        salaryMax: dto.salaryMax ?? null,
+        updatedBy: user.id,
+        skills: {
+          create: skillData,
+        },
+      },
       include: { skills: true, company: { select: { id: true, name: true } } },
     });
-    await this.embedAndPublish(updated, correlationId);
+
+    if (updated.status === JobStatus.Published) {
+      await this.embedAndPublish(updated, correlationId);
+    } else {
+      this.events.publish(
+        createDomainEvent({
+          name: DomainEvents.JobUpdated,
+          tenantId: updated.tenantId,
+          correlationId,
+          payload: { jobId: updated.id, code: updated.code, title: updated.title },
+        }),
+      );
+    }
+
     return this.toView(updated);
+  }
+
+  async updateJobStatus(
+    user: AuthenticatedUser,
+    jobId: string,
+    status: JobStatus,
+    correlationId: string,
+  ): Promise<JobView> {
+    const job = await this.requireOwnedJob(user, jobId);
+    const allowed = new Set([
+      JobStatus.Draft,
+      JobStatus.Published,
+      JobStatus.Paused,
+      JobStatus.Closed,
+    ]);
+    if (!allowed.has(status)) {
+      throw new BadRequestException('Trạng thái không hợp lệ');
+    }
+
+    if (job.status === status) {
+      return this.toView(job);
+    }
+
+    const updated = await this.prisma.job.update({
+      where: { id: jobId },
+      data: {
+        status,
+        publishedAt:
+          status === JobStatus.Published
+            ? (job.publishedAt ?? new Date())
+            : job.publishedAt,
+        updatedBy: user.id,
+      },
+      include: { skills: true, company: { select: { id: true, name: true } } },
+    });
+
+    if (status === JobStatus.Published) {
+      await this.embedAndPublish(updated, correlationId);
+    } else {
+      this.events.publish(
+        createDomainEvent({
+          name: DomainEvents.JobUpdated,
+          tenantId: updated.tenantId,
+          correlationId,
+          payload: { jobId: updated.id, code: updated.code, title: updated.title, status },
+        }),
+      );
+    }
+
+    return this.toView(updated);
+  }
+
+  async deleteJob(
+    user: AuthenticatedUser,
+    jobId: string,
+    correlationId: string,
+  ): Promise<{ message: string }> {
+    const job = await this.requireOwnedJob(user, jobId);
+    await this.prisma.job.update({
+      where: { id: jobId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: user.id,
+        status: JobStatus.Closed,
+        updatedBy: user.id,
+      },
+    });
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.JobUpdated,
+        tenantId: job.tenantId,
+        correlationId,
+        payload: { jobId: job.id, code: job.code, deleted: true },
+      }),
+    );
+    this.logger.log(`Đã xoá tin tuyển dụng ${job.code}`);
+    return { message: 'Đã xoá tin tuyển dụng' };
   }
 
   /** Sinh embedding cho JD và phát sự kiện JobPublished. */

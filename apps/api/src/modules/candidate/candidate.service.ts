@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   CandidateStatus,
+  ConnectionStatus,
   DomainEvents,
   JobTrack,
   ResumeParseStatus,
@@ -15,8 +17,10 @@ import {
   availabilityToNoticeDays,
   type CandidateView,
   type CareerAdviceView,
+  type ConnectionView,
   type CvDraftFromTextResponse,
   type CvDraftView,
+  type RecruiterCandidateView,
   type ResumeParseStatusResponse,
   type ResumeParseStep,
   type ResumeUploadResponse,
@@ -35,9 +39,26 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { AiGatewayService } from '../ai/ai-gateway.service';
+import { CompanyService } from '../company/company.service';
+import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
 import { ExtractTextError, extractResumeText } from './resume/extract-text.util';
 import { RESUME_PARSE_QUEUE_TOKEN, type ResumeParseJobData } from './resume/queue.constants';
+
+function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone?.trim()) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 6) return '***';
+  return `${digits.slice(0, 3)}***${digits.slice(-3)}`;
+}
+
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email?.trim()) return null;
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  const head = (local ?? '').slice(0, Math.min(2, local.length));
+  return `${head}***@${domain}`;
+}
 
 const ALLOWED_MIME = new Set([
   'application/pdf',
@@ -60,6 +81,8 @@ export class CandidateService {
     private readonly codeGen: CodeGeneratorService,
     private readonly events: AppEventBus,
     private readonly ai: AiGatewayService,
+    private readonly companies: CompanyService,
+    private readonly notifications: NotificationService,
     @Inject(RESUME_PARSE_QUEUE_TOKEN) private readonly queue: Queue<ResumeParseJobData>,
   ) {}
 
@@ -417,11 +440,13 @@ export class CandidateService {
 
   /**
    * Hồ sơ ứng viên cho NTD xem (cùng tenant) — dùng từ Search / Matching.
+   * Liên hệ bị ẩn cho đến khi yêu cầu kết nối được Accepted.
    */
   async getCandidateForRecruiter(
     user: AuthenticatedUser,
     candidateId: string,
-  ): Promise<CandidateView> {
+  ): Promise<RecruiterCandidateView> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
     const candidate = await this.prisma.candidate.findFirst({
       where: {
         id: candidateId,
@@ -433,12 +458,277 @@ export class CandidateService {
         aiProfile: true,
         skills: { orderBy: { name: 'asc' } },
         experiences: { orderBy: { sortOrder: 'asc' } },
+        user: { select: { email: true } },
       },
     });
     if (!candidate) {
       throw new NotFoundException('Không tìm thấy ứng viên');
     }
-    return this.toCandidateView(candidate);
+
+    const [connection, shortlist] = await Promise.all([
+      this.prisma.candidateConnection.findUnique({
+        where: {
+          companyId_candidateId: { companyId, candidateId },
+        },
+        include: {
+          company: { select: { id: true, name: true } },
+          candidate: { select: { id: true, displayName: true } },
+        },
+      }),
+      this.prisma.candidateShortlist.findUnique({
+        where: {
+          companyId_candidateId: { companyId, candidateId },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    const unlocked = connection?.status === ConnectionStatus.Accepted;
+    const rawPhone = candidate.profile?.phone ?? null;
+    const rawEmail = candidate.user.email ?? null;
+    const view = this.toCandidateView(candidate);
+
+    if (!unlocked && view.profile) {
+      view.profile = { ...view.profile, phone: null };
+    }
+
+    return {
+      ...view,
+      contactUnlocked: unlocked,
+      phone: unlocked ? rawPhone : null,
+      email: unlocked ? rawEmail : null,
+      phoneMasked: maskPhone(rawPhone),
+      emailMasked: maskEmail(rawEmail),
+      connection: connection ? this.toConnectionView(connection) : null,
+      isShortlisted: Boolean(shortlist),
+    };
+  }
+
+  async requestConnection(
+    user: AuthenticatedUser,
+    candidateId: string,
+    message?: string,
+  ): Promise<ConnectionView> {
+    const { companyId, companyName } = await this.companies.requireUserCompany(user.id);
+    const candidate = await this.prisma.candidate.findFirst({
+      where: { id: candidateId, tenantId: user.tenantId, isDeleted: false },
+      select: { id: true, displayName: true, userId: true },
+    });
+    if (!candidate) {
+      throw new NotFoundException('Không tìm thấy ứng viên');
+    }
+
+    const existing = await this.prisma.candidateConnection.findUnique({
+      where: { companyId_candidateId: { companyId, candidateId } },
+    });
+    if (existing?.status === ConnectionStatus.Pending) {
+      throw new ConflictException('Đã gửi yêu cầu kết nối, đang chờ ứng viên phản hồi');
+    }
+    if (existing?.status === ConnectionStatus.Accepted) {
+      throw new ConflictException('Đã kết nối với ứng viên này');
+    }
+
+    const row = existing
+      ? await this.prisma.candidateConnection.update({
+          where: { id: existing.id },
+          data: {
+            status: ConnectionStatus.Pending,
+            message: message?.trim() || null,
+            requestedByUserId: user.id,
+            respondedAt: null,
+          },
+          include: {
+            company: { select: { id: true, name: true } },
+            candidate: { select: { id: true, displayName: true } },
+          },
+        })
+      : await this.prisma.candidateConnection.create({
+          data: {
+            tenantId: user.tenantId,
+            companyId,
+            candidateId,
+            requestedByUserId: user.id,
+            status: ConnectionStatus.Pending,
+            message: message?.trim() || null,
+          },
+          include: {
+            company: { select: { id: true, name: true } },
+            candidate: { select: { id: true, displayName: true } },
+          },
+        });
+
+    await this.notifications.createInApp({
+      tenantId: user.tenantId,
+      userId: candidate.userId,
+      type: 'connection.requested',
+      title: 'Yêu cầu kết nối từ nhà tuyển dụng',
+      body: `«${companyName}» muốn kết nối để xem thông tin liên hệ của bạn.`,
+      link: '/connections',
+      entityType: 'connection',
+      entityId: row.id,
+    });
+
+    return this.toConnectionView(row);
+  }
+
+  async cancelConnection(
+    user: AuthenticatedUser,
+    candidateId: string,
+  ): Promise<ConnectionView> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const row = await this.prisma.candidateConnection.findUnique({
+      where: { companyId_candidateId: { companyId, candidateId } },
+      include: {
+        company: { select: { id: true, name: true } },
+        candidate: { select: { id: true, displayName: true } },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Chưa có yêu cầu kết nối');
+    }
+    if (row.status !== ConnectionStatus.Pending) {
+      throw new BadRequestException('Chỉ huỷ được yêu cầu đang chờ phản hồi');
+    }
+    const updated = await this.prisma.candidateConnection.update({
+      where: { id: row.id },
+      data: { status: ConnectionStatus.Cancelled, respondedAt: new Date() },
+      include: {
+        company: { select: { id: true, name: true } },
+        candidate: { select: { id: true, displayName: true } },
+      },
+    });
+    return this.toConnectionView(updated);
+  }
+
+  async listMyConnections(user: AuthenticatedUser): Promise<ConnectionView[]> {
+    const candidate = await this.prisma.candidate.findFirst({
+      where: { userId: user.id, isDeleted: false },
+      select: { id: true },
+    });
+    if (!candidate) {
+      throw new NotFoundException('Không tìm thấy hồ sơ ứng viên');
+    }
+    const rows = await this.prisma.candidateConnection.findMany({
+      where: { candidateId: candidate.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        company: { select: { id: true, name: true } },
+        candidate: { select: { id: true, displayName: true } },
+      },
+    });
+    return rows.map((r) => this.toConnectionView(r));
+  }
+
+  async respondConnection(
+    user: AuthenticatedUser,
+    connectionId: string,
+    accept: boolean,
+  ): Promise<ConnectionView> {
+    const candidate = await this.prisma.candidate.findFirst({
+      where: { userId: user.id, isDeleted: false },
+      select: { id: true, displayName: true },
+    });
+    if (!candidate) {
+      throw new NotFoundException('Không tìm thấy hồ sơ ứng viên');
+    }
+    const row = await this.prisma.candidateConnection.findFirst({
+      where: { id: connectionId, candidateId: candidate.id },
+      include: {
+        company: { select: { id: true, name: true } },
+        candidate: { select: { id: true, displayName: true } },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Không tìm thấy yêu cầu kết nối');
+    }
+    if (row.status !== ConnectionStatus.Pending) {
+      throw new BadRequestException('Yêu cầu này đã được xử lý');
+    }
+
+    const updated = await this.prisma.candidateConnection.update({
+      where: { id: row.id },
+      data: {
+        status: accept ? ConnectionStatus.Accepted : ConnectionStatus.Rejected,
+        respondedAt: new Date(),
+      },
+      include: {
+        company: { select: { id: true, name: true } },
+        candidate: { select: { id: true, displayName: true } },
+      },
+    });
+
+    await this.notifications.createInApp({
+      tenantId: user.tenantId,
+      userId: row.requestedByUserId,
+      type: accept ? 'connection.accepted' : 'connection.rejected',
+      title: accept ? 'Ứng viên đã chấp nhận kết nối' : 'Ứng viên từ chối kết nối',
+      body: accept
+        ? `«${candidate.displayName}» đã đồng ý — bạn có thể xem SĐT/email.`
+        : `«${candidate.displayName}» đã từ chối yêu cầu kết nối.`,
+      link: `/candidates/${candidate.id}`,
+      entityType: 'connection',
+      entityId: updated.id,
+    });
+
+    return this.toConnectionView(updated);
+  }
+
+  async addShortlist(
+    user: AuthenticatedUser,
+    candidateId: string,
+  ): Promise<{ ok: true; isShortlisted: true }> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const candidate = await this.prisma.candidate.findFirst({
+      where: { id: candidateId, tenantId: user.tenantId, isDeleted: false },
+      select: { id: true },
+    });
+    if (!candidate) {
+      throw new NotFoundException('Không tìm thấy ứng viên');
+    }
+    await this.prisma.candidateShortlist.upsert({
+      where: { companyId_candidateId: { companyId, candidateId } },
+      create: {
+        tenantId: user.tenantId,
+        companyId,
+        candidateId,
+        savedByUserId: user.id,
+      },
+      update: {},
+    });
+    return { ok: true, isShortlisted: true };
+  }
+
+  async removeShortlist(
+    user: AuthenticatedUser,
+    candidateId: string,
+  ): Promise<{ ok: true; isShortlisted: false }> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    await this.prisma.candidateShortlist.deleteMany({
+      where: { companyId, candidateId },
+    });
+    return { ok: true, isShortlisted: false };
+  }
+
+  private toConnectionView(row: {
+    id: string;
+    status: string;
+    message: string | null;
+    createdAt: Date;
+    respondedAt: Date | null;
+    company: { id: string; name: string };
+    candidate: { id: string; displayName: string };
+  }): ConnectionView {
+    return {
+      id: row.id,
+      status: row.status as ConnectionStatus,
+      companyId: row.company.id,
+      companyName: row.company.name,
+      candidateId: row.candidate.id,
+      candidateName: row.candidate.displayName,
+      requestedAt: row.createdAt.toISOString(),
+      respondedAt: row.respondedAt?.toISOString() ?? null,
+      message: row.message,
+    };
   }
 
   private toCandidateView(candidate: {

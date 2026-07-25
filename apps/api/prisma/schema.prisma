@@ -80,11 +80,13 @@ model User {
   isDeleted Boolean   @default(false) @map("is_deleted")
   version   Int       @default(1)
 
-  candidate         Candidate?
-  otpCodes          OtpCode[]
-  jobBookmarks      JobBookmark[]
-  refreshTokens     RefreshToken[]
-  companyMemberships CompanyMember[]
+  candidate              Candidate?
+  otpCodes               OtpCode[]
+  jobBookmarks           JobBookmark[]
+  refreshTokens          RefreshToken[]
+  companyMemberships     CompanyMember[]
+  connectionRequests     CandidateConnection[] @relation("ConnectionRequester")
+  shortlistSaves         CandidateShortlist[]  @relation("ShortlistSaver")
 
   @@index([tenantId])
   @@index([status])
@@ -215,6 +217,8 @@ model Candidate {
   interviews   Interview[]
   offers       Offer[]
   onboardings  Onboarding[]
+  connections  CandidateConnection[]
+  shortlists   CandidateShortlist[]
 
   @@index([tenantId, status])
   @@map("candidate")
@@ -431,6 +435,52 @@ model CandidateTimeline {
   @@schema("candidate")
 }
 
+/// Yêu cầu kết nối NTD ↔ ứng viên (mở SĐT/email khi Accepted).
+model CandidateConnection {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id")
+  companyId        String    @map("company_id") @db.Uuid
+  candidateId      String    @map("candidate_id") @db.Uuid
+  requestedByUserId String   @map("requested_by_user_id") @db.Uuid
+  /// pending | accepted | rejected | cancelled
+  status           String    @default("pending")
+  message          String?
+  respondedAt      DateTime? @map("responded_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  requester User      @relation("ConnectionRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, candidateId])
+  @@index([candidateId, status])
+  @@index([companyId, status])
+  @@index([tenantId])
+  @@map("candidate_connection")
+  @@schema("candidate")
+}
+
+/// NTD lưu CV ứng viên để theo dõi.
+model CandidateShortlist {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id")
+  companyId     String   @map("company_id") @db.Uuid
+  candidateId   String   @map("candidate_id") @db.Uuid
+  savedByUserId String   @map("saved_by_user_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  savedBy   User      @relation("ShortlistSaver", fields: [savedByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, candidateId])
+  @@index([companyId])
+  @@index([tenantId])
+  @@map("candidate_shortlist")
+  @@schema("candidate")
+}
+
 // =========================================================================
 // COMPANY DOMAIN
 // =========================================================================
@@ -459,8 +509,10 @@ model Company {
   isDeleted Boolean   @default(false) @map("is_deleted")
   version   Int       @default(1)
 
-  members CompanyMember[]
-  jobs    Job[]
+  members     CompanyMember[]
+  jobs        Job[]
+  connections CandidateConnection[]
+  shortlists  CandidateShortlist[]
 
   @@index([tenantId])
   @@map("company")

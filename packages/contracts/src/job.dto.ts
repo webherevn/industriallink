@@ -28,6 +28,14 @@ export interface CreateJobRequest {
   publish?: boolean;
 }
 
+/** Cập nhật tin tuyển dụng (toàn bộ trường nội dung). */
+export type UpdateJobRequest = Omit<CreateJobRequest, 'publish'>;
+
+/** Đổi trạng thái tin: published | paused | closed | draft. */
+export interface UpdateJobStatusRequest {
+  status: JobStatus.Published | JobStatus.Paused | JobStatus.Closed | JobStatus.Draft;
+}
+
 export interface JobSkillView {
   skillId: string | null;
   name: string;
