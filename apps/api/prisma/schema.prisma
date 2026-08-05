@@ -277,9 +277,29 @@ model CandidateProfile {
   educationSchool      String?  @map("education_school")
   educationMajor       String?  @map("education_major")
   certificates         String[] @default([])
+  /// Sở thích cá nhân (đọc sách, bóng đá...).
+  hobbies              String[] @default([])
   birthYear            Int?     @map("birth_year")
+  /// Ngày sinh đầy đủ nếu CV có (ISO YYYY-MM-DD hoặc DD/MM/YYYY).
+  birthDate            String?  @map("birth_date")
+  /// Tỉnh / Thành phố (34 đơn vị cấp tỉnh từ 01/7/2025).
   currentCity          String?  @map("current_city")
+  /// Huyện (tuỳ chọn — cấp huyện không còn bắt buộc sau cải cách).
+  district             String?
+  /// Xã / Phường / Đặc khu (cấp xã mới từ 01/7/2025).
+  ward                 String?
   phone                String?
+
+  /// sales | technical — lĩnh vực hồ sơ / matching.
+  jobTrack                 String?  @map("job_track")
+  brandsTechnologies       String[] @default([]) @map("brands_technologies")
+  technicalWorkTypes       String[] @default([]) @map("technical_work_types")
+  technicalAutonomyLevel   Int?     @map("technical_autonomy_level")
+  troubleshootingLevel     Int?     @map("troubleshooting_level")
+  technicalTools           String[] @default([]) @map("technical_tools")
+  documentLiteracy         String[] @default([]) @map("document_literacy")
+  systemScaleNote          String?  @map("system_scale_note")
+  shiftFlexibility         String?  @map("shift_flexibility")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

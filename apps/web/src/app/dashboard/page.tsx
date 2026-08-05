@@ -295,9 +295,9 @@ export default function DashboardPage() {
                 <Meta
                   icon={<MapPin className="h-3.5 w-3.5" />}
                   text={
-                    candidate?.profile?.currentCity
-                      ? candidate.profile.currentCity
-                      : 'Chưa cập nhật nơi ở'
+                    [candidate?.profile?.ward, candidate?.profile?.currentCity]
+                      .filter(Boolean)
+                      .join(', ') || 'Chưa cập nhật nơi ở'
                   }
                 />
                 <Meta
@@ -573,11 +573,18 @@ export default function DashboardPage() {
                                   Giai đoạn bán: {exp.sellingStages.join(' → ')}
                                 </p>
                               )}
-                              {exp.highlights && (
-                                <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                                  {exp.highlights}
+                              {(exp.jobDescription || exp.highlights) && (
+                                <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-600">
+                                  {exp.jobDescription || exp.highlights}
                                 </p>
                               )}
+                              {exp.jobDescription &&
+                                exp.highlights &&
+                                exp.highlights !== exp.jobDescription && (
+                                  <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                                    Thành tích: {exp.highlights}
+                                  </p>
+                                )}
                             </li>
                           ))}
                         </ul>
@@ -715,9 +722,22 @@ export default function DashboardPage() {
                             </p>
                           )}
                           {sales.salesHighlights && (
-                            <p className="rounded-xl bg-amber-50/80 px-3 py-2 text-amber-900 ring-1 ring-amber-100">
-                              {sales.salesHighlights}
-                            </p>
+                            <div className="rounded-xl bg-amber-50/80 px-3 py-2 text-amber-900 ring-1 ring-amber-100">
+                              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-amber-800/80">
+                                Nổi bật Sales
+                              </p>
+                              <ul className="space-y-1 pl-4">
+                                {sales.salesHighlights
+                                  .split(/\n|•|·/)
+                                  .map((s) => s.replace(/^[-–—*]\s*/, '').trim())
+                                  .filter(Boolean)
+                                  .map((line, i) => (
+                                    <li key={`${i}-${line.slice(0, 20)}`} className="list-disc text-sm">
+                                      {line}
+                                    </li>
+                                  ))}
+                              </ul>
+                            </div>
                           )}
                         </div>
                       )}
@@ -819,8 +839,9 @@ export default function DashboardPage() {
             )}
 
             {tab === 'interests' && (
-              <ProfileCard title="Định hướng & sở thích nghề" icon={<Heart className="h-4 w-4" />}>
+              <ProfileCard title="Định hướng & sở thích" icon={<Heart className="h-4 w-4" />}>
                 {candidate?.profile?.careerObjective ||
+                (candidate?.profile?.hobbies?.length ?? 0) > 0 ||
                 candidate?.aiProfile?.careerPath ||
                 sales?.salesBehavior ||
                 (sales?.careerMotivations?.length ?? 0) > 0 ||
@@ -829,7 +850,18 @@ export default function DashboardPage() {
                 sales?.careerOrientation ? (
                   <div className="space-y-3 text-sm text-slate-600">
                     {candidate?.profile?.careerObjective && (
-                      <p>{candidate.profile.careerObjective}</p>
+                      <div>
+                        <p className="font-semibold text-slate-800">Mục tiêu nghề nghiệp</p>
+                        <p className="mt-1 whitespace-pre-line">
+                          {candidate.profile.careerObjective}
+                        </p>
+                      </div>
+                    )}
+                    {(candidate?.profile?.hobbies?.length ?? 0) > 0 && (
+                      <p>
+                        <span className="font-semibold text-slate-800">Sở thích: </span>
+                        {candidate!.profile!.hobbies.join(', ')}
+                      </p>
                     )}
                     {sales?.desiredPositions && sales.desiredPositions.length > 0 && (
                       <p>

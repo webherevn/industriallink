@@ -17,6 +17,7 @@ import {
   CULTURE_FIT_SECTION_TITLE,
   CULTURE_FIT_SUBTITLE,
   DEAL_TYPE_LABEL,
+  DEAL_TYPE_OPTIONS,
   DEAL_VALUE_BANDS,
   DESIRED_POSITIONS,
   DRIVER_LICENSE_TYPES,
@@ -50,6 +51,7 @@ import {
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea } from '@/components/ui';
+import { VnAddressFields } from '@/components/vn-address-fields';
 import { ApiError } from '@/lib/api';
 import { getMyCandidate, updateMyProfile } from '@/lib/candidate';
 import { formatVndAmount } from '@/lib/format';
@@ -87,6 +89,7 @@ type ExperienceRow = {
   maxDealValue: string;
   maxDealRole: string;
   highlights: string;
+  jobDescription: string;
   missingFields: string[];
   source: string;
 };
@@ -97,7 +100,11 @@ type FormState = {
   displayName: string;
   phone: string;
   birthYear: string;
+  birthDate: string;
   currentCity: string;
+  district: string;
+  ward: string;
+  hobbies: string;
   desiredPositions: string[];
   desiredLocations: string[];
   expectedSalaryMin: string;
@@ -163,6 +170,7 @@ function emptyExperience(): ExperienceRow {
     maxDealValue: '',
     maxDealRole: '',
     highlights: '',
+    jobDescription: '',
     missingFields: [],
     source: 'manual',
   };
@@ -172,7 +180,11 @@ const EMPTY_FORM: FormState = {
   displayName: '',
   phone: '',
   birthYear: '',
+  birthDate: '',
   currentCity: '',
+  district: '',
+  ward: '',
+  hobbies: '',
   desiredPositions: [],
   desiredLocations: [],
   expectedSalaryMin: '',
@@ -309,6 +321,7 @@ function experienceFromView(exp: {
   maxDealValue: number | null;
   maxDealRole: string | null;
   highlights: string | null;
+  jobDescription?: string | null;
   missingFields: ProfileMissingFieldKey[] | string[];
   source: string;
 }): ExperienceRow {
@@ -336,6 +349,7 @@ function experienceFromView(exp: {
     maxDealValue: exp.maxDealValue != null ? String(exp.maxDealValue) : '',
     maxDealRole: exp.maxDealRole ?? '',
     highlights: exp.highlights ?? '',
+    jobDescription: exp.jobDescription ?? '',
     missingFields: [...(exp.missingFields ?? [])],
     source: exp.source ?? 'manual',
   };
@@ -392,7 +406,7 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
         maxDealValue,
         maxDealRole: e.maxDealRole.trim() || null,
         highlights: e.highlights.trim() || null,
-        jobDescription: null,
+        jobDescription: e.jobDescription.trim() || e.highlights.trim() || null,
         missingFields: e.missingFields.filter((f) => !filledKeys.has(f)),
         source: e.source || 'manual',
       };
@@ -413,7 +427,10 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
     displayName: form.displayName.replace(/\r/g, '').trim(),
     phone: form.phone.trim() || null,
     birthYear: parseOptionalInt(form.birthYear),
+    birthDate: form.birthDate.trim() || null,
     currentCity: form.currentCity.trim() || null,
+    district: form.district.trim() || null,
+    ward: form.ward.trim() || null,
     currentPosition:
       form.currentPosition.trim() || firstExp?.jobTitle || null,
     jobLevel: form.jobLevel.trim() || null,
@@ -423,6 +440,7 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
     specialization: form.specialization.trim() || null,
     summary: form.summary.trim() || null,
     careerObjective: form.careerObjective.trim() || null,
+    hobbies: splitCsv(form.hobbies),
     productsSold,
     customerSegments,
     b2bExperienceBand: form.b2bExperienceBand || null,
@@ -579,7 +597,11 @@ export default function ProfileEditPage() {
       displayName: candidate.displayName ?? '',
       phone: p?.phone ?? '',
       birthYear: p?.birthYear != null ? String(p.birthYear) : '',
+      birthDate: p?.birthDate ?? '',
       currentCity: p?.currentCity ?? '',
+      district: p?.district ?? '',
+      ward: p?.ward ?? '',
+      hobbies: (p?.hobbies ?? []).join(', '),
       desiredPositions: [...(sales?.desiredPositions ?? [])],
       desiredLocations: [...(sales?.desiredLocations ?? [])],
       expectedSalaryMin: sales?.expectedSalaryMin != null ? String(sales.expectedSalaryMin) : '',
@@ -713,7 +735,7 @@ export default function ProfileEditPage() {
   }
 
   const stepValid = useMemo(() => {
-    if (step === 1) return form.displayName.trim().length > 0 && form.currentCity.trim().length > 0;
+    if (step === 1) return form.displayName.trim().length > 0;
     if (step === 3) {
       return form.experiences.every((e) => {
         if (!e.companyName.trim() && !e.jobTitle.trim()) return true;
@@ -838,6 +860,17 @@ export default function ProfileEditPage() {
                         placeholder="090x xxx xxx"
                       />
                     </Field>
+                    <Field label="Ngày sinh">
+                      <Input
+                        type="date"
+                        value={form.birthDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          patch('birthDate', v);
+                          if (v?.length >= 4) patch('birthYear', v.slice(0, 4));
+                        }}
+                      />
+                    </Field>
                     <Field label="Năm sinh">
                       <Input
                         type="number"
@@ -848,15 +881,45 @@ export default function ProfileEditPage() {
                         placeholder="VD: 1995"
                       />
                     </Field>
-                    <Field label="Thành phố hiện tại *">
-                      <Input
-                        value={form.currentCity}
-                        onChange={(e) => patch('currentCity', e.target.value)}
-                        placeholder="VD: TP.HCM, Hà Nội..."
-                        required
-                      />
-                    </Field>
                   </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold text-slate-700">
+                      Địa chỉ hành chính (mới từ 01/7/2025)
+                    </p>
+                    <VnAddressFields
+                      ward={form.ward}
+                      province={form.currentCity}
+                      onChange={(p) => {
+                        if (p.ward !== undefined) patch('ward', p.ward);
+                        if (p.province !== undefined) patch('currentCity', p.province);
+                        // Không còn cấp huyện
+                        patch('district', '');
+                      }}
+                    />
+                  </div>
+                  <Field label="Mục tiêu nghề nghiệp">
+                    <Textarea
+                      rows={3}
+                      value={form.careerObjective}
+                      onChange={(e) => patch('careerObjective', e.target.value)}
+                      placeholder="Sao chép từ CV hoặc mô tả định hướng nghề nghiệp..."
+                    />
+                  </Field>
+                  <Field label="Giới thiệu bản thân">
+                    <Textarea
+                      rows={3}
+                      value={form.summary}
+                      onChange={(e) => patch('summary', e.target.value)}
+                      placeholder="Tóm tắt tổng quan kinh nghiệm..."
+                    />
+                  </Field>
+                  <Field label="Sở thích">
+                    <Input
+                      value={form.hobbies}
+                      onChange={(e) => patch('hobbies', e.target.value)}
+                      placeholder="VD: Đọc sách, bóng đá, chạy bộ..."
+                    />
+                  </Field>
                   <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     Ảnh đại diện: tải tại trang{' '}
                     <Link href="/account" className="font-medium text-brand-600 hover:underline">
@@ -1110,7 +1173,7 @@ export default function ProfileEditPage() {
                                     ))}
                                   </Select>
                                 </Field>
-                                <Field label="Loại thương vụ">
+                                <Field label="Loại hình bán hàng">
                                   <Select
                                     value={exp.dealType}
                                     onChange={(e) =>
@@ -1118,9 +1181,9 @@ export default function ProfileEditPage() {
                                     }
                                   >
                                     <option value="">— Chọn —</option>
-                                    {Object.entries(DEAL_TYPE_LABEL).map(([v, label]) => (
+                                    {DEAL_TYPE_OPTIONS.map((v) => (
                                       <option key={v} value={v}>
-                                        {label}
+                                        {DEAL_TYPE_LABEL[v]}
                                       </option>
                                     ))}
                                   </Select>
@@ -1153,6 +1216,18 @@ export default function ProfileEditPage() {
                                   />
                                 </Field>
                               </div>
+                              <Field label="Mô tả công việc / nhiệm vụ">
+                                <Textarea
+                                  rows={5}
+                                  value={exp.jobDescription}
+                                  onChange={(e) =>
+                                    patchExperience(index, { jobDescription: e.target.value })
+                                  }
+                                  placeholder={
+                                    'Liệt kê nhiệm vụ, mỗi dòng một việc:\n• Lên kế hoạch, mục tiêu kinh doanh\n• Nghiên cứu sản phẩm, đối thủ\n• Đào tạo đội ngũ...'
+                                  }
+                                />
+                              </Field>
                               <Field label="Thành tích nổi bật">
                                 <Textarea
                                   rows={3}
@@ -1160,8 +1235,11 @@ export default function ProfileEditPage() {
                                   onChange={(e) =>
                                     patchExperience(index, { highlights: e.target.value })
                                   }
-                                  placeholder="VD: Top sales 2024, mở 15 KH mới..."
+                                  placeholder="VD: Doanh số 12 tỷ · KPI 120% · Đứng thứ 2/15 phòng Sales"
                                 />
+                                <p className="mt-1 text-[11px] text-slate-400">
+                                  Doanh số + % KPI + xếp hạng thành tích trong công ty.
+                                </p>
                               </Field>
                             </div>
                           </details>
@@ -1448,8 +1526,11 @@ export default function ProfileEditPage() {
                       </p>
                       <ReviewRow label="Họ tên" value={form.displayName} />
                       <ReviewRow label="Điện thoại" value={form.phone} />
-                      <ReviewRow label="Năm sinh" value={form.birthYear} />
-                      <ReviewRow label="Thành phố" value={form.currentCity} />
+                      <ReviewRow label="Ngày sinh" value={form.birthDate || form.birthYear} />
+                      <ReviewRow label="Xã/Phường" value={form.ward} />
+                      <ReviewRow label="Tỉnh/Thành" value={form.currentCity} />
+                      <ReviewRow label="Mục tiêu nghề nghiệp" value={form.careerObjective} />
+                      <ReviewRow label="Sở thích" value={form.hobbies} />
                     </div>
 
                     <div className="space-y-2 pt-4">
@@ -1630,11 +1711,7 @@ export default function ProfileEditPage() {
                   ) : (
                     <Button
                       type="button"
-                      disabled={
-                        saveMutation.isPending ||
-                        !form.displayName.trim() ||
-                        !form.currentCity.trim()
-                      }
+                      disabled={saveMutation.isPending || !form.displayName.trim()}
                       onClick={() => saveMutation.mutate()}
                     >
                       {saveMutation.isPending ? 'Đang lưu...' : 'Lưu hồ sơ'}

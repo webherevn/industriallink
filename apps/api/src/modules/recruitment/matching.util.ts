@@ -120,9 +120,13 @@ export function inferCustomerSegmentsFromJob(input: {
     if (key && text.includes(key)) hits.push(seg);
   }
   if (/fdi|nuoc ngoai|multinational/.test(norm(text))) hits.push('Nhà máy FDI');
-  if (/nha thau|epc|m&e|mep/.test(norm(text))) hits.push('Nhà thầu cơ điện / EPC');
-  if (/dai ly|npp|distributor/.test(norm(text))) hits.push('Đại lý / Nhà phân phối');
-  if (/oem/.test(norm(text))) hits.push('Nhà sản xuất OEM');
+  if (/tong thau|nha thau|epc|m&e|mep/.test(norm(text))) hits.push('Tổng thầu');
+  if (/thau phu|subcontractor/.test(norm(text))) hits.push('Thầu phụ');
+  if (/dai ly|npp|distributor|kenh phan phoi/.test(norm(text))) {
+    hits.push('Đại lý & Kênh phân phối');
+  }
+  if (/quoc te|xuat khau|export|international/.test(norm(text))) hits.push('Quốc tế');
+  if (/nha may viet|noi dia|domestic/.test(norm(text))) hits.push('Nhà máy Việt Nam');
   return [...new Set(hits)];
 }
 

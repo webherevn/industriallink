@@ -14,8 +14,7 @@ import {
   CULTURE_FIT_SECTION_TITLE,
   CULTURE_FIT_SUBTITLE,
   DEAL_TYPE_LABEL,
-  DealType,
-  DESIRED_POSITIONS,
+  DEAL_TYPE_OPTIONS,
   DRIVER_LICENSE_TYPES,
   EDUCATION_LEVELS,
   JOB_READINESS_LABEL,
@@ -200,10 +199,10 @@ export function CvDraftMatrixFields({
           }))}
         />
         <SelectField
-          label="Loại thương vụ"
+          label="Loại hình bán hàng"
           value={draft.dealType ?? ''}
           onChange={(v) => onChange('dealType', v || null)}
-          options={Object.values(DealType).map((v) => ({
+          options={DEAL_TYPE_OPTIONS.map((v) => ({
             value: v,
             label: DEAL_TYPE_LABEL[v],
           }))}
@@ -342,7 +341,35 @@ export function CvDraftMatrixFields({
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
           />
         </label>
+        <label className="block sm:col-span-2">
+          <span className="text-xs font-semibold text-slate-600">Sở thích (phẩy)</span>
+          <input
+            value={draft.hobbies.join(', ')}
+            onChange={(e) =>
+              onChange(
+                'hobbies',
+                e.target.value
+                  .split(/[,;\n]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              )
+            }
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+            placeholder="VD: Đọc sách, bóng đá"
+          />
+        </label>
       </div>
+
+      <label className="block">
+        <span className="text-xs font-semibold text-slate-600">Mục tiêu nghề nghiệp</span>
+        <textarea
+          rows={3}
+          value={draft.careerObjective ?? ''}
+          onChange={(e) => onChange('careerObjective', e.target.value || null)}
+          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+          placeholder="Mục tiêu nghề nghiệp..."
+        />
+      </label>
 
       <div>
         <p className="mb-2 text-xs font-semibold text-slate-600">Ngoại ngữ</p>
@@ -350,17 +377,6 @@ export function CvDraftMatrixFields({
           options={LANGUAGE_OPTIONS}
           selected={draft.languages}
           onChange={(v) => onChange('languages', v)}
-          columns={2}
-        />
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Vị trí mong muốn (tối đa 3)</p>
-        <MultiCheck
-          options={DESIRED_POSITIONS}
-          selected={draft.desiredPositions}
-          onChange={(v) => onChange('desiredPositions', v.slice(0, 3))}
-          max={3}
           columns={2}
         />
       </div>

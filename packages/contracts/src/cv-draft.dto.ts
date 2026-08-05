@@ -27,10 +27,16 @@ export interface CvDraftView {
   location: string;
   summary: string;
   birthYear: number | null;
+  birthDate: string | null;
+  district: string | null;
+  /** Xã / Phường / Đặc khu (cấp xã mới từ 01/7/2025). */
+  ward: string | null;
   educationLevel: string | null;
+  careerObjective: string | null;
   skills: string[];
   softSkills: string[];
   languages: string[];
+  hobbies: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
@@ -57,6 +63,24 @@ export interface CvDraftView {
   careerOrientations: string[];
   /** Phù hợp văn hóa — lưu các đáp án assessment. */
   workStyles: string[];
+  /** sales | technical — lĩnh vực form / matching. */
+  jobTrack: 'sales' | 'technical' | null;
+  /** Hãng / công nghệ (kỹ thuật). */
+  brandsTechnologies: string[];
+  /** Loại công việc / nghiệp vụ kỹ thuật. */
+  technicalWorkTypes: string[];
+  /** Mức tự chủ 1–5. */
+  technicalAutonomyLevel: number | null;
+  /** Mức xử lý sự cố 1–5. */
+  troubleshootingLevel: number | null;
+  /** Phần mềm / công cụ kỹ thuật. */
+  technicalTools: string[];
+  /** Đọc bản vẽ / tài liệu. */
+  documentLiteracy: string[];
+  /** Quy mô / công suất hệ thống (text). */
+  systemScaleNote: string | null;
+  /** Làm ca / ngoài giờ: yes | limited | no. */
+  shiftFlexibility: string | null;
   experience: CvDraftExperienceView[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];

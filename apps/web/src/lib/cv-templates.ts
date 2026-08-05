@@ -101,10 +101,15 @@ export interface CvDraft {
   location: string;
   summary: string;
   birthYear: number | null;
+  birthDate: string | null;
+  district: string | null;
+  ward: string | null;
   educationLevel: string | null;
+  careerObjective: string | null;
   skills: string[];
   softSkills: string[];
   languages: string[];
+  hobbies: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
@@ -129,6 +134,15 @@ export interface CvDraft {
   careerMotivations: string[];
   careerOrientations: string[];
   workStyles: string[];
+  jobTrack: 'sales' | 'technical' | null;
+  brandsTechnologies: string[];
+  technicalWorkTypes: string[];
+  technicalAutonomyLevel: number | null;
+  troubleshootingLevel: number | null;
+  technicalTools: string[];
+  documentLiteracy: string[];
+  systemScaleNote: string | null;
+  shiftFlexibility: string | null;
   experience: CvDraftExperience[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];
@@ -164,10 +178,15 @@ export function emptyCvDraft(name = '', email = ''): CvDraft {
     location: '',
     summary: '',
     birthYear: null,
+    birthDate: null,
+    district: null,
+    ward: null,
     educationLevel: null,
+    careerObjective: null,
     skills: [],
     softSkills: [],
     languages: [],
+    hobbies: [],
     productsSold: [],
     customerSegments: [],
     marketsCovered: [],
@@ -192,6 +211,15 @@ export function emptyCvDraft(name = '', email = ''): CvDraft {
     careerMotivations: [],
     careerOrientations: [],
     workStyles: [],
+    jobTrack: null,
+    brandsTechnologies: [],
+    technicalWorkTypes: [],
+    technicalAutonomyLevel: null,
+    troubleshootingLevel: null,
+    technicalTools: [],
+    documentLiteracy: [],
+    systemScaleNote: null,
+    shiftFlexibility: null,
     experience: [],
     education: [],
     certificates: [],
@@ -227,10 +255,15 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     location: raw?.location ?? base.location,
     summary: raw?.summary ?? base.summary,
     birthYear: raw?.birthYear ?? base.birthYear,
+    birthDate: raw?.birthDate ?? base.birthDate,
+    district: raw?.district ?? base.district,
+    ward: raw?.ward ?? base.ward,
     educationLevel: raw?.educationLevel ?? base.educationLevel,
+    careerObjective: raw?.careerObjective ?? base.careerObjective,
     skills: raw?.skills ?? base.skills,
     softSkills: raw?.softSkills ?? base.softSkills,
     languages: raw?.languages ?? base.languages,
+    hobbies: raw?.hobbies ?? base.hobbies,
     productsSold: raw?.productsSold ?? base.productsSold,
     customerSegments: raw?.customerSegments ?? base.customerSegments,
     marketsCovered: raw?.marketsCovered ?? base.marketsCovered,
@@ -255,6 +288,15 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     careerMotivations: raw?.careerMotivations ?? base.careerMotivations,
     careerOrientations: raw?.careerOrientations ?? base.careerOrientations,
     workStyles: raw?.workStyles ?? base.workStyles,
+    jobTrack: raw?.jobTrack ?? base.jobTrack,
+    brandsTechnologies: raw?.brandsTechnologies ?? base.brandsTechnologies,
+    technicalWorkTypes: raw?.technicalWorkTypes ?? base.technicalWorkTypes,
+    technicalAutonomyLevel: raw?.technicalAutonomyLevel ?? base.technicalAutonomyLevel,
+    troubleshootingLevel: raw?.troubleshootingLevel ?? base.troubleshootingLevel,
+    technicalTools: raw?.technicalTools ?? base.technicalTools,
+    documentLiteracy: raw?.documentLiteracy ?? base.documentLiteracy,
+    systemScaleNote: raw?.systemScaleNote ?? base.systemScaleNote,
+    shiftFlexibility: raw?.shiftFlexibility ?? base.shiftFlexibility,
     experience,
     education: raw?.education ?? base.education,
     certificates: raw?.certificates ?? base.certificates,

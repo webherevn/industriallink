@@ -8,10 +8,17 @@ import {
   B2B_EXPERIENCE_BAND_LABEL,
   DEAL_TYPE_LABEL,
   JOB_READINESS_LABEL,
+  JobTrack,
+  TRACK_FIELD_LABELS,
   TRAVEL_ABILITY_LABEL,
+  TECHNICAL_AUTONOMY_LEVELS,
+  TROUBLESHOOTING_LEVELS,
+  SHIFT_FLEXIBILITY_OPTIONS,
 } from '@industriallink/contracts';
+import { toBulletLines } from '@/lib/bullet-text';
 import type { CvDraft, CvTemplate } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
+import { formatVnAddress } from '@industriallink/contracts';
 
 function initials(name: string): string {
   return (name || 'UV')
@@ -24,10 +31,7 @@ function initials(name: string): string {
 }
 
 function bulletLines(text: string): string[] {
-  return text
-    .split(/\n|•|·|;/)
-    .map((s) => s.replace(/^[-–—*]\s*/, '').trim())
-    .filter(Boolean);
+  return toBulletLines(text);
 }
 
 function formatRevenue(v: number | null | undefined): string | null {
@@ -172,29 +176,40 @@ function ExperienceBlock({
   exp,
   accent,
   compact,
+  jobTrack,
 }: {
   exp: CvDraft['experience'][number];
   accent: string;
   compact?: boolean;
+  jobTrack?: CvDraft['jobTrack'];
 }) {
+  const isTech = jobTrack === JobTrack.Technical;
   const bullets = bulletLines(exp.bullets);
   const meta: string[] = [];
   if (exp.industries.length) meta.push(exp.industries.slice(0, 3).join(', '));
-  if (exp.productsSold.length) meta.push(`SP: ${exp.productsSold.slice(0, 4).join(', ')}`);
-  if (exp.customerSegments.length) {
-    meta.push(`KH: ${exp.customerSegments.slice(0, 3).join(', ')}`);
+  if (exp.productsSold.length) {
+    meta.push(
+      `${isTech ? 'TB' : 'SP'}: ${exp.productsSold.slice(0, 4).join(', ')}`,
+    );
   }
-  if (exp.marketsCovered.length) {
+  if (exp.customerSegments.length) {
+    meta.push(
+      `${isTech ? 'MT' : 'KH'}: ${exp.customerSegments.slice(0, 3).join(', ')}`,
+    );
+  }
+  if (!isTech && exp.marketsCovered.length) {
     meta.push(`TT: ${exp.marketsCovered.slice(0, 3).join(', ')}`);
   }
-  const rev = formatRevenue(exp.latestRevenue);
-  if (rev) meta.push(`DS: ${rev}`);
-  if (exp.kpiAchievementPct != null) meta.push(`KPI: ${Math.round(exp.kpiAchievementPct)}%`);
-  if (exp.newCustomerRatioPct != null) {
-    meta.push(`KH mới: ${Math.round(exp.newCustomerRatioPct)}%`);
+  if (!isTech) {
+    const rev = formatRevenue(exp.latestRevenue);
+    if (rev) meta.push(`DS: ${rev}`);
+    if (exp.kpiAchievementPct != null) meta.push(`KPI: ${Math.round(exp.kpiAchievementPct)}%`);
+    if (exp.newCustomerRatioPct != null) {
+      meta.push(`KH mới: ${Math.round(exp.newCustomerRatioPct)}%`);
+    }
+    const deal = labelOf(DEAL_TYPE_LABEL, exp.dealType);
+    if (deal) meta.push(deal);
   }
-  const deal = labelOf(DEAL_TYPE_LABEL, exp.dealType);
-  if (deal) meta.push(deal);
 
   return (
     <div
@@ -250,6 +265,26 @@ function SalesCapabilitySection({
   accent: string;
   classic?: boolean;
 }) {
+  const isTech = draft.jobTrack === JobTrack.Technical;
+  const productLabel = isTech
+    ? TRACK_FIELD_LABELS.productsSold[JobTrack.Technical]
+    : TRACK_FIELD_LABELS.productsSold[JobTrack.Sales];
+  const segmentLabel = isTech
+    ? TRACK_FIELD_LABELS.customerSegments[JobTrack.Technical]
+    : TRACK_FIELD_LABELS.customerSegments[JobTrack.Sales];
+  const highlightLabel = isTech
+    ? TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical]
+    : TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales];
+
+  const autonomy =
+    draft.technicalAutonomyLevel != null
+      ? TECHNICAL_AUTONOMY_LEVELS.find((l) => l.value === draft.technicalAutonomyLevel)?.label
+      : null;
+  const troubleshooting =
+    draft.troubleshootingLevel != null
+      ? TROUBLESHOOTING_LEVELS.find((l) => l.value === draft.troubleshootingLevel)?.label
+      : null;
+
   const has =
     draft.productsSold.length > 0 ||
     draft.customerSegments.length > 0 ||
@@ -260,52 +295,125 @@ function SalesCapabilitySection({
     draft.typicalDealValue != null ||
     draft.maxDealValue != null ||
     draft.newCustomerRatioPct != null ||
-    draft.salesHighlights;
+    draft.salesHighlights ||
+    draft.brandsTechnologies.length > 0 ||
+    draft.technicalWorkTypes.length > 0 ||
+    draft.technicalTools.length > 0 ||
+    draft.documentLiteracy.length > 0 ||
+    draft.systemScaleNote ||
+    autonomy ||
+    troubleshooting;
 
   if (!has) return null;
 
   return (
     <section data-cv-block className="mb-3">
-      <SectionTitle title="Năng lực Sales B2B" accent={accent} classic={classic} />
+      <SectionTitle
+        title={isTech ? 'Năng lực kỹ thuật' : 'Năng lực Sales B2B'}
+        accent={accent}
+        classic={classic}
+      />
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {draft.industriesExperienced.length > 0 && (
           <Kv label="Ngành" value={draft.industriesExperienced.join(', ')} />
         )}
-        {draft.b2bExperienceBand && (
+        {!isTech && draft.b2bExperienceBand && (
           <Kv
             label="Kinh nghiệm B2B"
             value={labelOf(B2B_EXPERIENCE_BAND_LABEL, draft.b2bExperienceBand)}
           />
         )}
         {draft.productsSold.length > 0 && (
-          <Kv label="Sản phẩm" value={draft.productsSold.join(', ')} />
+          <Kv label={productLabel} value={draft.productsSold.join(', ')} />
         )}
         {draft.customerSegments.length > 0 && (
-          <Kv label="Tệp KH" value={draft.customerSegments.join(', ')} />
+          <Kv label={segmentLabel} value={draft.customerSegments.join(', ')} />
         )}
-        {draft.marketsCovered.length > 0 && (
+        {!isTech && draft.marketsCovered.length > 0 && (
           <Kv label="Thị trường" value={draft.marketsCovered.join(', ')} />
         )}
-        {draft.dealType && (
+        {isTech && draft.brandsTechnologies.length > 0 && (
+          <Kv label="Hãng / công nghệ" value={draft.brandsTechnologies.join(', ')} />
+        )}
+        {isTech && draft.technicalWorkTypes.length > 0 && (
+          <Kv label="Nghiệp vụ kỹ thuật" value={draft.technicalWorkTypes.join(', ')} />
+        )}
+        {isTech && autonomy && (
+          <Kv
+            label="Mức tự chủ"
+            value={`${draft.technicalAutonomyLevel}. ${autonomy}`}
+          />
+        )}
+        {isTech && troubleshooting && (
+          <Kv
+            label="Xử lý sự cố"
+            value={`${draft.troubleshootingLevel}. ${troubleshooting}`}
+          />
+        )}
+        {isTech && draft.technicalTools.length > 0 && (
+          <Kv label="Phần mềm / công cụ" value={draft.technicalTools.join(', ')} />
+        )}
+        {isTech && draft.documentLiteracy.length > 0 && (
+          <Kv label="Đọc tài liệu" value={draft.documentLiteracy.join(', ')} />
+        )}
+        {isTech && draft.systemScaleNote && (
+          <Kv label="Quy mô hệ thống" value={draft.systemScaleNote} />
+        )}
+        {!isTech && draft.dealType && (
           <Kv label="Loại deal" value={labelOf(DEAL_TYPE_LABEL, draft.dealType)} />
         )}
-        {draft.typicalDealValue != null && (
+        {!isTech && draft.typicalDealValue != null && (
           <Kv label="Deal điển hình" value={formatRevenue(draft.typicalDealValue)} />
         )}
-        {draft.maxDealValue != null && (
+        {!isTech && draft.maxDealValue != null && (
           <Kv label="Deal lớn nhất" value={formatRevenue(draft.maxDealValue)} />
         )}
-        {draft.newCustomerRatioPct != null && (
+        {!isTech && draft.newCustomerRatioPct != null && (
           <Kv
             label="KH tự phát triển"
             value={`${Math.round(draft.newCustomerRatioPct)}%`}
           />
         )}
       </div>
-      {draft.salesHighlights && !draft.summary && (
-        <p className="mt-2 text-[10px] leading-relaxed text-slate-600">{draft.salesHighlights}</p>
+      {draft.salesHighlights && (
+        <div className="mt-2">
+          <p className="mb-1 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
+            {highlightLabel}
+          </p>
+          <SalesHighlightsBullets text={draft.salesHighlights} />
+        </div>
       )}
     </section>
+  );
+}
+
+function SalesHighlightsBullets({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  const lines = toBulletLines(text);
+  if (lines.length === 0) return null;
+  if (lines.length === 1) {
+    return (
+      <p className={clsx('text-[10px] leading-relaxed text-slate-600', className)}>
+        {lines[0]}
+      </p>
+    );
+  }
+  return (
+    <ul className={clsx('space-y-1 pl-3.5', className)}>
+      {lines.map((line, i) => (
+        <li
+          key={`${i}-${line.slice(0, 24)}`}
+          className="list-disc text-[10px] leading-relaxed text-slate-700 marker:text-slate-400"
+        >
+          {line}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -327,6 +435,10 @@ function ConditionsSection({
       : draft.hasB2License
         ? `Có${draft.driverLicenseType ? ` (${draft.driverLicenseType})` : ''}`
         : 'Không';
+  const shift =
+    draft.jobTrack === JobTrack.Technical && draft.shiftFlexibility != null
+      ? SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.value === draft.shiftFlexibility)?.label
+      : null;
   const salaryBits = [
     draft.expectedSalaryMin != null ? `Từ ${formatVndAmount(draft.expectedSalaryMin)}` : null,
     draft.expectedOte != null ? `OTE ${formatVndAmount(draft.expectedOte)}` : null,
@@ -338,7 +450,8 @@ function ConditionsSection({
     license ||
     salaryBits.length > 0 ||
     draft.desiredLocations.length > 0 ||
-    draft.languages.length > 0;
+    draft.languages.length > 0 ||
+    shift;
 
   if (!has) return null;
 
@@ -359,6 +472,7 @@ function ConditionsSection({
           label="Ngoại ngữ"
           value={draft.languages.length ? draft.languages.join(', ') : null}
         />
+        {shift && <Kv label="Làm ca / ngoài giờ" value={shift} />}
       </div>
     </section>
   );
@@ -375,6 +489,7 @@ function PreferencesSection({
   classic?: boolean;
 }) {
   const has =
+    draft.hobbies.length > 0 ||
     draft.salesBehavior ||
     draft.careerMotivations.length > 0 ||
     draft.careerOrientations.length > 0 ||
@@ -385,21 +500,33 @@ function PreferencesSection({
 
   return (
     <section data-cv-block className="mb-3">
-      <SectionTitle title="Định hướng & sở thích nghề" accent={accent} classic={classic} />
+      <SectionTitle title="Định hướng & sở thích" accent={accent} classic={classic} />
       <div className="space-y-2">
+        {draft.hobbies.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Sở thích
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {draft.hobbies.map((h, i) => (
+                <Chip key={`hobby-${i}-${h}`}>{h}</Chip>
+              ))}
+            </div>
+          </div>
+        )}
         {draft.desiredPositions.length > 0 && (
           <div>
             <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
               Vị trí mong muốn
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {draft.desiredPositions.map((p) => (
-                <Chip key={p}>{p}</Chip>
+              {draft.desiredPositions.map((p, i) => (
+                <Chip key={`pos-${i}-${p}`}>{p}</Chip>
               ))}
             </div>
           </div>
         )}
-        {draft.salesBehavior && (
+        {draft.salesBehavior && draft.jobTrack !== JobTrack.Technical && (
           <Kv label="Phong cách & hành vi Sales" value={draft.salesBehavior} />
         )}
         {draft.careerMotivations.length > 0 && (
@@ -408,8 +535,8 @@ function PreferencesSection({
               Động lực nghề nghiệp
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {draft.careerMotivations.map((m) => (
-                <Chip key={m}>{m}</Chip>
+              {draft.careerMotivations.map((m, i) => (
+                <Chip key={`mot-${i}-${m}`}>{m}</Chip>
               ))}
             </div>
           </div>
@@ -420,8 +547,8 @@ function PreferencesSection({
               Định hướng nghề nghiệp
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {draft.careerOrientations.map((o) => (
-                <Chip key={o}>{o}</Chip>
+              {draft.careerOrientations.map((o, i) => (
+                <Chip key={`ori-${i}-${o}`}>{o}</Chip>
               ))}
             </div>
           </div>
@@ -432,9 +559,9 @@ function PreferencesSection({
               Phù hợp văn hóa
             </p>
             <ul className="space-y-1 pl-3.5">
-              {draft.workStyles.map((w) => (
+              {draft.workStyles.map((w, i) => (
                 <li
-                  key={w}
+                  key={`ws-${i}-${w}`}
                   className="list-disc text-[10px] leading-snug text-slate-700 marker:text-slate-400"
                 >
                   {w}
@@ -461,18 +588,29 @@ function MainSections({
 }) {
   return (
     <>
-      {(draft.summary || draft.salesHighlights) && (
+      {(draft.summary || draft.salesHighlights || draft.careerObjective) && (
         <section data-cv-block className="mb-4">
           <SectionTitle title="Giới thiệu" accent={accent} classic={classic} />
-          <p className="text-[10.5px] leading-relaxed text-slate-700">
-            {draft.summary || draft.salesHighlights}
-          </p>
-          {draft.summary && draft.salesHighlights && draft.salesHighlights !== draft.summary && (
-            <p className="mt-2 rounded-md bg-slate-50 px-2.5 py-2 text-[10px] leading-relaxed text-slate-600 ring-1 ring-slate-100">
-              <span className="font-bold text-slate-800">Nổi bật Sales: </span>
-              {draft.salesHighlights}
+          {draft.careerObjective && (
+            <p className="mb-2 whitespace-pre-line rounded-md bg-slate-50 px-2.5 py-2 text-[10px] leading-relaxed text-slate-700 ring-1 ring-slate-100">
+              <span className="font-bold text-slate-800">Mục tiêu nghề nghiệp: </span>
+              {draft.careerObjective}
             </p>
           )}
+          {draft.summary ? (
+            <p className="text-[10.5px] leading-relaxed text-slate-700">{draft.summary}</p>
+          ) : null}
+          {draft.salesHighlights &&
+            draft.salesHighlights !== draft.summary && (
+              <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2 ring-1 ring-slate-100">
+                <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
+                  {draft.jobTrack === JobTrack.Technical
+                    ? TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical]
+                    : TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales]}
+                </p>
+                <SalesHighlightsBullets text={draft.salesHighlights} />
+              </div>
+            )}
         </section>
       )}
 
@@ -489,6 +627,7 @@ function MainSections({
               exp={e}
               accent={accent}
               compact={compact}
+              jobTrack={draft.jobTrack}
             />
           ))
         )}
@@ -529,8 +668,11 @@ function MainSections({
         <section data-cv-block className="mb-1">
           <SectionTitle title="Chứng chỉ" accent={accent} classic={classic} />
           <ul className="space-y-0.5 pl-3.5">
-            {draft.certificates.map((c) => (
-              <li key={c} className="list-disc text-[10px] text-slate-700 marker:text-slate-400">
+            {draft.certificates.map((c, i) => (
+              <li
+                key={`cert-${i}-${c}`}
+                className="list-disc text-[10px] text-slate-700 marker:text-slate-400"
+              >
                 {c}
               </li>
             ))}
@@ -559,8 +701,8 @@ function SidebarSkills({
         <div>
           <p className={heading}>Kỹ năng</p>
           <div className="flex flex-wrap gap-2">
-            {draft.skills.slice(0, 14).map((s) => (
-              <Chip key={s} dark={dark}>
+            {draft.skills.slice(0, 14).map((s, i) => (
+              <Chip key={`sk-${i}-${s}`} dark={dark}>
                 {s}
               </Chip>
             ))}
@@ -571,9 +713,9 @@ function SidebarSkills({
         <div>
           <p className={heading}>Điểm mạnh</p>
           <ul className="space-y-1">
-            {draft.softSkills.slice(0, 6).map((s) => (
+            {draft.softSkills.slice(0, 6).map((s, i) => (
               <li
-                key={s}
+                key={`ss-${i}-${s}`}
                 className={clsx(
                   'rounded-md px-2 pt-[5px] pb-[7px] text-[10px] font-medium leading-none',
                   dark ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-700',
@@ -589,8 +731,8 @@ function SidebarSkills({
         <div>
           <p className={heading}>Ngoại ngữ</p>
           <div className="flex flex-wrap gap-2">
-            {draft.languages.map((l) => (
-              <Chip key={l} dark={dark}>
+            {draft.languages.map((l, i) => (
+              <Chip key={`lang-${i}-${l}`} dark={dark}>
                 {l}
               </Chip>
             ))}
@@ -626,14 +768,27 @@ function ContactLines({
           {draft.phone}
         </p>
       )}
-      {draft.location && (
+      {formatVnAddress({
+        ward: draft.ward,
+        province: draft.location,
+      }) && (
         <p className={cls}>
           <MapPin className="mt-0.5 h-2.5 w-2.5 shrink-0 opacity-80" />
-          {draft.location}
+          {formatVnAddress({
+            ward: draft.ward,
+            province: draft.location,
+          })}
         </p>
       )}
-      {draft.birthYear != null && (
-        <p className={cls}>Năm sinh: {draft.birthYear}</p>
+      {(draft.birthDate || draft.birthYear != null) && (
+        <p className={cls}>
+          Ngày sinh:{' '}
+          {draft.birthDate
+            ? draft.birthDate.includes('-')
+              ? draft.birthDate.split('-').reverse().join('/')
+              : draft.birthDate
+            : draft.birthYear}
+        </p>
       )}
     </div>
   );
@@ -734,8 +889,8 @@ function LayoutClassic({
           <section className="mt-3">
             <SectionTitle title="Kỹ năng" accent={template.accent} classic />
             <div className="flex flex-wrap gap-1.5">
-              {[...draft.skills, ...draft.softSkills].slice(0, 20).map((s) => (
-                <Chip key={s}>{s}</Chip>
+              {[...draft.skills, ...draft.softSkills].slice(0, 20).map((s, i) => (
+                <Chip key={`chip-${i}-${s}`}>{s}</Chip>
               ))}
             </div>
           </section>

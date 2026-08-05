@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -156,8 +157,32 @@ class CvDraftViewDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(40)
+  birthDate!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  district!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ward!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   @MaxLength(80)
   educationLevel!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  careerObjective!: string | null;
 
   @IsArray()
   @IsString({ each: true })
@@ -170,6 +195,12 @@ class CvDraftViewDto {
   @IsArray()
   @IsString({ each: true })
   languages!: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  hobbies!: string[];
 
   @IsArray()
   @IsString({ each: true })
@@ -304,6 +335,59 @@ class CvDraftViewDto {
   @IsArray()
   @IsString({ each: true })
   workStyles!: string[];
+
+  @ApiPropertyOptional({ enum: ['sales', 'technical'], nullable: true })
+  @IsOptional()
+  @IsIn(['sales', 'technical'])
+  jobTrack!: 'sales' | 'technical' | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  brandsTechnologies!: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalWorkTypes!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  technicalAutonomyLevel!: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  troubleshootingLevel!: number | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalTools!: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  documentLiteracy!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  systemScaleNote!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  shiftFlexibility!: string | null;
 
   @IsArray()
   @ValidateNested({ each: true })

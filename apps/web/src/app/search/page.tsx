@@ -33,7 +33,7 @@ import {
   CUSTOMER_SEGMENTS,
   CustomerDevStyle,
   DEAL_TYPE_LABEL,
-  DealType,
+  DEAL_TYPE_OPTIONS,
   JOB_READINESS_LABEL,
   JobReadiness,
   LANGUAGE_OPTIONS,
@@ -466,7 +466,7 @@ function SearchPageInner() {
     if (filters.dealType) {
       chips.push({
         key: 'deal',
-        label: DEAL_TYPE_LABEL[filters.dealType as DealType] ?? filters.dealType,
+        label: DEAL_TYPE_LABEL[filters.dealType as keyof typeof DEAL_TYPE_LABEL] ?? filters.dealType,
         clear: () => patch({ dealType: '' }),
       });
     }
@@ -746,9 +746,9 @@ function SearchPageInner() {
                     </div>
                   </div>
                   <div>
-                    <p className="mb-2 text-xs font-semibold text-slate-600">Loại thương vụ</p>
+                    <p className="mb-2 text-xs font-semibold text-slate-600">Loại hình bán hàng</p>
                     <div className="flex flex-wrap gap-2">
-                      {Object.values(DealType).map((v) => (
+                      {DEAL_TYPE_OPTIONS.map((v) => (
                         <Chip
                           key={v}
                           active={filters.dealType === v}

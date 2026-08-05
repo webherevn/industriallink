@@ -55,17 +55,40 @@ export class MockAiProvider implements AiProvider {
       ? 'Nhân viên Kinh doanh → Trưởng nhóm Kinh doanh → Trưởng phòng Kinh doanh → Giám đốc Kinh doanh → Giám đốc công ty'
       : 'Nhân viên Kỹ thuật → Trưởng nhóm Kỹ thuật → Trưởng phòng Kỹ thuật → Giám đốc Kỹ thuật';
 
+    const productsSold =
+      industry.includes('Khí') || /nen khi|compressor/i.test(haystack)
+        ? ['Máy nén khí']
+        : skills[0]
+          ? [skills[0].name]
+          : [];
+
     return {
+      contact: {
+        fullName: null,
+        email: null,
+        phone: null,
+        currentCity: /hà nội|ha noi/i.test(haystack) ? 'Thành phố Hà Nội' : null,
+        district: null,
+        ward: null,
+        birthYear: null,
+        birthDate: null,
+      },
       summary: `Ứng viên ngành ${industry} với khoảng ${totalExperienceYears} năm kinh nghiệm, thành thạo ${skills
         .map((s) => s.name)
         .slice(0, 3)
         .join(', ')}.`,
+      careerObjective: /mục tiêu/i.test(haystack)
+        ? 'Phát triển sự nghiệp Sales B2B công nghiệp.'
+        : null,
       currentPosition: JOB_LEVEL_LABEL[jobLevel],
       jobLevel,
       totalExperienceYears,
+      b2bExperienceBand:
+        totalExperienceYears < 3 ? '1_3' : totalExperienceYears < 5 ? '3_5' : '5_10',
       industry,
       specialization: skills[0]?.name ?? null,
       skills,
+      softSkills: ['Giao tiếp', 'Chủ động'],
       experiences: [
         {
           companyName: 'Atlas ABC',
@@ -73,18 +96,76 @@ export class MockAiProvider implements AiProvider {
           startYear: 2021,
           endYear: 2024,
           isCurrent: false,
-          productsSold: industry.includes('Khí') || /nen khi|compressor/i.test(haystack)
-            ? ['Máy nén khí']
-            : skills[0]
-              ? [skills[0].name]
-              : [],
+          productsSold,
           customerSegments: ['Nhà máy FDI'],
           marketsCovered: ['Bắc Ninh / Bắc Giang', 'Hải Phòng'],
           industries: [industry],
+          sellingStages: isSales
+            ? ['Tìm kiếm khách hàng', 'Tư vấn sản phẩm', 'Báo giá', 'Chốt hợp đồng']
+            : [],
+          latestRevenue: null,
+          kpiAchievementPct: null,
+          newCustomerRatioPct: null,
+          dealType: isSales ? 'solution' : null,
+          typicalDealValue: null,
+          maxDealValue: null,
+          responsibilities: isSales
+            ? [
+                'Lên kế hoạch và mục tiêu kinh doanh theo kỳ',
+                'Nghiên cứu sản phẩm và đối thủ cạnh tranh',
+                'Đào tạo và hỗ trợ đội ngũ sales',
+                'Đề xuất phương án kinh doanh với ban lãnh đạo',
+                'Phụ trách khách hàng nhà máy FDI khu vực Bắc Ninh/Hải Phòng',
+              ]
+            : ['Phụ trách kỹ thuật ứng dụng tại nhà máy FDI'],
           highlights: 'Phụ trách khách hàng nhà máy FDI khu vực Bắc Ninh/Hải Phòng.',
-          missingFields: ['revenue', 'kpi', 'newCustomerRatio', 'dealValue', 'sellingStages'],
+          jobDescription: (isSales
+            ? [
+                'Lên kế hoạch và mục tiêu kinh doanh theo kỳ',
+                'Nghiên cứu sản phẩm và đối thủ cạnh tranh',
+                'Đào tạo và hỗ trợ đội ngũ sales',
+                'Đề xuất phương án kinh doanh với ban lãnh đạo',
+                'Phụ trách khách hàng nhà máy FDI khu vực Bắc Ninh/Hải Phòng',
+              ]
+            : ['Phụ trách kỹ thuật ứng dụng tại nhà máy FDI']
+          )
+            .map((x) => `• ${x}`)
+            .join('\n'),
+          missingFields: ['revenue', 'kpi', 'newCustomerRatio', 'dealValue'],
         },
       ],
+      education: [],
+      certificates: [],
+      languages: /english|tiếng anh|toeic/i.test(haystack) ? ['Tiếng Anh'] : [],
+      hobbies: /đọc sách|bóng đá|sở thích/i.test(haystack) ? ['Đọc sách', 'Bóng đá'] : [],
+      projects: [],
+      productsSold,
+      customerSegments: ['Nhà máy FDI'],
+      marketsCovered: ['Bắc Ninh / Bắc Giang', 'Hải Phòng'],
+      industriesExperienced: [industry],
+      sellingStages: isSales
+        ? ['Tìm kiếm khách hàng', 'Tư vấn sản phẩm', 'Báo giá', 'Chốt hợp đồng']
+        : [],
+      desiredPositions: [JOB_LEVEL_LABEL[jobLevel]],
+      desiredLocations: [],
+      expectedSalaryMin: null,
+      expectedSalaryMax: null,
+      expectedOte: null,
+      hasB2License: /bằng\s*b2|giấy phép.*b2/i.test(haystack) ? true : null,
+      driverLicenseType: null,
+      travelAbility: null,
+      jobReadiness: null,
+      availabilityBand: null,
+      salesHighlights: 'Phụ trách khách hàng nhà máy FDI khu vực Bắc Ninh/Hải Phòng.',
+      jobTrack: isSales ? 'sales' : 'technical',
+      brandsTechnologies: isSales ? [] : ['Siemens', 'Atlas Copco'],
+      technicalWorkTypes: isSales ? [] : ['Bảo trì', 'Chạy thử / Commissioning', 'Sửa chữa'],
+      technicalAutonomyLevel: isSales ? null : 3,
+      troubleshootingLevel: isSales ? null : 3,
+      technicalTools: isSales ? [] : ['AutoCAD', 'TIA Portal'],
+      documentLiteracy: isSales ? [] : ['Bản vẽ điện', 'Datasheet', 'Manual thiết bị'],
+      systemScaleNote: isSales ? null : null,
+      shiftFlexibility: isSales ? null : 'limited',
       strengths: ['Kinh nghiệm thực chiến tại nhà máy', 'Thành thạo thiết bị công nghiệp chính'],
       weaknesses: totalExperienceYears < 8 ? ['Kinh nghiệm quản lý còn hạn chế'] : [],
       careerPath: ladder,

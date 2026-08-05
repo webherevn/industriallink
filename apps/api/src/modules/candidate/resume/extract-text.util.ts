@@ -3,7 +3,8 @@
  * Tách khỏi Nest service để dễ unit test.
  */
 
-const MAX_CHARS = 20_000;
+/** Giữ đủ dài cho CV nhiều trang — Gemini context lớn hơn 20k. */
+const MAX_CHARS = 80_000;
 
 export class ExtractTextError extends Error {
   constructor(message: string) {

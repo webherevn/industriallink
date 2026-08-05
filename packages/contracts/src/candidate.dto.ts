@@ -93,12 +93,27 @@ export interface CandidateProfileView {
   summary: string | null;
   careerObjective: string | null;
   birthYear: number | null;
+  birthDate: string | null;
   currentCity: string | null;
+  district: string | null;
+  /** Xã / Phường / Đặc khu (cấp xã mới). */
+  ward: string | null;
   phone: string | null;
   educationLevel: string | null;
   educationSchool: string | null;
   educationMajor: string | null;
   certificates: string[];
+  hobbies: string[];
+  /** sales | technical */
+  jobTrack: 'sales' | 'technical' | null;
+  brandsTechnologies: string[];
+  technicalWorkTypes: string[];
+  technicalAutonomyLevel: number | null;
+  troubleshootingLevel: number | null;
+  technicalTools: string[];
+  documentLiteracy: string[];
+  systemScaleNote: string | null;
+  shiftFlexibility: string | null;
   sales: CandidateSalesProfileView | null;
 }
 
@@ -159,7 +174,10 @@ export interface UpdateCandidateProfileRequest {
   displayName: string;
   phone: string | null;
   birthYear: number | null;
+  birthDate?: string | null;
   currentCity: string | null;
+  district?: string | null;
+  ward?: string | null;
   currentPosition: string | null;
   jobLevel: string | null;
   totalExperienceYears: number | null;
@@ -205,6 +223,16 @@ export interface UpdateCandidateProfileRequest {
   educationSchool: string | null;
   educationMajor: string | null;
   certificates: string[];
+  hobbies?: string[];
+  jobTrack?: 'sales' | 'technical' | null;
+  brandsTechnologies?: string[];
+  technicalWorkTypes?: string[];
+  technicalAutonomyLevel?: number | null;
+  troubleshootingLevel?: number | null;
+  technicalTools?: string[];
+  documentLiteracy?: string[];
+  systemScaleNote?: string | null;
+  shiftFlexibility?: string | null;
   skills: { name: string; level: SkillLevel | string }[];
   experiences: CandidateExperienceInput[];
 }

@@ -29,6 +29,19 @@ export interface GeminiOptions {
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
+/** Gemini hỗ trợ đọc trực tiếp PDF / ảnh (không phụ thuộc OCR cục bộ). */
+const MULTIMODAL_MIME = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+]);
+
+/** Giới hạn inline ~18MB base64 an toàn cho generateContent. */
+const MAX_INLINE_BYTES = 15 * 1024 * 1024;
+
 /** Gemini 3.x bỏ / bỏ qua temperature — chỉ gửi config tối thiểu. */
 function generationConfigFor(
   model: string,
@@ -45,6 +58,10 @@ function generationConfigFor(
   };
 }
 
+function normalizeMime(mime?: string): string {
+  return (mime ?? '').split(';')[0].trim().toLowerCase();
+}
+
 /** Provider dùng Google Gemini generateContent + embedContent API. */
 export class GeminiProvider implements AiProvider {
   readonly name = 'gemini';
@@ -55,16 +72,24 @@ export class GeminiProvider implements AiProvider {
     return `${API_BASE}/models/${model}:${method}?key=${this.opts.apiKey}`;
   }
 
-  private async generateJson(system: string, user: string, temperature = 0.2): Promise<unknown> {
+  private async generateJson(
+    system: string,
+    userParts: Array<Record<string, unknown>>,
+    temperature = 0.2,
+  ): Promise<unknown> {
     const res = await fetch(this.modelUrl('generateContent'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: user }] }],
-        generationConfig: generationConfigFor(this.opts.model, {
-          responseMimeType: 'application/json',
-        }, temperature),
+        contents: [{ role: 'user', parts: userParts }],
+        generationConfig: generationConfigFor(
+          this.opts.model,
+          {
+            responseMimeType: 'application/json',
+          },
+          temperature,
+        ),
       }),
     });
     if (!res.ok) {
@@ -73,23 +98,40 @@ export class GeminiProvider implements AiProvider {
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const text =
+      data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
     return extractJson(text);
   }
 
   async parseResume(input: ResumeParseInput): Promise<ParsedResume> {
-    const raw = await this.generateJson(
-      RESUME_SYSTEM_PROMPT,
-      buildResumeUserPrompt(input),
-      0.2,
-    );
+    const parts: Array<Record<string, unknown>> = [{ text: buildResumeUserPrompt(input) }];
+
+    const mime = normalizeMime(input.mimeType);
+    const bytes = input.fileBytes;
+    const textThin = (input.text?.trim().length ?? 0) < 80;
+    const shouldAttachFile =
+      Boolean(bytes?.length) &&
+      bytes!.length <= MAX_INLINE_BYTES &&
+      MULTIMODAL_MIME.has(mime) &&
+      (textThin || mime === 'application/pdf');
+
+    if (shouldAttachFile && bytes) {
+      parts.unshift({
+        inlineData: {
+          mimeType: mime === 'image/jpg' ? 'image/jpeg' : mime,
+          data: bytes.toString('base64'),
+        },
+      });
+    }
+
+    const raw = await this.generateJson(RESUME_SYSTEM_PROMPT, parts, 0.1);
     return normalizeParsedResume(raw);
   }
 
   async generateJobDraft(input: JobDraftInput): Promise<JobDraftResult> {
     const raw = await this.generateJson(
       JOB_DRAFT_SYSTEM_PROMPT,
-      buildJobDraftUserPrompt(input),
+      [{ text: buildJobDraftUserPrompt(input) }],
       0.4,
     );
     return normalizeJobDraft(raw, input.title);

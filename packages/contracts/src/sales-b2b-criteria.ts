@@ -46,20 +46,39 @@ export const PRODUCTS_SOLD = [
 
 export type ProductSold = (typeof PRODUCTS_SOLD)[number];
 
-/** 3. Tệp khách hàng từng bán (11%). */
+/** 3. Tệp khách hàng từng bán (11%) — ma trận hồ sơ STT 17 (update 2.8). */
 export const CUSTOMER_SEGMENTS = [
   'Nhà máy FDI',
   'Nhà máy Việt Nam',
-  'Nhà thầu cơ điện / EPC',
-  'Nhà sản xuất OEM',
-  'Đại lý / Nhà phân phối',
-  'Doanh nghiệp vừa và nhỏ',
-  'Tập đoàn / Tổng thầu',
+  'Tổng thầu',
+  'Thầu phụ',
+  'Đại lý & Kênh phân phối',
+  'Quốc tế',
   'Khác',
 ] as const;
 
 export type CustomerSegment = (typeof CUSTOMER_SEGMENTS)[number];
 
+/** Alias dữ liệu cũ → segment chuẩn 2.8. */
+export const LEGACY_CUSTOMER_SEGMENT_MAP: Record<string, CustomerSegment> = {
+  'Nhà thầu cơ điện / EPC': 'Tổng thầu',
+  'Nhà thầu M&E/EPC': 'Tổng thầu',
+  'Tập đoàn / Tổng thầu': 'Tổng thầu',
+  'Nhà sản xuất OEM': 'Khác',
+  OEM: 'Khác',
+  'Doanh nghiệp vừa và nhỏ': 'Khác',
+  SME: 'Khác',
+  'Đại lý / Nhà phân phối': 'Đại lý & Kênh phân phối',
+  'Đại lý/NPP': 'Đại lý & Kênh phân phối',
+};
+
+export function normalizeCustomerSegment(raw: string): CustomerSegment | null {
+  const trimmed = raw.trim();
+  if ((CUSTOMER_SEGMENTS as readonly string[]).includes(trimmed)) {
+    return trimmed as CustomerSegment;
+  }
+  return LEGACY_CUSTOMER_SEGMENT_MAP[trimmed] ?? null;
+}
 /**
  * 4. Thành tích kinh doanh (10%) — % KPI gần nhất.
  * 5. Phát triển KH mới (8%) — tỷ lệ khách tự phát triển.
@@ -92,9 +111,9 @@ export enum CustomerDevStyle {
 }
 
 export const CUSTOMER_DEV_STYLE_LABEL: Record<CustomerDevStyle, string> = {
-  [CustomerDevStyle.Hunter]: 'Chuyên tìm khách mới (Hunter)',
-  [CustomerDevStyle.Hybrid]: 'Cả khách mới và khách cũ (Hybrid)',
-  [CustomerDevStyle.Farmer]: 'Chăm sóc khách hiện hữu (Farmer)',
+  [CustomerDevStyle.Hunter]: 'Hunter — Tìm khách hàng mới',
+  [CustomerDevStyle.Hybrid]: 'Hybrid — Cả khách mới và khách cũ',
+  [CustomerDevStyle.Farmer]: 'Farmer — Chỉ khách hiện hữu',
 };
 
 /** 6. Kinh nghiệm Sales B2B (7%). */
@@ -156,19 +175,69 @@ export function normalizeSellingStage(raw: string): SellingStage | null {
   return LEGACY_SELLING_STAGE_MAP[trimmed] ?? null;
 }
 
-/** 8. Loại hình & quy mô thương vụ (5%). */
+/** 8. Loại hình & quy mô thương vụ (5%) — ma trận STT 19 (update 2.8). */
 export enum DealType {
-  /** Bán sản phẩm / tiêu chuẩn */
-  Standard = 'standard',
-  Solution = 'solution',
+  Equipment = 'equipment',
+  Consumables = 'consumables',
+  Service = 'service',
+  TechnicalSolution = 'technical_solution',
   Project = 'project',
+  Rental = 'rental',
+  Other = 'other',
+  /** @deprecated map → equipment (dữ liệu cũ) */
+  Standard = 'standard',
+  /** @deprecated map → technical_solution (dữ liệu cũ) */
+  Solution = 'solution',
 }
 
+/** Options UI / form — không gồm mã legacy. */
+export const DEAL_TYPE_OPTIONS = [
+  DealType.Equipment,
+  DealType.Consumables,
+  DealType.Service,
+  DealType.TechnicalSolution,
+  DealType.Project,
+  DealType.Rental,
+  DealType.Other,
+] as const;
+
 export const DEAL_TYPE_LABEL: Record<DealType, string> = {
-  [DealType.Standard]: 'Bán sản phẩm / tiêu chuẩn',
-  [DealType.Solution]: 'Bán giải pháp',
-  [DealType.Project]: 'Bán dự án',
+  [DealType.Equipment]: 'Thiết bị',
+  [DealType.Consumables]: 'Vật tư tiêu hao',
+  [DealType.Service]: 'Dịch vụ',
+  [DealType.TechnicalSolution]: 'Giải pháp kỹ thuật',
+  [DealType.Project]: 'Dự án',
+  [DealType.Rental]: 'Cho thuê thiết bị',
+  [DealType.Other]: 'Khác',
+  [DealType.Standard]: 'Thiết bị',
+  [DealType.Solution]: 'Giải pháp kỹ thuật',
 };
+
+/** Chuẩn hoá dealType từ CV / dữ liệu cũ về mã 2.8. */
+export function normalizeDealTypeValue(raw: string | null | undefined): DealType | null {
+  if (!raw?.trim()) return null;
+  const original = raw.trim();
+  const s = original.toLowerCase();
+  if ((Object.values(DealType) as string[]).includes(original)) {
+    if (original === DealType.Standard) return DealType.Equipment;
+    if (original === DealType.Solution) return DealType.TechnicalSolution;
+    return original as DealType;
+  }
+  if (s.includes('cho thuê') || s.includes('thuê thiết bị') || s === 'rental') {
+    return DealType.Rental;
+  }
+  if (s.includes('vật tư') || s.includes('tiêu hao') || s === DealType.Consumables) {
+    return DealType.Consumables;
+  }
+  if (s.includes('dịch vụ') || s === DealType.Service) return DealType.Service;
+  if (s.includes('giải pháp') || s === 'solution') return DealType.TechnicalSolution;
+  if (s.includes('dự án') || s.includes('project')) return DealType.Project;
+  if (s === 'khác' || s === 'other') return DealType.Other;
+  if (s.includes('thiết bị') || s.includes('tiêu chuẩn') || s.includes('sản phẩm') || s === 'standard') {
+    return DealType.Equipment;
+  }
+  return null;
+}
 
 export const DEAL_VALUE_BANDS = [
   { value: 'under_50m', label: '< 50 triệu', midVnd: 25_000_000 },
@@ -446,37 +515,70 @@ export function workStylesToCultureFitAnswers(
   return answers;
 }
 
-/** 18. Định hướng nghề nghiệp (2%). */
+/** 18. Định hướng nghề nghiệp (2%) — ma trận STT 38 (update 2.8). */
 export const CAREER_ORIENTATIONS = [
-  'Sales B2B chuyên nghiệp',
-  'Sales Engineer/Chuyên gia giải pháp',
-  'Key Account',
-  'Business Development',
-  'Trưởng nhóm Sales',
-  'Sales Manager',
+  'Chuyên gia kinh doanh B2B',
+  'Chuyên viên quản lý khách hàng chiến lược',
+  'Chuyên viên phát triển kinh doanh',
+  'Trưởng nhóm kinh doanh',
+  'Trưởng phòng kinh doanh',
+  'Giám đốc kinh doanh',
   'Quản lý sản phẩm/ngành hàng',
+  'Khởi nghiệp & Tự kinh doanh',
   'Khác',
 ] as const;
 
 export type CareerOrientation = (typeof CAREER_ORIENTATIONS)[number];
 
 export const CAREER_ORIENTATION_QUESTION =
-  'Trong 2–3 năm tới anh/chị muốn phát triển theo hướng nào?';
+  'Trong 3 năm tới anh/chị muốn phát triển theo hướng nào?';
 
-/** Vị trí mong muốn (hồ sơ — tối đa 3). */
+/** Alias định hướng cũ → bản 2.8. */
+export const LEGACY_CAREER_ORIENTATION_MAP: Record<string, CareerOrientation> = {
+  'Sales B2B chuyên nghiệp': 'Chuyên gia kinh doanh B2B',
+  'Sales Engineer/Chuyên gia giải pháp': 'Chuyên gia kinh doanh B2B',
+  'Key Account': 'Chuyên viên quản lý khách hàng chiến lược',
+  'Business Development': 'Chuyên viên phát triển kinh doanh',
+  'Trưởng nhóm Sales': 'Trưởng nhóm kinh doanh',
+  'Sales Manager': 'Trưởng phòng kinh doanh',
+};
+
+/** Vị trí mong muốn (hồ sơ STT 7 — tối đa 3). */
 export const DESIRED_POSITIONS = [
-  'Sales Engineer',
-  'Sales Executive',
-  'Key Account Manager (KAM)',
-  'Business Development (BD)',
-  'Sales Manager',
-  'Sales Supervisor',
-  'Technical Sales',
-  'Area Sales Manager',
+  'Nhân viên kinh doanh',
+  'Quản lý khách hàng',
+  'Trưởng nhóm kinh doanh',
+  'Trưởng phòng kinh doanh',
+  'Giám đốc kinh doanh',
   'Khác',
 ] as const;
 
 export type DesiredPosition = (typeof DESIRED_POSITIONS)[number];
+
+/** Alias vị trí cũ (EN) → bản tiếng Việt 2.8. */
+export const LEGACY_DESIRED_POSITION_MAP: Record<string, DesiredPosition> = {
+  'Sales Engineer': 'Nhân viên kinh doanh',
+  'Sales Executive': 'Nhân viên kinh doanh',
+  'Technical Sales': 'Nhân viên kinh doanh',
+  'Key Account Manager (KAM)': 'Quản lý khách hàng',
+  'Business Development (BD)': 'Nhân viên kinh doanh',
+  'Sales Supervisor': 'Trưởng nhóm kinh doanh',
+  'Sales Manager': 'Trưởng phòng kinh doanh',
+  'Area Sales Manager': 'Trưởng phòng kinh doanh',
+};
+
+/**
+ * Thành tích nổi bật (STT 6 / 26) — gợi ý thực tế:
+ * doanh số, % KPI, xếp hạng trong công ty.
+ */
+export const SALES_HIGHLIGHTS_QUESTION =
+  'Doanh số gần nhất, % KPI, thành tích nổi bật đứng thứ mấy trong công ty?';
+
+export const SALES_HIGHLIGHTS_HINT =
+  'Doanh số + % KPI + xếp hạng thành tích trong công ty (VD: Top 3 / đứng thứ 2 phòng Sales)';
+
+export const SALES_HIGHLIGHTS_PLACEHOLDER =
+  'VD: Doanh số 12 tỷ (2025) · KPI 120% · Đứng thứ 2/15 trong phòng Sales';
 
 /** Trình độ học vấn. */
 export const EDUCATION_LEVELS = [

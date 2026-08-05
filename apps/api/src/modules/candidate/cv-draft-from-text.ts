@@ -48,18 +48,25 @@ function mapParsedExperience(
     role: exp.jobTitle?.trim() || fallbackTitle || 'Sales',
     company: exp.companyName?.trim() || 'Công ty',
     period: experiencePeriod(exp),
-    bullets: (exp.highlights ?? '').trim(),
+    bullets: (
+      exp.jobDescription ||
+      (exp.responsibilities?.length
+        ? exp.responsibilities.map((r) => (r.startsWith('•') ? r : `• ${r}`)).join('\n')
+        : '') ||
+      exp.highlights ||
+      ''
+    ).trim(),
     industries: exp.industries ?? [],
     productsSold: exp.productsSold ?? [],
     customerSegments: exp.customerSegments ?? [],
     marketsCovered: exp.marketsCovered ?? [],
-    sellingStages: [],
-    latestRevenue: null,
-    kpiAchievementPct: null,
-    newCustomerRatioPct: null,
-    dealType: null,
-    typicalDealValue: null,
-    maxDealValue: null,
+    sellingStages: exp.sellingStages ?? [],
+    latestRevenue: exp.latestRevenue,
+    kpiAchievementPct: exp.kpiAchievementPct,
+    newCustomerRatioPct: exp.newCustomerRatioPct,
+    dealType: exp.dealType,
+    typicalDealValue: exp.typicalDealValue,
+    maxDealValue: exp.maxDealValue,
   };
 }
 
@@ -109,7 +116,23 @@ function pickExperienceHeuristic(
   ];
 }
 
-function pickEducation(text: string, parsed: ParsedResume): CvDraftView['education'] {
+function educationFromParsed(parsed: ParsedResume): CvDraftView['education'] {
+  if (parsed.education.length > 0) {
+    return parsed.education.map((e) => {
+      const start = e.startYear != null ? String(e.startYear) : '';
+      const end = e.endYear != null ? String(e.endYear) : '';
+      const period = start && end ? `${start} – ${end}` : start || end || '';
+      return {
+        school: e.school,
+        degree: [e.degree, e.major].filter(Boolean).join(' — ') || e.level || 'Chưa rõ ngành',
+        period,
+      };
+    });
+  }
+  return [];
+}
+
+function pickEducationHeuristic(text: string, parsed: ParsedResume): CvDraftView['education'] {
   if (parsed.specialization && /đại học|học viện|cao đẳng/i.test(text)) {
     const school =
       text.match(/((?:đại học|học viện|cao đẳng|trường)[\p{L}\s.]{2,60})/iu)?.[1]?.trim() ??
@@ -139,7 +162,8 @@ function pickCertificates(text: string): string[] {
   const found: string[] = [];
   if (/iso\s*9001/i.test(text)) found.push('ISO 9001');
   if (/an toàn|atld|osh/i.test(text)) found.push('An toàn lao động');
-  if (/toeic|ielts/i.test(text)) found.push(/toeic|ielts/i.exec(text)?.[0]?.toUpperCase() ?? 'Ngoại ngữ');
+  if (/toeic|ielts/i.test(text))
+    found.push(/toeic|ielts/i.exec(text)?.[0]?.toUpperCase() ?? 'Ngoại ngữ');
   if (/bằng\s*b2|giấy phép.*b2/i.test(text)) found.push('Bằng lái B2');
   return found;
 }
@@ -180,7 +204,7 @@ function field(
   return { key, label, status: 'filled', value: v, suggestion };
 }
 
-/** Ghép kết quả AI parse (ưu tiên experiences Sales B2B) + heuristic → bản nháp CV. */
+/** Ghép kết quả AI parse (ưu tiên) + heuristic fallback → bản nháp CV. */
 export function buildCvDraftFromText(opts: {
   text: string;
   parsed: ParsedResume;
@@ -188,33 +212,53 @@ export function buildCvDraftFromText(opts: {
   fallbackEmail: string;
 }): { draft: CvDraftView; fields: CvDraftFieldHint[] } {
   const { text, parsed, fallbackName, fallbackEmail } = opts;
-  const email = pickEmail(text) || fallbackEmail;
-  const phone = pickPhone(text);
-  const fullName = pickName(text, fallbackName);
-  const location = pickLocation(text);
+  const email = parsed.contact.email || pickEmail(text) || fallbackEmail;
+  const phone = parsed.contact.phone || pickPhone(text);
+  const fullName = parsed.contact.fullName || pickName(text, fallbackName);
+  const location = parsed.contact.currentCity || pickLocation(text);
   const title = parsed.currentPosition?.trim() || '';
   const skills = parsed.skills.map((s) => s.name).slice(0, 16);
-  const softSkills = parsed.strengths.slice(0, 8);
-  const languages = pickLanguages(text);
+  const softSkills =
+    parsed.softSkills.length > 0 ? parsed.softSkills.slice(0, 8) : parsed.strengths.slice(0, 8);
+  const languages =
+    parsed.languages.length > 0 ? parsed.languages : pickLanguages(text);
+  const hobbies = parsed.hobbies.length > 0 ? parsed.hobbies : [];
 
   const experience =
     parsed.experiences?.length > 0
       ? parsed.experiences.map((e) => mapParsedExperience(e, title))
       : pickExperienceHeuristic(text, title);
 
-  const productsSold = union(...experience.map((e) => e.productsSold));
-  const customerSegments = union(...experience.map((e) => e.customerSegments));
-  const marketsCovered = union(...experience.map((e) => e.marketsCovered));
+  const productsSold = union(parsed.productsSold, ...experience.map((e) => e.productsSold));
+  const customerSegments = union(
+    parsed.customerSegments,
+    ...experience.map((e) => e.customerSegments),
+  );
+  const marketsCovered = union(parsed.marketsCovered, ...experience.map((e) => e.marketsCovered));
+  const industriesExperienced = union(
+    parsed.industriesExperienced,
+    ...experience.map((e) => e.industries),
+  );
 
-  const education = pickEducation(text, parsed);
-  const certificates = pickCertificates(text);
-  const projects = pickProjects(text);
+  const education =
+    educationFromParsed(parsed).length > 0
+      ? educationFromParsed(parsed)
+      : pickEducationHeuristic(text, parsed);
+  const certificates =
+    parsed.certificates.length > 0 ? parsed.certificates : pickCertificates(text);
+  const projects =
+    parsed.projects.length > 0
+      ? parsed.projects.map((p) => ({ name: p.name, detail: p.detail ?? '' }))
+      : pickProjects(text);
   const summary = parsed.summary?.trim() || '';
-  const salesHighlights = experience
-    .map((e) => e.bullets)
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(' · ');
+  const firstExp = experience[0];
+  const salesHighlights =
+    parsed.salesHighlights?.trim() ||
+    experience
+      .map((e) => e.bullets)
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' · ');
 
   const draft: CvDraftView = {
     fullName,
@@ -223,35 +267,59 @@ export function buildCvDraftFromText(opts: {
     phone,
     location,
     summary,
-    birthYear: null,
-    educationLevel: null,
+    birthYear: parsed.contact.birthYear,
+    birthDate: parsed.contact.birthDate,
+    district: null, // không còn cấp huyện
+    ward: parsed.contact.ward,
+    educationLevel: parsed.education[0]?.level ?? null,
+    careerObjective: parsed.careerObjective,
     skills,
     softSkills,
     languages,
+    hobbies,
     productsSold,
     customerSegments,
     marketsCovered,
-    industriesExperienced: union(...experience.map((e) => e.industries)),
-    desiredPositions: title ? [title] : [],
-    desiredLocations: location ? [location] : [],
+    industriesExperienced,
+    desiredPositions:
+      parsed.desiredPositions.length > 0
+        ? parsed.desiredPositions
+        : title
+          ? [title]
+          : [],
+    desiredLocations:
+      parsed.desiredLocations.length > 0
+        ? parsed.desiredLocations
+        : location
+          ? [location]
+          : [],
     salesHighlights,
-    b2bExperienceBand: null,
-    newCustomerRatioPct: null,
-    dealType: null,
-    typicalDealValue: null,
-    maxDealValue: null,
-    jobReadiness: null,
-    availabilityBand: null,
-    expectedSalaryMin: null,
-    expectedSalaryMax: null,
-    expectedOte: null,
-    travelAbility: null,
-    hasB2License: null,
-    driverLicenseType: null,
+    b2bExperienceBand: parsed.b2bExperienceBand,
+    newCustomerRatioPct: parsed.experiences[0]?.newCustomerRatioPct ?? firstExp?.newCustomerRatioPct ?? null,
+    dealType: parsed.experiences[0]?.dealType ?? firstExp?.dealType ?? null,
+    typicalDealValue: parsed.experiences[0]?.typicalDealValue ?? firstExp?.typicalDealValue ?? null,
+    maxDealValue: parsed.experiences[0]?.maxDealValue ?? firstExp?.maxDealValue ?? null,
+    jobReadiness: parsed.jobReadiness,
+    availabilityBand: parsed.availabilityBand,
+    expectedSalaryMin: parsed.expectedSalaryMin,
+    expectedSalaryMax: parsed.expectedSalaryMax,
+    expectedOte: parsed.expectedOte,
+    travelAbility: parsed.travelAbility,
+    hasB2License: parsed.hasB2License,
+    driverLicenseType: parsed.driverLicenseType,
     salesBehavior: null,
     careerMotivations: [],
     careerOrientations: [],
     workStyles: [],
+    jobTrack: parsed.jobTrack,
+    brandsTechnologies: parsed.brandsTechnologies ?? [],
+    technicalWorkTypes: parsed.technicalWorkTypes ?? [],
+    technicalAutonomyLevel: parsed.technicalAutonomyLevel ?? null,
+    troubleshootingLevel: parsed.troubleshootingLevel ?? null,
+    technicalTools: parsed.technicalTools ?? [],
+    documentLiteracy: parsed.documentLiteracy ?? [],
+    systemScaleNote: parsed.systemScaleNote ?? null,
+    shiftFlexibility: parsed.shiftFlexibility ?? null,
     experience,
     education,
     certificates,

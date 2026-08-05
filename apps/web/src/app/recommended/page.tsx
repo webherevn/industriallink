@@ -314,7 +314,7 @@ export default function RecommendedPage() {
 
   return (
     <AppShell wide>
-      <div className="grid gap-5 pb-8 lg:grid-cols-[220px_minmax(0,1fr)_260px]">
+      <div className="grid gap-5 pb-8 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_260px]">
         {/* Left sidebar */}
         <aside className="hidden lg:block">
           <div className="sticky top-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
@@ -440,8 +440,8 @@ export default function RecommendedPage() {
             </button>
           </div>
 
-          {/* AI banner */}
-          <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-r from-[#072348] via-[#0B3A6E] to-[#1e4a7a] px-5 py-6 text-white sm:px-7">
+          {/* AI banner — robot trang trí absolute, không chiếm cột layout */}
+          <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-r from-[#072348] via-[#0B3A6E] to-[#1e4a7a] px-4 py-5 text-white sm:px-6 sm:py-6">
             <div
               className="pointer-events-none absolute inset-0 opacity-40"
               style={{
@@ -449,10 +449,14 @@ export default function RecommendedPage() {
                   'radial-gradient(circle at 18% 45%, rgba(245,158,11,0.28), transparent 42%), radial-gradient(circle at 88% 20%, rgba(255,255,255,0.1), transparent 35%), linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.05) 41%, transparent 42%)',
               }}
             />
-            <div className="relative grid items-center gap-4 sm:grid-cols-[auto_1fr_auto]">
-              <div>
+            <div className="pointer-events-none absolute -bottom-1 -right-1 hidden opacity-90 sm:block md:-right-2 md:bottom-0">
+              <CopilotRobot className="h-20 w-auto drop-shadow-xl md:h-24 xl:h-28" />
+            </div>
+
+            <div className="relative z-10 flex flex-col gap-4 pr-0 sm:pr-24 md:pr-28 xl:flex-row xl:items-center xl:gap-8 xl:pr-32">
+              <div className="shrink-0">
                 <p className="text-xs font-medium text-amber-200/90">Độ phù hợp trung bình</p>
-                <div className="mt-1 flex items-end gap-2">
+                <div className="mt-1 flex flex-wrap items-end gap-2">
                   <span className="text-4xl font-bold tracking-tight sm:text-5xl">
                     {allJobs.length ? `${avgScore}%` : '—'}
                   </span>
@@ -466,12 +470,13 @@ export default function RecommendedPage() {
                   Từ {allJobs.length} tin AI đã phân tích
                 </p>
               </div>
-              <div className="max-w-md">
+
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium leading-relaxed sm:text-[15px]">
                   AI đánh giá bạn phù hợp nhất với nhóm{' '}
                   <span className="font-bold text-amber-200">{fitGroup}</span>
                 </p>
-                <p className="mt-1.5 text-xs text-sky-100/80">
+                <p className="mt-1.5 text-xs leading-relaxed text-sky-100/80">
                   Dựa trên {matchedSkillCount || candidate?.skills?.length || 0} kỹ năng nổi bật
                   {candidate?.aiProfile?.strengths?.length
                     ? ` và ${candidate.aiProfile.strengths.length} điểm mạnh AI`
@@ -480,13 +485,10 @@ export default function RecommendedPage() {
                 </p>
                 <Link
                   href="/dashboard"
-                  className="mt-3 inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-sm hover:bg-amber-50"
+                  className="mt-3 inline-flex max-w-full items-center whitespace-nowrap rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-sm hover:bg-amber-50"
                 >
                   Xem phân tích chi tiết →
                 </Link>
-              </div>
-              <div className="hidden justify-self-end sm:block">
-                <CopilotRobot className="h-28 w-auto drop-shadow-xl" />
               </div>
             </div>
           </div>
@@ -579,8 +581,8 @@ export default function RecommendedPage() {
           )}
         </section>
 
-        {/* Right widgets */}
-        <aside className="space-y-4">
+        {/* Right widgets — full width dưới nội dung trên tablet; cột riêng từ xl */}
+        <aside className="min-w-0 space-y-4 lg:col-span-2 xl:col-span-1">
           <div className="rounded-2xl border border-amber-100/80 bg-white p-4 shadow-sm">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
               <Sparkles className="h-4 w-4 text-amber-500" /> AI Insight cho bạn

@@ -42,6 +42,7 @@ import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CompanyService } from '../company/company.service';
 import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
+import { mergeCvDraftViews, profileSourceToCvDraft } from './merge-cv-draft';
 import { ExtractTextError, extractResumeText } from './resume/extract-text.util';
 import { RESUME_PARSE_QUEUE_TOKEN, type ResumeParseJobData } from './resume/queue.constants';
 
@@ -328,6 +329,7 @@ export class CandidateService {
       specialization: emptyToNull(input.specialization),
       summary: emptyToNull(input.summary),
       careerObjective: emptyToNull(input.careerObjective),
+      hobbies: cleanList(input.hobbies ?? []),
       productsSold,
       customerSegments,
       b2bExperienceBand: emptyToNull(input.b2bExperienceBand),
@@ -371,8 +373,20 @@ export class CandidateService {
       educationMajor: emptyToNull(input.educationMajor),
       certificates: cleanList(input.certificates),
       birthYear: toIntOrNull(input.birthYear),
+      birthDate: emptyToNull(input.birthDate),
       currentCity: emptyToNull(input.currentCity),
+      district: emptyToNull(input.district),
+      ward: emptyToNull(input.ward),
       phone: emptyToNull(input.phone),
+      jobTrack: emptyToNull(input.jobTrack),
+      brandsTechnologies: cleanList(input.brandsTechnologies ?? []),
+      technicalWorkTypes: cleanList(input.technicalWorkTypes ?? []),
+      technicalAutonomyLevel: toIntOrNull(input.technicalAutonomyLevel),
+      troubleshootingLevel: toIntOrNull(input.troubleshootingLevel),
+      technicalTools: cleanList(input.technicalTools ?? []),
+      documentLiteracy: cleanList(input.documentLiteracy ?? []),
+      systemScaleNote: emptyToNull(input.systemScaleNote),
+      shiftFlexibility: emptyToNull(input.shiftFlexibility),
     };
 
     const existingAi = await this.prisma.candidateAiProfile.findUnique({
@@ -798,8 +812,20 @@ export class CandidateService {
       educationMajor?: string | null;
       certificates?: string[];
       birthYear?: number | null;
+      birthDate?: string | null;
       currentCity?: string | null;
+      district?: string | null;
+      hobbies?: string[];
       phone?: string | null;
+      jobTrack?: string | null;
+      brandsTechnologies?: string[];
+      technicalWorkTypes?: string[];
+      technicalAutonomyLevel?: number | null;
+      troubleshootingLevel?: number | null;
+      technicalTools?: string[];
+      documentLiteracy?: string[];
+      systemScaleNote?: string | null;
+      shiftFlexibility?: string | null;
     } | null;
 
     const experiences = (candidate.experiences ?? []).map((raw) => {
@@ -886,12 +912,26 @@ export class CandidateService {
             summary: p.summary,
             careerObjective: p.careerObjective,
             birthYear: p.birthYear ?? null,
+            birthDate: (p as { birthDate?: string | null }).birthDate ?? null,
             currentCity: p.currentCity ?? null,
+            district: (p as { district?: string | null }).district ?? null,
+            ward: (p as { ward?: string | null }).ward ?? null,
             phone: p.phone ?? null,
             educationLevel: p.educationLevel ?? null,
             educationSchool: p.educationSchool ?? null,
             educationMajor: p.educationMajor ?? null,
             certificates: p.certificates ?? [],
+            hobbies: (p as { hobbies?: string[] }).hobbies ?? [],
+            jobTrack:
+              p.jobTrack === 'sales' || p.jobTrack === 'technical' ? p.jobTrack : null,
+            brandsTechnologies: p.brandsTechnologies ?? [],
+            technicalWorkTypes: p.technicalWorkTypes ?? [],
+            technicalAutonomyLevel: p.technicalAutonomyLevel ?? null,
+            troubleshootingLevel: p.troubleshootingLevel ?? null,
+            technicalTools: p.technicalTools ?? [],
+            documentLiteracy: p.documentLiteracy ?? [],
+            systemScaleNote: p.systemScaleNote ?? null,
+            shiftFlexibility: p.shiftFlexibility ?? null,
             sales: {
               productsSold: p.productsSold ?? [],
               customerSegments: p.customerSegments ?? [],
@@ -1032,22 +1072,26 @@ export class CandidateService {
       throw new BadRequestException('File vượt quá 5MB');
     }
 
-    let text: string;
+    let text = '';
     try {
       text = await extractResumeText(file.buffer, file.mimetype);
     } catch (err) {
-      throw new BadRequestException(
-        err instanceof ExtractTextError
-          ? err.message
-          : 'Không đọc được nội dung CV. Thử PDF/DOCX/TXT có chữ.',
-      );
+      // Gemini multimodal vẫn đọc PDF/ảnh khi OCR cục bộ fail.
+      if (!/pdf|image\//i.test(file.mimetype)) {
+        throw new BadRequestException(
+          err instanceof ExtractTextError
+            ? err.message
+            : 'Không đọc được nội dung CV. Thử PDF/DOCX/TXT có chữ.',
+        );
+      }
     }
 
-    const trimmed = text.trim();
     return this.buildCvDraftResponse(
       user,
-      trimmed || `CV file: ${file.originalname}`,
+      text.trim() || `CV file: ${file.originalname}`,
       file.originalname || 'cv-upload.pdf',
+      file.buffer,
+      file.mimetype,
     );
   }
 
@@ -1134,10 +1178,14 @@ export class CandidateService {
       const profileData = {
         currentPosition: draft.title || null,
         summary: draft.summary || null,
-        careerObjective: draft.summary || null,
-        currentCity: draft.location || null,
+        careerObjective: emptyToNull(draft.careerObjective) || null,
+        currentCity: emptyToNull(draft.location) || null,
+        district: emptyToNull(draft.district),
+        ward: emptyToNull(draft.ward),
         phone: draft.phone || null,
         birthYear: toIntOrNull(draft.birthYear),
+        birthDate: emptyToNull(draft.birthDate),
+        hobbies: draft.hobbies ?? [],
         educationLevel: emptyToNull(draft.educationLevel),
         industriesExperienced,
         productsSold,
@@ -1175,6 +1223,15 @@ export class CandidateService {
         certificates: draft.certificates ?? [],
         educationSchool: draft.education[0]?.school || null,
         educationMajor: draft.education[0]?.degree || null,
+        jobTrack: emptyToNull(draft.jobTrack),
+        brandsTechnologies: cleanList(draft.brandsTechnologies ?? []),
+        technicalWorkTypes: cleanList(draft.technicalWorkTypes ?? []),
+        technicalAutonomyLevel: toIntOrNull(draft.technicalAutonomyLevel),
+        troubleshootingLevel: toIntOrNull(draft.troubleshootingLevel),
+        technicalTools: cleanList(draft.technicalTools ?? []),
+        documentLiteracy: cleanList(draft.documentLiteracy ?? []),
+        systemScaleNote: emptyToNull(draft.systemScaleNote),
+        shiftFlexibility: emptyToNull(draft.shiftFlexibility),
       };
 
       await tx.candidateProfile.upsert({
@@ -1258,38 +1315,95 @@ export class CandidateService {
     user: AuthenticatedUser,
     text: string,
     fileName: string,
+    fileBytes?: Buffer,
+    mimeType?: string,
   ): Promise<CvDraftFromTextResponse> {
     const candidate = await this.prisma.candidate.findUnique({
       where: { userId: user.id },
-      include: { user: { select: { email: true, displayName: true } } },
+      include: {
+        user: { select: { email: true, displayName: true } },
+        profile: true,
+        aiProfile: true,
+        skills: true,
+        experiences: { orderBy: { sortOrder: 'asc' } },
+      },
     });
     if (!candidate) {
       throw new NotFoundException('Chưa có hồ sơ ứng viên');
     }
 
-    const parsed = await this.ai.parseResume({ fileName, text });
+    const parsed = await this.ai.parseResume({ fileName, text, fileBytes, mimeType }).catch(
+      (err: unknown) => {
+        const detail = err instanceof Error ? err.message : String(err);
+        this.logger.error(`parseResume thất bại: ${detail}`);
+        if (/Gemini lỗi 429|RESOURCE_EXHAUSTED|quota/i.test(detail)) {
+          throw new BadRequestException(
+            'AI đang quá tải / hết hạn mức. Đợi khoảng 1 phút rồi thử lại.',
+          );
+        }
+        if (/Gemini lỗi 4\d\d|API key|PERMISSION|UNAUTHENTICATED/i.test(detail)) {
+          throw new BadRequestException(
+            'Cấu hình AI (Gemini) chưa hợp lệ. Kiểm tra GEMINI_API_KEY / model rồi thử lại.',
+          );
+        }
+        if (/không tìm thấy JSON|JSON/i.test(detail)) {
+          throw new BadRequestException(
+            'AI trả kết quả không đọc được. Thử lại hoặc dùng file PDF/DOCX rõ chữ hơn.',
+          );
+        }
+        throw new BadRequestException(
+          'Không phân tích được CV lúc này. Đợi vài giây rồi thử lại (tránh upload khi API vừa reload).',
+        );
+      },
+    );
 
-    const { draft, fields } = buildCvDraftFromText({
+    const { draft: aiDraft, fields: aiFields } = buildCvDraftFromText({
       text,
       parsed,
       fallbackName: candidate.displayName || candidate.user.displayName || 'Ứng viên',
       fallbackEmail: candidate.user.email ?? '',
     });
 
-    const missingCount = fields.filter((f) => f.status === 'missing').length;
-    const weakCount = fields.filter((f) => f.status === 'weak').length;
+    const profileDraft = profileSourceToCvDraft({
+      displayName: candidate.displayName || candidate.user.displayName || 'Ứng viên',
+      email: candidate.user.email ?? '',
+      profile: candidate.profile
+        ? {
+            ...candidate.profile,
+            hobbies: (candidate.profile as { hobbies?: string[] }).hobbies ?? [],
+            birthDate: (candidate.profile as { birthDate?: string | null }).birthDate ?? null,
+            district: (candidate.profile as { district?: string | null }).district ?? null,
+            ward: (candidate.profile as { ward?: string | null }).ward ?? null,
+          }
+        : null,
+      aiStrengths: candidate.aiProfile?.strengths ?? [],
+      skills: candidate.skills,
+      experiences: candidate.experiences,
+    });
+
+    const hasProfileData =
+      Boolean(candidate.profile?.summary) ||
+      Boolean(candidate.profile?.careerObjective) ||
+      Boolean(candidate.profile?.educationSchool) ||
+      candidate.skills.length > 0 ||
+      candidate.experiences.length > 0;
+
+    const draft = hasProfileData ? mergeCvDraftViews(aiDraft, profileDraft) : aiDraft;
+    const missingCount = aiFields.filter((f) => f.status === 'missing').length;
+    const weakCount = aiFields.filter((f) => f.status === 'weak').length;
 
     return {
       draft,
-      fields,
+      fields: aiFields,
       missingCount,
       aiScore: parsed.aiScore,
-      message:
-        missingCount === 0
+      message: hasProfileData
+        ? 'AI đã đọc CV và ghép với hồ sơ nền tảng — CV đầy đủ hơn bản gốc. Kiểm tra các trường rồi chọn mẫu.'
+        : missingCount === 0
           ? weakCount > 0
             ? `AI đã trích xuất hồ sơ. Còn ${weakCount} mục nên bổ sung để CV mạnh hơn.`
             : 'AI đã trích xuất khá đầy đủ. Bạn có thể chỉnh sửa rồi chọn mẫu CV.'
-          : `AI đã tạo ${fields.length - missingCount} trường. Còn ${missingCount} mục cần bổ sung.`,
+          : `AI đã tạo ${aiFields.length - missingCount} trường. Còn ${missingCount} mục cần bổ sung.`,
     };
   }
 

@@ -9,14 +9,19 @@ import { createDomainEvent } from '../../../shared/domain/domain-event';
 import { AppEventBus } from '../../../shared/events/event-bus';
 import { PrismaService } from '../../../shared/infrastructure/prisma/prisma.service';
 import { StorageService } from '../../../shared/infrastructure/storage/storage.service';
+import { computeProfileCompletion } from '../candidate.service';
 import { ExtractTextError, extractResumeText } from './extract-text.util';
+import {
+  buildExperienceRowFromParsed,
+  buildProfileDataFromParsed,
+} from './map-parsed-resume';
 import type { ResumeParseJobData } from './queue.constants';
 
 /**
  * Logic phân tích CV (chạy trong worker BullMQ, tách khỏi hạ tầng queue).
  *
- * Luồng: đọc file -> AI Gateway hiểu CV -> tạo Profile/Skill/AI Profile/Embedding
- * -> phát ResumeParsed + CandidateUpdated. Không bước nào làm thủ công.
+ * Luồng: đọc file -> AI Gateway (Gemini) hiểu CV -> ghi đầy đủ Profile/Skill/Experience/AI
+ * -> phát ResumeParsed + CandidateUpdated.
  */
 @Injectable()
 export class ResumeParseService {
@@ -47,25 +52,35 @@ export class ResumeParseService {
 
     try {
       const buffer = await this.storage.getObject(resume.storageKey);
-      let text: string;
+      let text = '';
       try {
         text = await extractResumeText(buffer, resume.mime);
       } catch (err) {
-        const message =
-          err instanceof ExtractTextError
-            ? err.message
-            : `Không đọc được nội dung CV: ${String(err).slice(0, 300)}`;
-        throw new Error(message);
+        const aiProvider = this.config.get('ai', { infer: true }).provider;
+        // Gemini multimodal vẫn đọc được PDF/ảnh dù OCR cục bộ fail.
+        if (aiProvider === 'gemini' && /pdf|image\//i.test(resume.mime)) {
+          this.logger.warn(
+            `Trích text cục bộ thất bại (${String(err).slice(0, 120)}); gửi file gốc cho Gemini.`,
+          );
+          text = '';
+        } else {
+          const message =
+            err instanceof ExtractTextError
+              ? err.message
+              : `Không đọc được nội dung CV: ${String(err).slice(0, 300)}`;
+          throw new Error(message);
+        }
       }
 
       if (!text.trim()) {
-        // Extract thành công nhưng không có chữ (ví dụ PDF scan).
-        // AI thật: fail rõ, tránh ghi profile rỗng/sai.
-        // Mock: được phép suy luận từ tên file (dev/demo).
         const aiProvider = this.config.get('ai', { infer: true }).provider;
         if (aiProvider === 'mock') {
           this.logger.warn(
             `Không trích được text từ CV "${resume.fileName}" (mime=${resume.mime}); AI mock sẽ suy luận từ tên file.`,
+          );
+        } else if (aiProvider === 'gemini' && /pdf|image\//i.test(resume.mime)) {
+          this.logger.warn(
+            `Text CV trống — Gemini sẽ đọc multimodal từ file "${resume.fileName}".`,
           );
         } else {
           throw new Error(
@@ -74,33 +89,38 @@ export class ResumeParseService {
         }
       }
 
-      const parsed = await this.ai.parseResume({ fileName: resume.fileName, text });
+      const parsed = await this.ai.parseResume({
+        fileName: resume.fileName,
+        text,
+        fileBytes: buffer,
+        mimeType: resume.mime,
+      });
 
-      // 1) Hồ sơ nghề nghiệp
+      const profileData = buildProfileDataFromParsed(parsed);
+
+      // 1) Hồ sơ nghề nghiệp — map đầy đủ trường Sales B2B
       await this.prisma.candidateProfile.upsert({
         where: { candidateId },
         create: {
           candidateId,
-          currentPosition: parsed.currentPosition,
-          jobLevel: parsed.jobLevel,
-          totalExperienceYears: parsed.totalExperienceYears,
-          industry: parsed.industry,
-          specialization: parsed.specialization,
-          summary: parsed.summary,
+          ...profileData,
         },
-        update: {
-          currentPosition: parsed.currentPosition,
-          jobLevel: parsed.jobLevel,
-          totalExperienceYears: parsed.totalExperienceYears,
-          industry: parsed.industry,
-          specialization: parsed.specialization,
-          summary: parsed.summary,
-        },
+        update: profileData,
       });
 
-      // 2) Kỹ năng (chuẩn hoá về skill_id khi có trong Taxonomy)
+      // Cập nhật displayName nếu AI đọc được họ tên
+      if (parsed.contact.fullName && parsed.contact.fullName.length >= 3) {
+        await this.prisma.candidate.update({
+          where: { id: candidateId },
+          data: { displayName: parsed.contact.fullName },
+        });
+      }
+
+      // 2) Kỹ năng (chuẩn hoá về skill_id khi có trong Taxonomy) + soft skills
       await this.prisma.candidateSkill.deleteMany({ where: { candidateId } });
+      const skillNames = new Set<string>();
       for (const skill of parsed.skills) {
+        skillNames.add(skill.name.toLowerCase());
         const skillId = await this.skills.resolveSkillId(skill.name);
         await this.prisma.candidateSkill.create({
           data: {
@@ -112,43 +132,23 @@ export class ResumeParseService {
           },
         });
       }
-
-      // 2b) Kinh nghiệm theo công ty + đánh dấu field còn thiếu
-      await this.prisma.candidateExperience.deleteMany({ where: { candidateId } });
-      const exps = parsed.experiences ?? [];
-      for (const [idx, exp] of exps.slice(0, 12).entries()) {
-        await this.prisma.candidateExperience.create({
+      for (const soft of parsed.softSkills.slice(0, 12)) {
+        if (skillNames.has(soft.toLowerCase())) continue;
+        await this.prisma.candidateSkill.create({
           data: {
             candidateId,
-            sortOrder: idx,
-            companyName: exp.companyName,
-            jobTitle: exp.jobTitle,
-            startYear: exp.startYear,
-            endYear: exp.endYear,
-            isCurrent: exp.isCurrent,
-            industries: exp.industries,
-            productsSold: exp.productsSold,
-            customerSegments: exp.customerSegments,
-            marketsCovered: exp.marketsCovered,
-            highlights: exp.highlights,
-            missingFields: exp.missingFields,
-            source: 'cv_ai',
+            name: soft,
+            level: 'intermediate',
+            yearsOfExperience: null,
           },
         });
       }
 
-      // Đồng bộ tổng hợp sản phẩm/tệp KH/thị trường lên profile
-      if (exps.length > 0) {
-        const union = (key: 'productsSold' | 'customerSegments' | 'marketsCovered' | 'industries') =>
-          [...new Set(exps.flatMap((e) => e[key]))];
-        await this.prisma.candidateProfile.update({
-          where: { candidateId },
-          data: {
-            productsSold: union('productsSold'),
-            customerSegments: union('customerSegments'),
-            marketsCovered: union('marketsCovered'),
-            industriesExperienced: union('industries'),
-          },
+      // 2b) Kinh nghiệm theo công ty — đủ KPI / giai đoạn bán / mô tả
+      await this.prisma.candidateExperience.deleteMany({ where: { candidateId } });
+      for (const [idx, exp] of parsed.experiences.slice(0, 12).entries()) {
+        await this.prisma.candidateExperience.create({
+          data: buildExperienceRowFromParsed(candidateId, exp, idx),
         });
       }
 
@@ -181,15 +181,30 @@ export class ResumeParseService {
         parsed.industry,
         parsed.specialization,
         parsed.skills.map((s) => s.name).join(', '),
+        parsed.productsSold.join(', '),
+        parsed.industriesExperienced.join(', '),
       ]
         .filter(Boolean)
         .join('. ');
       await this.saveEmbedding(aiProfile.candidateId, embeddingText);
 
-      // 4) Cập nhật trạng thái ứng viên + resume
+      // 4) Cập nhật trạng thái ứng viên + % hoàn thiện thật
+      const refreshed = await this.prisma.candidate.findUnique({
+        where: { id: candidateId },
+        include: {
+          profile: true,
+          aiProfile: true,
+          skills: true,
+          experiences: true,
+        },
+      });
+      const profileCompletion = refreshed
+        ? computeProfileCompletion(refreshed)
+        : 80;
+
       await this.prisma.candidate.update({
         where: { id: candidateId },
-        data: { status: CandidateStatus.Completed, profileCompletion: 80 },
+        data: { status: CandidateStatus.Completed, profileCompletion },
       });
       await this.prisma.candidateResume.update({
         where: { id: resumeId },
@@ -202,11 +217,10 @@ export class ResumeParseService {
           tenantId,
           type: 'resume_parsed',
           title: 'AI đã phân tích xong CV',
-          description: `Nhận diện ${parsed.skills.length} kỹ năng, ngành ${parsed.industry ?? 'N/A'}.`,
+          description: `Nhận diện ${parsed.skills.length} kỹ năng, ${parsed.experiences.length} công ty, ${parsed.education.length} học vấn — ngành ${parsed.industry ?? 'N/A'}.`,
         },
       });
 
-      // 5) Phát sự kiện cho Search/Analytics/Timeline (không gọi trực tiếp Domain khác)
       this.events.publish(
         createDomainEvent({
           name: DomainEvents.ResumeParsed,
@@ -224,7 +238,9 @@ export class ResumeParseService {
         }),
       );
 
-      this.logger.log(`Hoàn tất phân tích CV resumeId=${resumeId}`);
+      this.logger.log(
+        `Hoàn tất phân tích CV resumeId=${resumeId} skills=${parsed.skills.length} exps=${parsed.experiences.length} edu=${parsed.education.length}`,
+      );
     } catch (err) {
       const parseError =
         err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500);
@@ -246,7 +262,6 @@ export class ResumeParseService {
         SET embedding = ${literal}::vector
         WHERE candidate_id = ${candidateId}::uuid`;
     } catch (err) {
-      // Không chặn luồng nếu vector store gặp sự cố.
       this.logger.warn(`Bỏ qua lưu embedding cho ${candidateId}: ${String(err)}`);
     }
   }

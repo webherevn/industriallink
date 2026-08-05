@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -180,8 +181,26 @@ export class UpdateCandidateProfileDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(40)
+  birthDate!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   @MaxLength(120)
   currentCity!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  district!: string | null;
+
+  @ApiPropertyOptional({ description: 'Xã / Phường / Đặc khu (cấp xã mới)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ward!: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -416,6 +435,65 @@ export class UpdateCandidateProfileDto {
   @IsArray()
   @IsString({ each: true })
   certificates!: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  hobbies!: string[];
+
+  @ApiPropertyOptional({ enum: ['sales', 'technical'], nullable: true })
+  @IsOptional()
+  @IsIn(['sales', 'technical'])
+  jobTrack!: 'sales' | 'technical' | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  brandsTechnologies!: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalWorkTypes!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  technicalAutonomyLevel!: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  troubleshootingLevel!: number | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalTools!: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  documentLiteracy!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  systemScaleNote!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  shiftFlexibility!: string | null;
 
   @IsArray()
   @ValidateNested({ each: true })
