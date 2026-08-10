@@ -4,6 +4,7 @@ import type {
   CustomerDevStyle,
   DealType,
   JobReadiness,
+  LanguageSkill,
   ProfileMissingFieldKey,
 } from './sales-b2b-criteria';
 
@@ -67,6 +68,8 @@ export interface CandidateSalesProfileView {
   expectedSalaryMax: number | null;
   expectedOte: number | null;
   languages: string[];
+  /** Chi tiết nghe/nói/đọc/viết + đọc manual kỹ thuật. */
+  languageSkills: LanguageSkill[];
   hasB2License: boolean | null;
   driverLicenseType: string | null;
   willingToTravel: boolean | null;
@@ -100,6 +103,8 @@ export interface CandidateProfileView {
   ward: string | null;
   phone: string | null;
   educationLevel: string | null;
+  /** Xếp loại tốt nghiệp: Trung bình / Khá / Giỏi / Xuất sắc. */
+  educationClassification?: string | null;
   educationSchool: string | null;
   educationMajor: string | null;
   certificates: string[];
@@ -206,6 +211,7 @@ export interface UpdateCandidateProfileRequest {
   expectedSalaryMax: number | null;
   expectedOte: number | null;
   languages: string[];
+  languageSkills?: LanguageSkill[];
   hasB2License: boolean | null;
   driverLicenseType: string | null;
   willingToTravel: boolean | null;
@@ -220,6 +226,8 @@ export interface UpdateCandidateProfileRequest {
   careerOrientations?: string[];
   careerOrientation: string | null;
   educationLevel: string | null;
+  /** Xếp loại tốt nghiệp: Trung bình / Khá / Giỏi / Xuất sắc. */
+  educationClassification?: string | null;
   educationSchool: string | null;
   educationMajor: string | null;
   certificates: string[];

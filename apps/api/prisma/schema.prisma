@@ -264,6 +264,8 @@ model CandidateProfile {
   expectedSalaryMax    Int?    @map("expected_salary_max")
   expectedOte          Int?    @map("expected_ote")
   languages            String[] @default([])
+  /// Chi tiết nghe/nói/đọc/viết + đọc manual kỹ thuật theo từng ngôn ngữ (JSON).
+  languageSkills       Json     @default("[]") @map("language_skills")
   hasB2License         Boolean? @map("has_b2_license")
   driverLicenseType    String?  @map("driver_license_type")
   willingToTravel      Boolean? @map("willing_to_travel")
@@ -274,6 +276,8 @@ model CandidateProfile {
   workStyles           String[] @default([]) @map("work_styles")
   careerOrientation    String?  @map("career_orientation")
   educationLevel       String?  @map("education_level")
+  /// Xếp loại tốt nghiệp: Trung bình / Khá / Giỏi / Xuất sắc.
+  educationClassification String? @map("education_classification")
   educationSchool      String?  @map("education_school")
   educationMajor       String?  @map("education_major")
   certificates         String[] @default([])

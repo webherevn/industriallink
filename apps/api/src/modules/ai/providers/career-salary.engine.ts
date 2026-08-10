@@ -177,7 +177,6 @@ function computeReadiness(
     [JobLevelCode.TechDeptHead]: 6,
     [JobLevelCode.SalesDirector]: 10,
     [JobLevelCode.TechDirector]: 10,
-    [JobLevelCode.CompanyDirector]: 12,
   };
   const need = expectedYears[level] ?? 3;
   if (years != null) {
@@ -205,8 +204,7 @@ function suggestedSalesSkills(level: JobLevelCode): string[] {
   if (
     level === JobLevelCode.SalesTeamLead ||
     level === JobLevelCode.SalesDeptHead ||
-    level === JobLevelCode.SalesDirector ||
-    level === JobLevelCode.CompanyDirector
+    level === JobLevelCode.SalesDirector
   ) {
     return [...base, 'Quản lý đội sales', 'Dự báo doanh số', 'Phát triển kênh KCN'];
   }

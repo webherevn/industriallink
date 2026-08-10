@@ -25,6 +25,42 @@ function nullOrBool({ value }: { value: unknown }): boolean | null {
   return null;
 }
 
+class LanguageSkillDto {
+  @IsString()
+  @MaxLength(80)
+  language!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  listening!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  speaking!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  reading!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  writing!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  technicalManualReading!: string | null;
+}
+
 class CvDraftExperienceDto {
   @IsString()
   @MaxLength(200)
@@ -178,6 +214,18 @@ class CvDraftViewDto {
   @MaxLength(80)
   educationLevel!: string | null;
 
+  @ApiPropertyOptional({ description: 'Xếp loại: Trung bình / Khá / Giỏi / Xuất sắc' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  educationClassification!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  educationMajor!: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -195,6 +243,13 @@ class CvDraftViewDto {
   @IsArray()
   @IsString({ each: true })
   languages!: string[];
+
+  @ApiPropertyOptional({ type: 'array', items: { type: 'object' } })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LanguageSkillDto)
+  languageSkills?: LanguageSkillDto[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

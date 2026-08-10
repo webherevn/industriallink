@@ -76,6 +76,8 @@ export class JobController {
   @ApiOperation({ summary: 'Danh sách tin tuyển dụng đang mở (ứng viên duyệt việc)' })
   @ApiQuery({ name: 'keyword', required: false })
   @ApiQuery({ name: 'industry', required: false })
+  @ApiQuery({ name: 'subIndustry', required: false })
+  @ApiQuery({ name: 'role', required: false })
   @ApiQuery({ name: 'location', required: false })
   @ApiQuery({ name: 'locations', required: false, description: 'CSV nhiều địa điểm' })
   @ApiQuery({ name: 'experienceBand', required: false })
@@ -87,6 +89,8 @@ export class JobController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('keyword') keyword?: string,
     @Query('industry') industry?: string,
+    @Query('subIndustry') subIndustry?: string,
+    @Query('role') role?: string,
     @Query('location') location?: string,
     @Query('locations') locations?: string,
     @Query('experienceBand') experienceBand?: string,
@@ -98,6 +102,8 @@ export class JobController {
     return this.jobs.listPublishedJobs({
       keyword,
       industry,
+      subIndustry,
+      role,
       location,
       locations,
       experienceBand,

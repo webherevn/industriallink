@@ -14,11 +14,12 @@ import {
   TECHNICAL_AUTONOMY_LEVELS,
   TROUBLESHOOTING_LEVELS,
   SHIFT_FLEXIBILITY_OPTIONS,
+  formatLanguageSkillSummary,
+  formatVnAddress,
 } from '@industriallink/contracts';
 import { toBulletLines } from '@/lib/bullet-text';
 import type { CvDraft, CvTemplate } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
-import { formatVnAddress } from '@industriallink/contracts';
 
 function initials(name: string): string {
   return (name || 'UV')
@@ -185,30 +186,49 @@ function ExperienceBlock({
 }) {
   const isTech = jobTrack === JobTrack.Technical;
   const bullets = bulletLines(exp.bullets);
-  const meta: string[] = [];
-  if (exp.industries.length) meta.push(exp.industries.slice(0, 3).join(', '));
+
+  const detailRows: { label: string; value: string }[] = [];
+  if (exp.industries.length) {
+    detailRows.push({
+      label: 'Lĩnh vực',
+      value: exp.industries.slice(0, 5).join(', '),
+    });
+  }
   if (exp.productsSold.length) {
-    meta.push(
-      `${isTech ? 'TB' : 'SP'}: ${exp.productsSold.slice(0, 4).join(', ')}`,
-    );
+    detailRows.push({
+      label: isTech ? 'Thiết bị / hệ thống' : 'Sản phẩm',
+      value: exp.productsSold.slice(0, 6).join(', '),
+    });
   }
   if (exp.customerSegments.length) {
-    meta.push(
-      `${isTech ? 'MT' : 'KH'}: ${exp.customerSegments.slice(0, 3).join(', ')}`,
-    );
+    detailRows.push({
+      label: isTech ? 'Môi trường' : 'Khách hàng',
+      value: exp.customerSegments.slice(0, 5).join(', '),
+    });
   }
-  if (!isTech && exp.marketsCovered.length) {
-    meta.push(`TT: ${exp.marketsCovered.slice(0, 3).join(', ')}`);
+  if (exp.marketsCovered.length) {
+    detailRows.push({
+      label: 'Thị trường',
+      value: exp.marketsCovered.slice(0, 5).join(', '),
+    });
   }
   if (!isTech) {
     const rev = formatRevenue(exp.latestRevenue);
-    if (rev) meta.push(`DS: ${rev}`);
-    if (exp.kpiAchievementPct != null) meta.push(`KPI: ${Math.round(exp.kpiAchievementPct)}%`);
+    if (rev) detailRows.push({ label: 'Doanh số', value: rev });
+    if (exp.kpiAchievementPct != null) {
+      detailRows.push({
+        label: 'KPI',
+        value: `${Math.round(exp.kpiAchievementPct)}%`,
+      });
+    }
     if (exp.newCustomerRatioPct != null) {
-      meta.push(`KH mới: ${Math.round(exp.newCustomerRatioPct)}%`);
+      detailRows.push({
+        label: 'KH tự phát triển',
+        value: `${Math.round(exp.newCustomerRatioPct)}%`,
+      });
     }
     const deal = labelOf(DEAL_TYPE_LABEL, exp.dealType);
-    if (deal) meta.push(deal);
+    if (deal) detailRows.push({ label: 'Loại deal', value: deal });
   }
 
   return (
@@ -232,12 +252,22 @@ function ExperienceBlock({
       <p className="mt-0.5 text-[10.5px] font-semibold" style={{ color: accent }}>
         {exp.company}
       </p>
-      {meta.length > 0 && (
-        <p className="mt-1 text-[9px] leading-snug text-slate-500">{meta.join(' · ')}</p>
+      {detailRows.length > 0 && (
+        <dl className="mt-1.5 space-y-0.5">
+          {detailRows.map((row) => (
+            <div key={row.label} className="flex gap-1 text-[9px] leading-snug">
+              <dt className="shrink-0 font-bold text-slate-600">{row.label}:</dt>
+              <dd className="min-w-0 text-slate-500">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
       {exp.sellingStages.length > 0 && (
-        <p className="mt-0.5 text-[9px] font-medium text-slate-500">
-          Chu trình: {exp.sellingStages.join(' → ')}
+        <p className="mt-1 text-[9px] leading-snug text-slate-500">
+          <span className="font-bold text-slate-600">
+            {isTech ? 'Công việc' : 'Chu trình'}:
+          </span>{' '}
+          {exp.sellingStages.join(' → ')}
         </p>
       )}
       {bullets.length > 0 && (
@@ -470,7 +500,13 @@ function ConditionsSection({
         />
         <Kv
           label="Ngoại ngữ"
-          value={draft.languages.length ? draft.languages.join(', ') : null}
+          value={
+            draft.languageSkills?.length
+              ? draft.languageSkills.map(formatLanguageSkillSummary).join('; ')
+              : draft.languages.length
+                ? draft.languages.join(', ')
+                : null
+          }
         />
         {shift && <Kv label="Làm ca / ngoài giờ" value={shift} />}
       </div>
@@ -969,8 +1005,13 @@ export function CvPreview({
 }) {
   if (empty) {
     return (
-      <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 bg-white p-6 text-center">
-        <Sparkles className="h-8 w-8 text-brand-300" />
+      <div
+        className={clsx(
+          'flex flex-col items-center justify-center gap-2 bg-white p-6 text-center',
+          compact ? 'min-h-[160px]' : 'min-h-[320px]',
+        )}
+      >
+        <Sparkles className={clsx(compact ? 'h-6 w-6' : 'h-8 w-8', 'text-brand-300')} />
         <p className="text-xs font-semibold text-slate-600">Chưa có nội dung CV</p>
         <p className="text-[11px] text-slate-400">
           Nạp từ hồ sơ hoặc phân tích AI để xem trước.

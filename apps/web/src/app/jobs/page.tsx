@@ -27,6 +27,7 @@ import {
   POPULAR_JOB_KEYWORDS,
   SALARY_BANDS_VND,
   SALARY_PRESETS,
+  getIndustryCatalog,
   type ApplicationView,
   type JobListItem,
   type JobMatchView,
@@ -117,6 +118,8 @@ function JobsPageInner() {
   const tab = (searchParams.get('tab') as TabId) || 'all';
   const keyword = searchParams.get('keyword') ?? '';
   const industry = searchParams.get('industry') ?? '';
+  const subIndustry = searchParams.get('subIndustry') ?? '';
+  const roleFilter = searchParams.get('role') ?? '';
   const locations = useMemo(() => {
     const multi = parseList(searchParams.get('locations'));
     if (multi.length) return multi;
@@ -130,10 +133,17 @@ function JobsPageInner() {
   const pageRaw = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
 
+  const industryCatalog = useMemo(
+    () => (industry ? getIndustryCatalog(industry) : undefined),
+    [industry],
+  );
+
   const listQuery: ListPublishedJobsQuery = useMemo(() => {
     const q: ListPublishedJobsQuery = {};
     if (keyword) q.keyword = keyword;
     if (industry) q.industry = industry;
+    if (subIndustry) q.subIndustry = subIndustry;
+    if (roleFilter) q.role = roleFilter;
     if (locations.length) q.locations = locations;
     if (jobLevels.length) q.jobLevel = jobLevels.join(',');
     if (experienceBands.length) q.experienceBand = experienceBands.join(',');
@@ -142,7 +152,16 @@ function JobsPageInner() {
       q.salaryMax = Number(salaryPresetObj.max);
     }
     return q;
-  }, [keyword, industry, locations, jobLevels, experienceBands, salaryPresetObj]);
+  }, [
+    keyword,
+    industry,
+    subIndustry,
+    roleFilter,
+    locations,
+    jobLevels,
+    experienceBands,
+    salaryPresetObj,
+  ]);
 
   const setParams = useCallback(
     (patch: Record<string, string | null>, replace = true) => {
@@ -164,6 +183,8 @@ function JobsPageInner() {
     setParams({
       keyword: null,
       industry: null,
+      subIndustry: null,
+      role: null,
       location: null,
       locations: null,
       jobLevel: null,
@@ -182,7 +203,14 @@ function JobsPageInner() {
   );
 
   const hasActiveFilters = Boolean(
-    keyword || industry || locations.length || jobLevels.length || experienceBands.length || salaryPreset,
+    keyword ||
+      industry ||
+      subIndustry ||
+      roleFilter ||
+      locations.length ||
+      jobLevels.length ||
+      experienceBands.length ||
+      salaryPreset,
   );
 
   const { data: jobs, isLoading } = useQuery({

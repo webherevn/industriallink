@@ -1,4 +1,8 @@
-import type { CvDraftView } from '@industriallink/contracts';
+import type { CvDraftView, LanguageSkill } from '@industriallink/contracts';
+import {
+  composeEducationDegree,
+  mergeLanguageSkills,
+} from '@industriallink/contracts';
 
 /** Hồ sơ DB tối thiểu để ghép vào draft CV. */
 export type ProfileDraftSource = {
@@ -15,6 +19,7 @@ export type ProfileDraftSource = {
     birthYear: number | null;
     birthDate: string | null;
     educationLevel: string | null;
+    educationClassification?: string | null;
     educationSchool: string | null;
     educationMajor: string | null;
     certificates: string[];
@@ -40,6 +45,7 @@ export type ProfileDraftSource = {
     hasB2License: boolean | null;
     driverLicenseType: string | null;
     languages: string[];
+    languageSkills?: LanguageSkill[] | unknown;
     careerMotivations: string[];
     workStyles: string[];
     careerOrientation: string | null;
@@ -107,11 +113,14 @@ export function profileSourceToCvDraft(src: ProfileDraftSource): CvDraftView {
   }));
 
   const education =
-    p?.educationSchool || p?.educationMajor || p?.educationLevel
+    p?.educationSchool ||
+    p?.educationMajor ||
+    p?.educationClassification ||
+    p?.educationLevel
       ? [
           {
             school: p.educationSchool ?? '',
-            degree: [p.educationLevel, p.educationMajor].filter(Boolean).join(' — '),
+            degree: composeEducationDegree(p.educationClassification, p.educationMajor),
             period: '',
           },
         ]
@@ -136,10 +145,16 @@ export function profileSourceToCvDraft(src: ProfileDraftSource): CvDraftView {
     district: null, // không còn cấp huyện (cải cách 01/7/2025)
     ward: p?.ward ?? null,
     educationLevel: p?.educationLevel ?? null,
+    educationClassification: p?.educationClassification ?? null,
+    educationMajor: p?.educationMajor ?? null,
     careerObjective: p?.careerObjective ?? null,
     skills: src.skills.map((s) => s.name).filter(Boolean),
     softSkills: src.aiStrengths.slice(0, 8),
     languages: p?.languages ?? [],
+    languageSkills: mergeLanguageSkills(
+      p?.languages ?? [],
+      Array.isArray(p?.languageSkills) ? (p.languageSkills as LanguageSkill[]) : [],
+    ),
     hobbies: p?.hobbies ?? [],
     productsSold: p?.productsSold ?? [],
     customerSegments: p?.customerSegments ?? [],
@@ -275,10 +290,19 @@ export function mergeCvDraftViews(ai: CvDraftView, profile: CvDraftView): CvDraf
     district: null, // bỏ huyện khỏi CV draft
     ward: pickNonEmpty(ai.ward, profile.ward),
     educationLevel: pickNonEmpty(ai.educationLevel, profile.educationLevel),
+    educationClassification: pickNonEmpty(
+      ai.educationClassification,
+      profile.educationClassification,
+    ),
+    educationMajor: pickNonEmpty(ai.educationMajor, profile.educationMajor),
     careerObjective: pickRicherText(ai.careerObjective, profile.careerObjective) || null,
     skills: unionList(ai.skills, profile.skills).slice(0, 24),
     softSkills: unionList(ai.softSkills, profile.softSkills).slice(0, 12),
     languages: unionList(ai.languages, profile.languages),
+    languageSkills: mergeLanguageSkills(
+      unionList(ai.languages, profile.languages),
+      [...(ai.languageSkills ?? []), ...(profile.languageSkills ?? [])],
+    ),
     hobbies: unionList(ai.hobbies, profile.hobbies),
     productsSold: unionList(ai.productsSold, profile.productsSold),
     customerSegments: unionList(ai.customerSegments, profile.customerSegments),

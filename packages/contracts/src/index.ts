@@ -8,6 +8,7 @@ export * from './enums';
 export * from './career-path';
 export * from './career-salary.dto';
 export * from './job-taxonomy';
+export * from './job-search-synonyms';
 export * from './sales-b2b-criteria';
 export * from './technical-criteria';
 export * from './vn-admin-units';

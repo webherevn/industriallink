@@ -1,4 +1,5 @@
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
+import { parseEducationDegree } from '@industriallink/contracts';
 import type { ParsedResume, ParsedResumeExperience } from '../ai/domain/types';
 
 function pickEmail(text: string): string {
@@ -272,10 +273,23 @@ export function buildCvDraftFromText(opts: {
     district: null, // không còn cấp huyện
     ward: parsed.contact.ward,
     educationLevel: parsed.education[0]?.level ?? null,
+    educationClassification: parseEducationDegree(education[0]?.degree).classification || null,
+    educationMajor:
+      parseEducationDegree(education[0]?.degree).major ||
+      parsed.education[0]?.major ||
+      null,
     careerObjective: parsed.careerObjective,
     skills,
     softSkills,
     languages,
+    languageSkills: languages.map((language) => ({
+      language,
+      listening: null,
+      speaking: null,
+      reading: null,
+      writing: null,
+      technicalManualReading: null,
+    })),
     hobbies,
     productsSold,
     customerSegments,

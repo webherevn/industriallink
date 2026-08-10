@@ -27,6 +27,42 @@ class ProfileSkillDto {
   level!: string;
 }
 
+class LanguageSkillDto {
+  @IsString()
+  @MaxLength(80)
+  language!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  listening!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  speaking!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  reading!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  writing!: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  technicalManualReading!: string | null;
+}
+
 class ExperienceDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -358,6 +394,13 @@ export class UpdateCandidateProfileDto {
   @IsString({ each: true })
   languages!: string[];
 
+  @ApiPropertyOptional({ type: 'array', items: { type: 'object' } })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LanguageSkillDto)
+  languageSkills?: LanguageSkillDto[];
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
@@ -419,6 +462,12 @@ export class UpdateCandidateProfileDto {
   @IsString()
   @MaxLength(80)
   educationLevel!: string | null;
+
+  @ApiPropertyOptional({ description: 'Xếp loại: Trung bình / Khá / Giỏi / Xuất sắc' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  educationClassification!: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

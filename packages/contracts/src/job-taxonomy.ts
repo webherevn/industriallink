@@ -1,8 +1,8 @@
 /**
  * Taxonomy tin tuyển dụng dùng chung giữa form NTD và trang tìm việc ứng viên.
- * Giữ đúng giá trị string lưu vào DB (industry / location / department).
+ * Giữ đúng giá trị string lưu vào DB (industry = nhóm ngành).
  *
- * Nhóm ngành = 12 ngành B2B công nghiệp thực tế tại Việt Nam (+ Khác).
+ * Cấu trúc: Nhóm ngành → ngành chi tiết (sub) → vị trí tuyển dụng điển hình (roles).
  */
 
 /** Nhóm ngành hiển thị trên Web (giá trị lưu DB). */
@@ -29,9 +29,13 @@ export type IndustrySchemaBlock = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface IndustryCatalogItem {
   name: IndustryGroup;
-  /** Ngành chi tiết / sản phẩm–dịch vụ điển hình. */
+  /** Ngành / sản phẩm–dịch vụ chi tiết (lọc phụ). */
+  subIndustries: readonly string[];
+  /**
+   * @deprecated Dùng `subIndustries.join(', ')`. Giữ để tương thích code cũ.
+   */
   details: string;
-  /** Vị trí tuyển dụng điển hình. */
+  /** Vị trí tuyển dụng điển hình (tiếng Việt chuyên môn). */
   roles: readonly string[];
   /** Liên hệ sơ đồ 6 cục. */
   schemaBlocks: readonly IndustrySchemaBlock[];
@@ -39,126 +43,237 @@ export interface IndustryCatalogItem {
   priority: 1 | 2 | 3 | 4 | 5;
 }
 
+function catalogItem(
+  name: IndustryGroup,
+  subIndustries: readonly string[],
+  roles: readonly string[],
+  schemaBlocks: readonly IndustrySchemaBlock[],
+  priority: 1 | 2 | 3 | 4 | 5,
+): IndustryCatalogItem {
+  return {
+    name,
+    subIndustries,
+    details: subIndustries.join(', '),
+    roles,
+    schemaBlocks,
+    priority,
+  };
+}
+
 export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
-  {
-    name: 'Máy móc & Thiết bị công nghiệp',
-    details:
-      'Máy nén khí, máy phát điện, máy bơm, máy công cụ, thiết bị sản xuất, thiết bị phụ trợ',
-    roles: [
+  catalogItem(
+    'Máy móc & Thiết bị công nghiệp',
+    [
+      'Máy nén khí',
+      'Máy phát điện',
+      'Máy bơm',
+      'Máy công cụ',
+      'Thiết bị sản xuất',
+      'Thiết bị phụ trợ',
+    ],
+    [
       'Kỹ sư kinh doanh',
       'Nhân viên kinh doanh',
       'Kỹ sư dịch vụ',
       'Quản lý kinh doanh',
     ],
-    schemaBlocks: [1],
-    priority: 5,
-  },
-  {
-    name: 'Tự động hóa & Điều khiển',
-    details:
-      'PLC, SCADA, Robot, BMS, MES, cảm biến, biến tần, servo, tích hợp hệ thống',
-    roles: [
+    [1],
+    5,
+  ),
+  catalogItem(
+    'Tự động hóa & Điều khiển',
+    [
+      'PLC',
+      'SCADA',
+      'Robot công nghiệp',
+      'BMS',
+      'MES',
+      'Cảm biến',
+      'Biến tần',
+      'Servo',
+      'Tích hợp hệ thống',
+    ],
+    [
       'Kỹ sư tự động hóa',
       'Kỹ sư kinh doanh',
       'Kỹ sư ứng dụng',
       'Kỹ sư dự án',
     ],
-    schemaBlocks: [1, 2],
-    priority: 5,
-  },
-  {
-    name: 'Điện & Năng lượng công nghiệp',
-    details:
-      'Điện công nghiệp, tủ điện, UPS, máy phát điện, năng lượng, tiết kiệm năng lượng',
-    roles: [
+    [1, 2],
+    5,
+  ),
+  catalogItem(
+    'Điện & Năng lượng công nghiệp',
+    [
+      'Điện công nghiệp',
+      'Tủ điện',
+      'UPS',
+      'Máy phát điện',
+      'Năng lượng công nghiệp',
+      'Tiết kiệm năng lượng',
+    ],
+    [
       'Kỹ sư điện',
       'Kỹ sư kinh doanh',
       'Kinh doanh dự án',
       'Kỹ sư dịch vụ',
     ],
-    schemaBlocks: [1, 2],
-    priority: 5,
-  },
-  {
-    name: 'HVAC & Cơ điện M&E',
-    details:
-      'Điều hòa công nghiệp, chiller, tháp giải nhiệt, thông gió, phòng sạch, cơ điện',
-    roles: [
-      'Kỹ sư điều hòa / HVAC',
+    [1, 2],
+    5,
+  ),
+  catalogItem(
+    'HVAC & Cơ điện M&E',
+    [
+      'Điều hòa công nghiệp',
+      'Chiller',
+      'Tháp giải nhiệt',
+      'Thông gió',
+      'Phòng sạch',
+      'Cơ điện (M&E)',
+    ],
+    [
+      'Kỹ sư điều hòa',
       'Kỹ sư dự án',
       'Kỹ sư kinh doanh',
-      'Kỹ sư dự toán (QS)',
+      'Kỹ sư dự toán',
       'Kỹ sư hiện trường',
     ],
-    schemaBlocks: [1, 2],
-    priority: 5,
-  },
-  {
-    name: 'Cơ khí & Chế tạo máy',
-    details: 'Gia công cơ khí, chế tạo máy, khuôn mẫu, CNC, dây chuyền sản xuất',
-    roles: ['Kỹ sư cơ khí', 'Kỹ sư thiết kế', 'Kỹ sư kinh doanh'],
-    schemaBlocks: [1, 2],
-    priority: 4,
-  },
-  {
-    name: 'Thiết bị & Vật tư MRO',
-    details: 'Vòng bi, dây curoa, van, bơm, phớt, dụng cụ, phụ tùng công nghiệp',
-    roles: ['Kinh doanh B2B', 'Kỹ sư kinh doanh', 'Kinh doanh kỹ thuật'],
-    schemaBlocks: [1],
-    priority: 5,
-  },
-  {
-    name: 'Thủy lực & Khí nén',
-    details: 'Xi lanh, van khí nén, van thủy lực, bơm thủy lực, hệ thống khí nén',
-    roles: ['Kỹ sư kinh doanh', 'Kỹ sư dịch vụ', 'Kỹ sư ứng dụng'],
-    schemaBlocks: [1],
-    priority: 5,
-  },
-  {
-    name: 'Dầu mỡ nhờn & Hóa chất công nghiệp',
-    details: 'Dầu công nghiệp, dầu thủy lực, dầu máy nén khí, hóa chất bảo trì',
-    roles: ['Kinh doanh B2B', 'Kinh doanh kỹ thuật', 'Chuyên viên khách hàng lớn'],
-    schemaBlocks: [1],
-    priority: 5,
-  },
-  {
-    name: 'Đo lường & Thiết bị công nghiệp',
-    details:
-      'Thiết bị đo lường, cảm biến, hiệu chuẩn, thiết bị phòng thí nghiệm',
-    roles: ['Kỹ sư kinh doanh', 'Kỹ sư ứng dụng', 'Kỹ sư dịch vụ'],
-    schemaBlocks: [1],
-    priority: 4,
-  },
-  {
-    name: 'Nhà thầu công nghiệp & EPC',
-    details:
-      'Cơ điện, EPC, nhà thầu tự động hóa, nhà thầu HVAC, nhà thầu nhà máy',
-    roles: ['Kinh doanh dự án', 'Quản lý dự án', 'Kỹ sư hiện trường', 'Kỹ sư dự toán (QS)'],
-    schemaBlocks: [2],
-    priority: 5,
-  },
-  {
-    name: 'Nhà máy & Sản xuất công nghiệp',
-    details:
-      'Điện tử, thực phẩm, dược, ô tô, linh kiện, thép, xi măng, dệt may...',
-    roles: ['Bảo trì', 'Hệ thống tiện ích', 'Sản xuất', 'QA / QC', 'Kỹ thuật'],
-    schemaBlocks: [3],
-    priority: 4,
-  },
-  {
-    name: 'Logistics & Thiết bị kho vận',
-    details: 'Xe nâng, kho thông minh, băng tải, xe tự hành AGV, thiết bị logistics',
-    roles: ['Kỹ sư kinh doanh', 'Kỹ sư dịch vụ', 'Kỹ sư kho vận'],
-    schemaBlocks: [1, 2],
-    priority: 4,
-  },
-  {
-    name: 'Khác',
-    details: 'Ngành công nghiệp khác chưa nằm trong 12 nhóm ưu tiên',
-    roles: ['Kỹ sư kinh doanh', 'Kỹ sư', 'Quản lý dự án'],
-    schemaBlocks: [1],
-    priority: 1,
-  },
+    [1, 2],
+    5,
+  ),
+  catalogItem(
+    'Cơ khí & Chế tạo máy',
+    [
+      'Gia công cơ khí',
+      'Chế tạo máy',
+      'Khuôn mẫu',
+      'CNC',
+      'Dây chuyền sản xuất',
+    ],
+    ['Kỹ sư cơ khí', 'Kỹ sư thiết kế', 'Kỹ sư kinh doanh'],
+    [1, 2],
+    4,
+  ),
+  catalogItem(
+    'Thiết bị & Vật tư MRO',
+    [
+      'Vòng bi',
+      'Dây curoa',
+      'Van công nghiệp',
+      'Bơm công nghiệp',
+      'Phớt làm kín',
+      'Dụng cụ',
+      'Phụ tùng công nghiệp',
+    ],
+    [
+      'Nhân viên kinh doanh B2B',
+      'Kỹ sư kinh doanh',
+      'Kinh doanh kỹ thuật',
+    ],
+    [1],
+    5,
+  ),
+  catalogItem(
+    'Thủy lực & Khí nén',
+    [
+      'Xi lanh',
+      'Van khí nén',
+      'Van thủy lực',
+      'Bơm thủy lực',
+      'Hệ thống khí nén',
+    ],
+    ['Kỹ sư kinh doanh', 'Kỹ sư dịch vụ', 'Kỹ sư ứng dụng'],
+    [1],
+    5,
+  ),
+  catalogItem(
+    'Dầu mỡ nhờn & Hóa chất công nghiệp',
+    [
+      'Dầu công nghiệp',
+      'Dầu thủy lực',
+      'Dầu máy nén khí',
+      'Hóa chất bảo trì',
+    ],
+    [
+      'Nhân viên kinh doanh B2B',
+      'Kinh doanh kỹ thuật',
+      'Chuyên viên khách hàng lớn',
+    ],
+    [1],
+    5,
+  ),
+  catalogItem(
+    'Đo lường & Thiết bị công nghiệp',
+    [
+      'Thiết bị đo lường',
+      'Cảm biến',
+      'Hiệu chuẩn',
+      'Thiết bị phòng thí nghiệm',
+    ],
+    ['Kỹ sư kinh doanh', 'Kỹ sư ứng dụng', 'Kỹ sư dịch vụ'],
+    [1],
+    4,
+  ),
+  catalogItem(
+    'Nhà thầu công nghiệp & EPC',
+    [
+      'Cơ điện (M&E)',
+      'EPC',
+      'Nhà thầu tự động hóa',
+      'Nhà thầu điều hòa',
+      'Nhà thầu nhà máy',
+    ],
+    [
+      'Kinh doanh dự án',
+      'Quản lý dự án',
+      'Kỹ sư hiện trường',
+      'Kỹ sư dự toán',
+    ],
+    [2],
+    5,
+  ),
+  catalogItem(
+    'Nhà máy & Sản xuất công nghiệp',
+    [
+      'Điện tử',
+      'Thực phẩm',
+      'Dược phẩm',
+      'Ô tô',
+      'Linh kiện',
+      'Thép',
+      'Xi măng',
+      'Dệt may',
+    ],
+    [
+      'Kỹ thuật viên bảo trì',
+      'Kỹ sư tiện ích nhà máy',
+      'Nhân viên sản xuất',
+      'Nhân viên QA/QC',
+      'Kỹ sư nhà máy',
+    ],
+    [3],
+    4,
+  ),
+  catalogItem(
+    'Logistics & Thiết bị kho vận',
+    [
+      'Xe nâng',
+      'Kho thông minh',
+      'Băng tải',
+      'Xe tự hành AGV',
+      'Thiết bị logistics',
+    ],
+    ['Kỹ sư kinh doanh', 'Kỹ sư dịch vụ', 'Kỹ sư kho vận'],
+    [1, 2],
+    4,
+  ),
+  catalogItem(
+    'Khác',
+    ['Ngành công nghiệp khác'],
+    ['Kỹ sư kinh doanh', 'Kỹ sư', 'Quản lý dự án'],
+    [1],
+    1,
+  ),
 ] as const;
 
 /** Map giá trị ngành cũ → nhóm ngành mới (migrate DB / filter). */
@@ -201,6 +316,16 @@ export function getIndustryCatalog(name: string): IndustryCatalogItem | undefine
   const normalized = normalizeIndustry(name) ?? (isIndustryGroup(name) ? name : null);
   if (!normalized) return undefined;
   return INDUSTRY_CATALOG.find((i) => i.name === normalized);
+}
+
+/** Tìm nhóm ngành chứa ngành chi tiết (so khớp không phân biệt hoa thường). */
+export function findIndustryGroupBySub(sub: string): IndustryGroup | null {
+  const n = sub.trim().toLowerCase();
+  if (!n) return null;
+  for (const item of INDUSTRY_CATALOG) {
+    if (item.subIndustries.some((s) => s.toLowerCase() === n)) return item.name;
+  }
+  return null;
 }
 
 export const DEPARTMENTS = [
@@ -253,7 +378,7 @@ export const SALARY_PRESETS: SalaryPreset[] = [
 export const POPULAR_JOB_KEYWORDS = [
   'Kỹ sư kinh doanh',
   'Kỹ sư PLC',
-  'Kỹ sư điều hòa / HVAC',
+  'Kỹ sư điều hòa',
   'Kỹ sư dịch vụ',
   'Kỹ sư tự động hóa',
   'Kỹ sư cơ khí',

@@ -22,10 +22,10 @@ import {
   DESIRED_POSITIONS,
   DRIVER_LICENSE_TYPES,
   EDUCATION_LEVELS,
+  EDUCATION_CLASSIFICATIONS,
   JOB_READINESS_LABEL,
   JobReadiness,
   KPI_ACHIEVEMENT_BANDS,
-  LANGUAGE_OPTIONS,
   MARKET_REGIONS,
   NEW_CUSTOMER_RATIO_BANDS,
   PRODUCTS_SOLD,
@@ -36,13 +36,20 @@ import {
   SELLING_STAGES,
   TRAVEL_ABILITY_LABEL,
   TravelAbility,
+  careerOrientationSelection,
   cultureFitAnswersToWorkStyles,
   dealValueBandToVnd,
+  formatLanguageSkillSummary,
   kpiBandToPct,
+  languageNamesFromSkills,
+  mergeLanguageSkills,
   newCustomerBandToPct,
+  parseCareerOrientationOther,
+  withCareerOrientationOther,
   workStylesToCultureFitAnswers,
   type CultureFitAnswers,
   type CultureFitQuestionId,
+  type LanguageSkill,
   type ProfileMissingFieldKey,
   type UpdateCandidateProfileRequest,
   availabilityToNoticeDays,
@@ -50,10 +57,17 @@ import {
   SkillLevel,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea } from '@/components/ui';
+import { LanguageSkillsFields } from '@/components/language-skills-fields';
+import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { Badge, BirthDateInput, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
 import { ApiError } from '@/lib/api';
 import { getMyCandidate, updateMyProfile } from '@/lib/candidate';
+import {
+  completionPercentFromHints,
+  fieldHintsFromDraft,
+} from '@/lib/cv-from-profile';
+import { emptyCvDraft, type CvDraft } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
 
 const STEPS = [
@@ -113,10 +127,12 @@ type FormState = {
   jobReadiness: string;
   experiences: ExperienceRow[];
   languages: string[];
+  languageSkills: LanguageSkill[];
   hasB2License: '' | 'true' | 'false';
   driverLicenseType: string;
   travelAbility: string;
   educationLevel: string;
+  educationClassification: string;
   educationSchool: string;
   educationMajor: string;
   certificates: string;
@@ -193,10 +209,12 @@ const EMPTY_FORM: FormState = {
   jobReadiness: '',
   experiences: [emptyExperience()],
   languages: [],
+  languageSkills: [],
   hasB2License: '',
   driverLicenseType: '',
   travelAbility: '',
   educationLevel: '',
+  educationClassification: '',
   educationSchool: '',
   educationMajor: '',
   certificates: '',
@@ -466,7 +484,10 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
     expectedSalaryMin: parseOptionalNumber(form.expectedSalaryMin),
     expectedSalaryMax: parseOptionalNumber(form.expectedSalaryMax),
     expectedOte: parseOptionalNumber(form.expectedOte),
-    languages: form.languages,
+    languages: languageNamesFromSkills(
+      mergeLanguageSkills(form.languages, form.languageSkills),
+    ),
+    languageSkills: mergeLanguageSkills(form.languages, form.languageSkills),
     hasB2License: parseOptionalBool(form.hasB2License),
     driverLicenseType: form.driverLicenseType || null,
     willingToTravel: parseOptionalBool(form.willingToTravel),
@@ -481,6 +502,7 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
       ? form.careerOrientations.join(' | ')
       : null,
     educationLevel: form.educationLevel || null,
+    educationClassification: form.educationClassification || null,
     educationSchool: form.educationSchool.trim() || null,
     educationMajor: form.educationMajor.trim() || null,
     certificates: splitCsv(form.certificates),
@@ -570,6 +592,143 @@ function formatVnd(value: string): string {
   return new Intl.NumberFormat('vi-VN').format(n) + ' VND';
 }
 
+type TrackExtras = {
+  jobTrack: 'sales' | 'technical' | null;
+  brandsTechnologies: string[];
+  technicalWorkTypes: string[];
+  technicalAutonomyLevel: number | null;
+  troubleshootingLevel: number | null;
+  technicalTools: string[];
+  documentLiteracy: string[];
+  systemScaleNote: string | null;
+  shiftFlexibility: string | null;
+};
+
+const EMPTY_TRACK: TrackExtras = {
+  jobTrack: null,
+  brandsTechnologies: [],
+  technicalWorkTypes: [],
+  technicalAutonomyLevel: null,
+  troubleshootingLevel: null,
+  technicalTools: [],
+  documentLiteracy: [],
+  systemScaleNote: null,
+  shiftFlexibility: null,
+};
+
+/** Map form hồ sơ → CvDraft để tính % theo tiêu chí KD/KT (không đổi UI form). */
+function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvDraft {
+  const experience = form.experiences
+    .filter((e) => e.companyName.trim() || e.jobTitle.trim())
+    .map((e) => ({
+      role: e.jobTitle.trim() || form.currentPosition || 'Vị trí',
+      company: e.companyName.trim() || 'Công ty',
+      period: [
+        e.startYear,
+        e.isCurrent ? 'Hiện tại' : e.endYear,
+      ]
+        .filter(Boolean)
+        .join(' – '),
+      bullets: (e.jobDescription || e.highlights || '').trim(),
+      industries: e.industries,
+      productsSold: e.productsSold,
+      customerSegments: e.customerSegments,
+      marketsCovered: e.marketsCovered,
+      sellingStages: e.sellingStages,
+      latestRevenue:
+        parseOptionalNumber(e.latestRevenue) ?? dealValueBandToVnd(e.revenueBand),
+      kpiAchievementPct:
+        parseOptionalNumber(e.kpiAchievementPct) ?? kpiBandToPct(e.kpiBand),
+      newCustomerRatioPct:
+        parseOptionalNumber(e.newCustomerRatioPct) ??
+        newCustomerBandToPct(e.newCustomerRatioBand),
+      dealType: e.dealType || null,
+      typicalDealValue:
+        parseOptionalNumber(e.typicalDealValue) ??
+        dealValueBandToVnd(e.typicalDealValueBand),
+      maxDealValue: parseOptionalNumber(e.maxDealValue),
+    }));
+
+  const productsSold = unionArrays(
+    ...form.experiences.map((e) => e.productsSold),
+  );
+  const customerSegments = unionArrays(
+    ...form.experiences.map((e) => e.customerSegments),
+  );
+  const marketsCovered = unionArrays(
+    ...form.experiences.map((e) => e.marketsCovered),
+  );
+
+  return {
+    ...emptyCvDraft(form.displayName, email),
+    title: form.currentPosition.trim() || form.desiredPositions[0] || '',
+    phone: form.phone.trim(),
+    location: form.currentCity.trim(),
+    summary: form.summary.trim(),
+    birthYear: parseOptionalInt(form.birthYear),
+    birthDate: form.birthDate.trim() || null,
+    ward: form.ward.trim() || null,
+    educationLevel: form.educationLevel || null,
+    educationClassification: form.educationClassification || null,
+    educationMajor: form.educationMajor.trim() || null,
+    careerObjective: form.careerObjective.trim() || null,
+    skills: form.skills.map((s) => s.name.trim()).filter(Boolean),
+    languages: form.languages,
+    languageSkills: mergeLanguageSkills(form.languages, form.languageSkills),
+    hobbies: splitCsv(form.hobbies),
+    productsSold,
+    customerSegments,
+    marketsCovered,
+    industriesExperienced: form.industriesExperienced,
+    desiredPositions: form.desiredPositions,
+    desiredLocations: form.desiredLocations,
+    salesHighlights: form.salesHighlights.trim(),
+    b2bExperienceBand: form.b2bExperienceBand || null,
+    newCustomerRatioPct: parseOptionalNumber(form.newCustomerRatioPct),
+    dealType: form.dealType || null,
+    typicalDealValue: parseOptionalNumber(form.typicalDealValue),
+    maxDealValue: parseOptionalNumber(form.maxDealValue),
+    jobReadiness: form.jobReadiness || null,
+    availabilityBand: form.availabilityBand || null,
+    expectedSalaryMin: parseOptionalNumber(form.expectedSalaryMin),
+    expectedSalaryMax: parseOptionalNumber(form.expectedSalaryMax),
+    expectedOte: parseOptionalNumber(form.expectedOte),
+    travelAbility: form.travelAbility || null,
+    hasB2License: parseOptionalBool(form.hasB2License),
+    driverLicenseType: form.driverLicenseType || null,
+    salesBehavior: form.salesBehavior || null,
+    careerMotivations: form.careerMotivations.slice(0, 3),
+    careerOrientations: form.careerOrientations,
+    workStyles: cultureFitAnswersToWorkStyles(form.cultureFit),
+    jobTrack: track.jobTrack,
+    brandsTechnologies: track.brandsTechnologies,
+    technicalWorkTypes: track.technicalWorkTypes,
+    technicalAutonomyLevel: track.technicalAutonomyLevel,
+    troubleshootingLevel: track.troubleshootingLevel,
+    technicalTools: track.technicalTools,
+    documentLiteracy: track.documentLiteracy,
+    systemScaleNote: track.systemScaleNote,
+    shiftFlexibility: track.shiftFlexibility,
+    experience,
+    education:
+      form.educationSchool.trim() ||
+      form.educationMajor.trim() ||
+      form.educationClassification ||
+      form.educationLevel
+        ? [
+            {
+              school: form.educationSchool.trim(),
+              degree: [form.educationClassification, form.educationMajor.trim()]
+                .filter(Boolean)
+                .join(' — '),
+              period: '',
+            },
+          ]
+        : [],
+    certificates: splitCsv(form.certificates),
+  };
+}
+
 export default function ProfileEditPage() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -580,6 +739,7 @@ export default function ProfileEditPage() {
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [trackExtras, setTrackExtras] = useState<TrackExtras>(EMPTY_TRACK);
   const [hydrated, setHydrated] = useState(false);
   const [cvEntry, setCvEntry] = useState(false);
 
@@ -613,10 +773,15 @@ export default function ProfileEditPage() {
       jobReadiness: sales?.jobReadiness ?? '',
       experiences: exps,
       languages: [...(sales?.languages ?? [])],
+      languageSkills: mergeLanguageSkills(
+        sales?.languages ?? [],
+        sales?.languageSkills ?? [],
+      ),
       hasB2License: boolToSelect(sales?.hasB2License),
       driverLicenseType: sales?.driverLicenseType ?? '',
       travelAbility: sales?.travelAbility ?? '',
       educationLevel: p?.educationLevel ?? '',
+      educationClassification: p?.educationClassification ?? '',
       educationSchool: p?.educationSchool ?? '',
       educationMajor: p?.educationMajor ?? '',
       certificates: (p?.certificates ?? []).join(', '),
@@ -663,12 +828,37 @@ export default function ProfileEditPage() {
           : [],
     });
 
+    setTrackExtras({
+      jobTrack: p?.jobTrack ?? null,
+      brandsTechnologies: [...(p?.brandsTechnologies ?? [])],
+      technicalWorkTypes: [...(p?.technicalWorkTypes ?? [])],
+      technicalAutonomyLevel: p?.technicalAutonomyLevel ?? null,
+      troubleshootingLevel: p?.troubleshootingLevel ?? null,
+      technicalTools: [...(p?.technicalTools ?? [])],
+      documentLiteracy: [...(p?.documentLiteracy ?? [])],
+      systemScaleNote: p?.systemScaleNote ?? null,
+      shiftFlexibility: p?.shiftFlexibility ?? null,
+    });
+
     if (hasCvAi) {
       setStep(3);
       setCvEntry(true);
     }
     setHydrated(true);
   }, [candidate, hydrated]);
+
+  const liveHints = useMemo(
+    () => fieldHintsFromDraft(draftFromEditForm(form, trackExtras)),
+    [form, trackExtras],
+  );
+  const criteriaPercent = useMemo(
+    () => completionPercentFromHints(liveHints),
+    [liveHints],
+  );
+  const filledCriteria = liveHints.filter((f) => f.status === 'filled');
+  const criteriaGaps = liveHints.filter(
+    (f) => f.status === 'missing' || f.status === 'weak',
+  );
 
   const saveMutation = useMutation({
     mutationFn: () => updateMyProfile(toPayload(form)),
@@ -749,14 +939,20 @@ export default function ProfileEditPage() {
     (e) => e.companyName.trim() || e.jobTitle.trim(),
   );
 
+  function scrollPageTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function goNext() {
     if (!stepValid || step >= 6) return;
     setStep(step + 1);
+    scrollPageTop();
   }
 
   function goBack() {
     if (step <= 1) return;
     setStep(step - 1);
+    scrollPageTop();
   }
 
   return (
@@ -788,6 +984,14 @@ export default function ProfileEditPage() {
 
         {candidate && hydrated && (
           <>
+            <CriteriaCompletionCard
+              title="Tiến độ hoàn thiện hồ sơ"
+              percent={criteriaPercent}
+              filledCount={filledCriteria.length}
+              totalCount={liveHints.length}
+              gaps={criteriaGaps}
+            />
+
             <nav className="overflow-x-auto">
               <ol className="flex min-w-max items-center gap-1 sm:gap-2">
                 {STEPS.map((s, idx) => {
@@ -797,7 +1001,10 @@ export default function ProfileEditPage() {
                     <li key={s.id} className="flex items-center gap-1 sm:gap-2">
                       <button
                         type="button"
-                        onClick={() => setStep(s.id)}
+                        onClick={() => {
+                          setStep(s.id);
+                          scrollPageTop();
+                        }}
                         className={clsx(
                           'flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition',
                           active && 'bg-brand-600 text-white',
@@ -861,13 +1068,12 @@ export default function ProfileEditPage() {
                       />
                     </Field>
                     <Field label="Ngày sinh">
-                      <Input
-                        type="date"
+                      <BirthDateInput
                         value={form.birthDate}
-                        onChange={(e) => {
-                          const v = e.target.value;
+                        onChange={(v) => {
                           patch('birthDate', v);
                           if (v?.length >= 4) patch('birthYear', v.slice(0, 4));
+                          else if (!v) patch('birthYear', '');
                         }}
                       />
                     </Field>
@@ -1258,11 +1464,15 @@ export default function ProfileEditPage() {
                 <>
                   <h2 className="text-lg font-semibold text-slate-900">Điều kiện công việc</h2>
                   <Field label="Ngoại ngữ">
-                    <MultiCheck
-                      options={LANGUAGE_OPTIONS}
-                      selected={form.languages}
-                      onChange={(v) => patch('languages', v)}
-                      columns={2}
+                    <p className="mb-2 text-xs text-slate-500">
+                      Chọn ngôn ngữ, rồi đánh giá nghe / nói / đọc / viết và đọc manual kỹ thuật.
+                    </p>
+                    <LanguageSkillsFields
+                      languages={form.languages}
+                      languageSkills={form.languageSkills}
+                      onChange={({ languages, languageSkills }) =>
+                        setForm((prev) => ({ ...prev, languages, languageSkills }))
+                      }
                     />
                   </Field>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1310,15 +1520,12 @@ export default function ProfileEditPage() {
                   <div className="space-y-4 border-t border-slate-200 pt-6">
                     <div>
                       <h3 className="text-base font-semibold text-slate-900">
-                        Đánh giá nâng cao
+                        Phong cách & hành vi Sales
                       </h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Tiêu chí assessment giúp matching phong cách Sales, động lực, định hướng và
-                        văn hóa làm việc.
-                      </p>
+                      <p className="mt-1 text-sm text-slate-500">{SALES_BEHAVIOR_QUESTION}</p>
                     </div>
 
-                    <Field label={`Phong cách & hành vi Sales — ${SALES_BEHAVIOR_QUESTION}`}>
+                    <Field label="Lựa chọn phong cách">
                       <div className="grid gap-2">
                         {SALES_BEHAVIOR_OPTIONS.map((opt, i) => {
                           const letter = String.fromCharCode(65 + i);
@@ -1349,8 +1556,16 @@ export default function ProfileEditPage() {
                         })}
                       </div>
                     </Field>
+                  </div>
 
-                    <Field label={`Động lực nghề nghiệp — ${CAREER_MOTIVATION_QUESTION}`}>
+                  <div className="space-y-4 border-t border-slate-200 pt-6">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        Động lực nghề nghiệp
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">{CAREER_MOTIVATION_QUESTION}</p>
+                    </div>
+                    <Field label="Chọn đúng 3 yếu tố">
                       <p className="mb-2 text-xs text-amber-700">
                         {form.careerMotivations.length
                           ? `Đã chọn ${form.careerMotivations.length}/3`
@@ -1364,29 +1579,67 @@ export default function ProfileEditPage() {
                         columns={2}
                       />
                     </Field>
+                  </div>
 
-                    <Field label={`Định hướng nghề nghiệp — ${CAREER_ORIENTATION_QUESTION}`}>
+                  <div className="space-y-4 border-t border-slate-200 pt-6">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        Định hướng nghề nghiệp
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">{CAREER_ORIENTATION_QUESTION}</p>
+                    </div>
+                    <Field label="Hướng phát triển">
                       <MultiCheck
                         options={CAREER_ORIENTATIONS}
-                        selected={form.careerOrientations}
-                        onChange={(v) => patch('careerOrientations', v)}
+                        selected={careerOrientationSelection(form.careerOrientations)}
+                        onChange={(v) =>
+                          patch(
+                            'careerOrientations',
+                            withCareerOrientationOther(
+                              v,
+                              parseCareerOrientationOther(form.careerOrientations),
+                            ),
+                          )
+                        }
                         columns={2}
                       />
+                      {careerOrientationSelection(form.careerOrientations).includes('Khác') && (
+                        <div className="mt-3">
+                          <label className="block text-xs font-semibold text-slate-600">
+                            Khác:
+                          </label>
+                          <Input
+                            className="mt-1.5"
+                            value={parseCareerOrientationOther(form.careerOrientations)}
+                            onChange={(e) =>
+                              patch(
+                                'careerOrientations',
+                                withCareerOrientationOther(
+                                  careerOrientationSelection(form.careerOrientations),
+                                  e.target.value,
+                                ),
+                              )
+                            }
+                            placeholder="Ghi rõ định hướng khác…"
+                          />
+                        </div>
+                      )}
                     </Field>
+                  </div>
 
+                  <div className="space-y-4 border-t border-slate-200 pt-6">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        {CULTURE_FIT_SECTION_TITLE}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
+                    </div>
                     <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {CULTURE_FIT_SECTION_TITLE}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
-                      </div>
                       {CULTURE_FIT_QUESTIONS.map((q) => (
                         <Field key={q.id} label={q.question}>
                           <div className="grid gap-2">
                             {q.options.map((opt, i) => {
                               const letter = String.fromCharCode(65 + i);
-                              const useLetter = q.options.length <= 2;
                               const checked = form.cultureFit[q.id] === opt;
                               return (
                                 <label
@@ -1406,9 +1659,7 @@ export default function ProfileEditPage() {
                                     onChange={() => patchCultureFit(q.id, opt)}
                                   />
                                   <span>
-                                    {useLetter ? (
-                                      <span className="font-semibold">{letter}. </span>
-                                    ) : null}
+                                    <span className="font-semibold">{letter}. </span>
                                     {opt}
                                   </span>
                                 </label>
@@ -1489,6 +1740,19 @@ export default function ProfileEditPage() {
                         ))}
                       </Select>
                     </Field>
+                    <Field label="Xếp loại bằng cấp">
+                      <Select
+                        value={form.educationClassification}
+                        onChange={(e) => patch('educationClassification', e.target.value)}
+                      >
+                        <option value="">— Chọn —</option>
+                        {EDUCATION_CLASSIFICATIONS.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
                     <Field label="Trường / cơ sở đào tạo">
                       <Input
                         value={form.educationSchool}
@@ -1499,6 +1763,7 @@ export default function ProfileEditPage() {
                       <Input
                         value={form.educationMajor}
                         onChange={(e) => patch('educationMajor', e.target.value)}
+                        placeholder="VD: Điện tử viễn thông, Marketing..."
                       />
                     </Field>
                   </div>
@@ -1613,7 +1878,13 @@ export default function ProfileEditPage() {
                       </p>
                       <ReviewRow
                         label="Ngoại ngữ"
-                        value={form.languages.length > 0 ? form.languages.join(', ') : '—'}
+                        value={
+                          form.languageSkills.length > 0
+                            ? form.languageSkills.map(formatLanguageSkillSummary).join('; ')
+                            : form.languages.length > 0
+                              ? form.languages.join(', ')
+                              : '—'
+                        }
                       />
                       <ReviewRow
                         label="Bằng lái"
@@ -1663,6 +1934,7 @@ export default function ProfileEditPage() {
                     </div>
 
                     {(form.educationLevel ||
+                      form.educationClassification ||
                       form.educationSchool ||
                       form.educationMajor ||
                       form.certificates.trim()) && (
@@ -1671,6 +1943,7 @@ export default function ProfileEditPage() {
                           Học vấn
                         </p>
                         <ReviewRow label="Trình độ" value={form.educationLevel} />
+                        <ReviewRow label="Xếp loại" value={form.educationClassification} />
                         <ReviewRow label="Trường" value={form.educationSchool} />
                         <ReviewRow label="Chuyên ngành" value={form.educationMajor} />
                         <ReviewRow label="Chứng chỉ" value={form.certificates} />

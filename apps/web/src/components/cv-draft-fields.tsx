@@ -15,17 +15,17 @@ import {
   CULTURE_FIT_SUBTITLE,
   DEAL_TYPE_LABEL,
   DEAL_TYPE_OPTIONS,
-  DRIVER_LICENSE_TYPES,
-  EDUCATION_LEVELS,
   JOB_READINESS_LABEL,
   JobReadiness,
-  LANGUAGE_OPTIONS,
   SALES_BEHAVIOR_OPTIONS,
   SALES_BEHAVIOR_QUESTION,
   SALES_INDUSTRY_OPTIONS,
   TRAVEL_ABILITY_LABEL,
   TravelAbility,
+  careerOrientationSelection,
   cultureFitAnswersToWorkStyles,
+  parseCareerOrientationOther,
+  withCareerOrientationOther,
   workStylesToCultureFitAnswers,
   type CultureFitQuestionId,
   type CvDraftFieldHint,
@@ -250,7 +250,7 @@ export function CvDraftMatrixFields({
 
       <SectionTitle
         title="B. Điều kiện công việc"
-        subtitle="Sẵn sàng, thu nhập, công tác, bằng lái, địa điểm mong muốn"
+        subtitle="Sẵn sàng, thu nhập, công tác, địa điểm mong muốn"
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -303,82 +303,6 @@ export function CvDraftMatrixFields({
             label: TRAVEL_ABILITY_LABEL[v],
           }))}
         />
-        <SelectField
-          label="Bằng lái ô tô"
-          value={
-            draft.hasB2License == null ? '' : draft.hasB2License ? 'true' : 'false'
-          }
-          onChange={(v) =>
-            onChange('hasB2License', v === '' ? null : v === 'true')
-          }
-          options={[
-            { value: 'true', label: 'Có' },
-            { value: 'false', label: 'Không' },
-          ]}
-        />
-        <SelectField
-          label="Hạng bằng lái"
-          value={draft.driverLicenseType ?? ''}
-          onChange={(v) => onChange('driverLicenseType', v || null)}
-          options={DRIVER_LICENSE_TYPES.map((t) => ({ value: t, label: t }))}
-        />
-        <SelectField
-          label="Trình độ học vấn"
-          value={draft.educationLevel ?? ''}
-          onChange={(v) => onChange('educationLevel', v || null)}
-          options={EDUCATION_LEVELS.map((t) => ({ value: t, label: t }))}
-        />
-        <label className="block">
-          <span className="text-xs font-semibold text-slate-600">Năm sinh</span>
-          <input
-            type="number"
-            min={1950}
-            max={2010}
-            value={draft.birthYear ?? ''}
-            onChange={(e) =>
-              onChange('birthYear', e.target.value === '' ? null : Number(e.target.value))
-            }
-            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-          />
-        </label>
-        <label className="block sm:col-span-2">
-          <span className="text-xs font-semibold text-slate-600">Sở thích (phẩy)</span>
-          <input
-            value={draft.hobbies.join(', ')}
-            onChange={(e) =>
-              onChange(
-                'hobbies',
-                e.target.value
-                  .split(/[,;\n]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              )
-            }
-            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-            placeholder="VD: Đọc sách, bóng đá"
-          />
-        </label>
-      </div>
-
-      <label className="block">
-        <span className="text-xs font-semibold text-slate-600">Mục tiêu nghề nghiệp</span>
-        <textarea
-          rows={3}
-          value={draft.careerObjective ?? ''}
-          onChange={(e) => onChange('careerObjective', e.target.value || null)}
-          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-          placeholder="Mục tiêu nghề nghiệp..."
-        />
-      </label>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Ngoại ngữ</p>
-        <MultiCheck
-          options={LANGUAGE_OPTIONS}
-          selected={draft.languages}
-          onChange={(v) => onChange('languages', v)}
-          columns={2}
-        />
       </div>
 
       <label className="block">
@@ -402,86 +326,106 @@ export function CvDraftMatrixFields({
       </label>
 
       <SectionTitle
-        title="C. Đánh giá nâng cao"
-        subtitle="Phong cách Sales, động lực, định hướng và phù hợp văn hóa"
+        title="Phong cách & hành vi Sales"
+        subtitle={SALES_BEHAVIOR_QUESTION}
       />
 
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          Phong cách & hành vi Sales — {SALES_BEHAVIOR_QUESTION}
-        </p>
-        <div className="grid gap-2">
-          {SALES_BEHAVIOR_OPTIONS.map((opt, i) => {
-            const letter = String.fromCharCode(65 + i);
-            const checked = draft.salesBehavior === opt;
-            return (
-              <label
-                key={opt}
-                className={clsx(
-                  'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
-                  checked
-                    ? 'border-brand-300 bg-brand-50 text-brand-900'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
-                )}
-              >
-                <input
-                  type="radio"
-                  name="cv-salesBehavior"
-                  className="mt-0.5"
-                  checked={checked}
-                  onChange={() => onChange('salesBehavior', opt)}
-                />
-                <span>
-                  <span className="font-semibold">{letter}. </span>
-                  {opt}
-                </span>
-              </label>
-            );
-          })}
-        </div>
+      <div className="grid gap-2">
+        {SALES_BEHAVIOR_OPTIONS.map((opt, i) => {
+          const letter = String.fromCharCode(65 + i);
+          const checked = draft.salesBehavior === opt;
+          return (
+            <label
+              key={opt}
+              className={clsx(
+                'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+                checked
+                  ? 'border-brand-300 bg-brand-50 text-brand-900'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+              )}
+            >
+              <input
+                type="radio"
+                name="cv-salesBehavior"
+                className="mt-0.5"
+                checked={checked}
+                onChange={() => onChange('salesBehavior', opt)}
+              />
+              <span>
+                <span className="font-semibold">{letter}. </span>
+                {opt}
+              </span>
+            </label>
+          );
+        })}
       </div>
 
-      <div>
-        <p className="mb-1 text-xs font-semibold text-slate-600">
-          Động lực nghề nghiệp — {CAREER_MOTIVATION_QUESTION}
-        </p>
-        <p className="mb-2 text-[11px] text-amber-700">
-          {draft.careerMotivations.length
-            ? `Đã chọn ${draft.careerMotivations.length}/3`
-            : 'Chọn đúng 3 yếu tố'}
-        </p>
-        <MultiCheck
-          options={CAREER_MOTIVATIONS}
-          selected={draft.careerMotivations}
-          onChange={(v) => onChange('careerMotivations', v.slice(0, 3))}
-          max={3}
-          columns={2}
-        />
-      </div>
+      <SectionTitle
+        title="Động lực nghề nghiệp"
+        subtitle={CAREER_MOTIVATION_QUESTION}
+        hint={hint('careerMotivations')}
+      />
+      <p className="text-[11px] text-amber-700">
+        {draft.careerMotivations.length
+          ? `Đã chọn ${draft.careerMotivations.length}/3`
+          : 'Chọn đúng 3 yếu tố'}
+      </p>
+      <MultiCheck
+        options={CAREER_MOTIVATIONS}
+        selected={draft.careerMotivations}
+        onChange={(v) => onChange('careerMotivations', v.slice(0, 3))}
+        max={3}
+        columns={2}
+      />
 
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          Định hướng nghề nghiệp — {CAREER_ORIENTATION_QUESTION}
-        </p>
-        <MultiCheck
-          options={CAREER_ORIENTATIONS}
-          selected={draft.careerOrientations}
-          onChange={(v) => onChange('careerOrientations', v)}
-          columns={2}
-        />
-      </div>
+      <SectionTitle
+        title="Định hướng nghề nghiệp"
+        subtitle={CAREER_ORIENTATION_QUESTION}
+        hint={hint('careerOrientations')}
+      />
+      <MultiCheck
+        options={CAREER_ORIENTATIONS}
+        selected={careerOrientationSelection(draft.careerOrientations)}
+        onChange={(v) =>
+          onChange(
+            'careerOrientations',
+            withCareerOrientationOther(v, parseCareerOrientationOther(draft.careerOrientations)),
+          )
+        }
+        columns={2}
+      />
+      {careerOrientationSelection(draft.careerOrientations).includes('Khác') && (
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-600">Khác:</span>
+          <input
+            value={parseCareerOrientationOther(draft.careerOrientations)}
+            onChange={(e) =>
+              onChange(
+                'careerOrientations',
+                withCareerOrientationOther(
+                  careerOrientationSelection(draft.careerOrientations),
+                  e.target.value,
+                ),
+              )
+            }
+            placeholder="Ghi rõ định hướng khác…"
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+          />
+        </label>
+      )}
 
+      <SectionTitle
+        title="Phù hợp văn hóa"
+        subtitle={CULTURE_FIT_SUBTITLE}
+        hint={hint('cultureFit')}
+      />
       <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">{CULTURE_FIT_SECTION_TITLE}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
-        </div>
+        <p className="text-sm font-semibold text-slate-900">{CULTURE_FIT_SECTION_TITLE}</p>
         {CULTURE_FIT_QUESTIONS.map((q) => (
           <div key={q.id}>
             <p className="mb-2 text-xs font-semibold text-slate-600">{q.question}</p>
             <div className="grid gap-2">
               {q.options.map((opt, i) => {
-                const useLetter = q.options.length <= 2;
                 const letter = String.fromCharCode(65 + i);
                 const checked = cultureFit[q.id] === opt;
                 return (
@@ -502,7 +446,7 @@ export function CvDraftMatrixFields({
                       onChange={() => patchCultureFit(q.id, opt)}
                     />
                     <span>
-                      {useLetter ? <span className="font-semibold">{letter}. </span> : null}
+                      <span className="font-semibold">{letter}. </span>
                       {opt}
                     </span>
                   </label>

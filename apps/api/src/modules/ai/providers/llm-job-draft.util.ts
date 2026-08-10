@@ -6,7 +6,7 @@ export const JOB_DRAFT_SYSTEM_PROMPT = [
   '(tự động hoá, nhà máy, KCN, PLC/SCADA, cơ khí, HVAC, an toàn lao động…).',
   'Soạn tin tuyển dụng chuyên nghiệp, rõ ràng, tiếng Việt.',
   'Cấp bậc theo lộ trình thực tế VN:',
-  '- Kinh doanh: Nhân viên Kinh doanh → Trưởng nhóm Kinh doanh → Trưởng phòng Kinh doanh → Giám đốc Kinh doanh → Giám đốc công ty',
+  '- Kinh doanh: Nhân viên Kinh doanh → Trưởng nhóm Kinh doanh → Trưởng phòng Kinh doanh → Giám đốc Kinh doanh',
   '- Kỹ thuật: Nhân viên Kỹ thuật → Trưởng nhóm Kỹ thuật → Trưởng phòng Kỹ thuật → Giám đốc Kỹ thuật',
   'Trả về DUY NHẤT một JSON hợp lệ theo schema:',
   '{',

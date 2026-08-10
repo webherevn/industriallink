@@ -24,7 +24,6 @@ export enum JobLevelCode {
   SalesTeamLead = 'sales.team_lead',
   SalesDeptHead = 'sales.dept_head',
   SalesDirector = 'sales.director',
-  CompanyDirector = 'sales.company_director',
 
   // Kỹ thuật
   TechStaff = 'technical.staff',
@@ -38,7 +37,6 @@ export const JOB_LEVEL_LABEL: Record<JobLevelCode, string> = {
   [JobLevelCode.SalesTeamLead]: 'Trưởng nhóm Kinh doanh',
   [JobLevelCode.SalesDeptHead]: 'Trưởng phòng Kinh doanh',
   [JobLevelCode.SalesDirector]: 'Giám đốc Kinh doanh',
-  [JobLevelCode.CompanyDirector]: 'Giám đốc công ty',
 
   [JobLevelCode.TechStaff]: 'Nhân viên Kỹ thuật',
   [JobLevelCode.TechTeamLead]: 'Trưởng nhóm Kỹ thuật',
@@ -53,7 +51,6 @@ export const CAREER_LADDERS: Record<JobTrack, JobLevelCode[]> = {
     JobLevelCode.SalesTeamLead,
     JobLevelCode.SalesDeptHead,
     JobLevelCode.SalesDirector,
-    JobLevelCode.CompanyDirector,
   ],
   [JobTrack.Technical]: [
     JobLevelCode.TechStaff,
@@ -72,7 +69,6 @@ export const SALARY_BANDS_VND: Record<JobLevelCode, { min: number; max: number }
   [JobLevelCode.SalesTeamLead]: { min: 18_000_000, max: 28_000_000 },
   [JobLevelCode.SalesDeptHead]: { min: 28_000_000, max: 45_000_000 },
   [JobLevelCode.SalesDirector]: { min: 45_000_000, max: 80_000_000 },
-  [JobLevelCode.CompanyDirector]: { min: 70_000_000, max: 150_000_000 },
 
   [JobLevelCode.TechStaff]: { min: 12_000_000, max: 22_000_000 },
   [JobLevelCode.TechTeamLead]: { min: 20_000_000, max: 32_000_000 },
@@ -103,6 +99,10 @@ export function salaryBand(code: JobLevelCode): { min: number; max: number; medi
 /** Nhãn hiển thị: ưu tiên taxonomy VN, còn lại chuẩn hoá free-text tiếng Anh phổ biến. */
 export function formatJobLevel(value: string | null | undefined): string {
   if (!value) return '—';
+  // Legacy: đã bỏ cấp Giám đốc công ty khỏi lộ trình — map về Giám đốc Kinh doanh.
+  if (value === 'sales.company_director') {
+    return JOB_LEVEL_LABEL[JobLevelCode.SalesDirector];
+  }
   if (isJobLevelCode(value)) return JOB_LEVEL_LABEL[value];
   const seniority = SENIORITY_LABEL_VI[value.trim().toLowerCase()];
   if (seniority) return seniority;
@@ -190,14 +190,17 @@ export function resolveJobLevel(input: {
   trackHint?: JobTrack | null;
 }): JobLevelCode {
   if (isJobLevelCode(input.jobLevel)) return input.jobLevel;
+  // Legacy mã đã bỏ khỏi lộ trình
+  if (input.jobLevel === 'sales.company_director') return JobLevelCode.SalesDirector;
 
   const text = `${input.jobLevel ?? ''} ${input.currentPosition ?? ''} ${input.industry ?? ''}`.toLowerCase();
   const salesHint =
     input.trackHint === JobTrack.Sales ||
     /kinh doanh|sales|account|bdm|business development/.test(text);
 
+  // CEO / tổng giám đốc → bậc cao nhất còn hỗ trợ trên nền tảng (GĐ Kinh doanh)
   if (/giám đốc công ty|ceo|tổng giám đốc|general director/.test(text)) {
-    return JobLevelCode.CompanyDirector;
+    return JobLevelCode.SalesDirector;
   }
   if (/giám đốc kinh doanh|sales director/.test(text)) return JobLevelCode.SalesDirector;
   if (/giám đốc kỹ thuật|technical director|cto/.test(text)) return JobLevelCode.TechDirector;

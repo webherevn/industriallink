@@ -27,6 +27,7 @@ import {
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
 import { LocationPicker } from '@/components/location-picker';
+import { ProgressRing } from '@/components/progress-ring';
 import { Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { estimateSalary } from '@/lib/career';
@@ -99,33 +100,6 @@ function PillGroup<T extends string>({
           {opt.label}
         </button>
       ))}
-    </div>
-  );
-}
-
-function ProgressRing({ percent }: { percent: number }) {
-  const r = 36;
-  const c = 2 * Math.PI * r;
-  const offset = c - (percent / 100) * c;
-  return (
-    <div className="relative h-24 w-24 shrink-0">
-      <svg className="h-full w-full -rotate-90" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
-        <circle
-          cx="44"
-          cy="44"
-          r={r}
-          fill="none"
-          stroke="#1e46e0"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-lg font-bold text-brand-700">{percent}%</span>
-      </div>
     </div>
   );
 }

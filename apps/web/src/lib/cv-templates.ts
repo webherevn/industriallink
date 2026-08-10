@@ -1,3 +1,6 @@
+import type { LanguageSkill } from '@industriallink/contracts';
+import { languageNamesFromSkills, mergeLanguageSkills } from '@industriallink/contracts';
+
 export type CvTemplateCategory = 'all' | 'modern' | 'professional' | 'creative' | 'minimal';
 
 /** Lọc mẫu theo ngành nghề (Sales / Kỹ thuật). */
@@ -105,10 +108,13 @@ export interface CvDraft {
   district: string | null;
   ward: string | null;
   educationLevel: string | null;
+  educationClassification: string | null;
+  educationMajor: string | null;
   careerObjective: string | null;
   skills: string[];
   softSkills: string[];
   languages: string[];
+  languageSkills: LanguageSkill[];
   hobbies: string[];
   productsSold: string[];
   customerSegments: string[];
@@ -182,10 +188,13 @@ export function emptyCvDraft(name = '', email = ''): CvDraft {
     district: null,
     ward: null,
     educationLevel: null,
+    educationClassification: null,
+    educationMajor: null,
     careerObjective: null,
     skills: [],
     softSkills: [],
     languages: [],
+    languageSkills: [],
     hobbies: [],
     productsSold: [],
     customerSegments: [],
@@ -247,6 +256,7 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     typicalDealValue: e.typicalDealValue ?? null,
     maxDealValue: e.maxDealValue ?? null,
   }));
+  const languageSkills = mergeLanguageSkills(raw?.languages ?? base.languages, raw?.languageSkills);
   return {
     fullName: raw?.fullName ?? base.fullName,
     title: raw?.title ?? base.title,
@@ -259,10 +269,13 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     district: raw?.district ?? base.district,
     ward: raw?.ward ?? base.ward,
     educationLevel: raw?.educationLevel ?? base.educationLevel,
+    educationClassification: raw?.educationClassification ?? base.educationClassification,
+    educationMajor: raw?.educationMajor ?? base.educationMajor,
     careerObjective: raw?.careerObjective ?? base.careerObjective,
     skills: raw?.skills ?? base.skills,
     softSkills: raw?.softSkills ?? base.softSkills,
-    languages: raw?.languages ?? base.languages,
+    languageSkills,
+    languages: languageNamesFromSkills(languageSkills),
     hobbies: raw?.hobbies ?? base.hobbies,
     productsSold: raw?.productsSold ?? base.productsSold,
     customerSegments: raw?.customerSegments ?? base.customerSegments,

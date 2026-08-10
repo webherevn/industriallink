@@ -97,6 +97,10 @@ export interface JobListItem {
 export interface ListPublishedJobsQuery {
   keyword?: string;
   industry?: string;
+  /** Ngành chi tiết trong nhóm (lọc contains trên mô tả tin). */
+  subIndustry?: string;
+  /** Vị trí điển hình (lọc contains trên title/mô tả/skill). */
+  role?: string;
   /** Một địa điểm (tương thích ngược). */
   location?: string;
   /** Nhiều địa điểm (CSV trên query string `locations`). */

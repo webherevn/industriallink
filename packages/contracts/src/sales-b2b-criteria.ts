@@ -346,6 +346,17 @@ export const LANGUAGE_OPTIONS = [
 
 export type LanguageOption = (typeof LANGUAGE_OPTIONS)[number];
 
+/** Mức độ kỹ năng theo từng kỹ năng ngôn ngữ. */
+export const LANGUAGE_SKILL_LEVELS = [
+  { value: 'basic', label: 'Cơ bản' },
+  { value: 'intermediate', label: 'Trung bình' },
+  { value: 'good', label: 'Khá' },
+  { value: 'fluent', label: 'Thành thạo' },
+] as const;
+
+export type LanguageSkillLevel = (typeof LANGUAGE_SKILL_LEVELS)[number]['value'];
+
+/** @deprecated dùng LANGUAGE_SKILL_LEVELS — giữ alias tương thích. */
 export const LANGUAGE_PROFICIENCY = [
   { value: 'basic', label: 'Cơ bản' },
   { value: 'conversational', label: 'Giao tiếp' },
@@ -354,6 +365,97 @@ export const LANGUAGE_PROFICIENCY = [
 ] as const;
 
 export type LanguageProficiency = (typeof LANGUAGE_PROFICIENCY)[number]['value'];
+
+/** Chi tiết ngoại ngữ: nghe / nói / đọc / viết + đọc manual kỹ thuật. */
+export interface LanguageSkill {
+  language: string;
+  listening: LanguageSkillLevel | null;
+  speaking: LanguageSkillLevel | null;
+  reading: LanguageSkillLevel | null;
+  writing: LanguageSkillLevel | null;
+  /** Đọc manual / tài liệu kỹ thuật bằng ngôn ngữ này. */
+  technicalManualReading: LanguageSkillLevel | null;
+}
+
+export const LANGUAGE_SKILL_DIMENSIONS = [
+  { key: 'listening', label: 'Nghe' },
+  { key: 'speaking', label: 'Nói' },
+  { key: 'reading', label: 'Đọc' },
+  { key: 'writing', label: 'Viết' },
+  { key: 'technicalManualReading', label: 'Đọc manual kỹ thuật' },
+] as const satisfies ReadonlyArray<{
+  key: keyof Omit<LanguageSkill, 'language'>;
+  label: string;
+}>;
+
+export function emptyLanguageSkill(language: string): LanguageSkill {
+  return {
+    language,
+    listening: null,
+    speaking: null,
+    reading: null,
+    writing: null,
+    technicalManualReading: null,
+  };
+}
+
+/** Đồng bộ danh sách tên ngôn ngữ từ chi tiết kỹ năng. */
+export function languageNamesFromSkills(skills: LanguageSkill[] | null | undefined): string[] {
+  return [...new Set((skills ?? []).map((s) => s.language.trim()).filter(Boolean))];
+}
+
+/** Ghép languages[] cũ → languageSkills (giữ skill đã có). */
+export function mergeLanguageSkills(
+  languages: string[] | null | undefined,
+  skills: LanguageSkill[] | null | undefined,
+): LanguageSkill[] {
+  const byName = new Map<string, LanguageSkill>();
+  for (const s of skills ?? []) {
+    const name = s.language?.trim();
+    if (!name) continue;
+    byName.set(name, {
+      language: name,
+      listening: s.listening ?? null,
+      speaking: s.speaking ?? null,
+      reading: s.reading ?? null,
+      writing: s.writing ?? null,
+      technicalManualReading: s.technicalManualReading ?? null,
+    });
+  }
+  const names =
+    (languages?.length ?? 0) > 0 ? languages! : languageNamesFromSkills(skills);
+  for (const name of names) {
+    const t = name.trim();
+    if (!t || byName.has(t)) continue;
+    byName.set(t, emptyLanguageSkill(t));
+  }
+  // Giữ thứ tự theo languages nếu có, rồi skill còn lại
+  const ordered: LanguageSkill[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    const t = name.trim();
+    if (!t || seen.has(t)) continue;
+    const row = byName.get(t);
+    if (row) {
+      ordered.push(row);
+      seen.add(t);
+    }
+  }
+  for (const [name, row] of byName) {
+    if (!seen.has(name)) ordered.push(row);
+  }
+  return ordered;
+}
+
+export function formatLanguageSkillSummary(skill: LanguageSkill): string {
+  const bits = LANGUAGE_SKILL_DIMENSIONS.map((d) => {
+    const level = skill[d.key];
+    if (!level) return null;
+    const label = LANGUAGE_SKILL_LEVELS.find((l) => l.value === level)?.label ?? level;
+    return `${d.label}: ${label}`;
+  }).filter(Boolean);
+  return bits.length ? `${skill.language} (${bits.join(' · ')})` : skill.language;
+}
 
 /** 12. Khả năng đi công tác (2%). */
 export enum TravelAbility {
@@ -415,7 +517,7 @@ export function salesBehaviorToDevStyle(
   return null;
 }
 
-/** 16. Động lực nghề nghiệp (3%) — chọn tối đa 3. */
+/** STT 37. Động lực nghề nghiệp (Assessment) — chọn đúng 3. */
 export const CAREER_MOTIVATIONS = [
   'Thu nhập cao',
   'Hoa hồng/thưởng hấp dẫn',
@@ -434,7 +536,7 @@ export type CareerMotivation = (typeof CAREER_MOTIVATIONS)[number];
 export const CAREER_MOTIVATION_QUESTION =
   'Hãy chọn 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
 
-/** 17. Phù hợp văn hóa (3%) — matching với doanh nghiệp. */
+/** STT 39. Phù hợp văn hóa (Assessment) — Matching với doanh nghiệp (4 cặp A/B). */
 export const CULTURE_FIT_QUESTIONS = [
   {
     id: 'effectiveness',
@@ -465,11 +567,6 @@ export const CULTURE_FIT_QUESTIONS = [
     question: 'Bạn thích:',
     options: ['Thành tích cá nhân rõ ràng', 'Thành tích đội nhóm'],
   },
-  {
-    id: 'kpiPressure',
-    question: 'Mức độ áp lực KPI phù hợp:',
-    options: ['Thấp', 'Trung bình', 'Cao', 'Rất cao'],
-  },
 ] as const;
 
 export type CultureFitQuestionId = (typeof CULTURE_FIT_QUESTIONS)[number]['id'];
@@ -489,10 +586,6 @@ export const WORK_STYLE_OPTIONS = [
   'Giao mục tiêu và trao quyền',
   'Thành tích cá nhân rõ ràng',
   'Thành tích đội nhóm',
-  'Thấp',
-  'Trung bình',
-  'Cao',
-  'Rất cao',
 ] as const;
 
 export type WorkStyleOption = (typeof WORK_STYLE_OPTIONS)[number];
@@ -515,7 +608,7 @@ export function workStylesToCultureFitAnswers(
   return answers;
 }
 
-/** 18. Định hướng nghề nghiệp (2%) — ma trận STT 38 (update 2.8). */
+/** STT 38. Định hướng nghề nghiệp (Assessment). */
 export const CAREER_ORIENTATIONS = [
   'Chuyên gia kinh doanh B2B',
   'Chuyên viên quản lý khách hàng chiến lược',
@@ -532,6 +625,30 @@ export type CareerOrientation = (typeof CAREER_ORIENTATIONS)[number];
 
 export const CAREER_ORIENTATION_QUESTION =
   'Trong 3 năm tới anh/chị muốn phát triển theo hướng nào?';
+
+/** Chuẩn hoá lựa chọn UI (Khác: … → Khác) để tick checkbox. */
+export function careerOrientationSelection(orientations: string[]): string[] {
+  return orientations.map((o) => (o === 'Khác' || o.startsWith('Khác:') ? 'Khác' : o));
+}
+
+/** Lấy phần ghi chú sau “Khác:”. */
+export function parseCareerOrientationOther(orientations: string[]): string {
+  const other = orientations.find((o) => o.startsWith('Khác:'));
+  if (!other) return '';
+  return other.replace(/^Khác:\s*/, '').trim();
+}
+
+/** Ghi lại danh sách định hướng kèm ô “Khác: ______”. */
+export function withCareerOrientationOther(
+  orientations: string[],
+  otherText: string,
+): string[] {
+  const base = orientations.filter((o) => o !== 'Khác' && !o.startsWith('Khác:'));
+  const wantsOther = orientations.some((o) => o === 'Khác' || o.startsWith('Khác:'));
+  if (!wantsOther) return base;
+  const trimmed = otherText.trim();
+  return [...base, trimmed ? `Khác: ${trimmed}` : 'Khác'];
+}
 
 /** Alias định hướng cũ → bản 2.8. */
 export const LEGACY_CAREER_ORIENTATION_MAP: Record<string, CareerOrientation> = {
@@ -590,6 +707,44 @@ export const EDUCATION_LEVELS = [
 ] as const;
 
 export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
+
+/** Xếp loại tốt nghiệp / bằng cấp. */
+export const EDUCATION_CLASSIFICATIONS = [
+  'Trung bình',
+  'Khá',
+  'Giỏi',
+  'Xuất sắc',
+] as const;
+
+export type EducationClassification = (typeof EDUCATION_CLASSIFICATIONS)[number];
+
+/** Ghép xếp loại + chuyên ngành → degree hiển thị trên CV. */
+export function composeEducationDegree(
+  classification: string | null | undefined,
+  major: string | null | undefined,
+): string {
+  const c = (classification ?? '').trim();
+  const m = (major ?? '').trim();
+  if (c && m) return `${c} — ${m}`;
+  return c || m;
+}
+
+/** Tách degree CV thành xếp loại + chuyên ngành (tương thích dữ liệu cũ). */
+export function parseEducationDegree(degree: string | null | undefined): {
+  classification: string;
+  major: string;
+} {
+  const raw = (degree ?? '').trim();
+  if (!raw) return { classification: '', major: '' };
+  for (const c of EDUCATION_CLASSIFICATIONS) {
+    if (raw === c) return { classification: c, major: '' };
+    const prefix = `${c} — `;
+    if (raw.startsWith(prefix)) {
+      return { classification: c, major: raw.slice(prefix.length).trim() };
+    }
+  }
+  return { classification: '', major: raw };
+}
 
 // ---------------------------------------------------------------------------
 // Trọng số chấm điểm AI (18 tiêu chí = 100%)

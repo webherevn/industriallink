@@ -15,11 +15,16 @@ import {
   ResumeParseStatus,
   UserRole,
   availabilityToNoticeDays,
+  composeEducationDegree,
+  languageNamesFromSkills,
+  mergeLanguageSkills,
+  parseEducationDegree,
   type CandidateView,
   type CareerAdviceView,
   type ConnectionView,
   type CvDraftFromTextResponse,
   type CvDraftView,
+  type LanguageSkill,
   type RecruiterCandidateView,
   type ResumeParseStatusResponse,
   type ResumeParseStep,
@@ -30,6 +35,7 @@ import {
   type UploadAvatarResponse,
 } from '@industriallink/contracts';
 import { Queue } from 'bullmq';
+import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { v7 as uuidv7 } from 'uuid';
 import { createDomainEvent } from '../../shared/domain/domain-event';
@@ -348,7 +354,16 @@ export class CandidateService {
       expectedSalaryMin: toIntOrNull(input.expectedSalaryMin),
       expectedSalaryMax: toIntOrNull(input.expectedSalaryMax),
       expectedOte: toIntOrNull(input.expectedOte),
-      languages: cleanList(input.languages),
+      ...(() => {
+        const normalized = normalizeLanguageSkillsInput(
+          input.languages,
+          input.languageSkills as LanguageSkill[] | undefined,
+        );
+        return {
+          languages: normalized.languages,
+          languageSkills: normalized.languageSkills,
+        };
+      })(),
       hasB2License: input.hasB2License,
       driverLicenseType: emptyToNull(input.driverLicenseType),
       willingToTravel: input.willingToTravel,
@@ -369,6 +384,7 @@ export class CandidateService {
         return emptyToNull(input.customerDevStyle);
       })(),
       educationLevel: emptyToNull(input.educationLevel),
+      educationClassification: emptyToNull(input.educationClassification),
       educationSchool: emptyToNull(input.educationSchool),
       educationMajor: emptyToNull(input.educationMajor),
       certificates: cleanList(input.certificates),
@@ -918,6 +934,8 @@ export class CandidateService {
             ward: (p as { ward?: string | null }).ward ?? null,
             phone: p.phone ?? null,
             educationLevel: p.educationLevel ?? null,
+            educationClassification:
+              (p as { educationClassification?: string | null }).educationClassification ?? null,
             educationSchool: p.educationSchool ?? null,
             educationMajor: p.educationMajor ?? null,
             certificates: p.certificates ?? [],
@@ -952,7 +970,18 @@ export class CandidateService {
               expectedSalaryMin: p.expectedSalaryMin,
               expectedSalaryMax: p.expectedSalaryMax,
               expectedOte: p.expectedOte ?? null,
-              languages: p.languages ?? [],
+              languages: (() => {
+                const skills = parseLanguageSkills(
+                  (p as { languageSkills?: unknown }).languageSkills,
+                );
+                return languageNamesFromSkills(
+                  mergeLanguageSkills(p.languages ?? [], skills),
+                );
+              })(),
+              languageSkills: mergeLanguageSkills(
+                p.languages ?? [],
+                parseLanguageSkills((p as { languageSkills?: unknown }).languageSkills),
+              ),
               hasB2License: p.hasB2License,
               driverLicenseType: p.driverLicenseType ?? null,
               willingToTravel: p.willingToTravel,
@@ -1107,18 +1136,75 @@ export class CandidateService {
     const soft = [...new Set(draft.softSkills.map((s) => s.trim()).filter(Boolean))];
     const allSkillNames = [...new Set([...skills, ...soft])];
 
-    const filled = [
-      draft.fullName,
-      draft.title,
-      draft.summary,
-      draft.email,
-      draft.phone,
-      draft.location,
-      skills.length > 0,
-      draft.experience.length > 0,
-      draft.education.length > 0,
-    ].filter(Boolean).length;
-    const profileCompletion = Math.min(95, Math.round((filled / 9) * 100));
+    const firstDraftExp = draft.experience[0];
+    const profileCompletion = computeProfileCompletion({
+      aiProfile: { summary: draft.summary?.trim() || null },
+      profile: {
+        currentPosition: draft.title || null,
+        summary: draft.summary || null,
+        careerObjective: draft.careerObjective,
+        phone: draft.phone || null,
+        currentCity: draft.location || null,
+        ward: draft.ward,
+        birthYear: draft.birthYear,
+        birthDate: draft.birthDate,
+        educationLevel: draft.educationLevel,
+        educationSchool: draft.education[0]?.school || null,
+        hobbies: draft.hobbies,
+        certificates: draft.certificates,
+        industriesExperienced: draft.industriesExperienced,
+        productsSold: draft.productsSold,
+        customerSegments: draft.customerSegments,
+        marketsCovered: draft.marketsCovered,
+        sellingStages: firstDraftExp?.sellingStages ?? [],
+        salesHighlights: draft.salesHighlights || null,
+        b2bExperienceBand: draft.b2bExperienceBand,
+        dealType: draft.dealType,
+        typicalDealValue: draft.typicalDealValue,
+        maxDealValue: draft.maxDealValue,
+        latestRevenue: firstDraftExp?.latestRevenue ?? null,
+        kpiAchievementPct: firstDraftExp?.kpiAchievementPct ?? null,
+        newCustomerRatioPct: draft.newCustomerRatioPct ?? firstDraftExp?.newCustomerRatioPct ?? null,
+        jobReadiness: draft.jobReadiness,
+        availabilityBand: draft.availabilityBand,
+        expectedSalaryMin: draft.expectedSalaryMin,
+        expectedOte: draft.expectedOte,
+        languages: draft.languages,
+        travelAbility: draft.travelAbility,
+        hasB2License: draft.hasB2License,
+        driverLicenseType: draft.driverLicenseType,
+        desiredPositions: draft.desiredPositions,
+        desiredLocations: draft.desiredLocations,
+        careerMotivations: draft.careerMotivations,
+        careerOrientations: draft.careerOrientations,
+        workStyles: draft.workStyles,
+        salesBehavior: draft.salesBehavior,
+        jobTrack: draft.jobTrack,
+        brandsTechnologies: draft.brandsTechnologies,
+        technicalWorkTypes: draft.technicalWorkTypes,
+        technicalAutonomyLevel: draft.technicalAutonomyLevel,
+        troubleshootingLevel: draft.troubleshootingLevel,
+        technicalTools: draft.technicalTools,
+        documentLiteracy: draft.documentLiteracy,
+        systemScaleNote: draft.systemScaleNote,
+        shiftFlexibility: draft.shiftFlexibility,
+      },
+      skills: allSkillNames,
+      experiences: draft.experience.map((e) => ({
+        companyName: e.company,
+        jobTitle: e.role,
+        sellingStages: e.sellingStages,
+        productsSold: e.productsSold,
+        customerSegments: e.customerSegments,
+        marketsCovered: e.marketsCovered,
+        latestRevenue: e.latestRevenue,
+        kpiAchievementPct: e.kpiAchievementPct,
+        newCustomerRatioPct: e.newCustomerRatioPct,
+        dealType: e.dealType,
+        typicalDealValue: e.typicalDealValue,
+        maxDealValue: e.maxDealValue,
+      })),
+    });
 
     await this.prisma.$transaction(async (tx) => {
       await tx.candidate.update({
@@ -1209,7 +1295,16 @@ export class CandidateService {
         expectedSalaryMin: toIntOrNull(draft.expectedSalaryMin),
         expectedSalaryMax: toIntOrNull(draft.expectedSalaryMax),
         expectedOte: toIntOrNull(draft.expectedOte),
-        languages: draft.languages ?? [],
+        ...(() => {
+          const normalized = normalizeLanguageSkillsInput(
+            draft.languages,
+            (draft as { languageSkills?: LanguageSkill[] }).languageSkills,
+          );
+          return {
+            languages: normalized.languages,
+            languageSkills: normalized.languageSkills,
+          };
+        })(),
         hasB2License: draft.hasB2License ?? null,
         driverLicenseType: emptyToNull(draft.driverLicenseType),
         travelAbility: emptyToNull(draft.travelAbility),
@@ -1222,7 +1317,22 @@ export class CandidateService {
           : null,
         certificates: draft.certificates ?? [],
         educationSchool: draft.education[0]?.school || null,
-        educationMajor: draft.education[0]?.degree || null,
+        educationMajor: (() => {
+          const fromDraft = emptyToNull(
+            (draft as { educationMajor?: string | null }).educationMajor,
+          );
+          if (fromDraft) return fromDraft;
+          return emptyToNull(parseEducationDegree(draft.education[0]?.degree || '').major);
+        })(),
+        educationClassification: (() => {
+          const fromDraft = emptyToNull(
+            (draft as { educationClassification?: string | null }).educationClassification,
+          );
+          if (fromDraft) return fromDraft;
+          return emptyToNull(
+            parseEducationDegree(draft.education[0]?.degree || '').classification,
+          );
+        })(),
         jobTrack: emptyToNull(draft.jobTrack),
         brandsTechnologies: cleanList(draft.brandsTechnologies ?? []),
         technicalWorkTypes: cleanList(draft.technicalWorkTypes ?? []),
@@ -1452,6 +1562,36 @@ function cleanList(values: string[] | null | undefined): string[] {
   return [...new Set(values.map((v) => v.trim()).filter(Boolean))].slice(0, 40);
 }
 
+function parseLanguageSkills(raw: unknown): LanguageSkill[] {
+  if (!Array.isArray(raw)) return [];
+  return mergeLanguageSkills(
+    [],
+    raw.map((row) => {
+      const r = row as Partial<LanguageSkill>;
+      return {
+        language: String(r.language ?? '').trim(),
+        listening: (r.listening as LanguageSkill['listening']) ?? null,
+        speaking: (r.speaking as LanguageSkill['speaking']) ?? null,
+        reading: (r.reading as LanguageSkill['reading']) ?? null,
+        writing: (r.writing as LanguageSkill['writing']) ?? null,
+        technicalManualReading:
+          (r.technicalManualReading as LanguageSkill['technicalManualReading']) ?? null,
+      };
+    }),
+  );
+}
+
+function normalizeLanguageSkillsInput(
+  languages: string[] | null | undefined,
+  skills: LanguageSkill[] | null | undefined,
+): { languages: string[]; languageSkills: Prisma.InputJsonValue } {
+  const languageSkills = mergeLanguageSkills(languages, skills);
+  return {
+    languageSkills: languageSkills as unknown as Prisma.InputJsonValue,
+    languages: languageNamesFromSkills(languageSkills),
+  };
+}
+
 function toIntOrNull(value: number | null | undefined): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   return Math.round(value);
@@ -1476,66 +1616,200 @@ function parsePeriodYears(period: string | null | undefined): {
 type ProfileCompletionInput = {
   aiProfile: { summary: string | null } | null;
   profile: {
-    currentPosition: string | null;
-    jobLevel: string | null;
-    totalExperienceYears: number | null;
-    industry: string | null;
-    specialization: string | null;
-    summary: string | null;
-    productsSold?: string[];
-    sellingStages?: string[];
-    jobReadiness?: string | null;
-    desiredPositions?: string[];
+    currentPosition?: string | null;
+    jobLevel?: string | null;
+    totalExperienceYears?: number | null;
+    industry?: string | null;
+    specialization?: string | null;
+    summary?: string | null;
+    careerObjective?: string | null;
+    phone?: string | null;
     currentCity?: string | null;
+    ward?: string | null;
+    birthYear?: number | null;
+    birthDate?: string | null;
+    educationLevel?: string | null;
+    educationSchool?: string | null;
+    hobbies?: string[] | null;
+    certificates?: string[] | null;
+    industriesExperienced?: string[] | null;
+    productsSold?: string[] | null;
+    customerSegments?: string[] | null;
+    marketsCovered?: string[] | null;
+    sellingStages?: string[] | null;
+    salesHighlights?: string | null;
+    b2bExperienceBand?: string | null;
+    dealType?: string | null;
+    typicalDealValue?: number | null;
+    maxDealValue?: number | null;
+    latestRevenue?: number | null;
+    kpiAchievementPct?: number | null;
+    newCustomerRatioPct?: number | null;
+    jobReadiness?: string | null;
+    availabilityBand?: string | null;
+    expectedSalaryMin?: number | null;
+    expectedOte?: number | null;
+    languages?: string[] | null;
+    travelAbility?: string | null;
+    hasB2License?: boolean | null;
+    driverLicenseType?: string | null;
+    desiredPositions?: string[] | null;
+    desiredLocations?: string[] | null;
+    careerMotivations?: string[] | null;
+    careerOrientations?: string[] | null;
+    careerOrientation?: string | null;
+    workStyles?: string[] | null;
+    salesBehavior?: string | null;
+    customerDevStyle?: string | null;
+    jobTrack?: string | null;
+    brandsTechnologies?: string[] | null;
+    technicalWorkTypes?: string[] | null;
+    technicalAutonomyLevel?: number | null;
+    troubleshootingLevel?: number | null;
+    technicalTools?: string[] | null;
+    documentLiteracy?: string[] | null;
+    systemScaleNote?: string | null;
+    shiftFlexibility?: string | null;
   } | null;
   skills: ReadonlyArray<unknown>;
-  experiences?: ReadonlyArray<unknown>;
+  experiences?: ReadonlyArray<{
+    sellingStages?: string[] | null;
+    productsSold?: string[] | null;
+    customerSegments?: string[] | null;
+    marketsCovered?: string[] | null;
+    latestRevenue?: number | null;
+    kpiAchievementPct?: number | null;
+    newCustomerRatioPct?: number | null;
+    dealType?: string | null;
+    typicalDealValue?: number | null;
+    maxDealValue?: number | null;
+    companyName?: string | null;
+    jobTitle?: string | null;
+  }>;
 };
 
-const PROFILE_FIELD_KEYS = [
-  'currentPosition',
-  'jobLevel',
-  'totalExperienceYears',
-  'industry',
-  'specialization',
-  'summary',
-] as const;
+function isFilledValue(value: unknown, weakIfShort = 0): 'filled' | 'weak' | 'missing' {
+  if (typeof value === 'boolean') return 'filled';
+  if (typeof value === 'number') return Number.isFinite(value) ? 'filled' : 'missing';
+  if (Array.isArray(value)) return value.length > 0 ? 'filled' : 'missing';
+  const t = (value ?? '').toString().trim();
+  if (!t) return 'missing';
+  if (weakIfShort > 0 && t.length < weakIfShort) return 'weak';
+  return 'filled';
+}
+
+function scoreStatus(status: 'filled' | 'weak' | 'missing'): number {
+  if (status === 'filled') return 1;
+  if (status === 'weak') return 0.5;
+  return 0;
+}
 
 /**
- * % hoàn thiện hồ sơ Sales B2B:
- * - Có AI Profile: 15%
- * - Field cơ bản: 20%
- * - Có ≥1 kinh nghiệm công ty: 25%; có sản phẩm+tệp KH+thị trường trên exp: +10%
- * - Có sellingStages (≥4 bước): 15%
- * - Mong muốn (desiredPositions + readiness + city): 15%
+ * % hoàn thiện hồ sơ theo tiêu chí KD/KT (cùng checklist track-aware với UI CV).
+ * filled=1, weak=0.5, missing=0 — trung bình các mục theo jobTrack.
  */
 export function computeProfileCompletion(candidate: ProfileCompletionInput): number {
-  let score = 0;
+  const p = candidate.profile;
+  const firstExp = candidate.experiences?.[0];
+  const track = (p?.jobTrack ?? 'sales').toString().toLowerCase();
+  const isTech = track === 'technical';
 
-  if (candidate.aiProfile?.summary) score += 15;
+  const productsSold = [
+    ...(p?.productsSold ?? []),
+    ...(candidate.experiences?.flatMap((e) => e.productsSold ?? []) ?? []),
+  ];
+  const customerSegments = [
+    ...(p?.customerSegments ?? []),
+    ...(candidate.experiences?.flatMap((e) => e.customerSegments ?? []) ?? []),
+  ];
+  const marketsCovered = [
+    ...(p?.marketsCovered ?? []),
+    ...(candidate.experiences?.flatMap((e) => e.marketsCovered ?? []) ?? []),
+  ];
+  const sellingStages = [
+    ...(p?.sellingStages ?? []),
+    ...(firstExp?.sellingStages ?? []),
+  ];
+  const careerOrientations =
+    (p?.careerOrientations?.length ?? 0) > 0
+      ? p!.careerOrientations!
+      : (p?.careerOrientation ?? '')
+          .split(/\s*\|\s*/)
+          .map((s) => s.trim())
+          .filter(Boolean);
 
-  if (candidate.profile) {
-    const filled = PROFILE_FIELD_KEYS.filter((key) => {
-      const value = candidate.profile![key];
-      return value !== null && value !== undefined && value !== '';
-    }).length;
-    score += (filled / PROFILE_FIELD_KEYS.length) * 20;
+  const licenseValue =
+    p?.hasB2License == null
+      ? null
+      : p.hasB2License
+        ? p.driverLicenseType || 'Có'
+        : 'Không';
+
+  const checks: Array<{ value: unknown; weakIfShort?: number }> = [
+    { value: p?.currentPosition },
+    { value: candidate.aiProfile?.summary || p?.summary, weakIfShort: 40 },
+    { value: p?.careerObjective, weakIfShort: 20 },
+    { value: p?.phone },
+    { value: p?.currentCity },
+    { value: p?.birthYear ?? p?.birthDate },
+    { value: p?.ward },
+    { value: p?.hobbies ?? [] },
+    { value: candidate.skills.length > 0 ? candidate.skills : [] },
+    {
+      value:
+        (candidate.experiences?.length ?? 0) > 0
+          ? candidate.experiences!.map((e) => e.companyName || e.jobTitle).filter(Boolean)
+          : [],
+    },
+    { value: p?.educationLevel || p?.educationSchool },
+    { value: p?.certificates ?? [] },
+    { value: p?.industriesExperienced ?? [] },
+    { value: productsSold },
+    { value: customerSegments },
+    { value: p?.salesHighlights, weakIfShort: 20 },
+    { value: p?.jobReadiness },
+    { value: p?.availabilityBand },
+    { value: p?.languages ?? [] },
+    { value: p?.travelAbility },
+    { value: licenseValue },
+    { value: p?.expectedSalaryMin ?? p?.expectedOte },
+    { value: p?.desiredPositions ?? [] },
+    { value: p?.desiredLocations ?? [] },
+    { value: p?.careerMotivations ?? [] },
+    { value: careerOrientations },
+    { value: p?.workStyles ?? [] },
+  ];
+
+  if (isTech) {
+    checks.push(
+      { value: p?.jobTrack },
+      { value: p?.brandsTechnologies ?? [] },
+      { value: p?.technicalWorkTypes ?? [] },
+      { value: p?.technicalAutonomyLevel },
+      { value: p?.troubleshootingLevel },
+      { value: p?.technicalTools ?? [] },
+      { value: p?.documentLiteracy ?? [] },
+      { value: p?.systemScaleNote, weakIfShort: 10 },
+      { value: p?.shiftFlexibility },
+    );
+  } else {
+    checks.push(
+      { value: firstExp?.latestRevenue ?? p?.latestRevenue },
+      { value: firstExp?.kpiAchievementPct ?? p?.kpiAchievementPct },
+      { value: p?.newCustomerRatioPct ?? firstExp?.newCustomerRatioPct },
+      { value: p?.b2bExperienceBand },
+      { value: sellingStages },
+      { value: p?.dealType ?? firstExp?.dealType },
+      { value: p?.typicalDealValue ?? firstExp?.typicalDealValue },
+      { value: p?.maxDealValue ?? firstExp?.maxDealValue },
+      { value: marketsCovered },
+      { value: p?.salesBehavior ?? p?.customerDevStyle },
+    );
   }
 
-  const expCount = candidate.experiences?.length ?? 0;
-  if (expCount >= 1) score += 25;
-  if ((candidate.profile?.productsSold?.length ?? 0) >= 1) score += 5;
-  if ((candidate.profile?.sellingStages?.length ?? 0) >= 4) score += 15;
-  else if ((candidate.profile?.sellingStages?.length ?? 0) >= 1) score += 8;
-
-  const desire =
-    (candidate.profile?.desiredPositions?.length ?? 0) > 0 ||
-    Boolean(candidate.profile?.jobReadiness) ||
-    Boolean(candidate.profile?.currentCity);
-  if (desire) score += 15;
-
-  const skillCount = candidate.skills.length;
-  if (skillCount >= 1) score += 5;
-
-  return Math.round(Math.min(100, score));
+  const sum = checks.reduce(
+    (acc, c) => acc + scoreStatus(isFilledValue(c.value, c.weakIfShort ?? 0)),
+    0,
+  );
+  return Math.round((sum / checks.length) * 100);
 }

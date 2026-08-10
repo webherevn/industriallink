@@ -4,16 +4,13 @@ import clsx from 'clsx';
 import {
   AVAILABILITY_BAND_LABEL,
   AvailabilityBand,
-  BRANDS_TECHNOLOGIES,
   CAREER_MOTIVATIONS,
   CAREER_MOTIVATION_QUESTION,
   CUSTOMER_SEGMENTS,
   DOCUMENT_LITERACY_OPTIONS,
-  DRIVER_LICENSE_TYPES,
   EQUIPMENT_SYSTEM_OPTIONS,
   JOB_READINESS_LABEL,
   JobReadiness,
-  LANGUAGE_OPTIONS,
   SALES_INDUSTRY_OPTIONS,
   SHIFT_FLEXIBILITY_OPTIONS,
   TECHNICAL_AUTONOMY_LEVELS,
@@ -31,6 +28,7 @@ import {
   JobTrack,
 } from '@industriallink/contracts';
 import { MoneyInput } from '@/components/ui';
+import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import type { CvDraft } from '@/lib/cv-templates';
 
 function MultiCheck({
@@ -211,11 +209,9 @@ export function CvTechnicalFields({
 
       <div>
         <p className="mb-2 text-xs font-semibold text-slate-600">Hãng / công nghệ</p>
-        <MultiCheck
-          options={BRANDS_TECHNOLOGIES}
+        <BrandTechnologySearch
           selected={draft.brandsTechnologies}
           onChange={(v) => onChange('brandsTechnologies', v)}
-          columns={2}
         />
       </div>
 
@@ -386,44 +382,6 @@ export function CvTechnicalFields({
             />
           </div>
         </label>
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Ngoại ngữ</p>
-        <MultiCheck
-          options={LANGUAGE_OPTIONS}
-          selected={draft.languages}
-          onChange={(v) => onChange('languages', v)}
-        />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <SelectField
-          label="Bằng lái ô tô"
-          value={
-            draft.hasB2License === true
-              ? draft.driverLicenseType || 'B2'
-              : draft.hasB2License === false
-                ? 'none'
-                : ''
-          }
-          onChange={(v) => {
-            if (v === 'none') {
-              onChange('hasB2License', false);
-              onChange('driverLicenseType', null);
-            } else if (v) {
-              onChange('hasB2License', true);
-              onChange('driverLicenseType', v);
-            } else {
-              onChange('hasB2License', null);
-              onChange('driverLicenseType', null);
-            }
-          }}
-          options={[
-            { value: 'none', label: 'Không' },
-            ...DRIVER_LICENSE_TYPES.map((t) => ({ value: t, label: t })),
-          ]}
-        />
       </div>
 
       <SectionTitle title="C. Định hướng nghề nghiệp" subtitle="Tuỳ chọn — matching nâng cao" />

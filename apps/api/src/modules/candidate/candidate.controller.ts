@@ -32,6 +32,7 @@ import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CandidateService } from './candidate.service';
+import { CompanySuggestService } from './company-suggest.service';
 import { CvDraftFromTextDto } from './dto/cv-draft-from-text.dto';
 import { SaveCvDraftDto } from './dto/save-cv-draft.dto';
 import { UpdateCandidateProfileDto } from './dto/update-candidate-profile.dto';
@@ -41,7 +42,20 @@ import { UpdateCandidateProfileDto } from './dto/update-candidate-profile.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('candidates')
 export class CandidateController {
-  constructor(private readonly candidates: CandidateService) {}
+  constructor(
+    private readonly candidates: CandidateService,
+    private readonly companySuggest: CompanySuggestService,
+  ) {}
+
+  @Get('company-suggest')
+  @Roles(UserRole.Candidate, UserRole.Recruiter)
+  @ApiOperation({
+    summary: 'Gợi ý hãng / công ty FDI/B2B từ catalog nội bộ (Việt Nam)',
+  })
+  @ApiQuery({ name: 'q', required: false })
+  suggestCompanies(@Query('q') q?: string) {
+    return this.companySuggest.suggest(q ?? '');
+  }
 
   @Post('me/resumes')
   @Roles(UserRole.Candidate)
@@ -93,7 +107,10 @@ export class CandidateController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdateCandidateProfileDto,
   ) {
-    return this.candidates.updateMyProfile(user, body);
+    return this.candidates.updateMyProfile(
+      user,
+      body as unknown as import('@industriallink/contracts').UpdateCandidateProfileRequest,
+    );
   }
 
   @Get('me/connections')
@@ -194,7 +211,10 @@ export class CandidateController {
     summary: 'Lưu bản nháp CV vào hồ sơ ứng viên (tuỳ chọn từ wizard tạo CV)',
   })
   saveCvDraft(@CurrentUser() user: AuthenticatedUser, @Body() body: SaveCvDraftDto) {
-    return this.candidates.saveCvDraftToProfile(user, body.draft);
+    return this.candidates.saveCvDraftToProfile(
+      user,
+      body.draft as unknown as import('@industriallink/contracts').CvDraftView,
+    );
   }
 
   @Post('me/avatar')

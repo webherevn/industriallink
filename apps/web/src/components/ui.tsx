@@ -1,4 +1,7 @@
+'use client';
+
 import clsx from 'clsx';
+import { Calendar } from 'lucide-react';
 import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -6,6 +9,10 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
   forwardRef,
+  useId,
+  useEffect,
+  useRef,
+  useState,
 } from 'react';
 
 export function Button({
@@ -44,6 +51,144 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 
 const inputClassName =
   'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
+/** ISO YYYY-MM-DD → hiển thị DD/MM/YYYY. */
+export function isoToDisplayDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Chuỗi số DDMMYYYY (tối đa 8) → DD/MM/YYYY khi gõ. */
+export function digitsToDisplayDate(digits: string): string {
+  const d = digits.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+/** DD/MM/YYYY hoặc số thuần → ISO YYYY-MM-DD (chỉ khi đủ & hợp lệ). */
+export function displayDateToIso(display: string): string | null {
+  const d = display.replace(/\D/g, '');
+  if (d.length !== 8) return null;
+  const day = Number(d.slice(0, 2));
+  const month = Number(d.slice(2, 4));
+  const year = Number(d.slice(4, 8));
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  if (
+    dt.getUTCFullYear() !== year ||
+    dt.getUTCMonth() !== month - 1 ||
+    dt.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * Ngày sinh: gõ số tự chèn `/` (DD/MM/YYYY), kèm nút mở lịch chọn ngày.
+ * Giá trị lưu: ISO `YYYY-MM-DD` (rỗng nếu chưa chọn / xoá).
+ */
+export function BirthDateInput({
+  value,
+  onChange,
+  disabled,
+  className,
+  placeholder = 'DD/MM/YYYY',
+}: {
+  value: string;
+  onChange: (isoYmd: string) => void;
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const textId = useId();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.test(value.trim()) ? value.trim() : '';
+  const [text, setText] = useState(() => (iso ? isoToDisplayDate(iso) : ''));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (focused) return;
+    setText(iso ? isoToDisplayDate(iso) : '');
+  }, [iso, focused]);
+
+  function openPicker() {
+    const el = pickerRef.current;
+    if (!el || disabled) return;
+    try {
+      el.showPicker?.();
+    } catch {
+      el.click();
+    }
+  }
+
+  return (
+    <div className={clsx('relative', className)}>
+      <input
+        id={textId}
+        type="text"
+        inputMode="numeric"
+        autoComplete="bday"
+        disabled={disabled}
+        placeholder={placeholder}
+        className={clsx(inputClassName, 'pr-11 tabular-nums')}
+        value={text}
+        onFocus={() => setFocused(true)}
+        onChange={(e) => {
+          const next = digitsToDisplayDate(e.target.value);
+          setText(next);
+          const nextIso = displayDateToIso(next);
+          if (nextIso) onChange(nextIso);
+          else if (!next.replace(/\D/g, '')) onChange('');
+        }}
+        onBlur={() => {
+          setFocused(false);
+          const nextIso = displayDateToIso(text);
+          if (nextIso) {
+            setText(isoToDisplayDate(nextIso));
+            onChange(nextIso);
+          } else if (!text.replace(/\D/g, '')) {
+            setText('');
+            onChange('');
+          } else {
+            // Giữ text dở; đồng bộ lại từ value ISO nếu còn
+            setText(iso ? isoToDisplayDate(iso) : text);
+          }
+        }}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={openPicker}
+        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-brand-700 disabled:opacity-50"
+        aria-label="Chọn ngày trên lịch"
+        title="Chọn ngày trên lịch"
+      >
+        <Calendar className="h-4 w-4" />
+      </button>
+      <input
+        ref={pickerRef}
+        type="date"
+        tabIndex={-1}
+        aria-hidden
+        disabled={disabled}
+        value={iso}
+        min="1950-01-01"
+        max="2015-12-31"
+        onChange={(e) => {
+          const v = e.target.value;
+          setText(v ? isoToDisplayDate(v) : '');
+          onChange(v);
+        }}
+        className="pointer-events-none absolute h-0 w-0 opacity-0"
+      />
+    </div>
+  );
+}
 
 /** Nhập số tiền: hiện 1,000,000; lưu chuỗi chỉ gồm chữ số. */
 export function MoneyInput({

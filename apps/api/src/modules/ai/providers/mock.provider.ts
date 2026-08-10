@@ -52,7 +52,7 @@ export class MockAiProvider implements AiProvider {
 
     const jobLevel = inferLevelFromYears(totalExperienceYears, isSales);
     const ladder = isSales
-      ? 'Nhân viên Kinh doanh → Trưởng nhóm Kinh doanh → Trưởng phòng Kinh doanh → Giám đốc Kinh doanh → Giám đốc công ty'
+      ? 'Nhân viên Kinh doanh → Trưởng nhóm Kinh doanh → Trưởng phòng Kinh doanh → Giám đốc Kinh doanh'
       : 'Nhân viên Kỹ thuật → Trưởng nhóm Kỹ thuật → Trưởng phòng Kỹ thuật → Giám đốc Kỹ thuật';
 
     const productsSold =
@@ -402,7 +402,6 @@ function sectionBlock(context: string, title: RegExp): string {
 
 function inferLevelFromYears(years: number, sales: boolean): JobLevelCode {
   if (sales) {
-    if (years >= 15) return JobLevelCode.CompanyDirector;
     if (years >= 12) return JobLevelCode.SalesDirector;
     if (years >= 8) return JobLevelCode.SalesDeptHead;
     if (years >= 4) return JobLevelCode.SalesTeamLead;
@@ -416,8 +415,9 @@ function inferLevelFromYears(years: number, sales: boolean): JobLevelCode {
 
 function inferLevelFromTitle(title: string): JobLevelCode {
   const t = title.toLowerCase();
-  if (/giám đốc công ty|ceo|tổng giám đốc/.test(t)) return JobLevelCode.CompanyDirector;
-  if (/giám đốc kinh doanh|sales director/.test(t)) return JobLevelCode.SalesDirector;
+  if (/giám đốc công ty|ceo|tổng giám đốc|giám đốc kinh doanh|sales director/.test(t)) {
+    return JobLevelCode.SalesDirector;
+  }
   if (/giám đốc kỹ thuật|cto|technical director/.test(t)) return JobLevelCode.TechDirector;
   if (/trưởng phòng kinh doanh/.test(t)) return JobLevelCode.SalesDeptHead;
   if (/trưởng phòng kỹ thuật|trưởng phòng/.test(t)) return JobLevelCode.TechDeptHead;
@@ -441,8 +441,6 @@ function yearsHintForLevel(code: JobLevelCode): string {
     case JobLevelCode.SalesDirector:
     case JobLevelCode.TechDirector:
       return 'từ 8–12 năm';
-    case JobLevelCode.CompanyDirector:
-      return 'trên 12 năm';
     default:
       return 'phù hợp cấp bậc';
   }
@@ -458,7 +456,6 @@ function salaryForLevel(code: JobLevelCode): [number, number] {
     [JobLevelCode.TechDeptHead]: [30_000_000, 50_000_000],
     [JobLevelCode.SalesDirector]: [45_000_000, 80_000_000],
     [JobLevelCode.TechDirector]: [45_000_000, 85_000_000],
-    [JobLevelCode.CompanyDirector]: [70_000_000, 150_000_000],
   };
   return table[code];
 }

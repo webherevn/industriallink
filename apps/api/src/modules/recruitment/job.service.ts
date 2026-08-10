@@ -9,6 +9,7 @@ import {
   DomainEvents,
   EmploymentType,
   JobStatus,
+  expandJobSearchKeywords,
   type GenerateJobDraftResponse,
   type JobListItem,
   type JobView,
@@ -419,6 +420,8 @@ export class JobService {
   async listPublishedJobs(params: {
     keyword?: string;
     industry?: string;
+    subIndustry?: string;
+    role?: string;
     location?: string;
     /** CSV hoặc đã tách sẵn. */
     locations?: string | string[];
@@ -430,6 +433,8 @@ export class JobService {
     userId?: string;
   }): Promise<JobListItem[]> {
     const keyword = params.keyword?.trim();
+    const subIndustry = params.subIndustry?.trim();
+    const role = params.role?.trim();
     const experienceBands = splitCsv(params.experienceBand);
     const jobLevels = splitCsv(params.jobLevel);
     const track = params.jobTrack?.trim().toLowerCase();
@@ -443,11 +448,30 @@ export class JobService {
       });
     }
     if (keyword) {
+      const terms = expandJobSearchKeywords(keyword);
+      andFilters.push({
+        OR: terms.flatMap((term) => [
+          { title: { contains: term, mode: 'insensitive' } },
+          { description: { contains: term, mode: 'insensitive' } },
+          { skills: { some: { name: { contains: term, mode: 'insensitive' } } } },
+        ]),
+      });
+    }
+    if (subIndustry) {
       andFilters.push({
         OR: [
-          { title: { contains: keyword, mode: 'insensitive' } },
-          { description: { contains: keyword, mode: 'insensitive' } },
-          { skills: { some: { name: { contains: keyword, mode: 'insensitive' } } } },
+          { title: { contains: subIndustry, mode: 'insensitive' } },
+          { description: { contains: subIndustry, mode: 'insensitive' } },
+          { requirements: { contains: subIndustry, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (role) {
+      andFilters.push({
+        OR: [
+          { title: { contains: role, mode: 'insensitive' } },
+          { description: { contains: role, mode: 'insensitive' } },
+          { skills: { some: { name: { contains: role, mode: 'insensitive' } } } },
         ],
       });
     }

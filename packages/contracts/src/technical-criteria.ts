@@ -33,32 +33,17 @@ export const TECHNICAL_DESIRED_POSITIONS = [
 
 export type TechnicalDesiredPosition = (typeof TECHNICAL_DESIRED_POSITIONS)[number];
 
-/** Hãng / công nghệ đã làm việc. */
-export const BRANDS_TECHNOLOGIES = [
-  'Atlas Copco',
-  'ELGi',
-  'Ingersoll Rand',
-  'Kaeser',
-  'Siemens',
-  'ABB',
-  'Schneider Electric',
-  'Mitsubishi Electric',
-  'Omron',
-  'Allen-Bradley / Rockwell',
-  'Fanuc',
-  'KUKA',
-  'Yaskawa',
-  'Panasonic',
-  'Danfoss',
-  'Grundfos',
-  'Wilo',
-  'Carrier',
-  'Daikin',
-  'Trane',
-  'Khác',
-] as const;
-
-export type BrandTechnology = (typeof BRANDS_TECHNOLOGIES)[number];
+/** Hãng / công nghệ — catalog FDI/B2B VN (xem fdi-b2b-brands.ts). */
+export {
+  BRANDS_TECHNOLOGIES,
+  FDI_B2B_BRANDS,
+  suggestFdiB2bBrands,
+  type BrandTechnology,
+  type CompanySuggestItem,
+  type CompanySuggestResponse,
+  type FdiB2bBrand,
+  type FdiBrandPriority,
+} from './fdi-b2b-brands';
 
 /** Loại công việc / nghiệp vụ kỹ thuật (khác sellingStages). */
 export const TECHNICAL_WORK_TYPES = [

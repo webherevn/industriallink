@@ -1,5 +1,14 @@
 import type { CandidateView, CvDraftFieldHint } from '@industriallink/contracts';
-import { JobTrack, SALES_BEHAVIOR_OPTIONS, SALES_HIGHLIGHTS_HINT, TRACK_FIELD_LABELS, TECHNICAL_HIGHLIGHTS_HINT } from '@industriallink/contracts';
+import {
+  JobTrack,
+  SALES_BEHAVIOR_OPTIONS,
+  SALES_HIGHLIGHTS_HINT,
+  TRACK_FIELD_LABELS,
+  TECHNICAL_HIGHLIGHTS_HINT,
+  composeEducationDegree,
+  formatLanguageSkillSummary,
+  mergeLanguageSkills,
+} from '@industriallink/contracts';
 import { toBulletText } from './bullet-text';
 import { emptyCvDraft, type CvDraft } from './cv-templates';
 
@@ -82,11 +91,14 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
         : [];
 
   const education =
-    p?.educationSchool || p?.educationMajor || p?.educationLevel
+    p?.educationSchool ||
+    p?.educationMajor ||
+    p?.educationClassification ||
+    p?.educationLevel
       ? [
           {
             school: p.educationSchool ?? '',
-            degree: [p.educationLevel, p.educationMajor].filter(Boolean).join(' — '),
+            degree: composeEducationDegree(p.educationClassification, p.educationMajor),
             period: '',
           },
         ]
@@ -149,10 +161,16 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
     district: null, // không còn cấp huyện (cải cách 01/7/2025)
     ward: p?.ward ?? null,
     educationLevel: p?.educationLevel ?? null,
+    educationClassification: p?.educationClassification ?? null,
+    educationMajor: p?.educationMajor ?? null,
     careerObjective: p?.careerObjective ?? null,
     skills: uniqueSkills,
     softSkills: [...new Set(softSkills)],
     languages: [...(sales?.languages ?? [])],
+    languageSkills: mergeLanguageSkills(
+      sales?.languages ?? [],
+      sales?.languageSkills ?? [],
+    ),
     hobbies: [...(p?.hobbies ?? [])],
     productsSold,
     customerSegments,
@@ -408,8 +426,11 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
     {
       key: 'languages',
       label: 'Ngoại ngữ',
-      value: draft.languages,
-      suggestion: 'Thêm ngoại ngữ.',
+      value:
+        (draft.languageSkills?.length
+          ? draft.languageSkills.map(formatLanguageSkillSummary)
+          : draft.languages) ?? [],
+      suggestion: 'Thêm ngoại ngữ và mức nghe/nói/đọc/viết.',
     },
     {
       key: 'travel',
@@ -549,6 +570,17 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
   });
 }
 
+/** % hoàn thiện theo checklist tiêu chí KD/KT (filled=1, weak=0.5). */
+export function completionPercentFromHints(hints: CvDraftFieldHint[]): number {
+  if (hints.length === 0) return 0;
+  const sum = hints.reduce((acc, h) => {
+    if (h.status === 'filled') return acc + 1;
+    if (h.status === 'weak') return acc + 0.5;
+    return acc;
+  }, 0);
+  return Math.round((sum / hints.length) * 100);
+}
+
 export function candidateHasCvSource(candidate: CandidateView | undefined): boolean {
   if (!candidate) return false;
   const p = candidate.profile;
@@ -683,10 +715,22 @@ export function mergeCvDrafts(aiDraft: CvDraft, profileDraft: CvDraft): CvDraft 
     district: null, // bỏ huyện khỏi CV draft
     ward: pickNonEmpty(aiDraft.ward, profileDraft.ward),
     educationLevel: pickNonEmpty(aiDraft.educationLevel, profileDraft.educationLevel),
+    educationClassification: pickNonEmpty(
+      aiDraft.educationClassification,
+      profileDraft.educationClassification,
+    ),
+    educationMajor: pickNonEmpty(aiDraft.educationMajor, profileDraft.educationMajor),
     careerObjective: pickRicherText(aiDraft.careerObjective, profileDraft.careerObjective) || null,
     skills: unionList(aiDraft.skills, profileDraft.skills).slice(0, 24),
     softSkills: unionList(aiDraft.softSkills, profileDraft.softSkills).slice(0, 12),
     languages: unionList(aiDraft.languages, profileDraft.languages),
+    languageSkills: mergeLanguageSkills(
+      unionList(aiDraft.languages, profileDraft.languages),
+      [
+        ...(aiDraft.languageSkills ?? []),
+        ...(profileDraft.languageSkills ?? []),
+      ],
+    ),
     hobbies: unionList(aiDraft.hobbies, profileDraft.hobbies),
     productsSold: unionList(aiDraft.productsSold, profileDraft.productsSold, ...experience.map((e) => e.productsSold)),
     customerSegments: unionList(

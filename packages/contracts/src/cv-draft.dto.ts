@@ -18,6 +18,8 @@ export interface CvDraftExperienceView {
   maxDealValue: number | null;
 }
 
+import type { LanguageSkill } from './sales-b2b-criteria';
+
 /** Bản nháp CV do AI trích / nạp từ hồ sơ / chỉnh tay — đủ ma trận ~39 mục. */
 export interface CvDraftView {
   fullName: string;
@@ -32,10 +34,16 @@ export interface CvDraftView {
   /** Xã / Phường / Đặc khu (cấp xã mới từ 01/7/2025). */
   ward: string | null;
   educationLevel: string | null;
+  /** Xếp loại tốt nghiệp: Trung bình / Khá / Giỏi / Xuất sắc. */
+  educationClassification: string | null;
+  /** Chuyên ngành (nhập tự do). */
+  educationMajor: string | null;
   careerObjective: string | null;
   skills: string[];
   softSkills: string[];
   languages: string[];
+  /** Chi tiết nghe/nói/đọc/viết + đọc manual kỹ thuật theo ngôn ngữ. */
+  languageSkills: LanguageSkill[];
   hobbies: string[];
   productsSold: string[];
   customerSegments: string[];

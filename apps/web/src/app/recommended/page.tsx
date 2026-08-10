@@ -440,55 +440,72 @@ export default function RecommendedPage() {
             </button>
           </div>
 
-          {/* AI banner — robot trang trí absolute, không chiếm cột layout */}
-          <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-r from-[#072348] via-[#0B3A6E] to-[#1e4a7a] px-4 py-5 text-white sm:px-6 sm:py-6">
+          {/* AI banner — 3 cột cân: điểm số | nhận định | robot */}
+          <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-br from-[#061f3d] via-[#0a3566] to-[#1a4d82] text-white shadow-lg shadow-slate-900/10">
             <div
-              className="pointer-events-none absolute inset-0 opacity-40"
+              className="pointer-events-none absolute inset-0 opacity-50"
               style={{
                 backgroundImage:
-                  'radial-gradient(circle at 18% 45%, rgba(245,158,11,0.28), transparent 42%), radial-gradient(circle at 88% 20%, rgba(255,255,255,0.1), transparent 35%), linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.05) 41%, transparent 42%)',
+                  'radial-gradient(ellipse 50% 80% at 12% 50%, rgba(245,158,11,0.22), transparent 55%), radial-gradient(ellipse 40% 60% at 92% 70%, rgba(56,189,248,0.12), transparent 50%)',
               }}
             />
-            <div className="pointer-events-none absolute -bottom-1 -right-1 hidden opacity-90 sm:block md:-right-2 md:bottom-0">
-              <CopilotRobot className="h-20 w-auto drop-shadow-xl md:h-24 xl:h-28" />
-            </div>
 
-            <div className="relative z-10 flex flex-col gap-4 pr-0 sm:pr-24 md:pr-28 xl:flex-row xl:items-center xl:gap-8 xl:pr-32">
-              <div className="shrink-0">
-                <p className="text-xs font-medium text-amber-200/90">Độ phù hợp trung bình</p>
-                <div className="mt-1 flex flex-wrap items-end gap-2">
-                  <span className="text-4xl font-bold tracking-tight sm:text-5xl">
-                    {allJobs.length ? `${avgScore}%` : '—'}
+            <div className="relative z-10 grid min-h-[220px] grid-cols-1 sm:min-h-[240px] lg:grid-cols-[minmax(200px,0.9fr)_minmax(0,1.4fr)_minmax(140px,0.7fr)] lg:items-stretch">
+              {/* Cột 1 — điểm số */}
+              <div className="flex flex-col justify-center border-b border-white/10 px-6 py-8 sm:px-8 sm:py-9 lg:border-b-0 lg:border-r lg:border-white/10">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/85">
+                  Độ phù hợp trung bình
+                </p>
+                <p className="mt-3 text-5xl font-bold tracking-tight tabular-nums sm:text-6xl">
+                  {allJobs.length ? `${avgScore}%` : '—'}
+                </p>
+                {allJobs.length > 0 && (
+                  <span className="mt-3 inline-flex w-fit items-center rounded-md bg-amber-400/15 px-2.5 py-1 text-[11px] font-semibold leading-none whitespace-nowrap text-amber-100 ring-1 ring-inset ring-amber-300/40">
+                    {avgScoreLabel(avgScore)}
                   </span>
-                  {allJobs.length > 0 && (
-                    <span className="mb-1.5 rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200 ring-1 ring-amber-300/40">
-                      {avgScoreLabel(avgScore)}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-sky-100/80">
+                )}
+                <p className="mt-3 text-sm text-sky-100/75">
                   Từ {allJobs.length} tin AI đã phân tích
                 </p>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium leading-relaxed sm:text-[15px]">
-                  AI đánh giá bạn phù hợp nhất với nhóm{' '}
-                  <span className="font-bold text-amber-200">{fitGroup}</span>
+              {/* Cột 2 — nhận định */}
+              <div className="flex flex-col justify-center px-6 py-8 sm:px-8 sm:py-9">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-200/70">
+                  Nhóm phù hợp nhất
                 </p>
-                <p className="mt-1.5 text-xs leading-relaxed text-sky-100/80">
-                  Dựa trên {matchedSkillCount || candidate?.skills?.length || 0} kỹ năng nổi bật
+                <p className="mt-2 text-xl font-bold leading-snug text-amber-200 sm:text-2xl">
+                  {fitGroup}
+                </p>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-sky-100/80">
+                  AI đánh giá hồ sơ của bạn dựa trên{' '}
+                  {matchedSkillCount || candidate?.skills?.length || 0} kỹ năng nổi bật
                   {candidate?.aiProfile?.strengths?.length
-                    ? ` và ${candidate.aiProfile.strengths.length} điểm mạnh AI`
+                    ? ` và ${candidate.aiProfile.strengths.length} điểm mạnh`
                     : ''}
                   .
                 </p>
-                <Link
-                  href="/dashboard"
-                  className="mt-3 inline-flex max-w-full items-center whitespace-nowrap rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-sm hover:bg-amber-50"
-                >
-                  Xem phân tích chi tiết →
-                </Link>
+                <div className="mt-5">
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-800 shadow-sm transition hover:bg-amber-50"
+                  >
+                    Xem phân tích chi tiết
+                    <span aria-hidden>→</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Cột 3 — robot (cột thật, không absolute) */}
+              <div className="relative hidden min-h-[160px] items-end justify-center overflow-hidden lg:flex">
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-60"
+                  style={{
+                    backgroundImage:
+                      'radial-gradient(circle at 50% 85%, rgba(255,255,255,0.12), transparent 55%)',
+                  }}
+                />
+                <CopilotRobot className="relative z-[1] mb-1 h-[168px] w-auto drop-shadow-2xl xl:h-[184px]" />
               </div>
             </div>
           </div>
