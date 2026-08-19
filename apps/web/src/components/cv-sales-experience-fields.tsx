@@ -1,0 +1,568 @@
+'use client';
+
+import clsx from 'clsx';
+import { useState } from 'react';
+import {
+  CUSTOMER_SEGMENTS,
+  DEAL_TYPE_LABEL,
+  DEAL_TYPE_OPTIONS,
+  DEAL_VALUE_BANDS,
+  KPI_ACHIEVEMENT_BANDS,
+  MARKET_REGIONS,
+  NEW_CUSTOMER_RATIO_BANDS,
+  PERSONAL_REVENUE_QUESTION,
+  PRODUCTS_SOLD,
+  SALES_HIGHLIGHTS_PLACEHOLDER,
+  SALES_INDUSTRY_OPTIONS,
+  SELLING_STAGES,
+  SELLING_STAGES_QUESTION,
+  joinDealTypes,
+  splitDealTypes,
+  type CvDraftFieldHint,
+} from '@industriallink/contracts';
+import { BrandTechnologySearch } from '@/components/brand-technology-search';
+import { MoneyInput, MonthYearInput } from '@/components/ui';
+import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
+
+/** Tách chuỗi "03/2021 – 05/2024" (hoặc "2021 - Hiện tại") → YYYY-MM cho picker. */
+function periodParts(period: string): { start: string; end: string; current: boolean } {
+  const txt = period ?? '';
+  const current = /hiện tại|nay|present|now/i.test(txt);
+  const tokens = txt.match(/\d{1,2}\/\d{4}|\b(?:19|20)\d{2}\b/g) ?? [];
+  const toIso = (token: string): string => {
+    if (token.includes('/')) {
+      const [m, y] = token.split('/');
+      return `${y}-${String(Number(m)).padStart(2, '0')}`;
+    }
+    return `${token}-01`;
+  };
+  const start = tokens[0] ? toIso(tokens[0]) : '';
+  const end = !current && tokens[1] ? toIso(tokens[1]) : '';
+  return { start, end, current };
+}
+
+function isoToMmYyyy(iso: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(iso);
+  return m ? `${m[2]}/${m[1]}` : '';
+}
+
+function composePeriod(start: string, end: string, current: boolean): string {
+  const s = isoToMmYyyy(start);
+  const e = current ? 'Hiện tại' : isoToMmYyyy(end);
+  if (s && e) return `${s} – ${e}`;
+  return s || e;
+}
+
+const INDUSTRY_OPTIONS = [...SALES_INDUSTRY_OPTIONS, 'Khác'] as const;
+
+function MultiCheck({
+  options,
+  selected,
+  onChange,
+  columns = 2,
+}: {
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  columns?: 1 | 2 | 3;
+}) {
+  return (
+    <div
+      className={clsx(
+        'grid gap-2',
+        columns === 1 && 'grid-cols-1',
+        columns === 2 && 'grid-cols-1 sm:grid-cols-2',
+        columns === 3 && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+      )}
+    >
+      {options.map((opt) => {
+        const checked = selected.includes(opt);
+        return (
+          <label
+            key={opt}
+            className={clsx(
+              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+              checked
+                ? 'border-brand-300 bg-brand-50 text-brand-900'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+            )}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={checked}
+              onChange={() => {
+                if (checked) onChange(selected.filter((s) => s !== opt));
+                else onChange([...selected, opt]);
+              }}
+            />
+            <span>{opt}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+/** MultiCheck + ô nhập thêm giá trị ngoài danh mục (mục 24 “nhập thêm”). */
+function MultiCheckWithCustom({
+  options,
+  selected,
+  onChange,
+  placeholder,
+}: {
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState('');
+  const customValues = selected.filter((s) => !options.includes(s));
+
+  function addCustom() {
+    const value = text.trim();
+    if (!value || selected.includes(value)) return;
+    onChange([...selected, value]);
+    setText('');
+  }
+
+  return (
+    <div className="space-y-2">
+      <MultiCheck options={options} selected={selected} onChange={onChange} columns={2} />
+      {customValues.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {customValues.map((v) => (
+            <span
+              key={v}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800"
+            >
+              {v}
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((s) => s !== v))}
+                className="font-bold text-brand-500 hover:text-brand-700"
+                aria-label={`Xoá ${v}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-1.5 text-sm">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addCustom();
+            }
+          }}
+          placeholder={placeholder ?? 'Nhập thêm…'}
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-slate-400"
+        />
+        <button
+          type="button"
+          onClick={addCustom}
+          disabled={!text.trim()}
+          className="shrink-0 rounded-md bg-brand-500 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
+        >
+          Thêm
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: readonly { value: string; label: string }[];
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+      >
+        <option value="">— Chọn —</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <p className="mb-2 text-xs font-semibold text-slate-600">{children}</p>;
+}
+
+/** % KPI đã lưu → band 18.8 để hiển thị lại trong select. */
+function pctToKpiBand(pct: number | null | undefined): string {
+  if (pct == null || !Number.isFinite(pct)) return '';
+  if (pct < 70) return 'under_70';
+  if (pct <= 100) return '70_100';
+  return 'over_100';
+}
+
+/** % KH tự tìm → band 18.8. */
+function pctToNewCustomerBand(pct: number | null | undefined): string {
+  if (pct == null || !Number.isFinite(pct)) return '';
+  if (pct < 50) return 'under_50';
+  if (pct <= 80) return '50_80';
+  return 'over_80';
+}
+
+/** VND → band giá trị hợp đồng 18.8. */
+function vndToDealValueBand(vnd: number | null | undefined): string {
+  if (vnd == null || !Number.isFinite(vnd)) return '';
+  if (vnd < 50_000_000) return 'under_50m';
+  if (vnd < 200_000_000) return '50_200m';
+  if (vnd < 500_000_000) return '200_500m';
+  if (vnd < 2_000_000_000) return '0_5_2b';
+  if (vnd < 10_000_000_000) return '2_10b';
+  return '10b_plus';
+}
+
+/**
+ * D. Kinh nghiệm công ty (20–34) theo ma trận 18.8 — mỗi công ty một khối,
+ * công ty thứ 2 trở đi lặp lại 20–34 (mục E của PDF).
+ */
+export function CvSalesExperienceFields({
+  draft,
+  onChange,
+  hint,
+}: {
+  draft: CvDraft;
+  onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
+  hint?: CvDraftFieldHint;
+}) {
+  const dealTypeOptions = DEAL_TYPE_OPTIONS.map((v) => ({
+    value: v as string,
+    label: DEAL_TYPE_LABEL[v],
+  }));
+
+  const experiences = draft.experience.length ? draft.experience : [emptyCvExperience()];
+
+  function updateExperience(
+    index: number,
+    patch: Partial<CvDraft['experience'][number]>,
+  ) {
+    onChange(
+      'experience',
+      experiences.map((e, i) => (i === index ? { ...e, ...patch } : e)),
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="border-t border-slate-100 pt-5">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+          D. Kinh nghiệm công ty (20–34)
+          {hint?.status === 'missing' && (
+            <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
+              Thiếu
+            </span>
+          )}
+        </h3>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 20–34.
+        </p>
+      </div>
+
+      {experiences.map((exp, index) => {
+        const dealTypesSelected = splitDealTypes(exp.dealType).map(
+          (v) => DEAL_TYPE_LABEL[v],
+        );
+        const allStagesSelected = exp.sellingStages.length === SELLING_STAGES.length;
+        return (
+          <div
+            key={`exp-${index}`}
+            className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3 sm:p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-800">
+                Kinh nghiệm công ty {index + 1}
+              </p>
+              {draft.experience.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange(
+                      'experience',
+                      draft.experience.filter((_, i) => i !== index),
+                    )
+                  }
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700"
+                >
+                  Xoá
+                </button>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-600">
+                  20. Tên công ty
+                </span>
+                <input
+                  value={exp.company}
+                  onChange={(e) => updateExperience(index, { company: e.target.value })}
+                  placeholder="Anh/chị từng làm việc tại công ty nào?"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-600">21. Vị trí</span>
+                <input
+                  value={exp.role}
+                  onChange={(e) => updateExperience(index, { role: e.target.value })}
+                  placeholder="Anh/chị làm vị trí gì tại công ty này?"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                />
+              </label>
+            </div>
+
+            {(() => {
+              const parts = periodParts(exp.period);
+              return (
+                <div>
+                  <p className="mb-2 text-xs font-semibold text-slate-600">
+                    22. Thời gian làm việc (tháng/năm bắt đầu → tháng/năm kết thúc)
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-1 text-[11px] font-medium text-slate-500">Bắt đầu</p>
+                      <MonthYearInput
+                        value={parts.start}
+                        onChange={(v) =>
+                          updateExperience(index, {
+                            period: composePeriod(v, parts.end, parts.current),
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[11px] font-medium text-slate-500">Kết thúc</p>
+                      <MonthYearInput
+                        value={parts.end}
+                        disabled={parts.current}
+                        onChange={(v) =>
+                          updateExperience(index, {
+                            period: composePeriod(parts.start, v, false),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="rounded border-slate-300 text-brand-600"
+                      checked={parts.current}
+                      onChange={(e) =>
+                        updateExperience(index, {
+                          period: composePeriod(parts.start, '', e.target.checked),
+                        })
+                      }
+                    />
+                    Đang làm việc tại đây
+                  </label>
+                </div>
+              );
+            })()}
+
+            <div>
+              <FieldLabel>
+                23. Ngành / lĩnh vực — Anh/chị làm trong lĩnh vực nào tại công ty này?
+              </FieldLabel>
+              <MultiCheck
+                options={INDUSTRY_OPTIONS}
+                selected={exp.industries}
+                onChange={(v) => updateExperience(index, { industries: v })}
+                columns={2}
+              />
+            </div>
+
+            <div>
+              <FieldLabel>24. Sản phẩm / thiết bị đã bán (chọn nhiều + nhập thêm)</FieldLabel>
+              <MultiCheckWithCustom
+                options={PRODUCTS_SOLD}
+                selected={exp.productsSold}
+                onChange={(v) => updateExperience(index, { productsSold: v })}
+                placeholder="Thiết bị công nghiệp khác — nhập thêm…"
+              />
+            </div>
+
+            <div>
+              <FieldLabel>25. Nhóm khách hàng đã bán</FieldLabel>
+              <MultiCheck
+                options={CUSTOMER_SEGMENTS}
+                selected={exp.customerSegments}
+                onChange={(v) => updateExperience(index, { customerSegments: v })}
+                columns={2}
+              />
+            </div>
+
+            <div>
+              <FieldLabel>26. Hình thức bán hàng</FieldLabel>
+              <MultiCheck
+                options={dealTypeOptions.map((o) => o.label)}
+                selected={dealTypesSelected}
+                onChange={(labels) => {
+                  const values = labels
+                    .map((l) => dealTypeOptions.find((o) => o.label === l)?.value)
+                    .filter((v): v is string => Boolean(v));
+                  updateExperience(index, { dealType: joinDealTypes(values) });
+                }}
+                columns={2}
+              />
+            </div>
+
+            <div>
+              <FieldLabel>
+                27. Phạm vi công việc bán hàng đã phụ trách — {SELLING_STAGES_QUESTION}
+              </FieldLabel>
+              <button
+                type="button"
+                onClick={() =>
+                  updateExperience(index, {
+                    sellingStages: allStagesSelected ? [] : [...SELLING_STAGES],
+                  })
+                }
+                className="mb-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-700"
+              >
+                {allStagesSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+              </button>
+              <MultiCheck
+                options={SELLING_STAGES}
+                selected={exp.sellingStages}
+                onChange={(v) => updateExperience(index, { sellingStages: v })}
+                columns={2}
+              />
+            </div>
+
+            <details className="rounded-lg border border-slate-200 bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
+                28–34. Nhóm khuyến khích — giúp AI kết nối với NTD dễ hơn
+              </summary>
+              <div className="space-y-4 border-t border-slate-100 px-4 py-4">
+                <div>
+                  <FieldLabel>
+                    28. Hãng / thương hiệu sản phẩm — Anh/chị từng làm sản phẩm/thiết bị
+                    hãng nào?
+                  </FieldLabel>
+                  <BrandTechnologySearch
+                    selected={draft.brandsTechnologies}
+                    onChange={(next) => onChange('brandsTechnologies', next)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>29. Khu vực / thị trường phụ trách</FieldLabel>
+                  <MultiCheck
+                    options={MARKET_REGIONS}
+                    selected={exp.marketsCovered}
+                    onChange={(v) => updateExperience(index, { marketsCovered: v })}
+                    columns={3}
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600">
+                      30. {PERSONAL_REVENUE_QUESTION}
+                    </span>
+                    <div className="mt-1.5">
+                      <MoneyInput
+                        value={exp.latestRevenue != null ? String(exp.latestRevenue) : ''}
+                        onChange={(digits) =>
+                          updateExperience(index, {
+                            latestRevenue: digits ? Number(digits) : null,
+                          })
+                        }
+                        placeholder="Ví dụ: 12 tỷ/năm"
+                      />
+                    </div>
+                  </label>
+                  <SelectField
+                    label="31. Mức độ hoàn thành KPI"
+                    value={pctToKpiBand(exp.kpiAchievementPct)}
+                    onChange={(v) => {
+                      const band = KPI_ACHIEVEMENT_BANDS.find((b) => b.value === v);
+                      updateExperience(index, {
+                        kpiAchievementPct: band ? band.midPct : null,
+                      });
+                    }}
+                    options={KPI_ACHIEVEMENT_BANDS.map((b) => ({
+                      value: b.value,
+                      label: b.label,
+                    }))}
+                  />
+                  <SelectField
+                    label="32. Tỷ lệ khách hàng tự tìm kiếm"
+                    value={pctToNewCustomerBand(exp.newCustomerRatioPct)}
+                    onChange={(v) => {
+                      const band = NEW_CUSTOMER_RATIO_BANDS.find((b) => b.value === v);
+                      updateExperience(index, {
+                        newCustomerRatioPct: band ? band.midPct : null,
+                      });
+                    }}
+                    options={NEW_CUSTOMER_RATIO_BANDS.map((b) => ({
+                      value: b.value,
+                      label: b.label,
+                    }))}
+                  />
+                  <SelectField
+                    label="33. Giá trị hợp đồng thường gặp"
+                    value={vndToDealValueBand(exp.typicalDealValue)}
+                    onChange={(v) => {
+                      const band = DEAL_VALUE_BANDS.find((b) => b.value === v);
+                      updateExperience(index, {
+                        typicalDealValue: band ? band.midVnd : null,
+                      });
+                    }}
+                    options={DEAL_VALUE_BANDS.map((b) => ({
+                      value: b.value,
+                      label: b.label,
+                    }))}
+                  />
+                </div>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-600">
+                    34. Thành tích kinh doanh nổi bật tại công ty này?
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={exp.bullets}
+                    onChange={(e) => updateExperience(index, { bullets: e.target.value })}
+                    placeholder={SALES_HIGHLIGHTS_PLACEHOLDER}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed outline-none ring-brand-500/30 focus:ring-2"
+                  />
+                </label>
+              </div>
+            </details>
+          </div>
+        );
+      })}
+
+      <button
+        type="button"
+        onClick={() => onChange('experience', [...draft.experience, emptyCvExperience()])}
+        className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
+      >
+        + Thêm công ty (lặp lại mục 20–34)
+      </button>
+    </div>
+  );
+}

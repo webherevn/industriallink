@@ -304,6 +304,7 @@ model CandidateProfile {
   documentLiteracy         String[] @default([]) @map("document_literacy")
   systemScaleNote          String?  @map("system_scale_note")
   shiftFlexibility         String?  @map("shift_flexibility")
+  desiredWorkEnvironments  String[] @default([]) @map("desired_work_environments")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -574,6 +575,7 @@ model Job {
   requirements   String?
   benefits       String?
   industry       String?
+  subIndustry    String? @map("sub_industry")
   department     String?
   jobLevel       String? @map("job_level")
   employmentType String? @map("employment_type")

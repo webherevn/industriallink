@@ -59,6 +59,7 @@ export type ProfileDraftSource = {
     documentLiteracy: string[];
     systemScaleNote: string | null;
     shiftFlexibility: string | null;
+    desiredWorkEnvironments?: string[];
   } | null;
   aiStrengths: string[];
   skills: { name: string }[];
@@ -190,6 +191,7 @@ export function profileSourceToCvDraft(src: ProfileDraftSource): CvDraftView {
     documentLiteracy: p?.documentLiteracy ?? [],
     systemScaleNote: p?.systemScaleNote ?? null,
     shiftFlexibility: p?.shiftFlexibility ?? null,
+    desiredWorkEnvironments: p?.desiredWorkEnvironments ?? [],
     experience,
     education,
     certificates: p?.certificates ?? [],
@@ -337,6 +339,10 @@ export function mergeCvDraftViews(ai: CvDraftView, profile: CvDraftView): CvDraf
     documentLiteracy: unionList(ai.documentLiteracy, profile.documentLiteracy),
     systemScaleNote: pickRicherText(ai.systemScaleNote, profile.systemScaleNote) || null,
     shiftFlexibility: pickNonEmpty(ai.shiftFlexibility, profile.shiftFlexibility),
+    desiredWorkEnvironments: unionList(
+      ai.desiredWorkEnvironments,
+      profile.desiredWorkEnvironments,
+    ),
     experience,
     education: education.length ? education : profile.education,
     certificates: unionList(ai.certificates, profile.certificates),

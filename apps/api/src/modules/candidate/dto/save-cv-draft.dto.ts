@@ -30,6 +30,12 @@ class LanguageSkillDto {
   @MaxLength(80)
   language!: string;
 
+  @ApiPropertyOptional({ description: 'Mức độ sử dụng trong công việc (basic/intermediate/good/fluent)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  workUsage?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -443,6 +449,12 @@ class CvDraftViewDto {
   @IsString()
   @MaxLength(40)
   shiftFlexibility!: string | null;
+
+  @ApiPropertyOptional({ description: 'STT 23 (KT): môi trường làm việc mong muốn (tối đa 3)' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  desiredWorkEnvironments?: string[];
 
   @IsArray()
   @ValidateNested({ each: true })

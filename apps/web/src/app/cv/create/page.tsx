@@ -24,24 +24,31 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
 import {
   desiredPositionOptionsForTrack,
+  DRIVER_LICENSE_QUESTION,
   DRIVER_LICENSE_TYPES,
-  EDUCATION_CLASSIFICATIONS,
   EDUCATION_LEVELS,
+  TRAVEL_ABILITY_LABEL,
+  TRAVEL_ABILITY_QUESTION,
+  TravelAbility,
   composeEducationDegree,
+  joinDriverLicenses,
+  parseDriverLicenses,
   parseEducationDegree,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { CvApplyPositionFields } from '@/components/cv-apply-position-fields';
 import { CvDraftMatrixFields } from '@/components/cv-draft-fields';
+import { CvSalesExperienceFields } from '@/components/cv-sales-experience-fields';
 import { CvPreview } from '@/components/cv-preview';
 import { CvTechnicalFields } from '@/components/cv-technical-fields';
+import { CvTechnicalExperienceFields } from '@/components/cv-technical-experience-fields';
 import { CvTrackToggle } from '@/components/cv-track-toggle';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
 import { MY_AVATAR_QUERY_KEY } from '@/components/profile-avatar';
-import { BirthDateInput, MoneyInput } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
+import { YearInput } from '@/components/ui';
 import { toBulletText } from '@/lib/bullet-text';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
@@ -158,7 +165,6 @@ export default function CreateCvPage() {
   const [analyzed, setAnalyzed] = useState(false);
   const [fields, setFields] = useState<CvDraftFieldHint[]>([]);
   const [analyzeMessage, setAnalyzeMessage] = useState<string | null>(null);
-  const [aiScore, setAiScore] = useState<number | null>(null);
   const [filter, setFilter] = useState<CvTemplateCategory>('all');
   const [industryFilter, setIndustryFilter] = useState<CvTemplateIndustry>('all');
   const [industryMenuOpen, setIndustryMenuOpen] = useState(false);
@@ -262,7 +268,6 @@ export default function CreateCvPage() {
           ? `${res.message} Đã kết hợp thêm thông tin hồ sơ nền tảng (mục tiêu, học vấn, sở thích, Sales B2B…) để CV đầy đủ hơn bản gốc.`
           : res.message,
       );
-      setAiScore(res.aiScore);
       setAnalyzed(true);
       setImportSource('ai');
       setImportError(null);
@@ -293,43 +298,11 @@ export default function CreateCvPage() {
     setAnalyzeMessage(
       'Đã nạp thông tin từ hồ sơ của bạn. Kiểm tra các trường bên dưới rồi tiếp tục chọn mẫu CV.',
     );
-    setAiScore(null);
     setAnalyzed(true);
     setImportSource('profile');
     window.setTimeout(() => {
       fieldsCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
-  }
-
-  function updateExperience(
-    index: number,
-    patch: Partial<CvDraft['experience'][number]>,
-  ) {
-    setDraft((prev) => {
-      const base = prev ?? activeDraft;
-      const experience = base.experience.map((row, i) =>
-        i === index ? { ...row, ...patch } : row,
-      );
-      return { ...base, experience };
-    });
-  }
-
-  function addExperience() {
-    setDraft((prev) => {
-      const base = prev ?? activeDraft;
-      return { ...base, experience: [...base.experience, emptyCvExperience()] };
-    });
-  }
-
-  function removeExperience(index: number) {
-    setDraft((prev) => {
-      const base = prev ?? activeDraft;
-      if (base.experience.length <= 1) return base;
-      return {
-        ...base,
-        experience: base.experience.filter((_, i) => i !== index),
-      };
-    });
   }
 
   const analyzeMutation = useMutation({
@@ -674,9 +647,9 @@ export default function CreateCvPage() {
                       <p className="mt-1 text-xs text-slate-500">{analyzeMessage}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {aiScore != null && (
+                      {analyzed && liveFields.length > 0 && (
                         <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 ring-1 ring-brand-100">
-                          Điểm AI {aiScore}/100
+                          Điểm AI {criteriaPercent}/100
                         </span>
                       )}
                       {importSource === 'profile' && (
@@ -789,60 +762,53 @@ export default function CreateCvPage() {
                     </div>
                   </div>
 
+                  <div className="border-t border-slate-100 pt-4">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      A. Thông tin chung (1–12)
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh — sau đó chọn lĩnh vực bên
+                      dưới.
+                    </p>
+                  </div>
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field
-                      label="Họ và tên"
+                      label="1. Họ và tên"
                       value={activeDraft.fullName}
                       onChange={(v) => updateDraft('fullName', v)}
                       hint={liveFields.find((f) => f.key === 'fullName')}
                     />
+                    <label className="block">
+                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                        2. Năm sinh
+                        <FieldStatusDot hint={liveFields.find((f) => f.key === 'birthYear')} />
+                      </span>
+                      <YearInput
+                        className="mt-1.5"
+                        value={activeDraft.birthYear != null ? String(activeDraft.birthYear) : ''}
+                        onChange={(v) =>
+                          updateDraft('birthYear', v.length === 4 ? Number(v) : null)
+                        }
+                      />
+                    </label>
                     <Field
-                      label="Email"
-                      value={activeDraft.email}
-                      onChange={(v) => updateDraft('email', v)}
-                      hint={liveFields.find((f) => f.key === 'email')}
-                    />
-                    <Field
-                      label="Số điện thoại"
+                      label="3. Số điện thoại"
                       value={activeDraft.phone}
                       onChange={(v) => updateDraft('phone', v)}
                       hint={liveFields.find((f) => f.key === 'phone')}
                     />
-                    <label className="block">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                        Ngày sinh
-                        <FieldStatusDot hint={liveFields.find((f) => f.key === 'birthYear')} />
-                      </span>
-                      <BirthDateInput
-                        className="mt-1.5"
-                        value={activeDraft.birthDate ?? ''}
-                        onChange={(v) => {
-                          updateDraft('birthDate', v || null);
-                          if (v && /^\d{4}/.test(v)) {
-                            updateDraft('birthYear', Number(v.slice(0, 4)));
-                          } else if (!v) {
-                            updateDraft('birthYear', null);
-                          }
-                        }}
-                      />
-                    </label>
-                    <CsvField
-                      label="Kỹ năng (phẩy)"
-                      values={activeDraft.skills}
-                      onChange={(v) => updateDraft('skills', v)}
-                      hint={liveFields.find((f) => f.key === 'skills')}
-                    />
-                    <CsvField
-                      label="Sở thích (phẩy)"
-                      values={activeDraft.hobbies}
-                      onChange={(v) => updateDraft('hobbies', v)}
-                      hint={liveFields.find((f) => f.key === 'hobbies')}
+                    <Field
+                      label="4. Email"
+                      value={activeDraft.email}
+                      onChange={(v) => updateDraft('email', v)}
+                      hint={liveFields.find((f) => f.key === 'email')}
                     />
                   </div>
 
                   <div>
                     <p className="mb-2 text-xs font-semibold text-slate-700">
-                      Địa chỉ hành chính (mới từ 01/7/2025)
+                      5. Nơi đang sinh sống (địa chỉ hành chính mới từ 01/7/2025)
                     </p>
                     <VnAddressFields
                       ward={activeDraft.ward ?? ''}
@@ -856,36 +822,31 @@ export default function CreateCvPage() {
                     />
                   </div>
 
-                  <label className="block">
-                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      Mục tiêu nghề nghiệp
-                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'careerObjective')} />
-                    </span>
-                    <textarea
-                      rows={3}
-                      value={activeDraft.careerObjective ?? ''}
-                      onChange={(e) => updateDraft('careerObjective', e.target.value || null)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                      placeholder="Mục tiêu nghề nghiệp từ CV / hồ sơ..."
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      Giới thiệu bản thân
-                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'summary')} />
-                    </span>
-                    <textarea
-                      rows={4}
-                      value={activeDraft.summary}
-                      onChange={(e) => updateDraft('summary', e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                    />
-                  </label>
-
                   <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                        6. Trình độ học vấn
+                        <FieldStatusDot
+                          hint={liveFields.find((f) => f.key === 'educationLevel')}
+                        />
+                      </span>
+                      <select
+                        value={activeDraft.educationLevel ?? ''}
+                        onChange={(e) =>
+                          updateDraft('educationLevel', e.target.value || null)
+                        }
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                      >
+                        <option value="">— Trình độ đào tạo cao nhất —</option>
+                        {EDUCATION_LEVELS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <Field
-                      label="Học vấn (trường)"
+                      label="7. Trường học"
                       value={activeDraft.education[0]?.school ?? ''}
                       onChange={(v) =>
                         updateDraft('education', [
@@ -901,49 +862,8 @@ export default function CreateCvPage() {
                       }
                       hint={liveFields.find((f) => f.key === 'education')}
                     />
-                    <label className="block">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                        Xếp loại bằng cấp
-                      </span>
-                      <select
-                        value={
-                          activeDraft.educationClassification ||
-                          parseEducationDegree(activeDraft.education[0]?.degree).classification
-                        }
-                        onChange={(e) => {
-                          const classification = e.target.value || null;
-                          const major =
-                            activeDraft.educationMajor ||
-                            parseEducationDegree(activeDraft.education[0]?.degree).major ||
-                            null;
-                          setDraft((prev) => {
-                            const base = prev ?? activeDraft;
-                            return {
-                              ...base,
-                              educationClassification: classification,
-                              educationMajor: major,
-                              education: [
-                                {
-                                  school: base.education[0]?.school ?? '',
-                                  degree: composeEducationDegree(classification, major),
-                                  period: base.education[0]?.period ?? '',
-                                },
-                              ],
-                            };
-                          });
-                        }}
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                      >
-                        <option value="">— Chọn —</option>
-                        {EDUCATION_CLASSIFICATIONS.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <Field
-                      label="Chuyên ngành"
+                      label="8. Chuyên ngành"
                       value={
                         activeDraft.educationMajor ||
                         parseEducationDegree(activeDraft.education[0]?.degree).major
@@ -972,30 +892,8 @@ export default function CreateCvPage() {
                         });
                       }}
                     />
-                    <label className="block">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                        Trình độ học vấn
-                        <FieldStatusDot
-                          hint={liveFields.find((f) => f.key === 'educationLevel')}
-                        />
-                      </span>
-                      <select
-                        value={activeDraft.educationLevel ?? ''}
-                        onChange={(e) =>
-                          updateDraft('educationLevel', e.target.value || null)
-                        }
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                      >
-                        <option value="">— Chọn —</option>
-                        {EDUCATION_LEVELS.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <CsvField
-                      label="Chứng chỉ (phẩy)"
+                      label="9. Chứng chỉ (phẩy)"
                       values={activeDraft.certificates}
                       onChange={(v) => updateDraft('certificates', v)}
                       hint={liveFields.find((f) => f.key === 'certificates')}
@@ -1004,11 +902,11 @@ export default function CreateCvPage() {
 
                   <div>
                     <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      Ngoại ngữ
+                      10. Ngoại ngữ
                       <FieldStatusDot hint={liveFields.find((f) => f.key === 'languages')} />
                     </p>
                     <p className="mb-2 text-[11px] text-slate-500">
-                      Chọn ngôn ngữ, rồi đánh giá nghe / nói / đọc / viết và đọc manual kỹ thuật.
+                      Chọn ngôn ngữ sử dụng trong công việc và mức độ sử dụng.
                     </p>
                     <LanguageSkillsFields
                       languages={activeDraft.languages}
@@ -1023,63 +921,92 @@ export default function CreateCvPage() {
                     />
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                        Bằng lái ô tô
-                        <FieldStatusDot
-                          hint={liveFields.find((f) => f.key === 'driversLicense')}
-                        />
-                      </span>
-                      <select
-                        value={
-                          activeDraft.hasB2License == null
-                            ? ''
-                            : activeDraft.hasB2License
-                              ? 'true'
-                              : 'false'
-                        }
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          updateDraft(
-                            'hasB2License',
-                            v === '' ? null : v === 'true',
-                          );
-                        }}
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                      >
-                        <option value="">— Chọn —</option>
-                        <option value="true">Có</option>
-                        <option value="false">Không</option>
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-semibold text-slate-600">Hạng bằng lái</span>
-                      <select
-                        value={activeDraft.driverLicenseType ?? ''}
-                        onChange={(e) =>
-                          updateDraft('driverLicenseType', e.target.value || null)
-                        }
-                        disabled={activeDraft.hasB2License === false}
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2 disabled:bg-slate-50 disabled:text-slate-400"
-                      >
-                        <option value="">— Chọn —</option>
-                        {DRIVER_LICENSE_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                  <div>
+                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      11. Giấy phép lái xe — {DRIVER_LICENSE_QUESTION}
+                      <FieldStatusDot
+                        hint={liveFields.find((f) => f.key === 'driversLicense')}
+                      />
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {DRIVER_LICENSE_TYPES.map((opt) => {
+                        const selected = parseDriverLicenses(activeDraft.driverLicenseType);
+                        const checked = selected.includes(opt);
+                        return (
+                          <label
+                            key={opt}
+                            className={clsx(
+                              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+                              checked
+                                ? 'border-brand-300 bg-brand-50 text-brand-900'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={checked}
+                              onChange={() => {
+                                let next: string[];
+                                if (checked) {
+                                  next = selected.filter((x) => x !== opt);
+                                } else if (opt === 'Chưa có') {
+                                  next = ['Chưa có'];
+                                } else {
+                                  next = [
+                                    ...selected.filter((x) => x !== 'Chưa có'),
+                                    opt,
+                                  ];
+                                }
+                                setDraft((prev) => ({
+                                  ...(prev ?? activeDraft),
+                                  driverLicenseType: joinDriverLicenses(next),
+                                  hasB2License: next.includes('Ô tô')
+                                    ? true
+                                    : next.length > 0
+                                      ? false
+                                      : null,
+                                }));
+                              }}
+                            />
+                            <span>{opt}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  <label className="block">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      12. Khả năng đi công tác — {TRAVEL_ABILITY_QUESTION}
+                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'travel')} />
+                    </span>
+                    <select
+                      value={activeDraft.travelAbility ?? ''}
+                      onChange={(e) => updateDraft('travelAbility', e.target.value || null)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                    >
+                      <option value="">— Chọn —</option>
+                      {Object.values(TravelAbility).map((v) => (
+                        <option key={v} value={v}>
+                          {TRAVEL_ABILITY_LABEL[v]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
                   <CvTrackToggle
                     value={activeDraft.jobTrack}
                     onChange={(track) => {
                       updateDraft('jobTrack', track);
-                      const allowed = new Set(desiredPositionOptionsForTrack(track));
-                      const nextDesired = activeDraft.desiredPositions.filter((p) =>
-                        allowed.has(p),
+                      const nextCatalog = new Set(desiredPositionOptionsForTrack(track));
+                      const prevCatalog = new Set(
+                        desiredPositionOptionsForTrack(activeDraft.jobTrack),
+                      );
+                      const nextDesired = activeDraft.desiredPositions.filter(
+                        (p) =>
+                          nextCatalog.has(p) ||
+                          (track === 'technical' && !prevCatalog.has(p)),
                       );
                       if (nextDesired.length !== activeDraft.desiredPositions.length) {
                         updateDraft('desiredPositions', nextDesired);
@@ -1093,261 +1020,37 @@ export default function CreateCvPage() {
                     titleHint={liveFields.find((f) => f.key === 'title')}
                   />
 
-                  <div>
-                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      Kinh nghiệm làm việc
-                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'experience')} />
-                    </span>
-                    {activeDraft.experience.length === 0 ? (
-                      <p className="mt-2 text-xs text-slate-500">
-                        Chưa có kinh nghiệm. Bấm “+ Thêm kinh nghiệm” bên dưới để thêm mới.
-                      </p>
-                    ) : (
-                      <div className="mt-2 space-y-3">
-                        {activeDraft.experience.map((exp, index) => (
-                          <div
-                            key={`exp-${index}`}
-                            className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
-                          >
-                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-slate-700">
-                                Kinh nghiệm {index + 1}
-                              </p>
-                              {activeDraft.experience.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeExperience(index)}
-                                  className="text-xs font-semibold text-rose-600 hover:text-rose-700"
-                                >
-                                  Xoá
-                                </button>
-                              )}
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-3">
-                              <input
-                                value={exp.role}
-                                onChange={(e) =>
-                                  updateExperience(index, { role: e.target.value })
-                                }
-                                placeholder="Vị trí"
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                              />
-                              <input
-                                value={exp.company}
-                                onChange={(e) =>
-                                  updateExperience(index, { company: e.target.value })
-                                }
-                                placeholder="Công ty"
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                              />
-                              <input
-                                value={exp.period}
-                                onChange={(e) =>
-                                  updateExperience(index, { period: e.target.value })
-                                }
-                                placeholder="Thời gian"
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                              />
-                            </div>
-                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                              <input
-                                value={exp.industries.join(', ')}
-                                onChange={(e) =>
-                                  updateExperience(index, {
-                                    industries: splitCsv(e.target.value),
-                                  })
-                                }
-                                placeholder="Ngành (phẩy)"
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                              />
-                              <input
-                                value={exp.productsSold.join(', ')}
-                                onChange={(e) =>
-                                  updateExperience(index, {
-                                    productsSold: splitCsv(e.target.value),
-                                  })
-                                }
-                                placeholder={
-                                  activeDraft.jobTrack === 'technical'
-                                    ? 'Thiết bị / hệ thống (phẩy)'
-                                    : 'Sản phẩm bán (phẩy)'
-                                }
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                              />
-                              <input
-                                value={exp.customerSegments.join(', ')}
-                                onChange={(e) =>
-                                  updateExperience(index, {
-                                    customerSegments: splitCsv(e.target.value),
-                                  })
-                                }
-                                placeholder={
-                                  activeDraft.jobTrack === 'technical'
-                                    ? 'Môi trường làm việc (phẩy)'
-                                    : 'Tệp KH (phẩy)'
-                                }
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                              />
-                              {activeDraft.jobTrack !== 'technical' && (
-                                <>
-                                  <input
-                                    value={exp.marketsCovered.join(', ')}
-                                    onChange={(e) =>
-                                      updateExperience(index, {
-                                        marketsCovered: splitCsv(e.target.value),
-                                      })
-                                    }
-                                    placeholder="Thị trường (phẩy)"
-                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                                  />
-                                  <input
-                                    value={exp.sellingStages.join(', ')}
-                                    onChange={(e) =>
-                                      updateExperience(index, {
-                                        sellingStages: splitCsv(e.target.value),
-                                      })
-                                    }
-                                    placeholder="Giai đoạn bán (phẩy)"
-                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                                  />
-                                  <div>
-                                    <MoneyInput
-                                      value={
-                                        exp.latestRevenue != null
-                                          ? String(exp.latestRevenue)
-                                          : ''
-                                      }
-                                      onChange={(digits) =>
-                                        updateExperience(index, {
-                                          latestRevenue: digits ? Number(digits) : null,
-                                        })
-                                      }
-                                      placeholder="Doanh số gần nhất (VND)"
-                                    />
-                                  </div>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={200}
-                                    value={exp.kpiAchievementPct ?? ''}
-                                    onChange={(e) =>
-                                      updateExperience(index, {
-                                        kpiAchievementPct:
-                                          e.target.value === ''
-                                            ? null
-                                            : Number(e.target.value),
-                                      })
-                                    }
-                                    placeholder="% KPI"
-                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                                  />
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={exp.newCustomerRatioPct ?? ''}
-                                    onChange={(e) =>
-                                      updateExperience(index, {
-                                        newCustomerRatioPct:
-                                          e.target.value === ''
-                                            ? null
-                                            : Number(e.target.value),
-                                      })
-                                    }
-                                    placeholder="% KH tự phát triển"
-                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                                  />
-                                </>
-                              )}
-                            </div>
-                            <textarea
-                              rows={3}
-                              value={exp.bullets}
-                              onChange={(e) =>
-                                updateExperience(index, { bullets: e.target.value })
-                              }
-                              placeholder="Mô tả công việc / thành tích (mỗi dòng 1 ý)"
-                              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={addExperience}
-                      className="mt-3 inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
-                    >
-                      + Thêm kinh nghiệm
-                    </button>
-                  </div>
-
-                  {activeDraft.jobTrack !== 'technical' && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <CsvField
-                        label="Sản phẩm bán (tổng hợp)"
-                        values={activeDraft.productsSold}
-                        onChange={(v) => updateDraft('productsSold', v)}
-                        hint={liveFields.find((f) => f.key === 'products')}
-                      />
-                      <CsvField
-                        label="Tệp khách hàng"
-                        values={activeDraft.customerSegments}
-                        onChange={(v) => updateDraft('customerSegments', v)}
-                        hint={liveFields.find((f) => f.key === 'segments')}
-                      />
-                      <CsvField
-                        label="Thị trường phụ trách"
-                        values={activeDraft.marketsCovered}
-                        onChange={(v) => updateDraft('marketsCovered', v)}
-                        hint={liveFields.find((f) => f.key === 'markets')}
-                      />
-                      <CsvField
-                        label="Điểm mạnh / soft skills (phẩy)"
-                        values={activeDraft.softSkills}
-                        onChange={(v) => updateDraft('softSkills', v)}
-                      />
-                    </div>
-                  )}
-
-                  {activeDraft.jobTrack === 'technical' ? (
-                    <CvTechnicalFields draft={activeDraft} onChange={updateDraft} />
-                  ) : (
+                  {activeDraft.jobTrack === 'sales' ? (
                     <>
-                      <label className="block">
-                        <span className="text-xs font-semibold text-slate-600">
-                          Thành tích nổi bật (mỗi dòng một ý)
-                        </span>
-                        <p className="mt-0.5 text-[11px] text-slate-500">
-                          Doanh số gần nhất, % KPI, thành tích nổi bật đứng thứ mấy trong công ty?
-                        </p>
-                        <textarea
-                          rows={5}
-                          value={activeDraft.salesHighlights}
-                          onChange={(e) => updateDraft('salesHighlights', e.target.value)}
-                          onBlur={() =>
-                            updateDraft(
-                              'salesHighlights',
-                              toBulletText(activeDraft.salesHighlights),
-                            )
-                          }
-                          placeholder={
-                            '• Doanh số 12 tỷ (2025)\n• KPI 120%\n• Đứng thứ 2/15 phòng Sales'
-                          }
-                          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed outline-none ring-brand-500/30 focus:ring-2"
-                        />
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          Doanh số + % KPI + xếp hạng thành tích trong công ty. Tự chuẩn hoá bullet
-                          khi rời ô nhập.
-                        </p>
-                      </label>
-
                       <CvDraftMatrixFields
                         draft={activeDraft}
                         fields={liveFields}
                         onChange={updateDraft}
                       />
+
+                      <CvSalesExperienceFields
+                        draft={activeDraft}
+                        onChange={updateDraft}
+                        hint={liveFields.find((f) => f.key === 'experience')}
+                      />
                     </>
+                  ) : activeDraft.jobTrack === 'technical' ? (
+                    <>
+                      <CvTechnicalFields draft={activeDraft} onChange={updateDraft} />
+
+                      <CvTechnicalExperienceFields
+                        draft={activeDraft}
+                        onChange={updateDraft}
+                        hint={liveFields.find((f) => f.key === 'experience')}
+                      />
+                    </>
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs text-slate-500">
+                      Chọn <span className="font-semibold text-slate-700">Kinh doanh</span> ở trên
+                      để hiện các mục 13–34, hoặc{' '}
+                      <span className="font-semibold text-slate-700">Kỹ thuật</span> để hiện các
+                      mục 13–31 theo bộ tiêu chí kỹ thuật.
+                    </p>
                   )}
 
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">

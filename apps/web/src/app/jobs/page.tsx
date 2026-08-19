@@ -19,7 +19,6 @@ import { Suspense, useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   CAREER_LADDERS,
   ExperienceBand,
-  INDUSTRY_GROUPS,
   JOB_LEVEL_LABEL,
   JOB_TRACK_LABEL,
   JobLevelCode,
@@ -27,13 +26,13 @@ import {
   POPULAR_JOB_KEYWORDS,
   SALARY_BANDS_VND,
   SALARY_PRESETS,
-  getIndustryCatalog,
   type ApplicationView,
   type JobListItem,
   type JobMatchView,
   type ListPublishedJobsQuery,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { IndustryPicker } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { Badge, Button, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
@@ -48,6 +47,7 @@ import {
   addJobBookmark,
   listBookmarkedJobs,
   listPublishedJobs,
+  fetchJobPositionStats,
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
@@ -133,11 +133,6 @@ function JobsPageInner() {
   const pageRaw = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
 
-  const industryCatalog = useMemo(
-    () => (industry ? getIndustryCatalog(industry) : undefined),
-    [industry],
-  );
-
   const listQuery: ListPublishedJobsQuery = useMemo(() => {
     const q: ListPublishedJobsQuery = {};
     if (keyword) q.keyword = keyword;
@@ -218,6 +213,12 @@ function JobsPageInner() {
     queryFn: () => listPublishedJobs(listQuery),
   });
 
+  const { data: positionStats } = useQuery({
+    queryKey: ['job-position-stats'],
+    queryFn: fetchJobPositionStats,
+    staleTime: 60_000,
+  });
+
   const { data: bookmarks, isLoading: bookmarksLoading } = useQuery({
     queryKey: ['job-bookmarks'],
     queryFn: listBookmarkedJobs,
@@ -270,19 +271,20 @@ function JobsPageInner() {
   };
 
   const topPositions = useMemo(() => {
+    const fromStats = positionStats?.popular ?? [];
+    if (fromStats.length > 0) {
+      return fromStats.slice(0, 5).map((p) => ({ label: p.title, count: p.count }));
+    }
     const counts = new Map<string, number>();
     for (const job of jobs ?? []) {
-      const key = job.jobLevel || job.title;
+      const key = job.title;
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([key, count]) => ({
-        label: JOB_LEVEL_LABEL[key as JobLevelCode] ?? key,
-        count,
-      }));
-  }, [jobs]);
+      .map(([label, count]) => ({ label, count }));
+  }, [jobs, positionStats]);
 
   const salaryHighlight = useMemo(() => {
     const level = JobLevelCode.SalesStaff;
@@ -367,19 +369,19 @@ function JobsPageInner() {
                 className="h-12 w-full bg-transparent pl-10 pr-3 text-sm text-slate-800 outline-none placeholder:text-slate-400"
               />
             </div>
-            <div className="border-b border-slate-100 sm:w-[200px] sm:border-b-0 sm:border-r">
-              <select
-                value={industry}
-                onChange={(e) => setFilterParams({ industry: e.target.value || null })}
-                className="h-12 w-full appearance-none bg-transparent px-3.5 text-sm text-slate-700 outline-none"
-              >
-                <option value="">Tất cả ngành nghề</option>
-                {INDUSTRY_GROUPS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
+            <div className="relative z-30 border-b border-slate-100 sm:w-[220px] sm:border-b-0 sm:border-r">
+              <IndustryPicker
+                variant="bar"
+                value={{ industry, subIndustry, role: roleFilter }}
+                onChange={(next) =>
+                  setFilterParams({
+                    industry: next.industry || null,
+                    subIndustry: next.subIndustry || null,
+                    role: next.role || null,
+                    tab: 'all',
+                  })
+                }
+              />
             </div>
             <div className="relative border-b border-slate-100 sm:w-[200px] sm:border-b-0 sm:border-r">
               <MapPin className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -462,18 +464,33 @@ function JobsPageInner() {
             </div>
 
             <FieldLabel>Ngành nghề</FieldLabel>
-            <Select
-              value={industry}
-              onChange={(e) => setFilterParams({ industry: e.target.value || null, tab: 'all' })}
-              className="mb-3 h-10 py-2 text-sm"
-            >
-              <option value="">Chọn ngành nghề</option>
-              {INDUSTRY_GROUPS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </Select>
+            <IndustryPicker
+              variant="field"
+              className="mb-3"
+              value={{ industry, subIndustry, role: roleFilter }}
+              onChange={(next) =>
+                setFilterParams({
+                  industry: next.industry || null,
+                  subIndustry: next.subIndustry || null,
+                  role: next.role || null,
+                  tab: 'all',
+                })
+              }
+            />
+            {(subIndustry || roleFilter) && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {subIndustry && (
+                  <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-800">
+                    {subIndustry}
+                  </span>
+                )}
+                {roleFilter && (
+                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                    {roleFilter}
+                  </span>
+                )}
+              </div>
+            )}
 
             <FieldLabel>Vị trí công việc</FieldLabel>
             <Select
@@ -489,7 +506,7 @@ function JobsPageInner() {
               ))}
             </Select>
 
-            <SectionTitle>Nhóm ngành</SectionTitle>
+            <SectionTitle>Khối / cấp bậc</SectionTitle>
             {Object.values(JobTrack).map((track) => (
               <details key={track} open className="group mb-1">
                 <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 text-sm font-medium text-slate-800">
@@ -706,17 +723,17 @@ function JobsPageInner() {
             </Link>
           </div>
 
-          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Top vị trí được tìm kiếm</p>
             <ol className="mt-3 space-y-3">
               {topPositions.length === 0 && (
                 <li className="text-xs text-slate-400">Chưa có dữ liệu.</li>
               )}
               {topPositions.map((item, idx) => (
-                <li key={item.label} className="flex items-start gap-2.5">
+                <li key={item.label} className="flex min-w-0 items-start gap-2.5">
                   <span
                     className={clsx(
-                      'flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold',
+                      'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold',
                       idx === 0
                         ? 'bg-amber-500 text-white'
                         : idx === 1
@@ -726,9 +743,17 @@ function JobsPageInner() {
                   >
                     {idx + 1}
                   </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium text-slate-800">{item.label}</p>
-                    <p className="text-[11px] text-slate-400">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <button
+                      type="button"
+                      className="block w-full break-words text-left text-[13px] font-medium leading-snug text-slate-800 hover:text-brand-700"
+                      onClick={() =>
+                        setFilterParams({ role: item.label, tab: 'all' })
+                      }
+                    >
+                      {item.label}
+                    </button>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
                       {item.count.toLocaleString('vi-VN')} việc làm
                     </p>
                   </div>
@@ -956,6 +981,11 @@ function JobCard({
                   {industryTag && (
                     <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-100">
                       {industryTag}
+                    </span>
+                  )}
+                  {job.subIndustry && job.subIndustry !== industryTag && (
+                    <span className="rounded bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100">
+                      {job.subIndustry}
                     </span>
                   )}
                   {match && (

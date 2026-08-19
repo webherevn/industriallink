@@ -403,6 +403,7 @@ export class CandidateService {
       documentLiteracy: cleanList(input.documentLiteracy ?? []),
       systemScaleNote: emptyToNull(input.systemScaleNote),
       shiftFlexibility: emptyToNull(input.shiftFlexibility),
+      desiredWorkEnvironments: cleanList(input.desiredWorkEnvironments ?? []),
     };
 
     const existingAi = await this.prisma.candidateAiProfile.findUnique({
@@ -842,6 +843,7 @@ export class CandidateService {
       documentLiteracy?: string[];
       systemScaleNote?: string | null;
       shiftFlexibility?: string | null;
+      desiredWorkEnvironments?: string[];
     } | null;
 
     const experiences = (candidate.experiences ?? []).map((raw) => {
@@ -950,6 +952,7 @@ export class CandidateService {
             documentLiteracy: p.documentLiteracy ?? [],
             systemScaleNote: p.systemScaleNote ?? null,
             shiftFlexibility: p.shiftFlexibility ?? null,
+            desiredWorkEnvironments: p.desiredWorkEnvironments ?? [],
             sales: {
               productsSold: p.productsSold ?? [],
               customerSegments: p.customerSegments ?? [],
@@ -1188,6 +1191,7 @@ export class CandidateService {
         documentLiteracy: draft.documentLiteracy,
         systemScaleNote: draft.systemScaleNote,
         shiftFlexibility: draft.shiftFlexibility,
+        desiredWorkEnvironments: draft.desiredWorkEnvironments,
       },
       skills: allSkillNames,
       experiences: draft.experience.map((e) => ({
@@ -1342,6 +1346,7 @@ export class CandidateService {
         documentLiteracy: cleanList(draft.documentLiteracy ?? []),
         systemScaleNote: emptyToNull(draft.systemScaleNote),
         shiftFlexibility: emptyToNull(draft.shiftFlexibility),
+        desiredWorkEnvironments: cleanList(draft.desiredWorkEnvironments ?? []),
       };
 
       await tx.candidateProfile.upsert({
@@ -1501,12 +1506,24 @@ export class CandidateService {
     const draft = hasProfileData ? mergeCvDraftViews(aiDraft, profileDraft) : aiDraft;
     const missingCount = aiFields.filter((f) => f.status === 'missing').length;
     const weakCount = aiFields.filter((f) => f.status === 'weak').length;
+    const completionScore =
+      aiFields.length === 0
+        ? Math.max(0, Math.min(100, Math.round(parsed.aiScore)))
+        : Math.round(
+            (aiFields.reduce((acc, f) => {
+              if (f.status === 'filled') return acc + 1;
+              if (f.status === 'weak') return acc + 0.5;
+              return acc;
+            }, 0) /
+              aiFields.length) *
+              100,
+          );
 
     return {
       draft,
       fields: aiFields,
       missingCount,
-      aiScore: parsed.aiScore,
+      aiScore: completionScore,
       message: hasProfileData
         ? 'AI đã đọc CV và ghép với hồ sơ nền tảng — CV đầy đủ hơn bản gốc. Kiểm tra các trường rồi chọn mẫu.'
         : missingCount === 0
@@ -1570,6 +1587,7 @@ function parseLanguageSkills(raw: unknown): LanguageSkill[] {
       const r = row as Partial<LanguageSkill>;
       return {
         language: String(r.language ?? '').trim(),
+        workUsage: (r.workUsage as LanguageSkill['workUsage']) ?? null,
         listening: (r.listening as LanguageSkill['listening']) ?? null,
         speaking: (r.speaking as LanguageSkill['speaking']) ?? null,
         reading: (r.reading as LanguageSkill['reading']) ?? null,

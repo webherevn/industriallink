@@ -39,5 +39,6 @@ coverage/
 # Docker volumes (local)
 infra/.data/
 
-# Local object storage uploads (root only)
+# Local object storage uploads
 /storage/
+apps/api/storage/

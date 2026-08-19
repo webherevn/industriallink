@@ -12,6 +12,8 @@ import {
   expandJobSearchKeywords,
   type GenerateJobDraftResponse,
   type JobListItem,
+  type JobPositionCount,
+  type JobPositionStatsView,
   type JobView,
   type SalaryEstimateView,
 } from '@industriallink/contracts';
@@ -152,6 +154,7 @@ export class JobService {
         requirements: dto.requirements ?? null,
         benefits: dto.benefits ?? null,
         industry: dto.industry ?? null,
+        subIndustry: dto.subIndustry?.trim() || null,
         department: dto.department ?? null,
         jobLevel: dto.jobLevel ?? null,
         employmentType: dto.employmentType ?? null,
@@ -229,6 +232,7 @@ export class JobService {
         requirements: dto.requirements ?? null,
         benefits: dto.benefits ?? null,
         industry: dto.industry ?? null,
+        subIndustry: dto.subIndustry?.trim() || null,
         department: dto.department ?? null,
         jobLevel: dto.jobLevel ?? null,
         employmentType: dto.employmentType ?? null,
@@ -460,6 +464,7 @@ export class JobService {
     if (subIndustry) {
       andFilters.push({
         OR: [
+          { subIndustry: { equals: subIndustry, mode: 'insensitive' } },
           { title: { contains: subIndustry, mode: 'insensitive' } },
           { description: { contains: subIndustry, mode: 'insensitive' } },
           { requirements: { contains: subIndustry, mode: 'insensitive' } },
@@ -525,6 +530,29 @@ export class JobService {
     );
   }
 
+  /** Vị trí đang tuyển — gom từ tin published trên nền tảng. */
+  async listPublishedPositionStats(): Promise<JobPositionStatsView> {
+    const jobs = await this.prisma.job.findMany({
+      where: { status: JobStatus.Published, isDeleted: false },
+      select: { title: true, industry: true },
+    });
+    const popular = aggregateJobTitles(jobs, 12);
+    const grouped = new Map<string, { title: string; industry: string | null }[]>();
+    for (const job of jobs) {
+      const industry = job.industry?.trim() || 'Khác';
+      const list = grouped.get(industry) ?? [];
+      list.push(job);
+      grouped.set(industry, list);
+    }
+    const byIndustry = [...grouped.entries()]
+      .map(([industry, rows]) => ({
+        industry,
+        positions: aggregateJobTitles(rows, 10),
+      }))
+      .sort((a, b) => a.industry.localeCompare(b.industry, 'vi'));
+    return { popular, byIndustry };
+  }
+
   async getJob(id: string, user?: AuthenticatedUser): Promise<JobView> {
     const job = await this.prisma.job.findUnique({
       where: { id },
@@ -578,6 +606,7 @@ export class JobService {
       requirements: job.requirements,
       benefits: job.benefits,
       industry: job.industry,
+      subIndustry: job.subIndustry,
       department: job.department,
       jobLevel: job.jobLevel,
       employmentType: (job.employmentType as EmploymentType | null) ?? null,
@@ -618,6 +647,7 @@ export class JobService {
       companyId: job.companyId,
       companyName: job.company?.name ?? companyName,
       industry: job.industry,
+      subIndustry: job.subIndustry,
       jobLevel: job.jobLevel,
       location: job.location,
       employmentType: (job.employmentType as EmploymentType | null) ?? null,
@@ -632,6 +662,24 @@ export class JobService {
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
     };
   }
+}
+
+function aggregateJobTitles(
+  rows: Array<{ title: string }>,
+  limit: number,
+): JobPositionCount[] {
+  const map = new Map<string, JobPositionCount>();
+  for (const row of rows) {
+    const title = row.title.replace(/\s+/g, ' ').trim();
+    if (!title) continue;
+    const key = title.toLowerCase();
+    const prev = map.get(key);
+    if (prev) prev.count += 1;
+    else map.set(key, { title, count: 1 });
+  }
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title, 'vi'))
+    .slice(0, limit);
 }
 
 function splitCsv(value?: string): string[] {

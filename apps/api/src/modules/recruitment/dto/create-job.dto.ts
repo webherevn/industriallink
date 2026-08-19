@@ -55,10 +55,16 @@ export class CreateJobDto {
   @IsString()
   benefits?: string;
 
-  @ApiPropertyOptional({ example: 'Automation' })
+  @ApiPropertyOptional({ example: 'Tự động hóa & Điều khiển' })
   @IsOptional()
   @IsString()
   industry?: string;
+
+  @ApiPropertyOptional({ example: 'PLC' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  subIndustry?: string;
 
   @ApiPropertyOptional({ example: 'Kỹ thuật' })
   @IsOptional()

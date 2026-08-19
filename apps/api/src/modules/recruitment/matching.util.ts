@@ -99,7 +99,7 @@ export function inferProductsFromJob(input: {
     getIndustryCatalog(input.industry ?? '')?.details,
   ]);
   return PRODUCTS_SOLD.filter((p) => {
-    if (p === 'Khác') return false;
+    if (p === 'Thiết bị công nghiệp khác') return false;
     const tokens = norm(p)
       .split(/[\s\/,&]+/)
       .filter((t) => t.length >= 3);
@@ -120,8 +120,9 @@ export function inferCustomerSegmentsFromJob(input: {
     if (key && text.includes(key)) hits.push(seg);
   }
   if (/fdi|nuoc ngoai|multinational/.test(norm(text))) hits.push('Nhà máy FDI');
-  if (/tong thau|nha thau|epc|m&e|mep/.test(norm(text))) hits.push('Tổng thầu');
-  if (/thau phu|subcontractor/.test(norm(text))) hits.push('Thầu phụ');
+  if (/tong thau|epc/.test(norm(text))) hits.push('Tổng thầu EPC');
+  if (/nha thau|thau phu|thi cong|subcontractor|m&e|mep/.test(norm(text)))
+    hits.push('Nhà thầu / đơn vị thi công');
   if (/dai ly|npp|distributor|kenh phan phoi/.test(norm(text))) {
     hits.push('Đại lý & Kênh phân phối');
   }

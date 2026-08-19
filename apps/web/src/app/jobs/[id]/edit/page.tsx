@@ -18,6 +18,7 @@ import {
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
+import { IndustrySubFields } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -43,6 +44,7 @@ export default function EditJobPage() {
 
   const [title, setTitle] = useState('');
   const [industry, setIndustry] = useState('');
+  const [subIndustry, setSubIndustry] = useState('');
   const [jobTrack, setJobTrack] = useState<JobTrack>(JobTrack.Technical);
   const [jobLevel, setJobLevel] = useState<string>(JobLevelCode.TechStaff);
   const [department, setDepartment] = useState('');
@@ -63,6 +65,7 @@ export default function EditJobPage() {
     if (!job || hydrated) return;
     setTitle(job.title);
     setIndustry(job.industry ?? '');
+    setSubIndustry(job.subIndustry ?? '');
     setJobTrack(trackFromLevel(job.jobLevel));
     setJobLevel(job.jobLevel ?? JobLevelCode.TechStaff);
     setDepartment(job.department ?? '');
@@ -90,6 +93,7 @@ export default function EditJobPage() {
         requirements: requirements.trim() || undefined,
         benefits: benefits.trim() || undefined,
         industry: industry || undefined,
+        subIndustry: subIndustry || undefined,
         department: department || undefined,
         jobLevel: jobLevel || undefined,
         employmentType,
@@ -167,7 +171,13 @@ export default function EditJobPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Nhóm ngành">
-                <Select value={industry} onChange={(e) => setIndustry(e.target.value)}>
+                <Select
+                  value={industry}
+                  onChange={(e) => {
+                    setIndustry(e.target.value);
+                    setSubIndustry('');
+                  }}
+                >
                   <option value="">-- Chọn --</option>
                   {INDUSTRY_GROUPS.map((g) => (
                     <option key={g} value={g}>
@@ -274,6 +284,14 @@ export default function EditJobPage() {
                 />
               </Field>
             </div>
+
+            {industry && (
+              <IndustrySubFields
+                industry={industry}
+                subIndustry={subIndustry}
+                onChange={setSubIndustry}
+              />
+            )}
 
             <Field label="Mô tả công việc *">
               <Textarea

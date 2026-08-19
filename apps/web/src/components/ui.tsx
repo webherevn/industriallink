@@ -190,6 +190,101 @@ export function BirthDateInput({
   );
 }
 
+/**
+ * Nhập năm (VD: năm sinh): gõ 4 số hoặc bấm nút lịch để mở bảng chọn năm.
+ * Giá trị: chuỗi năm 4 số hoặc rỗng.
+ */
+export function YearInput({
+  value,
+  onChange,
+  disabled,
+  className,
+  placeholder = 'VD: 1995',
+  minYear = 1950,
+  maxYear = new Date().getFullYear(),
+}: {
+  value: string;
+  onChange: (year: string) => void;
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+  minYear?: number;
+  maxYear?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) selectedRef.current?.scrollIntoView({ block: 'center' });
+  }, [open]);
+
+  const years: number[] = [];
+  for (let y = maxYear; y >= minYear; y -= 1) years.push(y);
+
+  return (
+    <div ref={wrapRef} className={clsx('relative', className)}>
+      <input
+        type="text"
+        inputMode="numeric"
+        disabled={disabled}
+        placeholder={placeholder}
+        maxLength={4}
+        className={clsx(inputClassName, 'pr-11 tabular-nums')}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-brand-700 disabled:opacity-50"
+        aria-label="Chọn năm"
+        title="Chọn năm"
+      >
+        <Calendar className="h-4 w-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1.5 max-h-56 w-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+          <div className="grid grid-cols-4 gap-1">
+            {years.map((y) => {
+              const selected = String(y) === value;
+              return (
+                <button
+                  key={y}
+                  ref={selected ? selectedRef : undefined}
+                  type="button"
+                  onClick={() => {
+                    onChange(String(y));
+                    setOpen(false);
+                  }}
+                  className={clsx(
+                    'rounded-lg px-1.5 py-1.5 text-sm tabular-nums transition',
+                    selected
+                      ? 'bg-brand-600 font-semibold text-white'
+                      : 'text-slate-700 hover:bg-brand-50 hover:text-brand-700',
+                  )}
+                >
+                  {y}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Nhập số tiền: hiện 1,000,000; lưu chuỗi chỉ gồm chữ số. */
 export function MoneyInput({
   value,

@@ -1,34 +1,29 @@
 'use client';
 
 import clsx from 'clsx';
+import { useState } from 'react';
 import {
   AVAILABILITY_BAND_LABEL,
+  AVAILABILITY_QUESTION,
   AvailabilityBand,
-  CAREER_MOTIVATIONS,
-  CAREER_MOTIVATION_QUESTION,
-  CUSTOMER_SEGMENTS,
+  DESIRED_LOCATION_OPTIONS,
+  EXPECTED_INCOME_QUESTION,
   DOCUMENT_LITERACY_OPTIONS,
-  EQUIPMENT_SYSTEM_OPTIONS,
-  JOB_READINESS_LABEL,
-  JobReadiness,
-  SALES_INDUSTRY_OPTIONS,
+  DOCUMENT_LITERACY_QUESTION,
   SHIFT_FLEXIBILITY_OPTIONS,
-  TECHNICAL_AUTONOMY_LEVELS,
+  SHIFT_FLEXIBILITY_QUESTION,
   TECHNICAL_CAREER_MOTIVATIONS,
   TECHNICAL_CAREER_ORIENTATIONS,
-  TECHNICAL_HIGHLIGHTS_HINT,
-  TECHNICAL_HIGHLIGHTS_PLACEHOLDER,
-  TECHNICAL_HIGHLIGHTS_QUESTION,
+  TECHNICAL_MOTIVATION_QUESTION,
+  TECHNICAL_ORIENTATION_QUESTION,
   TECHNICAL_TOOLS,
-  TECHNICAL_WORK_TYPES,
-  TRACK_FIELD_LABELS,
-  TRAVEL_ABILITY_LABEL,
-  TravelAbility,
-  TROUBLESHOOTING_LEVELS,
-  JobTrack,
+  TECHNICAL_TOOLS_QUESTION,
+  TECHNICAL_WORK_STYLES,
+  TECHNICAL_WORK_STYLE_QUESTION,
+  WORK_ENVIRONMENT_DESIRED_QUESTION,
+  WORK_ENVIRONMENT_OPTIONS,
 } from '@industriallink/contracts';
 import { MoneyInput } from '@/components/ui';
-import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import type { CvDraft } from '@/lib/cv-templates';
 
 function MultiCheck({
@@ -86,6 +81,80 @@ function MultiCheck({
   );
 }
 
+/** MultiCheck + ô nhập "Khác: ___" theo PDF. */
+function MultiCheckWithCustom({
+  options,
+  selected,
+  onChange,
+  placeholder,
+  columns = 2,
+}: {
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  columns?: 1 | 2 | 3;
+}) {
+  const [text, setText] = useState('');
+  const customValues = selected.filter((s) => !options.includes(s));
+
+  function addCustom() {
+    const value = text.trim();
+    if (!value || selected.includes(value)) return;
+    onChange([...selected, value]);
+    setText('');
+  }
+
+  return (
+    <div className="space-y-2">
+      <MultiCheck options={options} selected={selected} onChange={onChange} columns={columns} />
+      {customValues.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {customValues.map((v) => (
+            <span
+              key={v}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800"
+            >
+              {v}
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((s) => s !== v))}
+                className="font-bold text-brand-500 hover:text-brand-700"
+                aria-label={`Xoá ${v}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-1.5 text-sm">
+        <span className="shrink-0 text-slate-600">Khác:</span>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addCustom();
+            }
+          }}
+          placeholder={placeholder ?? 'Nhập thêm…'}
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-slate-400"
+        />
+        <button
+          type="button"
+          onClick={addCustom}
+          disabled={!text.trim()}
+          className="shrink-0 rounded-md bg-brand-500 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
+        >
+          Thêm
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="border-t border-slate-100 pt-5">
@@ -95,83 +164,54 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
   );
 }
 
-function SelectField({
-  label,
+function RadioList({
+  name,
+  options,
   value,
   onChange,
-  options,
+  columns = 2,
 }: {
-  label: string;
+  name: string;
+  options: readonly string[];
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  columns?: 1 | 2;
 }) {
   return (
-    <label className="block">
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-      >
-        <option value="">— Chọn —</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function LevelScale({
-  label,
-  value,
-  onChange,
-  levels,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  levels: readonly { value: number; label: string }[];
-}) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold text-slate-600">{label}</p>
-      <div className="space-y-1.5">
-        {levels.map((lv) => (
+    <div className={clsx('grid gap-2', columns === 2 && 'sm:grid-cols-2')}>
+      {options.map((opt) => {
+        const checked = value === opt;
+        return (
           <label
-            key={lv.value}
+            key={opt}
             className={clsx(
-              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm',
-              value === lv.value
+              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+              checked
                 ? 'border-brand-300 bg-brand-50 text-brand-900'
-                : 'border-slate-200 bg-white text-slate-700',
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
             )}
           >
             <input
               type="radio"
+              name={name}
               className="mt-0.5"
-              checked={value === lv.value}
-              onChange={() => onChange(lv.value)}
+              checked={checked}
+              onChange={() => onChange(opt)}
             />
-            <span>
-              <span className="font-semibold">{lv.value}.</span> {lv.label}
-            </span>
+            <span>{opt}</span>
           </label>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-const MOTIVATION_OPTIONS = [
-  ...new Set([...CAREER_MOTIVATIONS, ...TECHNICAL_CAREER_MOTIVATIONS]),
-];
-const ORIENTATION_OPTIONS = [...TECHNICAL_CAREER_ORIENTATIONS];
-
-/** Form tiêu chí kỹ thuật — tái sử dụng field chung + field KT thuần. */
+/**
+ * Khối B/C theo ma trận Kỹ thuật 31 mục (update 18.8) — hiện khi chọn hướng Kỹ thuật.
+ * B. Mong muốn nghề nghiệp (14–16; STT 13 nằm ở khối vị trí ứng tuyển phía trên)
+ * C. Năng lực và định hướng (17–23)
+ * D. Kinh nghiệm công ty (24–31) nằm ở khối CvTechnicalExperienceFields phía sau.
+ */
 export function CvTechnicalFields({
   draft,
   onChange,
@@ -179,189 +219,32 @@ export function CvTechnicalFields({
   draft: CvDraft;
   onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
 }) {
+  const orientation = draft.careerOrientations[0] ?? '';
+
   return (
     <div className="space-y-5">
       <SectionTitle
-        title="A. Năng lực kỹ thuật"
-        subtitle="Thiết bị, hãng, nghiệp vụ — dữ liệu dùng chung với hồ sơ Sales khi trùng nghĩa"
+        title="B. Mong muốn nghề nghiệp (14–16)"
+        subtitle="Địa điểm, thu nhập và thời gian nhận việc"
       />
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Ngành / lĩnh vực đã làm</p>
-        <MultiCheck
-          options={SALES_INDUSTRY_OPTIONS}
-          selected={draft.industriesExperienced}
-          onChange={(v) => onChange('industriesExperienced', v)}
-        />
-      </div>
-
-      <div>
         <p className="mb-2 text-xs font-semibold text-slate-600">
-          {TRACK_FIELD_LABELS.productsSold[JobTrack.Technical]}
+          14. Địa điểm mong muốn làm việc — Anh/chị có thể làm việc ở đâu?
         </p>
         <MultiCheck
-          options={EQUIPMENT_SYSTEM_OPTIONS}
-          selected={draft.productsSold}
-          onChange={(v) => onChange('productsSold', v)}
+          options={DESIRED_LOCATION_OPTIONS}
+          selected={draft.desiredLocations}
+          onChange={(v) => onChange('desiredLocations', v)}
           columns={2}
         />
       </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Hãng / công nghệ</p>
-        <BrandTechnologySearch
-          selected={draft.brandsTechnologies}
-          onChange={(v) => onChange('brandsTechnologies', v)}
-        />
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Loại công việc / nghiệp vụ kỹ thuật</p>
-        <MultiCheck
-          options={TECHNICAL_WORK_TYPES}
-          selected={draft.technicalWorkTypes}
-          onChange={(v) => onChange('technicalWorkTypes', v)}
-          columns={2}
-        />
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          {TRACK_FIELD_LABELS.customerSegments[JobTrack.Technical]}
-        </p>
-        <MultiCheck
-          options={CUSTOMER_SEGMENTS}
-          selected={draft.customerSegments}
-          onChange={(v) => onChange('customerSegments', v)}
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <LevelScale
-          label="Mức độ tự chủ"
-          value={draft.technicalAutonomyLevel}
-          onChange={(v) => onChange('technicalAutonomyLevel', v)}
-          levels={TECHNICAL_AUTONOMY_LEVELS}
-        />
-        <LevelScale
-          label="Xử lý sự cố / troubleshooting"
-          value={draft.troubleshootingLevel}
-          onChange={(v) => onChange('troubleshootingLevel', v)}
-          levels={TROUBLESHOOTING_LEVELS}
-        />
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Phần mềm / công cụ</p>
-        <MultiCheck
-          options={TECHNICAL_TOOLS}
-          selected={draft.technicalTools}
-          onChange={(v) => onChange('technicalTools', v)}
-          columns={2}
-        />
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Đọc bản vẽ / tài liệu</p>
-        <MultiCheck
-          options={DOCUMENT_LITERACY_OPTIONS}
-          selected={draft.documentLiteracy}
-          onChange={(v) => onChange('documentLiteracy', v)}
-          columns={2}
-        />
-      </div>
-
-      <label className="block">
-        <span className="text-xs font-semibold text-slate-600">
-          Quy mô / công suất hệ thống lớn nhất
-        </span>
-        <textarea
-          rows={2}
-          value={draft.systemScaleNote ?? ''}
-          onChange={(e) => onChange('systemScaleNote', e.target.value || null)}
-          placeholder="VD: Máy nén khí 250 kW / 8 bar; Chiller 500 RT; PLC 2000 I/O…"
-          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-        />
-      </label>
-
-      <label className="block">
-        <span className="text-xs font-semibold text-slate-600">
-          {TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical]}
-        </span>
-        <p className="mt-0.5 text-[11px] text-slate-500">{TECHNICAL_HIGHLIGHTS_QUESTION}</p>
-        <textarea
-          rows={4}
-          value={draft.salesHighlights}
-          onChange={(e) => onChange('salesHighlights', e.target.value)}
-          placeholder={TECHNICAL_HIGHLIGHTS_PLACEHOLDER}
-          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-        />
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-          {TECHNICAL_HIGHLIGHTS_HINT}
-        </p>
-      </label>
-
-      <SectionTitle title="B. Điều kiện công việc" subtitle="Lương, nhận việc, công tác" />
-
-      <label className="block">
-        <span className="text-xs font-semibold text-slate-600">
-          Địa điểm mong muốn (phẩy)
-        </span>
-        <input
-          value={draft.desiredLocations.join(', ')}
-          onChange={(e) =>
-            onChange(
-              'desiredLocations',
-              e.target.value
-                .split(/[,;\n]/)
-                .map((s) => s.trim())
-                .filter(Boolean),
-            )
-          }
-          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
-          placeholder="VD: Hà Nội, TP.HCM, Đà Nẵng"
-        />
-      </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <SelectField
-          label="Mức độ sẵn sàng chuyển việc"
-          value={draft.jobReadiness ?? ''}
-          onChange={(v) => onChange('jobReadiness', v || null)}
-          options={Object.values(JobReadiness).map((v) => ({
-            value: v,
-            label: JOB_READINESS_LABEL[v],
-          }))}
-        />
-        <SelectField
-          label="Thời gian có thể nhận việc"
-          value={draft.availabilityBand ?? ''}
-          onChange={(v) => onChange('availabilityBand', v || null)}
-          options={Object.values(AvailabilityBand).map((v) => ({
-            value: v,
-            label: AVAILABILITY_BAND_LABEL[v],
-          }))}
-        />
-        <SelectField
-          label="Khả năng đi công tác"
-          value={draft.travelAbility ?? ''}
-          onChange={(v) => onChange('travelAbility', v || null)}
-          options={Object.values(TravelAbility).map((v) => ({
-            value: v,
-            label: TRAVEL_ABILITY_LABEL[v],
-          }))}
-        />
-        <SelectField
-          label="Làm ca / xử lý ngoài giờ"
-          value={draft.shiftFlexibility ?? ''}
-          onChange={(v) => onChange('shiftFlexibility', v || null)}
-          options={SHIFT_FLEXIBILITY_OPTIONS.map((o) => ({
-            value: o.value,
-            label: o.label,
-          }))}
-        />
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">Lương kỳ vọng min (VND)</span>
+          <span className="text-xs font-semibold text-slate-600">
+            15. Thu nhập tối thiểu có thể nhận (VND)
+          </span>
           <div className="mt-1.5">
             <MoneyInput
               value={draft.expectedSalaryMin != null ? String(draft.expectedSalaryMin) : ''}
@@ -372,40 +255,159 @@ export function CvTechnicalFields({
           </div>
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">Lương kỳ vọng max (VND)</span>
+          <span className="text-xs font-semibold text-slate-600">
+            15. Thu nhập kỳ vọng/tháng (VND)
+          </span>
           <div className="mt-1.5">
             <MoneyInput
-              value={draft.expectedSalaryMax != null ? String(draft.expectedSalaryMax) : ''}
-              onChange={(digits) =>
-                onChange('expectedSalaryMax', digits ? Number(digits) : null)
-              }
+              value={draft.expectedOte != null ? String(draft.expectedOte) : ''}
+              onChange={(digits) => onChange('expectedOte', digits ? Number(digits) : null)}
             />
           </div>
         </label>
       </div>
+      <p className="-mt-3 text-[11px] text-slate-400">{EXPECTED_INCOME_QUESTION}</p>
 
-      <SectionTitle title="C. Định hướng nghề nghiệp" subtitle="Tuỳ chọn — matching nâng cao" />
+      <label className="block">
+        <span className="text-xs font-semibold text-slate-600">
+          16. Thời gian có thể nhận việc — {AVAILABILITY_QUESTION}
+        </span>
+        <select
+          value={draft.availabilityBand ?? ''}
+          onChange={(e) => onChange('availabilityBand', e.target.value || null)}
+          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+        >
+          <option value="">— Chọn —</option>
+          {Object.values(AvailabilityBand).map((v) => (
+            <option key={v} value={v}>
+              {AVAILABILITY_BAND_LABEL[v]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <SectionTitle
+        title="C. Năng lực và định hướng (17–23)"
+        subtitle="Ngoài giờ, phần mềm, tài liệu, cách làm việc, định hướng, động lực, môi trường"
+      />
 
       <div>
         <p className="mb-2 text-xs font-semibold text-slate-600">
-          {CAREER_MOTIVATION_QUESTION} (tối đa 3)
+          17. Khả năng làm ngoài giờ — {SHIFT_FLEXIBILITY_QUESTION}
+        </p>
+        <RadioList
+          name="cv-shiftFlexibility"
+          options={SHIFT_FLEXIBILITY_OPTIONS.map((o) => o.label)}
+          value={
+            SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.value === draft.shiftFlexibility)?.label ??
+            ''
+          }
+          onChange={(label) => {
+            const opt = SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.label === label);
+            onChange('shiftFlexibility', opt ? opt.value : null);
+          }}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-slate-600">
+          18. Phần mềm &amp; công cụ đã sử dụng — {TECHNICAL_TOOLS_QUESTION}
+        </p>
+        <MultiCheckWithCustom
+          options={TECHNICAL_TOOLS}
+          selected={draft.technicalTools}
+          onChange={(v) => onChange('technicalTools', v)}
+          placeholder="VD: EPLAN, TIA Portal…"
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-slate-600">
+          19. Đọc bản vẽ / tài liệu — {DOCUMENT_LITERACY_QUESTION}
+        </p>
+        <MultiCheckWithCustom
+          options={DOCUMENT_LITERACY_OPTIONS}
+          selected={draft.documentLiteracy}
+          onChange={(v) => onChange('documentLiteracy', v)}
+          placeholder="VD: Sơ đồ thủy lực…"
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-slate-600">
+          20. Cách làm việc kỹ thuật — {TECHNICAL_WORK_STYLE_QUESTION}
         </p>
         <MultiCheck
-          options={MOTIVATION_OPTIONS}
-          selected={draft.careerMotivations}
-          onChange={(v) => onChange('careerMotivations', v)}
+          options={TECHNICAL_WORK_STYLES}
+          selected={draft.workStyles}
+          onChange={(v) => onChange('workStyles', v.slice(0, 3))}
           max={3}
         />
       </div>
 
       <div>
         <p className="mb-2 text-xs font-semibold text-slate-600">
-          Định hướng nghề nghiệp 2–3 năm tới
+          21. Định hướng nghề nghiệp — {TECHNICAL_ORIENTATION_QUESTION}
+        </p>
+        <RadioList
+          name="cv-technicalOrientation"
+          options={TECHNICAL_CAREER_ORIENTATIONS}
+          value={
+            (TECHNICAL_CAREER_ORIENTATIONS as readonly string[]).includes(orientation)
+              ? orientation
+              : orientation.startsWith('Khác')
+                ? 'Khác'
+                : ''
+          }
+          onChange={(opt) => {
+            if (opt !== 'Khác') {
+              onChange('careerOrientations', [opt]);
+              return;
+            }
+            onChange(
+              'careerOrientations',
+              [orientation.startsWith('Khác') ? orientation : 'Khác'],
+            );
+          }}
+        />
+        {(orientation === 'Khác' || orientation.startsWith('Khác:')) && (
+          <input
+            value={orientation.startsWith('Khác:') ? orientation.slice(5).trimStart() : ''}
+            onChange={(e) => {
+              const t = e.target.value;
+              onChange('careerOrientations', [t.trim() ? `Khác: ${t}` : 'Khác']);
+            }}
+            placeholder="Khác: nhập hướng phát triển…"
+            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+          />
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-semibold text-slate-600">
+          22. Động lực khi lựa chọn công việc mới — {TECHNICAL_MOTIVATION_QUESTION}
+        </p>
+        <p className="mb-2 text-[11px] text-amber-700">
+          {draft.careerMotivations.length
+            ? `Đã chọn ${draft.careerMotivations.length}/3`
+            : 'Chọn đúng 3 yếu tố'}
         </p>
         <MultiCheck
-          options={ORIENTATION_OPTIONS}
-          selected={draft.careerOrientations}
-          onChange={(v) => onChange('careerOrientations', v)}
+          options={TECHNICAL_CAREER_MOTIVATIONS}
+          selected={draft.careerMotivations}
+          onChange={(v) => onChange('careerMotivations', v.slice(0, 3))}
+          max={3}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-slate-600">
+          23. Môi trường làm việc mong muốn — {WORK_ENVIRONMENT_DESIRED_QUESTION}
+        </p>
+        <MultiCheck
+          options={WORK_ENVIRONMENT_OPTIONS}
+          selected={draft.desiredWorkEnvironments}
+          onChange={(v) => onChange('desiredWorkEnvironments', v.slice(0, 3))}
           max={3}
         />
       </div>

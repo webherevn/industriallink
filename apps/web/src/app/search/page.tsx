@@ -600,7 +600,7 @@ function SearchPageInner() {
                     2. Sản phẩm đã bán
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {PRODUCTS_SOLD.filter((p) => p !== 'Khác').map((o) => (
+                    {PRODUCTS_SOLD.filter((p) => p !== 'Thiết bị công nghiệp khác').map((o) => (
                       <Chip
                         key={o}
                         compact

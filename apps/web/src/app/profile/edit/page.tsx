@@ -2,12 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Briefcase, Check, ChevronLeft, ChevronRight, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AVAILABILITY_BAND_LABEL,
+  AVAILABILITY_QUESTION,
   AvailabilityBand,
   CAREER_MOTIVATIONS,
   CAREER_MOTIVATION_QUESTION,
@@ -16,36 +17,70 @@ import {
   CULTURE_FIT_QUESTIONS,
   CULTURE_FIT_SECTION_TITLE,
   CULTURE_FIT_SUBTITLE,
+  CUSTOMER_SEGMENTS,
   DEAL_TYPE_LABEL,
   DEAL_TYPE_OPTIONS,
   DEAL_VALUE_BANDS,
+  DESIRED_LOCATION_OPTIONS,
   DESIRED_POSITIONS,
+  DESIRED_POSITION_QUESTION,
+  DOCUMENT_LITERACY_OPTIONS,
+  DOCUMENT_LITERACY_QUESTION,
+  EQUIPMENT_SYSTEM_OPTIONS,
+  EQUIPMENT_SYSTEM_QUESTION,
+  DRIVER_LICENSE_QUESTION,
   DRIVER_LICENSE_TYPES,
   EDUCATION_LEVELS,
-  EDUCATION_CLASSIFICATIONS,
-  JOB_READINESS_LABEL,
-  JobReadiness,
+  EXPECTED_INCOME_QUESTION,
+  JOB_TRACK_LABEL,
+  JobTrack,
   KPI_ACHIEVEMENT_BANDS,
+  LEGACY_CAREER_ORIENTATION_MAP,
+  LEGACY_DESIRED_POSITION_MAP,
   MARKET_REGIONS,
   NEW_CUSTOMER_RATIO_BANDS,
+  PERSONAL_REVENUE_QUESTION,
   PRODUCTS_SOLD,
-  CUSTOMER_SEGMENTS,
   PROFILE_MISSING_FIELD_LABEL,
-  SALES_BEHAVIOR_OPTIONS,
-  SALES_BEHAVIOR_QUESTION,
+  SALES_HIGHLIGHTS_PLACEHOLDER,
+  SALES_INDUSTRY_OPTIONS,
   SELLING_STAGES,
+  SELLING_STAGES_QUESTION,
+  SHIFT_FLEXIBILITY_OPTIONS,
+  SHIFT_FLEXIBILITY_QUESTION,
+  TECHNICAL_AUTONOMY_LEVELS,
+  TECHNICAL_AUTONOMY_QUESTION,
+  TECHNICAL_CAREER_MOTIVATIONS,
+  TECHNICAL_CAREER_ORIENTATIONS,
+  TECHNICAL_DESIRED_POSITIONS,
+  TECHNICAL_MOTIVATION_QUESTION,
+  TECHNICAL_ORIENTATION_QUESTION,
+  TECHNICAL_POSITION_QUESTION,
+  TECHNICAL_TOOLS,
+  TECHNICAL_TOOLS_QUESTION,
+  TECHNICAL_WORK_STYLES,
+  TECHNICAL_WORK_STYLE_QUESTION,
+  TECHNICAL_WORK_TYPES,
+  TECHNICAL_WORK_TYPES_QUESTION,
   TRAVEL_ABILITY_LABEL,
+  TRAVEL_ABILITY_QUESTION,
   TravelAbility,
-  careerOrientationSelection,
+  WORK_ENVIRONMENT_ACTUAL_QUESTION,
+  WORK_ENVIRONMENT_DESIRED_QUESTION,
+  WORK_ENVIRONMENT_OPTIONS,
   cultureFitAnswersToWorkStyles,
   dealValueBandToVnd,
   formatLanguageSkillSummary,
+  joinDealTypes,
+  joinDriverLicenses,
   kpiBandToPct,
   languageNamesFromSkills,
   mergeLanguageSkills,
   newCustomerBandToPct,
-  parseCareerOrientationOther,
-  withCareerOrientationOther,
+  normalizeCustomerSegment,
+  normalizeSellingStage,
+  parseDriverLicenses,
+  splitDealTypes,
   workStylesToCultureFitAnswers,
   type CultureFitAnswers,
   type CultureFitQuestionId,
@@ -57,11 +92,13 @@ import {
   SkillLevel,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
-import { Badge, BirthDateInput, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea, YearInput } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
 import { ApiError } from '@/lib/api';
+import { fetchMe } from '@/lib/auth';
 import { getMyCandidate, updateMyProfile } from '@/lib/candidate';
 import {
   completionPercentFromHints,
@@ -70,14 +107,27 @@ import {
 import { emptyCvDraft, type CvDraft } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
 
+/**
+ * Bước 1 = A. Thông tin cơ bản (1–12, chung Kỹ thuật & Kinh doanh)
+ * Bước 2 = Chọn hướng hồ sơ
+ * Kinh doanh: B 13–16, C 17–19, D 20–34
+ * Kỹ thuật: B 13–16, C 17–23, D 24–31
+ */
 const STEPS = [
-  { id: 1, label: 'Cơ bản' },
-  { id: 2, label: 'Mong muốn' },
-  { id: 3, label: 'Kinh nghiệm' },
-  { id: 4, label: 'Điều kiện' },
-  { id: 5, label: 'Kỹ năng' },
+  { id: 1, label: 'Thông tin chung' },
+  { id: 2, label: 'Lĩnh vực' },
+  { id: 3, label: 'Mong muốn' },
+  { id: 4, label: 'Định hướng' },
+  { id: 5, label: 'Kinh nghiệm' },
   { id: 6, label: 'Xem lại' },
 ] as const;
+
+const EXPERIENCE_INDUSTRY_OPTIONS = [...SALES_INDUSTRY_OPTIONS, 'Khác'] as const;
+
+const DEAL_TYPE_CHECK_OPTIONS = DEAL_TYPE_OPTIONS.map((v) => ({
+  value: v as string,
+  label: DEAL_TYPE_LABEL[v],
+}));
 
 type ExperienceRow = {
   id: string | null;
@@ -128,8 +178,7 @@ type FormState = {
   experiences: ExperienceRow[];
   languages: string[];
   languageSkills: LanguageSkill[];
-  hasB2License: '' | 'true' | 'false';
-  driverLicenseType: string;
+  driverLicenses: string[];
   travelAbility: string;
   educationLevel: string;
   educationClassification: string;
@@ -153,7 +202,6 @@ type FormState = {
   typicalDealValue: string;
   maxDealValue: string;
   expectedSalaryMax: string;
-  willingToTravel: '' | 'true' | 'false';
   salesBehavior: string;
   careerMotivations: string[];
   cultureFit: CultureFitAnswers;
@@ -210,8 +258,7 @@ const EMPTY_FORM: FormState = {
   experiences: [emptyExperience()],
   languages: [],
   languageSkills: [],
-  hasB2License: '',
-  driverLicenseType: '',
+  driverLicenses: [],
   travelAbility: '',
   educationLevel: '',
   educationClassification: '',
@@ -235,7 +282,6 @@ const EMPTY_FORM: FormState = {
   typicalDealValue: '',
   maxDealValue: '',
   expectedSalaryMax: '',
-  willingToTravel: '',
   salesBehavior: '',
   careerMotivations: [],
   cultureFit: {},
@@ -286,18 +332,6 @@ function moneyHint(value: string): string | null {
   return `≈ ${formatVndAmount(n)}`;
 }
 
-function parseOptionalBool(value: '' | 'true' | 'false'): boolean | null {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return null;
-}
-
-function boolToSelect(value: boolean | null | undefined): '' | 'true' | 'false' {
-  if (value === true) return 'true';
-  if (value === false) return 'false';
-  return '';
-}
-
 function splitCsv(value: string): string[] {
   return value
     .split(/[,;\n]/)
@@ -313,6 +347,42 @@ function toggleInList(list: string[], item: string, max?: number): string[] {
   if (list.includes(item)) return list.filter((x) => x !== item);
   if (max != null && list.length >= max) return list;
   return [...list, item];
+}
+
+/** hasB2License suy từ danh sách giấy phép (STT 11). */
+function licensesToHasB2(licenses: string[]): boolean | null {
+  if (licenses.includes('Ô tô')) return true;
+  if (licenses.length > 0) return false;
+  return null;
+}
+
+/** Chuẩn hoá vị trí mong muốn cũ → 5 lựa chọn bản 18.8. */
+function normalizeDesiredPositions(raw: string[]): string[] {
+  return [
+    ...new Set(
+      raw
+        .map((p) => {
+          const t = p.trim();
+          if ((DESIRED_POSITIONS as readonly string[]).includes(t)) return t;
+          if ((TECHNICAL_DESIRED_POSITIONS as readonly string[]).includes(t)) return t;
+          return LEGACY_DESIRED_POSITION_MAP[t] ?? t;
+        })
+        .filter(Boolean),
+    ),
+  ];
+}
+
+/** Chuẩn hoá định hướng cũ → 1 lựa chọn bản 18.8 (KD hoặc KT). */
+function normalizeCareerOrientations(raw: string[]): string[] {
+  for (const o of raw) {
+    const t = o.trim().replace(/^Khác:\s*/, 'Khác: ').trim();
+    if ((CAREER_ORIENTATIONS as readonly string[]).includes(t)) return [t];
+    if ((TECHNICAL_CAREER_ORIENTATIONS as readonly string[]).includes(t)) return [t];
+    if (t.startsWith('Khác')) return [t];
+    const mapped = LEGACY_CAREER_ORIENTATION_MAP[t];
+    if (mapped) return [mapped];
+  }
+  return [];
 }
 
 function experienceFromView(exp: {
@@ -352,9 +422,19 @@ function experienceFromView(exp: {
     isCurrent: exp.isCurrent,
     industries: [...(exp.industries ?? [])],
     productsSold: [...(exp.productsSold ?? [])],
-    customerSegments: [...(exp.customerSegments ?? [])],
+    customerSegments: [
+      ...new Set(
+        (exp.customerSegments ?? []).map(
+          (s) => normalizeCustomerSegment(s) ?? s,
+        ),
+      ),
+    ],
     marketsCovered: [...(exp.marketsCovered ?? [])],
-    sellingStages: [...(exp.sellingStages ?? [])],
+    sellingStages: [
+      ...new Set(
+        (exp.sellingStages ?? []).map((s) => normalizeSellingStage(s) ?? s),
+      ),
+    ],
     revenueBand: exp.revenueBand ?? '',
     latestRevenue: exp.latestRevenue != null ? String(exp.latestRevenue) : '',
     kpiBand: exp.kpiBand ?? '',
@@ -373,7 +453,37 @@ function experienceFromView(exp: {
   };
 }
 
-function toPayload(form: FormState): UpdateCandidateProfileRequest {
+type TrackExtras = {
+  jobTrack: 'sales' | 'technical' | null;
+  brandsTechnologies: string[];
+  technicalWorkTypes: string[];
+  technicalAutonomyLevel: number | null;
+  troubleshootingLevel: number | null;
+  technicalTools: string[];
+  documentLiteracy: string[];
+  systemScaleNote: string | null;
+  shiftFlexibility: string | null;
+  /** STT 20 KT — cách làm việc kỹ thuật (tối đa 3). */
+  technicalWorkStyles: string[];
+  /** STT 23 KT — môi trường làm việc mong muốn (tối đa 3). */
+  desiredWorkEnvironments: string[];
+};
+
+const EMPTY_TRACK: TrackExtras = {
+  jobTrack: null,
+  brandsTechnologies: [],
+  technicalWorkTypes: [],
+  technicalAutonomyLevel: null,
+  troubleshootingLevel: null,
+  technicalTools: [],
+  documentLiteracy: [],
+  systemScaleNote: null,
+  shiftFlexibility: null,
+  technicalWorkStyles: [],
+  desiredWorkEnvironments: [],
+};
+
+function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileRequest {
   const experiences = form.experiences
     .filter((e) => e.companyName.trim() || e.jobTitle.trim())
     .map((e) => {
@@ -440,6 +550,7 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
   );
 
   const firstExp = experiences[0];
+  const hasB2License = licensesToHasB2(form.driverLicenses);
 
   return {
     displayName: form.displayName.replace(/\r/g, '').trim(),
@@ -450,7 +561,7 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
     district: form.district.trim() || null,
     ward: form.ward.trim() || null,
     currentPosition:
-      form.currentPosition.trim() || firstExp?.jobTitle || null,
+      form.currentPosition.trim() || form.desiredPositions[0] || firstExp?.jobTitle || null,
     jobLevel: form.jobLevel.trim() || null,
     totalExperienceYears: parseOptionalNumber(form.totalExperienceYears),
     industry: form.industry.trim() || firstExp?.industries[0] || null,
@@ -488,14 +599,19 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
       mergeLanguageSkills(form.languages, form.languageSkills),
     ),
     languageSkills: mergeLanguageSkills(form.languages, form.languageSkills),
-    hasB2License: parseOptionalBool(form.hasB2License),
-    driverLicenseType: form.driverLicenseType || null,
-    willingToTravel: parseOptionalBool(form.willingToTravel),
+    hasB2License,
+    driverLicenseType: joinDriverLicenses(form.driverLicenses),
+    willingToTravel: form.travelAbility
+      ? form.travelAbility !== TravelAbility.None
+      : null,
     travelAbility: form.travelAbility || null,
     desiredPositions: form.desiredPositions,
     desiredLocations: form.desiredLocations,
     careerMotivations: form.careerMotivations.slice(0, 3),
-    workStyles: cultureFitAnswersToWorkStyles(form.cultureFit),
+    workStyles:
+      track.jobTrack === JobTrack.Technical
+        ? track.technicalWorkStyles.slice(0, 3)
+        : cultureFitAnswersToWorkStyles(form.cultureFit),
     careerOrientations: form.careerOrientations,
     salesBehavior: form.salesBehavior || null,
     careerOrientation: form.careerOrientations.length
@@ -510,6 +626,19 @@ function toPayload(form: FormState): UpdateCandidateProfileRequest {
       .map((s) => ({ name: s.name.replace(/\r/g, '').trim(), level: s.level || SkillLevel.Intermediate }))
       .filter((s) => s.name.length > 0),
     experiences,
+    jobTrack: track.jobTrack,
+    brandsTechnologies: track.brandsTechnologies,
+    technicalWorkTypes:
+      track.jobTrack === JobTrack.Technical
+        ? unionArrays(track.technicalWorkTypes, ...experiences.map((e) => e.sellingStages))
+        : track.technicalWorkTypes,
+    technicalAutonomyLevel: track.technicalAutonomyLevel,
+    troubleshootingLevel: track.troubleshootingLevel,
+    technicalTools: track.technicalTools,
+    documentLiteracy: track.documentLiteracy,
+    systemScaleNote: track.systemScaleNote,
+    shiftFlexibility: track.shiftFlexibility,
+    desiredWorkEnvironments: track.desiredWorkEnvironments,
   };
 }
 
@@ -564,6 +693,131 @@ function MultiCheck({
   );
 }
 
+function RadioList({
+  name,
+  options,
+  value,
+  onChange,
+}: {
+  name: string;
+  options: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {options.map((opt) => {
+        const checked = value === opt;
+        return (
+          <label
+            key={opt}
+            className={clsx(
+              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+              checked
+                ? 'border-brand-300 bg-brand-50 text-brand-900'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              className="mt-0.5"
+              checked={checked}
+              onChange={() => onChange(opt)}
+            />
+            <span>{opt}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Chọn nhiều + nhập thêm — STT 24 / 13 KT / 28 KT. `searchable` = PDF “Search + chọn nhiều”. */
+function MultiCheckWithCustom({
+  options,
+  selected,
+  onChange,
+  placeholder,
+  max,
+  searchable,
+}: {
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  max?: number;
+  searchable?: boolean;
+}) {
+  const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
+  const customSelected = selected.filter((s) => !(options as readonly string[]).includes(s));
+  const q = query.trim().toLowerCase();
+  const visibleOptions =
+    searchable && q
+      ? options.filter((o) => o.toLowerCase().includes(q) || selected.includes(o))
+      : options;
+
+  function addCustom() {
+    const v = text.trim();
+    if (!v || selected.some((s) => s.toLowerCase() === v.toLowerCase())) {
+      setText('');
+      return;
+    }
+    onChange([...selected, v].slice(0, max ?? Number.POSITIVE_INFINITY));
+    setText('');
+  }
+
+  return (
+    <div className="space-y-2">
+      {searchable && (
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Tìm trong danh sách…"
+        />
+      )}
+      <MultiCheck options={visibleOptions} selected={selected} onChange={onChange} max={max} columns={2} />
+      {customSelected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {customSelected.map((item) => (
+            <span
+              key={item}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800 ring-1 ring-brand-100"
+            >
+              {item}
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((s) => s !== item))}
+                className="text-brand-400 hover:text-brand-700"
+                aria-label={`Xoá ${item}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addCustom();
+            }
+          }}
+          placeholder={placeholder ?? 'Nhập thêm mục khác…'}
+        />
+        <Button type="button" variant="outline" onClick={addCustom} disabled={!text.trim()}>
+          + Thêm
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function MissingBadges({ fields, highlight }: { fields: string[]; highlight?: boolean }) {
   if (fields.length === 0) return null;
   return (
@@ -592,29 +846,15 @@ function formatVnd(value: string): string {
   return new Intl.NumberFormat('vi-VN').format(n) + ' VND';
 }
 
-type TrackExtras = {
-  jobTrack: 'sales' | 'technical' | null;
-  brandsTechnologies: string[];
-  technicalWorkTypes: string[];
-  technicalAutonomyLevel: number | null;
-  troubleshootingLevel: number | null;
-  technicalTools: string[];
-  documentLiteracy: string[];
-  systemScaleNote: string | null;
-  shiftFlexibility: string | null;
-};
-
-const EMPTY_TRACK: TrackExtras = {
-  jobTrack: null,
-  brandsTechnologies: [],
-  technicalWorkTypes: [],
-  technicalAutonomyLevel: null,
-  troubleshootingLevel: null,
-  technicalTools: [],
-  documentLiteracy: [],
-  systemScaleNote: null,
-  shiftFlexibility: null,
-};
+function ChooseTrackNote() {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+      Hãy quay lại bước <span className="font-semibold">Lĩnh vực</span> và chọn{' '}
+      <span className="font-semibold">Kinh doanh</span> hoặc{' '}
+      <span className="font-semibold">Kỹ thuật</span> để hiện đúng bộ câu hỏi.
+    </div>
+  );
+}
 
 /** Map form hồ sơ → CvDraft để tính % theo tiêu chí KD/KT (không đổi UI form). */
 function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvDraft {
@@ -658,6 +898,7 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
   const marketsCovered = unionArrays(
     ...form.experiences.map((e) => e.marketsCovered),
   );
+  const hasB2License = licensesToHasB2(form.driverLicenses);
 
   return {
     ...emptyCvDraft(form.displayName, email),
@@ -694,21 +935,28 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
     expectedSalaryMax: parseOptionalNumber(form.expectedSalaryMax),
     expectedOte: parseOptionalNumber(form.expectedOte),
     travelAbility: form.travelAbility || null,
-    hasB2License: parseOptionalBool(form.hasB2License),
-    driverLicenseType: form.driverLicenseType || null,
+    hasB2License,
+    driverLicenseType: joinDriverLicenses(form.driverLicenses),
     salesBehavior: form.salesBehavior || null,
     careerMotivations: form.careerMotivations.slice(0, 3),
     careerOrientations: form.careerOrientations,
-    workStyles: cultureFitAnswersToWorkStyles(form.cultureFit),
+    workStyles:
+      track.jobTrack === JobTrack.Technical
+        ? track.technicalWorkStyles.slice(0, 3)
+        : cultureFitAnswersToWorkStyles(form.cultureFit),
     jobTrack: track.jobTrack,
     brandsTechnologies: track.brandsTechnologies,
-    technicalWorkTypes: track.technicalWorkTypes,
+    technicalWorkTypes:
+      track.jobTrack === JobTrack.Technical
+        ? unionArrays(track.technicalWorkTypes, ...form.experiences.map((e) => e.sellingStages))
+        : track.technicalWorkTypes,
     technicalAutonomyLevel: track.technicalAutonomyLevel,
     troubleshootingLevel: track.troubleshootingLevel,
     technicalTools: track.technicalTools,
     documentLiteracy: track.documentLiteracy,
     systemScaleNote: track.systemScaleNote,
     shiftFlexibility: track.shiftFlexibility,
+    desiredWorkEnvironments: track.desiredWorkEnvironments,
     experience,
     education:
       form.educationSchool.trim() ||
@@ -736,6 +984,7 @@ export default function ProfileEditPage() {
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
   });
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -751,7 +1000,21 @@ export default function ProfileEditPage() {
       candidate.experiences.length > 0
         ? candidate.experiences.map(experienceFromView)
         : [emptyExperience()];
+    if (
+      p?.jobTrack === JobTrack.Technical &&
+      (p.technicalWorkTypes?.length ?? 0) > 0 &&
+      exps[0] &&
+      exps[0].sellingStages.length === 0
+    ) {
+      exps[0] = { ...exps[0], sellingStages: [...(p.technicalWorkTypes ?? [])] };
+    }
     const hasCvAi = candidate.experiences.some((e) => e.source === 'cv_ai');
+
+    const licenses = parseDriverLicenses(sales?.driverLicenseType);
+    if (licenses.length === 0) {
+      if (sales?.hasB2License === true) licenses.push('Ô tô');
+      else if (sales?.hasB2License === false) licenses.push('Chưa có');
+    }
 
     setForm({
       displayName: candidate.displayName ?? '',
@@ -762,7 +1025,7 @@ export default function ProfileEditPage() {
       district: p?.district ?? '',
       ward: p?.ward ?? '',
       hobbies: (p?.hobbies ?? []).join(', '),
-      desiredPositions: [...(sales?.desiredPositions ?? [])],
+      desiredPositions: normalizeDesiredPositions([...(sales?.desiredPositions ?? [])]),
       desiredLocations: [...(sales?.desiredLocations ?? [])],
       expectedSalaryMin: sales?.expectedSalaryMin != null ? String(sales.expectedSalaryMin) : '',
       expectedOte: sales?.expectedOte != null ? String(sales.expectedOte) : '',
@@ -777,8 +1040,7 @@ export default function ProfileEditPage() {
         sales?.languages ?? [],
         sales?.languageSkills ?? [],
       ),
-      hasB2License: boolToSelect(sales?.hasB2License),
-      driverLicenseType: sales?.driverLicenseType ?? '',
+      driverLicenses: licenses,
       travelAbility: sales?.travelAbility ?? '',
       educationLevel: p?.educationLevel ?? '',
       educationClassification: p?.educationClassification ?? '',
@@ -805,14 +1067,16 @@ export default function ProfileEditPage() {
       typicalDealValue: sales?.typicalDealValue != null ? String(sales.typicalDealValue) : '',
       maxDealValue: sales?.maxDealValue != null ? String(sales.maxDealValue) : '',
       expectedSalaryMax: sales?.expectedSalaryMax != null ? String(sales.expectedSalaryMax) : '',
-      willingToTravel: boolToSelect(sales?.willingToTravel),
-      salesBehavior: (() => {
-        const raw = sales?.salesBehavior ?? sales?.customerDevStyle ?? '';
-        return (SALES_BEHAVIOR_OPTIONS as readonly string[]).includes(raw) ? raw : '';
-      })(),
-      careerMotivations: [...(sales?.careerMotivations ?? [])].slice(0, 3),
+      salesBehavior: sales?.salesBehavior ?? sales?.customerDevStyle ?? '',
+      careerMotivations: [...(sales?.careerMotivations ?? [])]
+        .filter(
+          (m) =>
+            (CAREER_MOTIVATIONS as readonly string[]).includes(m) ||
+            (TECHNICAL_CAREER_MOTIVATIONS as readonly string[]).includes(m),
+        )
+        .slice(0, 3),
       cultureFit: workStylesToCultureFitAnswers(sales?.workStyles),
-      careerOrientations: [
+      careerOrientations: normalizeCareerOrientations([
         ...((sales?.careerOrientations?.length
           ? sales.careerOrientations
           : sales?.careerOrientation
@@ -821,7 +1085,7 @@ export default function ProfileEditPage() {
                 .map((s) => s.trim())
                 .filter(Boolean)
             : []) ?? []),
-      ],
+      ]),
       skills:
         candidate.skills.length > 0
           ? candidate.skills.map((s) => ({ name: s.name, level: s.level }))
@@ -838,10 +1102,14 @@ export default function ProfileEditPage() {
       documentLiteracy: [...(p?.documentLiteracy ?? [])],
       systemScaleNote: p?.systemScaleNote ?? null,
       shiftFlexibility: p?.shiftFlexibility ?? null,
+      technicalWorkStyles: [...(sales?.workStyles ?? [])].filter((w) =>
+        (TECHNICAL_WORK_STYLES as readonly string[]).includes(w),
+      ),
+      desiredWorkEnvironments: [...(p?.desiredWorkEnvironments ?? [])],
     });
 
     if (hasCvAi) {
-      setStep(3);
+      setStep(5);
       setCvEntry(true);
     }
     setHydrated(true);
@@ -861,7 +1129,7 @@ export default function ProfileEditPage() {
   );
 
   const saveMutation = useMutation({
-    mutationFn: () => updateMyProfile(toPayload(form)),
+    mutationFn: () => updateMyProfile(toPayload(form, trackExtras)),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['my-candidate'] });
       router.push('/dashboard');
@@ -877,6 +1145,20 @@ export default function ProfileEditPage() {
       ...prev,
       cultureFit: { ...prev.cultureFit, [id]: value },
     }));
+  }
+
+  function toggleDriverLicense(item: string) {
+    setForm((prev) => {
+      let next: string[];
+      if (prev.driverLicenses.includes(item)) {
+        next = prev.driverLicenses.filter((x) => x !== item);
+      } else if (item === 'Chưa có') {
+        next = ['Chưa có'];
+      } else {
+        next = [...prev.driverLicenses.filter((x) => x !== 'Chưa có'), item];
+      }
+      return { ...prev, driverLicenses: next };
+    });
   }
 
   function patchExperience(index: number, patchExp: Partial<ExperienceRow>) {
@@ -903,37 +1185,36 @@ export default function ProfileEditPage() {
     }));
   }
 
-  function patchSkill(index: number, patchSkill: Partial<SkillRow>) {
-    setForm((prev) => ({
-      ...prev,
-      skills: prev.skills.map((s, i) => (i === index ? { ...s, ...patchSkill } : s)),
-    }));
-  }
-
-  function addSkill() {
-    setForm((prev) => ({
-      ...prev,
-      skills: [...prev.skills, { name: '', level: SkillLevel.Intermediate }],
-    }));
-  }
-
-  function removeSkill(index: number) {
-    setForm((prev) => ({
-      ...prev,
-      skills: prev.skills.length <= 1 ? prev.skills : prev.skills.filter((_, i) => i !== index),
-    }));
-  }
+  const isSales = trackExtras.jobTrack === JobTrack.Sales;
+  const isTechnical = trackExtras.jobTrack === JobTrack.Technical;
 
   const stepValid = useMemo(() => {
-    if (step === 1) return form.displayName.trim().length > 0;
-    if (step === 3) {
+    if (step === 1) {
+      return (
+        form.displayName.trim().length > 0 &&
+        form.phone.trim().length > 0 &&
+        form.currentCity.trim().length > 0 &&
+        form.travelAbility.trim().length > 0
+      );
+    }
+    if (step === 2) return trackExtras.jobTrack != null;
+    if (step === 3 && (isSales || isTechnical)) {
+      return (
+        form.desiredPositions.length > 0 &&
+        form.desiredLocations.length > 0 &&
+        (parseOptionalNumber(form.expectedSalaryMin) != null ||
+          parseOptionalNumber(form.expectedOte) != null) &&
+        form.availabilityBand.trim().length > 0
+      );
+    }
+    if (step === 5 && (isSales || isTechnical)) {
       return form.experiences.every((e) => {
         if (!e.companyName.trim() && !e.jobTitle.trim()) return true;
         return e.companyName.trim().length > 0 && e.jobTitle.trim().length > 0;
       });
     }
     return true;
-  }, [step, form]);
+  }, [step, form, trackExtras.jobTrack, isSales, isTechnical]);
 
   const filledExperiences = form.experiences.filter(
     (e) => e.companyName.trim() || e.jobTitle.trim(),
@@ -961,11 +1242,12 @@ export default function ProfileEditPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
-              Hồ sơ Sales B2B
+              Hồ sơ ứng viên IndustrialLink
             </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">Hoàn thiện hồ sơ</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Ma trận hồ sơ IndustrialLink — từng bước, không cần điền hết một lần.
+              Mục 1–12: thông tin chung. Sau đó chọn Kinh doanh / Kỹ thuật — chọn Kinh doanh sẽ
+              hiện các mục 13–34.
             </p>
           </div>
           <Link href="/dashboard">
@@ -1033,7 +1315,7 @@ export default function ProfileEditPage() {
               </ol>
             </nav>
 
-            {cvEntry && step === 3 && (
+            {cvEntry && step === 5 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 AI đã trích xuất kinh nghiệm từ CV. Vui lòng kiểm tra và bổ sung các mục được
                 đánh dấu <Badge tone="amber">Thiếu</Badge> bên dưới.
@@ -1044,7 +1326,14 @@ export default function ProfileEditPage() {
               {step === 1 && (
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-lg font-semibold text-slate-900">Thông tin cơ bản</h2>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">
+                        A. Thông tin cơ bản (1–12)
+                      </h2>
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh.
+                      </p>
+                    </div>
                     <Link href="/upload">
                       <Button type="button" variant="outline" className="text-brand-700">
                         Có CV? Tải để AI điền
@@ -1052,7 +1341,7 @@ export default function ProfileEditPage() {
                     </Link>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Họ và tên *">
+                    <Field label="1. Họ và tên *">
                       <Input
                         value={form.displayName}
                         onChange={(e) => patch('displayName', e.target.value)}
@@ -1060,37 +1349,30 @@ export default function ProfileEditPage() {
                         required
                       />
                     </Field>
-                    <Field label="Số điện thoại">
+                    <Field label="2. Năm sinh">
+                      <YearInput
+                        value={form.birthYear}
+                        onChange={(v) => patch('birthYear', v)}
+                      />
+                    </Field>
+                    <Field label="3. Số điện thoại *">
                       <Input
                         value={form.phone}
                         onChange={(e) => patch('phone', e.target.value)}
                         placeholder="090x xxx xxx"
+                        required
                       />
                     </Field>
-                    <Field label="Ngày sinh">
-                      <BirthDateInput
-                        value={form.birthDate}
-                        onChange={(v) => {
-                          patch('birthDate', v);
-                          if (v?.length >= 4) patch('birthYear', v.slice(0, 4));
-                          else if (!v) patch('birthYear', '');
-                        }}
-                      />
-                    </Field>
-                    <Field label="Năm sinh">
-                      <Input
-                        type="number"
-                        min={1950}
-                        max={2015}
-                        value={form.birthYear}
-                        onChange={(e) => patch('birthYear', e.target.value)}
-                        placeholder="VD: 1995"
-                      />
+                    <Field label="4. Email *">
+                      <Input value={me?.email ?? ''} disabled readOnly />
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Email tài khoản — đổi tại trang Tài khoản.
+                      </p>
                     </Field>
                   </div>
                   <div>
                     <p className="mb-2 text-xs font-semibold text-slate-700">
-                      Địa chỉ hành chính (mới từ 01/7/2025)
+                      5. Nơi đang sinh sống * (địa chỉ hành chính mới từ 01/7/2025)
                     </p>
                     <VnAddressFields
                       ward={form.ward}
@@ -1103,370 +1385,43 @@ export default function ProfileEditPage() {
                       }}
                     />
                   </div>
-                  <Field label="Mục tiêu nghề nghiệp">
-                    <Textarea
-                      rows={3}
-                      value={form.careerObjective}
-                      onChange={(e) => patch('careerObjective', e.target.value)}
-                      placeholder="Sao chép từ CV hoặc mô tả định hướng nghề nghiệp..."
-                    />
-                  </Field>
-                  <Field label="Giới thiệu bản thân">
-                    <Textarea
-                      rows={3}
-                      value={form.summary}
-                      onChange={(e) => patch('summary', e.target.value)}
-                      placeholder="Tóm tắt tổng quan kinh nghiệm..."
-                    />
-                  </Field>
-                  <Field label="Sở thích">
-                    <Input
-                      value={form.hobbies}
-                      onChange={(e) => patch('hobbies', e.target.value)}
-                      placeholder="VD: Đọc sách, bóng đá, chạy bộ..."
-                    />
-                  </Field>
-                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    Ảnh đại diện: tải tại trang{' '}
-                    <Link href="/account" className="font-medium text-brand-600 hover:underline">
-                      Tài khoản
-                    </Link>{' '}
-                    — hiển thị trên hồ sơ NTD.
-                  </p>
-                </>
-              )}
-
-              {step === 2 && (
-                <>
-                  <h2 className="text-lg font-semibold text-slate-900">Mong muốn nghề nghiệp</h2>
-                  <Field label="Vị trí mong muốn (tối đa 3)">
-                    <MultiCheck
-                      options={DESIRED_POSITIONS}
-                      selected={form.desiredPositions}
-                      onChange={(v) => patch('desiredPositions', v)}
-                      max={3}
-                      columns={2}
-                    />
-                  </Field>
-                  <Field label="Địa điểm làm việc mong muốn">
-                    <MultiCheck
-                      options={MARKET_REGIONS}
-                      selected={form.desiredLocations}
-                      onChange={(v) => patch('desiredLocations', v)}
-                      columns={2}
-                    />
-                  </Field>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Lương cơ bản tối thiểu (VND/tháng)">
-                      <MoneyInput
-                        value={form.expectedSalaryMin}
-                        onChange={(v) => patch('expectedSalaryMin', v)}
-                        placeholder="VD: 15,000,000"
-                        hint={moneyHint(form.expectedSalaryMin)}
-                      />
-                    </Field>
-                    <Field label="Tổng thu nhập kỳ vọng — OTE (VND/tháng)">
-                      <MoneyInput
-                        value={form.expectedOte}
-                        onChange={(v) => patch('expectedOte', v)}
-                        placeholder="Base + hoa hồng + thưởng"
-                        hint={moneyHint(form.expectedOte)}
-                      />
-                    </Field>
-                    <Field label="Thời gian có thể nhận việc">
+                    <Field label="6. Trình độ học vấn">
                       <Select
-                        value={form.availabilityBand}
-                        onChange={(e) => patch('availabilityBand', e.target.value)}
+                        value={form.educationLevel}
+                        onChange={(e) => patch('educationLevel', e.target.value)}
                       >
-                        <option value="">— Chọn —</option>
-                        {Object.values(AvailabilityBand).map((v) => (
-                          <option key={v} value={v}>
-                            {AVAILABILITY_BAND_LABEL[v]}
+                        <option value="">— Trình độ đào tạo cao nhất —</option>
+                        {EDUCATION_LEVELS.map((l) => (
+                          <option key={l} value={l}>
+                            {l}
                           </option>
                         ))}
                       </Select>
                     </Field>
-                    <Field label="Trạng thái tìm việc">
-                      <Select
-                        value={form.jobReadiness}
-                        onChange={(e) => patch('jobReadiness', e.target.value)}
-                      >
-                        <option value="">— Chọn —</option>
-                        {Object.values(JobReadiness).map((v) => (
-                          <option key={v} value={v}>
-                            {JOB_READINESS_LABEL[v]}
-                          </option>
-                        ))}
-                      </Select>
+                    <Field label="7. Trường học">
+                      <Input
+                        value={form.educationSchool}
+                        onChange={(e) => patch('educationSchool', e.target.value)}
+                        placeholder="Anh/chị học trường nào?"
+                      />
+                    </Field>
+                    <Field label="8. Chuyên ngành">
+                      <Input
+                        value={form.educationMajor}
+                        onChange={(e) => patch('educationMajor', e.target.value)}
+                        placeholder="VD: Điện tử viễn thông, Marketing..."
+                      />
                     </Field>
                   </div>
-                </>
-              )}
-
-              {step === 3 && (
-                <>
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Kinh nghiệm công ty</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Mỗi công ty một mục — điền theo ma trận Sales B2B IndustrialLink.
-                    </p>
-                  </div>
-
-                  <div className="space-y-6">
-                    {form.experiences.map((exp, index) => {
-                      const hasMissing = exp.missingFields.length > 0;
-                      const highlight = cvEntry && exp.source === 'cv_ai' && hasMissing;
-                      return (
-                        <div
-                          key={exp.id ?? index}
-                          className={clsx(
-                            'space-y-4 rounded-xl border p-4',
-                            highlight
-                              ? 'border-amber-300 bg-amber-50/40'
-                              : 'border-slate-200 bg-slate-50/50',
-                          )}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="space-y-2">
-                              <p className="text-sm font-semibold text-slate-800">
-                                Kinh nghiệm {index + 1}
-                                {exp.source === 'cv_ai' && (
-                                  <span className="ml-2 inline-flex">
-                                    <Badge tone="brand">Từ CV AI</Badge>
-                                  </span>
-                                )}
-                              </p>
-                              <MissingBadges fields={exp.missingFields} highlight={highlight} />
-                            </div>
-                            {form.experiences.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className="text-red-600"
-                                onClick={() => removeExperience(index)}
-                              >
-                                Xoá
-                              </Button>
-                            )}
-                          </div>
-
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label="Tên công ty *">
-                              <Input
-                                value={exp.companyName}
-                                onChange={(e) =>
-                                  patchExperience(index, { companyName: e.target.value })
-                                }
-                                placeholder="VD: Công ty ABC"
-                              />
-                            </Field>
-                            <Field label="Chức danh *">
-                              <Input
-                                value={exp.jobTitle}
-                                onChange={(e) =>
-                                  patchExperience(index, { jobTitle: e.target.value })
-                                }
-                                placeholder="VD: Sales Engineer"
-                              />
-                            </Field>
-                            <Field label="Bắt đầu làm việc">
-                              <MonthYearInput
-                                value={exp.startYear}
-                                onChange={(v) => patchExperience(index, { startYear: v })}
-                              />
-                            </Field>
-                            <Field label="Kết thúc">
-                              <MonthYearInput
-                                value={exp.endYear}
-                                disabled={exp.isCurrent}
-                                onChange={(v) => patchExperience(index, { endYear: v })}
-                              />
-                            </Field>
-                          </div>
-                          <label className="flex items-center gap-2 text-sm text-slate-700">
-                            <input
-                              type="checkbox"
-                              className="rounded border-slate-300 text-brand-600"
-                              checked={exp.isCurrent}
-                              onChange={(e) =>
-                                patchExperience(index, {
-                                  isCurrent: e.target.checked,
-                                  endYear: e.target.checked ? '' : exp.endYear,
-                                })
-                              }
-                            />
-                            Đang làm việc tại đây
-                          </label>
-
-                          <Field label="Sản phẩm / giải pháp đã bán">
-                            <MultiCheck
-                              options={PRODUCTS_SOLD}
-                              selected={exp.productsSold}
-                              onChange={(v) => patchExperience(index, { productsSold: v })}
-                              columns={2}
-                            />
-                          </Field>
-                          <Field label="Tệp khách hàng">
-                            <MultiCheck
-                              options={CUSTOMER_SEGMENTS}
-                              selected={exp.customerSegments}
-                              onChange={(v) => patchExperience(index, { customerSegments: v })}
-                              columns={2}
-                            />
-                          </Field>
-                          <Field label="Khu vực / thị trường phụ trách">
-                            <MultiCheck
-                              options={MARKET_REGIONS}
-                              selected={exp.marketsCovered}
-                              onChange={(v) => patchExperience(index, { marketsCovered: v })}
-                              columns={2}
-                            />
-                          </Field>
-                          <Field label="Giai đoạn bán hàng đã thực hiện (13 giai đoạn)">
-                            <MultiCheck
-                              options={SELLING_STAGES}
-                              selected={exp.sellingStages}
-                              onChange={(v) => patchExperience(index, { sellingStages: v })}
-                              columns={2}
-                            />
-                          </Field>
-
-                          <details className="rounded-lg border border-slate-200 bg-white">
-                            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
-                              Thành tích & quy mô thương vụ (khuyến khích bổ sung)
-                            </summary>
-                            <div className="space-y-4 border-t border-slate-100 px-4 py-4">
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label="Doanh số gần nhất (VND)">
-                                  <MoneyInput
-                                    value={exp.latestRevenue}
-                                    onChange={(v) =>
-                                      patchExperience(index, { latestRevenue: v })
-                                    }
-                                    placeholder="VD: 1,000,000,000"
-                                    hint={moneyHint(exp.latestRevenue)}
-                                  />
-                                </Field>
-                                <Field label="% hoàn thành KPI">
-                                  <Select
-                                    value={exp.kpiBand}
-                                    onChange={(e) =>
-                                      patchExperience(index, { kpiBand: e.target.value })
-                                    }
-                                  >
-                                    <option value="">— Chọn —</option>
-                                    {KPI_ACHIEVEMENT_BANDS.map((b) => (
-                                      <option key={b.value} value={b.value}>
-                                        {b.label}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                </Field>
-                                <Field label="Tỷ lệ khách tự phát triển">
-                                  <Select
-                                    value={exp.newCustomerRatioBand}
-                                    onChange={(e) =>
-                                      patchExperience(index, {
-                                        newCustomerRatioBand: e.target.value,
-                                      })
-                                    }
-                                  >
-                                    <option value="">— Chọn —</option>
-                                    {NEW_CUSTOMER_RATIO_BANDS.map((b) => (
-                                      <option key={b.value} value={b.value}>
-                                        {b.label}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                </Field>
-                                <Field label="Loại hình bán hàng">
-                                  <Select
-                                    value={exp.dealType}
-                                    onChange={(e) =>
-                                      patchExperience(index, { dealType: e.target.value })
-                                    }
-                                  >
-                                    <option value="">— Chọn —</option>
-                                    {DEAL_TYPE_OPTIONS.map((v) => (
-                                      <option key={v} value={v}>
-                                        {DEAL_TYPE_LABEL[v]}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                </Field>
-                                <Field label="Quy mô thương vụ điển hình">
-                                  <Select
-                                    value={exp.typicalDealValueBand}
-                                    onChange={(e) =>
-                                      patchExperience(index, {
-                                        typicalDealValueBand: e.target.value,
-                                      })
-                                    }
-                                  >
-                                    <option value="">— Chọn —</option>
-                                    {DEAL_VALUE_BANDS.map((b) => (
-                                      <option key={b.value} value={b.value}>
-                                        {b.label}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                </Field>
-                                <Field label="Thương vụ lớn nhất (VND)">
-                                  <MoneyInput
-                                    value={exp.maxDealValue}
-                                    onChange={(v) =>
-                                      patchExperience(index, { maxDealValue: v })
-                                    }
-                                    placeholder="VD: 500,000,000"
-                                    hint={moneyHint(exp.maxDealValue)}
-                                  />
-                                </Field>
-                              </div>
-                              <Field label="Mô tả công việc / nhiệm vụ">
-                                <Textarea
-                                  rows={5}
-                                  value={exp.jobDescription}
-                                  onChange={(e) =>
-                                    patchExperience(index, { jobDescription: e.target.value })
-                                  }
-                                  placeholder={
-                                    'Liệt kê nhiệm vụ, mỗi dòng một việc:\n• Lên kế hoạch, mục tiêu kinh doanh\n• Nghiên cứu sản phẩm, đối thủ\n• Đào tạo đội ngũ...'
-                                  }
-                                />
-                              </Field>
-                              <Field label="Thành tích nổi bật">
-                                <Textarea
-                                  rows={3}
-                                  value={exp.highlights}
-                                  onChange={(e) =>
-                                    patchExperience(index, { highlights: e.target.value })
-                                  }
-                                  placeholder="VD: Doanh số 12 tỷ · KPI 120% · Đứng thứ 2/15 phòng Sales"
-                                />
-                                <p className="mt-1 text-[11px] text-slate-400">
-                                  Doanh số + % KPI + xếp hạng thành tích trong công ty.
-                                </p>
-                              </Field>
-                            </div>
-                          </details>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <Button type="button" variant="outline" onClick={addExperience}>
-                    + Thêm kinh nghiệm
-                  </Button>
-                </>
-              )}
-
-              {step === 4 && (
-                <>
-                  <h2 className="text-lg font-semibold text-slate-900">Điều kiện công việc</h2>
-                  <Field label="Ngoại ngữ">
-                    <p className="mb-2 text-xs text-slate-500">
-                      Chọn ngôn ngữ, rồi đánh giá nghe / nói / đọc / viết và đọc manual kỹ thuật.
-                    </p>
+                  <Field label="9. Chứng chỉ / chứng nhận chuyên môn (cách nhau bằng dấu phẩy)">
+                    <Input
+                      value={form.certificates}
+                      onChange={(e) => patch('certificates', e.target.value)}
+                      placeholder="VD: ISO 9001, An toàn lao động..."
+                    />
+                  </Field>
+                  <Field label="10. Ngoại ngữ sử dụng trong công việc">
                     <LanguageSkillsFields
                       languages={form.languages}
                       languageSkills={form.languageSkills}
@@ -1475,305 +1430,893 @@ export default function ProfileEditPage() {
                       }
                     />
                   </Field>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Bằng lái ô tô">
-                      <Select
-                        value={form.hasB2License}
-                        onChange={(e) =>
-                          patch('hasB2License', e.target.value as FormState['hasB2License'])
-                        }
-                      >
-                        <option value="">— Chưa rõ —</option>
-                        <option value="true">Có</option>
-                        <option value="false">Không</option>
-                      </Select>
-                    </Field>
-                    <Field label="Hạng bằng lái">
-                      <Select
-                        value={form.driverLicenseType}
-                        onChange={(e) => patch('driverLicenseType', e.target.value)}
-                        disabled={form.hasB2License !== 'true'}
-                      >
-                        <option value="">— Chọn —</option>
-                        {DRIVER_LICENSE_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Khả năng đi công tác">
-                      <Select
-                        value={form.travelAbility}
-                        onChange={(e) => patch('travelAbility', e.target.value)}
-                      >
-                        <option value="">— Chọn —</option>
-                        {Object.values(TravelAbility).map((v) => (
-                          <option key={v} value={v}>
-                            {TRAVEL_ABILITY_LABEL[v]}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  </div>
-
-                  <div className="space-y-4 border-t border-slate-200 pt-6">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">
-                        Phong cách & hành vi Sales
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">{SALES_BEHAVIOR_QUESTION}</p>
-                    </div>
-
-                    <Field label="Lựa chọn phong cách">
-                      <div className="grid gap-2">
-                        {SALES_BEHAVIOR_OPTIONS.map((opt, i) => {
-                          const letter = String.fromCharCode(65 + i);
-                          const checked = form.salesBehavior === opt;
-                          return (
-                            <label
-                              key={opt}
-                              className={clsx(
-                                'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
-                                checked
-                                  ? 'border-brand-300 bg-brand-50 text-brand-900'
-                                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
-                              )}
-                            >
-                              <input
-                                type="radio"
-                                name="salesBehavior"
-                                className="mt-0.5"
-                                checked={checked}
-                                onChange={() => patch('salesBehavior', opt)}
-                              />
-                              <span>
-                                <span className="font-semibold">{letter}. </span>
-                                {opt}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </Field>
-                  </div>
-
-                  <div className="space-y-4 border-t border-slate-200 pt-6">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">
-                        Động lực nghề nghiệp
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">{CAREER_MOTIVATION_QUESTION}</p>
-                    </div>
-                    <Field label="Chọn đúng 3 yếu tố">
-                      <p className="mb-2 text-xs text-amber-700">
-                        {form.careerMotivations.length
-                          ? `Đã chọn ${form.careerMotivations.length}/3`
-                          : 'Chọn đúng 3 yếu tố quan trọng nhất'}
-                      </p>
-                      <MultiCheck
-                        options={CAREER_MOTIVATIONS}
-                        selected={form.careerMotivations}
-                        onChange={(v) => patch('careerMotivations', v.slice(0, 3))}
-                        max={3}
-                        columns={2}
-                      />
-                    </Field>
-                  </div>
-
-                  <div className="space-y-4 border-t border-slate-200 pt-6">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">
-                        Định hướng nghề nghiệp
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">{CAREER_ORIENTATION_QUESTION}</p>
-                    </div>
-                    <Field label="Hướng phát triển">
-                      <MultiCheck
-                        options={CAREER_ORIENTATIONS}
-                        selected={careerOrientationSelection(form.careerOrientations)}
-                        onChange={(v) =>
-                          patch(
-                            'careerOrientations',
-                            withCareerOrientationOther(
-                              v,
-                              parseCareerOrientationOther(form.careerOrientations),
-                            ),
-                          )
-                        }
-                        columns={2}
-                      />
-                      {careerOrientationSelection(form.careerOrientations).includes('Khác') && (
-                        <div className="mt-3">
-                          <label className="block text-xs font-semibold text-slate-600">
-                            Khác:
+                  <Field label={`11. Giấy phép lái xe — ${DRIVER_LICENSE_QUESTION}`}>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {DRIVER_LICENSE_TYPES.map((opt) => {
+                        const checked = form.driverLicenses.includes(opt);
+                        return (
+                          <label
+                            key={opt}
+                            className={clsx(
+                              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+                              checked
+                                ? 'border-brand-300 bg-brand-50 text-brand-900'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={checked}
+                              onChange={() => toggleDriverLicense(opt)}
+                            />
+                            <span>{opt}</span>
                           </label>
-                          <Input
-                            className="mt-1.5"
-                            value={parseCareerOrientationOther(form.careerOrientations)}
-                            onChange={(e) =>
-                              patch(
-                                'careerOrientations',
-                                withCareerOrientationOther(
-                                  careerOrientationSelection(form.careerOrientations),
-                                  e.target.value,
-                                ),
-                              )
-                            }
-                            placeholder="Ghi rõ định hướng khác…"
+                        );
+                      })}
+                    </div>
+                  </Field>
+                  <Field label={`12. Khả năng đi công tác * — ${TRAVEL_ABILITY_QUESTION}`}>
+                    <Select
+                      value={form.travelAbility}
+                      onChange={(e) => patch('travelAbility', e.target.value)}
+                    >
+                      <option value="">— Chọn —</option>
+                      {Object.values(TravelAbility).map((v) => (
+                        <option key={v} value={v}>
+                          {TRAVEL_ABILITY_LABEL[v]}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                </>
+              )}
+
+              {step === 2 && (
+                <>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Chọn hướng hồ sơ *
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Sau phần thông tin chung (1–12), chọn Kinh doanh (mục 13–34) hoặc Kỹ thuật
+                      (mục 13–31).
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        {
+                          track: JobTrack.Sales,
+                          icon: Briefcase,
+                          desc: 'Sales B2B công nghiệp — hiện đầy đủ các mục 13–34 (mong muốn, định hướng, kinh nghiệm bán hàng).',
+                        },
+                        {
+                          track: JobTrack.Technical,
+                          icon: Wrench,
+                          desc: 'Kỹ thuật / dịch vụ kỹ thuật — hiện đầy đủ các mục 13–31 (mong muốn, năng lực, kinh nghiệm kỹ thuật).',
+                        },
+                      ] as const
+                    ).map(({ track, icon: Icon, desc }) => {
+                      const active = trackExtras.jobTrack === track;
+                      return (
+                        <button
+                          key={track}
+                          type="button"
+                          onClick={() =>
+                            setTrackExtras((prev) => ({ ...prev, jobTrack: track }))
+                          }
+                          className={clsx(
+                            'rounded-xl border-2 p-4 text-left transition',
+                            active
+                              ? 'border-brand-500 bg-brand-50/60 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-brand-200',
+                          )}
+                        >
+                          <span
+                            className={clsx(
+                              'flex h-10 w-10 items-center justify-center rounded-xl',
+                              active
+                                ? 'bg-brand-500 text-white'
+                                : 'bg-slate-100 text-slate-500',
+                            )}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </span>
+                          <p className="mt-3 text-sm font-bold text-slate-900">
+                            {JOB_TRACK_LABEL[track]}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-500">{desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {step === 3 && (
+                <>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    B. Mong muốn nghề nghiệp (13–16)
+                  </h2>
+                  {!trackExtras.jobTrack && <ChooseTrackNote />}
+                  {(isSales || isTechnical) && (
+                    <>
+                      {isSales ? (
+                        <Field label={`13. Vị trí ứng tuyển * — ${DESIRED_POSITION_QUESTION}`}>
+                          <MultiCheck
+                            options={DESIRED_POSITIONS}
+                            selected={form.desiredPositions}
+                            onChange={(v) => patch('desiredPositions', v)}
+                            columns={2}
+                          />
+                        </Field>
+                      ) : (
+                        <Field label={`13. Vị trí ứng tuyển * — ${TECHNICAL_POSITION_QUESTION}`}>
+                          <p className="mb-2 text-xs text-amber-700">
+                            {form.desiredPositions.length
+                              ? `Đã chọn ${form.desiredPositions.length}/3`
+                              : 'Chọn tối đa 3 vị trí phù hợp nhất'}
+                          </p>
+                          <MultiCheckWithCustom
+                            options={TECHNICAL_DESIRED_POSITIONS}
+                            selected={form.desiredPositions}
+                            onChange={(v) => patch('desiredPositions', v.slice(0, 3))}
+                            max={3}
+                            placeholder="Khác — nhập vị trí…"
+                          />
+                        </Field>
+                      )}
+                      <Field label="14. Địa điểm mong muốn làm việc * — Anh/chị có thể làm việc ở đâu?">
+                        <MultiCheck
+                          options={DESIRED_LOCATION_OPTIONS}
+                          selected={form.desiredLocations}
+                          onChange={(v) => patch('desiredLocations', v)}
+                          columns={2}
+                        />
+                      </Field>
+                      <Field label={`15. Thu nhập * — ${EXPECTED_INCOME_QUESTION}`}>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <MoneyInput
+                            value={form.expectedSalaryMin}
+                            onChange={(v) => patch('expectedSalaryMin', v)}
+                            placeholder="Thu nhập tối thiểu có thể nhận"
+                            hint={moneyHint(form.expectedSalaryMin)}
+                          />
+                          <MoneyInput
+                            value={form.expectedOte}
+                            onChange={(v) => patch('expectedOte', v)}
+                            placeholder="Thu nhập kỳ vọng/tháng"
+                            hint={moneyHint(form.expectedOte)}
                           />
                         </div>
-                      )}
-                    </Field>
-                  </div>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Thu nhập tối thiểu có thể nhận + thu nhập kỳ vọng/tháng (VND).
+                        </p>
+                      </Field>
+                      <Field label={`16. Thời gian có thể nhận việc * — ${AVAILABILITY_QUESTION}`}>
+                        <Select
+                          value={form.availabilityBand}
+                          onChange={(e) => patch('availabilityBand', e.target.value)}
+                        >
+                          <option value="">— Chọn —</option>
+                          {Object.values(AvailabilityBand).map((v) => (
+                            <option key={v} value={v}>
+                              {AVAILABILITY_BAND_LABEL[v]}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </>
+                  )}
+                </>
+              )}
 
-                  <div className="space-y-4 border-t border-slate-200 pt-6">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">
-                        {CULTURE_FIT_SECTION_TITLE}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
-                    </div>
-                    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                      {CULTURE_FIT_QUESTIONS.map((q) => (
-                        <Field key={q.id} label={q.question}>
-                          <div className="grid gap-2">
-                            {q.options.map((opt, i) => {
-                              const letter = String.fromCharCode(65 + i);
-                              const checked = form.cultureFit[q.id] === opt;
-                              return (
-                                <label
-                                  key={opt}
-                                  className={clsx(
-                                    'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
-                                    checked
-                                      ? 'border-brand-300 bg-brand-50 text-brand-900'
-                                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
-                                  )}
-                                >
-                                  <input
-                                    type="radio"
-                                    name={`cultureFit-${q.id}`}
-                                    className="mt-0.5"
-                                    checked={checked}
-                                    onChange={() => patchCultureFit(q.id, opt)}
-                                  />
-                                  <span>
-                                    <span className="font-semibold">{letter}. </span>
-                                    {opt}
-                                  </span>
-                                </label>
+              {step === 4 && (
+                <>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {isTechnical
+                      ? 'C. Năng lực và định hướng (17–23)'
+                      : 'C. Định hướng & phù hợp (17–19)'}
+                  </h2>
+                  {!trackExtras.jobTrack && <ChooseTrackNote />}
+                  {isTechnical && (
+                    <>
+                      <Field label={`17. Khả năng làm ngoài giờ — ${SHIFT_FLEXIBILITY_QUESTION}`}>
+                        <RadioList
+                          name="shiftFlexibility"
+                          options={SHIFT_FLEXIBILITY_OPTIONS.map((o) => o.label)}
+                          value={
+                            SHIFT_FLEXIBILITY_OPTIONS.find(
+                              (o) => o.value === trackExtras.shiftFlexibility,
+                            )?.label ?? ''
+                          }
+                          onChange={(label) => {
+                            const opt = SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.label === label);
+                            setTrackExtras((prev) => ({
+                              ...prev,
+                              shiftFlexibility: opt ? opt.value : null,
+                            }));
+                          }}
+                        />
+                      </Field>
+                      <Field
+                        label={`18. Phần mềm & công cụ đã sử dụng — ${TECHNICAL_TOOLS_QUESTION}`}
+                      >
+                        <MultiCheckWithCustom
+                          options={TECHNICAL_TOOLS}
+                          selected={trackExtras.technicalTools}
+                          onChange={(v) =>
+                            setTrackExtras((prev) => ({ ...prev, technicalTools: v }))
+                          }
+                          placeholder="Khác — VD: EPLAN, TIA Portal…"
+                        />
+                      </Field>
+                      <Field label={`19. Đọc bản vẽ / tài liệu — ${DOCUMENT_LITERACY_QUESTION}`}>
+                        <MultiCheckWithCustom
+                          options={DOCUMENT_LITERACY_OPTIONS}
+                          selected={trackExtras.documentLiteracy}
+                          onChange={(v) =>
+                            setTrackExtras((prev) => ({ ...prev, documentLiteracy: v }))
+                          }
+                          placeholder="Khác — VD: Sơ đồ thủy lực…"
+                        />
+                      </Field>
+                      <Field label={`20. Cách làm việc kỹ thuật — ${TECHNICAL_WORK_STYLE_QUESTION}`}>
+                        <p className="mb-2 text-xs text-amber-700">
+                          {trackExtras.technicalWorkStyles.length
+                            ? `Đã chọn ${trackExtras.technicalWorkStyles.length}/3`
+                            : 'Chọn tối đa 3 phương án'}
+                        </p>
+                        <MultiCheck
+                          options={TECHNICAL_WORK_STYLES}
+                          selected={trackExtras.technicalWorkStyles}
+                          onChange={(v) =>
+                            setTrackExtras((prev) => ({
+                              ...prev,
+                              technicalWorkStyles: v.slice(0, 3),
+                            }))
+                          }
+                          max={3}
+                          columns={2}
+                        />
+                      </Field>
+                      <div className="space-y-3">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900">
+                            21. Định hướng nghề nghiệp
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {TECHNICAL_ORIENTATION_QUESTION}
+                          </p>
+                        </div>
+                        <RadioList
+                          name="technicalCareerOrientation"
+                          options={TECHNICAL_CAREER_ORIENTATIONS}
+                          value={
+                            (TECHNICAL_CAREER_ORIENTATIONS as readonly string[]).includes(
+                              form.careerOrientations[0] ?? '',
+                            )
+                              ? (form.careerOrientations[0] ?? '')
+                              : form.careerOrientations[0]?.startsWith('Khác')
+                                ? 'Khác'
+                                : ''
+                          }
+                          onChange={(v) => {
+                            if (v !== 'Khác') {
+                              patch('careerOrientations', [v]);
+                              return;
+                            }
+                            const prev = form.careerOrientations[0] ?? '';
+                            patch(
+                              'careerOrientations',
+                              [prev.startsWith('Khác') ? prev : 'Khác'],
+                            );
+                          }}
+                        />
+                        {(form.careerOrientations[0] === 'Khác' ||
+                          form.careerOrientations[0]?.startsWith('Khác:')) && (
+                          <Input
+                            value={
+                              form.careerOrientations[0]?.startsWith('Khác:')
+                                ? form.careerOrientations[0].slice(5).trimStart()
+                                : ''
+                            }
+                            onChange={(e) => {
+                              const t = e.target.value;
+                              patch(
+                                'careerOrientations',
+                                [t.trim() ? `Khác: ${t}` : 'Khác'],
                               );
-                            })}
-                          </div>
-                        </Field>
-                      ))}
-                    </div>
-                  </div>
+                            }}
+                            placeholder="Khác: nhập hướng phát triển…"
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-3 border-t border-slate-200 pt-6">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900">
+                            22. Động lực khi lựa chọn công việc mới
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {TECHNICAL_MOTIVATION_QUESTION}
+                          </p>
+                        </div>
+                        <p className="text-xs text-amber-700">
+                          {form.careerMotivations.length
+                            ? `Đã chọn ${form.careerMotivations.length}/3`
+                            : 'Chọn đúng 3 yếu tố quan trọng nhất'}
+                        </p>
+                        <MultiCheck
+                          options={TECHNICAL_CAREER_MOTIVATIONS}
+                          selected={form.careerMotivations}
+                          onChange={(v) => patch('careerMotivations', v.slice(0, 3))}
+                          max={3}
+                          columns={2}
+                        />
+                      </div>
+                      <Field
+                        label={`23. Môi trường làm việc mong muốn — ${WORK_ENVIRONMENT_DESIRED_QUESTION}`}
+                      >
+                        <MultiCheck
+                          options={WORK_ENVIRONMENT_OPTIONS}
+                          selected={trackExtras.desiredWorkEnvironments}
+                          onChange={(v) =>
+                            setTrackExtras((prev) => ({
+                              ...prev,
+                              desiredWorkEnvironments: v.slice(0, 3),
+                            }))
+                          }
+                          max={3}
+                          columns={2}
+                        />
+                      </Field>
+                    </>
+                  )}
+                  {isSales && (
+                    <>
+                      <div className="space-y-3">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900">
+                            17. Định hướng nghề nghiệp
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {CAREER_ORIENTATION_QUESTION}
+                          </p>
+                        </div>
+                        <RadioList
+                          name="careerOrientation"
+                          options={CAREER_ORIENTATIONS}
+                          value={form.careerOrientations[0] ?? ''}
+                          onChange={(v) => patch('careerOrientations', [v])}
+                        />
+                      </div>
+
+                      <div className="space-y-3 border-t border-slate-200 pt-6">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900">
+                            18. {CULTURE_FIT_SECTION_TITLE}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
+                        </div>
+                        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                          {CULTURE_FIT_QUESTIONS.map((q, qi) => (
+                            <Field key={q.id} label={`${qi + 1}. ${q.question}`}>
+                              <div className="grid gap-2">
+                                {q.options.map((opt, i) => {
+                                  const letter = String.fromCharCode(65 + i);
+                                  const checked = form.cultureFit[q.id] === opt;
+                                  return (
+                                    <label
+                                      key={opt}
+                                      className={clsx(
+                                        'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+                                        checked
+                                          ? 'border-brand-300 bg-brand-50 text-brand-900'
+                                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                                      )}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name={`cultureFit-${q.id}`}
+                                        className="mt-0.5"
+                                        checked={checked}
+                                        onChange={() => patchCultureFit(q.id, opt)}
+                                      />
+                                      <span>
+                                        <span className="font-semibold">{letter}. </span>
+                                        {opt}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </Field>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 border-t border-slate-200 pt-6">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900">
+                            19. Động lực khi lựa chọn công việc mới
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {CAREER_MOTIVATION_QUESTION}
+                          </p>
+                        </div>
+                        <p className="text-xs text-amber-700">
+                          {form.careerMotivations.length
+                            ? `Đã chọn ${form.careerMotivations.length}/3`
+                            : 'Chọn đúng 3 yếu tố quan trọng nhất'}
+                        </p>
+                        <MultiCheck
+                          options={CAREER_MOTIVATIONS}
+                          selected={form.careerMotivations}
+                          onChange={(v) => patch('careerMotivations', v.slice(0, 3))}
+                          max={3}
+                          columns={2}
+                        />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
               {step === 5 && (
                 <>
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Kỹ năng & học vấn</h2>
-                    <p className="text-sm text-slate-500">
-                      Thêm kỹ năng chuyên môn. Học vấn / chứng chỉ là tuỳ chọn.
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      {isTechnical
+                        ? 'D. Kinh nghiệm công ty (24–31)'
+                        : 'D. Kinh nghiệm công ty (20–34)'}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {isTechnical
+                        ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 24–31.'
+                        : 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 20–34.'}
                     </p>
                   </div>
-
-                  <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-800">Kỹ năng</p>
-                      <Button type="button" variant="outline" onClick={addSkill}>
-                        Thêm kỹ năng
-                      </Button>
-                    </div>
-                    {form.skills.map((skill, index) => (
-                      <div key={index} className="flex flex-wrap items-end gap-2">
-                        <div className="min-w-[12rem] flex-1">
-                          <Field label={index === 0 ? 'Tên kỹ năng' : ''}>
-                            <Input
-                              value={skill.name}
-                              onChange={(e) => patchSkill(index, { name: e.target.value })}
-                              placeholder="VD: Đàm phán B2B"
-                            />
-                          </Field>
-                        </div>
-                        <div className="w-40">
-                          <Field label={index === 0 ? 'Mức độ' : ''}>
-                            <Select
-                              value={skill.level}
-                              onChange={(e) => patchSkill(index, { level: e.target.value })}
+                  {!trackExtras.jobTrack && <ChooseTrackNote />}
+                  {isTechnical && (
+                    <>
+                      <div className="space-y-6">
+                        {form.experiences.map((exp, index) => {
+                          const hasMissing = exp.missingFields.length > 0;
+                          const highlight = cvEntry && exp.source === 'cv_ai' && hasMissing;
+                          return (
+                            <div
+                              key={exp.id ?? index}
+                              className={clsx(
+                                'space-y-4 rounded-xl border p-4',
+                                highlight
+                                  ? 'border-amber-300 bg-amber-50/40'
+                                  : 'border-slate-200 bg-slate-50/50',
+                              )}
                             >
-                              <option value={SkillLevel.Beginner}>Cơ bản</option>
-                              <option value={SkillLevel.Intermediate}>Trung bình</option>
-                              <option value={SkillLevel.Advanced}>Khá</option>
-                              <option value={SkillLevel.Expert}>Thành thạo</option>
-                            </Select>
-                          </Field>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="mb-0.5"
-                          onClick={() => removeSkill(index)}
-                          disabled={form.skills.length <= 1}
-                        >
-                          Xoá
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-semibold text-slate-800">
+                                    Kinh nghiệm công ty {index + 1}
+                                    {exp.source === 'cv_ai' && (
+                                      <span className="ml-2 inline-flex">
+                                        <Badge tone="brand">Từ CV AI</Badge>
+                                      </span>
+                                    )}
+                                  </p>
+                                  <MissingBadges fields={exp.missingFields} highlight={highlight} />
+                                </div>
+                                {form.experiences.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="text-red-600"
+                                    onClick={() => removeExperience(index)}
+                                  >
+                                    Xoá
+                                  </Button>
+                                )}
+                              </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Trình độ">
-                      <Select
-                        value={form.educationLevel}
-                        onChange={(e) => patch('educationLevel', e.target.value)}
-                      >
-                        <option value="">— Chọn —</option>
-                        {EDUCATION_LEVELS.map((l) => (
-                          <option key={l} value={l}>
-                            {l}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Xếp loại bằng cấp">
-                      <Select
-                        value={form.educationClassification}
-                        onChange={(e) => patch('educationClassification', e.target.value)}
-                      >
-                        <option value="">— Chọn —</option>
-                        {EDUCATION_CLASSIFICATIONS.map((l) => (
-                          <option key={l} value={l}>
-                            {l}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Trường / cơ sở đào tạo">
-                      <Input
-                        value={form.educationSchool}
-                        onChange={(e) => patch('educationSchool', e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Chuyên ngành">
-                      <Input
-                        value={form.educationMajor}
-                        onChange={(e) => patch('educationMajor', e.target.value)}
-                        placeholder="VD: Điện tử viễn thông, Marketing..."
-                      />
-                    </Field>
-                  </div>
-                  <Field label="Chứng chỉ (cách nhau bằng dấu phẩy)">
-                    <Input
-                      value={form.certificates}
-                      onChange={(e) => patch('certificates', e.target.value)}
-                      placeholder="VD: ISO 9001, An toàn lao động..."
-                    />
-                  </Field>
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <Field label="24. Tên công ty *">
+                                  <Input
+                                    value={exp.companyName}
+                                    onChange={(e) =>
+                                      patchExperience(index, { companyName: e.target.value })
+                                    }
+                                    placeholder="Anh/chị từng làm việc tại công ty nào?"
+                                  />
+                                </Field>
+                                <Field label="25. Vị trí *">
+                                  <Input
+                                    value={exp.jobTitle}
+                                    onChange={(e) =>
+                                      patchExperience(index, { jobTitle: e.target.value })
+                                    }
+                                    placeholder="Anh/chị làm vị trí gì tại công ty này?"
+                                  />
+                                </Field>
+                                <Field label="26. Thời gian làm việc * — bắt đầu">
+                                  <MonthYearInput
+                                    value={exp.startYear}
+                                    onChange={(v) => patchExperience(index, { startYear: v })}
+                                  />
+                                </Field>
+                                <Field label="Kết thúc">
+                                  <MonthYearInput
+                                    value={exp.endYear}
+                                    disabled={exp.isCurrent}
+                                    onChange={(v) => patchExperience(index, { endYear: v })}
+                                  />
+                                </Field>
+                              </div>
+                              <label className="flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  className="rounded border-slate-300 text-brand-600"
+                                  checked={exp.isCurrent}
+                                  onChange={(e) =>
+                                    patchExperience(index, {
+                                      isCurrent: e.target.checked,
+                                      endYear: e.target.checked ? '' : exp.endYear,
+                                    })
+                                  }
+                                />
+                                Đang làm việc tại đây
+                              </label>
+
+                              <Field label="27. Lĩnh vực đã làm * — Anh/chị làm trong lĩnh vực nào tại công ty này?">
+                                <MultiCheck
+                                  options={EXPERIENCE_INDUSTRY_OPTIONS}
+                                  selected={exp.industries}
+                                  onChange={(v) => patchExperience(index, { industries: v })}
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <Field
+                                label={`28. Thiết bị / hệ thống đã làm * — ${EQUIPMENT_SYSTEM_QUESTION}`}
+                              >
+                                <MultiCheckWithCustom
+                                  options={EQUIPMENT_SYSTEM_OPTIONS}
+                                  selected={exp.productsSold}
+                                  onChange={(v) => patchExperience(index, { productsSold: v })}
+                                  placeholder="Khác — nhập thiết bị / hệ thống…"
+                                  searchable
+                                />
+                              </Field>
+
+                              <Field
+                                label={`29. Môi trường làm việc thực tế * — ${WORK_ENVIRONMENT_ACTUAL_QUESTION}`}
+                              >
+                                <MultiCheckWithCustom
+                                  options={WORK_ENVIRONMENT_OPTIONS}
+                                  selected={exp.customerSegments}
+                                  onChange={(v) =>
+                                    patchExperience(index, { customerSegments: v })
+                                  }
+                                  placeholder="Khác — VD: Trạm điện, mỏ…"
+                                />
+                              </Field>
+
+                              <Field
+                                label={`30. Công việc kỹ thuật đã thực hiện * — ${TECHNICAL_WORK_TYPES_QUESTION}`}
+                              >
+                                <MultiCheck
+                                  options={TECHNICAL_WORK_TYPES}
+                                  selected={exp.sellingStages}
+                                  onChange={(v) => patchExperience(index, { sellingStages: v })}
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <Field label={`31. Mức độ tự chủ — ${TECHNICAL_AUTONOMY_QUESTION}`}>
+                                <RadioList
+                                  name={`technicalAutonomy-${index}`}
+                                  options={TECHNICAL_AUTONOMY_LEVELS.map((lv) => lv.label)}
+                                  value={
+                                    TECHNICAL_AUTONOMY_LEVELS.find(
+                                      (lv) => lv.value === trackExtras.technicalAutonomyLevel,
+                                    )?.label ?? ''
+                                  }
+                                  onChange={(label) => {
+                                    const lv = TECHNICAL_AUTONOMY_LEVELS.find(
+                                      (o) => o.label === label,
+                                    );
+                                    setTrackExtras((prev) => ({
+                                      ...prev,
+                                      technicalAutonomyLevel: lv ? lv.value : null,
+                                    }));
+                                  }}
+                                />
+                              </Field>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <Button type="button" variant="outline" onClick={addExperience}>
+                        + Thêm công ty (lặp lại mục 24–31)
+                      </Button>
+                    </>
+                  )}
+                  {isSales && (
+                    <>
+                      <div className="space-y-6">
+                        {form.experiences.map((exp, index) => {
+                          const hasMissing = exp.missingFields.length > 0;
+                          const highlight = cvEntry && exp.source === 'cv_ai' && hasMissing;
+                          const dealTypesSelected = splitDealTypes(exp.dealType).map(
+                            (v) => DEAL_TYPE_LABEL[v],
+                          );
+                          return (
+                            <div
+                              key={exp.id ?? index}
+                              className={clsx(
+                                'space-y-4 rounded-xl border p-4',
+                                highlight
+                                  ? 'border-amber-300 bg-amber-50/40'
+                                  : 'border-slate-200 bg-slate-50/50',
+                              )}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-semibold text-slate-800">
+                                    Kinh nghiệm công ty {index + 1}
+                                    {exp.source === 'cv_ai' && (
+                                      <span className="ml-2 inline-flex">
+                                        <Badge tone="brand">Từ CV AI</Badge>
+                                      </span>
+                                    )}
+                                  </p>
+                                  <MissingBadges fields={exp.missingFields} highlight={highlight} />
+                                </div>
+                                {form.experiences.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="text-red-600"
+                                    onClick={() => removeExperience(index)}
+                                  >
+                                    Xoá
+                                  </Button>
+                                )}
+                              </div>
+
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <Field label="20. Tên công ty *">
+                                  <Input
+                                    value={exp.companyName}
+                                    onChange={(e) =>
+                                      patchExperience(index, { companyName: e.target.value })
+                                    }
+                                    placeholder="Anh/chị từng làm việc tại công ty nào?"
+                                  />
+                                </Field>
+                                <Field label="21. Vị trí *">
+                                  <Input
+                                    value={exp.jobTitle}
+                                    onChange={(e) =>
+                                      patchExperience(index, { jobTitle: e.target.value })
+                                    }
+                                    placeholder="Anh/chị làm vị trí gì tại công ty này?"
+                                  />
+                                </Field>
+                                <Field label="22. Thời gian làm việc * — bắt đầu">
+                                  <MonthYearInput
+                                    value={exp.startYear}
+                                    onChange={(v) => patchExperience(index, { startYear: v })}
+                                  />
+                                </Field>
+                                <Field label="Kết thúc">
+                                  <MonthYearInput
+                                    value={exp.endYear}
+                                    disabled={exp.isCurrent}
+                                    onChange={(v) => patchExperience(index, { endYear: v })}
+                                  />
+                                </Field>
+                              </div>
+                              <label className="flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  className="rounded border-slate-300 text-brand-600"
+                                  checked={exp.isCurrent}
+                                  onChange={(e) =>
+                                    patchExperience(index, {
+                                      isCurrent: e.target.checked,
+                                      endYear: e.target.checked ? '' : exp.endYear,
+                                    })
+                                  }
+                                />
+                                Đang làm việc tại đây
+                              </label>
+
+                              <Field label="23. Ngành / lĩnh vực * — Anh/chị làm trong lĩnh vực nào tại công ty này?">
+                                <MultiCheck
+                                  options={EXPERIENCE_INDUSTRY_OPTIONS}
+                                  selected={exp.industries}
+                                  onChange={(v) => patchExperience(index, { industries: v })}
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <Field label="24. Sản phẩm / thiết bị đã bán * (chọn nhiều + nhập thêm)">
+                                <MultiCheckWithCustom
+                                  options={PRODUCTS_SOLD}
+                                  selected={exp.productsSold}
+                                  onChange={(v) => patchExperience(index, { productsSold: v })}
+                                  placeholder="Thiết bị công nghiệp khác — nhập thêm…"
+                                />
+                              </Field>
+
+                              <Field label="25. Nhóm khách hàng đã bán *">
+                                <MultiCheck
+                                  options={CUSTOMER_SEGMENTS}
+                                  selected={exp.customerSegments}
+                                  onChange={(v) =>
+                                    patchExperience(index, { customerSegments: v })
+                                  }
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <Field label="26. Hình thức bán hàng *">
+                                <MultiCheck
+                                  options={DEAL_TYPE_CHECK_OPTIONS.map((o) => o.label)}
+                                  selected={dealTypesSelected}
+                                  onChange={(labels) => {
+                                    const values = labels
+                                      .map(
+                                        (l) =>
+                                          DEAL_TYPE_CHECK_OPTIONS.find((o) => o.label === l)
+                                            ?.value,
+                                      )
+                                      .filter((v): v is string => Boolean(v));
+                                    patchExperience(index, {
+                                      dealType: joinDealTypes(values) ?? '',
+                                    });
+                                  }}
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <Field label={`27. Phạm vi công việc bán hàng đã phụ trách — ${SELLING_STAGES_QUESTION}`}>
+                                <div className="mb-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() =>
+                                      patchExperience(index, {
+                                        sellingStages:
+                                          exp.sellingStages.length === SELLING_STAGES.length
+                                            ? []
+                                            : [...SELLING_STAGES],
+                                      })
+                                    }
+                                  >
+                                    {exp.sellingStages.length === SELLING_STAGES.length
+                                      ? 'Bỏ chọn tất cả'
+                                      : 'Chọn tất cả'}
+                                  </Button>
+                                </div>
+                                <MultiCheck
+                                  options={SELLING_STAGES}
+                                  selected={exp.sellingStages}
+                                  onChange={(v) => patchExperience(index, { sellingStages: v })}
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <details className="rounded-lg border border-slate-200 bg-white">
+                                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
+                                  28–34. Nhóm khuyến khích — giúp AI kết nối với NTD dễ hơn
+                                </summary>
+                                <div className="space-y-4 border-t border-slate-100 px-4 py-4">
+                                  <Field label="28. Hãng / thương hiệu sản phẩm — Anh/chị từng làm sản phẩm/thiết bị hãng nào?">
+                                    <BrandTechnologySearch
+                                      selected={trackExtras.brandsTechnologies}
+                                      onChange={(next) =>
+                                        setTrackExtras((prev) => ({
+                                          ...prev,
+                                          brandsTechnologies: next,
+                                        }))
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="29. Khu vực / thị trường phụ trách">
+                                    <MultiCheck
+                                      options={MARKET_REGIONS}
+                                      selected={exp.marketsCovered}
+                                      onChange={(v) =>
+                                        patchExperience(index, { marketsCovered: v })
+                                      }
+                                      columns={3}
+                                    />
+                                  </Field>
+                                  <div className="grid gap-4 sm:grid-cols-2">
+                                    <Field label={`30. ${PERSONAL_REVENUE_QUESTION}`}>
+                                      <MoneyInput
+                                        value={exp.latestRevenue}
+                                        onChange={(v) =>
+                                          patchExperience(index, { latestRevenue: v })
+                                        }
+                                        placeholder="Ví dụ: 12 tỷ/năm"
+                                        hint={moneyHint(exp.latestRevenue)}
+                                      />
+                                    </Field>
+                                    <Field label="31. Mức độ hoàn thành KPI">
+                                      <Select
+                                        value={exp.kpiBand}
+                                        onChange={(e) =>
+                                          patchExperience(index, { kpiBand: e.target.value })
+                                        }
+                                      >
+                                        <option value="">— Chọn —</option>
+                                        {KPI_ACHIEVEMENT_BANDS.map((b) => (
+                                          <option key={b.value} value={b.value}>
+                                            {b.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    </Field>
+                                    <Field label="32. Tỷ lệ khách hàng tự tìm kiếm">
+                                      <Select
+                                        value={exp.newCustomerRatioBand}
+                                        onChange={(e) =>
+                                          patchExperience(index, {
+                                            newCustomerRatioBand: e.target.value,
+                                          })
+                                        }
+                                      >
+                                        <option value="">— Chọn —</option>
+                                        {NEW_CUSTOMER_RATIO_BANDS.map((b) => (
+                                          <option key={b.value} value={b.value}>
+                                            {b.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    </Field>
+                                    <Field label="33. Giá trị hợp đồng thường gặp">
+                                      <Select
+                                        value={exp.typicalDealValueBand}
+                                        onChange={(e) =>
+                                          patchExperience(index, {
+                                            typicalDealValueBand: e.target.value,
+                                          })
+                                        }
+                                      >
+                                        <option value="">— Chọn —</option>
+                                        {DEAL_VALUE_BANDS.map((b) => (
+                                          <option key={b.value} value={b.value}>
+                                            {b.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    </Field>
+                                  </div>
+                                  <Field label="34. Thành tích kinh doanh nổi bật tại công ty này?">
+                                    <Textarea
+                                      rows={3}
+                                      value={exp.highlights}
+                                      onChange={(e) =>
+                                        patchExperience(index, { highlights: e.target.value })
+                                      }
+                                      placeholder={SALES_HIGHLIGHTS_PLACEHOLDER}
+                                    />
+                                  </Field>
+                                </div>
+                              </details>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <Button type="button" variant="outline" onClick={addExperience}>
+                        + Thêm công ty (lặp lại mục 20–34)
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -1787,95 +2330,20 @@ export default function ProfileEditPage() {
                   <dl className="space-y-4 divide-y divide-slate-100">
                     <div className="space-y-2 pt-0">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Thông tin cơ bản
+                        A. Thông tin cơ bản (1–12)
                       </p>
                       <ReviewRow label="Họ tên" value={form.displayName} />
+                      <ReviewRow label="Năm sinh" value={form.birthYear} />
                       <ReviewRow label="Điện thoại" value={form.phone} />
-                      <ReviewRow label="Ngày sinh" value={form.birthDate || form.birthYear} />
-                      <ReviewRow label="Xã/Phường" value={form.ward} />
-                      <ReviewRow label="Tỉnh/Thành" value={form.currentCity} />
-                      <ReviewRow label="Mục tiêu nghề nghiệp" value={form.careerObjective} />
-                      <ReviewRow label="Sở thích" value={form.hobbies} />
-                    </div>
-
-                    <div className="space-y-2 pt-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Mong muốn nghề nghiệp
-                      </p>
+                      <ReviewRow label="Email" value={me?.email ?? ''} />
                       <ReviewRow
-                        label="Vị trí"
-                        value={
-                          form.desiredPositions.length > 0
-                            ? form.desiredPositions.join(', ')
-                            : '—'
-                        }
+                        label="Nơi sinh sống"
+                        value={[form.ward, form.currentCity].filter(Boolean).join(', ')}
                       />
-                      <ReviewRow
-                        label="Địa điểm"
-                        value={
-                          form.desiredLocations.length > 0
-                            ? form.desiredLocations.join(', ')
-                            : '—'
-                        }
-                      />
-                      <ReviewRow
-                        label="Lương tối thiểu"
-                        value={formatVnd(form.expectedSalaryMin)}
-                      />
-                      <ReviewRow label="OTE" value={formatVnd(form.expectedOte)} />
-                      <ReviewRow
-                        label="Nhận việc"
-                        value={
-                          form.availabilityBand
-                            ? AVAILABILITY_BAND_LABEL[
-                                form.availabilityBand as AvailabilityBand
-                              ]
-                            : '—'
-                        }
-                      />
-                      <ReviewRow
-                        label="Tìm việc"
-                        value={
-                          form.jobReadiness
-                            ? JOB_READINESS_LABEL[form.jobReadiness as JobReadiness]
-                            : '—'
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2 pt-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Kinh nghiệm ({filledExperiences.length})
-                      </p>
-                      {filledExperiences.length === 0 ? (
-                        <p className="text-sm text-slate-500">Chưa có kinh nghiệm công ty.</p>
-                      ) : (
-                        filledExperiences.map((exp, i) => (
-                          <div
-                            key={i}
-                            className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
-                          >
-                            <p className="text-sm font-medium text-slate-900">
-                              {exp.jobTitle || '—'} · {exp.companyName || '—'}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {formatMonthYearLabel(exp.startYear)} –{' '}
-                              {exp.isCurrent ? 'Hiện tại' : formatMonthYearLabel(exp.endYear)}
-                            </p>
-                            {exp.missingFields.length > 0 && (
-                              <div className="mt-2">
-                                <MissingBadges fields={exp.missingFields} highlight />
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    <div className="space-y-2 pt-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Điều kiện công việc
-                      </p>
+                      <ReviewRow label="Trình độ" value={form.educationLevel} />
+                      <ReviewRow label="Trường" value={form.educationSchool} />
+                      <ReviewRow label="Chuyên ngành" value={form.educationMajor} />
+                      <ReviewRow label="Chứng chỉ" value={form.certificates} />
                       <ReviewRow
                         label="Ngoại ngữ"
                         value={
@@ -1887,67 +2355,249 @@ export default function ProfileEditPage() {
                         }
                       />
                       <ReviewRow
-                        label="Bằng lái"
-                        value={
-                          form.hasB2License === 'true'
-                            ? `Có${form.driverLicenseType ? ` (${form.driverLicenseType})` : ''}`
-                            : form.hasB2License === 'false'
-                              ? 'Không'
-                              : '—'
-                        }
+                        label="Giấy phép lái xe"
+                        value={form.driverLicenses.join(', ')}
                       />
                       <ReviewRow
-                        label="Công tác"
+                        label="Đi công tác"
                         value={
                           form.travelAbility
                             ? TRAVEL_ABILITY_LABEL[form.travelAbility as TravelAbility]
                             : '—'
                         }
                       />
-                      <ReviewRow
-                        label="Phong cách Sales"
-                        value={form.salesBehavior || '—'}
-                      />
-                      <ReviewRow
-                        label="Động lực nghề"
-                        value={
-                          form.careerMotivations.length > 0
-                            ? form.careerMotivations.join(', ')
-                            : '—'
-                        }
-                      />
-                      <ReviewRow
-                        label="Định hướng nghề"
-                        value={
-                          form.careerOrientations.length > 0
-                            ? form.careerOrientations.join(', ')
-                            : '—'
-                        }
-                      />
-                      {CULTURE_FIT_QUESTIONS.map((q) => (
-                        <ReviewRow
-                          key={q.id}
-                          label={q.question}
-                          value={form.cultureFit[q.id] || '—'}
-                        />
-                      ))}
                     </div>
 
-                    {(form.educationLevel ||
-                      form.educationClassification ||
-                      form.educationSchool ||
-                      form.educationMajor ||
-                      form.certificates.trim()) && (
-                      <div className="space-y-2 pt-4">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Học vấn
-                        </p>
-                        <ReviewRow label="Trình độ" value={form.educationLevel} />
-                        <ReviewRow label="Xếp loại" value={form.educationClassification} />
-                        <ReviewRow label="Trường" value={form.educationSchool} />
-                        <ReviewRow label="Chuyên ngành" value={form.educationMajor} />
-                        <ReviewRow label="Chứng chỉ" value={form.certificates} />
-                      </div>
+                    <div className="space-y-2 pt-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Hướng hồ sơ
+                      </p>
+                      <ReviewRow
+                        label="Lĩnh vực"
+                        value={
+                          trackExtras.jobTrack
+                            ? JOB_TRACK_LABEL[trackExtras.jobTrack]
+                            : 'Chưa chọn'
+                        }
+                      />
+                    </div>
+
+                    {isSales && (
+                      <>
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            B. Mong muốn nghề nghiệp (13–16)
+                          </p>
+                          <ReviewRow
+                            label="Vị trí ứng tuyển"
+                            value={
+                              form.desiredPositions.length > 0
+                                ? form.desiredPositions.join(', ')
+                                : '—'
+                            }
+                          />
+                          <ReviewRow
+                            label="Địa điểm"
+                            value={
+                              form.desiredLocations.length > 0
+                                ? form.desiredLocations.join(', ')
+                                : '—'
+                            }
+                          />
+                          <ReviewRow
+                            label="Thu nhập tối thiểu"
+                            value={formatVnd(form.expectedSalaryMin)}
+                          />
+                          <ReviewRow label="Thu nhập kỳ vọng" value={formatVnd(form.expectedOte)} />
+                          <ReviewRow
+                            label="Nhận việc"
+                            value={
+                              form.availabilityBand
+                                ? AVAILABILITY_BAND_LABEL[
+                                    form.availabilityBand as AvailabilityBand
+                                  ]
+                                : '—'
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            C. Định hướng & phù hợp (17–19)
+                          </p>
+                          <ReviewRow
+                            label="Định hướng"
+                            value={form.careerOrientations[0] ?? '—'}
+                          />
+                          {CULTURE_FIT_QUESTIONS.map((q) => (
+                            <ReviewRow
+                              key={q.id}
+                              label={q.question}
+                              value={form.cultureFit[q.id] || '—'}
+                            />
+                          ))}
+                          <ReviewRow
+                            label="Động lực"
+                            value={
+                              form.careerMotivations.length > 0
+                                ? form.careerMotivations.join(', ')
+                                : '—'
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            D. Kinh nghiệm công ty ({filledExperiences.length})
+                          </p>
+                          {filledExperiences.length === 0 ? (
+                            <p className="text-sm text-slate-500">Chưa có kinh nghiệm công ty.</p>
+                          ) : (
+                            filledExperiences.map((exp, i) => (
+                              <div
+                                key={i}
+                                className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                              >
+                                <p className="text-sm font-medium text-slate-900">
+                                  {exp.jobTitle || '—'} · {exp.companyName || '—'}
+                                </p>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  {formatMonthYearLabel(exp.startYear)} –{' '}
+                                  {exp.isCurrent ? 'Hiện tại' : formatMonthYearLabel(exp.endYear)}
+                                </p>
+                                {exp.missingFields.length > 0 && (
+                                  <div className="mt-2">
+                                    <MissingBadges fields={exp.missingFields} highlight />
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                          {trackExtras.brandsTechnologies.length > 0 && (
+                            <ReviewRow
+                              label="Hãng/thương hiệu"
+                              value={trackExtras.brandsTechnologies.join(', ')}
+                            />
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {isTechnical && (
+                      <>
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            B. Mong muốn nghề nghiệp (13–16)
+                          </p>
+                          <ReviewRow
+                            label="Vị trí ứng tuyển"
+                            value={
+                              form.desiredPositions.length > 0
+                                ? form.desiredPositions.join(', ')
+                                : '—'
+                            }
+                          />
+                          <ReviewRow
+                            label="Địa điểm"
+                            value={
+                              form.desiredLocations.length > 0
+                                ? form.desiredLocations.join(', ')
+                                : '—'
+                            }
+                          />
+                          <ReviewRow
+                            label="Thu nhập tối thiểu"
+                            value={formatVnd(form.expectedSalaryMin)}
+                          />
+                          <ReviewRow label="Thu nhập kỳ vọng" value={formatVnd(form.expectedOte)} />
+                          <ReviewRow
+                            label="Nhận việc"
+                            value={
+                              form.availabilityBand
+                                ? AVAILABILITY_BAND_LABEL[
+                                    form.availabilityBand as AvailabilityBand
+                                  ]
+                                : '—'
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            C. Năng lực và định hướng (17–23)
+                          </p>
+                          <ReviewRow
+                            label="Làm ngoài giờ"
+                            value={
+                              SHIFT_FLEXIBILITY_OPTIONS.find(
+                                (o) => o.value === trackExtras.shiftFlexibility,
+                              )?.label ?? '—'
+                            }
+                          />
+                          <ReviewRow
+                            label="Phần mềm / công cụ"
+                            value={trackExtras.technicalTools.join(', ')}
+                          />
+                          <ReviewRow
+                            label="Đọc bản vẽ / tài liệu"
+                            value={trackExtras.documentLiteracy.join(', ')}
+                          />
+                          <ReviewRow
+                            label="Cách làm việc"
+                            value={trackExtras.technicalWorkStyles.join(', ')}
+                          />
+                          <ReviewRow
+                            label="Định hướng"
+                            value={form.careerOrientations.join(', ')}
+                          />
+                          <ReviewRow
+                            label="Động lực"
+                            value={form.careerMotivations.join(', ')}
+                          />
+                          <ReviewRow
+                            label="Môi trường mong muốn"
+                            value={trackExtras.desiredWorkEnvironments.join(', ')}
+                          />
+                        </div>
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            D. Kinh nghiệm (24–31)
+                          </p>
+                          {filledExperiences.length === 0 ? (
+                            <p className="text-sm text-slate-500">Chưa có kinh nghiệm</p>
+                          ) : (
+                            filledExperiences.map((exp, i) => (
+                              <div key={exp.id ?? i} className="rounded-lg bg-slate-50 px-3 py-2">
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {exp.jobTitle || 'Vị trí'} · {exp.companyName || 'Công ty'}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {[exp.startYear, exp.isCurrent ? 'Hiện tại' : exp.endYear]
+                                    .filter(Boolean)
+                                    .join(' – ')}
+                                </p>
+                                {exp.productsSold.length > 0 && (
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    Thiết bị: {exp.productsSold.join(', ')}
+                                  </p>
+                                )}
+                                {exp.sellingStages.length > 0 && (
+                                  <p className="text-xs text-slate-600">
+                                    Công việc: {exp.sellingStages.join(', ')}
+                                  </p>
+                                )}
+                              </div>
+                            ))
+                          )}
+                          <ReviewRow
+                            label="Mức tự chủ"
+                            value={
+                              TECHNICAL_AUTONOMY_LEVELS.find(
+                                (lv) => lv.value === trackExtras.technicalAutonomyLevel,
+                              )?.label ?? '—'
+                            }
+                          />
+                        </div>
+                      </>
                     )}
                   </dl>
                 </>

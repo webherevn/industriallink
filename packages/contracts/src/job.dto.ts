@@ -13,6 +13,8 @@ export interface CreateJobRequest {
   requirements?: string;
   benefits?: string;
   industry?: string;
+  /** Ngành chi tiết trong nhóm (INDUSTRY_CATALOG.subIndustries). */
+  subIndustry?: string;
   department?: string;
   /** Mã cấp bậc theo lộ trình VN (JobLevelCode). */
   jobLevel?: JobLevelCode | string;
@@ -53,6 +55,7 @@ export interface JobView {
   requirements: string | null;
   benefits: string | null;
   industry: string | null;
+  subIndustry: string | null;
   department: string | null;
   jobLevel: string | null;
   employmentType: EmploymentType | null;
@@ -76,6 +79,7 @@ export interface JobListItem {
   companyId: string;
   companyName: string;
   industry: string | null;
+  subIndustry: string | null;
   jobLevel: string | null;
   location: string | null;
   employmentType: EmploymentType | null;
@@ -113,6 +117,20 @@ export interface ListPublishedJobsQuery {
   jobTrack?: string;
   salaryMin?: number;
   salaryMax?: number;
+}
+
+export interface JobPositionCount {
+  title: string;
+  count: number;
+}
+
+/** Thống kê vị trí đang tuyển — lấy từ tin published trên nền tảng. */
+export interface JobPositionStatsView {
+  popular: JobPositionCount[];
+  byIndustry: Array<{
+    industry: string;
+    positions: JobPositionCount[];
+  }>;
 }
 
 /** Yêu cầu AI soạn / chuẩn hoá bản nháp tin tuyển dụng. */

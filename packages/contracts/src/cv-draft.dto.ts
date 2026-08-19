@@ -89,6 +89,8 @@ export interface CvDraftView {
   systemScaleNote: string | null;
   /** Làm ca / ngoài giờ: yes | limited | no. */
   shiftFlexibility: string | null;
+  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  desiredWorkEnvironments: string[];
   experience: CvDraftExperienceView[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];

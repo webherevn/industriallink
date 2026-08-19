@@ -149,6 +149,8 @@ export interface CvDraft {
   documentLiteracy: string[];
   systemScaleNote: string | null;
   shiftFlexibility: string | null;
+  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  desiredWorkEnvironments: string[];
   experience: CvDraftExperience[];
   education: { school: string; degree: string; period: string }[];
   certificates: string[];
@@ -229,6 +231,7 @@ export function emptyCvDraft(name = '', email = ''): CvDraft {
     documentLiteracy: [],
     systemScaleNote: null,
     shiftFlexibility: null,
+    desiredWorkEnvironments: [],
     experience: [],
     education: [],
     certificates: [],
@@ -310,6 +313,7 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     documentLiteracy: raw?.documentLiteracy ?? base.documentLiteracy,
     systemScaleNote: raw?.systemScaleNote ?? base.systemScaleNote,
     shiftFlexibility: raw?.shiftFlexibility ?? base.shiftFlexibility,
+    desiredWorkEnvironments: raw?.desiredWorkEnvironments ?? base.desiredWorkEnvironments,
     experience,
     education: raw?.education ?? base.education,
     certificates: raw?.certificates ?? base.certificates,

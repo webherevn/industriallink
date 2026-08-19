@@ -219,6 +219,7 @@ export default function JobDetailPage() {
   const infoRows = [
     { label: 'Mã tin', value: job.code },
     { label: 'Ngành', value: job.industry },
+    { label: 'Ngành chi tiết', value: job.subIndustry },
     { label: 'Phòng ban', value: job.department },
     {
       label: 'Loại hình',

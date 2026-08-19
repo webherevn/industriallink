@@ -119,6 +119,8 @@ export interface CandidateProfileView {
   documentLiteracy: string[];
   systemScaleNote: string | null;
   shiftFlexibility: string | null;
+  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  desiredWorkEnvironments: string[];
   sales: CandidateSalesProfileView | null;
 }
 
@@ -241,6 +243,8 @@ export interface UpdateCandidateProfileRequest {
   documentLiteracy?: string[];
   systemScaleNote?: string | null;
   shiftFlexibility?: string | null;
+  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  desiredWorkEnvironments?: string[];
   skills: { name: string; level: SkillLevel | string }[];
   experiences: CandidateExperienceInput[];
 }

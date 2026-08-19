@@ -7,6 +7,7 @@ import type {
   GenerateJobDraftRequest,
   GenerateJobDraftResponse,
   JobListItem,
+  JobPositionStatsView,
   JobStatus,
   JobView,
   ListPublishedJobsQuery,
@@ -31,6 +32,10 @@ export async function listPublishedJobs(
   if (params.salaryMax != null) qs.set('salaryMax', String(params.salaryMax));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return apiRequest(`/jobs${suffix}`);
+}
+
+export async function fetchJobPositionStats(): Promise<JobPositionStatsView> {
+  return apiRequest('/jobs/stats/positions');
 }
 
 export async function getJob(id: string): Promise<JobView> {

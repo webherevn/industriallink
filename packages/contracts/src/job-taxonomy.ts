@@ -2,7 +2,8 @@
  * Taxonomy tin tuyển dụng dùng chung giữa form NTD và trang tìm việc ứng viên.
  * Giữ đúng giá trị string lưu vào DB (industry = nhóm ngành).
  *
- * Cấu trúc: Nhóm ngành → ngành chi tiết (sub) → vị trí tuyển dụng điển hình (roles).
+ * Cấu trúc: Nhóm ngành → nhóm con → ngành chi tiết.
+ * Vị trí đang tuyển trên trang tìm việc lấy từ tin đăng trên nền tảng, không hard-code.
  */
 
 /** Nhóm ngành hiển thị trên Web (giá trị lưu DB). */
@@ -27,15 +28,25 @@ export type IndustryGroup = (typeof INDUSTRY_GROUPS)[number];
 /** Liên hệ sơ đồ 6 cục (domain model IndustrialLink). */
 export type IndustrySchemaBlock = 1 | 2 | 3 | 4 | 5 | 6;
 
+/** Ngành chi tiết trong một nhóm (nhãn nhóm + các mục con để lọc). */
+export interface IndustrySubGroup {
+  name: string;
+  items: readonly string[];
+}
+
 export interface IndustryCatalogItem {
   name: IndustryGroup;
-  /** Ngành / sản phẩm–dịch vụ chi tiết (lọc phụ). */
+  /** Nhóm con → ngành chi tiết (UI picker 2 cột). */
+  subGroups: readonly IndustrySubGroup[];
+  /** Ngành / sản phẩm–dịch vụ chi tiết (flat, gồm cả tên nhóm con). */
   subIndustries: readonly string[];
   /**
    * @deprecated Dùng `subIndustries.join(', ')`. Giữ để tương thích code cũ.
    */
   details: string;
-  /** Vị trí tuyển dụng điển hình (tiếng Việt chuyên môn). */
+  /**
+   * Gợi ý vị trí khi NTD soạn tin — bộ lọc tìm việc dùng tin đăng thật trên nền tảng.
+   */
   roles: readonly string[];
   /** Liên hệ sơ đồ 6 cục. */
   schemaBlocks: readonly IndustrySchemaBlock[];
@@ -43,15 +54,33 @@ export interface IndustryCatalogItem {
   priority: 1 | 2 | 3 | 4 | 5;
 }
 
+function flattenSubIndustries(groups: readonly IndustrySubGroup[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const g of groups) {
+    for (const item of [g.name, ...g.items]) {
+      const t = item.trim();
+      if (!t) continue;
+      const key = t.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
 function catalogItem(
   name: IndustryGroup,
-  subIndustries: readonly string[],
+  subGroups: readonly IndustrySubGroup[],
   roles: readonly string[],
   schemaBlocks: readonly IndustrySchemaBlock[],
   priority: 1 | 2 | 3 | 4 | 5,
 ): IndustryCatalogItem {
+  const subIndustries = flattenSubIndustries(subGroups);
   return {
     name,
+    subGroups,
     subIndustries,
     details: subIndustries.join(', '),
     roles,
@@ -64,12 +93,31 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Máy móc & Thiết bị công nghiệp',
     [
-      'Máy nén khí',
-      'Máy phát điện',
-      'Máy bơm',
-      'Máy công cụ',
-      'Thiết bị sản xuất',
-      'Thiết bị phụ trợ',
+      {
+        name: 'Máy nén khí',
+        items: [
+          'Máy nén khí trục vít',
+          'Máy nén khí piston',
+          'Máy sấy khí',
+          'Bình chứa khí nén',
+        ],
+      },
+      {
+        name: 'Máy phát điện',
+        items: ['Máy phát diesel', 'Máy phát gas', 'Tổ máy phát dự phòng'],
+      },
+      {
+        name: 'Máy bơm',
+        items: ['Bơm ly tâm', 'Bơm định lượng', 'Bơm chìm', 'Bơm công nghiệp'],
+      },
+      {
+        name: 'Máy công cụ',
+        items: ['Máy CNC', 'Máy cắt laser', 'Máy chấn / dập', 'Máy hàn'],
+      },
+      {
+        name: 'Thiết bị sản xuất',
+        items: ['Dây chuyền sản xuất', 'Máy đóng gói', 'Thiết bị phụ trợ nhà máy'],
+      },
     ],
     [
       'Kỹ sư kinh doanh',
@@ -83,15 +131,26 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Tự động hóa & Điều khiển',
     [
-      'PLC',
-      'SCADA',
-      'Robot công nghiệp',
-      'BMS',
-      'MES',
-      'Cảm biến',
-      'Biến tần',
-      'Servo',
-      'Tích hợp hệ thống',
+      {
+        name: 'PLC / HMI',
+        items: ['PLC', 'HMI', 'Tủ điều khiển'],
+      },
+      {
+        name: 'Truyền động',
+        items: ['Biến tần', 'Servo', 'Động cơ điện'],
+      },
+      {
+        name: 'Robot & AGV',
+        items: ['Robot công nghiệp', 'Robot cộng tác', 'AGV / AMR'],
+      },
+      {
+        name: 'Phần mềm điều khiển',
+        items: ['SCADA', 'MES', 'BMS', 'DCS'],
+      },
+      {
+        name: 'Cảm biến & tích hợp',
+        items: ['Cảm biến', 'Mạng công nghiệp', 'Tích hợp hệ thống'],
+      },
     ],
     [
       'Kỹ sư tự động hóa',
@@ -105,12 +164,18 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Điện & Năng lượng công nghiệp',
     [
-      'Điện công nghiệp',
-      'Tủ điện',
-      'UPS',
-      'Máy phát điện',
-      'Năng lượng công nghiệp',
-      'Tiết kiệm năng lượng',
+      {
+        name: 'Điện công nghiệp',
+        items: ['Tủ điện', 'MBA / máy biến áp', 'Hệ thống trung thế'],
+      },
+      {
+        name: 'Nguồn & dự phòng',
+        items: ['UPS', 'Máy phát điện', 'Pin lưu trữ'],
+      },
+      {
+        name: 'Năng lượng',
+        items: ['Năng lượng công nghiệp', 'Tiết kiệm năng lượng', 'Điện mặt trời công nghiệp'],
+      },
     ],
     [
       'Kỹ sư điện',
@@ -124,12 +189,18 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'HVAC & Cơ điện M&E',
     [
-      'Điều hòa công nghiệp',
-      'Chiller',
-      'Tháp giải nhiệt',
-      'Thông gió',
-      'Phòng sạch',
-      'Cơ điện (M&E)',
+      {
+        name: 'Điều hòa công nghiệp',
+        items: ['Chiller', 'AHU / FCU', 'VRV / VRF'],
+      },
+      {
+        name: 'Thông gió & giải nhiệt',
+        items: ['Tháp giải nhiệt', 'Thông gió', 'Cooling Tower'],
+      },
+      {
+        name: 'Cơ điện nhà máy',
+        items: ['Cơ điện (M&E)', 'Phòng sạch', 'MEP công trình'],
+      },
     ],
     [
       'Kỹ sư điều hòa',
@@ -144,11 +215,18 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Cơ khí & Chế tạo máy',
     [
-      'Gia công cơ khí',
-      'Chế tạo máy',
-      'Khuôn mẫu',
-      'CNC',
-      'Dây chuyền sản xuất',
+      {
+        name: 'Gia công cơ khí',
+        items: ['CNC', 'Gia công tiện / phay', 'Gia công chính xác'],
+      },
+      {
+        name: 'Chế tạo máy',
+        items: ['Chế tạo máy', 'Khuôn mẫu', 'Dây chuyền sản xuất'],
+      },
+      {
+        name: 'Kết cấu & hàn',
+        items: ['Gia công kết cấu', 'Hàn công nghiệp'],
+      },
     ],
     ['Kỹ sư cơ khí', 'Kỹ sư thiết kế', 'Kỹ sư kinh doanh'],
     [1, 2],
@@ -157,13 +235,18 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Thiết bị & Vật tư MRO',
     [
-      'Vòng bi',
-      'Dây curoa',
-      'Van công nghiệp',
-      'Bơm công nghiệp',
-      'Phớt làm kín',
-      'Dụng cụ',
-      'Phụ tùng công nghiệp',
+      {
+        name: 'Vật tư truyền động',
+        items: ['Vòng bi', 'Dây curoa', 'Xích công nghiệp'],
+      },
+      {
+        name: 'Van & bơm',
+        items: ['Van công nghiệp', 'Bơm công nghiệp', 'Phớt làm kín'],
+      },
+      {
+        name: 'Phụ tùng bảo trì',
+        items: ['Dụng cụ', 'Phụ tùng công nghiệp', 'Vật tư MRO'],
+      },
     ],
     [
       'Nhân viên kinh doanh B2B',
@@ -176,11 +259,14 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Thủy lực & Khí nén',
     [
-      'Xi lanh',
-      'Van khí nén',
-      'Van thủy lực',
-      'Bơm thủy lực',
-      'Hệ thống khí nén',
+      {
+        name: 'Khí nén',
+        items: ['Hệ thống khí nén', 'Van khí nén', 'Xi lanh khí nén'],
+      },
+      {
+        name: 'Thủy lực',
+        items: ['Bơm thủy lực', 'Van thủy lực', 'Xi lanh thủy lực'],
+      },
     ],
     ['Kỹ sư kinh doanh', 'Kỹ sư dịch vụ', 'Kỹ sư ứng dụng'],
     [1],
@@ -189,10 +275,14 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Dầu mỡ nhờn & Hóa chất công nghiệp',
     [
-      'Dầu công nghiệp',
-      'Dầu thủy lực',
-      'Dầu máy nén khí',
-      'Hóa chất bảo trì',
+      {
+        name: 'Dầu nhớt công nghiệp',
+        items: ['Dầu công nghiệp', 'Dầu thủy lực', 'Dầu máy nén khí'],
+      },
+      {
+        name: 'Hóa chất bảo trì',
+        items: ['Hóa chất bảo trì', 'Dung môi công nghiệp', 'Chất tẩy rửa công nghiệp'],
+      },
     ],
     [
       'Nhân viên kinh doanh B2B',
@@ -205,23 +295,30 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Đo lường & Thiết bị công nghiệp',
     [
-      'Thiết bị đo lường',
-      'Cảm biến',
-      'Hiệu chuẩn',
-      'Thiết bị phòng thí nghiệm',
+      {
+        name: 'Thiết bị đo',
+        items: ['Thiết bị đo lường', 'Cảm biến', 'Đồng hồ áp / nhiệt'],
+      },
+      {
+        name: 'Hiệu chuẩn & lab',
+        items: ['Hiệu chuẩn', 'Thiết bị phòng thí nghiệm'],
+      },
     ],
     ['Kỹ sư kinh doanh', 'Kỹ sư ứng dụng', 'Kỹ sư dịch vụ'],
-    [1],
+    [1, 2],
     4,
   ),
   catalogItem(
     'Nhà thầu công nghiệp & EPC',
     [
-      'Cơ điện (M&E)',
-      'EPC',
-      'Nhà thầu tự động hóa',
-      'Nhà thầu điều hòa',
-      'Nhà thầu nhà máy',
+      {
+        name: 'EPC / tổng thầu',
+        items: ['EPC', 'Nhà thầu nhà máy', 'Tổng thầu công nghiệp'],
+      },
+      {
+        name: 'Nhà thầu chuyên ngành',
+        items: ['Cơ điện (M&E)', 'Nhà thầu tự động hóa', 'Nhà thầu điều hòa'],
+      },
     ],
     [
       'Kinh doanh dự án',
@@ -235,14 +332,14 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Nhà máy & Sản xuất công nghiệp',
     [
-      'Điện tử',
-      'Thực phẩm',
-      'Dược phẩm',
-      'Ô tô',
-      'Linh kiện',
-      'Thép',
-      'Xi măng',
-      'Dệt may',
+      {
+        name: 'Ngành sản xuất',
+        items: ['Điện tử', 'Thực phẩm', 'Dược phẩm', 'Ô tô', 'Linh kiện'],
+      },
+      {
+        name: 'Vật liệu & nặng',
+        items: ['Thép', 'Xi măng', 'Dệt may', 'Nhựa / cao su'],
+      },
     ],
     [
       'Kỹ thuật viên bảo trì',
@@ -257,11 +354,14 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   catalogItem(
     'Logistics & Thiết bị kho vận',
     [
-      'Xe nâng',
-      'Kho thông minh',
-      'Băng tải',
-      'Xe tự hành AGV',
-      'Thiết bị logistics',
+      {
+        name: 'Thiết bị kho',
+        items: ['Xe nâng', 'Băng tải', 'Kệ kho / racking'],
+      },
+      {
+        name: 'Kho tự động',
+        items: ['Kho thông minh', 'Xe tự hành AGV', 'WMS / kho vận'],
+      },
     ],
     ['Kỹ sư kinh doanh', 'Kỹ sư dịch vụ', 'Kỹ sư kho vận'],
     [1, 2],
@@ -269,7 +369,7 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogItem[] = [
   ),
   catalogItem(
     'Khác',
-    ['Ngành công nghiệp khác'],
+    [{ name: 'Ngành công nghiệp khác', items: ['Dịch vụ kỹ thuật', 'Thương mại thiết bị'] }],
     ['Kỹ sư kinh doanh', 'Kỹ sư', 'Quản lý dự án'],
     [1],
     1,
@@ -324,6 +424,7 @@ export function findIndustryGroupBySub(sub: string): IndustryGroup | null {
   if (!n) return null;
   for (const item of INDUSTRY_CATALOG) {
     if (item.subIndustries.some((s) => s.toLowerCase() === n)) return item.name;
+    if (item.subGroups.some((g) => g.name.toLowerCase() === n)) return item.name;
   }
   return null;
 }

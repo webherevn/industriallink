@@ -1,10 +1,13 @@
 /**
- * Ma trận tiêu chí AI đánh giá ứng viên Sales B2B công nghiệp VN.
- * Tổng trọng số = 100% (A 75% + B 12% + C 13%).
+ * Ma trận chuẩn hồ sơ ứng viên Sales B2B — IndustrialLink (update 18.8, 34 mục).
  *
- * Nguồn: bảng tiêu chí chấm điểm IndustrialLink (18 tiêu chí).
- * “Năng lực bán hàng toàn chu trình” = AI suy từ checklist giai đoạn bán,
- * không hỏi ứng viên tự đánh giá.
+ * A. Thông tin cơ bản (STT 1–12, chung cho Kỹ thuật & Kinh doanh) — 7%
+ * B. Mong muốn nghề nghiệp (STT 13–16) — 13%
+ * C. Định hướng & phù hợp (STT 17–19) — 5%
+ * D. Kinh nghiệm công ty (STT 20–34, lặp cho từng công ty) — 75% (CỐT LÕI)
+ *
+ * AI đánh giá từng công ty theo mức độ liên quan với JD;
+ * không lấy trung bình đơn giản giữa các công ty.
  */
 
 import { INDUSTRY_GROUPS, type IndustryGroup } from './job-taxonomy';
@@ -18,58 +21,69 @@ export const SALES_INDUSTRY_OPTIONS: readonly IndustryGroup[] = INDUSTRY_GROUPS.
   (g) => g !== 'Khác',
 );
 
-/** 2. Sản phẩm / giải pháp từng bán (11%). */
+/** STT 24. Sản phẩm / thiết bị đã bán — search + chọn nhiều + nhập thêm (16%). */
 export const PRODUCTS_SOLD = [
   'Máy nén khí',
   'Máy phát điện',
-  'Máy bơm',
-  'Máy công cụ / CNC',
-  'Chiller / Điều hòa công nghiệp',
-  'Tháp giải nhiệt',
-  'PLC / Tự động hóa',
-  'SCADA / HMI',
+  'Máy gia công CNC',
+  'Máy cắt laser',
+  'Máy chấn / máy dập',
+  'Máy hàn',
+  'Máy ép',
+  'Dây chuyền sản xuất',
   'Robot công nghiệp',
+  'PLC / HMI',
   'Biến tần / Servo',
-  'Tủ điện / UPS',
-  'Vòng bi / Vật tư bảo trì (MRO)',
-  'Van / Phớt / Dây curoa',
-  'Hệ thống khí nén',
-  'Thủy lực',
-  'Dầu nhớt công nghiệp',
-  'Hóa chất bảo trì',
-  'Thiết bị đo lường',
-  'Xe nâng / Kho vận',
-  'Băng tải / Xe tự hành (AGV)',
-  'Giải pháp EPC / Cơ điện',
-  'Khác',
+  'Tủ điện',
+  'Chiller',
+  'AHU / FCU',
+  'Hệ thống HVAC',
+  'Cooling Tower',
+  'Bơm công nghiệp',
+  'Van công nghiệp',
+  'Hệ thống đường ống',
+  'Thiết bị nâng hạ / cầu trục',
+  'Thiết bị PCCC',
+  'Hệ thống xử lý nước',
+  'Hệ thống lọc bụi / xử lý khí',
+  'Thiết bị đo lường / cảm biến',
+  'Hệ thống M&E / MEP',
+  'Thiết bị công nghiệp khác',
 ] as const;
 
 export type ProductSold = (typeof PRODUCTS_SOLD)[number];
 
-/** 3. Tệp khách hàng từng bán (11%) — ma trận hồ sơ STT 17 (update 2.8). */
+export const PRODUCTS_SOLD_QUESTION = 'Anh/chị đã bán sản phẩm / thiết bị nào?';
+
+/** STT 25. Nhóm khách hàng đã bán (11%) — ma trận 34 mục (update 18.8). */
 export const CUSTOMER_SEGMENTS = [
+  'Nhà thầu / đơn vị thi công',
   'Nhà máy FDI',
   'Nhà máy Việt Nam',
-  'Tổng thầu',
-  'Thầu phụ',
-  'Đại lý & Kênh phân phối',
-  'Quốc tế',
+  'Tổng thầu EPC',
+  'Chủ đầu tư',
+  'Đại lý / nhà phân phối',
+  'Đơn vị thương mại',
   'Khác',
 ] as const;
 
 export type CustomerSegment = (typeof CUSTOMER_SEGMENTS)[number];
 
-/** Alias dữ liệu cũ → segment chuẩn 2.8. */
+/** Alias dữ liệu cũ → segment chuẩn 18.8. */
 export const LEGACY_CUSTOMER_SEGMENT_MAP: Record<string, CustomerSegment> = {
-  'Nhà thầu cơ điện / EPC': 'Tổng thầu',
-  'Nhà thầu M&E/EPC': 'Tổng thầu',
-  'Tập đoàn / Tổng thầu': 'Tổng thầu',
+  'Tổng thầu': 'Tổng thầu EPC',
+  'Thầu phụ': 'Nhà thầu / đơn vị thi công',
+  'Nhà thầu cơ điện / EPC': 'Tổng thầu EPC',
+  'Nhà thầu M&E/EPC': 'Tổng thầu EPC',
+  'Tập đoàn / Tổng thầu': 'Tổng thầu EPC',
   'Nhà sản xuất OEM': 'Khác',
   OEM: 'Khác',
   'Doanh nghiệp vừa và nhỏ': 'Khác',
   SME: 'Khác',
-  'Đại lý / Nhà phân phối': 'Đại lý & Kênh phân phối',
-  'Đại lý/NPP': 'Đại lý & Kênh phân phối',
+  'Quốc tế': 'Khác',
+  'Đại lý & Kênh phân phối': 'Đại lý / nhà phân phối',
+  'Đại lý / Nhà phân phối': 'Đại lý / nhà phân phối',
+  'Đại lý/NPP': 'Đại lý / nhà phân phối',
 };
 
 export function normalizeCustomerSegment(raw: string): CustomerSegment | null {
@@ -79,29 +93,49 @@ export function normalizeCustomerSegment(raw: string): CustomerSegment | null {
   }
   return LEGACY_CUSTOMER_SEGMENT_MAP[trimmed] ?? null;
 }
+/** STT 30. Doanh số cá nhân 12 tháng gần nhất — nhập tự do (khuyến khích). */
+export const PERSONAL_REVENUE_QUESTION =
+  'Doanh số cá nhân của anh/chị trong 12 tháng gần nhất tại công ty này là bao nhiêu?';
+
+export const PERSONAL_REVENUE_PLACEHOLDER = 'Ví dụ: 12 tỷ/năm';
+
 /**
- * 4. Thành tích kinh doanh (10%) — % KPI gần nhất.
- * 5. Phát triển KH mới (8%) — tỷ lệ khách tự phát triển.
+ * STT 31. Mức độ hoàn thành KPI (2%) — khuyến khích.
+ * STT 32. Tỷ lệ khách hàng tự tìm kiếm (2%) — khuyến khích.
  */
 export const KPI_ACHIEVEMENT_BANDS = [
-  { value: 'under_70', label: '< 70%', midPct: 60 },
-  { value: '70_89', label: '70 – 89%', midPct: 80 },
-  { value: '90_99', label: '90 – 99%', midPct: 95 },
-  { value: '100_119', label: '100 – 119%', midPct: 110 },
-  { value: '120_plus', label: '≥ 120%', midPct: 130 },
+  { value: 'under_70', label: 'Dưới 70%', midPct: 60 },
+  { value: '70_100', label: '70 – 100%', midPct: 85 },
+  { value: 'over_100', label: 'Trên 100%', midPct: 115 },
+  { value: 'not_applicable', label: 'Không áp dụng KPI', midPct: null },
 ] as const;
 
 export type KpiAchievementBand = (typeof KPI_ACHIEVEMENT_BANDS)[number]['value'];
 
+/** Band KPI cũ → % giữa (tương thích dữ liệu đã lưu). */
+const LEGACY_KPI_BAND_PCT: Record<string, number> = {
+  '70_89': 80,
+  '90_99': 95,
+  '100_119': 110,
+  '120_plus': 130,
+};
+
 export const NEW_CUSTOMER_RATIO_BANDS = [
-  { value: '0_20', label: '0 – 20%', midPct: 10 },
-  { value: '21_40', label: '21 – 40%', midPct: 30 },
-  { value: '41_60', label: '41 – 60%', midPct: 50 },
-  { value: '61_80', label: '61 – 80%', midPct: 70 },
-  { value: '80_plus', label: '> 80%', midPct: 90 },
+  { value: 'under_50', label: 'Dưới 50%', midPct: 30 },
+  { value: '50_80', label: '50 – 80%', midPct: 65 },
+  { value: 'over_80', label: 'Trên 80%', midPct: 90 },
 ] as const;
 
 export type NewCustomerRatioBand = (typeof NEW_CUSTOMER_RATIO_BANDS)[number]['value'];
+
+/** Band tỷ lệ KH tự tìm cũ → % giữa (tương thích dữ liệu đã lưu). */
+const LEGACY_NEW_CUSTOMER_BAND_PCT: Record<string, number> = {
+  '0_20': 10,
+  '21_40': 30,
+  '41_60': 50,
+  '61_80': 70,
+  '80_plus': 90,
+};
 
 /** 5 / 15. Phong cách phát triển KH / Sales Persona. */
 export enum CustomerDevStyle {
@@ -134,37 +168,48 @@ export const B2B_EXPERIENCE_BAND_LABEL: Record<B2bExperienceBand, string> = {
 };
 
 /**
- * 7. Năng lực bán hàng toàn chu trình (7%).
- * AI suy từ checklist — không hỏi “bạn giỏi không”.
- * Thứ tự cố định theo luồng bán hàng IndustrialLink.
+ * STT 27. Phạm vi công việc bán hàng đã phụ trách (8%).
+ * 12 hoạt động chuẩn theo ma trận 34 mục — có nút “Chọn tất cả”.
  */
 export const SELLING_STAGES = [
   'Tìm kiếm khách hàng',
-  'Tiếp cận',
-  'Xác định nhu cầu',
-  'Khảo sát',
-  'Tư vấn sản phẩm',
-  'Xây dựng giải pháp',
-  'Báo giá',
-  'Thuyết trình',
-  'Đàm phán',
+  'Tiếp cận & tạo cuộc hẹn',
+  'Khảo sát & xác định nhu cầu',
+  'Tư vấn sản phẩm / dịch vụ',
+  'Xây dựng giải pháp / phương án',
+  'Lập & gửi báo giá',
+  'Thuyết trình / trình bày giải pháp',
+  'Đàm phán & xử lý phản đối',
   'Chốt hợp đồng',
-  'Triển khai/giao hàng',
+  'Theo dõi triển khai / giao hàng',
   'Thu hồi công nợ',
-  'Chăm sóc/bán thêm',
+  'Chăm sóc khách hàng & bán thêm',
 ] as const;
 
 export type SellingStage = (typeof SELLING_STAGES)[number];
 
+export const SELLING_STAGES_QUESTION =
+  'Anh/chị trực tiếp thực hiện những hoạt động nào? Chọn tất cả hoạt động phù hợp.';
+
 /** Alias cũ → stage mới (CV parse / dữ liệu cũ). */
 export const LEGACY_SELLING_STAGE_MAP: Record<string, SellingStage> = {
   'Tìm khách tiềm năng': 'Tìm kiếm khách hàng',
-  'Khảo sát hiện trường': 'Khảo sát',
-  'Tư vấn kỹ thuật': 'Tư vấn sản phẩm',
+  'Tiếp cận': 'Tiếp cận & tạo cuộc hẹn',
+  'Xác định nhu cầu': 'Khảo sát & xác định nhu cầu',
+  'Khảo sát': 'Khảo sát & xác định nhu cầu',
+  'Khảo sát hiện trường': 'Khảo sát & xác định nhu cầu',
+  'Tư vấn sản phẩm': 'Tư vấn sản phẩm / dịch vụ',
+  'Tư vấn kỹ thuật': 'Tư vấn sản phẩm / dịch vụ',
+  'Xây dựng giải pháp': 'Xây dựng giải pháp / phương án',
+  'Báo giá': 'Lập & gửi báo giá',
+  'Thuyết trình': 'Thuyết trình / trình bày giải pháp',
+  'Đàm phán': 'Đàm phán & xử lý phản đối',
   'Chốt đơn': 'Chốt hợp đồng',
-  'Bán thêm/bán chéo': 'Chăm sóc/bán thêm',
-  'Theo dõi triển khai': 'Triển khai/giao hàng',
-  'Chăm sóc sau bán': 'Chăm sóc/bán thêm',
+  'Triển khai/giao hàng': 'Theo dõi triển khai / giao hàng',
+  'Theo dõi triển khai': 'Theo dõi triển khai / giao hàng',
+  'Bán thêm/bán chéo': 'Chăm sóc khách hàng & bán thêm',
+  'Chăm sóc/bán thêm': 'Chăm sóc khách hàng & bán thêm',
+  'Chăm sóc sau bán': 'Chăm sóc khách hàng & bán thêm',
 };
 
 export function normalizeSellingStage(raw: string): SellingStage | null {
@@ -175,15 +220,16 @@ export function normalizeSellingStage(raw: string): SellingStage | null {
   return LEGACY_SELLING_STAGE_MAP[trimmed] ?? null;
 }
 
-/** 8. Loại hình & quy mô thương vụ (5%) — ma trận STT 19 (update 2.8). */
+/** STT 26. Hình thức bán hàng (5%) — chọn nhiều theo ma trận 34 mục. */
 export enum DealType {
   Equipment = 'equipment',
   Consumables = 'consumables',
   Service = 'service',
   TechnicalSolution = 'technical_solution',
   Project = 'project',
-  Rental = 'rental',
   Other = 'other',
+  /** @deprecated map → service (dữ liệu cũ) */
+  Rental = 'rental',
   /** @deprecated map → equipment (dữ liệu cũ) */
   Standard = 'standard',
   /** @deprecated map → technical_solution (dữ liệu cũ) */
@@ -197,21 +243,46 @@ export const DEAL_TYPE_OPTIONS = [
   DealType.Service,
   DealType.TechnicalSolution,
   DealType.Project,
-  DealType.Rental,
   DealType.Other,
 ] as const;
 
 export const DEAL_TYPE_LABEL: Record<DealType, string> = {
   [DealType.Equipment]: 'Thiết bị',
   [DealType.Consumables]: 'Vật tư tiêu hao',
-  [DealType.Service]: 'Dịch vụ',
+  [DealType.Service]: 'Dịch vụ kỹ thuật / cho thuê',
   [DealType.TechnicalSolution]: 'Giải pháp kỹ thuật',
   [DealType.Project]: 'Dự án',
-  [DealType.Rental]: 'Cho thuê thiết bị',
   [DealType.Other]: 'Khác',
+  [DealType.Rental]: 'Dịch vụ kỹ thuật / cho thuê',
   [DealType.Standard]: 'Thiết bị',
   [DealType.Solution]: 'Giải pháp kỹ thuật',
 };
+
+/** Tách chuỗi dealType (có thể lưu nhiều, phân tách bằng dấu phẩy) → mã chuẩn. */
+export function splitDealTypes(raw: string | null | undefined): DealType[] {
+  if (!raw?.trim()) return [];
+  return [
+    ...new Set(
+      raw
+        .split(/[,;|]/)
+        .map((s) => normalizeDealTypeValue(s))
+        .filter((v): v is DealType => v != null),
+    ),
+  ];
+}
+
+/** Ghép nhiều hình thức bán hàng → chuỗi lưu DB (giữ cột string hiện có). */
+export function joinDealTypes(values: (DealType | string)[]): string | null {
+  const cleaned = [...new Set(values.map((v) => `${v}`.trim()).filter(Boolean))];
+  return cleaned.length ? cleaned.join(',') : null;
+}
+
+/** Hiển thị chuỗi dealType (1 hoặc nhiều) thành nhãn tiếng Việt. */
+export function formatDealTypes(raw: string | null | undefined): string {
+  const types = splitDealTypes(raw);
+  if (!types.length) return raw?.trim() ?? '';
+  return [...new Set(types.map((t) => DEAL_TYPE_LABEL[t]))].join(', ');
+}
 
 /** Chuẩn hoá dealType từ CV / dữ liệu cũ về mã 2.8. */
 export function normalizeDealTypeValue(raw: string | null | undefined): DealType | null {
@@ -221,10 +292,11 @@ export function normalizeDealTypeValue(raw: string | null | undefined): DealType
   if ((Object.values(DealType) as string[]).includes(original)) {
     if (original === DealType.Standard) return DealType.Equipment;
     if (original === DealType.Solution) return DealType.TechnicalSolution;
+    if (original === DealType.Rental) return DealType.Service;
     return original as DealType;
   }
   if (s.includes('cho thuê') || s.includes('thuê thiết bị') || s === 'rental') {
-    return DealType.Rental;
+    return DealType.Service;
   }
   if (s.includes('vật tư') || s.includes('tiêu hao') || s === DealType.Consumables) {
     return DealType.Consumables;
@@ -239,19 +311,35 @@ export function normalizeDealTypeValue(raw: string | null | undefined): DealType
   return null;
 }
 
+/** STT 33. Giá trị hợp đồng thường gặp (1%) — khuyến khích. */
 export const DEAL_VALUE_BANDS = [
-  { value: 'under_50m', label: '< 50 triệu', midVnd: 25_000_000 },
+  { value: 'under_50m', label: 'Dưới 50 triệu', midVnd: 25_000_000 },
   { value: '50_200m', label: '50 – 200 triệu', midVnd: 125_000_000 },
   { value: '200_500m', label: '200 – 500 triệu', midVnd: 350_000_000 },
-  { value: '0_5_2b', label: '0,5 – 2 tỷ', midVnd: 1_250_000_000 },
+  { value: '0_5_2b', label: '500 triệu – 2 tỷ', midVnd: 1_250_000_000 },
   { value: '2_10b', label: '2 – 10 tỷ', midVnd: 6_000_000_000 },
-  { value: '10b_plus', label: '> 10 tỷ', midVnd: 15_000_000_000 },
+  { value: '10b_plus', label: 'Trên 10 tỷ', midVnd: 15_000_000_000 },
 ] as const;
 
 export type DealValueBand = (typeof DEAL_VALUE_BANDS)[number]['value'];
 
-/** 9. Khu vực / thị trường từng phụ trách (4%). */
+/** STT 29. Khu vực / thị trường phụ trách (2%) — ma trận 34 mục. */
 export const MARKET_REGIONS = [
+  'Miền Bắc',
+  'Miền Trung',
+  'Miền Nam',
+  'Toàn quốc',
+  'Quốc tế',
+  'Khác',
+] as const;
+
+export type MarketRegion = (typeof MARKET_REGIONS)[number];
+
+/**
+ * STT 14. Địa điểm mong muốn làm việc — chọn nhiều Tỉnh/Thành phố/Khu vực.
+ * (Danh sách khu vực + tỉnh/TP công nghiệp trọng điểm.)
+ */
+export const DESIRED_LOCATION_OPTIONS = [
   'Hà Nội',
   'TP. Hồ Chí Minh',
   'Đà Nẵng',
@@ -262,13 +350,10 @@ export const MARKET_REGIONS = [
   'Miền Bắc',
   'Miền Trung',
   'Miền Nam',
-  'KCN toàn quốc',
-  'Khách hàng FDI',
-  'Khách hàng trong nước',
-  'Xuất khẩu / Quốc tế',
+  'Toàn quốc',
 ] as const;
 
-export type MarketRegion = (typeof MARKET_REGIONS)[number];
+export type DesiredLocationOption = (typeof DESIRED_LOCATION_OPTIONS)[number];
 
 // ---------------------------------------------------------------------------
 // B. ĐIỀU KIỆN CÔNG VIỆC (12%)
@@ -302,11 +387,13 @@ export enum AvailabilityBand {
 
 export const AVAILABILITY_BAND_LABEL: Record<AvailabilityBand, string> = {
   [AvailabilityBand.Immediate]: 'Ngay',
-  [AvailabilityBand.Under15]: '< 15 ngày',
-  [AvailabilityBand.Under30]: '< 30 ngày',
+  [AvailabilityBand.Under15]: 'Trong 15 ngày',
+  [AvailabilityBand.Under30]: 'Trong 30 ngày',
   [AvailabilityBand.Days30To60]: '30 – 60 ngày',
-  [AvailabilityBand.Over60]: '> 60 ngày',
+  [AvailabilityBand.Over60]: 'Trên 60 ngày',
 };
+
+export const AVAILABILITY_QUESTION = 'Khi nào có thể bắt đầu công việc mới?';
 
 export function availabilityToNoticeDays(band: AvailabilityBand | string | null | undefined): number | null {
   switch (band) {
@@ -334,10 +421,9 @@ export function noticeDaysToAvailability(days: number | null | undefined): Avail
   return AvailabilityBand.Over60;
 }
 
-/** 11. Ngoại ngữ (3%). */
+/** STT 10. Ngoại ngữ (2%) — chọn ngôn ngữ dùng trong công việc. */
 export const LANGUAGE_OPTIONS = [
-  'Tiếng Anh giao tiếp',
-  'Tiếng Anh thương mại',
+  'Tiếng Anh',
   'Tiếng Trung',
   'Tiếng Nhật',
   'Tiếng Hàn',
@@ -346,15 +432,20 @@ export const LANGUAGE_OPTIONS = [
 
 export type LanguageOption = (typeof LANGUAGE_OPTIONS)[number];
 
-/** Mức độ kỹ năng theo từng kỹ năng ngôn ngữ. */
+export const LANGUAGE_QUESTION =
+  'Anh/chị sử dụng ngoại ngữ nào trong công việc?';
+
+/** Mức độ sử dụng ngoại ngữ trong công việc (STT 10). */
 export const LANGUAGE_SKILL_LEVELS = [
   { value: 'basic', label: 'Cơ bản' },
-  { value: 'intermediate', label: 'Trung bình' },
-  { value: 'good', label: 'Khá' },
+  { value: 'intermediate', label: 'Khá' },
+  { value: 'good', label: 'Tốt' },
   { value: 'fluent', label: 'Thành thạo' },
 ] as const;
 
 export type LanguageSkillLevel = (typeof LANGUAGE_SKILL_LEVELS)[number]['value'];
+
+export const LANGUAGE_WORK_USAGE_LABEL = 'Mức độ sử dụng trong công việc';
 
 /** @deprecated dùng LANGUAGE_SKILL_LEVELS — giữ alias tương thích. */
 export const LANGUAGE_PROFICIENCY = [
@@ -366,15 +457,33 @@ export const LANGUAGE_PROFICIENCY = [
 
 export type LanguageProficiency = (typeof LANGUAGE_PROFICIENCY)[number]['value'];
 
-/** Chi tiết ngoại ngữ: nghe / nói / đọc / viết + đọc manual kỹ thuật. */
+/** Chi tiết ngoại ngữ theo ma trận 34 mục: 1 mức độ sử dụng trong công việc. */
 export interface LanguageSkill {
   language: string;
+  /** Mức độ sử dụng trong công việc (Cơ bản / Khá / Tốt / Thành thạo). */
+  workUsage?: LanguageSkillLevel | null;
+  /** @deprecated dữ liệu cũ nghe/nói/đọc/viết — giữ để tương thích. */
   listening: LanguageSkillLevel | null;
   speaking: LanguageSkillLevel | null;
   reading: LanguageSkillLevel | null;
   writing: LanguageSkillLevel | null;
-  /** Đọc manual / tài liệu kỹ thuật bằng ngôn ngữ này. */
+  /** @deprecated Đọc manual / tài liệu kỹ thuật bằng ngôn ngữ này. */
   technicalManualReading: LanguageSkillLevel | null;
+}
+
+/** Lấy mức sử dụng trong công việc — fallback mức cao nhất của dữ liệu cũ. */
+export function languageWorkUsage(skill: LanguageSkill): LanguageSkillLevel | null {
+  if (skill.workUsage) return skill.workUsage;
+  const order: LanguageSkillLevel[] = ['basic', 'intermediate', 'good', 'fluent'];
+  const legacy = [
+    skill.listening,
+    skill.speaking,
+    skill.reading,
+    skill.writing,
+    skill.technicalManualReading,
+  ].filter((v): v is LanguageSkillLevel => Boolean(v));
+  if (!legacy.length) return null;
+  return legacy.sort((a, b) => order.indexOf(b) - order.indexOf(a))[0];
 }
 
 export const LANGUAGE_SKILL_DIMENSIONS = [
@@ -391,6 +500,7 @@ export const LANGUAGE_SKILL_DIMENSIONS = [
 export function emptyLanguageSkill(language: string): LanguageSkill {
   return {
     language,
+    workUsage: null,
     listening: null,
     speaking: null,
     reading: null,
@@ -415,6 +525,7 @@ export function mergeLanguageSkills(
     if (!name) continue;
     byName.set(name, {
       language: name,
+      workUsage: s.workUsage ?? null,
       listening: s.listening ?? null,
       speaking: s.speaking ?? null,
       reading: s.reading ?? null,
@@ -448,16 +559,13 @@ export function mergeLanguageSkills(
 }
 
 export function formatLanguageSkillSummary(skill: LanguageSkill): string {
-  const bits = LANGUAGE_SKILL_DIMENSIONS.map((d) => {
-    const level = skill[d.key];
-    if (!level) return null;
-    const label = LANGUAGE_SKILL_LEVELS.find((l) => l.value === level)?.label ?? level;
-    return `${d.label}: ${label}`;
-  }).filter(Boolean);
-  return bits.length ? `${skill.language} (${bits.join(' · ')})` : skill.language;
+  const usage = languageWorkUsage(skill);
+  if (!usage) return skill.language;
+  const label = LANGUAGE_SKILL_LEVELS.find((l) => l.value === usage)?.label ?? usage;
+  return `${skill.language} (${label})`;
 }
 
-/** 12. Khả năng đi công tác (2%). */
+/** STT 12. Khả năng đi công tác (1%) — bắt buộc. */
 export enum TravelAbility {
   None = 'none',
   UpTo25 = 'up_to_25',
@@ -466,18 +574,41 @@ export enum TravelAbility {
 }
 
 export const TRAVEL_ABILITY_LABEL: Record<TravelAbility, string> = {
-  [TravelAbility.None]: 'Không',
-  [TravelAbility.UpTo25]: '≤ 25% thời gian',
-  [TravelAbility.From25To50]: '25 – 50% thời gian',
-  [TravelAbility.Over50]: '> 50% thời gian',
+  [TravelAbility.None]: 'Không thể đi công tác',
+  [TravelAbility.UpTo25]: 'Có thể đi công tác khi cần',
+  [TravelAbility.From25To50]: 'Có thể đi công tác thường xuyên',
+  [TravelAbility.Over50]: 'Sẵn sàng đi công tác dài ngày',
 };
 
-/** 13. Bằng lái ô tô (1%). */
-export const DRIVER_LICENSE_TYPES = ['B1', 'B2', 'C', 'D', 'E', 'Khác'] as const;
+export const TRAVEL_ABILITY_QUESTION = 'Anh/chị có thể đi công tác như thế nào?';
+
+/** STT 11. Giấy phép lái xe (0,5%) — chọn nhiều. */
+export const DRIVER_LICENSE_TYPES = ['Chưa có', 'Xe máy', 'Ô tô', 'Khác'] as const;
 
 export type DriverLicenseType = (typeof DRIVER_LICENSE_TYPES)[number];
 
-/** 14. Thu nhập kỳ vọng (2%) — base + tổng/tháng (OTE). */
+export const DRIVER_LICENSE_QUESTION = 'Anh/chị có bằng lái gì?';
+
+/** Chuẩn hoá giá trị bằng lái đã lưu (B1/B2/C… cũ → Ô tô). */
+export function parseDriverLicenses(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  const legacyCar = new Set(['B1', 'B2', 'C', 'D', 'E', 'FC']);
+  const out = raw
+    .split(/[,;|]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => (legacyCar.has(s.toUpperCase()) ? 'Ô tô' : s));
+  return [...new Set(out)];
+}
+
+/** Ghép danh sách bằng lái → chuỗi lưu DB. */
+export function joinDriverLicenses(values: string[]): string | null {
+  const cleaned = [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+  return cleaned.length ? cleaned.join(', ') : null;
+}
+
+/** STT 15. Thu nhập tối thiểu có thể chấp nhận & thu nhập kỳ vọng (3%). */
+export const EXPECTED_INCOME_QUESTION = 'Mức thu nhập mong muốn?';
 
 // ---------------------------------------------------------------------------
 // C. MỨC ĐỘ PHÙ HỢP (13%)
@@ -517,18 +648,14 @@ export function salesBehaviorToDevStyle(
   return null;
 }
 
-/** STT 37. Động lực nghề nghiệp (Assessment) — chọn đúng 3. */
+/** STT 19. Động lực khi lựa chọn công việc mới (1%) — chọn đúng 3. */
 export const CAREER_MOTIVATIONS = [
-  'Thu nhập cao',
-  'Hoa hồng/thưởng hấp dẫn',
-  'Cơ hội thăng tiến',
-  'Được học hỏi chuyên môn',
-  'Được tự chủ công việc',
-  'Sản phẩm/thương hiệu tốt',
-  'Môi trường và đồng nghiệp',
+  'Thu nhập & hoa hồng',
+  'Sản phẩm/dịch vụ dễ bán',
+  'Có khách hàng & thị trường tốt',
+  'Chính sách công ty & quản lý tốt',
+  'Cơ hội phát triển/thăng tiến',
   'Công việc ổn định',
-  'Được ghi nhận thành tích',
-  'Thử thách và cơ hội phát triển',
 ] as const;
 
 export type CareerMotivation = (typeof CAREER_MOTIVATIONS)[number];
@@ -536,36 +663,17 @@ export type CareerMotivation = (typeof CAREER_MOTIVATIONS)[number];
 export const CAREER_MOTIVATION_QUESTION =
   'Hãy chọn 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
 
-/** STT 39. Phù hợp văn hóa (Assessment) — Matching với doanh nghiệp (4 cặp A/B). */
+/** STT 18. Phong cách làm việc & môi trường phù hợp (2%) — 2 cặp A/B. */
 export const CULTURE_FIT_QUESTIONS = [
   {
-    id: 'effectiveness',
-    question: 'Bạn làm việc hiệu quả hơn khi:',
-    options: [
-      'Có quy trình và hướng dẫn rõ ràng',
-      'Được tự chủ cách đạt mục tiêu',
-    ],
+    id: 'workstyle',
+    question: 'Bạn thích cách làm việc nào hơn?',
+    options: ['Có hướng dẫn cụ thể', 'Giao mục tiêu, tự chủ cách làm'],
   },
   {
     id: 'environment',
-    question: 'Bạn thích môi trường:',
-    options: [
-      'Ổn định, ít thay đổi',
-      'Nhanh, nhiều thay đổi và cơ hội mới',
-    ],
-  },
-  {
-    id: 'management',
-    question: 'Phong cách quản lý bạn phù hợp:',
-    options: [
-      'Quản lý theo sát và hỗ trợ thường xuyên',
-      'Giao mục tiêu và trao quyền',
-    ],
-  },
-  {
-    id: 'achievement',
-    question: 'Bạn thích:',
-    options: ['Thành tích cá nhân rõ ràng', 'Thành tích đội nhóm'],
+    question: 'Bạn thích môi trường làm việc nào hơn?',
+    options: ['Ổn định', 'Năng động, thay đổi nhanh'],
   },
 ] as const;
 
@@ -573,22 +681,28 @@ export type CultureFitQuestionId = (typeof CULTURE_FIT_QUESTIONS)[number]['id'];
 
 export type CultureFitAnswers = Partial<Record<CultureFitQuestionId, string>>;
 
-export const CULTURE_FIT_SECTION_TITLE = 'Phù hợp văn hóa';
-export const CULTURE_FIT_SUBTITLE = 'Matching với doanh nghiệp';
+export const CULTURE_FIT_SECTION_TITLE = 'Phong cách làm việc & môi trường phù hợp';
+export const CULTURE_FIT_SUBTITLE = 'Phong cách & môi trường làm việc phù hợp với bạn?';
 
 /** Tag phẳng dùng cho matching (lấy từ các lựa chọn assessment). */
 export const WORK_STYLE_OPTIONS = [
-  'Có quy trình và hướng dẫn rõ ràng',
-  'Được tự chủ cách đạt mục tiêu',
-  'Ổn định, ít thay đổi',
-  'Nhanh, nhiều thay đổi và cơ hội mới',
-  'Quản lý theo sát và hỗ trợ thường xuyên',
-  'Giao mục tiêu và trao quyền',
-  'Thành tích cá nhân rõ ràng',
-  'Thành tích đội nhóm',
+  'Có hướng dẫn cụ thể',
+  'Giao mục tiêu, tự chủ cách làm',
+  'Ổn định',
+  'Năng động, thay đổi nhanh',
 ] as const;
 
 export type WorkStyleOption = (typeof WORK_STYLE_OPTIONS)[number];
+
+/** Alias câu trả lời cũ (bản 4 câu) → bản 18.8 (2 câu). */
+const LEGACY_WORK_STYLE_MAP: Record<string, WorkStyleOption> = {
+  'Có quy trình và hướng dẫn rõ ràng': 'Có hướng dẫn cụ thể',
+  'Được tự chủ cách đạt mục tiêu': 'Giao mục tiêu, tự chủ cách làm',
+  'Ổn định, ít thay đổi': 'Ổn định',
+  'Nhanh, nhiều thay đổi và cơ hội mới': 'Năng động, thay đổi nhanh',
+  'Quản lý theo sát và hỗ trợ thường xuyên': 'Có hướng dẫn cụ thể',
+  'Giao mục tiêu và trao quyền': 'Giao mục tiêu, tự chủ cách làm',
+};
 
 export function cultureFitAnswersToWorkStyles(answers: CultureFitAnswers): string[] {
   return CULTURE_FIT_QUESTIONS.map((q) => answers[q.id])
@@ -599,7 +713,7 @@ export function cultureFitAnswersToWorkStyles(answers: CultureFitAnswers): strin
 export function workStylesToCultureFitAnswers(
   styles: string[] | null | undefined,
 ): CultureFitAnswers {
-  const list = styles ?? [];
+  const list = (styles ?? []).map((s) => LEGACY_WORK_STYLE_MAP[s.trim()] ?? s.trim());
   const answers: CultureFitAnswers = {};
   for (const q of CULTURE_FIT_QUESTIONS) {
     const found = list.find((s) => (q.options as readonly string[]).includes(s));
@@ -608,17 +722,13 @@ export function workStylesToCultureFitAnswers(
   return answers;
 }
 
-/** STT 38. Định hướng nghề nghiệp (Assessment). */
+/** STT 17. Định hướng nghề nghiệp (2%) — chọn 1. */
 export const CAREER_ORIENTATIONS = [
-  'Chuyên gia kinh doanh B2B',
-  'Chuyên viên quản lý khách hàng chiến lược',
-  'Chuyên viên phát triển kinh doanh',
-  'Trưởng nhóm kinh doanh',
-  'Trưởng phòng kinh doanh',
-  'Giám đốc kinh doanh',
+  'Giỏi chuyên môn Sales',
+  'Bán khách hàng lớn',
+  'Quản lý kinh doanh/đội nhóm',
   'Quản lý sản phẩm/ngành hàng',
-  'Khởi nghiệp & Tự kinh doanh',
-  'Khác',
+  'Chưa xác định',
 ] as const;
 
 export type CareerOrientation = (typeof CAREER_ORIENTATIONS)[number];
@@ -650,52 +760,60 @@ export function withCareerOrientationOther(
   return [...base, trimmed ? `Khác: ${trimmed}` : 'Khác'];
 }
 
-/** Alias định hướng cũ → bản 2.8. */
+/** Alias định hướng cũ → bản 18.8 (5 lựa chọn). */
 export const LEGACY_CAREER_ORIENTATION_MAP: Record<string, CareerOrientation> = {
-  'Sales B2B chuyên nghiệp': 'Chuyên gia kinh doanh B2B',
-  'Sales Engineer/Chuyên gia giải pháp': 'Chuyên gia kinh doanh B2B',
-  'Key Account': 'Chuyên viên quản lý khách hàng chiến lược',
-  'Business Development': 'Chuyên viên phát triển kinh doanh',
-  'Trưởng nhóm Sales': 'Trưởng nhóm kinh doanh',
-  'Sales Manager': 'Trưởng phòng kinh doanh',
+  'Chuyên gia kinh doanh B2B': 'Giỏi chuyên môn Sales',
+  'Sales B2B chuyên nghiệp': 'Giỏi chuyên môn Sales',
+  'Sales Engineer/Chuyên gia giải pháp': 'Giỏi chuyên môn Sales',
+  'Chuyên viên quản lý khách hàng chiến lược': 'Bán khách hàng lớn',
+  'Key Account': 'Bán khách hàng lớn',
+  'Chuyên viên phát triển kinh doanh': 'Giỏi chuyên môn Sales',
+  'Business Development': 'Giỏi chuyên môn Sales',
+  'Trưởng nhóm kinh doanh': 'Quản lý kinh doanh/đội nhóm',
+  'Trưởng nhóm Sales': 'Quản lý kinh doanh/đội nhóm',
+  'Trưởng phòng kinh doanh': 'Quản lý kinh doanh/đội nhóm',
+  'Sales Manager': 'Quản lý kinh doanh/đội nhóm',
+  'Giám đốc kinh doanh': 'Quản lý kinh doanh/đội nhóm',
 };
 
-/** Vị trí mong muốn (hồ sơ STT 7 — tối đa 3). */
+/** STT 13. Vị trí ứng tuyển (5%) — bắt buộc, chọn nhiều. */
 export const DESIRED_POSITIONS = [
   'Nhân viên kinh doanh',
-  'Quản lý khách hàng',
   'Trưởng nhóm kinh doanh',
   'Trưởng phòng kinh doanh',
+  'Quản lý sản phẩm / ngành hàng',
   'Giám đốc kinh doanh',
-  'Khác',
 ] as const;
 
 export type DesiredPosition = (typeof DESIRED_POSITIONS)[number];
 
-/** Alias vị trí cũ (EN) → bản tiếng Việt 2.8. */
+export const DESIRED_POSITION_QUESTION = 'Anh/chị đang tìm công việc nào?';
+
+/** Alias vị trí cũ (EN / bản 2.8) → bản 18.8. */
 export const LEGACY_DESIRED_POSITION_MAP: Record<string, DesiredPosition> = {
   'Sales Engineer': 'Nhân viên kinh doanh',
   'Sales Executive': 'Nhân viên kinh doanh',
   'Technical Sales': 'Nhân viên kinh doanh',
-  'Key Account Manager (KAM)': 'Quản lý khách hàng',
+  'Quản lý khách hàng': 'Nhân viên kinh doanh',
+  'Key Account Manager (KAM)': 'Nhân viên kinh doanh',
   'Business Development (BD)': 'Nhân viên kinh doanh',
   'Sales Supervisor': 'Trưởng nhóm kinh doanh',
   'Sales Manager': 'Trưởng phòng kinh doanh',
   'Area Sales Manager': 'Trưởng phòng kinh doanh',
+  'Product Manager': 'Quản lý sản phẩm / ngành hàng',
 };
 
 /**
- * Thành tích nổi bật (STT 6 / 26) — gợi ý thực tế:
- * doanh số, % KPI, xếp hạng trong công ty.
+ * STT 34. Thành tích kinh doanh nổi bật tại công ty (2%) — khuyến khích.
  */
 export const SALES_HIGHLIGHTS_QUESTION =
-  'Doanh số gần nhất, % KPI, thành tích nổi bật đứng thứ mấy trong công ty?';
+  'Thành tích kinh doanh nổi bật tại công ty này?';
 
 export const SALES_HIGHLIGHTS_HINT =
-  'Doanh số + % KPI + xếp hạng thành tích trong công ty (VD: Top 3 / đứng thứ 2 phòng Sales)';
+  'VD: Đạt 130% KPI năm 2025 · Mang về 15 khách hàng mới · Chốt hợp đồng 8 tỷ';
 
 export const SALES_HIGHLIGHTS_PLACEHOLDER =
-  'VD: Doanh số 12 tỷ (2025) · KPI 120% · Đứng thứ 2/15 trong phòng Sales';
+  'VD: Đạt 130% KPI năm 2025\nMang về 15 khách hàng mới\nChốt hợp đồng 8 tỷ';
 
 /** Trình độ học vấn. */
 export const EDUCATION_LEVELS = [
@@ -747,31 +865,34 @@ export function parseEducationDegree(degree: string | null | undefined): {
 }
 
 // ---------------------------------------------------------------------------
-// Trọng số chấm điểm AI (18 tiêu chí = 100%)
+// Trọng số chấm điểm AI — ma trận 34 mục (update 18.8):
+// A. Thông tin cơ bản 7% + B. Mong muốn nghề nghiệp 13%
+// + C. Định hướng & phù hợp 5% + D. Kinh nghiệm công ty 75% = 100%.
+// Map về 18 key hiện có của engine matching (ghi chú STT tương ứng).
 // ---------------------------------------------------------------------------
 
 export const B2B_MATCH_WEIGHTS = {
-  /** A. Năng lực lõi — 75% */
-  industry: 0.12,
-  products: 0.11,
-  customerSegments: 0.11,
-  achievements: 0.1,
-  customerDev: 0.08,
-  b2bExperience: 0.07,
-  sellingCapability: 0.07,
-  dealProfile: 0.05,
-  region: 0.04,
-  /** B. Điều kiện công việc — 12% */
-  readiness: 0.04,
-  languages: 0.03,
-  travel: 0.02,
-  driversLicense: 0.01,
-  expectedIncome: 0.02,
-  /** C. Mức độ phù hợp — 13% */
-  salesStyle: 0.05,
-  careerMotivation: 0.03,
-  cultureFit: 0.03,
-  careerOrientation: 0.02,
+  /** D. Kinh nghiệm công ty — cốt lõi 75% (+ nơi sống/địa điểm) */
+  industry: 0.12, // STT 23 Ngành / lĩnh vực
+  products: 0.18, // STT 24 Sản phẩm/thiết bị (16%) + STT 28 Hãng/thương hiệu (1%) + làm tròn
+  customerSegments: 0.11, // STT 25 Nhóm khách hàng đã bán
+  achievements: 0.08, // STT 30 Doanh số (3%) + STT 31 KPI (2%) + STT 34 Thành tích (2%)
+  customerDev: 0.02, // STT 32 Tỷ lệ khách hàng tự tìm kiếm
+  b2bExperience: 0.1, // STT 21 Vị trí (5%) + STT 22 Thời gian làm việc (5%)
+  sellingCapability: 0.08, // STT 27 Phạm vi công việc bán hàng
+  dealProfile: 0.06, // STT 26 Hình thức bán hàng (5%) + STT 33 Giá trị hợp đồng (1%)
+  region: 0.06, // STT 29 Khu vực (2%) + STT 14 Địa điểm mong muốn (2%) + STT 5 Nơi sống (2%)
+  /** A/B. Thông tin cơ bản & mong muốn — 8% */
+  readiness: 0.01, // STT 16 Thời gian có thể nhận việc
+  languages: 0.02, // STT 10 Ngoại ngữ
+  travel: 0.01, // STT 12 Khả năng đi công tác
+  driversLicense: 0.01, // STT 11 Giấy phép lái xe
+  expectedIncome: 0.03, // STT 15 Thu nhập tối thiểu & kỳ vọng
+  /** C. Định hướng & phù hợp + vị trí ứng tuyển — 11% */
+  salesStyle: 0.02, // Suy từ STT 32 (Hunter/Farmer) — không hỏi trực tiếp
+  careerMotivation: 0.01, // STT 19 Động lực khi lựa chọn công việc mới
+  cultureFit: 0.02, // STT 18 Phong cách làm việc & môi trường
+  careerOrientation: 0.06, // STT 17 Định hướng (2%) + STT 13 Vị trí ứng tuyển (5% − làm tròn)
 } as const;
 
 export type B2bMatchCriterionKey = keyof typeof B2B_MATCH_WEIGHTS;
@@ -822,9 +943,9 @@ export const B2B_CRITERION_GROUP: Record<
 };
 
 export const B2B_CRITERION_GROUP_LABEL = {
-  core: 'A. Năng lực lõi',
-  conditions: 'B. Điều kiện công việc',
-  fit: 'C. Mức độ phù hợp',
+  core: 'D. Kinh nghiệm & năng lực lõi',
+  conditions: 'A/B. Thông tin & mong muốn',
+  fit: 'C. Định hướng & phù hợp',
 } as const;
 
 /** Bộ lọc chính trên UI Search (A.1–A.9 rút gọn). */
@@ -920,13 +1041,17 @@ export function yearsToB2bBand(years: number | null | undefined): B2bExperienceB
 }
 
 export function kpiBandToPct(band: string | null | undefined): number | null {
+  if (!band) return null;
   const hit = KPI_ACHIEVEMENT_BANDS.find((b) => b.value === band);
-  return hit?.midPct ?? null;
+  if (hit) return hit.midPct;
+  return LEGACY_KPI_BAND_PCT[band] ?? null;
 }
 
 export function newCustomerBandToPct(band: string | null | undefined): number | null {
+  if (!band) return null;
   const hit = NEW_CUSTOMER_RATIO_BANDS.find((b) => b.value === band);
-  return hit?.midPct ?? null;
+  if (hit) return hit.midPct;
+  return LEGACY_NEW_CUSTOMER_BAND_PCT[band] ?? null;
 }
 
 export function dealValueBandToVnd(band: string | null | undefined): number | null {

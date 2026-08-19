@@ -115,6 +115,12 @@ export class JobController {
     });
   }
 
+  @Get('stats/positions')
+  @ApiOperation({ summary: 'Vị trí đang tuyển theo ngành — lấy từ tin published trên nền tảng' })
+  listPositionStats() {
+    return this.jobs.listPublishedPositionStats();
+  }
+
   @Get('mine')
   @Roles(...RECRUITER_ROLES)
   @ApiOperation({ summary: 'Tin tuyển dụng của công ty tôi' })

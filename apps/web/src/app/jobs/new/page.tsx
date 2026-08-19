@@ -26,6 +26,7 @@ import {
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
+import { IndustrySubFields } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { ProgressRing } from '@/components/progress-ring';
 import { Button, Field, Input, Select, Textarea } from '@/components/ui';
@@ -52,6 +53,7 @@ const TIPS = [
 type FormState = {
   title: string;
   industry: string;
+  subIndustry: string;
   jobTrack: JobTrack | '';
   jobLevel: JobLevelCode | '';
   department: string;
@@ -112,6 +114,7 @@ export default function NewJobPage() {
   const [form, setForm] = useState<FormState>({
     title: '',
     industry: '',
+    subIndustry: '',
     jobTrack: JobTrack.Technical,
     jobLevel: JobLevelCode.TechStaff,
     department: 'Kỹ thuật',
@@ -175,6 +178,7 @@ export default function NewJobPage() {
         requirements: form.requirements.trim() || undefined,
         benefits: form.benefits.trim() || undefined,
         industry: form.industry || undefined,
+        subIndustry: form.subIndustry || undefined,
         department: form.department || undefined,
         jobLevel: form.jobLevel || undefined,
         employmentType: form.employmentType,
@@ -453,7 +457,7 @@ export default function NewJobPage() {
                   <Select
                     value={form.industry}
                     onChange={(e) => {
-                      patch({ industry: e.target.value });
+                      patch({ industry: e.target.value, subIndustry: '' });
                     }}
                     disabled={busy}
                   >
@@ -482,6 +486,15 @@ export default function NewJobPage() {
                   </Select>
                 </Field>
               </div>
+
+              {form.industry && (
+                <IndustrySubFields
+                  industry={form.industry}
+                  subIndustry={form.subIndustry}
+                  onChange={(subIndustry) => patch({ subIndustry })}
+                  disabled={busy}
+                />
+              )}
 
               {form.jobTrack && (
                 <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
@@ -738,6 +751,11 @@ export default function NewJobPage() {
                   {form.industry && (
                     <span className="rounded-md bg-white px-2 py-1 ring-1 ring-slate-200">
                       {form.industry}
+                    </span>
+                  )}
+                  {form.subIndustry && (
+                    <span className="rounded-md bg-white px-2 py-1 ring-1 ring-slate-200">
+                      {form.subIndustry}
                     </span>
                   )}
                   {form.jobLevel && (

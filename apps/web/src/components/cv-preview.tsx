@@ -6,14 +6,12 @@ import type { ReactNode } from 'react';
 import {
   AVAILABILITY_BAND_LABEL,
   B2B_EXPERIENCE_BAND_LABEL,
-  DEAL_TYPE_LABEL,
-  JOB_READINESS_LABEL,
   JobTrack,
   TRACK_FIELD_LABELS,
   TRAVEL_ABILITY_LABEL,
   TECHNICAL_AUTONOMY_LEVELS,
-  TROUBLESHOOTING_LEVELS,
   SHIFT_FLEXIBILITY_OPTIONS,
+  formatDealTypes,
   formatLanguageSkillSummary,
   formatVnAddress,
 } from '@industriallink/contracts';
@@ -38,6 +36,33 @@ function bulletLines(text: string): string[] {
 function formatRevenue(v: number | null | undefined): string | null {
   if (v == null) return null;
   return formatVndAmount(v);
+}
+
+/** % KPI (nhập theo band 18.8) → nhãn band để hiển thị. */
+function kpiBandLabel(pct: number | null | undefined): string | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  if (pct < 70) return 'Dưới 70%';
+  if (pct <= 100) return '70 – 100%';
+  return 'Trên 100%';
+}
+
+/** % KH tự tìm → nhãn band 18.8. */
+function newCustomerBandLabel(pct: number | null | undefined): string | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  if (pct < 50) return 'Dưới 50%';
+  if (pct <= 80) return '50 – 80%';
+  return 'Trên 80%';
+}
+
+/** VND → nhãn band giá trị hợp đồng 18.8. */
+function dealValueBandLabel(vnd: number | null | undefined): string | null {
+  if (vnd == null || !Number.isFinite(vnd)) return null;
+  if (vnd < 50_000_000) return 'Dưới 50 triệu';
+  if (vnd < 200_000_000) return '50 – 200 triệu';
+  if (vnd < 500_000_000) return '200 – 500 triệu';
+  if (vnd < 2_000_000_000) return '500 triệu – 2 tỷ';
+  if (vnd < 10_000_000_000) return '2 – 10 tỷ';
+  return 'Trên 10 tỷ';
 }
 
 function labelOf(
@@ -206,29 +231,23 @@ function ExperienceBlock({
       value: exp.customerSegments.slice(0, 5).join(', '),
     });
   }
-  if (exp.marketsCovered.length) {
+  if (exp.marketsCovered.length && !isTech) {
     detailRows.push({
       label: 'Thị trường',
       value: exp.marketsCovered.slice(0, 5).join(', '),
     });
   }
   if (!isTech) {
+    const deal = formatDealTypes(exp.dealType);
+    if (deal) detailRows.push({ label: 'Hình thức bán hàng', value: deal });
     const rev = formatRevenue(exp.latestRevenue);
-    if (rev) detailRows.push({ label: 'Doanh số', value: rev });
-    if (exp.kpiAchievementPct != null) {
-      detailRows.push({
-        label: 'KPI',
-        value: `${Math.round(exp.kpiAchievementPct)}%`,
-      });
-    }
-    if (exp.newCustomerRatioPct != null) {
-      detailRows.push({
-        label: 'KH tự phát triển',
-        value: `${Math.round(exp.newCustomerRatioPct)}%`,
-      });
-    }
-    const deal = labelOf(DEAL_TYPE_LABEL, exp.dealType);
-    if (deal) detailRows.push({ label: 'Loại deal', value: deal });
+    if (rev) detailRows.push({ label: 'Doanh số 12 tháng', value: rev });
+    const kpi = kpiBandLabel(exp.kpiAchievementPct);
+    if (kpi) detailRows.push({ label: 'Hoàn thành KPI', value: kpi });
+    const ratio = newCustomerBandLabel(exp.newCustomerRatioPct);
+    if (ratio) detailRows.push({ label: 'KH tự tìm kiếm', value: ratio });
+    const dealValue = dealValueBandLabel(exp.typicalDealValue);
+    if (dealValue) detailRows.push({ label: 'Giá trị hợp đồng', value: dealValue });
   }
 
   return (
@@ -265,9 +284,9 @@ function ExperienceBlock({
       {exp.sellingStages.length > 0 && (
         <p className="mt-1 text-[9px] leading-snug text-slate-500">
           <span className="font-bold text-slate-600">
-            {isTech ? 'Công việc' : 'Chu trình'}:
+            {isTech ? 'Công việc' : 'Phạm vi công việc'}:
           </span>{' '}
-          {exp.sellingStages.join(' → ')}
+          {exp.sellingStages.join(' · ')}
         </p>
       )}
       {bullets.length > 0 && (
@@ -302,37 +321,45 @@ function SalesCapabilitySection({
   const segmentLabel = isTech
     ? TRACK_FIELD_LABELS.customerSegments[JobTrack.Technical]
     : TRACK_FIELD_LABELS.customerSegments[JobTrack.Sales];
-  const highlightLabel = isTech
-    ? TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical]
-    : TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales];
+  const highlightLabel = TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales];
 
   const autonomy =
     draft.technicalAutonomyLevel != null
       ? TECHNICAL_AUTONOMY_LEVELS.find((l) => l.value === draft.technicalAutonomyLevel)?.label
       : null;
-  const troubleshooting =
-    draft.troubleshootingLevel != null
-      ? TROUBLESHOOTING_LEVELS.find((l) => l.value === draft.troubleshootingLevel)?.label
-      : null;
 
-  const has =
-    draft.productsSold.length > 0 ||
-    draft.customerSegments.length > 0 ||
-    draft.marketsCovered.length > 0 ||
-    draft.industriesExperienced.length > 0 ||
-    draft.b2bExperienceBand ||
-    draft.dealType ||
-    draft.typicalDealValue != null ||
-    draft.maxDealValue != null ||
-    draft.newCustomerRatioPct != null ||
-    draft.salesHighlights ||
-    draft.brandsTechnologies.length > 0 ||
-    draft.technicalWorkTypes.length > 0 ||
-    draft.technicalTools.length > 0 ||
-    draft.documentLiteracy.length > 0 ||
-    draft.systemScaleNote ||
-    autonomy ||
-    troubleshooting;
+  const workTypes = draft.technicalWorkTypes.length
+    ? draft.technicalWorkTypes
+    : draft.experience.flatMap((e) => e.sellingStages);
+  const uniqueWorkTypes = [...new Set(workTypes)];
+  const equipment = draft.productsSold.length
+    ? draft.productsSold
+    : draft.experience.flatMap((e) => e.productsSold);
+  const uniqueEquipment = [...new Set(equipment)];
+  const environments = draft.customerSegments.length
+    ? draft.customerSegments
+    : draft.experience.flatMap((e) => e.customerSegments);
+  const uniqueEnvironments = [...new Set(environments)];
+
+  const has = isTech
+    ? uniqueEquipment.length > 0 ||
+      uniqueEnvironments.length > 0 ||
+      draft.industriesExperienced.length > 0 ||
+      uniqueWorkTypes.length > 0 ||
+      draft.technicalTools.length > 0 ||
+      draft.documentLiteracy.length > 0 ||
+      draft.desiredWorkEnvironments.length > 0 ||
+      !!autonomy
+    : uniqueEquipment.length > 0 ||
+      uniqueEnvironments.length > 0 ||
+      draft.marketsCovered.length > 0 ||
+      draft.industriesExperienced.length > 0 ||
+      !!draft.b2bExperienceBand ||
+      !!draft.dealType ||
+      draft.typicalDealValue != null ||
+      draft.newCustomerRatioPct != null ||
+      !!draft.salesHighlights ||
+      draft.brandsTechnologies.length > 0;
 
   if (!has) return null;
 
@@ -345,7 +372,7 @@ function SalesCapabilitySection({
       />
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {draft.industriesExperienced.length > 0 && (
-          <Kv label="Ngành" value={draft.industriesExperienced.join(', ')} />
+          <Kv label={isTech ? 'Lĩnh vực' : 'Ngành'} value={draft.industriesExperienced.join(', ')} />
         )}
         {!isTech && draft.b2bExperienceBand && (
           <Kv
@@ -353,59 +380,56 @@ function SalesCapabilitySection({
             value={labelOf(B2B_EXPERIENCE_BAND_LABEL, draft.b2bExperienceBand)}
           />
         )}
-        {draft.productsSold.length > 0 && (
-          <Kv label={productLabel} value={draft.productsSold.join(', ')} />
+        {uniqueEquipment.length > 0 && (
+          <Kv label={productLabel} value={uniqueEquipment.join(', ')} />
         )}
-        {draft.customerSegments.length > 0 && (
-          <Kv label={segmentLabel} value={draft.customerSegments.join(', ')} />
+        {uniqueEnvironments.length > 0 && (
+          <Kv label={segmentLabel} value={uniqueEnvironments.join(', ')} />
         )}
         {!isTech && draft.marketsCovered.length > 0 && (
           <Kv label="Thị trường" value={draft.marketsCovered.join(', ')} />
         )}
-        {isTech && draft.brandsTechnologies.length > 0 && (
-          <Kv label="Hãng / công nghệ" value={draft.brandsTechnologies.join(', ')} />
+        {!isTech && draft.brandsTechnologies.length > 0 && (
+          <Kv
+            label="Hãng / thương hiệu"
+            value={draft.brandsTechnologies.join(', ')}
+          />
         )}
-        {isTech && draft.technicalWorkTypes.length > 0 && (
-          <Kv label="Nghiệp vụ kỹ thuật" value={draft.technicalWorkTypes.join(', ')} />
+        {isTech && uniqueWorkTypes.length > 0 && (
+          <Kv label="Công việc kỹ thuật" value={uniqueWorkTypes.join(', ')} />
         )}
         {isTech && autonomy && (
-          <Kv
-            label="Mức tự chủ"
-            value={`${draft.technicalAutonomyLevel}. ${autonomy}`}
-          />
-        )}
-        {isTech && troubleshooting && (
-          <Kv
-            label="Xử lý sự cố"
-            value={`${draft.troubleshootingLevel}. ${troubleshooting}`}
-          />
+          <Kv label="Mức tự chủ" value={autonomy} />
         )}
         {isTech && draft.technicalTools.length > 0 && (
           <Kv label="Phần mềm / công cụ" value={draft.technicalTools.join(', ')} />
         )}
         {isTech && draft.documentLiteracy.length > 0 && (
-          <Kv label="Đọc tài liệu" value={draft.documentLiteracy.join(', ')} />
+          <Kv label="Đọc bản vẽ / tài liệu" value={draft.documentLiteracy.join(', ')} />
         )}
-        {isTech && draft.systemScaleNote && (
-          <Kv label="Quy mô hệ thống" value={draft.systemScaleNote} />
+        {isTech && draft.desiredWorkEnvironments.length > 0 && (
+          <Kv
+            label="Môi trường mong muốn"
+            value={draft.desiredWorkEnvironments.join(', ')}
+          />
         )}
         {!isTech && draft.dealType && (
-          <Kv label="Loại deal" value={labelOf(DEAL_TYPE_LABEL, draft.dealType)} />
+          <Kv label="Hình thức bán hàng" value={formatDealTypes(draft.dealType)} />
         )}
         {!isTech && draft.typicalDealValue != null && (
-          <Kv label="Deal điển hình" value={formatRevenue(draft.typicalDealValue)} />
-        )}
-        {!isTech && draft.maxDealValue != null && (
-          <Kv label="Deal lớn nhất" value={formatRevenue(draft.maxDealValue)} />
+          <Kv
+            label="Giá trị hợp đồng thường gặp"
+            value={dealValueBandLabel(draft.typicalDealValue)}
+          />
         )}
         {!isTech && draft.newCustomerRatioPct != null && (
           <Kv
-            label="KH tự phát triển"
-            value={`${Math.round(draft.newCustomerRatioPct)}%`}
+            label="KH tự tìm kiếm"
+            value={newCustomerBandLabel(draft.newCustomerRatioPct)}
           />
         )}
       </div>
-      {draft.salesHighlights && (
+      {!isTech && draft.salesHighlights && (
         <div className="mt-2">
           <p className="mb-1 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
             {highlightLabel}
@@ -456,15 +480,11 @@ function ConditionsSection({
   accent: string;
   classic?: boolean;
 }) {
-  const readiness = labelOf(JOB_READINESS_LABEL, draft.jobReadiness);
   const availability = labelOf(AVAILABILITY_BAND_LABEL, draft.availabilityBand);
   const travel = labelOf(TRAVEL_ABILITY_LABEL, draft.travelAbility);
   const license =
-    draft.hasB2License == null
-      ? null
-      : draft.hasB2License
-        ? `Có${draft.driverLicenseType ? ` (${draft.driverLicenseType})` : ''}`
-        : 'Không';
+    draft.driverLicenseType?.trim() ||
+    (draft.hasB2License == null ? null : draft.hasB2License ? 'Ô tô' : 'Chưa có');
   const shift =
     draft.jobTrack === JobTrack.Technical && draft.shiftFlexibility != null
       ? SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.value === draft.shiftFlexibility)?.label
@@ -474,7 +494,6 @@ function ConditionsSection({
     draft.expectedOte != null ? `OTE ${formatVndAmount(draft.expectedOte)}` : null,
   ].filter(Boolean);
   const has =
-    readiness ||
     availability ||
     travel ||
     license ||
@@ -489,7 +508,6 @@ function ConditionsSection({
     <section data-cv-block className="mb-3">
       <SectionTitle title="Điều kiện công việc" accent={accent} classic={classic} />
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-        <Kv label="Tìm việc" value={readiness} />
         <Kv label="Nhận việc" value={availability} />
         <Kv label="Công tác" value={travel} />
         <Kv label="Bằng lái" value={license} />
@@ -526,11 +544,11 @@ function PreferencesSection({
 }) {
   const has =
     draft.hobbies.length > 0 ||
-    draft.salesBehavior ||
     draft.careerMotivations.length > 0 ||
     draft.careerOrientations.length > 0 ||
     draft.workStyles.length > 0 ||
-    draft.desiredPositions.length > 0;
+    draft.desiredPositions.length > 0 ||
+    draft.desiredWorkEnvironments.length > 0;
 
   if (!has) return null;
 
@@ -562,9 +580,6 @@ function PreferencesSection({
             </div>
           </div>
         )}
-        {draft.salesBehavior && draft.jobTrack !== JobTrack.Technical && (
-          <Kv label="Phong cách & hành vi Sales" value={draft.salesBehavior} />
-        )}
         {draft.careerMotivations.length > 0 && (
           <div>
             <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
@@ -592,7 +607,9 @@ function PreferencesSection({
         {draft.workStyles.length > 0 && (
           <div>
             <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Phù hợp văn hóa
+              {draft.jobTrack === JobTrack.Technical
+                ? 'Cách làm việc kỹ thuật'
+                : 'Phong cách & môi trường làm việc'}
             </p>
             <ul className="space-y-1 pl-3.5">
               {draft.workStyles.map((w, i) => (
@@ -606,6 +623,19 @@ function PreferencesSection({
             </ul>
           </div>
         )}
+        {draft.jobTrack === JobTrack.Technical &&
+          draft.desiredWorkEnvironments.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
+                Môi trường làm việc mong muốn
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {draft.desiredWorkEnvironments.map((e, i) => (
+                  <Chip key={`env-${i}-${e}`}>{e}</Chip>
+                ))}
+              </div>
+            </div>
+          )}
       </div>
     </section>
   );
@@ -624,7 +654,9 @@ function MainSections({
 }) {
   return (
     <>
-      {(draft.summary || draft.salesHighlights || draft.careerObjective) && (
+      {(draft.summary ||
+        (draft.jobTrack !== JobTrack.Technical && draft.salesHighlights) ||
+        draft.careerObjective) && (
         <section data-cv-block className="mb-4">
           <SectionTitle title="Giới thiệu" accent={accent} classic={classic} />
           {draft.careerObjective && (
@@ -636,13 +668,12 @@ function MainSections({
           {draft.summary ? (
             <p className="text-[10.5px] leading-relaxed text-slate-700">{draft.summary}</p>
           ) : null}
-          {draft.salesHighlights &&
+          {draft.jobTrack !== JobTrack.Technical &&
+            draft.salesHighlights &&
             draft.salesHighlights !== draft.summary && (
               <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2 ring-1 ring-slate-100">
                 <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-                  {draft.jobTrack === JobTrack.Technical
-                    ? TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical]
-                    : TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales]}
+                  {TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales]}
                 </p>
                 <SalesHighlightsBullets text={draft.salesHighlights} />
               </div>

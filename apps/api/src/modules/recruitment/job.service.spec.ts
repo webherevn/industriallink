@@ -58,6 +58,7 @@ describe('JobService', () => {
     requirements: null,
     benefits: null,
     industry: null,
+    subIndustry: null,
     department: null,
     jobLevel: null,
     employmentType: null,
@@ -312,6 +313,27 @@ describe('JobService', () => {
       expect(result[0].skills).toEqual(['Technical Sales']);
       expect(result[0].isNew).toBe(true);
       expect(result[0].experienceBand).toBe('1_3');
+    });
+  });
+
+  describe('listPublishedPositionStats', () => {
+    it('gom tiêu đề tin published theo ngành', async () => {
+      const findMany = jest.fn().mockResolvedValue([
+        { title: 'Kỹ sư PLC / Tự động hóa', industry: 'Tự động hóa & Điều khiển' },
+        { title: 'Kỹ sư PLC / Tự động hóa', industry: 'Tự động hóa & Điều khiển' },
+        { title: 'Kỹ sư kinh doanh – Máy nén khí', industry: 'Máy móc & Thiết bị công nghiệp' },
+      ]);
+      const service = buildService({ job: { findMany } });
+      const result = await service.listPublishedPositionStats();
+      expect(result.popular[0]).toEqual({ title: 'Kỹ sư PLC / Tự động hóa', count: 2 });
+      expect(result.byIndustry).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            industry: 'Tự động hóa & Điều khiển',
+            positions: [{ title: 'Kỹ sư PLC / Tự động hóa', count: 2 }],
+          }),
+        ]),
+      );
     });
   });
 

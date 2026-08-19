@@ -334,6 +334,7 @@ export function buildCvDraftFromText(opts: {
     documentLiteracy: parsed.documentLiteracy ?? [],
     systemScaleNote: parsed.systemScaleNote ?? null,
     shiftFlexibility: parsed.shiftFlexibility ?? null,
+    desiredWorkEnvironments: [],
     experience,
     education,
     certificates,

@@ -4,7 +4,6 @@ import {
   SALES_BEHAVIOR_OPTIONS,
   SALES_HIGHLIGHTS_HINT,
   TRACK_FIELD_LABELS,
-  TECHNICAL_HIGHLIGHTS_HINT,
   composeEducationDegree,
   formatLanguageSkillSummary,
   mergeLanguageSkills,
@@ -205,6 +204,7 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
     documentLiteracy: [...(p?.documentLiteracy ?? [])],
     systemScaleNote: p?.systemScaleNote ?? null,
     shiftFlexibility: p?.shiftFlexibility ?? null,
+    desiredWorkEnvironments: [...(p?.desiredWorkEnvironments ?? [])],
     experience,
     education,
     certificates: [...(p?.certificates ?? [])],
@@ -259,29 +259,13 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
       value: draft.location,
       suggestion: 'Chọn tỉnh/thành theo đơn vị hành chính mới.',
     },
-    { key: 'birthYear', label: 'Năm sinh', value: draft.birthYear ?? draft.birthDate, suggestion: 'Thêm ngày/năm sinh.' },
+    { key: 'birthYear', label: 'Năm sinh', value: draft.birthYear ?? draft.birthDate, suggestion: 'Thêm năm sinh.' },
     {
       key: 'ward',
       label: 'Xã / Phường / Đặc khu',
       value: draft.ward,
       suggestion: 'Thêm xã/phường (có thể bỏ trống).',
     },
-    {
-      key: 'summary',
-      label: 'Giới thiệu',
-      value: draft.summary,
-      suggestion: 'Viết đoạn giới thiệu 2–4 câu.',
-      weakIfShort: 40,
-    },
-    {
-      key: 'careerObjective',
-      label: 'Mục tiêu nghề nghiệp',
-      value: draft.careerObjective,
-      suggestion: 'Thêm mục tiêu nghề nghiệp.',
-      weakIfShort: 20,
-    },
-    { key: 'hobbies', label: 'Sở thích', value: draft.hobbies, suggestion: 'Thêm sở thích nếu có.' },
-    { key: 'skills', label: 'Kỹ năng', value: draft.skills, suggestion: 'Bổ sung kỹ năng chuyên môn.' },
     {
       key: 'experience',
       label: 'Kinh nghiệm công ty',
@@ -321,7 +305,7 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
         draft.jobTrack === 'technical'
           ? TRACK_FIELD_LABELS.productsSold[JobTrack.Technical]
           : TRACK_FIELD_LABELS.productsSold[JobTrack.Sales],
-      value: draft.productsSold,
+      value: draft.productsSold.length ? draft.productsSold : (firstExp?.productsSold ?? []),
       suggestion:
         draft.jobTrack === 'technical'
           ? 'Bổ sung thiết bị / hệ thống đã làm.'
@@ -333,7 +317,9 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
         draft.jobTrack === 'technical'
           ? TRACK_FIELD_LABELS.customerSegments[JobTrack.Technical]
           : TRACK_FIELD_LABELS.customerSegments[JobTrack.Sales],
-      value: draft.customerSegments,
+      value: draft.customerSegments.length
+        ? draft.customerSegments
+        : (firstExp?.customerSegments ?? []),
       suggestion:
         draft.jobTrack === 'technical'
           ? 'Bổ sung môi trường làm việc.'
@@ -356,9 +342,9 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
           },
           {
             key: 'newCustomerRatio',
-            label: 'Tỷ lệ KH tự phát triển',
+            label: 'Tỷ lệ khách hàng tự tìm kiếm',
             value: draft.newCustomerRatioPct ?? firstExp?.newCustomerRatioPct ?? null,
-            suggestion: 'Thêm tỷ lệ khách tự tìm.',
+            suggestion: 'Chọn tỷ lệ khách hàng tự tìm kiếm.',
           },
           {
             key: 'b2bExperience',
@@ -368,55 +354,43 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
           },
           {
             key: 'sellingStages',
-            label: 'Giai đoạn bán hàng',
+            label: 'Phạm vi công việc bán hàng',
             value: firstExp?.sellingStages ?? [],
-            suggestion: 'Tick các giai đoạn đã làm.',
+            suggestion: 'Tick các hoạt động bán hàng đã phụ trách.',
           },
           {
             key: 'dealType',
-            label: 'Loại thương vụ',
+            label: 'Hình thức bán hàng',
             value: draft.dealType ?? firstExp?.dealType ?? null,
-            suggestion: 'Chọn loại deal (project/OEM…).',
+            suggestion: 'Chọn hình thức bán hàng (thiết bị/dịch vụ/dự án…).',
           },
           {
             key: 'dealValue',
-            label: 'Giá trị deal điển hình',
+            label: 'Giá trị hợp đồng thường gặp',
             value: draft.typicalDealValue ?? firstExp?.typicalDealValue ?? null,
-            suggestion: 'Thêm giá trị deal điển hình.',
-          },
-          {
-            key: 'maxDeal',
-            label: 'Deal lớn nhất',
-            value: draft.maxDealValue ?? firstExp?.maxDealValue ?? null,
-            suggestion: 'Thêm giá trị deal lớn nhất.',
+            suggestion: 'Chọn giá trị hợp đồng thường gặp.',
           },
           {
             key: 'markets',
-            label: 'Thị trường phụ trách',
-            value: draft.marketsCovered,
-            suggestion: 'Bổ sung khu vực phụ trách.',
+            label: 'Khu vực/thị trường phụ trách',
+            value: draft.marketsCovered.length
+              ? draft.marketsCovered
+              : (firstExp?.marketsCovered ?? []),
+            suggestion: 'Chọn khu vực/thị trường phụ trách.',
           },
         ]),
-    {
-      key: 'salesHighlights',
-      label:
-        draft.jobTrack === 'technical'
-          ? TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical]
-          : TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales],
-      value: draft.salesHighlights,
-      suggestion:
-        draft.jobTrack === 'technical'
-          ? `Ghi theo: ${TECHNICAL_HIGHLIGHTS_HINT}`
-          : `Ghi theo: ${SALES_HIGHLIGHTS_HINT}`,
-      weakIfShort: 20,
-    },
-    // B. Điều kiện
-    {
-      key: 'jobReadiness',
-      label: 'Mức độ tìm việc',
-      value: draft.jobReadiness,
-      suggestion: 'Chọn mức độ sẵn sàng tìm việc.',
-    },
+    ...(draft.jobTrack === 'technical'
+      ? []
+      : [
+          {
+            key: 'salesHighlights',
+            label: TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales],
+            value: draft.salesHighlights || firstExp?.bullets || '',
+            suggestion: `Ghi theo: ${SALES_HIGHLIGHTS_HINT}`,
+            weakIfShort: 20,
+          },
+        ]),
+    // B. Mong muốn & điều kiện
     {
       key: 'availability',
       label: 'Thời gian nhận việc',
@@ -430,7 +404,7 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
         (draft.languageSkills?.length
           ? draft.languageSkills.map(formatLanguageSkillSummary)
           : draft.languages) ?? [],
-      suggestion: 'Thêm ngoại ngữ và mức nghe/nói/đọc/viết.',
+      suggestion: 'Chọn ngoại ngữ và mức độ sử dụng trong công việc.',
     },
     {
       key: 'travel',
@@ -467,73 +441,53 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
       value: draft.desiredLocations,
       suggestion: 'Thêm địa điểm mong muốn làm việc.',
     },
-    // C. Phù hợp
-    ...(draft.jobTrack === 'technical'
-      ? []
-      : [
-          {
-            key: 'salesBehavior',
-            label: 'Phong cách & hành vi Sales',
-            value: draft.salesBehavior,
-            suggestion: 'Chọn ưu tiên hành vi Sales (A–D).',
-          },
-        ]),
-    {
-      key: 'careerMotivations',
-      label: 'Động lực nghề nghiệp',
-      value: draft.careerMotivations,
-      suggestion: 'Chọn đúng 3 động lực quan trọng nhất.',
-    },
+    // C. Định hướng & phù hợp (17–19)
     {
       key: 'careerOrientations',
       label: 'Định hướng nghề nghiệp',
       value: draft.careerOrientations,
-      suggestion: 'Chọn hướng phát triển 2–3 năm tới.',
+      suggestion: 'Chọn hướng phát triển trong 3 năm tới.',
     },
     {
       key: 'cultureFit',
-      label: 'Phù hợp văn hóa',
+      label:
+        draft.jobTrack === 'technical'
+          ? 'Cách làm việc kỹ thuật'
+          : 'Phong cách làm việc & môi trường',
       value: draft.workStyles,
-      suggestion: 'Trả lời các câu matching văn hóa.',
+      suggestion:
+        draft.jobTrack === 'technical'
+          ? 'Chọn tối đa 3 cách xử lý tình huống kỹ thuật.'
+          : 'Trả lời 2 câu phong cách & môi trường làm việc.',
     },
-    // D. Kỹ thuật (khi jobTrack = technical)
+    {
+      key: 'careerMotivations',
+      label: 'Động lực chọn công việc mới',
+      value: draft.careerMotivations,
+      suggestion: 'Chọn đúng 3 yếu tố quan trọng nhất.',
+    },
+    // D. Kỹ thuật (khi jobTrack = technical) — ma trận 31 mục, không gồm mục cũ ngoài PDF
     ...(draft.jobTrack === 'technical'
       ? [
           {
-            key: 'jobTrack',
-            label: 'Lĩnh vực',
-            value: draft.jobTrack,
-            suggestion: 'Chọn Sales hoặc Kỹ thuật.',
-          },
-          {
-            key: 'brandsTechnologies',
-            label: 'Hãng / công nghệ',
-            value: draft.brandsTechnologies,
-            suggestion: 'Thêm hãng / công nghệ đã làm.',
-          },
-          {
             key: 'technicalWorkTypes',
-            label: 'Loại công việc kỹ thuật',
-            value: draft.technicalWorkTypes,
-            suggestion: 'Chọn loại nghiệp vụ kỹ thuật.',
+            label: 'Công việc kỹ thuật đã thực hiện',
+            value: draft.technicalWorkTypes.length
+              ? draft.technicalWorkTypes
+              : (firstExp?.sellingStages ?? []),
+            suggestion: 'Tick các công việc kỹ thuật đã trực tiếp làm.',
           },
           {
             key: 'technicalAutonomyLevel',
-            label: 'Mức tự chủ',
+            label: 'Mức độ tự chủ',
             value: draft.technicalAutonomyLevel,
-            suggestion: 'Chọn mức tự chủ kỹ thuật (1–5).',
-          },
-          {
-            key: 'troubleshootingLevel',
-            label: 'Mức xử lý sự cố',
-            value: draft.troubleshootingLevel,
-            suggestion: 'Chọn mức xử lý sự cố (1–5).',
+            suggestion: 'Chọn mức tự chủ kỹ thuật cao nhất phù hợp.',
           },
           {
             key: 'technicalTools',
-            label: 'Công cụ / phần mềm',
+            label: 'Phần mềm & công cụ',
             value: draft.technicalTools,
-            suggestion: 'Thêm phần mềm / công cụ kỹ thuật.',
+            suggestion: 'Chọn phần mềm / công cụ kỹ thuật đã dùng.',
           },
           {
             key: 'documentLiteracy',
@@ -542,17 +496,16 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
             suggestion: 'Chọn khả năng đọc tài liệu kỹ thuật.',
           },
           {
-            key: 'systemScaleNote',
-            label: 'Quy mô hệ thống',
-            value: draft.systemScaleNote,
-            suggestion: 'Mô tả quy mô / công suất hệ thống.',
-            weakIfShort: 10,
+            key: 'shiftFlexibility',
+            label: 'Khả năng làm ngoài giờ',
+            value: draft.shiftFlexibility,
+            suggestion: 'Cho biết khả năng làm ngoài giờ / xử lý sự cố.',
           },
           {
-            key: 'shiftFlexibility',
-            label: 'Làm ca / ngoài giờ',
-            value: draft.shiftFlexibility,
-            suggestion: 'Cho biết khả năng làm ca / ngoài giờ.',
+            key: 'desiredWorkEnvironments',
+            label: 'Môi trường làm việc mong muốn',
+            value: draft.desiredWorkEnvironments,
+            suggestion: 'Chọn tối đa 3 môi trường làm việc mong muốn.',
           },
         ]
       : []),
@@ -781,6 +734,10 @@ export function mergeCvDrafts(aiDraft: CvDraft, profileDraft: CvDraft): CvDraft 
     systemScaleNote:
       pickRicherText(aiDraft.systemScaleNote, profileDraft.systemScaleNote) || null,
     shiftFlexibility: pickNonEmpty(aiDraft.shiftFlexibility, profileDraft.shiftFlexibility),
+    desiredWorkEnvironments: unionList(
+      aiDraft.desiredWorkEnvironments,
+      profileDraft.desiredWorkEnvironments,
+    ),
     experience,
     education,
     certificates: unionList(aiDraft.certificates, profileDraft.certificates),
