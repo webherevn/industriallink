@@ -1688,6 +1688,7 @@ type ProfileCompletionInput = {
     documentLiteracy?: string[] | null;
     systemScaleNote?: string | null;
     shiftFlexibility?: string | null;
+    desiredWorkEnvironments?: string[] | null;
   } | null;
   skills: ReadonlyArray<unknown>;
   experiences?: ReadonlyArray<{
@@ -1809,6 +1810,7 @@ export function computeProfileCompletion(candidate: ProfileCompletionInput): num
       { value: p?.documentLiteracy ?? [] },
       { value: p?.systemScaleNote, weakIfShort: 10 },
       { value: p?.shiftFlexibility },
+      { value: p?.desiredWorkEnvironments ?? [] },
     );
   } else {
     checks.push(
