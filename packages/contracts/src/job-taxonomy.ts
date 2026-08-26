@@ -6,6 +6,8 @@
  * Vị trí đang tuyển trên trang tìm việc lấy từ tin đăng trên nền tảng, không hard-code.
  */
 
+import { JobTrack } from './career-path';
+
 /**
  * 12 nhóm ngành hiển thị trên Web — STT 1–12.
  * `Khác` chỉ dùng khi không khớp 12 nhóm; không hiện trên bộ lọc việc làm.
@@ -502,23 +504,23 @@ export const TECHNICAL_DEPARTMENTS = [
 export const SHARED_DEPARTMENTS = ['Nhân sự', 'Hành chính'] as const;
 
 /** Danh sách phòng ban hợp lệ với lộ trình đang chọn. */
-export function departmentsForTrack(track: 'sales' | 'technical'): string[] {
-  if (track === 'sales') return [...SALES_DEPARTMENTS, ...SHARED_DEPARTMENTS];
+export function departmentsForTrack(track: JobTrack): string[] {
+  if (track === JobTrack.Sales) return [...SALES_DEPARTMENTS, ...SHARED_DEPARTMENTS];
   return [...TECHNICAL_DEPARTMENTS, ...SHARED_DEPARTMENTS];
 }
 
 /** Lộ trình suy ra từ phòng ban chuyên biệt; `null` nếu dùng chung / trống. */
 export function trackImpliedByDepartment(
   department: string | null | undefined,
-): 'sales' | 'technical' | null {
+): JobTrack | null {
   if (!department) return null;
-  if ((SALES_DEPARTMENTS as readonly string[]).includes(department)) return 'sales';
-  if ((TECHNICAL_DEPARTMENTS as readonly string[]).includes(department)) return 'technical';
+  if ((SALES_DEPARTMENTS as readonly string[]).includes(department)) return JobTrack.Sales;
+  if ((TECHNICAL_DEPARTMENTS as readonly string[]).includes(department)) return JobTrack.Technical;
   return null;
 }
 
-export function defaultDepartmentForTrack(track: 'sales' | 'technical'): string {
-  return track === 'sales' ? 'Kinh doanh' : 'Kỹ thuật';
+export function defaultDepartmentForTrack(track: JobTrack): string {
+  return track === JobTrack.Sales ? 'Kinh doanh' : 'Kỹ thuật';
 }
 
 /**

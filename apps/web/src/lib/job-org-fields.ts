@@ -19,7 +19,7 @@ export function applyJobDepartmentChange(
   currentLevel: string,
 ): { department: string; jobTrack: JobTrack; jobLevel: JobLevelCode } {
   const implied = trackImpliedByDepartment(department);
-  const jobTrack = implied === 'sales' || implied === 'technical' ? implied : currentTrack;
+  const jobTrack = implied ?? currentTrack;
   return {
     department,
     jobTrack,
