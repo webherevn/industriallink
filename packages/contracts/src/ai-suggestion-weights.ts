@@ -103,6 +103,93 @@ export const AI_SUGGESTION_WEIGHT_PCT_TECHNICAL: Record<string, number> = {
 /** @deprecated Dùng suggestionWeightTable(track) — mặc định kinh doanh. */
 export const AI_SUGGESTION_WEIGHT_PCT = AI_SUGGESTION_WEIGHT_PCT_SALES;
 
+/** Gom field ma trận → key matching NTD (18 tiêu chí). */
+const SUGGESTION_TO_MATCH_SALES: Record<string, string> = {
+  location: 'region',
+  desiredLocations: 'region',
+  markets: 'region',
+  desiredPositions: 'careerOrientation',
+  careerOrientations: 'careerOrientation',
+  expectedSalary: 'expectedIncome',
+  availability: 'readiness',
+  languages: 'languages',
+  driversLicense: 'driversLicense',
+  travel: 'travel',
+  careerMotivations: 'careerMotivation',
+  cultureFit: 'cultureFit',
+  educationLevel: 'sellingCapability',
+  educationMajor: 'sellingCapability',
+  certificates: 'sellingCapability',
+  experienceRole: 'b2bExperience',
+  experiencePeriod: 'b2bExperience',
+  industries: 'industry',
+  products: 'products',
+  brands: 'products',
+  segments: 'customerSegments',
+  dealType: 'dealProfile',
+  dealValue: 'dealProfile',
+  sellingStages: 'sellingCapability',
+  revenue: 'achievements',
+  kpi: 'achievements',
+  salesHighlights: 'achievements',
+  newCustomerRatio: 'customerDev',
+};
+
+const SUGGESTION_TO_MATCH_TECHNICAL: Record<string, string> = {
+  location: 'region',
+  desiredLocations: 'region',
+  desiredPositions: 'careerOrientation',
+  careerOrientations: 'careerOrientation',
+  expectedSalary: 'expectedIncome',
+  availability: 'readiness',
+  languages: 'languages',
+  driversLicense: 'driversLicense',
+  travel: 'travel',
+  careerMotivations: 'careerMotivation',
+  cultureFit: 'salesStyle',
+  shiftFlexibility: 'cultureFit',
+  desiredWorkEnvironments: 'cultureFit',
+  experienceRole: 'b2bExperience',
+  experiencePeriod: 'b2bExperience',
+  industries: 'industry',
+  products: 'products',
+  segments: 'customerSegments',
+  technicalWorkTypes: 'sellingCapability',
+  technicalTools: 'sellingCapability',
+  documentLiteracy: 'sellingCapability',
+  educationLevel: 'sellingCapability',
+  educationMajor: 'sellingCapability',
+  certificates: 'sellingCapability',
+  technicalAutonomyLevel: 'dealProfile',
+  salesHighlights: 'achievements',
+};
+
+/**
+ * Gom tỷ trọng ma trận 34/32 mục về 18 key matching NTD (tổng = 1).
+ * Field 0% hoặc không map sẽ bị bỏ, phần còn lại chuẩn hoá 100%.
+ */
+export function rollupMatchWeights(
+  track?: SuggestionTrack | string | null,
+): Record<string, number> {
+  const isTech = track === 'technical';
+  const table = suggestionWeightTable(track);
+  const map = isTech ? SUGGESTION_TO_MATCH_TECHNICAL : SUGGESTION_TO_MATCH_SALES;
+  const rolled: Record<string, number> = {};
+  for (const [field, pct] of Object.entries(table)) {
+    if (pct <= 0) continue;
+    const key = map[field];
+    if (!key) continue;
+    rolled[key] = (rolled[key] ?? 0) + pct;
+  }
+  const total = Object.values(rolled).reduce((s, w) => s + w, 0);
+  if (total <= 0) return rolled;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(rolled)) {
+    out[k] = v / total;
+  }
+  return out;
+}
+
 export function suggestionWeightTable(
   track?: SuggestionTrack | string | null,
 ): Record<string, number> {

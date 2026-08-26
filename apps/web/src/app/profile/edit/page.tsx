@@ -99,6 +99,7 @@ import {
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
+import { CollapsibleFormSection } from '@/components/collapsible-form-section';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
 import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearRangeFields, Select, Textarea, YearInput } from '@/components/ui';
@@ -1025,6 +1026,7 @@ export default function ProfileEditPage() {
   const [trackExtras, setTrackExtras] = useState<TrackExtras>(EMPTY_TRACK);
   const [hydrated, setHydrated] = useState(false);
   const [cvEntry, setCvEntry] = useState(false);
+  const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
 
   useEffect(() => {
     if (!candidate || hydrated) return;
@@ -1195,10 +1197,12 @@ export default function ProfileEditPage() {
   }
 
   function addExperience() {
+    const newIndex = form.experiences.length;
     setForm((prev) => ({
       ...prev,
       experiences: [...prev.experiences, emptyExperience()],
     }));
+    setExpandedExp((prev) => new Set(prev).add(newIndex));
   }
 
   function removeExperience(index: number) {
@@ -1209,6 +1213,24 @@ export default function ProfileEditPage() {
           ? prev.experiences
           : prev.experiences.filter((_, i) => i !== index),
     }));
+    setExpandedExp((prev) => {
+      const next = new Set<number>();
+      for (const i of prev) {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+      }
+      if (next.size === 0) next.add(0);
+      return next;
+    });
+  }
+
+  function toggleExp(index: number, open: boolean) {
+    setExpandedExp((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(index);
+      else next.delete(index);
+      return next;
+    });
   }
 
   const isSales = trackExtras.jobTrack === JobTrack.Sales;
@@ -1943,28 +1965,29 @@ export default function ProfileEditPage() {
                           const hasMissing = exp.missingFields.length > 0;
                           const highlight = cvEntry && exp.source === 'cv_ai' && hasMissing;
                           return (
-                            <div
+                            <CollapsibleFormSection
                               key={exp.id ?? index}
-                              className={clsx(
-                                'space-y-4 rounded-xl border p-4',
-                                highlight
-                                  ? 'border-amber-300 bg-amber-50/40'
-                                  : 'border-slate-200 bg-slate-50/50',
-                              )}
-                            >
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="space-y-2">
-                                  <p className="text-sm font-semibold text-slate-800">
-                                    Kinh nghiệm công ty {index + 1}
-                                    {exp.source === 'cv_ai' && (
-                                      <span className="ml-2 inline-flex">
-                                        <Badge tone="brand">Từ CV AI</Badge>
-                                      </span>
-                                    )}
-                                  </p>
+                              title={`Kinh nghiệm công ty ${index + 1}`}
+                              subtitle={
+                                exp.companyName.trim()
+                                  ? `${exp.companyName}${exp.jobTitle.trim() ? ` · ${exp.jobTitle}` : ''}`
+                                  : 'Bấm để điền các mục 24–32'
+                              }
+                              extra={
+                                <div className="mt-1 space-y-1">
+                                  {exp.source === 'cv_ai' && (
+                                    <span className="inline-flex">
+                                      <Badge tone="brand">Từ CV AI</Badge>
+                                    </span>
+                                  )}
                                   <MissingBadges fields={exp.missingFields} highlight={highlight} />
                                 </div>
-                                {form.experiences.length > 1 && (
+                              }
+                              open={expandedExp.has(index)}
+                              onOpenChange={(open) => toggleExp(index, open)}
+                              className={highlight ? 'border-amber-300' : undefined}
+                              actions={
+                                form.experiences.length > 1 ? (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1973,8 +1996,9 @@ export default function ProfileEditPage() {
                                   >
                                     Xoá
                                   </Button>
-                                )}
-                              </div>
+                                ) : undefined
+                              }
+                            >
 
                               <div className="grid gap-4 sm:grid-cols-2">
                                 <Field label="24. Tên công ty *">
@@ -2104,7 +2128,7 @@ export default function ProfileEditPage() {
                                   placeholder={TECHNICAL_HIGHLIGHTS_PLACEHOLDER}
                                 />
                               </Field>
-                            </div>
+                            </CollapsibleFormSection>
                           );
                         })}
                       </div>
@@ -2123,28 +2147,29 @@ export default function ProfileEditPage() {
                             (v) => DEAL_TYPE_LABEL[v],
                           );
                           return (
-                            <div
-                              key={exp.id ?? index}
-                              className={clsx(
-                                'space-y-4 rounded-xl border p-4',
-                                highlight
-                                  ? 'border-amber-300 bg-amber-50/40'
-                                  : 'border-slate-200 bg-slate-50/50',
-                              )}
-                            >
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="space-y-2">
-                                  <p className="text-sm font-semibold text-slate-800">
-                                    Kinh nghiệm công ty {index + 1}
-                                    {exp.source === 'cv_ai' && (
-                                      <span className="ml-2 inline-flex">
-                                        <Badge tone="brand">Từ CV AI</Badge>
-                                      </span>
-                                    )}
-                                  </p>
+                            <CollapsibleFormSection
+                              key={exp.id ?? `sales-${index}`}
+                              title={`Kinh nghiệm công ty ${index + 1}`}
+                              subtitle={
+                                exp.companyName.trim()
+                                  ? `${exp.companyName}${exp.jobTitle.trim() ? ` · ${exp.jobTitle}` : ''}`
+                                  : 'Bấm để điền các mục 20–34'
+                              }
+                              extra={
+                                <div className="mt-1 space-y-1">
+                                  {exp.source === 'cv_ai' && (
+                                    <span className="inline-flex">
+                                      <Badge tone="brand">Từ CV AI</Badge>
+                                    </span>
+                                  )}
                                   <MissingBadges fields={exp.missingFields} highlight={highlight} />
                                 </div>
-                                {form.experiences.length > 1 && (
+                              }
+                              open={expandedExp.has(index)}
+                              onOpenChange={(open) => toggleExp(index, open)}
+                              className={highlight ? 'border-amber-300' : undefined}
+                              actions={
+                                form.experiences.length > 1 ? (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -2153,9 +2178,9 @@ export default function ProfileEditPage() {
                                   >
                                     Xoá
                                   </Button>
-                                )}
-                              </div>
-
+                                ) : undefined
+                              }
+                            >
                               <div className="grid gap-4 sm:grid-cols-2">
                                 <Field label="20. Tên công ty *">
                                   <Input
@@ -2300,11 +2325,11 @@ export default function ProfileEditPage() {
                                 </label>
                               </Field>
 
-                              <details className="rounded-lg border border-slate-200 bg-white">
-                                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
-                                  28–34. Nhóm khuyến khích — giúp AI kết nối với NTD dễ hơn
-                                </summary>
-                                <div className="space-y-4 border-t border-slate-100 px-4 py-4">
+                              <CollapsibleFormSection
+                                variant="hot"
+                                title="Nhóm khuyến khích — giúp AI kết nối với NTD (28–34)"
+                                subtitle="Điền thêm để AI ghép đúng tin tuyển dụng hơn"
+                              >
                                   <Field
                                     label="28. Hãng / thương hiệu sản phẩm"
                                     description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
@@ -2397,9 +2422,8 @@ export default function ProfileEditPage() {
                                       placeholder={SALES_HIGHLIGHTS_PLACEHOLDER}
                                     />
                                   </Field>
-                                </div>
-                              </details>
-                            </div>
+                              </CollapsibleFormSection>
+                            </CollapsibleFormSection>
                           );
                         })}
                       </div>

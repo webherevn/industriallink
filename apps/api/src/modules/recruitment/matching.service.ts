@@ -44,6 +44,11 @@ type CandidateWithSales = {
     languages?: string[];
     hasB2License?: boolean | null;
     willingToTravel?: boolean | null;
+    jobTrack?: string | null;
+    currentCity?: string | null;
+    desiredLocations?: string[];
+    technicalAutonomyLevel?: number | null;
+    technicalWorkTypes?: string[];
   } | null;
   skills: { name: string }[];
 };
@@ -111,6 +116,11 @@ export class MatchingService {
       workStyles: (p as { workStyles?: string[] })?.workStyles ?? [],
       careerOrientation: (p as { careerOrientation?: string | null })?.careerOrientation,
       desiredPositions: (p as { desiredPositions?: string[] })?.desiredPositions ?? [],
+      jobTrack: p?.jobTrack,
+      currentCity: p?.currentCity,
+      desiredLocations: p?.desiredLocations ?? [],
+      technicalAutonomyLevel: p?.technicalAutonomyLevel,
+      technicalWorkTypes: p?.technicalWorkTypes ?? [],
       skills: candidate.skills.map((s) => s.name),
     };
   }
@@ -126,6 +136,8 @@ export class MatchingService {
       salaryMin: number | null;
       salaryMax: number | null;
       skills: { name: string; required: boolean }[];
+      jobLevel?: string | null;
+      department?: string | null;
     },
     candidate: CandidateWithSales,
   ): MatchExplanation {
@@ -142,6 +154,8 @@ export class MatchingService {
         salaryMin: job.salaryMin,
         salaryMax: job.salaryMax,
         requiredSkills,
+        jobLevel: job.jobLevel,
+        department: job.department,
       },
     });
   }

@@ -11,6 +11,7 @@
  */
 
 import { INDUSTRY_GROUPS, type IndustryGroup } from './job-taxonomy';
+import { rollupMatchWeights } from './ai-suggestion-weights';
 
 // ---------------------------------------------------------------------------
 // A. NĂNG LỰC LÕI (75%)
@@ -648,7 +649,7 @@ export function salesBehaviorToDevStyle(
   return null;
 }
 
-/** STT 19. Động lực khi lựa chọn công việc mới (1%) — chọn đúng 3. */
+/** STT 19. Động lực khi lựa chọn công việc mới (1%) — chọn tối đa 3. */
 export const CAREER_MOTIVATIONS = [
   'Thu nhập & hoa hồng',
   'Sản phẩm/dịch vụ dễ bán',
@@ -661,7 +662,7 @@ export const CAREER_MOTIVATIONS = [
 export type CareerMotivation = (typeof CAREER_MOTIVATIONS)[number];
 
 export const CAREER_MOTIVATION_QUESTION =
-  'Hãy chọn 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
+  'Hãy chọn tối đa 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
 
 /** STT 18. Phong cách làm việc & môi trường phù hợp (2%) — 2 cặp A/B. */
 export const CULTURE_FIT_QUESTIONS = [
@@ -865,36 +866,56 @@ export function parseEducationDegree(degree: string | null | undefined): {
 }
 
 // ---------------------------------------------------------------------------
-// Trọng số matching JD — gom ma trận 34 mục (điểm gợi ý chi tiết ở
-// ai-suggestion-weights.ts) về 18 key engine. A 2% + B 11% + C 5% + D 5% + E 75%.
+// Trọng số matching NTD — gom từ ma trận điểm gợi ý (ai-suggestion-weights).
+// Kinh doanh 34 mục; Kỹ thuật 32 mục. Dùng b2bMatchWeightsForTrack(track).
 // ---------------------------------------------------------------------------
 
-export const B2B_MATCH_WEIGHTS = {
-  /** E. Kinh nghiệm công ty */
-  industry: 0.12, // STT 23 Ngành / lĩnh vực
-  products: 0.18, // STT 24 Sản phẩm/thiết bị (16%) + STT 28 Hãng (1%) + làm tròn
-  customerSegments: 0.11, // STT 25 Nhóm khách hàng đã bán
-  achievements: 0.07, // STT 30 Doanh số (3%) + STT 31 KPI (2%) + STT 34 Thành tích (2%)
-  customerDev: 0.02, // STT 32 Tỷ lệ khách hàng tự tìm kiếm
-  b2bExperience: 0.1, // STT 21 Vị trí (5%) + STT 22 Thời gian làm việc (5%)
-  sellingCapability: 0.08, // STT 27 Phạm vi công việc bán hàng
-  dealProfile: 0.06, // STT 26 Hình thức bán hàng (5%) + STT 33 Giá trị HĐ (1%)
-  region: 0.06, // STT 29 Khu vực (2%) + STT 7 Địa điểm mong muốn (2%) + STT 5 Nơi sống (2%)
-  /** B. Mong muốn */
-  readiness: 0.01, // STT 9 Thời gian có thể nhận việc
-  expectedIncome: 0.03, // STT 8 Thu nhập tối thiểu & kỳ vọng
-  /** C. Học vấn & điều kiện */
-  languages: 0.02, // STT 14 Ngoại ngữ
-  travel: 0.01, // STT 16 Khả năng đi công tác
-  driversLicense: 0.01, // STT 15 GPLX 0,5% + STT 10/12/13 học vấn 0,5%×3 làm tròn
-  /** D. Định hướng + vị trí ứng tuyển */
-  salesStyle: 0.02, // STT 19 Phong cách làm việc & môi trường
-  careerMotivation: 0.01, // STT 17 Động lực khi lựa chọn công việc mới
-  cultureFit: 0.02, // STT 19 (giữ key matching) — cùng nhóm fit
-  careerOrientation: 0.07, // STT 18 Định hướng (2%) + STT 6 Vị trí ứng tuyển (5%)
-} as const;
+const MATCH_CRITERION_KEYS = [
+  'industry',
+  'products',
+  'customerSegments',
+  'achievements',
+  'customerDev',
+  'b2bExperience',
+  'sellingCapability',
+  'dealProfile',
+  'region',
+  'readiness',
+  'languages',
+  'travel',
+  'driversLicense',
+  'expectedIncome',
+  'salesStyle',
+  'careerMotivation',
+  'cultureFit',
+  'careerOrientation',
+] as const;
 
-export type B2bMatchCriterionKey = keyof typeof B2B_MATCH_WEIGHTS;
+export type B2bMatchCriterionKey = (typeof MATCH_CRITERION_KEYS)[number];
+
+function weightsFromRollup(
+  track: 'sales' | 'technical',
+): Record<B2bMatchCriterionKey, number> {
+  const rolled = rollupMatchWeights(track);
+  const out = {} as Record<B2bMatchCriterionKey, number>;
+  for (const key of MATCH_CRITERION_KEYS) {
+    out[key] = rolled[key] ?? 0;
+  }
+  return out;
+}
+
+/** Mặc định kinh doanh (tương thích chỗ gọi B2B_MATCH_WEIGHTS trực tiếp). */
+export const B2B_MATCH_WEIGHTS: Record<B2bMatchCriterionKey, number> =
+  weightsFromRollup('sales');
+
+export const B2B_MATCH_WEIGHTS_TECHNICAL: Record<B2bMatchCriterionKey, number> =
+  weightsFromRollup('technical');
+
+export function b2bMatchWeightsForTrack(
+  track?: string | null,
+): Record<B2bMatchCriterionKey, number> {
+  return track === 'technical' ? B2B_MATCH_WEIGHTS_TECHNICAL : B2B_MATCH_WEIGHTS;
+}
 
 export const B2B_MATCH_CRITERION_LABEL: Record<B2bMatchCriterionKey, string> = {
   industry: 'Ngành công nghiệp có kinh nghiệm',
@@ -916,6 +937,36 @@ export const B2B_MATCH_CRITERION_LABEL: Record<B2bMatchCriterionKey, string> = {
   cultureFit: 'Phù hợp văn hóa doanh nghiệp',
   careerOrientation: 'Định hướng nghề nghiệp',
 };
+
+export const B2B_MATCH_CRITERION_LABEL_TECHNICAL: Record<B2bMatchCriterionKey, string> = {
+  industry: 'Lĩnh vực kỹ thuật đã làm',
+  products: 'Thiết bị / hệ thống đã làm',
+  customerSegments: 'Môi trường làm việc thực tế',
+  achievements: 'Thành tích/dự án nổi bật',
+  customerDev: 'Phát triển khách hàng mới',
+  b2bExperience: 'Vị trí & thời gian làm việc',
+  sellingCapability: 'Công việc kỹ thuật đã thực hiện',
+  dealProfile: 'Mức độ tự chủ kỹ thuật',
+  region: 'Nơi sống & địa điểm mong muốn',
+  readiness: 'Thời gian có thể nhận việc',
+  languages: 'Ngoại ngữ',
+  travel: 'Khả năng đi công tác',
+  driversLicense: 'Giấy phép lái xe',
+  expectedIncome: 'Thu nhập kỳ vọng',
+  salesStyle: 'Cách làm việc kỹ thuật',
+  careerMotivation: 'Động lực nghề nghiệp',
+  cultureFit: 'Ca kíp & môi trường mong muốn',
+  careerOrientation: 'Vị trí ứng tuyển',
+};
+
+export function b2bMatchCriterionLabel(
+  key: B2bMatchCriterionKey,
+  track?: string | null,
+): string {
+  return track === 'technical'
+    ? B2B_MATCH_CRITERION_LABEL_TECHNICAL[key]
+    : B2B_MATCH_CRITERION_LABEL[key];
+}
 
 export const B2B_CRITERION_GROUP: Record<
   B2bMatchCriterionKey,
@@ -1059,6 +1110,6 @@ export function dealValueBandToVnd(band: string | null | undefined): number | nu
 }
 
 /** Kiểm tra tổng trọng số = 1 (dùng trong test / assert). */
-export function sumB2bMatchWeights(): number {
-  return Object.values(B2B_MATCH_WEIGHTS).reduce((s, w) => s + w, 0);
+export function sumB2bMatchWeights(track?: string | null): number {
+  return Object.values(b2bMatchWeightsForTrack(track)).reduce((s, w) => s + w, 0);
 }

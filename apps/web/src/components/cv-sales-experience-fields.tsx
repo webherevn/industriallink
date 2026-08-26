@@ -1,6 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
+import { useState } from 'react';
 import {
   CUSTOMER_SEGMENTS,
   DEAL_TYPE_LABEL,
@@ -21,6 +22,7 @@ import {
   type CvDraftFieldHint,
 } from '@industriallink/contracts';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
+import { CollapsibleFormSection } from '@/components/collapsible-form-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { MoneyInput, MonthYearRangeFields } from '@/components/ui';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
@@ -201,6 +203,16 @@ export function CvSalesExperienceFields({
   }));
 
   const experiences = draft.experience.length ? draft.experience : [emptyCvExperience()];
+  const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
+
+  function toggleExp(index: number, open: boolean) {
+    setExpandedExp((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  }
 
   function updateExperience(
     index: number,
@@ -233,30 +245,42 @@ export function CvSalesExperienceFields({
           (v) => DEAL_TYPE_LABEL[v],
         );
         const allStagesSelected = exp.sellingStages.length === SELLING_STAGES.length;
+        const companyTitle = exp.company.trim()
+          ? `${exp.company}${exp.role.trim() ? ` · ${exp.role}` : ''}`
+          : 'Bấm để điền các mục 20–34';
         return (
-          <div
+          <CollapsibleFormSection
             key={`exp-${index}`}
-            className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3 sm:p-4"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-bold text-slate-800">
-                Kinh nghiệm công ty {index + 1}
-              </p>
-              {draft.experience.length > 1 && (
+            title={`Kinh nghiệm công ty ${index + 1}`}
+            subtitle={companyTitle}
+            open={expandedExp.has(index)}
+            onOpenChange={(open) => toggleExp(index, open)}
+            actions={
+              draft.experience.length > 1 ? (
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     onChange(
                       'experience',
                       draft.experience.filter((_, i) => i !== index),
-                    )
-                  }
+                    );
+                    setExpandedExp((prev) => {
+                      const next = new Set<number>();
+                      for (const i of prev) {
+                        if (i < index) next.add(i);
+                        else if (i > index) next.add(i - 1);
+                      }
+                      if (next.size === 0) next.add(0);
+                      return next;
+                    });
+                  }}
                   className="text-xs font-semibold text-rose-600 hover:text-rose-700"
                 >
                   Xoá
                 </button>
-              )}
-            </div>
+              ) : undefined
+            }
+          >
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
@@ -404,11 +428,11 @@ export function CvSalesExperienceFields({
               </label>
             </div>
 
-            <details className="rounded-lg border border-slate-200 bg-white">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
-                28–34. Nhóm khuyến khích — giúp AI kết nối với NTD dễ hơn
-              </summary>
-              <div className="space-y-4 border-t border-slate-100 px-4 py-4">
+            <CollapsibleFormSection
+              variant="hot"
+              title="Nhóm khuyến khích — giúp AI kết nối với NTD (28–34)"
+              subtitle="Điền thêm để AI ghép đúng tin tuyển dụng hơn"
+            >
                 <div>
                   <FieldLabel
                     title="28. Hãng / thương hiệu sản phẩm"
@@ -502,15 +526,18 @@ export function CvSalesExperienceFields({
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed outline-none ring-brand-500/30 focus:ring-2"
                   />
                 </label>
-              </div>
-            </details>
-          </div>
+              </CollapsibleFormSection>
+          </CollapsibleFormSection>
         );
       })}
 
       <button
         type="button"
-        onClick={() => onChange('experience', [...draft.experience, emptyCvExperience()])}
+        onClick={() => {
+          const next = [...experiences, emptyCvExperience()];
+          onChange('experience', next);
+          setExpandedExp((prev) => new Set(prev).add(next.length - 1));
+        }}
         className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
       >
         + Thêm công ty (lặp lại mục 20–34)

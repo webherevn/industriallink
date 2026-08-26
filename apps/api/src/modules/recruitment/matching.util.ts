@@ -1,22 +1,25 @@
 import type { MatchCriterionScore, MatchExplanation } from '@industriallink/contracts';
 import {
   AvailabilityBand,
-  B2B_MATCH_CRITERION_LABEL,
-  B2B_MATCH_WEIGHTS,
   CUSTOMER_SEGMENTS,
+  EQUIPMENT_SYSTEM_OPTIONS,
   JobReadiness,
+  JobTrack,
   PRODUCTS_SOLD,
   SELLING_STAGES,
+  TECHNICAL_WORK_TYPES,
   TravelAbility,
   availabilityToNoticeDays,
   b2bBandToYears,
+  b2bMatchCriterionLabel,
+  b2bMatchWeightsForTrack,
   experienceBandToYears,
   getIndustryCatalog,
-  industrySearchValues,
   normalizeIndustries,
   normalizeSellingStage,
   noticeDaysToAvailability,
   salesBehaviorToDevStyle,
+  trackImpliedByDepartment,
   yearsToB2bBand,
   type B2bMatchCriterionKey,
 } from '@industriallink/contracts';
@@ -109,6 +112,28 @@ export function inferProductsFromJob(input: {
   });
 }
 
+/** Suy thiết bị / hệ thống kỹ thuật từ ngành / mô tả tin. */
+export function inferEquipmentFromJob(input: {
+  industry?: string | null;
+  title?: string | null;
+  description?: string | null;
+  skills?: string[];
+}): string[] {
+  const text = tokenHaystack([
+    input.industry,
+    input.title,
+    input.description,
+    ...(input.skills ?? []),
+    getIndustryCatalog(input.industry ?? '')?.details,
+  ]);
+  return EQUIPMENT_SYSTEM_OPTIONS.filter((p) => {
+    const tokens = norm(p)
+      .split(/[\s\/,&–-]+/)
+      .filter((t) => t.length >= 3);
+    return tokens.some((t) => text.includes(t));
+  });
+}
+
 /** Suy ra tệp KH từ mô tả tin. */
 export function inferCustomerSegmentsFromJob(input: {
   title?: string | null;
@@ -167,6 +192,11 @@ export interface B2bCandidateMatchInput {
   careerOrientation?: string | null;
   desiredPositions?: string[];
   skills?: string[];
+  jobTrack?: string | null;
+  currentCity?: string | null;
+  desiredLocations?: string[];
+  technicalAutonomyLevel?: number | null;
+  technicalWorkTypes?: string[];
 }
 
 export interface B2bJobMatchInput {
@@ -198,18 +228,47 @@ export interface B2bJobMatchInput {
   careerPathTags?: string[];
   motivationTags?: string[];
   salesPersona?: string | null;
+  jobTrack?: string | null;
+  jobLevel?: string | null;
+  department?: string | null;
+}
+
+/**
+ * Job match: ưu tiên lộ trình JD (jobLevel → jobTrack → phòng ban).
+ * Search NTD không gắn tin: dùng jobTrack của ứng viên. Mặc định kinh doanh.
+ */
+export function resolveMatchTrack(input: {
+  job?: Pick<B2bJobMatchInput, 'jobLevel' | 'jobTrack' | 'department'>;
+  candidate?: Pick<B2bCandidateMatchInput, 'jobTrack'>;
+}): 'sales' | 'technical' {
+  const level = input.job?.jobLevel?.trim().toLowerCase() ?? '';
+  if (level.startsWith('technical.')) return 'technical';
+  if (level.startsWith('sales.')) return 'sales';
+
+  const jobTrack = input.job?.jobTrack?.trim().toLowerCase();
+  if (jobTrack === 'technical' || jobTrack === 'sales') return jobTrack;
+
+  const implied = trackImpliedByDepartment(input.job?.department);
+  if (implied === JobTrack.Technical) return 'technical';
+  if (implied === JobTrack.Sales) return 'sales';
+
+  const cand = input.candidate?.jobTrack?.trim().toLowerCase();
+  if (cand === 'technical' || cand === 'sales') return cand;
+  return 'sales';
 }
 
 function criterion(
   key: B2bMatchCriterionKey,
   score: number | null,
-  note?: string,
+  note: string | undefined,
+  weights: Record<B2bMatchCriterionKey, number>,
+  track: string,
 ): MatchCriterionScore {
   return {
     key,
-    label: B2B_MATCH_CRITERION_LABEL[key],
+    label: b2bMatchCriterionLabel(key, track),
     score,
-    weight: B2B_MATCH_WEIGHTS[key],
+    weight: weights[key],
     note,
   };
 }
@@ -247,16 +306,18 @@ function regionScore(
   jobLocation: string | null | undefined,
   filterRegions: string[] | undefined,
   markets: string[] | undefined,
+  extraLocations?: string[],
 ): { score: number | null; note?: string } {
   const required = [
     ...(filterRegions ?? []),
     ...(jobLocation?.trim() ? [jobLocation.trim()] : []),
   ];
   if (required.length === 0) return { score: null };
-  const { score, matched } = setOverlapScore(required, markets ?? []);
-  if ((score ?? 0) === 0 && jobLocation && (markets?.length ?? 0) > 0) {
+  const pool = [...(markets ?? []), ...(extraLocations ?? [])].map((s) => s.trim()).filter(Boolean);
+  const { score, matched } = setOverlapScore(required, pool);
+  if ((score ?? 0) === 0 && jobLocation && pool.length > 0) {
     const jl = norm(jobLocation);
-    const soft = (markets ?? []).some((m) => {
+    const soft = pool.some((m) => {
       const nm = norm(m);
       return jl.includes(nm) || nm.includes(jl) || (jl.includes('kcn') && nm.includes('kcn'));
     });
@@ -268,7 +329,19 @@ function regionScore(
   };
 }
 
-function achievementsScore(c: B2bCandidateMatchInput): { score: number | null; note?: string } {
+function achievementsScore(
+  c: B2bCandidateMatchInput,
+  track: 'sales' | 'technical',
+): { score: number | null; note?: string } {
+  if (track === 'technical') {
+    const text = c.salesHighlights?.trim() ?? '';
+    if (!text) return { score: null };
+    if (text.length < 20) {
+      return { score: 0.45, note: 'Thành tích/dự án còn sơ lược' };
+    }
+    return { score: 1, note: 'Có thành tích/dự án nổi bật' };
+  }
+
   const hasAny =
     c.latestRevenue != null ||
     c.kpiAchievementPct != null ||
@@ -311,7 +384,22 @@ function customerDevScore(
 function dealProfileScore(
   c: B2bCandidateMatchInput,
   filterDealType?: string | null,
+  track: 'sales' | 'technical' = 'sales',
 ): { score: number | null; note?: string } {
+  if (track === 'technical') {
+    const level = c.technicalAutonomyLevel;
+    if (level == null || level < 1) return { score: null };
+    const clamped = Math.max(1, Math.min(5, level));
+    const label =
+      clamped >= 5
+        ? 'Hướng dẫn người khác'
+        : clamped >= 4
+          ? 'Tự xử lý việc phức tạp'
+          : clamped >= 3
+            ? 'Tự thực hiện'
+            : 'Cần hướng dẫn';
+    return { score: Math.min(1, clamped / 4), note: `Tự chủ mức ${clamped}/5 · ${label}` };
+  }
   if (!c.dealType && c.typicalDealValue == null && c.maxDealValue == null) {
     return { score: null };
   }
@@ -332,20 +420,32 @@ function dealProfileScore(
 function sellingCapabilityScore(
   stages: string[] | undefined,
   requiredStages?: string[],
+  opts?: { track?: string; technicalWorkTypes?: string[] },
 ): { score: number | null; note?: string } {
-  const haveRaw = (stages ?? []).map((s) => normalizeSellingStage(s) ?? s.trim()).filter(Boolean);
-  const have = [...new Set(haveRaw)];
+  const isTech = opts?.track === 'technical';
+  const haveRaw = isTech
+    ? (opts?.technicalWorkTypes?.length ? opts.technicalWorkTypes : stages ?? []).map((s) =>
+        s.trim(),
+      )
+    : (stages ?? []).map((s) => normalizeSellingStage(s) ?? s.trim());
+  const have = [...new Set(haveRaw.filter(Boolean))];
   if (have.length === 0) return { score: null };
 
   const need =
     requiredStages && requiredStages.length > 0
-      ? requiredStages.map((s) => normalizeSellingStage(s) ?? s.trim()).filter(Boolean)
-      : [...SELLING_STAGES];
+      ? requiredStages
+          .map((s) => (isTech ? s.trim() : (normalizeSellingStage(s) ?? s.trim())))
+          .filter(Boolean)
+      : isTech
+        ? [...TECHNICAL_WORK_TYPES]
+        : [...SELLING_STAGES];
 
   const { score, matched } = setOverlapScore(need, have);
   return {
     score: score ?? 0,
-    note: `Đã làm ${matched.length}/${need.length} giai đoạn chu trình bán`,
+    note: isTech
+      ? `Đã làm ${matched.length}/${need.length} loại công việc kỹ thuật`
+      : `Đã làm ${matched.length}/${need.length} giai đoạn chu trình bán`,
   };
 }
 
@@ -588,6 +688,12 @@ export function buildB2bExplanation(input: {
   const requiredCount = requiredSkills.filter((s) => s.trim().length > 0).length;
   const skillRatio = requiredCount > 0 ? matched.length / requiredCount : clampedSemantic;
 
+  const track = resolveMatchTrack({ job: input.job, candidate: input.candidate });
+  const weights = b2bMatchWeightsForTrack(track);
+  const isTech = track === 'technical';
+  const row = (key: B2bMatchCriterionKey, score: number | null, note?: string) =>
+    criterion(key, score, note, weights, track);
+
   const industriesHave = normalizeIndustries([
     ...(input.candidate.industriesExperienced ?? []),
     ...(input.candidate.industry ? [input.candidate.industry] : []),
@@ -598,14 +704,22 @@ export function buildB2bExplanation(input: {
   ]);
   const industryOv = setOverlapScore(industriesNeed, industriesHave);
 
-  const productsNeed = input.job.filterProducts?.length
-    ? input.job.filterProducts
+  const inferredNeed = isTech
+    ? inferEquipmentFromJob({
+        industry: input.job.industry,
+        title: input.job.title,
+        description: input.job.description,
+        skills: requiredSkills,
+      })
     : inferProductsFromJob({
         industry: input.job.industry,
         title: input.job.title,
         description: input.job.description,
         skills: requiredSkills,
       });
+  const productsNeed = input.job.filterProducts?.length
+    ? input.job.filterProducts
+    : inferredNeed;
   const productsOv =
     (input.candidate.productsSold?.length ?? 0) === 0 && !input.job.filterProducts?.length
       ? { score: null as number | null, matched: [] as string[] }
@@ -634,17 +748,22 @@ export function buildB2bExplanation(input: {
     input.job.location,
     input.job.filterRegions,
     input.candidate.marketsCovered,
+    [
+      ...(input.candidate.currentCity?.trim() ? [input.candidate.currentCity.trim()] : []),
+      ...(input.candidate.desiredLocations ?? []),
+    ],
   );
-  const ach = achievementsScore(input.candidate);
+  const ach = achievementsScore(input.candidate, track);
   const custDev = customerDevScore(
     input.candidate.customerDevStyle,
     input.candidate.newCustomerRatioPct,
     input.job.filterCustomerDevStyle ?? input.job.salesPersona,
   );
-  const deal = dealProfileScore(input.candidate, input.job.filterDealType);
+  const deal = dealProfileScore(input.candidate, input.job.filterDealType, track);
   const selling = sellingCapabilityScore(
     input.candidate.sellingStages,
     input.job.requiredSellingStages,
+    { track, technicalWorkTypes: input.candidate.technicalWorkTypes },
   );
   const ready = readinessScore(
     input.candidate.jobReadiness,
@@ -692,49 +811,61 @@ export function buildB2bExplanation(input: {
     input.job.careerPathTags,
   );
 
+  const productsGapNote = isTech
+    ? 'Chưa khớp thiết bị / hệ thống'
+    : 'Chưa khớp sản phẩm đã bán';
+  const productsHitNote = (hits: string[]) =>
+    isTech ? `Thiết bị: ${hits.join(', ')}` : `Sản phẩm: ${hits.join(', ')}`;
+  const segmentsHitNote = (hits: string[]) =>
+    isTech ? `Môi trường: ${hits.join(', ')}` : `Tệp KH: ${hits.join(', ')}`;
+  const segmentsGapNote = isTech ? 'Chưa khớp môi trường làm việc' : 'Chưa khớp tệp khách hàng';
+  const industryHitNote = (hits: string[]) =>
+    isTech ? `Khớp lĩnh vực: ${hits.join(', ')}` : `Khớp ngành: ${hits.join(', ')}`;
+  const industryGapNote = isTech ? 'Chưa khớp lĩnh vực kỹ thuật' : 'Chưa khớp ngành';
+
   const criteria: MatchCriterionScore[] = [
-    criterion(
+    row(
       'industry',
       industryOv.score,
       industryOv.matched.length
-        ? `Khớp ngành: ${industryOv.matched.join(', ')}`
+        ? industryHitNote(industryOv.matched)
         : industriesNeed.length
-          ? 'Chưa khớp ngành'
+          ? industryGapNote
           : undefined,
     ),
-    criterion(
+    row(
       'products',
       productsOv.score,
       productsOv.matched.length
-        ? `Sản phẩm: ${productsOv.matched.join(', ')}`
+        ? productsHitNote(productsOv.matched)
         : productsNeed.length
-          ? 'Chưa khớp sản phẩm đã bán'
+          ? productsGapNote
           : undefined,
     ),
-    criterion(
+    row(
       'customerSegments',
       segmentsOv.score,
       segmentsOv.matched.length
-        ? `Tệp KH: ${segmentsOv.matched.join(', ')}`
+        ? segmentsHitNote(segmentsOv.matched)
         : segmentsNeed.length
-          ? 'Chưa khớp tệp khách hàng'
+          ? segmentsGapNote
           : undefined,
     ),
-    criterion('achievements', ach.score, ach.note),
-    criterion('customerDev', custDev.score, custDev.note),
-    criterion('b2bExperience', exp.score, exp.note),
-    criterion('sellingCapability', selling.score, selling.note),
-    criterion('dealProfile', deal.score, deal.note),
-    criterion('region', region.score, region.note),
-    criterion('readiness', ready.score, ready.note),
-    criterion('languages', langs.score, langs.note),
-    criterion('travel', travel.score, travel.note),
-    criterion('driversLicense', license.score, license.note),
-    criterion('expectedIncome', income.score, income.note),
-    criterion('salesStyle', style.score, style.note),
-    criterion('careerMotivation', motivation.score, motivation.note),
-    criterion('cultureFit', culture.score, culture.note),
-    criterion('careerOrientation', orientation.score, orientation.note),
+    row('achievements', ach.score, ach.note),
+    row('customerDev', custDev.score, custDev.note),
+    row('b2bExperience', exp.score, exp.note),
+    row('sellingCapability', selling.score, selling.note),
+    row('dealProfile', deal.score, deal.note),
+    row('region', region.score, region.note),
+    row('readiness', ready.score, ready.note),
+    row('languages', langs.score, langs.note),
+    row('travel', travel.score, travel.note),
+    row('driversLicense', license.score, license.note),
+    row('expectedIncome', income.score, income.note),
+    row('salesStyle', style.score, style.note),
+    row('careerMotivation', motivation.score, motivation.note),
+    row('cultureFit', culture.score, culture.note),
+    row('careerOrientation', orientation.score, orientation.note),
   ];
 
   const applicable = criteria.filter((c) => c.score != null);

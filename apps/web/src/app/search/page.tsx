@@ -316,6 +316,9 @@ function ResultCard({
                         <div className="flex items-center justify-between gap-2 text-[11px]">
                           <span className="font-medium text-slate-600" title={c.note}>
                             {c.label}
+                            <span className="ml-1 font-normal text-slate-400">
+                              · {Math.round(c.weight * 100)}%
+                            </span>
                           </span>
                           <span className="tabular-nums font-semibold text-slate-800">{pct}%</span>
                         </div>
