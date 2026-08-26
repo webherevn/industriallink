@@ -82,7 +82,7 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               onChange={() => {
                 if (checked) onChange(selected.filter((s) => s !== opt));
@@ -185,8 +185,19 @@ function MultiCheckWithCustom({
   );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <p className="mb-2 text-xs font-semibold text-slate-600">{children}</p>;
+function FieldLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="mb-2">
+      <p className="text-sm font-semibold text-slate-800">{title}</p>
+      {description ? <p className="mt-0.5 text-xs text-slate-500">{description}</p> : null}
+    </div>
+  );
 }
 
 /**
@@ -268,7 +279,7 @@ export function CvTechnicalExperienceFields({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-semibold text-slate-600">24. Tên công ty</span>
+                <span className="text-sm font-semibold text-slate-800">24. Tên công ty</span>
                 <input
                   value={exp.company}
                   onChange={(e) => updateExperience(index, { company: e.target.value })}
@@ -277,7 +288,7 @@ export function CvTechnicalExperienceFields({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-600">25. Vị trí</span>
+                <span className="text-sm font-semibold text-slate-800">25. Vị trí</span>
                 <input
                   value={exp.role}
                   onChange={(e) => updateExperience(index, { role: e.target.value })}
@@ -288,9 +299,10 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-semibold text-slate-600">
-                26. Thời gian làm việc (tháng/năm bắt đầu → tháng/năm kết thúc)
-              </p>
+              <FieldLabel
+                title="26. Thời gian làm việc"
+                description="Tháng/năm bắt đầu → tháng/năm kết thúc"
+              />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <p className="mb-1 text-[11px] font-medium text-slate-500">Bắt đầu</p>
@@ -332,9 +344,10 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>
-                27. Lĩnh vực đã làm — Anh/chị làm trong lĩnh vực nào tại công ty này?
-              </FieldLabel>
+              <FieldLabel
+                title="27. Lĩnh vực đã làm"
+                description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
+              />
               <MultiCheck
                 options={INDUSTRY_OPTIONS}
                 selected={exp.industries}
@@ -344,9 +357,10 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>
-                28. Thiết bị / hệ thống đã làm — {EQUIPMENT_SYSTEM_QUESTION}
-              </FieldLabel>
+              <FieldLabel
+                title="28. Thiết bị / hệ thống đã làm"
+                description={EQUIPMENT_SYSTEM_QUESTION}
+              />
               <MultiCheckWithCustom
                 options={EQUIPMENT_SYSTEM_OPTIONS}
                 selected={exp.productsSold}
@@ -357,9 +371,10 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>
-                29. Môi trường làm việc thực tế — {WORK_ENVIRONMENT_ACTUAL_QUESTION}
-              </FieldLabel>
+              <FieldLabel
+                title="29. Môi trường làm việc thực tế"
+                description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
+              />
               <MultiCheckWithCustom
                 options={WORK_ENVIRONMENT_OPTIONS}
                 selected={exp.customerSegments}
@@ -369,9 +384,10 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>
-                30. Công việc kỹ thuật đã thực hiện — {TECHNICAL_WORK_TYPES_QUESTION}
-              </FieldLabel>
+              <FieldLabel
+                title="30. Công việc kỹ thuật đã thực hiện"
+                description={TECHNICAL_WORK_TYPES_QUESTION}
+              />
               <MultiCheck
                 options={TECHNICAL_WORK_TYPES}
                 selected={exp.sellingStages}
@@ -390,7 +406,10 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>31. Mức độ tự chủ — {TECHNICAL_AUTONOMY_QUESTION}</FieldLabel>
+              <FieldLabel
+                title="31. Mức độ tự chủ"
+                description={TECHNICAL_AUTONOMY_QUESTION}
+              />
               <div className="space-y-1.5">
                 {TECHNICAL_AUTONOMY_LEVELS.map((lv) => {
                   const checked = draft.technicalAutonomyLevel === lv.value;
@@ -407,7 +426,7 @@ export function CvTechnicalExperienceFields({
                       <input
                         type="radio"
                         name={`cv-technicalAutonomy-${index}`}
-                        className="mt-0.5"
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                         checked={checked}
                         onChange={() => onChange('technicalAutonomyLevel', lv.value)}
                       />

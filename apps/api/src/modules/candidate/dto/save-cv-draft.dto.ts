@@ -84,6 +84,12 @@ class CvDraftExperienceDto {
   @MaxLength(4000)
   bullets!: string;
 
+  @ApiPropertyOptional({ description: 'STT 27 — mô tả/phạm vi công việc thực tế' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  jobDescription?: string;
+
   @IsArray()
   @IsString({ each: true })
   industries!: string[];
@@ -103,6 +109,12 @@ class CvDraftExperienceDto {
   @IsArray()
   @IsString({ each: true })
   sellingStages!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  brandsTechnologies?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

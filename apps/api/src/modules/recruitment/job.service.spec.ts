@@ -280,7 +280,7 @@ describe('JobService', () => {
         {
           ...baseJobRow,
           status: JobStatus.Published,
-          industry: 'Máy móc & Thiết bị công nghiệp',
+          industry: 'Máy móc & Thiết bị sản xuất',
           jobLevel: 'sales.staff',
           experienceBand: '1_3',
           publishedAt,
@@ -294,7 +294,7 @@ describe('JobService', () => {
       const service = buildService(prisma);
 
       const result = await service.listPublishedJobs({
-        industry: 'Máy móc & Thiết bị công nghiệp',
+        industry: 'Máy móc & Thiết bị sản xuất',
         experienceBand: '1_3',
         jobTrack: 'sales',
         userId: 'user-c-1',
@@ -304,7 +304,14 @@ describe('JobService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             status: JobStatus.Published,
-            industry: { equals: 'Máy móc & Thiết bị công nghiệp', mode: 'insensitive' },
+            OR: expect.arrayContaining([
+              {
+                industry: {
+                  equals: 'Máy móc & Thiết bị sản xuất',
+                  mode: 'insensitive',
+                },
+              },
+            ]),
             experienceBand: '1_3',
             jobLevel: { startsWith: 'sales.' },
           }),
@@ -321,7 +328,7 @@ describe('JobService', () => {
       const findMany = jest.fn().mockResolvedValue([
         { title: 'Kỹ sư PLC / Tự động hóa', industry: 'Tự động hóa & Điều khiển' },
         { title: 'Kỹ sư PLC / Tự động hóa', industry: 'Tự động hóa & Điều khiển' },
-        { title: 'Kỹ sư kinh doanh – Máy nén khí', industry: 'Máy móc & Thiết bị công nghiệp' },
+        { title: 'Kỹ sư kinh doanh – Máy nén khí', industry: 'Máy móc & Thiết bị sản xuất' },
       ]);
       const service = buildService({ job: { findMany } });
       const result = await service.listPublishedPositionStats();

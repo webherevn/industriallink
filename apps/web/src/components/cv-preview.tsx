@@ -225,6 +225,12 @@ function ExperienceBlock({
       value: exp.productsSold.slice(0, 6).join(', '),
     });
   }
+  if (!isTech && (exp.brandsTechnologies?.length ?? 0) > 0) {
+    detailRows.push({
+      label: 'Hãng / thương hiệu',
+      value: (exp.brandsTechnologies ?? []).slice(0, 8).join(', '),
+    });
+  }
   if (exp.customerSegments.length) {
     detailRows.push({
       label: isTech ? 'Môi trường' : 'Khách hàng',
@@ -239,7 +245,7 @@ function ExperienceBlock({
   }
   if (!isTech) {
     const deal = formatDealTypes(exp.dealType);
-    if (deal) detailRows.push({ label: 'Hình thức bán hàng', value: deal });
+    if (deal) detailRows.push({ label: 'Giải pháp sản phẩm', value: deal });
     const rev = formatRevenue(exp.latestRevenue);
     if (rev) detailRows.push({ label: 'Doanh số 12 tháng', value: rev });
     const kpi = kpiBandLabel(exp.kpiAchievementPct);
@@ -289,6 +295,11 @@ function ExperienceBlock({
           {exp.sellingStages.join(' · ')}
         </p>
       )}
+      {!isTech && (exp.jobDescription ?? '').trim() ? (
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-700">
+          {(exp.jobDescription ?? '').trim()}
+        </p>
+      ) : null}
       {bullets.length > 0 && (
         <ul className="mt-2 space-y-1 pl-3.5">
           {bullets.map((b, i) => (
@@ -389,10 +400,21 @@ function SalesCapabilitySection({
         {!isTech && draft.marketsCovered.length > 0 && (
           <Kv label="Thị trường" value={draft.marketsCovered.join(', ')} />
         )}
-        {!isTech && draft.brandsTechnologies.length > 0 && (
+        {!isTech &&
+          [
+            ...new Set([
+              ...draft.experience.flatMap((e) => e.brandsTechnologies ?? []),
+              ...draft.brandsTechnologies,
+            ]),
+          ].length > 0 && (
           <Kv
             label="Hãng / thương hiệu"
-            value={draft.brandsTechnologies.join(', ')}
+            value={[
+              ...new Set([
+                ...draft.experience.flatMap((e) => e.brandsTechnologies ?? []),
+                ...draft.brandsTechnologies,
+              ]),
+            ].join(', ')}
           />
         )}
         {isTech && uniqueWorkTypes.length > 0 && (
@@ -414,7 +436,7 @@ function SalesCapabilitySection({
           />
         )}
         {!isTech && draft.dealType && (
-          <Kv label="Hình thức bán hàng" value={formatDealTypes(draft.dealType)} />
+          <Kv label="Giải pháp sản phẩm" value={formatDealTypes(draft.dealType)} />
         )}
         {!isTech && draft.typicalDealValue != null && (
           <Kv

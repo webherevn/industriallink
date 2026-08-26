@@ -1,7 +1,6 @@
 'use client';
 
 import clsx from 'clsx';
-import { useState } from 'react';
 import {
   CUSTOMER_SEGMENTS,
   DEAL_TYPE_LABEL,
@@ -12,6 +11,7 @@ import {
   NEW_CUSTOMER_RATIO_BANDS,
   PERSONAL_REVENUE_QUESTION,
   PRODUCTS_SOLD,
+  PRODUCTS_SOLD_QUESTION,
   SALES_HIGHLIGHTS_PLACEHOLDER,
   SALES_INDUSTRY_OPTIONS,
   SELLING_STAGES,
@@ -21,8 +21,19 @@ import {
   type CvDraftFieldHint,
 } from '@industriallink/contracts';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
+import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { MoneyInput, MonthYearInput } from '@/components/ui';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
+
+function suggestProducts(query: string) {
+  const q = query.trim().toLowerCase();
+  const pool = PRODUCTS_SOLD.filter((p) => p !== 'Thiết bị công nghiệp khác');
+  const matched = !q ? pool : pool.filter((p) => p.toLowerCase().includes(q));
+  return matched.map((name) => ({
+    name,
+    source: 'catalog' as const,
+  }));
+}
 
 /** Tách chuỗi "03/2021 – 05/2024" (hoặc "2021 - Hiện tại") → YYYY-MM cho picker. */
 function periodParts(period: string): { start: string; end: string; current: boolean } {
@@ -89,7 +100,7 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               onChange={() => {
                 if (checked) onChange(selected.filter((s) => s !== opt));
@@ -100,77 +111,6 @@ function MultiCheck({
           </label>
         );
       })}
-    </div>
-  );
-}
-
-/** MultiCheck + ô nhập thêm giá trị ngoài danh mục (mục 24 “nhập thêm”). */
-function MultiCheckWithCustom({
-  options,
-  selected,
-  onChange,
-  placeholder,
-}: {
-  options: readonly string[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  placeholder?: string;
-}) {
-  const [text, setText] = useState('');
-  const customValues = selected.filter((s) => !options.includes(s));
-
-  function addCustom() {
-    const value = text.trim();
-    if (!value || selected.includes(value)) return;
-    onChange([...selected, value]);
-    setText('');
-  }
-
-  return (
-    <div className="space-y-2">
-      <MultiCheck options={options} selected={selected} onChange={onChange} columns={2} />
-      {customValues.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {customValues.map((v) => (
-            <span
-              key={v}
-              className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800"
-            >
-              {v}
-              <button
-                type="button"
-                onClick={() => onChange(selected.filter((s) => s !== v))}
-                className="font-bold text-brand-500 hover:text-brand-700"
-                aria-label={`Xoá ${v}`}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-1.5 text-sm">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              addCustom();
-            }
-          }}
-          placeholder={placeholder ?? 'Nhập thêm…'}
-          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-slate-400"
-        />
-        <button
-          type="button"
-          onClick={addCustom}
-          disabled={!text.trim()}
-          className="shrink-0 rounded-md bg-brand-500 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
-        >
-          Thêm
-        </button>
-      </div>
     </div>
   );
 }
@@ -188,7 +128,7 @@ function SelectField({
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <span className="text-sm font-semibold text-slate-800">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -205,8 +145,14 @@ function SelectField({
   );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <p className="mb-2 text-xs font-semibold text-slate-600">{children}</p>;
+function FieldLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return <NumberedFieldLabel title={title} description={description} />;
 }
 
 /** % KPI đã lưu → band 18.8 để hiển thị lại trong select. */
@@ -314,7 +260,7 @@ export function CvSalesExperienceFields({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-semibold text-slate-600">
+                <span className="text-sm font-semibold text-slate-800">
                   20. Tên công ty
                 </span>
                 <input
@@ -325,7 +271,7 @@ export function CvSalesExperienceFields({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-600">21. Vị trí</span>
+                <span className="text-sm font-semibold text-slate-800">21. Vị trí</span>
                 <input
                   value={exp.role}
                   onChange={(e) => updateExperience(index, { role: e.target.value })}
@@ -339,9 +285,7 @@ export function CvSalesExperienceFields({
               const parts = periodParts(exp.period);
               return (
                 <div>
-                  <p className="mb-2 text-xs font-semibold text-slate-600">
-                    22. Thời gian làm việc (tháng/năm bắt đầu → tháng/năm kết thúc)
-                  </p>
+                  <NumberedFieldLabel title="22. Thời gian làm việc" description="Tháng/năm bắt đầu → tháng/năm kết thúc" />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <p className="mb-1 text-[11px] font-medium text-slate-500">Bắt đầu</p>
@@ -385,9 +329,10 @@ export function CvSalesExperienceFields({
             })()}
 
             <div>
-              <FieldLabel>
-                23. Ngành / lĩnh vực — Anh/chị làm trong lĩnh vực nào tại công ty này?
-              </FieldLabel>
+              <FieldLabel
+                title="23. Ngành / lĩnh vực"
+                description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
+              />
               <MultiCheck
                 options={INDUSTRY_OPTIONS}
                 selected={exp.industries}
@@ -397,17 +342,22 @@ export function CvSalesExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>24. Sản phẩm / thiết bị đã bán (chọn nhiều + nhập thêm)</FieldLabel>
-              <MultiCheckWithCustom
-                options={PRODUCTS_SOLD}
+              <FieldLabel
+                title="24. Sản phẩm / thiết bị đã bán"
+                description={PRODUCTS_SOLD_QUESTION}
+              />
+              <BrandTechnologySearch
                 selected={exp.productsSold}
                 onChange={(v) => updateExperience(index, { productsSold: v })}
-                placeholder="Thiết bị công nghiệp khác — nhập thêm…"
+                suggest={suggestProducts}
+                placeholder="Tìm thiết bị công nghiệp (máy nén khí, PLC, HVAC…)"
+                hint="Gõ để gợi ý sản phẩm/thiết bị. Không có trong danh sách — bấm “+ Thêm” để nhập tay."
+                emptyMessage="Gõ tên thiết bị để tìm trong danh mục"
               />
             </div>
 
             <div>
-              <FieldLabel>25. Nhóm khách hàng đã bán</FieldLabel>
+              <FieldLabel title="25. Nhóm khách hàng đã bán" />
               <MultiCheck
                 options={CUSTOMER_SEGMENTS}
                 selected={exp.customerSegments}
@@ -417,7 +367,7 @@ export function CvSalesExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>26. Hình thức bán hàng</FieldLabel>
+              <FieldLabel title="26. Giải pháp sản phẩm" />
               <MultiCheck
                 options={dealTypeOptions.map((o) => o.label)}
                 selected={dealTypesSelected}
@@ -432,9 +382,10 @@ export function CvSalesExperienceFields({
             </div>
 
             <div>
-              <FieldLabel>
-                27. Phạm vi công việc bán hàng đã phụ trách — {SELLING_STAGES_QUESTION}
-              </FieldLabel>
+              <FieldLabel
+                title="27. Phạm vi công việc bán hàng đã phụ trách"
+                description={SELLING_STAGES_QUESTION}
+              />
               <button
                 type="button"
                 onClick={() =>
@@ -452,6 +403,23 @@ export function CvSalesExperienceFields({
                 onChange={(v) => updateExperience(index, { sellingStages: v })}
                 columns={2}
               />
+              <label className="mt-3 block">
+                <span className="text-sm font-semibold text-slate-800">
+                  Mô tả/phạm vi công việc thực tế
+                </span>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Viết thêm nếu checkbox chưa đủ mô tả công việc anh/chị đã phụ trách.
+                </p>
+                <textarea
+                  rows={3}
+                  value={exp.jobDescription ?? ''}
+                  onChange={(e) =>
+                    updateExperience(index, { jobDescription: e.target.value })
+                  }
+                  placeholder="VD: Phụ trách bán thiết bị khí nén khu vực miền Nam, từ tìm khách đến chốt đơn và bàn giao kỹ thuật."
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed outline-none ring-brand-500/30 focus:ring-2"
+                />
+              </label>
             </div>
 
             <details className="rounded-lg border border-slate-200 bg-white">
@@ -460,17 +428,19 @@ export function CvSalesExperienceFields({
               </summary>
               <div className="space-y-4 border-t border-slate-100 px-4 py-4">
                 <div>
-                  <FieldLabel>
-                    28. Hãng / thương hiệu sản phẩm — Anh/chị từng làm sản phẩm/thiết bị
-                    hãng nào?
-                  </FieldLabel>
+                  <FieldLabel
+                    title="28. Hãng / thương hiệu sản phẩm"
+                    description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
+                  />
                   <BrandTechnologySearch
-                    selected={draft.brandsTechnologies}
-                    onChange={(next) => onChange('brandsTechnologies', next)}
+                    selected={exp.brandsTechnologies ?? []}
+                    onChange={(next) =>
+                      updateExperience(index, { brandsTechnologies: next })
+                    }
                   />
                 </div>
                 <div>
-                  <FieldLabel>29. Khu vực / thị trường phụ trách</FieldLabel>
+                  <FieldLabel title="29. Khu vực / thị trường phụ trách" />
                   <MultiCheck
                     options={MARKET_REGIONS}
                     selected={exp.marketsCovered}
@@ -480,7 +450,7 @@ export function CvSalesExperienceFields({
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block">
-                    <span className="text-xs font-semibold text-slate-600">
+                    <span className="text-sm font-semibold text-slate-800">
                       30. {PERSONAL_REVENUE_QUESTION}
                     </span>
                     <div className="mt-1.5">
@@ -539,7 +509,7 @@ export function CvSalesExperienceFields({
                   />
                 </div>
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-600">
+                  <span className="text-sm font-semibold text-slate-800">
                     34. Thành tích kinh doanh nổi bật tại công ty này?
                   </span>
                   <textarea

@@ -120,6 +120,12 @@ class ExperienceDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  brandsTechnologies?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   revenueBand!: string | null;
 

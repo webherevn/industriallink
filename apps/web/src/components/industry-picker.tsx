@@ -16,8 +16,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  INDUSTRY_GROUPS,
+  INDUSTRY_GROUPS_WEB,
   getIndustryCatalog,
+  normalizeIndustry,
   type IndustryGroup,
 } from '@industriallink/contracts';
 import { fetchJobPositionStats } from '@/lib/jobs';
@@ -73,8 +74,9 @@ export function IndustryPicker({
 
   useEffect(() => {
     if (!open) return;
-    setPreview((value.industry as IndustryGroup) || INDUSTRY_GROUPS[0]);
-    const idx = INDUSTRY_GROUPS.findIndex((g) => g === value.industry);
+    const currentGroup = normalizeIndustry(value.industry) ?? '';
+    setPreview((currentGroup as IndustryGroup) || INDUSTRY_GROUPS_WEB[0]);
+    const idx = INDUSTRY_GROUPS_WEB.findIndex((g) => g === currentGroup);
     setGroupPage(idx >= 0 ? Math.floor(idx / GROUP_PAGE_SIZE) : 0);
   }, [open, value.industry]);
 
@@ -130,8 +132,8 @@ export function IndustryPicker({
     };
   }, [open]);
 
-  const totalPages = Math.max(1, Math.ceil(INDUSTRY_GROUPS.length / GROUP_PAGE_SIZE));
-  const pageGroups = INDUSTRY_GROUPS.slice(
+  const totalPages = Math.max(1, Math.ceil(INDUSTRY_GROUPS_WEB.length / GROUP_PAGE_SIZE));
+  const pageGroups = INDUSTRY_GROUPS_WEB.slice(
     groupPage * GROUP_PAGE_SIZE,
     groupPage * GROUP_PAGE_SIZE + GROUP_PAGE_SIZE,
   );
@@ -311,54 +313,39 @@ export function IndustryPicker({
                     )}
                   </div>
 
-                  {catalog.subGroups.map((group) => (
-                    <div
-                      key={group.name}
-                      className="grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-[140px_minmax(0,1fr)]"
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          apply({
-                            industry: catalog.name,
-                            subIndustry: group.name,
-                            role: '',
-                          })
-                        }
-                        className={clsx(
-                          'text-left text-[13px] font-semibold leading-snug hover:text-brand-700',
-                          value.subIndustry === group.name
-                            ? 'text-brand-700'
-                            : 'text-slate-800',
-                        )}
-                      >
-                        {group.name}
-                      </button>
-                      <div className="flex flex-wrap gap-1.5">
-                        {group.items.map((item) => (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() =>
-                              apply({
-                                industry: catalog.name,
-                                subIndustry: item,
-                                role: '',
-                              })
-                            }
-                            className={clsx(
-                              'rounded-full border px-2.5 py-1 text-xs transition',
-                              value.subIndustry === item
-                                ? 'border-brand-300 bg-brand-50 font-semibold text-brand-800'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/50',
-                            )}
-                          >
-                            {item}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="border-t border-slate-100 pt-3">
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                      Ngành chi tiết
+                    </p>
+                    {catalog.classificationPrinciple ? (
+                      <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
+                        {catalog.classificationPrinciple}
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap gap-1.5">
+                      {catalog.subIndustries.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() =>
+                            apply({
+                              industry: catalog.name,
+                              subIndustry: item,
+                              role: '',
+                            })
+                          }
+                          className={clsx(
+                            'rounded-full border px-2.5 py-1 text-xs transition',
+                            value.subIndustry === item
+                              ? 'border-brand-300 bg-brand-50 font-semibold text-brand-800'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/50',
+                          )}
+                        >
+                          {item}
+                        </button>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-slate-500">Chọn nhóm ngành bên trái.</p>
@@ -395,30 +382,23 @@ export function IndustrySubFields({
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-slate-600">Ngành chi tiết</p>
-      {catalog.subGroups.map((group) => (
-        <div key={group.name}>
-          <p className="mb-1.5 text-[12px] font-semibold text-slate-700">{group.name}</p>
-          <div className="flex flex-wrap gap-1.5">
-            <Chip
-              active={subIndustry === group.name}
-              disabled={disabled}
-              onClick={() => onChange(subIndustry === group.name ? '' : group.name)}
-            >
-              Tất cả {group.name}
-            </Chip>
-            {group.items.map((item) => (
-              <Chip
-                key={item}
-                active={subIndustry === item}
-                disabled={disabled}
-                onClick={() => onChange(subIndustry === item ? '' : item)}
-              >
-                {item}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      ))}
+      {catalog.classificationPrinciple ? (
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          {catalog.classificationPrinciple}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-1.5">
+        {catalog.subIndustries.map((item) => (
+          <Chip
+            key={item}
+            active={subIndustry === item}
+            disabled={disabled}
+            onClick={() => onChange(subIndustry === item ? '' : item)}
+          >
+            {item}
+          </Chip>
+        ))}
+      </div>
     </div>
   );
 }

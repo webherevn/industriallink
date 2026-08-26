@@ -20,6 +20,8 @@ import {
   type CvDraftFieldHint,
 } from '@industriallink/contracts';
 import { MoneyInput } from '@/components/ui';
+import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { filterCareerMotivations } from '@/lib/career-motivations';
 import type { CvDraft } from '@/lib/cv-templates';
 
 function MultiCheck({
@@ -61,7 +63,7 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               disabled={disabled}
               onChange={() => {
@@ -110,12 +112,14 @@ function SectionTitle({
 
 function SelectField({
   label,
+  description,
   value,
   onChange,
   options,
   emptyLabel = '— Chọn —',
 }: {
   label: string;
+  description?: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -123,7 +127,7 @@ function SelectField({
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <NumberedFieldLabel title={label} description={description} className="mb-0" />
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -167,6 +171,7 @@ export function CvDraftMatrixFields({
   }
 
   const orientation = draft.careerOrientations[0] ?? '';
+  const selectedMotivations = filterCareerMotivations(draft.careerMotivations, 'sales');
 
   return (
     <div className="space-y-5">
@@ -176,9 +181,10 @@ export function CvDraftMatrixFields({
       />
 
       <div>
-        <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
-          14. Địa điểm mong muốn làm việc — Anh/chị có thể làm việc ở đâu?
-        </p>
+        <NumberedFieldLabel
+          title="14. Địa điểm mong muốn làm việc"
+          description="Anh/chị có thể làm việc ở đâu?"
+        />
         <MultiCheck
           options={DESIRED_LOCATION_OPTIONS}
           selected={draft.desiredLocations}
@@ -189,7 +195,7 @@ export function CvDraftMatrixFields({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">
+          <span className="text-sm font-semibold text-slate-800">
             15. Thu nhập tối thiểu có thể nhận (VND)
           </span>
           <div className="mt-1.5">
@@ -202,7 +208,7 @@ export function CvDraftMatrixFields({
           </div>
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">
+          <span className="text-sm font-semibold text-slate-800">
             15. Thu nhập kỳ vọng/tháng (VND)
           </span>
           <div className="mt-1.5">
@@ -218,7 +224,8 @@ export function CvDraftMatrixFields({
       <p className="-mt-3 text-[11px] text-slate-400">{EXPECTED_INCOME_QUESTION}</p>
 
       <SelectField
-        label={`16. Thời gian có thể nhận việc — ${AVAILABILITY_QUESTION}`}
+        label="16. Thời gian có thể nhận việc"
+        description={AVAILABILITY_QUESTION}
         value={draft.availabilityBand ?? ''}
         onChange={(v) => onChange('availabilityBand', v || null)}
         options={Object.values(AvailabilityBand).map((v) => ({
@@ -233,9 +240,10 @@ export function CvDraftMatrixFields({
       />
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          17. Định hướng nghề nghiệp — {CAREER_ORIENTATION_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="17. Định hướng nghề nghiệp"
+          description={CAREER_ORIENTATION_QUESTION}
+        />
         <div className="grid gap-2 sm:grid-cols-2">
           {CAREER_ORIENTATIONS.map((opt) => {
             const checked = orientation === opt;
@@ -252,7 +260,7 @@ export function CvDraftMatrixFields({
                 <input
                   type="radio"
                   name="cv-careerOrientation"
-                  className="mt-0.5"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                   checked={checked}
                   onChange={() => onChange('careerOrientations', [opt])}
                 />
@@ -264,14 +272,14 @@ export function CvDraftMatrixFields({
       </div>
 
       <div>
-        <p className="mb-1 text-xs font-semibold text-slate-600">
-          18. {CULTURE_FIT_SECTION_TITLE}
-        </p>
-        <p className="mb-2 text-[11px] text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
+        <NumberedFieldLabel
+          title={`18. ${CULTURE_FIT_SECTION_TITLE}`}
+          description={CULTURE_FIT_SUBTITLE}
+        />
         <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
           {CULTURE_FIT_QUESTIONS.map((q, qi) => (
             <div key={q.id}>
-              <p className="mb-2 text-xs font-semibold text-slate-600">
+              <p className="mb-2 text-sm font-semibold text-slate-800">
                 {qi + 1}. {q.question}
               </p>
               <div className="grid gap-2">
@@ -291,7 +299,7 @@ export function CvDraftMatrixFields({
                       <input
                         type="radio"
                         name={`cv-culture-${q.id}`}
-                        className="mt-0.5"
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                         checked={checked}
                         onChange={() => patchCultureFit(q.id, opt)}
                       />
@@ -309,24 +317,28 @@ export function CvDraftMatrixFields({
       </div>
 
       <div>
-        <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-600">
-          19. Động lực khi lựa chọn công việc mới
-          {hint('careerMotivations')?.status === 'missing' && (
-            <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
-              Thiếu
-            </span>
-          )}
-        </p>
-        <p className="mb-2 text-[11px] text-slate-500">{CAREER_MOTIVATION_QUESTION}</p>
+        <NumberedFieldLabel
+          title="19. Động lực khi lựa chọn công việc mới"
+          description={CAREER_MOTIVATION_QUESTION}
+          extra={
+            hint('careerMotivations')?.status === 'missing' ? (
+              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
+                Thiếu
+              </span>
+            ) : null
+          }
+        />
         <p className="mb-2 text-[11px] text-amber-700">
-          {draft.careerMotivations.length
-            ? `Đã chọn ${draft.careerMotivations.length}/3`
+          {selectedMotivations.length
+            ? `Đã chọn ${selectedMotivations.length}/3`
             : 'Chọn đúng 3 yếu tố'}
         </p>
         <MultiCheck
           options={CAREER_MOTIVATIONS}
-          selected={draft.careerMotivations}
-          onChange={(v) => onChange('careerMotivations', v.slice(0, 3))}
+          selected={selectedMotivations}
+          onChange={(v) =>
+            onChange('careerMotivations', filterCareerMotivations(v, 'sales'))
+          }
           max={3}
           columns={2}
         />

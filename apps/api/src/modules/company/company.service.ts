@@ -16,6 +16,7 @@ import {
   type CompanyPublicProfileView,
   type CompanyView,
   type UploadCompanyLogoResponse,
+  normalizeIndustry,
 } from '@industriallink/contracts';
 import type { Company, Prisma } from '@prisma/client';
 import { v7 as uuidv7 } from 'uuid';
@@ -71,7 +72,7 @@ export class CompanyService {
         tenantId: user.tenantId,
         name: dto.name,
         taxCode: dto.taxCode ?? null,
-        industry: dto.industry ?? null,
+        industry: normalizeIndustry(dto.industry) ?? dto.industry ?? null,
         size: dto.size ?? null,
         address: dto.address ?? null,
         website: dto.website ?? null,
@@ -137,7 +138,7 @@ export class CompanyService {
       data: {
         name: dto.name,
         taxCode: dto.taxCode ?? null,
-        industry: dto.industry ?? null,
+        industry: normalizeIndustry(dto.industry) ?? dto.industry ?? null,
         size: dto.size ?? null,
         address: dto.address ?? null,
         website: dto.website ?? null,
@@ -457,7 +458,7 @@ export class CompanyService {
       code: company.code,
       name: company.name,
       taxCode: company.taxCode,
-      industry: company.industry,
+      industry: normalizeIndustry(company.industry) ?? company.industry,
       size: (company.size as CompanySize | null) ?? null,
       address: company.address,
       website: company.website,

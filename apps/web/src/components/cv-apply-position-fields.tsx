@@ -60,7 +60,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   return (
     <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3 sm:p-4">
       <div>
-        <p className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+        <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
           13. Vị trí ứng tuyển
           {titleHint?.status === 'filled' ? (
             <span className="text-[10px] font-medium text-emerald-600">OK</span>
@@ -68,7 +68,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
             <span className="text-[10px] font-medium text-amber-600">Thiếu</span>
           ) : null}
         </p>
-        <p className="mt-0.5 text-[11px] text-slate-500">
+        <p className="mt-0.5 text-xs text-slate-500">
           {isTechnical ? TECHNICAL_POSITION_QUESTION : DESIRED_POSITION_QUESTION}
         </p>
         {isTechnical && (
@@ -80,7 +80,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {options.map((opt) => {
           const checked = draft.desiredPositions.includes(opt);
           const atMax = max != null && draft.desiredPositions.length >= max && !checked;
@@ -88,7 +88,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
             <label
               key={opt}
               className={clsx(
-                'flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition',
+                'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
                 checked
                   ? 'border-brand-300 bg-brand-50 text-brand-900'
                   : atMax
@@ -98,7 +98,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
             >
               <input
                 type="checkbox"
-                className="mt-0.5"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                 checked={checked}
                 disabled={atMax}
                 onChange={() => {

@@ -193,6 +193,13 @@ export const TECHNICAL_WORK_STYLES = [
   'Phối hợp với đồng nghiệp / bộ phận liên quan',
 ] as const;
 
+/** Chỉ giữ lựa chọn thuộc catalog kỹ thuật — bỏ đáp án văn hóa Sales đang chiếm slot 3/3. */
+export function filterTechnicalWorkStyles(values: string[] | undefined): string[] {
+  return [...new Set(values ?? [])]
+    .filter((v) => (TECHNICAL_WORK_STYLES as readonly string[]).includes(v))
+    .slice(0, 3);
+}
+
 export const TECHNICAL_WORK_STYLE_QUESTION =
   'Anh/chị xử lý các tình huống kỹ thuật như thế nào? Chọn tối đa 3 phương án phù hợp nhất.';
 

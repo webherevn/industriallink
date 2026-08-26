@@ -220,7 +220,7 @@ export function normalizeSellingStage(raw: string): SellingStage | null {
   return LEGACY_SELLING_STAGE_MAP[trimmed] ?? null;
 }
 
-/** STT 26. Hình thức bán hàng (5%) — chọn nhiều theo ma trận 34 mục. */
+/** STT 26. Giải pháp sản phẩm (5%) — chọn nhiều theo ma trận 34 mục. */
 export enum DealType {
   Equipment = 'equipment',
   Consumables = 'consumables',
@@ -880,7 +880,7 @@ export const B2B_MATCH_WEIGHTS = {
   customerDev: 0.02, // STT 32 Tỷ lệ khách hàng tự tìm kiếm
   b2bExperience: 0.1, // STT 21 Vị trí (5%) + STT 22 Thời gian làm việc (5%)
   sellingCapability: 0.08, // STT 27 Phạm vi công việc bán hàng
-  dealProfile: 0.06, // STT 26 Hình thức bán hàng (5%) + STT 33 Giá trị hợp đồng (1%)
+  dealProfile: 0.06, // STT 26 Giải pháp sản phẩm (5%) + STT 33 Giá trị hợp đồng (1%)
   region: 0.06, // STT 29 Khu vực (2%) + STT 14 Địa điểm mong muốn (2%) + STT 5 Nơi sống (2%)
   /** A/B. Thông tin cơ bản & mong muốn — 8% */
   readiness: 0.01, // STT 16 Thời gian có thể nhận việc

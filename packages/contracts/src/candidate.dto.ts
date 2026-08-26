@@ -29,6 +29,8 @@ export interface CandidateExperienceView {
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
+  /** STT 28 KD — hãng/thương hiệu theo từng công ty. */
+  brandsTechnologies?: string[];
   revenueBand: string | null;
   latestRevenue: number | null;
   kpiBand: string | null;
@@ -159,6 +161,8 @@ export interface CandidateExperienceInput {
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
+  /** STT 28 KD — hãng/thương hiệu theo từng công ty. */
+  brandsTechnologies?: string[];
   revenueBand: string | null;
   latestRevenue: number | null;
   kpiBand: string | null;

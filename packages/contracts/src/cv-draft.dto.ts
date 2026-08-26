@@ -3,13 +3,17 @@ export interface CvDraftExperienceView {
   role: string;
   company: string;
   period: string;
-  /** Mô tả / thành tích (xuống dòng = bullet). */
+  /** Thành tích nổi bật tại công ty (STT 34). */
   bullets: string;
+  /** STT 27 — mô tả/phạm vi công việc thực tế (tự nhập). */
+  jobDescription?: string;
   industries: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
+  /** STT 28 KD — hãng/thương hiệu theo từng công ty, không gộp giữa các công ty. */
+  brandsTechnologies: string[];
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
   newCustomerRatioPct: number | null;
@@ -127,4 +131,20 @@ export interface SaveCvDraftToProfileRequest {
 export interface SaveCvDraftToProfileResponse {
   message: string;
   profileCompletion: number;
+}
+
+/**
+ * Tách mô tả công việc (STT 27) khỏi thành tích (STT 34).
+ * Bản lưu cũ từng ghi trùng hai cột — khi trùng thì chỉ giữ thành tích.
+ */
+export function splitExperienceNarrative(
+  jobDescription?: string | null,
+  highlights?: string | null,
+): { jobDescription: string; bullets: string } {
+  const desc = (jobDescription ?? '').trim();
+  const hi = (highlights ?? '').trim();
+  if (desc && hi && desc === hi) {
+    return { jobDescription: '', bullets: hi };
+  }
+  return { jobDescription: desc, bullets: hi };
 }

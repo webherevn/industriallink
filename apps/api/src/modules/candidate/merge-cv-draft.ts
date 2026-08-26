@@ -2,6 +2,8 @@ import type { CvDraftView, LanguageSkill } from '@industriallink/contracts';
 import {
   composeEducationDegree,
   mergeLanguageSkills,
+  normalizeIndustries,
+  splitExperienceNarrative,
 } from '@industriallink/contracts';
 
 /** Hồ sơ DB tối thiểu để ghép vào draft CV. */
@@ -74,6 +76,7 @@ export type ProfileDraftSource = {
     customerSegments: string[];
     marketsCovered: string[];
     sellingStages: string[];
+    brandsTechnologies?: string[];
     latestRevenue: number | null;
     kpiAchievementPct: number | null;
     newCustomerRatioPct: number | null;
@@ -95,23 +98,28 @@ function periodOf(e: ProfileDraftSource['experiences'][number]): string {
 /** Map hồ sơ DB → CvDraftView để ghép với kết quả AI. */
 export function profileSourceToCvDraft(src: ProfileDraftSource): CvDraftView {
   const p = src.profile;
-  const experience = src.experiences.map((e) => ({
+  const experience = src.experiences.map((e) => {
+    const narrative = splitExperienceNarrative(e.jobDescription, e.highlights);
+    return {
     role: e.jobTitle || p?.currentPosition || 'Sales',
     company: e.companyName || 'Công ty',
     period: periodOf(e),
-    bullets: (e.jobDescription || e.highlights || '').trim(),
-    industries: e.industries ?? [],
+    bullets: narrative.bullets,
+    jobDescription: narrative.jobDescription,
+    industries: normalizeIndustries(e.industries ?? []),
     productsSold: e.productsSold ?? [],
     customerSegments: e.customerSegments ?? [],
     marketsCovered: e.marketsCovered ?? [],
     sellingStages: e.sellingStages ?? [],
+    brandsTechnologies: e.brandsTechnologies ?? [],
     latestRevenue: e.latestRevenue,
     kpiAchievementPct: e.kpiAchievementPct,
     newCustomerRatioPct: e.newCustomerRatioPct,
     dealType: e.dealType,
     typicalDealValue: e.typicalDealValue,
     maxDealValue: e.maxDealValue,
-  }));
+  };
+  });
 
   const education =
     p?.educationSchool ||
@@ -160,7 +168,7 @@ export function profileSourceToCvDraft(src: ProfileDraftSource): CvDraftView {
     productsSold: p?.productsSold ?? [],
     customerSegments: p?.customerSegments ?? [],
     marketsCovered: p?.marketsCovered ?? [],
-    industriesExperienced: p?.industriesExperienced ?? [],
+    industriesExperienced: normalizeIndustries(p?.industriesExperienced ?? []),
     desiredPositions: p?.desiredPositions ?? [],
     desiredLocations: p?.desiredLocations ?? [],
     salesHighlights: p?.salesHighlights ?? '',
@@ -244,11 +252,13 @@ function mergeExperience(primary: Exp[], fallback: Exp[]): Exp[] {
       company: pe.company || fe?.company || 'Công ty',
       period: pe.period || fe?.period || '',
       bullets: pickRicherText(pe.bullets, fe?.bullets),
-      industries: unionList(pe.industries, fe?.industries),
+      jobDescription: pickRicherText(pe.jobDescription, fe?.jobDescription),
+      industries: normalizeIndustries(unionList(pe.industries, fe?.industries)),
       productsSold: unionList(pe.productsSold, fe?.productsSold),
       customerSegments: unionList(pe.customerSegments, fe?.customerSegments),
       marketsCovered: unionList(pe.marketsCovered, fe?.marketsCovered),
       sellingStages: unionList(pe.sellingStages, fe?.sellingStages),
+      brandsTechnologies: unionList(pe.brandsTechnologies, fe?.brandsTechnologies),
       latestRevenue: pe.latestRevenue ?? fe?.latestRevenue ?? null,
       kpiAchievementPct: pe.kpiAchievementPct ?? fe?.kpiAchievementPct ?? null,
       newCustomerRatioPct: pe.newCustomerRatioPct ?? fe?.newCustomerRatioPct ?? null,
@@ -309,7 +319,9 @@ export function mergeCvDraftViews(ai: CvDraftView, profile: CvDraftView): CvDraf
     productsSold: unionList(ai.productsSold, profile.productsSold),
     customerSegments: unionList(ai.customerSegments, profile.customerSegments),
     marketsCovered: unionList(ai.marketsCovered, profile.marketsCovered),
-    industriesExperienced: unionList(ai.industriesExperienced, profile.industriesExperienced),
+    industriesExperienced: normalizeIndustries(
+      unionList(ai.industriesExperienced, profile.industriesExperienced),
+    ),
     desiredPositions: unionList(ai.desiredPositions, profile.desiredPositions).slice(0, 3),
     desiredLocations: unionList(ai.desiredLocations, profile.desiredLocations),
     salesHighlights: pickRicherText(ai.salesHighlights, profile.salesHighlights),

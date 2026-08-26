@@ -3,16 +3,24 @@
 import clsx from 'clsx';
 import { Search, X } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { suggestFdiB2bBrands } from '@industriallink/contracts';
+import { suggestFdiB2bBrands, type CompanySuggestItem } from '@industriallink/contracts';
 
 export function BrandTechnologySearch({
   selected,
   onChange,
   max = 24,
+  placeholder = 'Tìm hãng FDI/B2B (Samsung, Siemens, Bosch…)',
+  hint = 'Gợi ý từ danh mục FDI/B2B tại Việt Nam. Không có trong danh sách — bấm “+ Thêm” để nhập tay.',
+  emptyMessage = 'Gõ tên hãng để tìm trong danh mục FDI/B2B Việt Nam',
+  suggest = (query) => suggestFdiB2bBrands(query, 14),
 }: {
   selected: string[];
   onChange: (next: string[]) => void;
   max?: number;
+  placeholder?: string;
+  hint?: string;
+  emptyMessage?: string;
+  suggest?: (query: string) => CompanySuggestItem[];
 }) {
   const listId = useId();
   const [query, setQuery] = useState('');
@@ -25,10 +33,8 @@ export function BrandTechnologySearch({
   );
 
   const suggestions = useMemo(() => {
-    return suggestFdiB2bBrands(query, 14).filter(
-      (i) => !selectedSet.has(i.name.toLowerCase()),
-    );
-  }, [query, selectedSet]);
+    return suggest(query).filter((i) => !selectedSet.has(i.name.toLowerCase()));
+  }, [query, selectedSet, suggest]);
 
   const exactInCatalog = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -107,7 +113,7 @@ export function BrandTechnologySearch({
             }
             if (e.key === 'Escape') setOpen(false);
           }}
-          placeholder="Tìm hãng FDI/B2B (Samsung, Siemens, Bosch…)"
+          placeholder={placeholder}
           className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none ring-brand-500/30 focus:ring-2"
           role="combobox"
           aria-expanded={open}
@@ -122,15 +128,14 @@ export function BrandTechnologySearch({
             className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-900/10"
           >
             {suggestions.length === 0 && !canAddCustom && (
-              <li className="px-3 py-2 text-xs text-slate-500">
-                Gõ tên hãng để tìm trong danh mục FDI/B2B Việt Nam
-              </li>
+              <li className="px-3 py-2 text-xs text-slate-500">{emptyMessage}</li>
             )}
             {suggestions.map((item) => (
               <li key={item.name}>
                 <button
                   type="button"
                   role="option"
+                  aria-selected={false}
                   className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-brand-50"
                   onClick={() => add(item.name)}
                 >
@@ -141,11 +146,13 @@ export function BrandTechnologySearch({
                     <span className="block truncate font-medium text-slate-800">
                       {item.name}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-400">
-                      {[item.country, ...(item.sectors ?? []).slice(0, 2)]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
+                    {Boolean(item.country || item.sectors?.length) && (
+                      <span className="block truncate text-[11px] text-slate-400">
+                        {[item.country, ...(item.sectors ?? []).slice(0, 2)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    )}
                   </span>
                   {item.priority === 1 && (
                     <span className="shrink-0 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-700">
@@ -171,9 +178,7 @@ export function BrandTechnologySearch({
           </ul>
         )}
       </div>
-      <p className="text-[11px] text-slate-400">
-        Gợi ý từ danh mục FDI/B2B tại Việt Nam. Không có trong danh sách — bấm “+ Thêm” để nhập tay.
-      </p>
+      {hint ? <p className="text-[11px] text-slate-400">{hint}</p> : null}
     </div>
   );
 }

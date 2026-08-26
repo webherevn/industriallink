@@ -7,7 +7,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
   CAREER_LADDERS,
-  DEPARTMENTS,
   EmploymentType,
   ExperienceBand,
   INDUSTRY_GROUPS,
@@ -15,14 +14,16 @@ import {
   JOB_TRACK_LABEL,
   JobLevelCode,
   JobTrack,
+  departmentsForTrack,
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
 import { IndustrySubFields } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
-import { Button, Field, Input, Select, Textarea } from '@/components/ui';
+import { Button, Field, Input, MoneyInput, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL } from '@/lib/format';
+import { applyJobDepartmentChange, applyJobTrackChange } from '@/lib/job-org-fields';
 import { getJob, updateJob } from '@/lib/jobs';
 
 function trackFromLevel(level: string | null | undefined): JobTrack {
@@ -66,9 +67,15 @@ export default function EditJobPage() {
     setTitle(job.title);
     setIndustry(job.industry ?? '');
     setSubIndustry(job.subIndustry ?? '');
-    setJobTrack(trackFromLevel(job.jobLevel));
-    setJobLevel(job.jobLevel ?? JobLevelCode.TechStaff);
-    setDepartment(job.department ?? '');
+    const loadedTrack = trackFromLevel(job.jobLevel);
+    const aligned = applyJobTrackChange(
+      loadedTrack,
+      job.department ?? '',
+      job.jobLevel ?? JobLevelCode.TechStaff,
+    );
+    setJobTrack(aligned.jobTrack);
+    setJobLevel(aligned.jobLevel);
+    setDepartment(aligned.department);
     setLocation(job.location ?? '');
     setEmploymentType(job.employmentType ?? EmploymentType.FullTime);
     setHeadcount(String(job.headcount ?? 1));
@@ -84,6 +91,11 @@ export default function EditJobPage() {
   }, [job, hydrated]);
 
   const levelOptions = useMemo(() => CAREER_LADDERS[jobTrack], [jobTrack]);
+  const departmentOptions = useMemo(() => {
+    const allowed = departmentsForTrack(jobTrack);
+    if (department && !allowed.includes(department)) return [department, ...allowed];
+    return allowed;
+  }, [jobTrack, department]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -187,9 +199,21 @@ export default function EditJobPage() {
                 </Select>
               </Field>
               <Field label="Phòng ban">
-                <Select value={department} onChange={(e) => setDepartment(e.target.value)}>
+                <Select
+                  value={department}
+                  onChange={(e) => {
+                    const next = applyJobDepartmentChange(
+                      e.target.value,
+                      jobTrack,
+                      jobLevel,
+                    );
+                    setDepartment(next.department);
+                    setJobTrack(next.jobTrack);
+                    setJobLevel(next.jobLevel);
+                  }}
+                >
                   <option value="">-- Chọn --</option>
-                  {DEPARTMENTS.map((d) => (
+                  {departmentOptions.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
@@ -200,9 +224,14 @@ export default function EditJobPage() {
                 <Select
                   value={jobTrack}
                   onChange={(e) => {
-                    const track = e.target.value as JobTrack;
-                    setJobTrack(track);
-                    setJobLevel(CAREER_LADDERS[track][0]);
+                    const next = applyJobTrackChange(
+                      e.target.value as JobTrack,
+                      department,
+                      jobLevel,
+                    );
+                    setJobTrack(next.jobTrack);
+                    setDepartment(next.department);
+                    setJobLevel(next.jobLevel);
                   }}
                 >
                   {Object.values(JobTrack).map((t) => (
@@ -270,17 +299,17 @@ export default function EditJobPage() {
                 />
               </Field>
               <Field label="Lương tối thiểu (VND)">
-                <Input
-                  inputMode="numeric"
+                <MoneyInput
                   value={salaryMin}
-                  onChange={(e) => setSalaryMin(e.target.value.replace(/\D/g, ''))}
+                  onChange={setSalaryMin}
+                  placeholder="1,000,000"
                 />
               </Field>
               <Field label="Lương tối đa (VND)">
-                <Input
-                  inputMode="numeric"
+                <MoneyInput
                   value={salaryMax}
-                  onChange={(e) => setSalaryMax(e.target.value.replace(/\D/g, ''))}
+                  onChange={setSalaryMax}
+                  placeholder="1,000,000"
                 />
               </Field>
             </div>

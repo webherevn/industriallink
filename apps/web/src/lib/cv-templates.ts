@@ -1,5 +1,9 @@
 import type { LanguageSkill } from '@industriallink/contracts';
-import { languageNamesFromSkills, mergeLanguageSkills } from '@industriallink/contracts';
+import {
+  languageNamesFromSkills,
+  mergeLanguageSkills,
+  normalizeIndustries,
+} from '@industriallink/contracts';
 
 export type CvTemplateCategory = 'all' | 'modern' | 'professional' | 'creative' | 'minimal';
 
@@ -83,11 +87,15 @@ export interface CvDraftExperience {
   company: string;
   period: string;
   bullets: string;
+  /** STT 27 — mô tả/phạm vi công việc thực tế (tự nhập). */
+  jobDescription?: string;
   industries: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
+  /** STT 28 KD — hãng/thương hiệu theo từng công ty. */
+  brandsTechnologies: string[];
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
   newCustomerRatioPct: number | null;
@@ -163,11 +171,13 @@ export function emptyCvExperience(): CvDraftExperience {
     company: '',
     period: '',
     bullets: '',
+    jobDescription: '',
     industries: [],
     productsSold: [],
     customerSegments: [],
     marketsCovered: [],
     sellingStages: [],
+    brandsTechnologies: [],
     latestRevenue: null,
     kpiAchievementPct: null,
     newCustomerRatioPct: null,
@@ -247,11 +257,13 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     company: e.company ?? '',
     period: e.period ?? '',
     bullets: e.bullets ?? '',
-    industries: e.industries ?? [],
+    jobDescription: e.jobDescription ?? '',
+    industries: normalizeIndustries(e.industries ?? []),
     productsSold: e.productsSold ?? [],
     customerSegments: e.customerSegments ?? [],
     marketsCovered: e.marketsCovered ?? [],
     sellingStages: e.sellingStages ?? [],
+    brandsTechnologies: e.brandsTechnologies ?? [],
     latestRevenue: e.latestRevenue ?? null,
     kpiAchievementPct: e.kpiAchievementPct ?? null,
     newCustomerRatioPct: e.newCustomerRatioPct ?? null,
@@ -283,7 +295,9 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     productsSold: raw?.productsSold ?? base.productsSold,
     customerSegments: raw?.customerSegments ?? base.customerSegments,
     marketsCovered: raw?.marketsCovered ?? base.marketsCovered,
-    industriesExperienced: raw?.industriesExperienced ?? base.industriesExperienced,
+    industriesExperienced: normalizeIndustries(
+      raw?.industriesExperienced ?? base.industriesExperienced,
+    ),
     desiredPositions: raw?.desiredPositions ?? base.desiredPositions,
     desiredLocations: raw?.desiredLocations ?? base.desiredLocations,
     salesHighlights: raw?.salesHighlights ?? base.salesHighlights,

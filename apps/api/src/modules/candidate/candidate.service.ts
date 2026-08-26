@@ -18,6 +18,8 @@ import {
   composeEducationDegree,
   languageNamesFromSkills,
   mergeLanguageSkills,
+  normalizeIndustries,
+  normalizeIndustry,
   parseEducationDegree,
   type CandidateView,
   type CareerAdviceView,
@@ -277,11 +279,12 @@ export class CandidateService {
         startYear: toIntOrNull(e.startYear),
         endYear: toIntOrNull(e.endYear),
         isCurrent: Boolean(e.isCurrent),
-        industries: cleanList(e.industries),
+        industries: normalizeIndustries(cleanList(e.industries)),
         productsSold: cleanList(e.productsSold),
         customerSegments: cleanList(e.customerSegments),
         marketsCovered: cleanList(e.marketsCovered),
         sellingStages: cleanList(e.sellingStages),
+        brandsTechnologies: cleanList(e.brandsTechnologies ?? []),
         revenueBand: emptyToNull(e.revenueBand),
         latestRevenue: e.latestRevenue,
         kpiBand: emptyToNull(e.kpiBand),
@@ -320,9 +323,15 @@ export class CandidateService {
       (acc, e) => union(acc, e.sellingStages),
       cleanList(input.sellingStages),
     );
-    const industriesExperienced = experienceRows.reduce(
-      (acc, e) => union(acc, e.industries),
-      cleanList(input.industriesExperienced),
+    const industriesExperienced = normalizeIndustries(
+      experienceRows.reduce(
+        (acc, e) => union(acc, e.industries),
+        cleanList(input.industriesExperienced),
+      ),
+    );
+    const brandsFromExperiences = experienceRows.reduce(
+      (acc, e) => union(acc, e.brandsTechnologies ?? []),
+      [] as string[],
     );
 
     const firstExp = experienceRows[0];
@@ -330,7 +339,11 @@ export class CandidateService {
       currentPosition: emptyToNull(input.currentPosition) ?? firstExp?.jobTitle ?? null,
       jobLevel: emptyToNull(input.jobLevel),
       totalExperienceYears: input.totalExperienceYears,
-      industry: emptyToNull(input.industry) ?? firstExp?.industries[0] ?? null,
+      industry:
+        normalizeIndustry(input.industry) ??
+        emptyToNull(input.industry) ??
+        firstExp?.industries[0] ??
+        null,
       industriesExperienced,
       specialization: emptyToNull(input.specialization),
       summary: emptyToNull(input.summary),
@@ -395,7 +408,9 @@ export class CandidateService {
       ward: emptyToNull(input.ward),
       phone: emptyToNull(input.phone),
       jobTrack: emptyToNull(input.jobTrack),
-      brandsTechnologies: cleanList(input.brandsTechnologies ?? []),
+      brandsTechnologies: brandsFromExperiences.length
+        ? brandsFromExperiences
+        : cleanList(input.brandsTechnologies ?? []),
       technicalWorkTypes: cleanList(input.technicalWorkTypes ?? []),
       technicalAutonomyLevel: toIntOrNull(input.technicalAutonomyLevel),
       troubleshootingLevel: toIntOrNull(input.troubleshootingLevel),
@@ -860,6 +875,7 @@ export class CandidateService {
         customerSegments?: string[];
         marketsCovered?: string[];
         sellingStages?: string[];
+        brandsTechnologies?: string[];
         revenueBand: string | null;
         latestRevenue: number | null;
         kpiBand: string | null;
@@ -884,11 +900,12 @@ export class CandidateService {
         startYear: e.startYear,
         endYear: e.endYear,
         isCurrent: e.isCurrent,
-        industries: e.industries ?? [],
+        industries: normalizeIndustries(e.industries ?? []),
         productsSold: e.productsSold ?? [],
         customerSegments: e.customerSegments ?? [],
         marketsCovered: e.marketsCovered ?? [],
         sellingStages: e.sellingStages ?? [],
+        brandsTechnologies: e.brandsTechnologies ?? [],
         revenueBand: e.revenueBand,
         latestRevenue: e.latestRevenue,
         kpiBand: e.kpiBand,
@@ -924,8 +941,8 @@ export class CandidateService {
             currentPosition: p.currentPosition,
             jobLevel: p.jobLevel,
             totalExperienceYears: p.totalExperienceYears,
-            industry: p.industry,
-            industriesExperienced: p.industriesExperienced ?? [],
+            industry: normalizeIndustry(p.industry) ?? p.industry,
+            industriesExperienced: normalizeIndustries(p.industriesExperienced ?? []),
             specialization: p.specialization,
             summary: p.summary,
             careerObjective: p.careerObjective,
@@ -1253,11 +1270,12 @@ export class CandidateService {
       const sellingStages = [
         ...new Set(draft.experience.flatMap((e) => e.sellingStages ?? [])),
       ];
-      const industriesExperienced = [
-        ...new Set([
-          ...(draft.industriesExperienced ?? []),
-          ...draft.experience.flatMap((e) => e.industries ?? []),
-        ]),
+      const industriesExperienced = normalizeIndustries([
+        ...(draft.industriesExperienced ?? []),
+        ...draft.experience.flatMap((e) => e.industries ?? []),
+      ]);
+      const brandsFromExperiences = [
+        ...new Set(draft.experience.flatMap((e) => e.brandsTechnologies ?? [])),
       ];
       const careerOrientations = cleanList(draft.careerOrientations ?? []);
       const careerMotivations = cleanList(draft.careerMotivations ?? []).slice(0, 3);
@@ -1338,7 +1356,11 @@ export class CandidateService {
           );
         })(),
         jobTrack: emptyToNull(draft.jobTrack),
-        brandsTechnologies: cleanList(draft.brandsTechnologies ?? []),
+        brandsTechnologies: cleanList(
+          brandsFromExperiences.length
+            ? brandsFromExperiences
+            : (draft.brandsTechnologies ?? []),
+        ),
         technicalWorkTypes: cleanList(draft.technicalWorkTypes ?? []),
         technicalAutonomyLevel: toIntOrNull(draft.technicalAutonomyLevel),
         troubleshootingLevel: toIntOrNull(draft.troubleshootingLevel),
@@ -1390,11 +1412,12 @@ export class CandidateService {
             startYear: years.start,
             endYear: years.end,
             isCurrent: years.isCurrent,
-            industries: exp.industries ?? [],
+            industries: normalizeIndustries(exp.industries ?? []),
             productsSold: exp.productsSold ?? [],
             customerSegments: exp.customerSegments ?? [],
             marketsCovered: exp.marketsCovered ?? [],
             sellingStages: exp.sellingStages ?? [],
+            brandsTechnologies: exp.brandsTechnologies ?? [],
             latestRevenue: exp.latestRevenue ?? null,
             kpiAchievementPct: exp.kpiAchievementPct ?? null,
             newCustomerRatioPct: exp.newCustomerRatioPct ?? null,
@@ -1402,7 +1425,7 @@ export class CandidateService {
             typicalDealValue: exp.typicalDealValue ?? null,
             maxDealValue: exp.maxDealValue ?? null,
             highlights: exp.bullets?.trim() || null,
-            jobDescription: exp.bullets?.trim() || null,
+            jobDescription: exp.jobDescription?.trim() || null,
             missingFields,
             source: 'cv_ai',
           },

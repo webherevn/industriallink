@@ -23,16 +23,18 @@ import {
   JobLevelCode,
   JobTrack,
   SALARY_PRESETS,
+  departmentsForTrack,
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
 import { IndustrySubFields } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { ProgressRing } from '@/components/progress-ring';
-import { Button, Field, Input, Select, Textarea } from '@/components/ui';
+import { Button, Field, Input, MoneyInput, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { estimateSalary } from '@/lib/career';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL, formatJobLevel, formatSalary } from '@/lib/format';
+import { applyJobDepartmentChange, applyJobTrackChange } from '@/lib/job-org-fields';
 import { createJob, generateJobDraft } from '@/lib/jobs';
 
 const STEPS = [
@@ -137,6 +139,11 @@ export default function NewJobPage() {
     if (!form.jobTrack) return [];
     return CAREER_LADDERS[form.jobTrack];
   }, [form.jobTrack]);
+
+  const departmentOptions = useMemo(
+    () => (form.jobTrack ? departmentsForTrack(form.jobTrack) : [...DEPARTMENTS]),
+    [form.jobTrack],
+  );
 
   const stepDone = useMemo(() => {
     return {
@@ -469,18 +476,28 @@ export default function NewJobPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Chức danh (Cấp bậc)">
+                <Field label="Phòng ban">
                   <Select
-                    value={form.jobLevel}
-                    onChange={(e) =>
-                      patch({ jobLevel: e.target.value as JobLevelCode })
-                    }
-                    disabled={busy || !form.jobTrack}
+                    value={form.department}
+                    onChange={(e) => {
+                      if (!form.jobTrack) {
+                        patch({ department: e.target.value });
+                        return;
+                      }
+                      patch(
+                        applyJobDepartmentChange(
+                          e.target.value,
+                          form.jobTrack,
+                          form.jobLevel,
+                        ),
+                      );
+                    }}
+                    disabled={busy}
                   >
-                    <option value="">-- Chọn cấp bậc --</option>
-                    {levelOptions.map((code) => (
-                      <option key={code} value={code}>
-                        {JOB_LEVEL_LABEL[code]}
+                    <option value="">-- Chọn phòng ban --</option>
+                    {departmentOptions.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
                       </option>
                     ))}
                   </Select>
@@ -504,33 +521,52 @@ export default function NewJobPage() {
               )}
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Phòng ban">
+                <Field label="Lộ trình">
                   <Select
-                    value={form.department}
-                    onChange={(e) => patch({ department: e.target.value })}
+                    value={form.jobTrack}
+                    onChange={(e) => {
+                      const track = e.target.value as JobTrack;
+                      patch(applyJobTrackChange(track, form.department, form.jobLevel));
+                    }}
                     disabled={busy}
                   >
-                    <option value="">-- Chọn phòng ban --</option>
-                    {DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
+                    {Object.values(JobTrack).map((t) => (
+                      <option key={t} value={t}>
+                        {JOB_TRACK_LABEL[t]}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Địa điểm làm việc">
-                  <LocationPicker
-                    variant="field"
-                    multiple
-                    disabled={busy}
-                    placeholder="-- Chọn địa điểm --"
-                    value={parseJoinedLocations(form.location)}
-                    onChange={(labels) =>
-                      patch({ location: joinLocationLabels(labels) })
+                <Field label="Cấp bậc">
+                  <Select
+                    value={form.jobLevel}
+                    onChange={(e) =>
+                      patch({ jobLevel: e.target.value as JobLevelCode })
                     }
-                  />
+                    disabled={busy || !form.jobTrack}
+                  >
+                    <option value="">-- Chọn cấp bậc --</option>
+                    {levelOptions.map((code) => (
+                      <option key={code} value={code}>
+                        {JOB_LEVEL_LABEL[code]}
+                      </option>
+                    ))}
+                  </Select>
                 </Field>
               </div>
+
+              <Field label="Địa điểm làm việc">
+                <LocationPicker
+                  variant="field"
+                  multiple
+                  disabled={busy}
+                  placeholder="-- Chọn địa điểm --"
+                  value={parseJoinedLocations(form.location)}
+                  onChange={(labels) =>
+                    patch({ location: joinLocationLabels(labels) })
+                  }
+                />
+              </Field>
 
               <div>
                 <p className="mb-1.5 text-sm font-medium text-slate-700">Hình thức làm việc</p>
@@ -601,8 +637,8 @@ export default function NewJobPage() {
                     }
                     patch({
                       salaryPreset: preset.label,
-                      salaryMin: preset.min,
-                      salaryMax: preset.max,
+                      salaryMin: preset.min === '' ? '' : preset.min,
+                      salaryMax: preset.max === '' ? '' : preset.max,
                     });
                   }}
                   disabled={busy}
@@ -614,25 +650,24 @@ export default function NewJobPage() {
                     </option>
                   ))}
                 </Select>
-                {(form.salaryPreset === 'Tuỳ chỉnh' ||
-                  (!form.salaryPreset && (form.salaryMin || form.salaryMax))) && (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <Input
-                      type="number"
-                      placeholder="Lương tối thiểu"
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Field label="Lương tối thiểu (VND)">
+                    <MoneyInput
                       value={form.salaryMin}
-                      onChange={(e) => patch({ salaryMin: e.target.value })}
+                      onChange={(salaryMin) => patch({ salaryMin, salaryPreset: 'Tuỳ chỉnh' })}
+                      placeholder="1,000,000"
                       disabled={busy}
                     />
-                    <Input
-                      type="number"
-                      placeholder="Lương tối đa"
+                  </Field>
+                  <Field label="Lương tối đa (VND)">
+                    <MoneyInput
                       value={form.salaryMax}
-                      onChange={(e) => patch({ salaryMax: e.target.value })}
+                      onChange={(salaryMax) => patch({ salaryMax, salaryPreset: 'Tuỳ chỉnh' })}
+                      placeholder="1,000,000"
                       disabled={busy}
                     />
-                  </div>
-                )}
+                  </Field>
+                </div>
               </div>
             </div>
           )}

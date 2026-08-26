@@ -780,7 +780,7 @@ export default function CreateCvPage() {
                       hint={liveFields.find((f) => f.key === 'fullName')}
                     />
                     <label className="block">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                         2. Năm sinh
                         <FieldStatusDot hint={liveFields.find((f) => f.key === 'birthYear')} />
                       </span>
@@ -807,8 +807,11 @@ export default function CreateCvPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs font-semibold text-slate-700">
-                      5. Nơi đang sinh sống (địa chỉ hành chính mới từ 01/7/2025)
+                    <p className="mb-2 text-sm font-semibold text-slate-800">
+                      5. Nơi đang sinh sống
+                    </p>
+                    <p className="mb-2 text-xs text-slate-500">
+                      Địa chỉ hành chính mới từ 01/7/2025
                     </p>
                     <VnAddressFields
                       ward={activeDraft.ward ?? ''}
@@ -824,7 +827,7 @@ export default function CreateCvPage() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                         6. Trình độ học vấn
                         <FieldStatusDot
                           hint={liveFields.find((f) => f.key === 'educationLevel')}
@@ -901,7 +904,7 @@ export default function CreateCvPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
                       10. Ngoại ngữ
                       <FieldStatusDot hint={liveFields.find((f) => f.key === 'languages')} />
                     </p>
@@ -922,12 +925,13 @@ export default function CreateCvPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      11. Giấy phép lái xe — {DRIVER_LICENSE_QUESTION}
+                    <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      11. Giấy phép lái xe
                       <FieldStatusDot
                         hint={liveFields.find((f) => f.key === 'driversLicense')}
                       />
                     </p>
+                    <p className="mb-2 text-xs text-slate-500">{DRIVER_LICENSE_QUESTION}</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {DRIVER_LICENSE_TYPES.map((opt) => {
                         const selected = parseDriverLicenses(activeDraft.driverLicenseType);
@@ -944,7 +948,7 @@ export default function CreateCvPage() {
                           >
                             <input
                               type="checkbox"
-                              className="mt-0.5"
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                               checked={checked}
                               onChange={() => {
                                 let next: string[];
@@ -977,10 +981,11 @@ export default function CreateCvPage() {
                   </div>
 
                   <label className="block">
-                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      12. Khả năng đi công tác — {TRAVEL_ABILITY_QUESTION}
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      12. Khả năng đi công tác
                       <FieldStatusDot hint={liveFields.find((f) => f.key === 'travel')} />
                     </span>
+                    <p className="mt-0.5 mb-1.5 text-xs text-slate-500">{TRAVEL_ABILITY_QUESTION}</p>
                     <select
                       value={activeDraft.travelAbility ?? ''}
                       onChange={(e) => updateDraft('travelAbility', e.target.value || null)}
@@ -1513,7 +1518,7 @@ function CsvField({
 
   return (
     <label className="block">
-      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
         {label}
         <FieldStatusDot hint={hint} />
       </span>
@@ -1560,7 +1565,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
         {label}
         <FieldStatusDot hint={hint} />
       </span>

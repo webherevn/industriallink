@@ -46,7 +46,7 @@ const DEMO_JOBS: {
   {
     code: 'JOB-DEMO-001',
     title: 'Kỹ sư kinh doanh – Máy nén khí & thiết bị công nghiệp',
-    industry: 'Máy móc & Thiết bị công nghiệp',
+    industry: 'Máy móc & Thiết bị sản xuất',
     department: 'Kinh doanh',
     jobLevel: 'sales.staff',
     location: 'Hà Nội',
@@ -224,8 +224,17 @@ const INDUSTRY_LEGACY_UPDATES: Array<{ from: string; to: string }> = [
   { from: 'Cơ khí / Mechanical', to: 'Cơ khí & Chế tạo máy' },
   { from: 'Logistics / Kho vận', to: 'Logistics & Thiết bị kho vận' },
   { from: 'QA / QC', to: 'Nhà máy & Sản xuất công nghiệp' },
-  { from: 'Kinh doanh B2B', to: 'Máy móc & Thiết bị công nghiệp' },
+  { from: 'Máy móc & Thiết bị công nghiệp', to: 'Máy móc & Thiết bị sản xuất' },
+  { from: 'Kinh doanh B2B', to: 'Máy móc & Thiết bị sản xuất' },
   { from: 'Automation', to: 'Tự động hóa & Điều khiển' },
+  { from: 'HVAC', to: 'HVAC & Cơ điện M&E' },
+  { from: 'Manufacturing', to: 'Nhà máy & Sản xuất công nghiệp' },
+  { from: 'Engineering', to: 'Cơ khí & Chế tạo máy' },
+  { from: 'Sales', to: 'Máy móc & Thiết bị sản xuất' },
+  { from: 'Sale', to: 'Máy móc & Thiết bị sản xuất' },
+  { from: 'automation', to: 'Tự động hóa & Điều khiển' },
+  { from: 'Thiết bị điện', to: 'Điện & Năng lượng công nghiệp' },
+  { from: 'Thiết bị điện / Chiếu sáng / Tự động hóa', to: 'Điện & Năng lượng công nghiệp' },
 ];
 
 async function migrateLegacyIndustries(): Promise<void> {
@@ -241,6 +250,32 @@ async function migrateLegacyIndustries(): Promise<void> {
       data: { industry: to },
     });
     updated += jobs.count + companies.count + profiles.count;
+
+    const profileRows = await prisma.candidateProfile.findMany({
+      where: { industriesExperienced: { has: from } },
+      select: { id: true, industriesExperienced: true },
+    });
+    for (const row of profileRows) {
+      await prisma.candidateProfile.update({
+        where: { id: row.id },
+        data: {
+          industriesExperienced: row.industriesExperienced.map((v) => (v === from ? to : v)),
+        },
+      });
+      updated += 1;
+    }
+
+    const expRows = await prisma.candidateExperience.findMany({
+      where: { industries: { has: from } },
+      select: { id: true, industries: true },
+    });
+    for (const row of expRows) {
+      await prisma.candidateExperience.update({
+        where: { id: row.id },
+        data: { industries: row.industries.map((v) => (v === from ? to : v)) },
+      });
+      updated += 1;
+    }
   }
   if (updated > 0) {
     console.log(`Đã chuẩn hoá ${updated} bản ghi ngành nghề legacy → taxonomy mới.`);
@@ -471,8 +506,8 @@ async function seedCandidateSalesProfiles(): Promise<void> {
       customerSegments: ['Nhà máy FDI', 'Nhà máy Việt Nam'],
       b2bExperienceBand: '3_5',
       marketsCovered: ['Hà Nội', 'Bắc Ninh / Bắc Giang', 'Miền Bắc'],
-      industriesExperienced: ['Máy móc & Thiết bị công nghiệp', 'Thiết bị & Vật tư MRO'],
-      industry: 'Máy móc & Thiết bị công nghiệp',
+      industriesExperienced: ['Máy móc & Thiết bị sản xuất', 'Thiết bị & Vật tư MRO'],
+      industry: 'Máy móc & Thiết bị sản xuất',
       customerDevStyle: 'hybrid',
       dealType: 'solution',
       sellingStages: ['Tìm khách tiềm năng', 'Tư vấn kỹ thuật', 'Báo giá', 'Đàm phán', 'Chốt đơn'],

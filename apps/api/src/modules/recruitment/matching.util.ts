@@ -12,6 +12,8 @@ import {
   b2bBandToYears,
   experienceBandToYears,
   getIndustryCatalog,
+  industrySearchValues,
+  normalizeIndustries,
   normalizeSellingStage,
   noticeDaysToAvailability,
   salesBehaviorToDevStyle,
@@ -586,14 +588,14 @@ export function buildB2bExplanation(input: {
   const requiredCount = requiredSkills.filter((s) => s.trim().length > 0).length;
   const skillRatio = requiredCount > 0 ? matched.length / requiredCount : clampedSemantic;
 
-  const industriesHave = [
+  const industriesHave = normalizeIndustries([
     ...(input.candidate.industriesExperienced ?? []),
     ...(input.candidate.industry ? [input.candidate.industry] : []),
-  ];
-  const industriesNeed = [
+  ]);
+  const industriesNeed = normalizeIndustries([
     ...(input.job.filterIndustries ?? []),
     ...(input.job.industry ? [input.job.industry] : []),
-  ];
+  ]);
   const industryOv = setOverlapScore(industriesNeed, industriesHave);
 
   const productsNeed = input.job.filterProducts?.length

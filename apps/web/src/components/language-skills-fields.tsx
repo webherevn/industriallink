@@ -87,7 +87,7 @@ export function LanguageSkillsFields({
             >
               <input
                 type="checkbox"
-                className="mt-0.5"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                 checked={checked}
                 onChange={(e) => toggleLanguage(opt, e.target.checked)}
               />

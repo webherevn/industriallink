@@ -332,6 +332,7 @@ model CandidateExperience {
   customerSegments String[] @default([]) @map("customer_segments")
   marketsCovered   String[] @default([]) @map("markets_covered")
   sellingStages    String[] @default([]) @map("selling_stages")
+  brandsTechnologies String[] @default([]) @map("brands_technologies")
 
   revenueBand          String? @map("revenue_band")
   latestRevenue        Float?  @map("latest_revenue")

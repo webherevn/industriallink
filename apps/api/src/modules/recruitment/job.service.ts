@@ -10,6 +10,8 @@ import {
   EmploymentType,
   JobStatus,
   expandJobSearchKeywords,
+  industrySearchValues,
+  normalizeIndustry,
   type GenerateJobDraftResponse,
   type JobListItem,
   type JobPositionCount,
@@ -153,7 +155,7 @@ export class JobService {
         description: dto.description,
         requirements: dto.requirements ?? null,
         benefits: dto.benefits ?? null,
-        industry: dto.industry ?? null,
+        industry: normalizeIndustry(dto.industry) ?? dto.industry ?? null,
         subIndustry: dto.subIndustry?.trim() || null,
         department: dto.department ?? null,
         jobLevel: dto.jobLevel ?? null,
@@ -231,7 +233,7 @@ export class JobService {
         description: dto.description,
         requirements: dto.requirements ?? null,
         benefits: dto.benefits ?? null,
-        industry: dto.industry ?? null,
+        industry: normalizeIndustry(dto.industry) ?? dto.industry ?? null,
         subIndustry: dto.subIndustry?.trim() || null,
         department: dto.department ?? null,
         jobLevel: dto.jobLevel ?? null,
@@ -481,11 +483,23 @@ export class JobService {
       });
     }
 
+    const industryValues = params.industry
+      ? industrySearchValues([params.industry])
+      : [];
+    if (industryValues.length === 1) {
+      andFilters.push({ industry: { equals: industryValues[0], mode: 'insensitive' } });
+    } else if (industryValues.length > 1) {
+      andFilters.push({
+        OR: industryValues.map((v) => ({
+          industry: { equals: v, mode: 'insensitive' },
+        })),
+      });
+    }
+
     const jobs = await this.prisma.job.findMany({
       where: {
         status: JobStatus.Published,
         isDeleted: false,
-        ...(params.industry ? { industry: { equals: params.industry, mode: 'insensitive' } } : {}),
         ...(experienceBands.length === 1
           ? { experienceBand: experienceBands[0] }
           : experienceBands.length > 1
@@ -605,7 +619,7 @@ export class JobService {
       description: job.description,
       requirements: job.requirements,
       benefits: job.benefits,
-      industry: job.industry,
+      industry: normalizeIndustry(job.industry) ?? job.industry,
       subIndustry: job.subIndustry,
       department: job.department,
       jobLevel: job.jobLevel,
@@ -646,7 +660,7 @@ export class JobService {
       title: job.title,
       companyId: job.companyId,
       companyName: job.company?.name ?? companyName,
-      industry: job.industry,
+      industry: normalizeIndustry(job.industry) ?? job.industry,
       subIndustry: job.subIndustry,
       jobLevel: job.jobLevel,
       location: job.location,

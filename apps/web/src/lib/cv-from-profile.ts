@@ -7,8 +7,11 @@ import {
   composeEducationDegree,
   formatLanguageSkillSummary,
   mergeLanguageSkills,
+  normalizeIndustries,
+  splitExperienceNarrative,
 } from '@industriallink/contracts';
 import { toBulletText } from './bullet-text';
+import { filterCareerMotivations } from './career-motivations';
 import { emptyCvDraft, type CvDraft } from './cv-templates';
 
 function experiencePeriod(exp: {
@@ -48,23 +51,28 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
 
   const experience =
     candidate.experiences.length > 0
-      ? candidate.experiences.map((e) => ({
+      ? candidate.experiences.map((e) => {
+          const narrative = splitExperienceNarrative(e.jobDescription, e.highlights);
+          return {
           role: e.jobTitle || p?.currentPosition || 'Vị trí',
           company: e.companyName || 'Công ty',
           period: experiencePeriod(e),
-          bullets: (e.jobDescription || e.highlights || '').trim(),
-          industries: e.industries ?? [],
+          bullets: narrative.bullets,
+          jobDescription: narrative.jobDescription,
+          industries: normalizeIndustries(e.industries ?? []),
           productsSold: e.productsSold ?? [],
           customerSegments: e.customerSegments ?? [],
           marketsCovered: e.marketsCovered ?? [],
           sellingStages: e.sellingStages ?? [],
+          brandsTechnologies: e.brandsTechnologies ?? [],
           latestRevenue: e.latestRevenue ?? null,
           kpiAchievementPct: e.kpiAchievementPct ?? null,
           newCustomerRatioPct: e.newCustomerRatioPct ?? null,
           dealType: e.dealType ?? null,
           typicalDealValue: e.typicalDealValue ?? null,
           maxDealValue: e.maxDealValue ?? null,
-        }))
+        };
+        })
       : p?.currentPosition
         ? [
             {
@@ -74,11 +82,13 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
                 ? `${p.totalExperienceYears} năm kinh nghiệm`
                 : '',
               bullets: sales?.salesHighlights ?? p.summary ?? '',
-              industries: p.industriesExperienced ?? [],
+              industries: normalizeIndustries(p.industriesExperienced ?? []),
               productsSold: sales?.productsSold ?? [],
               customerSegments: sales?.customerSegments ?? [],
               marketsCovered: sales?.marketsCovered ?? [],
               sellingStages: sales?.sellingStages ?? [],
+              jobDescription: '',
+              brandsTechnologies: [],
               latestRevenue: sales?.latestRevenue ?? null,
               kpiAchievementPct: sales?.kpiAchievementPct ?? null,
               newCustomerRatioPct: sales?.newCustomerRatioPct ?? null,
@@ -121,12 +131,10 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
       ...experience.flatMap((e) => e.marketsCovered),
     ]),
   ];
-  const industriesExperienced = [
-    ...new Set([
-      ...(p?.industriesExperienced ?? []),
-      ...experience.flatMap((e) => e.industries),
-    ]),
-  ];
+  const industriesExperienced = normalizeIndustries([
+    ...(p?.industriesExperienced ?? []),
+    ...experience.flatMap((e) => e.industries),
+  ]);
 
   const careerOrientations =
     sales?.careerOrientations?.length
@@ -192,7 +200,7 @@ export function draftFromCandidate(candidate: CandidateView, email: string): CvD
     hasB2License: sales?.hasB2License ?? null,
     driverLicenseType: sales?.driverLicenseType ?? null,
     salesBehavior: pickSalesBehavior(sales),
-    careerMotivations: [...(sales?.careerMotivations ?? [])].slice(0, 3),
+    careerMotivations: filterCareerMotivations(sales?.careerMotivations, p?.jobTrack),
     careerOrientations,
     workStyles: [...(sales?.workStyles ?? [])],
     jobTrack: p?.jobTrack ?? null,
@@ -360,9 +368,9 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
           },
           {
             key: 'dealType',
-            label: 'Hình thức bán hàng',
+            label: 'Giải pháp sản phẩm',
             value: draft.dealType ?? firstExp?.dealType ?? null,
-            suggestion: 'Chọn hình thức bán hàng (thiết bị/dịch vụ/dự án…).',
+            suggestion: 'Chọn giải pháp sản phẩm (thiết bị/dịch vụ/dự án…).',
           },
           {
             key: 'dealValue',
@@ -600,11 +608,13 @@ function mergeExperience(
       company: pe.company || fe?.company || 'Công ty',
       period: pe.period || fe?.period || '',
       bullets: pickRicherText(pe.bullets, fe?.bullets),
-      industries: unionList(pe.industries, fe?.industries),
+      jobDescription: pickRicherText(pe.jobDescription, fe?.jobDescription),
+      industries: normalizeIndustries(unionList(pe.industries, fe?.industries)),
       productsSold: unionList(pe.productsSold, fe?.productsSold),
       customerSegments: unionList(pe.customerSegments, fe?.customerSegments),
       marketsCovered: unionList(pe.marketsCovered, fe?.marketsCovered),
       sellingStages: unionList(pe.sellingStages, fe?.sellingStages),
+      brandsTechnologies: unionList(pe.brandsTechnologies, fe?.brandsTechnologies),
       latestRevenue: pe.latestRevenue ?? fe?.latestRevenue ?? null,
       kpiAchievementPct: pe.kpiAchievementPct ?? fe?.kpiAchievementPct ?? null,
       newCustomerRatioPct: pe.newCustomerRatioPct ?? fe?.newCustomerRatioPct ?? null,
@@ -720,7 +730,10 @@ export function mergeCvDrafts(aiDraft: CvDraft, profileDraft: CvDraft): CvDraft 
     hasB2License: aiDraft.hasB2License ?? profileDraft.hasB2License,
     driverLicenseType: pickNonEmpty(aiDraft.driverLicenseType, profileDraft.driverLicenseType),
     salesBehavior: pickNonEmpty(aiDraft.salesBehavior, profileDraft.salesBehavior),
-    careerMotivations: unionList(aiDraft.careerMotivations, profileDraft.careerMotivations).slice(0, 3),
+    careerMotivations: filterCareerMotivations(
+      unionList(aiDraft.careerMotivations, profileDraft.careerMotivations),
+      pickNonEmpty(aiDraft.jobTrack, profileDraft.jobTrack),
+    ),
     careerOrientations: unionList(aiDraft.careerOrientations, profileDraft.careerOrientations),
     workStyles: unionList(aiDraft.workStyles, profileDraft.workStyles),
     jobTrack: pickNonEmpty(aiDraft.jobTrack, profileDraft.jobTrack),

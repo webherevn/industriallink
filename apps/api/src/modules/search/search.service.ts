@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { CandidateSearchFilters, CandidateSearchResult } from '@industriallink/contracts';
+import { industrySearchValues } from '@industriallink/contracts';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { inferSkillsFromText } from '../ai/providers/industrial-skills';
 import { OpenSearchService } from '../../shared/infrastructure/opensearch/opensearch.service';
@@ -148,9 +149,10 @@ export class SearchService {
     if (ids.length === 0) {
       const whereProfile: Record<string, unknown> = {};
       if (filters.industries?.length) {
+        const industryValues = industrySearchValues(filters.industries);
         whereProfile.OR = [
-          { industry: { in: filters.industries } },
-          { industriesExperienced: { hasSome: filters.industries } },
+          { industry: { in: industryValues } },
+          { industriesExperienced: { hasSome: industryValues } },
         ];
       }
       if (filters.products?.length) {

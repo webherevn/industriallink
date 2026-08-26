@@ -41,6 +41,7 @@ import {
   NEW_CUSTOMER_RATIO_BANDS,
   PERSONAL_REVENUE_QUESTION,
   PRODUCTS_SOLD,
+  PRODUCTS_SOLD_QUESTION,
   PROFILE_MISSING_FIELD_LABEL,
   SALES_HIGHLIGHTS_PLACEHOLDER,
   SALES_INDUSTRY_OPTIONS,
@@ -60,6 +61,7 @@ import {
   TECHNICAL_TOOLS_QUESTION,
   TECHNICAL_WORK_STYLES,
   TECHNICAL_WORK_STYLE_QUESTION,
+  filterTechnicalWorkStyles,
   TECHNICAL_WORK_TYPES,
   TECHNICAL_WORK_TYPES_QUESTION,
   TRAVEL_ABILITY_LABEL,
@@ -78,9 +80,11 @@ import {
   mergeLanguageSkills,
   newCustomerBandToPct,
   normalizeCustomerSegment,
+  normalizeIndustries,
   normalizeSellingStage,
   parseDriverLicenses,
   splitDealTypes,
+  splitExperienceNarrative,
   workStylesToCultureFitAnswers,
   type CultureFitAnswers,
   type CultureFitQuestionId,
@@ -97,6 +101,7 @@ import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
 import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea, YearInput } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
+import { filterCareerMotivations } from '@/lib/career-motivations';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { getMyCandidate, updateMyProfile } from '@/lib/candidate';
@@ -124,6 +129,16 @@ const STEPS = [
 
 const EXPERIENCE_INDUSTRY_OPTIONS = [...SALES_INDUSTRY_OPTIONS, 'Khác'] as const;
 
+function suggestProducts(query: string) {
+  const q = query.trim().toLowerCase();
+  const pool = PRODUCTS_SOLD.filter((p) => p !== 'Thiết bị công nghiệp khác');
+  const matched = !q ? pool : pool.filter((p) => p.toLowerCase().includes(q));
+  return matched.map((name) => ({
+    name,
+    source: 'catalog' as const,
+  }));
+}
+
 const DEAL_TYPE_CHECK_OPTIONS = DEAL_TYPE_OPTIONS.map((v) => ({
   value: v as string,
   label: DEAL_TYPE_LABEL[v],
@@ -141,6 +156,7 @@ type ExperienceRow = {
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
+  brandsTechnologies: string[];
   revenueBand: string;
   latestRevenue: string;
   kpiBand: string;
@@ -222,6 +238,7 @@ function emptyExperience(): ExperienceRow {
     customerSegments: [],
     marketsCovered: [],
     sellingStages: [],
+    brandsTechnologies: [],
     revenueBand: '',
     latestRevenue: '',
     kpiBand: '',
@@ -397,6 +414,7 @@ function experienceFromView(exp: {
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
+  brandsTechnologies?: string[];
   revenueBand: string | null;
   latestRevenue: number | null;
   kpiBand: string | null;
@@ -413,6 +431,7 @@ function experienceFromView(exp: {
   missingFields: ProfileMissingFieldKey[] | string[];
   source: string;
 }): ExperienceRow {
+  const split = splitExperienceNarrative(exp.jobDescription, exp.highlights);
   return {
     id: exp.id,
     companyName: exp.companyName ?? '',
@@ -420,7 +439,7 @@ function experienceFromView(exp: {
     startYear: yearToMonthValue(exp.startYear),
     endYear: yearToMonthValue(exp.endYear),
     isCurrent: exp.isCurrent,
-    industries: [...(exp.industries ?? [])],
+    industries: normalizeIndustries(exp.industries ?? []),
     productsSold: [...(exp.productsSold ?? [])],
     customerSegments: [
       ...new Set(
@@ -435,6 +454,7 @@ function experienceFromView(exp: {
         (exp.sellingStages ?? []).map((s) => normalizeSellingStage(s) ?? s),
       ),
     ],
+    brandsTechnologies: [...(exp.brandsTechnologies ?? [])],
     revenueBand: exp.revenueBand ?? '',
     latestRevenue: exp.latestRevenue != null ? String(exp.latestRevenue) : '',
     kpiBand: exp.kpiBand ?? '',
@@ -446,8 +466,8 @@ function experienceFromView(exp: {
     typicalDealValue: exp.typicalDealValue != null ? String(exp.typicalDealValue) : '',
     maxDealValue: exp.maxDealValue != null ? String(exp.maxDealValue) : '',
     maxDealRole: exp.maxDealRole ?? '',
-    highlights: exp.highlights ?? '',
-    jobDescription: exp.jobDescription ?? '',
+    highlights: split.bullets,
+    jobDescription: split.jobDescription,
     missingFields: [...(exp.missingFields ?? [])],
     source: exp.source ?? 'manual',
   };
@@ -522,6 +542,7 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
         customerSegments: e.customerSegments,
         marketsCovered: e.marketsCovered,
         sellingStages: e.sellingStages,
+        brandsTechnologies: e.brandsTechnologies,
         revenueBand: e.revenueBand || null,
         latestRevenue,
         kpiBand: e.kpiBand || null,
@@ -534,7 +555,7 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
         maxDealValue,
         maxDealRole: e.maxDealRole.trim() || null,
         highlights: e.highlights.trim() || null,
-        jobDescription: e.jobDescription.trim() || e.highlights.trim() || null,
+        jobDescription: e.jobDescription.trim() || null,
         missingFields: e.missingFields.filter((f) => !filledKeys.has(f)),
         source: e.source || 'manual',
       };
@@ -607,7 +628,7 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
     travelAbility: form.travelAbility || null,
     desiredPositions: form.desiredPositions,
     desiredLocations: form.desiredLocations,
-    careerMotivations: form.careerMotivations.slice(0, 3),
+    careerMotivations: filterCareerMotivations(form.careerMotivations, track.jobTrack),
     workStyles:
       track.jobTrack === JobTrack.Technical
         ? track.technicalWorkStyles.slice(0, 3)
@@ -627,7 +648,10 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
       .filter((s) => s.name.length > 0),
     experiences,
     jobTrack: track.jobTrack,
-    brandsTechnologies: track.brandsTechnologies,
+    brandsTechnologies: (() => {
+      const fromExp = unionArrays(...experiences.map((e) => e.brandsTechnologies ?? []));
+      return fromExp.length ? fromExp : track.brandsTechnologies;
+    })(),
     technicalWorkTypes:
       track.jobTrack === JobTrack.Technical
         ? unionArrays(track.technicalWorkTypes, ...experiences.map((e) => e.sellingStages))
@@ -680,7 +704,7 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               disabled={disabled}
               onChange={() => onChange(toggleInList(selected, opt, max))}
@@ -721,7 +745,7 @@ function RadioList({
             <input
               type="radio"
               name={name}
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               onChange={() => onChange(opt)}
             />
@@ -869,12 +893,14 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
       ]
         .filter(Boolean)
         .join(' – '),
-      bullets: (e.jobDescription || e.highlights || '').trim(),
+      bullets: e.highlights.trim(),
+      jobDescription: e.jobDescription.trim(),
       industries: e.industries,
       productsSold: e.productsSold,
       customerSegments: e.customerSegments,
       marketsCovered: e.marketsCovered,
       sellingStages: e.sellingStages,
+      brandsTechnologies: e.brandsTechnologies,
       latestRevenue:
         parseOptionalNumber(e.latestRevenue) ?? dealValueBandToVnd(e.revenueBand),
       kpiAchievementPct:
@@ -938,14 +964,17 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
     hasB2License,
     driverLicenseType: joinDriverLicenses(form.driverLicenses),
     salesBehavior: form.salesBehavior || null,
-    careerMotivations: form.careerMotivations.slice(0, 3),
+    careerMotivations: filterCareerMotivations(form.careerMotivations, track.jobTrack),
     careerOrientations: form.careerOrientations,
     workStyles:
       track.jobTrack === JobTrack.Technical
         ? track.technicalWorkStyles.slice(0, 3)
         : cultureFitAnswersToWorkStyles(form.cultureFit),
     jobTrack: track.jobTrack,
-    brandsTechnologies: track.brandsTechnologies,
+    brandsTechnologies: (() => {
+      const fromExp = unionArrays(...form.experiences.map((e) => e.brandsTechnologies ?? []));
+      return fromExp.length ? fromExp : track.brandsTechnologies;
+    })(),
     technicalWorkTypes:
       track.jobTrack === JobTrack.Technical
         ? unionArrays(track.technicalWorkTypes, ...form.experiences.map((e) => e.sellingStages))
@@ -1068,13 +1097,7 @@ export default function ProfileEditPage() {
       maxDealValue: sales?.maxDealValue != null ? String(sales.maxDealValue) : '',
       expectedSalaryMax: sales?.expectedSalaryMax != null ? String(sales.expectedSalaryMax) : '',
       salesBehavior: sales?.salesBehavior ?? sales?.customerDevStyle ?? '',
-      careerMotivations: [...(sales?.careerMotivations ?? [])]
-        .filter(
-          (m) =>
-            (CAREER_MOTIVATIONS as readonly string[]).includes(m) ||
-            (TECHNICAL_CAREER_MOTIVATIONS as readonly string[]).includes(m),
-        )
-        .slice(0, 3),
+      careerMotivations: filterCareerMotivations(sales?.careerMotivations, p?.jobTrack),
       cultureFit: workStylesToCultureFitAnswers(sales?.workStyles),
       careerOrientations: normalizeCareerOrientations([
         ...((sales?.careerOrientations?.length
@@ -1102,9 +1125,7 @@ export default function ProfileEditPage() {
       documentLiteracy: [...(p?.documentLiteracy ?? [])],
       systemScaleNote: p?.systemScaleNote ?? null,
       shiftFlexibility: p?.shiftFlexibility ?? null,
-      technicalWorkStyles: [...(sales?.workStyles ?? [])].filter((w) =>
-        (TECHNICAL_WORK_STYLES as readonly string[]).includes(w),
-      ),
+      technicalWorkStyles: filterTechnicalWorkStyles(sales?.workStyles),
       desiredWorkEnvironments: [...(p?.desiredWorkEnvironments ?? [])],
     });
 
@@ -1371,8 +1392,11 @@ export default function ProfileEditPage() {
                     </Field>
                   </div>
                   <div>
-                    <p className="mb-2 text-xs font-semibold text-slate-700">
-                      5. Nơi đang sinh sống * (địa chỉ hành chính mới từ 01/7/2025)
+                    <p className="mb-1 text-sm font-semibold text-slate-800">
+                      5. Nơi đang sinh sống *
+                    </p>
+                    <p className="mb-2 text-xs text-slate-500">
+                      Địa chỉ hành chính mới từ 01/7/2025
                     </p>
                     <VnAddressFields
                       ward={form.ward}
@@ -1430,7 +1454,10 @@ export default function ProfileEditPage() {
                       }
                     />
                   </Field>
-                  <Field label={`11. Giấy phép lái xe — ${DRIVER_LICENSE_QUESTION}`}>
+                  <Field
+                    label="11. Giấy phép lái xe"
+                    description={DRIVER_LICENSE_QUESTION}
+                  >
                     <div className="grid gap-2 sm:grid-cols-2">
                       {DRIVER_LICENSE_TYPES.map((opt) => {
                         const checked = form.driverLicenses.includes(opt);
@@ -1446,7 +1473,7 @@ export default function ProfileEditPage() {
                           >
                             <input
                               type="checkbox"
-                              className="mt-0.5"
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                               checked={checked}
                               onChange={() => toggleDriverLicense(opt)}
                             />
@@ -1456,7 +1483,10 @@ export default function ProfileEditPage() {
                       })}
                     </div>
                   </Field>
-                  <Field label={`12. Khả năng đi công tác * — ${TRAVEL_ABILITY_QUESTION}`}>
+                  <Field
+                    label="12. Khả năng đi công tác *"
+                    description={TRAVEL_ABILITY_QUESTION}
+                  >
                     <Select
                       value={form.travelAbility}
                       onChange={(e) => patch('travelAbility', e.target.value)}
@@ -1544,7 +1574,10 @@ export default function ProfileEditPage() {
                   {(isSales || isTechnical) && (
                     <>
                       {isSales ? (
-                        <Field label={`13. Vị trí ứng tuyển * — ${DESIRED_POSITION_QUESTION}`}>
+                        <Field
+                          label="13. Vị trí ứng tuyển *"
+                          description={DESIRED_POSITION_QUESTION}
+                        >
                           <MultiCheck
                             options={DESIRED_POSITIONS}
                             selected={form.desiredPositions}
@@ -1553,7 +1586,10 @@ export default function ProfileEditPage() {
                           />
                         </Field>
                       ) : (
-                        <Field label={`13. Vị trí ứng tuyển * — ${TECHNICAL_POSITION_QUESTION}`}>
+                        <Field
+                          label="13. Vị trí ứng tuyển *"
+                          description={TECHNICAL_POSITION_QUESTION}
+                        >
                           <p className="mb-2 text-xs text-amber-700">
                             {form.desiredPositions.length
                               ? `Đã chọn ${form.desiredPositions.length}/3`
@@ -1568,7 +1604,10 @@ export default function ProfileEditPage() {
                           />
                         </Field>
                       )}
-                      <Field label="14. Địa điểm mong muốn làm việc * — Anh/chị có thể làm việc ở đâu?">
+                      <Field
+                        label="14. Địa điểm mong muốn làm việc *"
+                        description="Anh/chị có thể làm việc ở đâu?"
+                      >
                         <MultiCheck
                           options={DESIRED_LOCATION_OPTIONS}
                           selected={form.desiredLocations}
@@ -1576,7 +1615,10 @@ export default function ProfileEditPage() {
                           columns={2}
                         />
                       </Field>
-                      <Field label={`15. Thu nhập * — ${EXPECTED_INCOME_QUESTION}`}>
+                      <Field
+                        label="15. Thu nhập *"
+                        description={EXPECTED_INCOME_QUESTION}
+                      >
                         <div className="grid gap-4 sm:grid-cols-2">
                           <MoneyInput
                             value={form.expectedSalaryMin}
@@ -1595,7 +1637,10 @@ export default function ProfileEditPage() {
                           Thu nhập tối thiểu có thể nhận + thu nhập kỳ vọng/tháng (VND).
                         </p>
                       </Field>
-                      <Field label={`16. Thời gian có thể nhận việc * — ${AVAILABILITY_QUESTION}`}>
+                      <Field
+                        label="16. Thời gian có thể nhận việc *"
+                        description={AVAILABILITY_QUESTION}
+                      >
                         <Select
                           value={form.availabilityBand}
                           onChange={(e) => patch('availabilityBand', e.target.value)}
@@ -1623,7 +1668,10 @@ export default function ProfileEditPage() {
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
                   {isTechnical && (
                     <>
-                      <Field label={`17. Khả năng làm ngoài giờ — ${SHIFT_FLEXIBILITY_QUESTION}`}>
+                      <Field
+                        label="17. Khả năng làm ngoài giờ"
+                        description={SHIFT_FLEXIBILITY_QUESTION}
+                      >
                         <RadioList
                           name="shiftFlexibility"
                           options={SHIFT_FLEXIBILITY_OPTIONS.map((o) => o.label)}
@@ -1642,7 +1690,8 @@ export default function ProfileEditPage() {
                         />
                       </Field>
                       <Field
-                        label={`18. Phần mềm & công cụ đã sử dụng — ${TECHNICAL_TOOLS_QUESTION}`}
+                        label="18. Phần mềm & công cụ đã sử dụng"
+                        description={TECHNICAL_TOOLS_QUESTION}
                       >
                         <MultiCheckWithCustom
                           options={TECHNICAL_TOOLS}
@@ -1653,7 +1702,10 @@ export default function ProfileEditPage() {
                           placeholder="Khác — VD: EPLAN, TIA Portal…"
                         />
                       </Field>
-                      <Field label={`19. Đọc bản vẽ / tài liệu — ${DOCUMENT_LITERACY_QUESTION}`}>
+                      <Field
+                        label="19. Đọc bản vẽ / tài liệu"
+                        description={DOCUMENT_LITERACY_QUESTION}
+                      >
                         <MultiCheckWithCustom
                           options={DOCUMENT_LITERACY_OPTIONS}
                           selected={trackExtras.documentLiteracy}
@@ -1663,19 +1715,22 @@ export default function ProfileEditPage() {
                           placeholder="Khác — VD: Sơ đồ thủy lực…"
                         />
                       </Field>
-                      <Field label={`20. Cách làm việc kỹ thuật — ${TECHNICAL_WORK_STYLE_QUESTION}`}>
+                      <Field
+                        label="20. Cách làm việc kỹ thuật"
+                        description={TECHNICAL_WORK_STYLE_QUESTION}
+                      >
                         <p className="mb-2 text-xs text-amber-700">
-                          {trackExtras.technicalWorkStyles.length
-                            ? `Đã chọn ${trackExtras.technicalWorkStyles.length}/3`
+                          {filterTechnicalWorkStyles(trackExtras.technicalWorkStyles).length
+                            ? `Đã chọn ${filterTechnicalWorkStyles(trackExtras.technicalWorkStyles).length}/3`
                             : 'Chọn tối đa 3 phương án'}
                         </p>
                         <MultiCheck
                           options={TECHNICAL_WORK_STYLES}
-                          selected={trackExtras.technicalWorkStyles}
+                          selected={filterTechnicalWorkStyles(trackExtras.technicalWorkStyles)}
                           onChange={(v) =>
                             setTrackExtras((prev) => ({
                               ...prev,
-                              technicalWorkStyles: v.slice(0, 3),
+                              technicalWorkStyles: filterTechnicalWorkStyles(v),
                             }))
                           }
                           max={3}
@@ -1684,10 +1739,10 @@ export default function ProfileEditPage() {
                       </Field>
                       <div className="space-y-3">
                         <div>
-                          <h3 className="text-base font-semibold text-slate-900">
+                          <h3 className="text-sm font-semibold text-slate-800">
                             21. Định hướng nghề nghiệp
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500">
+                          <p className="mt-0.5 text-xs text-slate-500">
                             {TECHNICAL_ORIENTATION_QUESTION}
                           </p>
                         </div>
@@ -1736,28 +1791,31 @@ export default function ProfileEditPage() {
                       </div>
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
-                          <h3 className="text-base font-semibold text-slate-900">
+                          <h3 className="text-sm font-semibold text-slate-800">
                             22. Động lực khi lựa chọn công việc mới
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500">
+                          <p className="mt-0.5 text-xs text-slate-500">
                             {TECHNICAL_MOTIVATION_QUESTION}
                           </p>
                         </div>
                         <p className="text-xs text-amber-700">
-                          {form.careerMotivations.length
-                            ? `Đã chọn ${form.careerMotivations.length}/3`
+                          {filterCareerMotivations(form.careerMotivations, 'technical').length
+                            ? `Đã chọn ${filterCareerMotivations(form.careerMotivations, 'technical').length}/3`
                             : 'Chọn đúng 3 yếu tố quan trọng nhất'}
                         </p>
                         <MultiCheck
                           options={TECHNICAL_CAREER_MOTIVATIONS}
-                          selected={form.careerMotivations}
-                          onChange={(v) => patch('careerMotivations', v.slice(0, 3))}
+                          selected={filterCareerMotivations(form.careerMotivations, 'technical')}
+                          onChange={(v) =>
+                            patch('careerMotivations', filterCareerMotivations(v, 'technical'))
+                          }
                           max={3}
                           columns={2}
                         />
                       </div>
                       <Field
-                        label={`23. Môi trường làm việc mong muốn — ${WORK_ENVIRONMENT_DESIRED_QUESTION}`}
+                        label="23. Môi trường làm việc mong muốn"
+                        description={WORK_ENVIRONMENT_DESIRED_QUESTION}
                       >
                         <MultiCheck
                           options={WORK_ENVIRONMENT_OPTIONS}
@@ -1778,10 +1836,10 @@ export default function ProfileEditPage() {
                     <>
                       <div className="space-y-3">
                         <div>
-                          <h3 className="text-base font-semibold text-slate-900">
+                          <h3 className="text-sm font-semibold text-slate-800">
                             17. Định hướng nghề nghiệp
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500">
+                          <p className="mt-0.5 text-xs text-slate-500">
                             {CAREER_ORIENTATION_QUESTION}
                           </p>
                         </div>
@@ -1795,10 +1853,10 @@ export default function ProfileEditPage() {
 
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
-                          <h3 className="text-base font-semibold text-slate-900">
+                          <h3 className="text-sm font-semibold text-slate-800">
                             18. {CULTURE_FIT_SECTION_TITLE}
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
                         </div>
                         <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                           {CULTURE_FIT_QUESTIONS.map((q, qi) => (
@@ -1820,7 +1878,7 @@ export default function ProfileEditPage() {
                                       <input
                                         type="radio"
                                         name={`cultureFit-${q.id}`}
-                                        className="mt-0.5"
+                                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                                         checked={checked}
                                         onChange={() => patchCultureFit(q.id, opt)}
                                       />
@@ -1839,22 +1897,24 @@ export default function ProfileEditPage() {
 
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
-                          <h3 className="text-base font-semibold text-slate-900">
+                          <h3 className="text-sm font-semibold text-slate-800">
                             19. Động lực khi lựa chọn công việc mới
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500">
+                          <p className="mt-0.5 text-xs text-slate-500">
                             {CAREER_MOTIVATION_QUESTION}
                           </p>
                         </div>
                         <p className="text-xs text-amber-700">
-                          {form.careerMotivations.length
-                            ? `Đã chọn ${form.careerMotivations.length}/3`
+                          {filterCareerMotivations(form.careerMotivations, 'sales').length
+                            ? `Đã chọn ${filterCareerMotivations(form.careerMotivations, 'sales').length}/3`
                             : 'Chọn đúng 3 yếu tố quan trọng nhất'}
                         </p>
                         <MultiCheck
                           options={CAREER_MOTIVATIONS}
-                          selected={form.careerMotivations}
-                          onChange={(v) => patch('careerMotivations', v.slice(0, 3))}
+                          selected={filterCareerMotivations(form.careerMotivations, 'sales')}
+                          onChange={(v) =>
+                            patch('careerMotivations', filterCareerMotivations(v, 'sales'))
+                          }
                           max={3}
                           columns={2}
                         />
@@ -1938,7 +1998,10 @@ export default function ProfileEditPage() {
                                     placeholder="Anh/chị làm vị trí gì tại công ty này?"
                                   />
                                 </Field>
-                                <Field label="26. Thời gian làm việc * — bắt đầu">
+                                <Field
+                                  label="26. Thời gian làm việc *"
+                                  description="Bắt đầu"
+                                >
                                   <MonthYearInput
                                     value={exp.startYear}
                                     onChange={(v) => patchExperience(index, { startYear: v })}
@@ -1967,7 +2030,10 @@ export default function ProfileEditPage() {
                                 Đang làm việc tại đây
                               </label>
 
-                              <Field label="27. Lĩnh vực đã làm * — Anh/chị làm trong lĩnh vực nào tại công ty này?">
+                              <Field
+                                label="27. Lĩnh vực đã làm *"
+                                description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
+                              >
                                 <MultiCheck
                                   options={EXPERIENCE_INDUSTRY_OPTIONS}
                                   selected={exp.industries}
@@ -1977,7 +2043,8 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
-                                label={`28. Thiết bị / hệ thống đã làm * — ${EQUIPMENT_SYSTEM_QUESTION}`}
+                                label="28. Thiết bị / hệ thống đã làm *"
+                                description={EQUIPMENT_SYSTEM_QUESTION}
                               >
                                 <MultiCheckWithCustom
                                   options={EQUIPMENT_SYSTEM_OPTIONS}
@@ -1989,7 +2056,8 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
-                                label={`29. Môi trường làm việc thực tế * — ${WORK_ENVIRONMENT_ACTUAL_QUESTION}`}
+                                label="29. Môi trường làm việc thực tế *"
+                                description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
                               >
                                 <MultiCheckWithCustom
                                   options={WORK_ENVIRONMENT_OPTIONS}
@@ -2002,7 +2070,8 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
-                                label={`30. Công việc kỹ thuật đã thực hiện * — ${TECHNICAL_WORK_TYPES_QUESTION}`}
+                                label="30. Công việc kỹ thuật đã thực hiện *"
+                                description={TECHNICAL_WORK_TYPES_QUESTION}
                               >
                                 <MultiCheck
                                   options={TECHNICAL_WORK_TYPES}
@@ -2012,7 +2081,10 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label={`31. Mức độ tự chủ — ${TECHNICAL_AUTONOMY_QUESTION}`}>
+                              <Field
+                                label="31. Mức độ tự chủ"
+                                description={TECHNICAL_AUTONOMY_QUESTION}
+                              >
                                 <RadioList
                                   name={`technicalAutonomy-${index}`}
                                   options={TECHNICAL_AUTONOMY_LEVELS.map((lv) => lv.label)}
@@ -2103,7 +2175,10 @@ export default function ProfileEditPage() {
                                     placeholder="Anh/chị làm vị trí gì tại công ty này?"
                                   />
                                 </Field>
-                                <Field label="22. Thời gian làm việc * — bắt đầu">
+                                <Field
+                                  label="22. Thời gian làm việc *"
+                                  description="Bắt đầu"
+                                >
                                   <MonthYearInput
                                     value={exp.startYear}
                                     onChange={(v) => patchExperience(index, { startYear: v })}
@@ -2132,7 +2207,10 @@ export default function ProfileEditPage() {
                                 Đang làm việc tại đây
                               </label>
 
-                              <Field label="23. Ngành / lĩnh vực * — Anh/chị làm trong lĩnh vực nào tại công ty này?">
+                              <Field
+                                label="23. Ngành / lĩnh vực *"
+                                description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
+                              >
                                 <MultiCheck
                                   options={EXPERIENCE_INDUSTRY_OPTIONS}
                                   selected={exp.industries}
@@ -2141,12 +2219,17 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label="24. Sản phẩm / thiết bị đã bán * (chọn nhiều + nhập thêm)">
-                                <MultiCheckWithCustom
-                                  options={PRODUCTS_SOLD}
+                              <Field
+                                label="24. Sản phẩm / thiết bị đã bán *"
+                                description={PRODUCTS_SOLD_QUESTION}
+                              >
+                                <BrandTechnologySearch
                                   selected={exp.productsSold}
                                   onChange={(v) => patchExperience(index, { productsSold: v })}
-                                  placeholder="Thiết bị công nghiệp khác — nhập thêm…"
+                                  suggest={suggestProducts}
+                                  placeholder="Tìm thiết bị công nghiệp (máy nén khí, PLC, HVAC…)"
+                                  hint="Gõ để gợi ý sản phẩm/thiết bị. Không có trong danh sách — bấm “+ Thêm” để nhập tay."
+                                  emptyMessage="Gõ tên thiết bị để tìm trong danh mục"
                                 />
                               </Field>
 
@@ -2161,7 +2244,7 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label="26. Hình thức bán hàng *">
+                              <Field label="26. Giải pháp sản phẩm *">
                                 <MultiCheck
                                   options={DEAL_TYPE_CHECK_OPTIONS.map((o) => o.label)}
                                   selected={dealTypesSelected}
@@ -2181,7 +2264,10 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label={`27. Phạm vi công việc bán hàng đã phụ trách — ${SELLING_STAGES_QUESTION}`}>
+                              <Field
+                                label="27. Phạm vi công việc bán hàng đã phụ trách"
+                                description={SELLING_STAGES_QUESTION}
+                              >
                                 <div className="mb-2">
                                   <Button
                                     type="button"
@@ -2206,6 +2292,23 @@ export default function ProfileEditPage() {
                                   onChange={(v) => patchExperience(index, { sellingStages: v })}
                                   columns={2}
                                 />
+                                <label className="mt-3 block">
+                                  <span className="text-sm font-semibold text-slate-800">
+                                    Mô tả/phạm vi công việc thực tế
+                                  </span>
+                                  <p className="mt-0.5 text-xs text-slate-500">
+                                    Viết thêm nếu checkbox chưa đủ mô tả công việc anh/chị đã phụ trách.
+                                  </p>
+                                  <Textarea
+                                    rows={3}
+                                    value={exp.jobDescription}
+                                    onChange={(e) =>
+                                      patchExperience(index, { jobDescription: e.target.value })
+                                    }
+                                    placeholder="VD: Phụ trách bán thiết bị khí nén khu vực miền Nam, từ tìm khách đến chốt đơn và bàn giao kỹ thuật."
+                                    className="mt-1.5"
+                                  />
+                                </label>
                               </Field>
 
                               <details className="rounded-lg border border-slate-200 bg-white">
@@ -2213,14 +2316,14 @@ export default function ProfileEditPage() {
                                   28–34. Nhóm khuyến khích — giúp AI kết nối với NTD dễ hơn
                                 </summary>
                                 <div className="space-y-4 border-t border-slate-100 px-4 py-4">
-                                  <Field label="28. Hãng / thương hiệu sản phẩm — Anh/chị từng làm sản phẩm/thiết bị hãng nào?">
+                                  <Field
+                                    label="28. Hãng / thương hiệu sản phẩm"
+                                    description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
+                                  >
                                     <BrandTechnologySearch
-                                      selected={trackExtras.brandsTechnologies}
+                                      selected={exp.brandsTechnologies ?? []}
                                       onChange={(next) =>
-                                        setTrackExtras((prev) => ({
-                                          ...prev,
-                                          brandsTechnologies: next,
-                                        }))
+                                        patchExperience(index, { brandsTechnologies: next })
                                       }
                                     />
                                   </Field>
@@ -2585,6 +2688,11 @@ export default function ProfileEditPage() {
                                     Công việc: {exp.sellingStages.join(', ')}
                                   </p>
                                 )}
+                                {exp.jobDescription.trim() ? (
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    {exp.jobDescription.trim()}
+                                  </p>
+                                ) : null}
                               </div>
                             ))
                           )}

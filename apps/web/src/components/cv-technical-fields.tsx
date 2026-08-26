@@ -20,10 +20,13 @@ import {
   TECHNICAL_TOOLS_QUESTION,
   TECHNICAL_WORK_STYLES,
   TECHNICAL_WORK_STYLE_QUESTION,
+  filterTechnicalWorkStyles,
   WORK_ENVIRONMENT_DESIRED_QUESTION,
   WORK_ENVIRONMENT_OPTIONS,
 } from '@industriallink/contracts';
 import { MoneyInput } from '@/components/ui';
+import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { filterCareerMotivations } from '@/lib/career-motivations';
 import type { CvDraft } from '@/lib/cv-templates';
 
 function MultiCheck({
@@ -65,7 +68,7 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               disabled={disabled}
               onChange={() => {
@@ -194,7 +197,7 @@ function RadioList({
             <input
               type="radio"
               name={name}
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               checked={checked}
               onChange={() => onChange(opt)}
             />
@@ -220,6 +223,7 @@ export function CvTechnicalFields({
   onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
 }) {
   const orientation = draft.careerOrientations[0] ?? '';
+  const selectedMotivations = filterCareerMotivations(draft.careerMotivations, 'technical');
 
   return (
     <div className="space-y-5">
@@ -229,9 +233,10 @@ export function CvTechnicalFields({
       />
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          14. Địa điểm mong muốn làm việc — Anh/chị có thể làm việc ở đâu?
-        </p>
+        <NumberedFieldLabel
+          title="14. Địa điểm mong muốn làm việc"
+          description="Anh/chị có thể làm việc ở đâu?"
+        />
         <MultiCheck
           options={DESIRED_LOCATION_OPTIONS}
           selected={draft.desiredLocations}
@@ -242,7 +247,7 @@ export function CvTechnicalFields({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">
+          <span className="text-sm font-semibold text-slate-800">
             15. Thu nhập tối thiểu có thể nhận (VND)
           </span>
           <div className="mt-1.5">
@@ -255,7 +260,7 @@ export function CvTechnicalFields({
           </div>
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">
+          <span className="text-sm font-semibold text-slate-800">
             15. Thu nhập kỳ vọng/tháng (VND)
           </span>
           <div className="mt-1.5">
@@ -269,9 +274,10 @@ export function CvTechnicalFields({
       <p className="-mt-3 text-[11px] text-slate-400">{EXPECTED_INCOME_QUESTION}</p>
 
       <label className="block">
-        <span className="text-xs font-semibold text-slate-600">
-          16. Thời gian có thể nhận việc — {AVAILABILITY_QUESTION}
-        </span>
+        <NumberedFieldLabel
+          title="16. Thời gian có thể nhận việc"
+          description={AVAILABILITY_QUESTION}
+        />
         <select
           value={draft.availabilityBand ?? ''}
           onChange={(e) => onChange('availabilityBand', e.target.value || null)}
@@ -292,9 +298,10 @@ export function CvTechnicalFields({
       />
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          17. Khả năng làm ngoài giờ — {SHIFT_FLEXIBILITY_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="17. Khả năng làm ngoài giờ"
+          description={SHIFT_FLEXIBILITY_QUESTION}
+        />
         <RadioList
           name="cv-shiftFlexibility"
           options={SHIFT_FLEXIBILITY_OPTIONS.map((o) => o.label)}
@@ -310,9 +317,10 @@ export function CvTechnicalFields({
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          18. Phần mềm &amp; công cụ đã sử dụng — {TECHNICAL_TOOLS_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="18. Phần mềm & công cụ đã sử dụng"
+          description={TECHNICAL_TOOLS_QUESTION}
+        />
         <MultiCheckWithCustom
           options={TECHNICAL_TOOLS}
           selected={draft.technicalTools}
@@ -322,9 +330,10 @@ export function CvTechnicalFields({
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          19. Đọc bản vẽ / tài liệu — {DOCUMENT_LITERACY_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="19. Đọc bản vẽ / tài liệu"
+          description={DOCUMENT_LITERACY_QUESTION}
+        />
         <MultiCheckWithCustom
           options={DOCUMENT_LITERACY_OPTIONS}
           selected={draft.documentLiteracy}
@@ -334,21 +343,28 @@ export function CvTechnicalFields({
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          20. Cách làm việc kỹ thuật — {TECHNICAL_WORK_STYLE_QUESTION}
+        <NumberedFieldLabel
+          title="20. Cách làm việc kỹ thuật"
+          description={TECHNICAL_WORK_STYLE_QUESTION}
+        />
+        <p className="mb-2 text-[11px] text-amber-700">
+          {filterTechnicalWorkStyles(draft.workStyles).length
+            ? `Đã chọn ${filterTechnicalWorkStyles(draft.workStyles).length}/3`
+            : 'Chọn tối đa 3 phương án'}
         </p>
         <MultiCheck
           options={TECHNICAL_WORK_STYLES}
-          selected={draft.workStyles}
-          onChange={(v) => onChange('workStyles', v.slice(0, 3))}
+          selected={filterTechnicalWorkStyles(draft.workStyles)}
+          onChange={(v) => onChange('workStyles', filterTechnicalWorkStyles(v))}
           max={3}
         />
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          21. Định hướng nghề nghiệp — {TECHNICAL_ORIENTATION_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="21. Định hướng nghề nghiệp"
+          description={TECHNICAL_ORIENTATION_QUESTION}
+        />
         <RadioList
           name="cv-technicalOrientation"
           options={TECHNICAL_CAREER_ORIENTATIONS}
@@ -384,26 +400,30 @@ export function CvTechnicalFields({
       </div>
 
       <div>
-        <p className="mb-1 text-xs font-semibold text-slate-600">
-          22. Động lực khi lựa chọn công việc mới — {TECHNICAL_MOTIVATION_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="22. Động lực khi lựa chọn công việc mới"
+          description={TECHNICAL_MOTIVATION_QUESTION}
+        />
         <p className="mb-2 text-[11px] text-amber-700">
-          {draft.careerMotivations.length
-            ? `Đã chọn ${draft.careerMotivations.length}/3`
+          {selectedMotivations.length
+            ? `Đã chọn ${selectedMotivations.length}/3`
             : 'Chọn đúng 3 yếu tố'}
         </p>
         <MultiCheck
           options={TECHNICAL_CAREER_MOTIVATIONS}
-          selected={draft.careerMotivations}
-          onChange={(v) => onChange('careerMotivations', v.slice(0, 3))}
+          selected={selectedMotivations}
+          onChange={(v) =>
+            onChange('careerMotivations', filterCareerMotivations(v, 'technical'))
+          }
           max={3}
         />
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">
-          23. Môi trường làm việc mong muốn — {WORK_ENVIRONMENT_DESIRED_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="23. Môi trường làm việc mong muốn"
+          description={WORK_ENVIRONMENT_DESIRED_QUESTION}
+        />
         <MultiCheck
           options={WORK_ENVIRONMENT_OPTIONS}
           selected={draft.desiredWorkEnvironments}

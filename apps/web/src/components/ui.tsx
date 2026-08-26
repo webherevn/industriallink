@@ -438,18 +438,24 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
 
 export function Field({
   label,
+  description,
   children,
   className,
 }: {
   label: string;
+  /** Câu hỏi / gợi ý mờ dưới tiêu đề (cùng kiểu meta A/B/C). */
+  description?: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <label className={clsx('block space-y-1.5', className)}>
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <div className={clsx('block space-y-1.5', className)}>
+      <span className="block text-sm font-semibold text-slate-800">{label}</span>
+      {description ? (
+        <span className="block text-xs font-normal text-slate-500">{description}</span>
+      ) : null}
       {children}
-    </label>
+    </div>
   );
 }
 

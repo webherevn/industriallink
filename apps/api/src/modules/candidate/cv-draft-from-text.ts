@@ -1,5 +1,5 @@
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
-import { parseEducationDegree } from '@industriallink/contracts';
+import { normalizeIndustries, parseEducationDegree } from '@industriallink/contracts';
 import type { ParsedResume, ParsedResumeExperience } from '../ai/domain/types';
 
 function pickEmail(text: string): string {
@@ -57,11 +57,12 @@ function mapParsedExperience(
       exp.highlights ||
       ''
     ).trim(),
-    industries: exp.industries ?? [],
+    industries: normalizeIndustries(exp.industries ?? []),
     productsSold: exp.productsSold ?? [],
     customerSegments: exp.customerSegments ?? [],
     marketsCovered: exp.marketsCovered ?? [],
     sellingStages: exp.sellingStages ?? [],
+    brandsTechnologies: [],
     latestRevenue: exp.latestRevenue,
     kpiAchievementPct: exp.kpiAchievementPct,
     newCustomerRatioPct: exp.newCustomerRatioPct,
@@ -107,6 +108,7 @@ function pickExperienceHeuristic(
       customerSegments: [],
       marketsCovered: [],
       sellingStages: [],
+      brandsTechnologies: [],
       latestRevenue: null,
       kpiAchievementPct: null,
       newCustomerRatioPct: null,
@@ -236,9 +238,8 @@ export function buildCvDraftFromText(opts: {
     ...experience.map((e) => e.customerSegments),
   );
   const marketsCovered = union(parsed.marketsCovered, ...experience.map((e) => e.marketsCovered));
-  const industriesExperienced = union(
-    parsed.industriesExperienced,
-    ...experience.map((e) => e.industries),
+  const industriesExperienced = normalizeIndustries(
+    union(parsed.industriesExperienced, ...experience.map((e) => e.industries)),
   );
 
   const education =

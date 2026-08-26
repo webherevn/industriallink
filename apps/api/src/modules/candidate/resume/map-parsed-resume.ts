@@ -1,3 +1,4 @@
+import { normalizeIndustries, normalizeIndustry } from '@industriallink/contracts';
 import type { ParsedResume } from '../../ai/domain/types';
 import { normalizeEducationLevel } from '../../ai/providers/llm-parse.util';
 
@@ -14,7 +15,7 @@ export function buildProfileDataFromParsed(parsed: ParsedResume) {
     currentPosition: parsed.currentPosition,
     jobLevel: parsed.jobLevel,
     totalExperienceYears: parsed.totalExperienceYears,
-    industry: parsed.industry,
+    industry: normalizeIndustry(parsed.industry) ?? parsed.industry,
     specialization: parsed.specialization,
     summary: parsed.summary || null,
     // Không fallback sang summary — giữ mục tiêu nghề nghiệp riêng
@@ -22,7 +23,7 @@ export function buildProfileDataFromParsed(parsed: ParsedResume) {
     productsSold: parsed.productsSold,
     customerSegments: parsed.customerSegments,
     marketsCovered: parsed.marketsCovered,
-    industriesExperienced: parsed.industriesExperienced,
+    industriesExperienced: normalizeIndustries(parsed.industriesExperienced),
     sellingStages: parsed.sellingStages,
     b2bExperienceBand: parsed.b2bExperienceBand,
     latestRevenue: firstExp?.latestRevenue ?? null,
@@ -94,11 +95,12 @@ export function buildExperienceRowFromParsed(
     startYear: exp.startYear != null ? Math.round(exp.startYear) : null,
     endYear: exp.endYear != null ? Math.round(exp.endYear) : null,
     isCurrent: exp.isCurrent,
-    industries: exp.industries,
+    industries: normalizeIndustries(exp.industries),
     productsSold: exp.productsSold,
     customerSegments: exp.customerSegments,
     marketsCovered: exp.marketsCovered,
     sellingStages: exp.sellingStages,
+    brandsTechnologies: [],
     latestRevenue: exp.latestRevenue,
     kpiAchievementPct: exp.kpiAchievementPct,
     newCustomerRatioPct: exp.newCustomerRatioPct,
