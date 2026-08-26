@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { ChevronDown, Flame } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { NumberedTitle } from '@/components/numbered-field-label';
 
@@ -65,11 +65,6 @@ export function CollapsibleFormSection({
             hot ? 'text-amber-950' : 'text-slate-800',
           )}
         >
-          {hot ? (
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md ring-2 ring-amber-200">
-              <Flame className="h-5 w-5" fill="currentColor" />
-            </span>
-          ) : null}
           <span className="min-w-0 flex-1">
             <span
               className={clsx(

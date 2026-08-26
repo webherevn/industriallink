@@ -249,7 +249,7 @@ function displayValue(
   return t || null;
 }
 
-/** Sinh gợi ý trường từ bản nháp — checklist ma trận ~39 mục. */
+/** Sinh gợi ý trường từ bản nháp — checklist ma trận KD 34 / KT 32. */
 export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
   const firstExp = draft.experience[0];
   const defs: {
@@ -572,6 +572,89 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
       suggestion: status === 'filled' ? '' : d.suggestion,
     };
   });
+}
+
+/** STT 1–34 Kinh doanh — không gồm ward / title trùng / b2bExperience ngoài ma trận. */
+const SALES_MATRIX_HINT_KEYS = new Set([
+  'fullName',
+  'birthYear',
+  'phone',
+  'email',
+  'location',
+  'educationLevel',
+  'education',
+  'educationMajor',
+  'certificates',
+  'languages',
+  'driversLicense',
+  'travel',
+  'desiredPositions',
+  'desiredLocations',
+  'expectedSalary',
+  'availability',
+  'careerOrientations',
+  'cultureFit',
+  'careerMotivations',
+  'experience',
+  'experienceRole',
+  'experiencePeriod',
+  'industries',
+  'products',
+  'segments',
+  'dealType',
+  'sellingStages',
+  'brands',
+  'markets',
+  'revenue',
+  'kpi',
+  'newCustomerRatio',
+  'dealValue',
+  'salesHighlights',
+]);
+
+/** STT 1–32 Kỹ thuật. */
+const TECHNICAL_MATRIX_HINT_KEYS = new Set([
+  'fullName',
+  'birthYear',
+  'phone',
+  'email',
+  'location',
+  'educationLevel',
+  'education',
+  'educationMajor',
+  'certificates',
+  'languages',
+  'driversLicense',
+  'travel',
+  'desiredPositions',
+  'desiredLocations',
+  'expectedSalary',
+  'availability',
+  'shiftFlexibility',
+  'technicalTools',
+  'documentLiteracy',
+  'cultureFit',
+  'careerOrientations',
+  'careerMotivations',
+  'desiredWorkEnvironments',
+  'experience',
+  'experienceRole',
+  'experiencePeriod',
+  'industries',
+  'products',
+  'segments',
+  'technicalWorkTypes',
+  'technicalAutonomyLevel',
+  'salesHighlights',
+]);
+
+/** Lọc hint theo đúng 34 tiêu chí KD hoặc 32 tiêu chí KT. */
+export function matrixCriteriaHints(
+  hints: CvDraftFieldHint[],
+  track?: 'sales' | 'technical' | string | null,
+): CvDraftFieldHint[] {
+  const keys = track === 'technical' ? TECHNICAL_MATRIX_HINT_KEYS : SALES_MATRIX_HINT_KEYS;
+  return hints.filter((h) => keys.has(h.key));
 }
 
 /** % điểm gợi ý theo ma trận KD/KT (trọng số AI, filled=1 / weak=0.5). */

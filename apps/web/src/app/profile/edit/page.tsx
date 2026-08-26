@@ -113,6 +113,7 @@ import { getMyCandidate, updateMyProfile } from '@/lib/candidate';
 import {
   completionPercentFromHints,
   fieldHintsFromDraft,
+  matrixCriteriaHints,
 } from '@/lib/cv-from-profile';
 import { emptyCvDraft, type CvDraft } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
@@ -1149,12 +1150,16 @@ export default function ProfileEditPage() {
     () => fieldHintsFromDraft(draftFromEditForm(form, trackExtras)),
     [form, trackExtras],
   );
+  const criteriaHints = useMemo(
+    () => matrixCriteriaHints(liveHints, trackExtras.jobTrack),
+    [liveHints, trackExtras.jobTrack],
+  );
   const criteriaPercent = useMemo(
     () => completionPercentFromHints(liveHints, trackExtras.jobTrack),
     [liveHints, trackExtras.jobTrack],
   );
-  const filledCriteria = liveHints.filter((f) => f.status === 'filled');
-  const criteriaGaps = liveHints.filter(
+  const filledCriteria = criteriaHints.filter((f) => f.status === 'filled');
+  const criteriaGaps = criteriaHints.filter(
     (f) => f.status === 'missing' || f.status === 'weak',
   );
 
@@ -1320,7 +1325,7 @@ export default function ProfileEditPage() {
               title="Tiến độ hoàn thiện hồ sơ"
               percent={criteriaPercent}
               filledCount={filledCriteria.length}
-              totalCount={liveHints.length}
+              totalCount={criteriaHints.length}
               gaps={criteriaGaps}
             />
 
@@ -2319,8 +2324,8 @@ export default function ProfileEditPage() {
 
                               <CollapsibleFormSection
                                 variant="hot"
-                                title="Thông tin bán hàng chuyên sâu - giúp AI kết nối với NTD (28–34)"
-                                subtitle="Giúp A.I đủ 100% dữ liệu kết nối với nhà tuyển dụng."
+                                title="Thông tin bán hàng chuyên sâu (28-34)"
+                                subtitle="Giúp A.I đủ 100% dữ liệu kết nối với NTD."
                               >
                                   <Field
                                     label="28. Hãng / thương hiệu sản phẩm"

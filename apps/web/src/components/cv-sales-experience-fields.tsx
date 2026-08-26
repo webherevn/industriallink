@@ -431,8 +431,8 @@ export function CvSalesExperienceFields({
 
             <CollapsibleFormSection
               variant="hot"
-              title="Thông tin bán hàng chuyên sâu - giúp AI kết nối với NTD (28–34)"
-              subtitle="Giúp A.I đủ 100% dữ liệu kết nối với nhà tuyển dụng."
+              title="Thông tin bán hàng chuyên sâu (28-34)"
+              subtitle="Giúp A.I đủ 100% dữ liệu kết nối với NTD."
             >
                 <div>
                   <FieldLabel

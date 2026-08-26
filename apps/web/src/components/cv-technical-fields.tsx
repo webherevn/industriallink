@@ -255,7 +255,7 @@ export function CvTechnicalFields({
         </label>
         <label className="block">
           <span className="text-sm font-semibold text-slate-800">
-            <NumberedTitle text="15. Thu nhập kỳ vọng/tháng (VND)" />
+            <NumberedTitle text="Thu nhập kỳ vọng/tháng (VND)" />
           </span>
           <div className="mt-1.5">
             <MoneyInput

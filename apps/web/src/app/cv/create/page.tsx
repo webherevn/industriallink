@@ -68,6 +68,7 @@ import {
   completionPercentFromHints,
   draftFromCandidate,
   fieldHintsFromDraft,
+  matrixCriteriaHints,
   mergeCvDrafts,
 } from '@/lib/cv-from-profile';
 import {
@@ -238,9 +239,13 @@ export default function CreateCvPage() {
     () => (analyzed && draft ? fieldHintsFromDraft(draft) : fields),
     [analyzed, draft, fields],
   );
-  const missingFields = liveFields.filter((f) => f.status === 'missing');
-  const weakFields = liveFields.filter((f) => f.status === 'weak');
-  const filledFields = liveFields.filter((f) => f.status === 'filled');
+  const criteriaHints = useMemo(
+    () => matrixCriteriaHints(liveFields, activeDraft.jobTrack),
+    [liveFields, activeDraft.jobTrack],
+  );
+  const missingFields = criteriaHints.filter((f) => f.status === 'missing');
+  const weakFields = criteriaHints.filter((f) => f.status === 'weak');
+  const filledFields = criteriaHints.filter((f) => f.status === 'filled');
   const criteriaPercent = useMemo(
     () => completionPercentFromHints(liveFields, activeDraft.jobTrack),
     [liveFields, activeDraft.jobTrack],
@@ -628,13 +633,13 @@ export default function CreateCvPage() {
 
               {analyzed && (
                 <div ref={fieldsCardRef} className="progress-card space-y-4 p-5">
-                  {liveFields.length > 0 && (
+                  {criteriaHints.length > 0 && (
                     <div className="xl:hidden">
                       <CriteriaCompletionCard
                         title="Tiến độ hoàn thiện CV"
                         percent={criteriaPercent}
                         filledCount={filledFields.length}
-                        totalCount={liveFields.length}
+                        totalCount={criteriaHints.length}
                         gaps={criteriaGaps}
                       />
                     </div>
@@ -649,7 +654,7 @@ export default function CreateCvPage() {
                       <p className="mt-1 text-xs text-slate-500">{analyzeMessage}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {analyzed && liveFields.length > 0 && (
+                      {analyzed && criteriaHints.length > 0 && (
                         <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 ring-1 ring-brand-100">
                           Điểm AI {criteriaPercent}/100
                         </span>
@@ -1024,7 +1029,7 @@ export default function CreateCvPage() {
                           <CvApplyPositionFields
                             draft={activeDraft}
                             onChange={updateDraft}
-                            titleHint={liveFields.find((f) => f.key === 'title')}
+                            titleHint={liveFields.find((f) => f.key === 'desiredPositions')}
                           />
                         }
                       />
@@ -1044,7 +1049,7 @@ export default function CreateCvPage() {
                           <CvApplyPositionFields
                             draft={activeDraft}
                             onChange={updateDraft}
-                            titleHint={liveFields.find((f) => f.key === 'title')}
+                            titleHint={liveFields.find((f) => f.key === 'desiredPositions')}
                           />
                         }
                       />
@@ -1295,13 +1300,13 @@ export default function CreateCvPage() {
 
         <aside className="hidden xl:block">
           <div className="sticky top-4 flex h-[calc(100vh-1.5rem)] flex-col gap-2 overflow-hidden animate-soft-rise [animation-delay:60ms]">
-            {liveFields.length > 0 && (
+            {criteriaHints.length > 0 && (
               <div className="max-h-[38%] shrink-0 overflow-y-auto">
                 <CriteriaCompletionCard
                   title="Tiến độ hoàn thiện CV"
                   percent={criteriaPercent}
                   filledCount={filledFields.length}
-                  totalCount={liveFields.length}
+                  totalCount={criteriaHints.length}
                   gaps={criteriaGaps}
                   maxGaps={3}
                 />
