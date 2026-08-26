@@ -5,14 +5,31 @@ describe('computeProfileCompletion', () => {
     expect(computeProfileCompletion({ aiProfile: null, profile: null, skills: [] })).toBe(0);
   });
 
-  it('tăng % khi có tóm tắt AI / hồ sơ', () => {
-    const empty = computeProfileCompletion({ aiProfile: null, profile: null, skills: [] });
-    const withSummary = computeProfileCompletion({
-      aiProfile: { summary: 'Kỹ sư PLC 5 năm kinh nghiệm với nhiều dự án' },
-      profile: null,
+  it('họ tên / tóm tắt / SĐT (0%) không tăng điểm gợi ý', () => {
+    expect(
+      computeProfileCompletion({
+        aiProfile: { summary: 'Kỹ sư PLC 5 năm kinh nghiệm với nhiều dự án' },
+        profile: { phone: '0901234567', birthYear: 1990 },
+        skills: [{ id: '1' }],
+      }),
+    ).toBe(0);
+  });
+
+  it('nơi sống (2%) tăng điểm nhẹ; sản phẩm (16%) tăng nhiều hơn', () => {
+    const withLocation = computeProfileCompletion({
+      aiProfile: null,
+      profile: { currentCity: 'Hà Nội', jobTrack: 'sales' },
       skills: [],
     });
-    expect(withSummary).toBeGreaterThan(empty);
+    const withProducts = computeProfileCompletion({
+      aiProfile: null,
+      profile: { productsSold: ['PLC'], jobTrack: 'sales' },
+      skills: [],
+    });
+    expect(withLocation).toBeGreaterThan(0);
+    expect(withLocation).toBeLessThan(5);
+    expect(withProducts).toBeGreaterThan(withLocation);
+    expect(withProducts).toBeGreaterThan(10);
   });
 
   it('Sales và Technical dùng checklist khác nhau', () => {
@@ -50,11 +67,10 @@ describe('computeProfileCompletion', () => {
 
     expect(techOnly).toBeGreaterThan(0);
     expect(salesOnly).toBeGreaterThan(0);
-    // Cùng base nhưng track khác → điểm có thể khác
     expect(salesOnly).not.toBe(techOnly);
   });
 
-  it('Technical không phụ thuộc sellingStages để đạt điểm cao hơn khi có block KT', () => {
+  it('Technical tăng điểm khi có block năng lực kỹ thuật', () => {
     const withoutTech = computeProfileCompletion({
       aiProfile: null,
       profile: {
@@ -79,8 +95,33 @@ describe('computeProfileCompletion', () => {
         systemScaleNote: 'Dây chuyền 2000 tấn/h',
         shiftFlexibility: 'flexible',
       },
-      skills: [{ id: '1' }],
+      skills: [],
     });
     expect(withTech).toBeGreaterThan(withoutTech);
+  });
+
+  it('Kỹ thuật: thành tích/dự án (5%) tăng điểm; định hướng (0%) không tăng', () => {
+    const base = {
+      jobTrack: 'technical' as const,
+      currentCity: 'Hà Nội',
+    };
+    const withOrientation = computeProfileCompletion({
+      aiProfile: null,
+      profile: { ...base, careerOrientations: ['Trở thành chuyên gia'] },
+      skills: [],
+    });
+    const withCityOnly = computeProfileCompletion({
+      aiProfile: null,
+      profile: base,
+      skills: [],
+    });
+    const withHighlights = computeProfileCompletion({
+      aiProfile: null,
+      profile: { ...base, salesHighlights: 'Commissioning 5 line đúng hạn' },
+      skills: [],
+      experiences: [{ companyName: 'ABC', highlights: 'Commissioning 5 line đúng hạn' }],
+    });
+    expect(withOrientation).toBe(withCityOnly);
+    expect(withHighlights).toBeGreaterThan(withCityOnly);
   });
 });

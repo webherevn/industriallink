@@ -161,7 +161,7 @@ function MultiCheckWithCustom({
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="border-t border-slate-100 pt-5">
-      <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+      <h3 className="text-sm font-bold text-accent-600">{title}</h3>
       {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
     </div>
   );
@@ -210,10 +210,10 @@ function RadioList({
 }
 
 /**
- * Khối B/C theo ma trận Kỹ thuật 31 mục (update 18.8) — hiện khi chọn hướng Kỹ thuật.
+ * Khối B/C theo ma trận Kỹ thuật 32 mục — hiện khi chọn hướng Kỹ thuật.
  * B. Mong muốn nghề nghiệp (14–16; STT 13 nằm ở khối vị trí ứng tuyển phía trên)
  * C. Năng lực và định hướng (17–23)
- * D. Kinh nghiệm công ty (24–31) nằm ở khối CvTechnicalExperienceFields phía sau.
+ * D. Kinh nghiệm công ty (24–32) nằm ở khối CvTechnicalExperienceFields phía sau.
  */
 export function CvTechnicalFields({
   draft,
@@ -348,9 +348,7 @@ export function CvTechnicalFields({
           description={TECHNICAL_WORK_STYLE_QUESTION}
         />
         <p className="mb-2 text-[11px] text-amber-700">
-          {filterTechnicalWorkStyles(draft.workStyles).length
-            ? `Đã chọn ${filterTechnicalWorkStyles(draft.workStyles).length}/3`
-            : 'Chọn tối đa 3 phương án'}
+          {`Tối đa 3 (${filterTechnicalWorkStyles(draft.workStyles).length}/3)`}
         </p>
         <MultiCheck
           options={TECHNICAL_WORK_STYLES}
@@ -405,9 +403,7 @@ export function CvTechnicalFields({
           description={TECHNICAL_MOTIVATION_QUESTION}
         />
         <p className="mb-2 text-[11px] text-amber-700">
-          {selectedMotivations.length
-            ? `Đã chọn ${selectedMotivations.length}/3`
-            : 'Chọn đúng 3 yếu tố'}
+          {`Tối đa 3 (${selectedMotivations.length}/3)`}
         </p>
         <MultiCheck
           options={TECHNICAL_CAREER_MOTIVATIONS}

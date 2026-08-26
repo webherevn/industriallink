@@ -39,7 +39,7 @@ export function CvTrackToggle({ value, onChange, className }: Props) {
         })}
       </div>
       <p className="mt-1.5 text-[11px] text-slate-400">
-        Chọn Kinh doanh để hiện các mục 13–34, hoặc Kỹ thuật để hiện các mục 13–31. Upload CV:
+        Chọn Kinh doanh để hiện các mục 13–34, hoặc Kỹ thuật để hiện các mục 13–32. Upload CV:
         AI sẽ tự nhận diện.
       </p>
     </div>

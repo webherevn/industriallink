@@ -406,6 +406,56 @@ export function MonthYearInput({
   );
 }
 
+/** Bắt đầu / Kết thúc cùng hàng với dropdown tháng-năm — tránh lệch cột. */
+export function MonthYearRangeFields({
+  start,
+  end,
+  current,
+  onStartChange,
+  onEndChange,
+  onCurrentChange,
+}: {
+  start: string;
+  end: string;
+  current: boolean;
+  onStartChange: (yyyyMm: string) => void;
+  onEndChange: (yyyyMm: string) => void;
+  onCurrentChange: (current: boolean) => void;
+}) {
+  return (
+    <div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="w-[4.75rem] shrink-0 text-sm font-medium text-slate-600">
+            Bắt đầu
+          </span>
+          <MonthYearInput className="min-w-0 flex-1" value={start} onChange={onStartChange} />
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="w-[4.75rem] shrink-0 text-sm font-medium text-slate-600">
+            Kết thúc
+          </span>
+          <MonthYearInput
+            className="min-w-0 flex-1"
+            value={end}
+            disabled={current}
+            onChange={onEndChange}
+          />
+        </div>
+      </div>
+      <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          className="rounded border-slate-300 text-brand-600"
+          checked={current}
+          onChange={(e) => onCurrentChange(e.target.checked)}
+        />
+        Đang làm việc tại đây
+      </label>
+    </div>
+  );
+}
+
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function Textarea({ className, ...props }, ref) {
     return (

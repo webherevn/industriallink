@@ -10,6 +10,7 @@ export * from './career-salary.dto';
 export * from './job-taxonomy';
 export * from './job-search-synonyms';
 export * from './sales-b2b-criteria';
+export * from './ai-suggestion-weights';
 export * from './technical-criteria';
 export * from './vn-admin-units';
 export * from './events';

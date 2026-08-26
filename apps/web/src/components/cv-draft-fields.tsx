@@ -91,7 +91,7 @@ function SectionTitle({
   return (
     <div className="flex flex-wrap items-start justify-between gap-2 border-t border-slate-100 pt-5">
       <div>
-        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+        <h3 className="text-sm font-bold text-accent-600">{title}</h3>
         {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
       </div>
       {hint ? (
@@ -329,9 +329,7 @@ export function CvDraftMatrixFields({
           }
         />
         <p className="mb-2 text-[11px] text-amber-700">
-          {selectedMotivations.length
-            ? `Đã chọn ${selectedMotivations.length}/3`
-            : 'Chọn đúng 3 yếu tố'}
+          {`Tối đa 3 (${selectedMotivations.length}/3)`}
         </p>
         <MultiCheck
           options={CAREER_MOTIVATIONS}

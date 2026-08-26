@@ -17,7 +17,7 @@ type Props = {
 
 /**
  * STT 13. Vị trí ứng tuyển — Kinh doanh: danh sách 5 vị trí.
- * Kỹ thuật: chọn tối đa 3 + "Khác" tự nhập (ma trận 31 mục).
+ * Kỹ thuật: chọn tối đa 3 + "Khác" tự nhập (ma trận 32 mục).
  */
 export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   const track = draft.jobTrack;
@@ -58,7 +58,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3 sm:p-4">
+    <div className="space-y-3">
       <div>
         <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
           13. Vị trí ứng tuyển
@@ -73,9 +73,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
         </p>
         {isTechnical && (
           <p className="mt-1 text-[11px] text-amber-700">
-            {draft.desiredPositions.length
-              ? `Đã chọn ${draft.desiredPositions.length}/3`
-              : 'Chọn tối đa 3 vị trí phù hợp nhất'}
+            {`Tối đa 3 (${draft.desiredPositions.length}/3)`}
           </p>
         )}
       </div>

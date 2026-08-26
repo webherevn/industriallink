@@ -240,8 +240,8 @@ export default function CreateCvPage() {
   const weakFields = liveFields.filter((f) => f.status === 'weak');
   const filledFields = liveFields.filter((f) => f.status === 'filled');
   const criteriaPercent = useMemo(
-    () => completionPercentFromHints(liveFields),
-    [liveFields],
+    () => completionPercentFromHints(liveFields, activeDraft.jobTrack),
+    [liveFields, activeDraft.jobTrack],
   );
   const criteriaGaps = useMemo(
     () => [...missingFields, ...weakFields],
@@ -763,7 +763,7 @@ export default function CreateCvPage() {
                   </div>
 
                   <div className="border-t border-slate-100 pt-4">
-                    <h3 className="text-sm font-bold text-slate-900">
+                    <h3 className="text-sm font-bold text-accent-600">
                       A. Thông tin chung (1–12)
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-500">
@@ -1054,7 +1054,7 @@ export default function CreateCvPage() {
                       Chọn <span className="font-semibold text-slate-700">Kinh doanh</span> ở trên
                       để hiện các mục 13–34, hoặc{' '}
                       <span className="font-semibold text-slate-700">Kỹ thuật</span> để hiện các
-                      mục 13–31 theo bộ tiêu chí kỹ thuật.
+                      mục 13–32 theo bộ tiêu chí kỹ thuật.
                     </p>
                   )}
 

@@ -54,6 +54,8 @@ import {
   TECHNICAL_CAREER_MOTIVATIONS,
   TECHNICAL_CAREER_ORIENTATIONS,
   TECHNICAL_DESIRED_POSITIONS,
+  TECHNICAL_HIGHLIGHTS_PLACEHOLDER,
+  TECHNICAL_HIGHLIGHTS_QUESTION,
   TECHNICAL_MOTIVATION_QUESTION,
   TECHNICAL_ORIENTATION_QUESTION,
   TECHNICAL_POSITION_QUESTION,
@@ -99,7 +101,7 @@ import { AppShell } from '@/components/app-shell';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
-import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearInput, Select, Textarea, YearInput } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearRangeFields, Select, Textarea, YearInput } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
 import { filterCareerMotivations } from '@/lib/career-motivations';
 import { ApiError } from '@/lib/api';
@@ -116,7 +118,7 @@ import { formatVndAmount } from '@/lib/format';
  * Bước 1 = A. Thông tin cơ bản (1–12, chung Kỹ thuật & Kinh doanh)
  * Bước 2 = Chọn hướng hồ sơ
  * Kinh doanh: B 13–16, C 17–19, D 20–34
- * Kỹ thuật: B 13–16, C 17–23, D 24–31
+ * Kỹ thuật: B 13–16, C 17–23, D 24–32
  */
 const STEPS = [
   { id: 1, label: 'Thông tin chung' },
@@ -949,7 +951,10 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
     industriesExperienced: form.industriesExperienced,
     desiredPositions: form.desiredPositions,
     desiredLocations: form.desiredLocations,
-    salesHighlights: form.salesHighlights.trim(),
+    salesHighlights:
+      form.salesHighlights.trim() ||
+      form.experiences.find((e) => e.highlights.trim())?.highlights.trim() ||
+      '',
     b2bExperienceBand: form.b2bExperienceBand || null,
     newCustomerRatioPct: parseOptionalNumber(form.newCustomerRatioPct),
     dealType: form.dealType || null,
@@ -1141,8 +1146,8 @@ export default function ProfileEditPage() {
     [form, trackExtras],
   );
   const criteriaPercent = useMemo(
-    () => completionPercentFromHints(liveHints),
-    [liveHints],
+    () => completionPercentFromHints(liveHints, trackExtras.jobTrack),
+    [liveHints, trackExtras.jobTrack],
   );
   const filledCriteria = liveHints.filter((f) => f.status === 'filled');
   const criteriaGaps = liveHints.filter(
@@ -1348,7 +1353,7 @@ export default function ProfileEditPage() {
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <h2 className="text-lg font-semibold text-slate-900">
+                      <h2 className="text-lg font-semibold text-accent-600">
                         A. Thông tin cơ bản (1–12)
                       </h2>
                       <p className="mt-0.5 text-sm text-slate-500">
@@ -1511,7 +1516,7 @@ export default function ProfileEditPage() {
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
                       Sau phần thông tin chung (1–12), chọn Kinh doanh (mục 13–34) hoặc Kỹ thuật
-                      (mục 13–31).
+                      (mục 13–32).
                     </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1525,7 +1530,7 @@ export default function ProfileEditPage() {
                         {
                           track: JobTrack.Technical,
                           icon: Wrench,
-                          desc: 'Kỹ thuật / dịch vụ kỹ thuật — hiện đầy đủ các mục 13–31 (mong muốn, năng lực, kinh nghiệm kỹ thuật).',
+                          desc: 'Kỹ thuật / dịch vụ kỹ thuật — hiện đầy đủ các mục 13–32 (mong muốn, năng lực, kinh nghiệm kỹ thuật).',
                         },
                       ] as const
                     ).map(({ track, icon: Icon, desc }) => {
@@ -1567,7 +1572,7 @@ export default function ProfileEditPage() {
 
               {step === 3 && (
                 <>
-                  <h2 className="text-lg font-semibold text-slate-900">
+                  <h2 className="text-lg font-semibold text-accent-600">
                     B. Mong muốn nghề nghiệp (13–16)
                   </h2>
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
@@ -1591,9 +1596,7 @@ export default function ProfileEditPage() {
                           description={TECHNICAL_POSITION_QUESTION}
                         >
                           <p className="mb-2 text-xs text-amber-700">
-                            {form.desiredPositions.length
-                              ? `Đã chọn ${form.desiredPositions.length}/3`
-                              : 'Chọn tối đa 3 vị trí phù hợp nhất'}
+                            {`Tối đa 3 (${form.desiredPositions.length}/3)`}
                           </p>
                           <MultiCheckWithCustom
                             options={TECHNICAL_DESIRED_POSITIONS}
@@ -1660,7 +1663,7 @@ export default function ProfileEditPage() {
 
               {step === 4 && (
                 <>
-                  <h2 className="text-lg font-semibold text-slate-900">
+                  <h2 className="text-lg font-semibold text-accent-600">
                     {isTechnical
                       ? 'C. Năng lực và định hướng (17–23)'
                       : 'C. Định hướng & phù hợp (17–19)'}
@@ -1720,9 +1723,7 @@ export default function ProfileEditPage() {
                         description={TECHNICAL_WORK_STYLE_QUESTION}
                       >
                         <p className="mb-2 text-xs text-amber-700">
-                          {filterTechnicalWorkStyles(trackExtras.technicalWorkStyles).length
-                            ? `Đã chọn ${filterTechnicalWorkStyles(trackExtras.technicalWorkStyles).length}/3`
-                            : 'Chọn tối đa 3 phương án'}
+                          {`Tối đa 3 (${filterTechnicalWorkStyles(trackExtras.technicalWorkStyles).length}/3)`}
                         </p>
                         <MultiCheck
                           options={TECHNICAL_WORK_STYLES}
@@ -1799,9 +1800,7 @@ export default function ProfileEditPage() {
                           </p>
                         </div>
                         <p className="text-xs text-amber-700">
-                          {filterCareerMotivations(form.careerMotivations, 'technical').length
-                            ? `Đã chọn ${filterCareerMotivations(form.careerMotivations, 'technical').length}/3`
-                            : 'Chọn đúng 3 yếu tố quan trọng nhất'}
+                          {`Tối đa 3 (${filterCareerMotivations(form.careerMotivations, 'technical').length}/3)`}
                         </p>
                         <MultiCheck
                           options={TECHNICAL_CAREER_MOTIVATIONS}
@@ -1905,9 +1904,7 @@ export default function ProfileEditPage() {
                           </p>
                         </div>
                         <p className="text-xs text-amber-700">
-                          {filterCareerMotivations(form.careerMotivations, 'sales').length
-                            ? `Đã chọn ${filterCareerMotivations(form.careerMotivations, 'sales').length}/3`
-                            : 'Chọn đúng 3 yếu tố quan trọng nhất'}
+                          {`Tối đa 3 (${filterCareerMotivations(form.careerMotivations, 'sales').length}/3)`}
                         </p>
                         <MultiCheck
                           options={CAREER_MOTIVATIONS}
@@ -1927,14 +1924,14 @@ export default function ProfileEditPage() {
               {step === 5 && (
                 <>
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
+                    <h2 className="text-lg font-semibold text-accent-600">
                       {isTechnical
-                        ? 'D. Kinh nghiệm công ty (24–31)'
+                        ? 'D. Kinh nghiệm công ty (24–32)'
                         : 'D. Kinh nghiệm công ty (20–34)'}
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
                       {isTechnical
-                        ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 24–31.'
+                        ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 24–32.'
                         : 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 20–34.'}
                     </p>
                   </div>
@@ -1998,37 +1995,26 @@ export default function ProfileEditPage() {
                                     placeholder="Anh/chị làm vị trí gì tại công ty này?"
                                   />
                                 </Field>
-                                <Field
-                                  label="26. Thời gian làm việc *"
-                                  description="Bắt đầu"
-                                >
-                                  <MonthYearInput
-                                    value={exp.startYear}
-                                    onChange={(v) => patchExperience(index, { startYear: v })}
-                                  />
-                                </Field>
-                                <Field label="Kết thúc">
-                                  <MonthYearInput
-                                    value={exp.endYear}
-                                    disabled={exp.isCurrent}
-                                    onChange={(v) => patchExperience(index, { endYear: v })}
-                                  />
-                                </Field>
                               </div>
-                              <label className="flex items-center gap-2 text-sm text-slate-700">
-                                <input
-                                  type="checkbox"
-                                  className="rounded border-slate-300 text-brand-600"
-                                  checked={exp.isCurrent}
-                                  onChange={(e) =>
+                              <Field label="26. Thời gian làm việc *">
+                                <MonthYearRangeFields
+                                  start={exp.startYear}
+                                  end={exp.endYear}
+                                  current={exp.isCurrent}
+                                  onStartChange={(v) =>
+                                    patchExperience(index, { startYear: v })
+                                  }
+                                  onEndChange={(v) =>
+                                    patchExperience(index, { endYear: v })
+                                  }
+                                  onCurrentChange={(checked) =>
                                     patchExperience(index, {
-                                      isCurrent: e.target.checked,
-                                      endYear: e.target.checked ? '' : exp.endYear,
+                                      isCurrent: checked,
+                                      endYear: checked ? '' : exp.endYear,
                                     })
                                   }
                                 />
-                                Đang làm việc tại đây
-                              </label>
+                              </Field>
 
                               <Field
                                 label="27. Lĩnh vực đã làm *"
@@ -2104,12 +2090,26 @@ export default function ProfileEditPage() {
                                   }}
                                 />
                               </Field>
+
+                              <Field
+                                label="32. Thành tích/dự án nổi bật"
+                                description={TECHNICAL_HIGHLIGHTS_QUESTION}
+                              >
+                                <Textarea
+                                  rows={3}
+                                  value={exp.highlights}
+                                  onChange={(e) =>
+                                    patchExperience(index, { highlights: e.target.value })
+                                  }
+                                  placeholder={TECHNICAL_HIGHLIGHTS_PLACEHOLDER}
+                                />
+                              </Field>
                             </div>
                           );
                         })}
                       </div>
                       <Button type="button" variant="outline" onClick={addExperience}>
-                        + Thêm công ty (lặp lại mục 24–31)
+                        + Thêm công ty (lặp lại mục 24–32)
                       </Button>
                     </>
                   )}
@@ -2175,37 +2175,26 @@ export default function ProfileEditPage() {
                                     placeholder="Anh/chị làm vị trí gì tại công ty này?"
                                   />
                                 </Field>
-                                <Field
-                                  label="22. Thời gian làm việc *"
-                                  description="Bắt đầu"
-                                >
-                                  <MonthYearInput
-                                    value={exp.startYear}
-                                    onChange={(v) => patchExperience(index, { startYear: v })}
-                                  />
-                                </Field>
-                                <Field label="Kết thúc">
-                                  <MonthYearInput
-                                    value={exp.endYear}
-                                    disabled={exp.isCurrent}
-                                    onChange={(v) => patchExperience(index, { endYear: v })}
-                                  />
-                                </Field>
                               </div>
-                              <label className="flex items-center gap-2 text-sm text-slate-700">
-                                <input
-                                  type="checkbox"
-                                  className="rounded border-slate-300 text-brand-600"
-                                  checked={exp.isCurrent}
-                                  onChange={(e) =>
+                              <Field label="22. Thời gian làm việc *">
+                                <MonthYearRangeFields
+                                  start={exp.startYear}
+                                  end={exp.endYear}
+                                  current={exp.isCurrent}
+                                  onStartChange={(v) =>
+                                    patchExperience(index, { startYear: v })
+                                  }
+                                  onEndChange={(v) =>
+                                    patchExperience(index, { endYear: v })
+                                  }
+                                  onCurrentChange={(checked) =>
                                     patchExperience(index, {
-                                      isCurrent: e.target.checked,
-                                      endYear: e.target.checked ? '' : exp.endYear,
+                                      isCurrent: checked,
+                                      endYear: checked ? '' : exp.endYear,
                                     })
                                   }
                                 />
-                                Đang làm việc tại đây
-                              </label>
+                              </Field>
 
                               <Field
                                 label="23. Ngành / lĩnh vực *"
@@ -2432,7 +2421,7 @@ export default function ProfileEditPage() {
 
                   <dl className="space-y-4 divide-y divide-slate-100">
                     <div className="space-y-2 pt-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                         A. Thông tin cơ bản (1–12)
                       </p>
                       <ReviewRow label="Họ tên" value={form.displayName} />
@@ -2488,7 +2477,7 @@ export default function ProfileEditPage() {
                     {isSales && (
                       <>
                         <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                             B. Mong muốn nghề nghiệp (13–16)
                           </p>
                           <ReviewRow
@@ -2525,7 +2514,7 @@ export default function ProfileEditPage() {
                         </div>
 
                         <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                             C. Định hướng & phù hợp (17–19)
                           </p>
                           <ReviewRow
@@ -2550,7 +2539,7 @@ export default function ProfileEditPage() {
                         </div>
 
                         <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                             D. Kinh nghiệm công ty ({filledExperiences.length})
                           </p>
                           {filledExperiences.length === 0 ? (
@@ -2589,7 +2578,7 @@ export default function ProfileEditPage() {
                     {isTechnical && (
                       <>
                         <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                             B. Mong muốn nghề nghiệp (13–16)
                           </p>
                           <ReviewRow
@@ -2625,7 +2614,7 @@ export default function ProfileEditPage() {
                           />
                         </div>
                         <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                             C. Năng lực và định hướng (17–23)
                           </p>
                           <ReviewRow
@@ -2662,8 +2651,8 @@ export default function ProfileEditPage() {
                           />
                         </div>
                         <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            D. Kinh nghiệm (24–31)
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+                            D. Kinh nghiệm (24–32)
                           </p>
                           {filledExperiences.length === 0 ? (
                             <p className="text-sm text-slate-500">Chưa có kinh nghiệm</p>
@@ -2688,6 +2677,11 @@ export default function ProfileEditPage() {
                                     Công việc: {exp.sellingStages.join(', ')}
                                   </p>
                                 )}
+                                {exp.highlights.trim() ? (
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    Thành tích/dự án: {exp.highlights.trim()}
+                                  </p>
+                                ) : null}
                                 {exp.jobDescription.trim() ? (
                                   <p className="mt-1 text-xs text-slate-600">
                                     {exp.jobDescription.trim()}

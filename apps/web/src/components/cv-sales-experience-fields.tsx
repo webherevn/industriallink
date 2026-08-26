@@ -22,7 +22,7 @@ import {
 } from '@industriallink/contracts';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
-import { MoneyInput, MonthYearInput } from '@/components/ui';
+import { MoneyInput, MonthYearRangeFields } from '@/components/ui';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
 
 function suggestProducts(query: string) {
@@ -215,7 +215,7 @@ export function CvSalesExperienceFields({
   return (
     <div className="space-y-4">
       <div className="border-t border-slate-100 pt-5">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-accent-600">
           D. Kinh nghiệm công ty (20–34)
           {hint?.status === 'missing' && (
             <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
@@ -285,45 +285,27 @@ export function CvSalesExperienceFields({
               const parts = periodParts(exp.period);
               return (
                 <div>
-                  <NumberedFieldLabel title="22. Thời gian làm việc" description="Tháng/năm bắt đầu → tháng/năm kết thúc" />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="mb-1 text-[11px] font-medium text-slate-500">Bắt đầu</p>
-                      <MonthYearInput
-                        value={parts.start}
-                        onChange={(v) =>
-                          updateExperience(index, {
-                            period: composePeriod(v, parts.end, parts.current),
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-[11px] font-medium text-slate-500">Kết thúc</p>
-                      <MonthYearInput
-                        value={parts.end}
-                        disabled={parts.current}
-                        onChange={(v) =>
-                          updateExperience(index, {
-                            period: composePeriod(parts.start, v, false),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      className="rounded border-slate-300 text-brand-600"
-                      checked={parts.current}
-                      onChange={(e) =>
-                        updateExperience(index, {
-                          period: composePeriod(parts.start, '', e.target.checked),
-                        })
-                      }
-                    />
-                    Đang làm việc tại đây
-                  </label>
+                  <NumberedFieldLabel title="22. Thời gian làm việc" />
+                  <MonthYearRangeFields
+                    start={parts.start}
+                    end={parts.end}
+                    current={parts.current}
+                    onStartChange={(v) =>
+                      updateExperience(index, {
+                        period: composePeriod(v, parts.end, parts.current),
+                      })
+                    }
+                    onEndChange={(v) =>
+                      updateExperience(index, {
+                        period: composePeriod(parts.start, v, false),
+                      })
+                    }
+                    onCurrentChange={(checked) =>
+                      updateExperience(index, {
+                        period: composePeriod(parts.start, '', checked),
+                      })
+                    }
+                  />
                 </div>
               );
             })()}

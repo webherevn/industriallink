@@ -21,6 +21,8 @@ import {
   normalizeIndustries,
   normalizeIndustry,
   parseEducationDegree,
+  suggestionFillRatio,
+  weightedSuggestionPercent,
   type CandidateView,
   type CareerAdviceView,
   type ConnectionView,
@@ -1170,6 +1172,10 @@ export class CandidateService {
         birthDate: draft.birthDate,
         educationLevel: draft.educationLevel,
         educationSchool: draft.education[0]?.school || null,
+        educationMajor:
+          (draft as { educationMajor?: string | null }).educationMajor ||
+          parseEducationDegree(draft.education[0]?.degree).major ||
+          null,
         hobbies: draft.hobbies,
         certificates: draft.certificates,
         industriesExperienced: draft.industriesExperienced,
@@ -1214,6 +1220,8 @@ export class CandidateService {
       experiences: draft.experience.map((e) => ({
         companyName: e.company,
         jobTitle: e.role,
+        period: e.period,
+        brandsTechnologies: e.brandsTechnologies,
         sellingStages: e.sellingStages,
         productsSold: e.productsSold,
         customerSegments: e.customerSegments,
@@ -1224,6 +1232,7 @@ export class CandidateService {
         dealType: e.dealType,
         typicalDealValue: e.typicalDealValue,
         maxDealValue: e.maxDealValue,
+        highlights: e.bullets,
       })),
     });
 
@@ -1671,6 +1680,7 @@ type ProfileCompletionInput = {
     birthDate?: string | null;
     educationLevel?: string | null;
     educationSchool?: string | null;
+    educationMajor?: string | null;
     hobbies?: string[] | null;
     certificates?: string[] | null;
     industriesExperienced?: string[] | null;
@@ -1727,6 +1737,12 @@ type ProfileCompletionInput = {
     maxDealValue?: number | null;
     companyName?: string | null;
     jobTitle?: string | null;
+    startYear?: number | null;
+    endYear?: number | null;
+    isCurrent?: boolean;
+    period?: string | null;
+    brandsTechnologies?: string[] | null;
+    highlights?: string | null;
   }>;
 };
 
@@ -1740,15 +1756,9 @@ function isFilledValue(value: unknown, weakIfShort = 0): 'filled' | 'weak' | 'mi
   return 'filled';
 }
 
-function scoreStatus(status: 'filled' | 'weak' | 'missing'): number {
-  if (status === 'filled') return 1;
-  if (status === 'weak') return 0.5;
-  return 0;
-}
-
 /**
- * % hoàn thiện hồ sơ theo tiêu chí KD/KT (cùng checklist track-aware với UI CV).
- * filled=1, weak=0.5, missing=0 — trung bình các mục theo jobTrack.
+ * % điểm gợi ý hồ sơ theo ma trận 34 mục (KD/KT).
+ * filled=1, weak=0.5, missing=0 — nhân trọng số AI, chuẩn hoá 100%.
  */
 export function computeProfileCompletion(candidate: ProfileCompletionInput): number {
   const p = candidate.profile;
@@ -1772,6 +1782,10 @@ export function computeProfileCompletion(candidate: ProfileCompletionInput): num
     ...(p?.sellingStages ?? []),
     ...(firstExp?.sellingStages ?? []),
   ];
+  const brands = [
+    ...(p?.brandsTechnologies ?? []),
+    ...(candidate.experiences?.flatMap((e) => e.brandsTechnologies ?? []) ?? []),
+  ];
   const careerOrientations =
     (p?.careerOrientations?.length ?? 0) > 0
       ? p!.careerOrientations!
@@ -1787,72 +1801,69 @@ export function computeProfileCompletion(candidate: ProfileCompletionInput): num
         ? p.driverLicenseType || 'Có'
         : 'Không';
 
-  const checks: Array<{ value: unknown; weakIfShort?: number }> = [
-    { value: p?.currentPosition },
-    { value: candidate.aiProfile?.summary || p?.summary, weakIfShort: 40 },
-    { value: p?.careerObjective, weakIfShort: 20 },
-    { value: p?.phone },
-    { value: p?.currentCity },
-    { value: p?.birthYear ?? p?.birthDate },
-    { value: p?.ward },
-    { value: p?.hobbies ?? [] },
-    { value: candidate.skills.length > 0 ? candidate.skills : [] },
-    {
-      value:
-        (candidate.experiences?.length ?? 0) > 0
-          ? candidate.experiences!.map((e) => e.companyName || e.jobTitle).filter(Boolean)
-          : [],
-    },
-    { value: p?.educationLevel || p?.educationSchool },
-    { value: p?.certificates ?? [] },
-    { value: p?.industriesExperienced ?? [] },
-    { value: productsSold },
-    { value: customerSegments },
-    { value: p?.salesHighlights, weakIfShort: 20 },
-    { value: p?.jobReadiness },
-    { value: p?.availabilityBand },
-    { value: p?.languages ?? [] },
-    { value: p?.travelAbility },
-    { value: licenseValue },
-    { value: p?.expectedSalaryMin ?? p?.expectedOte },
-    { value: p?.desiredPositions ?? [] },
-    { value: p?.desiredLocations ?? [] },
-    { value: p?.careerMotivations ?? [] },
-    { value: careerOrientations },
-    { value: p?.workStyles ?? [] },
+  const periodValue =
+    firstExp?.period ||
+    (firstExp?.startYear != null ? String(firstExp.startYear) : '') ||
+    (firstExp?.isCurrent ? 'Hiện tại' : '');
+
+  const checks: Array<{ key: string; value: unknown; weakIfShort?: number }> = [
+    { key: 'location', value: p?.currentCity },
+    { key: 'desiredPositions', value: p?.desiredPositions ?? [] },
+    { key: 'desiredLocations', value: p?.desiredLocations ?? [] },
+    { key: 'expectedSalary', value: p?.expectedSalaryMin ?? p?.expectedOte },
+    { key: 'availability', value: p?.availabilityBand },
+    { key: 'educationLevel', value: p?.educationLevel },
+    { key: 'education', value: p?.educationSchool },
+    { key: 'educationMajor', value: p?.educationMajor },
+    { key: 'certificates', value: p?.certificates ?? [] },
+    { key: 'languages', value: p?.languages ?? [] },
+    { key: 'driversLicense', value: licenseValue },
+    { key: 'travel', value: p?.travelAbility },
+    { key: 'careerMotivations', value: p?.careerMotivations ?? [] },
+    { key: 'careerOrientations', value: careerOrientations },
+    { key: 'cultureFit', value: p?.workStyles ?? [] },
+    { key: 'experience', value: firstExp?.companyName },
+    { key: 'experienceRole', value: firstExp?.jobTitle },
+    { key: 'experiencePeriod', value: periodValue },
+    { key: 'industries', value: p?.industriesExperienced ?? [] },
+    { key: 'products', value: productsSold },
+    { key: 'segments', value: customerSegments },
   ];
 
   if (isTech) {
     checks.push(
-      { value: p?.jobTrack },
-      { value: p?.brandsTechnologies ?? [] },
-      { value: p?.technicalWorkTypes ?? [] },
-      { value: p?.technicalAutonomyLevel },
-      { value: p?.troubleshootingLevel },
-      { value: p?.technicalTools ?? [] },
-      { value: p?.documentLiteracy ?? [] },
-      { value: p?.systemScaleNote, weakIfShort: 10 },
-      { value: p?.shiftFlexibility },
-      { value: p?.desiredWorkEnvironments ?? [] },
+      { key: 'brands', value: p?.brandsTechnologies ?? [] },
+      { key: 'technicalWorkTypes', value: p?.technicalWorkTypes ?? [] },
+      { key: 'technicalAutonomyLevel', value: p?.technicalAutonomyLevel },
+      { key: 'technicalTools', value: p?.technicalTools ?? [] },
+      { key: 'documentLiteracy', value: p?.documentLiteracy ?? [] },
+      { key: 'shiftFlexibility', value: p?.shiftFlexibility },
+      { key: 'desiredWorkEnvironments', value: p?.desiredWorkEnvironments ?? [] },
+      {
+        key: 'salesHighlights',
+        value: firstExp?.highlights || p?.salesHighlights,
+        weakIfShort: 20,
+      },
     );
   } else {
     checks.push(
-      { value: firstExp?.latestRevenue ?? p?.latestRevenue },
-      { value: firstExp?.kpiAchievementPct ?? p?.kpiAchievementPct },
-      { value: p?.newCustomerRatioPct ?? firstExp?.newCustomerRatioPct },
-      { value: p?.b2bExperienceBand },
-      { value: sellingStages },
-      { value: p?.dealType ?? firstExp?.dealType },
-      { value: p?.typicalDealValue ?? firstExp?.typicalDealValue },
-      { value: p?.maxDealValue ?? firstExp?.maxDealValue },
-      { value: marketsCovered },
-      { value: p?.salesBehavior ?? p?.customerDevStyle },
+      { key: 'salesHighlights', value: p?.salesHighlights, weakIfShort: 20 },
+      { key: 'brands', value: brands },
+      { key: 'dealType', value: p?.dealType ?? firstExp?.dealType },
+      { key: 'sellingStages', value: sellingStages },
+      { key: 'markets', value: marketsCovered },
+      { key: 'revenue', value: firstExp?.latestRevenue ?? p?.latestRevenue },
+      { key: 'kpi', value: firstExp?.kpiAchievementPct ?? p?.kpiAchievementPct },
+      { key: 'newCustomerRatio', value: p?.newCustomerRatioPct ?? firstExp?.newCustomerRatioPct },
+      { key: 'dealValue', value: p?.typicalDealValue ?? firstExp?.typicalDealValue },
     );
   }
 
-  const sum = checks.reduce(
-    (acc, c) => acc + scoreStatus(isFilledValue(c.value, c.weakIfShort ?? 0)),
-    0,
+  return weightedSuggestionPercent(
+    checks.map((c) => ({
+      key: c.key,
+      fill: suggestionFillRatio(isFilledValue(c.value, c.weakIfShort ?? 0)),
+    })),
+    isTech ? 'technical' : 'sales',
   );
-  return Math.round((sum / checks.length) * 100);
 }

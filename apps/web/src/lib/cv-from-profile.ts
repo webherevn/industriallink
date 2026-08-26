@@ -8,7 +8,10 @@ import {
   formatLanguageSkillSummary,
   mergeLanguageSkills,
   normalizeIndustries,
+  parseEducationDegree,
   splitExperienceNarrative,
+  suggestionFillRatio,
+  weightedSuggestionPercent,
 } from '@industriallink/contracts';
 import { toBulletText } from './bullet-text';
 import { filterCareerMotivations } from './career-motivations';
@@ -298,6 +301,27 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
       value: draft.certificates,
       suggestion: 'Thêm chứng chỉ nếu có.',
     },
+    {
+      key: 'educationMajor',
+      label: 'Chuyên ngành',
+      value:
+        draft.educationMajor ||
+        parseEducationDegree(draft.education[0]?.degree).major ||
+        null,
+      suggestion: 'Thêm chuyên ngành đào tạo.',
+    },
+    {
+      key: 'experienceRole',
+      label: 'Vị trí tại công ty',
+      value: firstExp?.role,
+      suggestion: 'Thêm vị trí đã làm tại công ty.',
+    },
+    {
+      key: 'experiencePeriod',
+      label: 'Thời gian làm việc',
+      value: firstExp?.period,
+      suggestion: 'Thêm thời gian làm việc tại công ty.',
+    },
     // A. Năng lực lõi
     {
       key: 'industries',
@@ -386,9 +410,25 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
               : (firstExp?.marketsCovered ?? []),
             suggestion: 'Chọn khu vực/thị trường phụ trách.',
           },
+          {
+            key: 'brands',
+            label: 'Hãng / thương hiệu sản phẩm',
+            value: (firstExp?.brandsTechnologies?.length
+              ? firstExp.brandsTechnologies
+              : draft.brandsTechnologies) ?? [],
+            suggestion: 'Thêm hãng / thương hiệu đã phụ trách.',
+          },
         ]),
     ...(draft.jobTrack === 'technical'
-      ? []
+      ? [
+          {
+            key: 'salesHighlights',
+            label: TRACK_FIELD_LABELS.salesHighlights[JobTrack.Technical],
+            value: draft.salesHighlights || firstExp?.bullets || '',
+            suggestion: 'Thêm thành tích hoặc dự án nổi bật.',
+            weakIfShort: 20,
+          },
+        ]
       : [
           {
             key: 'salesHighlights',
@@ -472,9 +512,12 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
       key: 'careerMotivations',
       label: 'Động lực chọn công việc mới',
       value: draft.careerMotivations,
-      suggestion: 'Chọn đúng 3 yếu tố quan trọng nhất.',
+      suggestion:
+        draft.jobTrack === 'technical'
+          ? 'Chọn tối đa 3 yếu tố quan trọng nhất.'
+          : 'Chọn đúng 3 yếu tố quan trọng nhất.',
     },
-    // D. Kỹ thuật (khi jobTrack = technical) — ma trận 31 mục, không gồm mục cũ ngoài PDF
+    // D. Kỹ thuật (khi jobTrack = technical) — ma trận 32 mục
     ...(draft.jobTrack === 'technical'
       ? [
           {
@@ -531,15 +574,15 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
   });
 }
 
-/** % hoàn thiện theo checklist tiêu chí KD/KT (filled=1, weak=0.5). */
-export function completionPercentFromHints(hints: CvDraftFieldHint[]): number {
-  if (hints.length === 0) return 0;
-  const sum = hints.reduce((acc, h) => {
-    if (h.status === 'filled') return acc + 1;
-    if (h.status === 'weak') return acc + 0.5;
-    return acc;
-  }, 0);
-  return Math.round((sum / hints.length) * 100);
+/** % điểm gợi ý theo ma trận KD/KT (trọng số AI, filled=1 / weak=0.5). */
+export function completionPercentFromHints(
+  hints: CvDraftFieldHint[],
+  track?: 'sales' | 'technical' | string | null,
+): number {
+  return weightedSuggestionPercent(
+    hints.map((h) => ({ key: h.key, fill: suggestionFillRatio(h.status) })),
+    track,
+  );
 }
 
 export function candidateHasCvSource(candidate: CandidateView | undefined): boolean {

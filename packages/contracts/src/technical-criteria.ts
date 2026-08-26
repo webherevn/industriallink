@@ -1,7 +1,7 @@
 /**
- * Tiêu chí hồ sơ Kỹ thuật — ma trận 31 mục (update 18.8).
+ * Tiêu chí hồ sơ Kỹ thuật — ma trận 32 mục.
  * Mục 1–12 dùng chung với Kinh doanh; file này chứa B (13–16 phần riêng),
- * C (17–23) và D (24–31) đặc thù kỹ thuật.
+ * C (17–23) và D (24–32) đặc thù kỹ thuật.
  */
 
 import { DESIRED_POSITIONS } from './sales-b2b-criteria';
@@ -167,7 +167,7 @@ export const TECHNICAL_CAREER_ORIENTATIONS = [
 export const TECHNICAL_ORIENTATION_QUESTION =
   'Trong 2–3 năm tới anh/chị muốn phát triển theo hướng nào? Chọn 1 hướng phù hợp nhất.';
 
-/** STT 22. Động lực khi lựa chọn công việc mới (tham khảo, 0%) — chọn 3. */
+/** STT 22. Động lực khi lựa chọn công việc mới (tham khảo, 0%) — chọn tối đa 3. */
 export const TECHNICAL_CAREER_MOTIVATIONS = [
   'Thu nhập tốt',
   'Công việc ổn định, lâu dài',
@@ -182,7 +182,7 @@ export const TECHNICAL_CAREER_MOTIVATIONS = [
 ] as const;
 
 export const TECHNICAL_MOTIVATION_QUESTION =
-  'Hãy chọn 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
+  'Hãy chọn tối đa 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
 
 /** STT 20. Cách làm việc kỹ thuật (1%) — chọn tối đa 3. */
 export const TECHNICAL_WORK_STYLES = [
@@ -234,17 +234,16 @@ export const TRACK_FIELD_LABELS = {
   },
   salesHighlights: {
     [JobTrack.Sales]: 'Thành tích nổi bật',
-    [JobTrack.Technical]: 'Dự án / thành tích kỹ thuật',
+    [JobTrack.Technical]: 'Thành tích/dự án nổi bật',
   },
 } as const;
 
-/** Câu hỏi tiêu chí #26 — dự án/thành tích nổi bật (kỹ thuật). */
-export const TECHNICAL_HIGHLIGHTS_QUESTION =
-  'Dự án hoặc công việc kỹ thuật nổi bật nhất?';
+/** STT 32. Thành tích/dự án nổi bật (5%) — ô nhập tự do. */
+export const TECHNICAL_HIGHLIGHTS_QUESTION = 'Thành tích/dự án nổi bật';
 
 /**
- * Gợi ý format thực tế: tên → thiết bị → vai trò → quy mô → kết quả (đúng hạn).
- * Map vào field `salesHighlights` khi jobTrack = technical.
+ * Gợi ý format: tên → thiết bị → vai trò → quy mô → kết quả (đúng hạn).
+ * Map vào field `salesHighlights` / `experience.bullets` khi jobTrack = technical.
  */
 export const TECHNICAL_HIGHLIGHTS_HINT =
   'Tên dự án → thiết bị → vai trò → quy mô → kết quả (bao nhiêu dự án đảm bảo đúng thời hạn)';
@@ -267,7 +266,7 @@ function uniquePreserveOrder(items: readonly string[]): string[] {
 /**
  * Danh sách vị trí ứng tuyển theo lĩnh vực (STT 13).
  * Kinh doanh: đúng 5 vị trí theo ma trận 34 mục (update 18.8).
- * Kỹ thuật: đúng 13 vị trí theo ma trận 31 mục (update 18.8), "Khác" tự nhập ở UI.
+ * Kỹ thuật: đúng 13 vị trí theo ma trận 32 mục, "Khác" tự nhập ở UI.
  */
 export function desiredPositionOptionsForTrack(
   track: JobTrack | 'sales' | 'technical' | null | undefined,

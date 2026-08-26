@@ -865,34 +865,33 @@ export function parseEducationDegree(degree: string | null | undefined): {
 }
 
 // ---------------------------------------------------------------------------
-// Trọng số chấm điểm AI — ma trận 34 mục (update 18.8):
-// A. Thông tin cơ bản 7% + B. Mong muốn nghề nghiệp 13%
-// + C. Định hướng & phù hợp 5% + D. Kinh nghiệm công ty 75% = 100%.
-// Map về 18 key hiện có của engine matching (ghi chú STT tương ứng).
+// Trọng số matching JD — gom ma trận 34 mục (điểm gợi ý chi tiết ở
+// ai-suggestion-weights.ts) về 18 key engine. A 2% + B 11% + C 5% + D 5% + E 75%.
 // ---------------------------------------------------------------------------
 
 export const B2B_MATCH_WEIGHTS = {
-  /** D. Kinh nghiệm công ty — cốt lõi 75% (+ nơi sống/địa điểm) */
+  /** E. Kinh nghiệm công ty */
   industry: 0.12, // STT 23 Ngành / lĩnh vực
-  products: 0.18, // STT 24 Sản phẩm/thiết bị (16%) + STT 28 Hãng/thương hiệu (1%) + làm tròn
+  products: 0.18, // STT 24 Sản phẩm/thiết bị (16%) + STT 28 Hãng (1%) + làm tròn
   customerSegments: 0.11, // STT 25 Nhóm khách hàng đã bán
-  achievements: 0.08, // STT 30 Doanh số (3%) + STT 31 KPI (2%) + STT 34 Thành tích (2%)
+  achievements: 0.07, // STT 30 Doanh số (3%) + STT 31 KPI (2%) + STT 34 Thành tích (2%)
   customerDev: 0.02, // STT 32 Tỷ lệ khách hàng tự tìm kiếm
   b2bExperience: 0.1, // STT 21 Vị trí (5%) + STT 22 Thời gian làm việc (5%)
   sellingCapability: 0.08, // STT 27 Phạm vi công việc bán hàng
-  dealProfile: 0.06, // STT 26 Giải pháp sản phẩm (5%) + STT 33 Giá trị hợp đồng (1%)
-  region: 0.06, // STT 29 Khu vực (2%) + STT 14 Địa điểm mong muốn (2%) + STT 5 Nơi sống (2%)
-  /** A/B. Thông tin cơ bản & mong muốn — 8% */
-  readiness: 0.01, // STT 16 Thời gian có thể nhận việc
-  languages: 0.02, // STT 10 Ngoại ngữ
-  travel: 0.01, // STT 12 Khả năng đi công tác
-  driversLicense: 0.01, // STT 11 Giấy phép lái xe
-  expectedIncome: 0.03, // STT 15 Thu nhập tối thiểu & kỳ vọng
-  /** C. Định hướng & phù hợp + vị trí ứng tuyển — 11% */
-  salesStyle: 0.02, // Suy từ STT 32 (Hunter/Farmer) — không hỏi trực tiếp
-  careerMotivation: 0.01, // STT 19 Động lực khi lựa chọn công việc mới
-  cultureFit: 0.02, // STT 18 Phong cách làm việc & môi trường
-  careerOrientation: 0.06, // STT 17 Định hướng (2%) + STT 13 Vị trí ứng tuyển (5% − làm tròn)
+  dealProfile: 0.06, // STT 26 Hình thức bán hàng (5%) + STT 33 Giá trị HĐ (1%)
+  region: 0.06, // STT 29 Khu vực (2%) + STT 7 Địa điểm mong muốn (2%) + STT 5 Nơi sống (2%)
+  /** B. Mong muốn */
+  readiness: 0.01, // STT 9 Thời gian có thể nhận việc
+  expectedIncome: 0.03, // STT 8 Thu nhập tối thiểu & kỳ vọng
+  /** C. Học vấn & điều kiện */
+  languages: 0.02, // STT 14 Ngoại ngữ
+  travel: 0.01, // STT 16 Khả năng đi công tác
+  driversLicense: 0.01, // STT 15 GPLX 0,5% + STT 10/12/13 học vấn 0,5%×3 làm tròn
+  /** D. Định hướng + vị trí ứng tuyển */
+  salesStyle: 0.02, // STT 19 Phong cách làm việc & môi trường
+  careerMotivation: 0.01, // STT 17 Động lực khi lựa chọn công việc mới
+  cultureFit: 0.02, // STT 19 (giữ key matching) — cùng nhóm fit
+  careerOrientation: 0.07, // STT 18 Định hướng (2%) + STT 6 Vị trí ứng tuyển (5%)
 } as const;
 
 export type B2bMatchCriterionKey = keyof typeof B2B_MATCH_WEIGHTS;

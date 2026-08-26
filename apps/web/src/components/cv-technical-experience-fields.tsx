@@ -10,11 +10,13 @@ import {
   TECHNICAL_AUTONOMY_QUESTION,
   TECHNICAL_WORK_TYPES,
   TECHNICAL_WORK_TYPES_QUESTION,
+  TECHNICAL_HIGHLIGHTS_PLACEHOLDER,
+  TECHNICAL_HIGHLIGHTS_QUESTION,
   WORK_ENVIRONMENT_ACTUAL_QUESTION,
   WORK_ENVIRONMENT_OPTIONS,
   type CvDraftFieldHint,
 } from '@industriallink/contracts';
-import { MonthYearInput } from '@/components/ui';
+import { MonthYearRangeFields } from '@/components/ui';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
 
 /** Tách chuỗi "03/2021 – 05/2024" (hoặc "2021 - Hiện tại") → YYYY-MM cho picker. */
@@ -201,8 +203,8 @@ function FieldLabel({
 }
 
 /**
- * D. Kinh nghiệm công ty (24–31) theo ma trận Kỹ thuật 31 mục (update 18.8) —
- * mỗi công ty một khối; công ty thứ 2 trở đi lặp lại 24–31 (mục E của PDF).
+ * D. Kinh nghiệm công ty (24–32) theo ma trận Kỹ thuật —
+ * mỗi công ty một khối; công ty thứ 2 trở đi lặp lại 24–32.
  * Mục 30 (công việc kỹ thuật) và 31 (mức tự chủ) lưu chung ở cấp hồ sơ.
  */
 export function CvTechnicalExperienceFields({
@@ -237,8 +239,8 @@ export function CvTechnicalExperienceFields({
   return (
     <div className="space-y-4">
       <div className="border-t border-slate-100 pt-5">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-          D. Kinh nghiệm công ty (24–31)
+        <h3 className="flex items-center gap-2 text-sm font-bold text-accent-600">
+          D. Kinh nghiệm công ty (24–32)
           {hint?.status === 'missing' && (
             <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
               Thiếu
@@ -246,7 +248,7 @@ export function CvTechnicalExperienceFields({
           )}
         </h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 24–31.
+          Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 24–32.
         </p>
       </div>
 
@@ -299,48 +301,27 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel
-                title="26. Thời gian làm việc"
-                description="Tháng/năm bắt đầu → tháng/năm kết thúc"
+              <FieldLabel title="26. Thời gian làm việc" />
+              <MonthYearRangeFields
+                start={parts.start}
+                end={parts.end}
+                current={parts.current}
+                onStartChange={(v) =>
+                  updateExperience(index, {
+                    period: composePeriod(v, parts.end, parts.current),
+                  })
+                }
+                onEndChange={(v) =>
+                  updateExperience(index, {
+                    period: composePeriod(parts.start, v, false),
+                  })
+                }
+                onCurrentChange={(checked) =>
+                  updateExperience(index, {
+                    period: composePeriod(parts.start, '', checked),
+                  })
+                }
               />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="mb-1 text-[11px] font-medium text-slate-500">Bắt đầu</p>
-                  <MonthYearInput
-                    value={parts.start}
-                    onChange={(v) =>
-                      updateExperience(index, {
-                        period: composePeriod(v, parts.end, parts.current),
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <p className="mb-1 text-[11px] font-medium text-slate-500">Kết thúc</p>
-                  <MonthYearInput
-                    value={parts.end}
-                    disabled={parts.current}
-                    onChange={(v) =>
-                      updateExperience(index, {
-                        period: composePeriod(parts.start, v, false),
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  className="rounded border-slate-300 text-brand-600"
-                  checked={parts.current}
-                  onChange={(e) =>
-                    updateExperience(index, {
-                      period: composePeriod(parts.start, '', e.target.checked),
-                    })
-                  }
-                />
-                Đang làm việc tại đây
-              </label>
             </div>
 
             <div>
@@ -436,6 +417,24 @@ export function CvTechnicalExperienceFields({
                 })}
               </div>
             </div>
+
+            <div>
+              <FieldLabel
+                title="32. Thành tích/dự án nổi bật"
+                description={TECHNICAL_HIGHLIGHTS_QUESTION}
+              />
+              <textarea
+                rows={3}
+                value={exp.bullets}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  updateExperience(index, { bullets: value });
+                  if (index === 0) onChange('salesHighlights', value);
+                }}
+                placeholder={TECHNICAL_HIGHLIGHTS_PLACEHOLDER}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed outline-none ring-brand-500/30 focus:ring-2"
+              />
+            </div>
           </div>
         );
       })}
@@ -445,7 +444,7 @@ export function CvTechnicalExperienceFields({
         onClick={() => onChange('experience', [...draft.experience, emptyCvExperience()])}
         className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
       >
-        + Thêm công ty (lặp lại mục 24–31)
+        + Thêm công ty (lặp lại mục 24–32)
       </button>
     </div>
   );
