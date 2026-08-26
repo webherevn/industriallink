@@ -44,6 +44,8 @@ import { CvPreview } from '@/components/cv-preview';
 import { CvTechnicalFields } from '@/components/cv-technical-fields';
 import { CvTechnicalExperienceFields } from '@/components/cv-technical-experience-fields';
 import { CvTrackToggle } from '@/components/cv-track-toggle';
+import { MatrixSection } from '@/components/matrix-section';
+import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
 import { MY_AVATAR_QUERY_KEY } from '@/components/profile-avatar';
@@ -762,16 +764,10 @@ export default function CreateCvPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-100 pt-4">
-                    <h3 className="text-sm font-bold text-accent-600">
-                      A. Thông tin chung (1–12)
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh — sau đó chọn lĩnh vực bên
-                      dưới.
-                    </p>
-                  </div>
-
+                  <MatrixSection
+                    title="A. Thông tin chung (1–12)"
+                    subtitle="Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh — sau đó chọn lĩnh vực bên dưới."
+                  >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field
                       label="1. Họ và tên"
@@ -781,7 +777,7 @@ export default function CreateCvPage() {
                     />
                     <label className="block">
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        2. Năm sinh
+                        <NumberedTitle text="2. Năm sinh" />
                         <FieldStatusDot hint={liveFields.find((f) => f.key === 'birthYear')} />
                       </span>
                       <YearInput
@@ -807,12 +803,10 @@ export default function CreateCvPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-sm font-semibold text-slate-800">
-                      5. Nơi đang sinh sống
-                    </p>
-                    <p className="mb-2 text-xs text-slate-500">
-                      Địa chỉ hành chính mới từ 01/7/2025
-                    </p>
+                    <NumberedFieldLabel
+                      title="5. Nơi đang sinh sống"
+                      description="Địa chỉ hành chính mới từ 01/7/2025"
+                    />
                     <VnAddressFields
                       ward={activeDraft.ward ?? ''}
                       province={activeDraft.location}
@@ -828,7 +822,7 @@ export default function CreateCvPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block">
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        6. Trình độ học vấn
+                        <NumberedTitle text="6. Trình độ học vấn" />
                         <FieldStatusDot
                           hint={liveFields.find((f) => f.key === 'educationLevel')}
                         />
@@ -904,13 +898,11 @@ export default function CreateCvPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      10. Ngoại ngữ
-                      <FieldStatusDot hint={liveFields.find((f) => f.key === 'languages')} />
-                    </p>
-                    <p className="mb-2 text-[11px] text-slate-500">
-                      Chọn ngôn ngữ sử dụng trong công việc và mức độ sử dụng.
-                    </p>
+                    <NumberedFieldLabel
+                      title="10. Ngoại ngữ"
+                      extra={<FieldStatusDot hint={liveFields.find((f) => f.key === 'languages')} />}
+                      description="Chọn ngôn ngữ sử dụng trong công việc và mức độ sử dụng."
+                    />
                     <LanguageSkillsFields
                       languages={activeDraft.languages}
                       languageSkills={activeDraft.languageSkills ?? []}
@@ -925,13 +917,15 @@ export default function CreateCvPage() {
                   </div>
 
                   <div>
-                    <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      11. Giấy phép lái xe
-                      <FieldStatusDot
-                        hint={liveFields.find((f) => f.key === 'driversLicense')}
-                      />
-                    </p>
-                    <p className="mb-2 text-xs text-slate-500">{DRIVER_LICENSE_QUESTION}</p>
+                    <NumberedFieldLabel
+                      title="11. Giấy phép lái xe"
+                      extra={
+                        <FieldStatusDot
+                          hint={liveFields.find((f) => f.key === 'driversLicense')}
+                        />
+                      }
+                      description={DRIVER_LICENSE_QUESTION}
+                    />
                     <div className="grid gap-2 sm:grid-cols-2">
                       {DRIVER_LICENSE_TYPES.map((opt) => {
                         const selected = parseDriverLicenses(activeDraft.driverLicenseType);
@@ -982,7 +976,7 @@ export default function CreateCvPage() {
 
                   <label className="block">
                     <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      12. Khả năng đi công tác
+                      <NumberedTitle text="12. Khả năng đi công tác" />
                       <FieldStatusDot hint={liveFields.find((f) => f.key === 'travel')} />
                     </span>
                     <p className="mt-0.5 mb-1.5 text-xs text-slate-500">{TRAVEL_ABILITY_QUESTION}</p>
@@ -999,6 +993,7 @@ export default function CreateCvPage() {
                       ))}
                     </select>
                   </label>
+                  </MatrixSection>
 
                   <CvTrackToggle
                     value={activeDraft.jobTrack}
@@ -1019,18 +1014,19 @@ export default function CreateCvPage() {
                     }}
                   />
 
-                  <CvApplyPositionFields
-                    draft={activeDraft}
-                    onChange={updateDraft}
-                    titleHint={liveFields.find((f) => f.key === 'title')}
-                  />
-
                   {activeDraft.jobTrack === 'sales' ? (
                     <>
                       <CvDraftMatrixFields
                         draft={activeDraft}
                         fields={liveFields}
                         onChange={updateDraft}
+                        lead={
+                          <CvApplyPositionFields
+                            draft={activeDraft}
+                            onChange={updateDraft}
+                            titleHint={liveFields.find((f) => f.key === 'title')}
+                          />
+                        }
                       />
 
                       <CvSalesExperienceFields
@@ -1041,7 +1037,17 @@ export default function CreateCvPage() {
                     </>
                   ) : activeDraft.jobTrack === 'technical' ? (
                     <>
-                      <CvTechnicalFields draft={activeDraft} onChange={updateDraft} />
+                      <CvTechnicalFields
+                        draft={activeDraft}
+                        onChange={updateDraft}
+                        lead={
+                          <CvApplyPositionFields
+                            draft={activeDraft}
+                            onChange={updateDraft}
+                            titleHint={liveFields.find((f) => f.key === 'title')}
+                          />
+                        }
+                      />
 
                       <CvTechnicalExperienceFields
                         draft={activeDraft}
@@ -1519,7 +1525,7 @@ function CsvField({
   return (
     <label className="block">
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-        {label}
+        <NumberedTitle text={label} />
         <FieldStatusDot hint={hint} />
       </span>
       <input
@@ -1566,7 +1572,7 @@ function Field({
   return (
     <label className="block">
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-        {label}
+        <NumberedTitle text={label} />
         <FieldStatusDot hint={hint} />
       </span>
       <input

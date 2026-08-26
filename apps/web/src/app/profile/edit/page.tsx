@@ -100,6 +100,8 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import { CollapsibleFormSection } from '@/components/collapsible-form-section';
+import { MatrixSection } from '@/components/matrix-section';
+import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
 import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearRangeFields, Select, Textarea, YearInput } from '@/components/ui';
@@ -1372,22 +1374,17 @@ export default function ProfileEditPage() {
 
             <Card className="space-y-5">
               {step === 1 && (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h2 className="text-lg font-semibold text-accent-600">
-                        A. Thông tin cơ bản (1–12)
-                      </h2>
-                      <p className="mt-0.5 text-sm text-slate-500">
-                        Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh.
-                      </p>
-                    </div>
+                <MatrixSection
+                  title="A. Thông tin cơ bản (1–12)"
+                  subtitle="Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh."
+                  extra={
                     <Link href="/upload">
                       <Button type="button" variant="outline" className="text-brand-700">
                         Có CV? Tải để AI điền
                       </Button>
                     </Link>
-                  </div>
+                  }
+                >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="1. Họ và tên *">
                       <Input
@@ -1419,12 +1416,10 @@ export default function ProfileEditPage() {
                     </Field>
                   </div>
                   <div>
-                    <p className="mb-1 text-sm font-semibold text-slate-800">
-                      5. Nơi đang sinh sống *
-                    </p>
-                    <p className="mb-2 text-xs text-slate-500">
-                      Địa chỉ hành chính mới từ 01/7/2025
-                    </p>
+                    <NumberedFieldLabel
+                      title="5. Nơi đang sinh sống *"
+                      description="Địa chỉ hành chính mới từ 01/7/2025"
+                    />
                     <VnAddressFields
                       ward={form.ward}
                       province={form.currentCity}
@@ -1527,7 +1522,7 @@ export default function ProfileEditPage() {
                     </Select>
                   </Field>
 
-                </>
+                </MatrixSection>
               )}
 
               {step === 2 && (
@@ -1593,10 +1588,10 @@ export default function ProfileEditPage() {
               )}
 
               {step === 3 && (
-                <>
-                  <h2 className="text-lg font-semibold text-accent-600">
-                    B. Mong muốn nghề nghiệp (13–16)
-                  </h2>
+                <MatrixSection
+                  title="B. Mong muốn nghề nghiệp (13–16)"
+                  subtitle="Vị trí, địa điểm, thu nhập và thời gian nhận việc"
+                >
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
                   {(isSales || isTechnical) && (
                     <>
@@ -1680,16 +1675,22 @@ export default function ProfileEditPage() {
                       </Field>
                     </>
                   )}
-                </>
+                </MatrixSection>
               )}
 
               {step === 4 && (
-                <>
-                  <h2 className="text-lg font-semibold text-accent-600">
-                    {isTechnical
+                <MatrixSection
+                  title={
+                    isTechnical
                       ? 'C. Năng lực và định hướng (17–23)'
-                      : 'C. Định hướng & phù hợp (17–19)'}
-                  </h2>
+                      : 'C. Định hướng & phù hợp (17–19)'
+                  }
+                  subtitle={
+                    isTechnical
+                      ? 'Ngoài giờ, công cụ, tài liệu, cách làm việc, định hướng và động lực'
+                      : 'Định hướng nghề nghiệp, phong cách làm việc và động lực'
+                  }
+                >
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
                   {isTechnical && (
                     <>
@@ -1762,12 +1763,10 @@ export default function ProfileEditPage() {
                       </Field>
                       <div className="space-y-3">
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">
-                            21. Định hướng nghề nghiệp
-                          </h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {TECHNICAL_ORIENTATION_QUESTION}
-                          </p>
+                          <NumberedFieldLabel
+                            title="21. Định hướng nghề nghiệp"
+                            description={TECHNICAL_ORIENTATION_QUESTION}
+                          />
                         </div>
                         <RadioList
                           name="technicalCareerOrientation"
@@ -1814,12 +1813,10 @@ export default function ProfileEditPage() {
                       </div>
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">
-                            22. Động lực khi lựa chọn công việc mới
-                          </h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {TECHNICAL_MOTIVATION_QUESTION}
-                          </p>
+                          <NumberedFieldLabel
+                            title="22. Động lực khi lựa chọn công việc mới"
+                            description={TECHNICAL_MOTIVATION_QUESTION}
+                          />
                         </div>
                         <p className="text-xs text-amber-700">
                           {`Tối đa 3 (${filterCareerMotivations(form.careerMotivations, 'technical').length}/3)`}
@@ -1857,12 +1854,10 @@ export default function ProfileEditPage() {
                     <>
                       <div className="space-y-3">
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">
-                            17. Định hướng nghề nghiệp
-                          </h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {CAREER_ORIENTATION_QUESTION}
-                          </p>
+                          <NumberedFieldLabel
+                            title="17. Định hướng nghề nghiệp"
+                            description={CAREER_ORIENTATION_QUESTION}
+                          />
                         </div>
                         <RadioList
                           name="careerOrientation"
@@ -1874,10 +1869,10 @@ export default function ProfileEditPage() {
 
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">
-                            18. {CULTURE_FIT_SECTION_TITLE}
-                          </h3>
-                          <p className="mt-0.5 text-xs text-slate-500">{CULTURE_FIT_SUBTITLE}</p>
+                          <NumberedFieldLabel
+                            title={`18. ${CULTURE_FIT_SECTION_TITLE}`}
+                            description={CULTURE_FIT_SUBTITLE}
+                          />
                         </div>
                         <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                           {CULTURE_FIT_QUESTIONS.map((q, qi) => (
@@ -1918,12 +1913,10 @@ export default function ProfileEditPage() {
 
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">
-                            19. Động lực khi lựa chọn công việc mới
-                          </h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {CAREER_MOTIVATION_QUESTION}
-                          </p>
+                          <NumberedFieldLabel
+                            title="19. Động lực khi lựa chọn công việc mới"
+                            description={CAREER_MOTIVATION_QUESTION}
+                          />
                         </div>
                         <p className="text-xs text-amber-700">
                           {`Tối đa 3 (${filterCareerMotivations(form.careerMotivations, 'sales').length}/3)`}
@@ -1940,23 +1933,22 @@ export default function ProfileEditPage() {
                       </div>
                     </>
                   )}
-                </>
+                </MatrixSection>
               )}
 
               {step === 5 && (
-                <>
-                  <div>
-                    <h2 className="text-lg font-semibold text-accent-600">
-                      {isTechnical
-                        ? 'D. Kinh nghiệm công ty (24–32)'
-                        : 'D. Kinh nghiệm công ty (20–34)'}
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {isTechnical
-                        ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 24–32.'
-                        : 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 20–34.'}
-                    </p>
-                  </div>
+                <MatrixSection
+                  title={
+                    isTechnical
+                      ? 'D. Kinh nghiệm công ty (24–32)'
+                      : 'D. Kinh nghiệm công ty (20–34)'
+                  }
+                  subtitle={
+                    isTechnical
+                      ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 24–32.'
+                      : 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 20–34.'
+                  }
+                >
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
                   {isTechnical && (
                     <>
@@ -2327,8 +2319,8 @@ export default function ProfileEditPage() {
 
                               <CollapsibleFormSection
                                 variant="hot"
-                                title="Nhóm khuyến khích — giúp AI kết nối với NTD (28–34)"
-                                subtitle="Điền thêm để AI ghép đúng tin tuyển dụng hơn"
+                                title="Thông tin bán hàng chuyên sâu - giúp AI kết nối với NTD (28–34)"
+                                subtitle="Giúp A.I đủ 100% dữ liệu kết nối với nhà tuyển dụng."
                               >
                                   <Field
                                     label="28. Hãng / thương hiệu sản phẩm"
@@ -2433,7 +2425,7 @@ export default function ProfileEditPage() {
                       </Button>
                     </>
                   )}
-                </>
+                </MatrixSection>
               )}
 
               {step === 6 && (

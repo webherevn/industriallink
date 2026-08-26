@@ -7,6 +7,7 @@ import {
   TECHNICAL_POSITION_QUESTION,
   desiredPositionOptionsForTrack,
 } from '@industriallink/contracts';
+import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import type { CvDraft } from '@/lib/cv-templates';
 
 type Props = {
@@ -60,17 +61,18 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   return (
     <div className="space-y-3">
       <div>
-        <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-          13. Vị trí ứng tuyển
-          {titleHint?.status === 'filled' ? (
-            <span className="text-[10px] font-medium text-emerald-600">OK</span>
-          ) : titleHint?.status === 'missing' ? (
-            <span className="text-[10px] font-medium text-amber-600">Thiếu</span>
-          ) : null}
-        </p>
-        <p className="mt-0.5 text-xs text-slate-500">
-          {isTechnical ? TECHNICAL_POSITION_QUESTION : DESIRED_POSITION_QUESTION}
-        </p>
+        <NumberedFieldLabel
+          title="13. Vị trí ứng tuyển"
+          description={isTechnical ? TECHNICAL_POSITION_QUESTION : DESIRED_POSITION_QUESTION}
+          extra={
+            titleHint?.status === 'filled' ? (
+              <span className="text-[10px] font-medium text-emerald-600">OK</span>
+            ) : titleHint?.status === 'missing' ? (
+              <span className="text-[10px] font-medium text-amber-600">Thiếu</span>
+            ) : null
+          }
+          className="mb-0"
+        />
         {isTechnical && (
           <p className="mt-1 text-[11px] text-amber-700">
             {`Tối đa 3 (${draft.desiredPositions.length}/3)`}

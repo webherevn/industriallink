@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   AVAILABILITY_BAND_LABEL,
   AVAILABILITY_QUESTION,
@@ -24,8 +24,9 @@ import {
   WORK_ENVIRONMENT_DESIRED_QUESTION,
   WORK_ENVIRONMENT_OPTIONS,
 } from '@industriallink/contracts';
+import { MatrixSection } from '@/components/matrix-section';
+import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { MoneyInput } from '@/components/ui';
-import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { filterCareerMotivations } from '@/lib/career-motivations';
 import type { CvDraft } from '@/lib/cv-templates';
 
@@ -158,15 +159,6 @@ function MultiCheckWithCustom({
   );
 }
 
-function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="border-t border-slate-100 pt-5">
-      <h3 className="text-sm font-bold text-accent-600">{title}</h3>
-      {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
-    </div>
-  );
-}
-
 function RadioList({
   name,
   options,
@@ -211,27 +203,29 @@ function RadioList({
 
 /**
  * Khối B/C theo ma trận Kỹ thuật 32 mục — hiện khi chọn hướng Kỹ thuật.
- * B. Mong muốn nghề nghiệp (14–16; STT 13 nằm ở khối vị trí ứng tuyển phía trên)
+ * B. Mong muốn nghề nghiệp (13–16; STT 13 truyền vào qua `lead`)
  * C. Năng lực và định hướng (17–23)
  * D. Kinh nghiệm công ty (24–32) nằm ở khối CvTechnicalExperienceFields phía sau.
  */
 export function CvTechnicalFields({
   draft,
   onChange,
+  lead,
 }: {
   draft: CvDraft;
   onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
+  lead?: ReactNode;
 }) {
   const orientation = draft.careerOrientations[0] ?? '';
   const selectedMotivations = filterCareerMotivations(draft.careerMotivations, 'technical');
 
   return (
     <div className="space-y-5">
-      <SectionTitle
-        title="B. Mong muốn nghề nghiệp (14–16)"
-        subtitle="Địa điểm, thu nhập và thời gian nhận việc"
-      />
-
+      <MatrixSection
+        title="B. Mong muốn nghề nghiệp (13–16)"
+        subtitle="Vị trí, địa điểm, thu nhập và thời gian nhận việc"
+      >
+      {lead}
       <div>
         <NumberedFieldLabel
           title="14. Địa điểm mong muốn làm việc"
@@ -248,7 +242,7 @@ export function CvTechnicalFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-sm font-semibold text-slate-800">
-            15. Thu nhập tối thiểu có thể nhận (VND)
+            <NumberedTitle text="15. Thu nhập tối thiểu có thể nhận (VND)" />
           </span>
           <div className="mt-1.5">
             <MoneyInput
@@ -261,7 +255,7 @@ export function CvTechnicalFields({
         </label>
         <label className="block">
           <span className="text-sm font-semibold text-slate-800">
-            15. Thu nhập kỳ vọng/tháng (VND)
+            <NumberedTitle text="15. Thu nhập kỳ vọng/tháng (VND)" />
           </span>
           <div className="mt-1.5">
             <MoneyInput
@@ -291,12 +285,12 @@ export function CvTechnicalFields({
           ))}
         </select>
       </label>
+      </MatrixSection>
 
-      <SectionTitle
+      <MatrixSection
         title="C. Năng lực và định hướng (17–23)"
         subtitle="Ngoài giờ, phần mềm, tài liệu, cách làm việc, định hướng, động lực, môi trường"
-      />
-
+      >
       <div>
         <NumberedFieldLabel
           title="17. Khả năng làm ngoài giờ"
@@ -427,6 +421,7 @@ export function CvTechnicalFields({
           max={3}
         />
       </div>
+      </MatrixSection>
     </div>
   );
 }

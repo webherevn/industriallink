@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { NumberedTitle } from '@/components/numbered-field-label';
 
 export function Button({
   className,
@@ -500,7 +501,9 @@ export function Field({
 }) {
   return (
     <div className={clsx('block space-y-1.5', className)}>
-      <span className="block text-sm font-semibold text-slate-800">{label}</span>
+      <span className="block text-sm font-semibold text-slate-800">
+        <NumberedTitle text={label} />
+      </span>
       {description ? (
         <span className="block text-xs font-normal text-slate-500">{description}</span>
       ) : null}

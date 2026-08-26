@@ -54,11 +54,7 @@ export function VnAddressFields({
           <p className="mt-1 text-[11px] text-amber-700">
             Giá trị cũ: “{province}”. Nên chọn lại theo danh mục 34 tỉnh/thành mới.
           </p>
-        ) : (
-          <p className="mt-1 text-[11px] text-slate-400">
-            Theo đơn vị hành chính từ 01/7/2025 — không còn cấp huyện.
-          </p>
-        )}
+        ) : null}
       </label>
     </div>
   );

@@ -18,6 +18,8 @@ import {
 } from '@industriallink/contracts';
 import { MonthYearRangeFields } from '@/components/ui';
 import { CollapsibleFormSection } from '@/components/collapsible-form-section';
+import { MatrixSection } from '@/components/matrix-section';
+import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
 
 /** Tách chuỗi "03/2021 – 05/2024" (hoặc "2021 - Hiện tại") → YYYY-MM cho picker. */
@@ -195,12 +197,7 @@ function FieldLabel({
   title: string;
   description?: string;
 }) {
-  return (
-    <div className="mb-2">
-      <p className="text-sm font-semibold text-slate-800">{title}</p>
-      {description ? <p className="mt-0.5 text-xs text-slate-500">{description}</p> : null}
-    </div>
-  );
+  return <NumberedFieldLabel title={title} description={description} />;
 }
 
 /**
@@ -248,21 +245,17 @@ export function CvTechnicalExperienceFields({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="border-t border-slate-100 pt-5">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-accent-600">
-          D. Kinh nghiệm công ty (24–32)
-          {hint?.status === 'missing' && (
-            <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
-              Thiếu
-            </span>
-          )}
-        </h3>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 24–32.
-        </p>
-      </div>
-
+    <MatrixSection
+      title="D. Kinh nghiệm công ty (24–32)"
+      subtitle="Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 24–32."
+      extra={
+        hint?.status === 'missing' ? (
+          <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
+            Thiếu
+          </span>
+        ) : null
+      }
+    >
       {experiences.map((exp, index) => {
         const parts = periodParts(exp.period);
         const companyTitle = exp.company.trim()
@@ -304,7 +297,9 @@ export function CvTechnicalExperienceFields({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-sm font-semibold text-slate-800">24. Tên công ty</span>
+                <span className="text-sm font-semibold text-slate-800">
+                  <NumberedTitle text="24. Tên công ty" />
+                </span>
                 <input
                   value={exp.company}
                   onChange={(e) => updateExperience(index, { company: e.target.value })}
@@ -313,7 +308,9 @@ export function CvTechnicalExperienceFields({
                 />
               </label>
               <label className="block">
-                <span className="text-sm font-semibold text-slate-800">25. Vị trí</span>
+                <span className="text-sm font-semibold text-slate-800">
+                  <NumberedTitle text="25. Vị trí" />
+                </span>
                 <input
                   value={exp.role}
                   onChange={(e) => updateExperience(index, { role: e.target.value })}
@@ -473,6 +470,6 @@ export function CvTechnicalExperienceFields({
       >
         + Thêm công ty (lặp lại mục 24–32)
       </button>
-    </div>
+    </MatrixSection>
   );
 }

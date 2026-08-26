@@ -3,6 +3,7 @@
 import clsx from 'clsx';
 import { ChevronDown, Flame } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { NumberedTitle } from '@/components/numbered-field-label';
 
 export function CollapsibleFormSection({
   title,
@@ -76,15 +77,31 @@ export function CollapsibleFormSection({
                 hot ? 'text-amber-950' : 'text-slate-800',
               )}
             >
-              {title}
+              {typeof title === 'string' ? (
+                <NumberedTitle
+                  text={title}
+                  mutedClassName={
+                    hot
+                      ? 'font-medium tabular-nums text-amber-800/45'
+                      : undefined
+                  }
+                />
+              ) : (
+                title
+              )}
               {hot ? (
-                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm">
+                <span className="hot-badge-pulse inline-flex items-center rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm">
                   Hot
                 </span>
               ) : null}
             </span>
             {subtitle ? (
-              <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">
+              <span
+                className={clsx(
+                  'mt-0.5 block text-xs font-medium',
+                  hot ? 'leading-snug text-amber-900/70' : 'truncate text-slate-500',
+                )}
+              >
                 {subtitle}
               </span>
             ) : null}

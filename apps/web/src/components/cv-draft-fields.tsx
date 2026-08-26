@@ -19,8 +19,10 @@ import {
   type CultureFitQuestionId,
   type CvDraftFieldHint,
 } from '@industriallink/contracts';
+import type { ReactNode } from 'react';
+import { MatrixSection } from '@/components/matrix-section';
+import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { MoneyInput } from '@/components/ui';
-import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { filterCareerMotivations } from '@/lib/career-motivations';
 import type { CvDraft } from '@/lib/cv-templates';
 
@@ -79,37 +81,6 @@ function MultiCheck({
   );
 }
 
-function SectionTitle({
-  title,
-  subtitle,
-  hint,
-}: {
-  title: string;
-  subtitle?: string;
-  hint?: CvDraftFieldHint;
-}) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-2 border-t border-slate-100 pt-5">
-      <div>
-        <h3 className="text-sm font-bold text-accent-600">{title}</h3>
-        {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
-      </div>
-      {hint ? (
-        <span
-          className={clsx(
-            'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase',
-            hint.status === 'filled' && 'bg-emerald-50 text-emerald-700',
-            hint.status === 'weak' && 'bg-amber-50 text-amber-700',
-            hint.status === 'missing' && 'bg-rose-50 text-rose-600',
-          )}
-        >
-          {hint.status === 'filled' ? 'OK' : hint.status === 'weak' ? 'Yếu' : 'Thiếu'}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 function SelectField({
   label,
   description,
@@ -146,7 +117,7 @@ function SelectField({
 
 /**
  * Khối B/C theo ma trận 34 mục — chỉ hiện khi đã chọn hướng Kinh doanh.
- * B. Mong muốn nghề nghiệp (14–16; STT 13 nằm ở khối vị trí ứng tuyển phía trên)
+ * B. Mong muốn nghề nghiệp (13–16; STT 13 truyền vào qua `lead`)
  * C. Định hướng & phù hợp (17–19)
  * D. Kinh nghiệm công ty (20–34) nằm ở khối CvSalesExperienceFields phía sau.
  */
@@ -154,10 +125,12 @@ export function CvDraftMatrixFields({
   draft,
   fields,
   onChange,
+  lead,
 }: {
   draft: CvDraft;
   fields: CvDraftFieldHint[];
   onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
+  lead?: ReactNode;
 }) {
   const cultureFit = workStylesToCultureFitAnswers(draft.workStyles);
 
@@ -175,11 +148,11 @@ export function CvDraftMatrixFields({
 
   return (
     <div className="space-y-5">
-      <SectionTitle
-        title="B. Mong muốn nghề nghiệp (14–16)"
-        subtitle="Địa điểm, thu nhập và thời gian nhận việc"
-      />
-
+      <MatrixSection
+        title="B. Mong muốn nghề nghiệp (13–16)"
+        subtitle="Vị trí, địa điểm, thu nhập và thời gian nhận việc"
+      >
+      {lead}
       <div>
         <NumberedFieldLabel
           title="14. Địa điểm mong muốn làm việc"
@@ -196,7 +169,7 @@ export function CvDraftMatrixFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-sm font-semibold text-slate-800">
-            15. Thu nhập tối thiểu có thể nhận (VND)
+            <NumberedTitle text="15. Thu nhập tối thiểu có thể nhận (VND)" />
           </span>
           <div className="mt-1.5">
             <MoneyInput
@@ -209,7 +182,7 @@ export function CvDraftMatrixFields({
         </label>
         <label className="block">
           <span className="text-sm font-semibold text-slate-800">
-            15. Thu nhập kỳ vọng/tháng (VND)
+            <NumberedTitle text="15. Thu nhập kỳ vọng/tháng (VND)" />
           </span>
           <div className="mt-1.5">
             <MoneyInput
@@ -233,11 +206,12 @@ export function CvDraftMatrixFields({
           label: AVAILABILITY_BAND_LABEL[v],
         }))}
       />
+      </MatrixSection>
 
-      <SectionTitle
+      <MatrixSection
         title="C. Định hướng & phù hợp (17–19)"
         subtitle="Định hướng nghề nghiệp, phong cách làm việc và động lực"
-      />
+      >
 
       <div>
         <NumberedFieldLabel
@@ -280,7 +254,7 @@ export function CvDraftMatrixFields({
           {CULTURE_FIT_QUESTIONS.map((q, qi) => (
             <div key={q.id}>
               <p className="mb-2 text-sm font-semibold text-slate-800">
-                {qi + 1}. {q.question}
+                <NumberedTitle text={`${qi + 1}. ${q.question}`} />
               </p>
               <div className="grid gap-2">
                 {q.options.map((opt, i) => {
@@ -341,7 +315,7 @@ export function CvDraftMatrixFields({
           columns={2}
         />
       </div>
-
+      </MatrixSection>
     </div>
   );
 }
