@@ -609,7 +609,11 @@ export function joinDriverLicenses(values: string[]): string | null {
 }
 
 /** STT 15. Thu nhập tối thiểu có thể chấp nhận & thu nhập kỳ vọng (3%). */
+export const EXPECTED_INCOME_TITLE =
+  'Thu nhập tối thiểu có thể chấp nhận & Thu nhập kỳ vọng';
 export const EXPECTED_INCOME_QUESTION = 'Mức thu nhập mong muốn?';
+export const EXPECTED_INCOME_MIN_LABEL = 'Thu nhập tối thiểu có thể nhận (VND)';
+export const EXPECTED_INCOME_OTE_LABEL = 'Thu nhập kỳ vọng/tháng (VND)';
 
 // ---------------------------------------------------------------------------
 // C. MỨC ĐỘ PHÙ HỢP (13%)

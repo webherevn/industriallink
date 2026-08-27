@@ -31,7 +31,10 @@ import {
   DRIVER_LICENSE_QUESTION,
   DRIVER_LICENSE_TYPES,
   EDUCATION_LEVELS,
+  EXPECTED_INCOME_MIN_LABEL,
+  EXPECTED_INCOME_OTE_LABEL,
   EXPECTED_INCOME_QUESTION,
+  EXPECTED_INCOME_TITLE,
   JOB_TRACK_LABEL,
   JobTrack,
   KPI_ACHIEVEMENT_BANDS,
@@ -1649,26 +1652,31 @@ export default function ProfileEditPage() {
                         />
                       </Field>
                       <Field
-                        label="15. Thu nhập *"
+                        label={`15. ${EXPECTED_INCOME_TITLE} *`}
                         description={EXPECTED_INCOME_QUESTION}
                       >
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <MoneyInput
-                            value={form.expectedSalaryMin}
-                            onChange={(v) => patch('expectedSalaryMin', v)}
-                            placeholder="Thu nhập tối thiểu có thể nhận"
-                            hint={moneyHint(form.expectedSalaryMin)}
-                          />
-                          <MoneyInput
-                            value={form.expectedOte}
-                            onChange={(v) => patch('expectedOte', v)}
-                            placeholder="Thu nhập kỳ vọng/tháng"
-                            hint={moneyHint(form.expectedOte)}
-                          />
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-medium text-slate-600">
+                              {EXPECTED_INCOME_MIN_LABEL}
+                            </span>
+                            <MoneyInput
+                              value={form.expectedSalaryMin}
+                              onChange={(v) => patch('expectedSalaryMin', v)}
+                              hint={moneyHint(form.expectedSalaryMin)}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-medium text-slate-600">
+                              {EXPECTED_INCOME_OTE_LABEL}
+                            </span>
+                            <MoneyInput
+                              value={form.expectedOte}
+                              onChange={(v) => patch('expectedOte', v)}
+                              hint={moneyHint(form.expectedOte)}
+                            />
+                          </label>
                         </div>
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          Thu nhập tối thiểu có thể nhận + thu nhập kỳ vọng/tháng (VND).
-                        </p>
                       </Field>
                       <Field
                         label="16. Thời gian có thể nhận việc *"

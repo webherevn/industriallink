@@ -13,7 +13,10 @@ import {
   CULTURE_FIT_SECTION_TITLE,
   CULTURE_FIT_SUBTITLE,
   DESIRED_LOCATION_OPTIONS,
+  EXPECTED_INCOME_MIN_LABEL,
+  EXPECTED_INCOME_OTE_LABEL,
   EXPECTED_INCOME_QUESTION,
+  EXPECTED_INCOME_TITLE,
   cultureFitAnswersToWorkStyles,
   workStylesToCultureFitAnswers,
   type CultureFitQuestionId,
@@ -166,35 +169,36 @@ export function CvDraftMatrixFields({
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-800">
-            <NumberedTitle text="15. Thu nhập tối thiểu có thể nhận (VND)" />
-          </span>
-          <div className="mt-1.5">
-            <MoneyInput
-              value={draft.expectedSalaryMin != null ? String(draft.expectedSalaryMin) : ''}
-              onChange={(digits) =>
-                onChange('expectedSalaryMin', digits ? Number(digits) : null)
-              }
-            />
-          </div>
-        </label>
-        <label className="block">
-          <span className="text-sm font-semibold text-slate-800">
-            <NumberedTitle text="Thu nhập kỳ vọng/tháng (VND)" />
-          </span>
-          <div className="mt-1.5">
-            <MoneyInput
-              value={draft.expectedOte != null ? String(draft.expectedOte) : ''}
-              onChange={(digits) =>
-                onChange('expectedOte', digits ? Number(digits) : null)
-              }
-            />
-          </div>
-        </label>
+      <div>
+        <NumberedFieldLabel
+          title={`15. ${EXPECTED_INCOME_TITLE}`}
+          description={EXPECTED_INCOME_QUESTION}
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-slate-600">{EXPECTED_INCOME_MIN_LABEL}</span>
+            <div className="mt-1.5">
+              <MoneyInput
+                value={draft.expectedSalaryMin != null ? String(draft.expectedSalaryMin) : ''}
+                onChange={(digits) =>
+                  onChange('expectedSalaryMin', digits ? Number(digits) : null)
+                }
+              />
+            </div>
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-slate-600">{EXPECTED_INCOME_OTE_LABEL}</span>
+            <div className="mt-1.5">
+              <MoneyInput
+                value={draft.expectedOte != null ? String(draft.expectedOte) : ''}
+                onChange={(digits) =>
+                  onChange('expectedOte', digits ? Number(digits) : null)
+                }
+              />
+            </div>
+          </label>
+        </div>
       </div>
-      <p className="-mt-3 text-[11px] text-slate-400">{EXPECTED_INCOME_QUESTION}</p>
 
       <SelectField
         label="16. Thời gian có thể nhận việc"
