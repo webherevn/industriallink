@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Calendar } from 'lucide-react';
+import { Calendar, ChevronDown } from 'lucide-react';
 import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -52,6 +52,9 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 
 const inputClassName =
   'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
+const selectClassName =
+  'h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-8 text-sm leading-normal outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 /** ISO YYYY-MM-DD → hiển thị DD/MM/YYYY. */
 export function isoToDisplayDate(iso: string): string {
@@ -375,34 +378,40 @@ export function MonthYearInput({
 
   return (
     <div className={clsx('grid grid-cols-2 gap-2', className)}>
-      <select
-        disabled={disabled}
-        aria-label="Tháng"
-        className={inputClassName}
-        value={month}
-        onChange={(e) => emit(year, e.target.value)}
-      >
-        <option value="">Tháng</option>
-        {MONTH_OPTIONS.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
-      <select
-        disabled={disabled}
-        aria-label="Năm"
-        className={inputClassName}
-        value={year}
-        onChange={(e) => emit(e.target.value, month)}
-      >
-        <option value="">Năm</option>
-        {YEAR_OPTIONS.map((y) => (
-          <option key={y} value={String(y)}>
-            {y}
-          </option>
-        ))}
-      </select>
+      <div className="relative min-w-0">
+        <select
+          disabled={disabled}
+          aria-label="Tháng"
+          className={selectClassName}
+          value={month}
+          onChange={(e) => emit(year, e.target.value)}
+        >
+          <option value="">Tháng</option>
+          {MONTH_OPTIONS.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+      </div>
+      <div className="relative min-w-0">
+        <select
+          disabled={disabled}
+          aria-label="Năm"
+          className={selectClassName}
+          value={year}
+          onChange={(e) => emit(e.target.value, month)}
+        >
+          <option value="">Năm</option>
+          {YEAR_OPTIONS.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+      </div>
     </div>
   );
 }

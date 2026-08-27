@@ -678,12 +678,14 @@ function MultiCheck({
   onChange,
   max,
   columns = 2,
+  compact = true,
 }: {
   options: readonly string[];
   selected: string[];
   onChange: (next: string[]) => void;
   max?: number;
   columns?: 1 | 2 | 3;
+  compact?: boolean;
 }) {
   return (
     <div
@@ -701,7 +703,10 @@ function MultiCheck({
           <label
             key={opt}
             className={clsx(
-              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+              'flex cursor-pointer rounded-lg border transition',
+              compact
+                ? 'items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[12px] leading-tight'
+                : 'items-start gap-2 px-3 py-2 text-sm',
               checked
                 ? 'border-brand-300 bg-brand-50 text-brand-900'
                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
@@ -710,12 +715,15 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              className={clsx(
+                'shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500',
+                compact ? 'h-3.5 w-3.5' : 'mt-0.5 h-4 w-4',
+              )}
               checked={checked}
               disabled={disabled}
               onChange={() => onChange(toggleInList(selected, opt, max))}
             />
-            <span>{opt}</span>
+            <span className={compact ? 'min-w-0' : undefined}>{opt}</span>
           </label>
         );
       })}
@@ -1377,7 +1385,7 @@ export default function ProfileEditPage() {
               </div>
             )}
 
-            <Card className="space-y-5">
+            <Card className="cv-create-form space-y-5">
               {step === 1 && (
                 <MatrixSection
                   title="A. Thông tin cơ bản (1–12)"
@@ -1964,6 +1972,7 @@ export default function ProfileEditPage() {
                           return (
                             <CollapsibleFormSection
                               key={exp.id ?? index}
+                              variant="company"
                               title={`Kinh nghiệm công ty ${index + 1}`}
                               subtitle={
                                 exp.companyName.trim()
@@ -1982,7 +1991,7 @@ export default function ProfileEditPage() {
                               }
                               open={expandedExp.has(index)}
                               onOpenChange={(open) => toggleExp(index, open)}
-                              className={highlight ? 'border-amber-300' : undefined}
+                              className={highlight ? 'ring-2 ring-amber-400/70' : undefined}
                               actions={
                                 form.experiences.length > 1 ? (
                                   <Button
@@ -2046,6 +2055,7 @@ export default function ProfileEditPage() {
                                   selected={exp.industries}
                                   onChange={(v) => patchExperience(index, { industries: v })}
                                   columns={2}
+                                  compact
                                 />
                               </Field>
 
@@ -2146,6 +2156,7 @@ export default function ProfileEditPage() {
                           return (
                             <CollapsibleFormSection
                               key={exp.id ?? `sales-${index}`}
+                              variant="company"
                               title={`Kinh nghiệm công ty ${index + 1}`}
                               subtitle={
                                 exp.companyName.trim()
@@ -2164,7 +2175,7 @@ export default function ProfileEditPage() {
                               }
                               open={expandedExp.has(index)}
                               onOpenChange={(open) => toggleExp(index, open)}
-                              className={highlight ? 'border-amber-300' : undefined}
+                              className={highlight ? 'ring-2 ring-amber-400/70' : undefined}
                               actions={
                                 form.experiences.length > 1 ? (
                                   <Button
@@ -2227,6 +2238,7 @@ export default function ProfileEditPage() {
                                   selected={exp.industries}
                                   onChange={(v) => patchExperience(index, { industries: v })}
                                   columns={2}
+                                  compact
                                 />
                               </Field>
 

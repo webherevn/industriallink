@@ -632,7 +632,7 @@ export default function CreateCvPage() {
               </div>
 
               {analyzed && (
-                <div ref={fieldsCardRef} className="progress-card space-y-4 p-5">
+                <div ref={fieldsCardRef} className="progress-card cv-create-form space-y-4 p-5">
                   {criteriaHints.length > 0 && (
                     <div className="xl:hidden">
                       <CriteriaCompletionCard

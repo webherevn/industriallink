@@ -25,7 +25,7 @@ export function CollapsibleFormSection({
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  variant?: 'default' | 'hot';
+  variant?: 'default' | 'hot' | 'company';
   className?: string;
 }) {
   const [internal, setInternal] = useState(defaultOpen);
@@ -39,21 +39,28 @@ export function CollapsibleFormSection({
   }
 
   const hot = variant === 'hot';
+  const company = variant === 'company';
 
   return (
     <div
       className={clsx(
-        'overflow-hidden rounded-xl border',
-        hot
-          ? 'border-amber-400 bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 shadow-[0_0_0_1px_rgba(245,158,11,0.35)]'
-          : 'border-slate-200 bg-slate-50/50',
+        'overflow-hidden rounded-xl',
+        company
+          ? 'exp-company-card'
+          : hot
+            ? 'border border-amber-400 bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 shadow-[0_0_0_1px_rgba(245,158,11,0.35)]'
+            : 'border border-slate-200 bg-slate-50/50',
         className,
       )}
     >
       <div
         className={clsx(
           'flex items-start gap-1',
-          hot ? 'bg-gradient-to-r from-amber-400/25 via-orange-300/20 to-amber-400/15' : 'bg-white/80',
+          company
+            ? 'bg-gradient-to-r from-[#3d5466]/[0.07] via-white to-[#f2b01f]/[0.12]'
+            : hot
+              ? 'bg-gradient-to-r from-amber-400/25 via-orange-300/20 to-amber-400/15'
+              : 'bg-white/80',
         )}
       >
         <button
@@ -68,19 +75,25 @@ export function CollapsibleFormSection({
           <span className="min-w-0 flex-1">
             <span
               className={clsx(
-                'flex flex-wrap items-center gap-2 text-sm font-bold leading-snug',
-                hot ? 'text-amber-950' : 'text-slate-800',
+                'flex flex-wrap items-center gap-2 leading-snug',
+                company
+                  ? 'text-[15px] font-extrabold'
+                  : hot
+                    ? 'text-sm font-bold text-amber-950'
+                    : 'text-sm font-bold text-slate-800',
               )}
             >
               {typeof title === 'string' ? (
-                <NumberedTitle
-                  text={title}
-                  mutedClassName={
-                    hot
-                      ? 'font-medium tabular-nums text-amber-800/45'
-                      : undefined
-                  }
-                />
+                <span className={company ? 'exp-company-title' : undefined}>
+                  <NumberedTitle
+                    text={title}
+                    mutedClassName={
+                      hot
+                        ? 'font-medium tabular-nums text-amber-800/45'
+                        : undefined
+                    }
+                  />
+                </span>
               ) : (
                 title
               )}
@@ -106,7 +119,7 @@ export function CollapsibleFormSection({
             className={clsx(
               'h-4 w-4 shrink-0 transition-transform duration-200',
               isOpen && 'rotate-180',
-              hot ? 'text-amber-800' : 'text-slate-400',
+              company ? 'text-[#c98912]' : hot ? 'text-amber-800' : 'text-slate-400',
             )}
           />
         </button>
@@ -116,7 +129,11 @@ export function CollapsibleFormSection({
         <div
           className={clsx(
             'space-y-4 border-t px-3.5 py-4 sm:px-4',
-            hot ? 'border-amber-200 bg-white/90' : 'border-slate-100 bg-slate-50/40',
+            company
+              ? 'border-[#f2b01f]/25 bg-white'
+              : hot
+                ? 'border-amber-200 bg-white/90'
+                : 'border-slate-100 bg-slate-50/40',
           )}
         >
           {children}

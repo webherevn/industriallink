@@ -58,11 +58,13 @@ function MultiCheck({
   selected,
   onChange,
   columns = 2,
+  compact = true,
 }: {
   options: readonly string[];
   selected: string[];
   onChange: (next: string[]) => void;
   columns?: 1 | 2 | 3;
+  compact?: boolean;
 }) {
   return (
     <div
@@ -79,7 +81,10 @@ function MultiCheck({
           <label
             key={opt}
             className={clsx(
-              'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition',
+              'flex cursor-pointer rounded-lg border transition',
+              compact
+                ? 'items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[12px] leading-tight'
+                : 'items-start gap-2 px-3 py-2 text-sm',
               checked
                 ? 'border-brand-300 bg-brand-50 text-brand-900'
                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
@@ -87,14 +92,17 @@ function MultiCheck({
           >
             <input
               type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              className={clsx(
+                'shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500',
+                compact ? 'h-3.5 w-3.5' : 'mt-0.5 h-4 w-4',
+              )}
               checked={checked}
               onChange={() => {
                 if (checked) onChange(selected.filter((s) => s !== opt));
                 else onChange([...selected, opt]);
               }}
             />
-            <span>{opt}</span>
+            <span className={compact ? 'min-w-0' : undefined}>{opt}</span>
           </label>
         );
       })}
@@ -264,6 +272,7 @@ export function CvTechnicalExperienceFields({
         return (
           <CollapsibleFormSection
             key={`exp-${index}`}
+            variant="company"
             title={`Kinh nghiệm công ty ${index + 1}`}
             subtitle={companyTitle}
             open={expandedExp.has(index)}
@@ -354,6 +363,7 @@ export function CvTechnicalExperienceFields({
                 selected={exp.industries}
                 onChange={(v) => updateExperience(index, { industries: v })}
                 columns={2}
+                compact
               />
             </div>
 
