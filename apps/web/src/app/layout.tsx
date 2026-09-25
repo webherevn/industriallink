@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { CmsCodeInjector } from '@/components/cms-code-injector';
 import { Providers } from '@/components/providers';
+import { fetchPublicCmsSiteCode } from '@/lib/public-cms-api';
 import './globals.css';
 
 const inter = Inter({
@@ -21,12 +23,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const siteCode = await fetchPublicCmsSiteCode();
+  const headerHtml =
+    siteCode?.headerEnabled && siteCode.headerCode?.trim()
+      ? siteCode.headerCode
+      : null;
+  const footerHtml =
+    siteCode?.footerEnabled && siteCode.footerCode?.trim()
+      ? siteCode.footerCode
+      : null;
+
   return (
     <html lang="vi" className={inter.variable}>
       {/* suppressHydrationWarning: extension trình duyệt có thể chèn style/attr vào body trước khi React hydrate */}
       <body className="font-sans antialiased" suppressHydrationWarning>
+        {headerHtml ? <CmsCodeInjector html={headerHtml} target="head" /> : null}
         <Providers>{children}</Providers>
+        {footerHtml ? <CmsCodeInjector html={footerHtml} target="body" /> : null}
       </body>
     </html>
   );

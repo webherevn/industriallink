@@ -832,10 +832,22 @@ model CmsCategory {
   slug          String  @unique
   description   String?
   sortOrder     Int     @default(0) @map("sort_order")
+  /// Ảnh đại diện chuyên mục (avatar / thumbnail)
+  avatarUrl     String? @map("avatar_url")
   seoTitle      String? @map("seo_title")
   seoDescription String? @map("seo_description")
+  focusKeyword  String? @map("focus_keyword")
+  canonicalPath String? @map("canonical_path")
+  ogTitle       String? @map("og_title")
+  ogDescription String? @map("og_description")
   ogImageUrl    String? @map("og_image_url")
+  robotsIndex   Boolean @default(true) @map("robots_index")
+  robotsFollow  Boolean @default(true) @map("robots_follow")
+  robotsMaxImagePreview Boolean @default(true) @map("robots_max_image_preview")
+  /// Legacy combined robots string (đồng bộ từ robotsIndex/Follow)
   robots        String  @default("index,follow")
+  /// FAQ Schema: [{ "question": "...", "answer": "..." }]
+  faqJson       Json?   @map("faq_json")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid
@@ -914,23 +926,42 @@ model CmsPost {
 }
 
 /// Hồ sơ tác giả CMS (kiểu WP Users → Profile) — 1 user = 1 profile.
+/// SuperAdmin tạo/gán; trang public /tac-gia/{slug} khi isPublic + có slug.
 model CmsAuthorProfile {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// identity.user.id
   userId      String   @unique @map("user_id") @db.Uuid
+  /// URL archive: /tac-gia/{slug}
+  slug        String?  @unique
   displayName String   @map("display_name")
+  /// Chức danh / jobTitle (E-E-A-T)
   title       String?
   bio         String?
   avatarUrl   String?  @map("avatar_url")
+  /// Tổ chức trực thuộc (worksFor)
+  worksFor    String?  @map("works_for")
   websiteUrl  String?  @map("website_url")
   facebookUrl String?  @map("facebook_url")
   linkedinUrl String?  @map("linkedin_url")
   twitterUrl  String?  @map("twitter_url")
   youtubeUrl  String?  @map("youtube_url")
+  /// Hiển thị trang public /tac-gia/...
+  isPublic    Boolean  @default(false) @map("is_public")
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description")
+  focusKeyword   String? @map("focus_keyword")
+  canonicalPath  String? @map("canonical_path")
+  ogTitle        String? @map("og_title")
+  ogDescription  String? @map("og_description")
+  ogImageUrl     String? @map("og_image_url")
+  robotsIndex    Boolean @default(true) @map("robots_index")
+  robotsFollow   Boolean @default(true) @map("robots_follow")
+  robotsMaxImagePreview Boolean @default(true) @map("robots_max_image_preview")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   updatedBy   String?  @map("updated_by") @db.Uuid
 
+  @@index([isPublic, slug])
   @@map("cms_author_profile")
   @@schema("cms")
 }
@@ -994,6 +1025,97 @@ model CmsMenuItem {
   @@index([menuId, sortOrder])
   @@index([parentId])
   @@map("cms_menu_item")
+  @@schema("cms")
+}
+
+/// Chân trang WP-style: Footer 1 / Footer 2 (mỗi cái 4 cột HTML) + copyright.
+model CmsFooterSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @default("default") @map("tenant_id")
+
+  footer1Enabled Boolean @default(true) @map("footer1_enabled")
+  /// JSON: string[4] — HTML từng cột (rỗng = ẩn cột)
+  footer1Columns Json    @default("[]") @map("footer1_columns")
+
+  footer2Enabled Boolean @default(true) @map("footer2_enabled")
+  footer2Columns Json    @default("[]") @map("footer2_columns")
+
+  /// Hàng dưới cùng, ví dụ: ©2026 Inlink Vietnam JSC. All rights reserved.
+  copyrightText String @default("©2026 Inlink Vietnam JSC. All rights reserved.") @map("copyright_text")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("cms_footer_settings")
+  @@schema("cms")
+}
+
+/// SEO & nội dung hero trang chủ (/).
+model CmsHomepageSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @default("default") @map("tenant_id")
+
+  /// H1 hiển thị trên hero
+  heading       String  @default("Tìm đúng cơ hội trong ngành công nghiệp")
+  /// Đoạn trong H1 tô màu accent (phải nằm trong heading)
+  headingAccent String? @map("heading_accent")
+  /// Đoạn mô tả dưới H1
+  subtitle      String? @default("Hàng nghìn cơ hội việc làm từ các doanh nghiệp uy tín trong lĩnh vực kỹ thuật, sản xuất, vận hành và kinh doanh B2B.")
+
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description")
+  focusKeyword   String? @map("focus_keyword")
+  canonicalPath  String? @default("/") @map("canonical_path")
+  ogTitle        String? @map("og_title")
+  ogDescription  String? @map("og_description")
+  ogImageUrl     String? @map("og_image_url")
+  robotsIndex    Boolean @default(true) @map("robots_index")
+  robotsFollow   Boolean @default(true) @map("robots_follow")
+  robotsMaxImagePreview Boolean @default(true) @map("robots_max_image_preview")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("cms_homepage_settings")
+  @@schema("cms")
+}
+
+/// robots.txt do SuperAdmin chỉnh (kiểu RankMath). null content = dùng mặc định hệ thống.
+model CmsRobotsSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @default("default") @map("tenant_id")
+
+  /// Nội dung robots.txt đầy đủ (plain text)
+  content String @map("content") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("cms_robots_settings")
+  @@schema("cms")
+}
+
+/// Insert Headers and Footers (WP-style) — mã HTML/JS cho SEO (GA, GTM, meta…).
+model CmsSiteCodeSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @default("default") @map("tenant_id")
+
+  headerEnabled Boolean @default(true) @map("header_enabled")
+  /// Mã chèn trong <head> (script, meta, link…)
+  headerCode    String  @default("") @map("header_code") @db.Text
+
+  footerEnabled Boolean @default(true) @map("footer_enabled")
+  /// Mã chèn trước </body>
+  footerCode    String  @default("") @map("footer_code") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("cms_site_code_settings")
   @@schema("cms")
 }
 

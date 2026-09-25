@@ -1,4 +1,5 @@
 import {
+  cmsAuthorPublicPath,
   cmsCategoryPublicPath,
   cmsPagePublicPath,
   cmsPostPublicPath,
@@ -9,7 +10,11 @@ import {
 } from '@industriallink/contracts';
 import type { MetadataRoute } from 'next';
 import { BRAND_SITE_URL } from '@/lib/brand';
-import { fetchPublicCmsCategories, fetchPublishedCmsPosts } from '@/lib/public-cms-api';
+import {
+  fetchPublicCmsAuthors,
+  fetchPublicCmsCategories,
+  fetchPublishedCmsPosts,
+} from '@/lib/public-cms-api';
 import { fetchPublishedJobs } from '@/lib/public-job-api';
 
 /** Sitemap index chia nhỏ: main, jobs, blog, pages. */
@@ -24,17 +29,28 @@ export default async function sitemap(props: {
   const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || BRAND_SITE_URL;
 
   if (id === 'blog') {
-    const [posts, categories] = await Promise.all([
+    const [posts, categories, authors] = await Promise.all([
       fetchPublishedCmsPosts({ type: CmsContentType.Post, limit: 200 }),
       fetchPublicCmsCategories(),
+      fetchPublicCmsAuthors(),
     ]);
     return [
       { url: `${base}/cam-nang`, changeFrequency: 'weekly', priority: 0.7 },
-      ...categories.map((c) => ({
-        url: `${base}${cmsCategoryPublicPath(c.slug)}`,
-        changeFrequency: 'weekly' as const,
-        priority: 0.6,
-      })),
+      ...categories
+        .filter((c) => c.robotsIndex !== false)
+        .map((c) => ({
+          url: `${base}${cmsCategoryPublicPath(c.slug)}`,
+          changeFrequency: 'weekly' as const,
+          priority: 0.6,
+        })),
+      ...authors
+        .filter((a) => a.slug && a.isPublic && a.robotsIndex !== false)
+        .map((a) => ({
+          url: `${base}${cmsAuthorPublicPath(a.slug!)}`,
+          lastModified: a.updatedAt ? new Date(a.updatedAt) : undefined,
+          changeFrequency: 'weekly' as const,
+          priority: 0.55,
+        })),
       ...posts.map((post) => ({
         url: `${base}${cmsPostPublicPath(post.slug)}`,
         lastModified: post.publishedAt ? new Date(post.publishedAt) : new Date(post.updatedAt),

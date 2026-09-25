@@ -107,12 +107,45 @@ function companyInitials(name: string): string {
   return (parts[0] ?? name).slice(0, 2).toUpperCase();
 }
 
+function renderHeroHeading(heading: string, accent: string | null | undefined) {
+  const accentText = accent?.trim();
+  if (!accentText) return heading;
+  const idx = heading.toLowerCase().indexOf(accentText.toLowerCase());
+  if (idx < 0) return heading;
+  const before = heading.slice(0, idx);
+  const match = heading.slice(idx, idx + accentText.length);
+  const after = heading.slice(idx + accentText.length);
+  return (
+    <>
+      {before}
+      <span className="text-brand-500">{match}</span>
+      {after}
+    </>
+  );
+}
+
+/** Cuộn xuống khối kết quả (tránh sticky header che mất). */
+function scrollToJobResults() {
+  requestAnimationFrame(() => {
+    document.getElementById('job-results')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  });
+}
+
 function JobsPageInner({
   initialJobs,
   forcedIndustry,
+  heroHeading,
+  heroHeadingAccent,
+  heroSubtitle,
 }: {
   initialJobs?: JobListItem[];
   forcedIndustry?: string;
+  heroHeading?: string;
+  heroHeadingAccent?: string | null;
+  heroSubtitle?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -351,12 +384,14 @@ function JobsPageInner({
         <div className="relative px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
           <div className="max-w-xl">
             <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-[2rem]">
-              Tìm đúng cơ hội trong{' '}
-              <span className="text-brand-500">ngành công nghiệp</span>
+              {renderHeroHeading(
+                heroHeading || 'Tìm đúng cơ hội trong ngành công nghiệp',
+                heroHeadingAccent ?? 'ngành công nghiệp',
+              )}
             </h1>
             <p className="mt-2.5 max-w-md text-sm leading-relaxed text-slate-600">
-              Hàng nghìn cơ hội việc làm từ các doanh nghiệp uy tín trong lĩnh vực kỹ thuật, sản
-              xuất, vận hành và kinh doanh B2B.
+              {heroSubtitle ??
+                'Hàng nghìn cơ hội việc làm từ các doanh nghiệp uy tín trong lĩnh vực kỹ thuật, sản xuất, vận hành và kinh doanh B2B.'}
             </p>
           </div>
 
@@ -366,6 +401,7 @@ function JobsPageInner({
             onSubmit={(e) => {
               e.preventDefault();
               setFilterParams({ keyword: draftKeyword.trim() || null, tab: 'all' });
+              scrollToJobResults();
             }}
           >
             <div className="relative min-w-0 flex-1 border-b border-slate-100 sm:border-b-0 sm:border-r">
@@ -423,6 +459,7 @@ function JobsPageInner({
                 onClick={() => {
                   setDraftKeyword(kw);
                   setFilterParams({ keyword: kw, tab: 'all' });
+                  scrollToJobResults();
                 }}
               >
                 {kw}
@@ -432,25 +469,15 @@ function JobsPageInner({
         </div>
       </section>
 
-      {/* 3 cột */}
-      <div className="mt-6 grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_260px]">
+      {/* 3 cột — mobile: kết quả trước; desktop: lọc | list | widget */}
+      <div className="mt-6 grid min-w-0 gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_260px]">
         {/* Filters */}
-        <aside>
-          <div className="mb-3 flex items-center justify-between lg:hidden">
-            <Button
-              variant="outline"
-              className="text-sm"
-              onClick={() => setFiltersOpen((v) => !v)}
-            >
-              <SlidersHorizontal className="h-4 w-4" /> Bộ lọc
-            </Button>
-            {hasActiveFilters && (
-              <button type="button" className="text-sm text-amber-600 hover:text-amber-700" onClick={clearFilters}>
-                Xóa tất cả
-              </button>
-            )}
-          </div>
-
+        <aside
+          className={clsx(
+            'min-w-0 lg:order-1',
+            filtersOpen ? 'order-1' : 'order-2',
+          )}
+        >
           <div
             className={clsx(
               'rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm',
@@ -573,7 +600,31 @@ function JobsPageInner({
         </aside>
 
         {/* List */}
-        <section className="min-w-0">
+        <section
+          id="job-results"
+          className={clsx(
+            'min-w-0 scroll-mt-24 lg:order-2',
+            filtersOpen ? 'order-2' : 'order-1',
+          )}
+        >
+          <div className="mb-3 flex items-center justify-between lg:hidden">
+            <Button
+              variant="outline"
+              className="text-sm"
+              onClick={() => setFiltersOpen((v) => !v)}
+            >
+              <SlidersHorizontal className="h-4 w-4" /> Bộ lọc
+            </Button>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="text-sm text-amber-600 hover:text-amber-700"
+                onClick={clearFilters}
+              >
+                Xóa tất cả
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200">
             <div className="flex gap-0 overflow-x-auto">
               {(
@@ -689,7 +740,7 @@ function JobsPageInner({
         </section>
 
         {/* Right widgets */}
-        <aside className="space-y-4">
+        <aside className="order-3 min-w-0 space-y-4 lg:order-3">
           <div className="overflow-hidden rounded-xl border border-amber-100/90 bg-gradient-to-br from-amber-50/50 via-white to-white p-4 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-amber-400 text-white shadow-md shadow-amber-500/20">
@@ -1113,9 +1164,15 @@ function AppliedCard({ app }: { app: ApplicationView }) {
 export function JobsListingClient({
   initialJobs,
   forcedIndustry,
+  heroHeading,
+  heroHeadingAccent,
+  heroSubtitle,
 }: {
   initialJobs?: JobListItem[];
   forcedIndustry?: string;
+  heroHeading?: string;
+  heroHeadingAccent?: string | null;
+  heroSubtitle?: string | null;
 }) {
   return (
     <Suspense
@@ -1125,7 +1182,13 @@ export function JobsListingClient({
         </AppShell>
       }
     >
-      <JobsPageInner initialJobs={initialJobs} forcedIndustry={forcedIndustry} />
+      <JobsPageInner
+        initialJobs={initialJobs}
+        forcedIndustry={forcedIndustry}
+        heroHeading={heroHeading}
+        heroHeadingAccent={heroHeadingAccent}
+        heroSubtitle={heroSubtitle}
+      />
     </Suspense>
   );
 }

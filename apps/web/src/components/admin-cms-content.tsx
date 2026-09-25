@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CmsContentStatus,
   CmsContentType,
+  cmsAuthorPublicPath,
   cmsContentPublicPath,
   toSeoSlug,
   type CmsFaqItem,
@@ -969,6 +970,10 @@ function ContentEditor({
         existing?.authorAvatarUrl ||
         myAuthor?.avatarUrl ||
         '';
+      const publicSlug =
+        existing?.authorSlug ||
+        (myAuthor?.isPublic && myAuthor?.slug ? myAuthor.slug : null);
+      const publicHref = publicSlug ? cmsAuthorPublicPath(publicSlug) : null;
       return (
         <SortableMetabox key={id} {...common} defaultOpen>
           <div className="flex gap-3">
@@ -985,7 +990,18 @@ function ContentEditor({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900">{name}</p>
+              {publicHref ? (
+                <Link
+                  href={publicHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-brand-700 hover:text-accent-600 hover:underline"
+                >
+                  {name}
+                </Link>
+              ) : (
+                <p className="text-sm font-semibold text-slate-900">{name}</p>
+              )}
               {title ? <p className="text-xs text-slate-500">{title}</p> : null}
               {bio ? (
                 <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-500">{bio}</p>
@@ -996,6 +1012,9 @@ function ContentEditor({
                     : 'Khi lưu, tác giả sẽ là tài khoản đang đăng nhập.'}
                 </p>
               )}
+              {publicHref ? (
+                <p className="mt-1 truncate text-[11px] text-slate-400">{publicHref}</p>
+              ) : null}
             </div>
           </div>
           <Link

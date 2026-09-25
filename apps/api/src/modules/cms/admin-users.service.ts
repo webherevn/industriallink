@@ -20,6 +20,7 @@ import type { AuthenticatedUser } from '../../shared/security/security.types';
 
 const ASSIGNABLE_ROLES = new Set<UserRole>([
   UserRole.SuperAdmin,
+  UserRole.Editor,
   UserRole.Recruiter,
   UserRole.HiringManager,
   UserRole.CompanyAdmin,

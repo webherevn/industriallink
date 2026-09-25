@@ -6,10 +6,10 @@ import { LogOut, Menu, Shield, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { UserRole } from '@industriallink/contracts';
+import { isCmsAdminRole, UserRole } from '@industriallink/contracts';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { restoreSession, tokenStore } from '@/lib/api';
-import { ADMIN_NAV_SECTIONS } from '@/lib/admin-nav';
+import { adminNavForRole } from '@/lib/admin-nav';
 import { fetchMe, logout } from '@/lib/auth';
 import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
 
@@ -44,12 +44,22 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
-    if (user.role !== UserRole.SuperAdmin) {
+    if (!isCmsAdminRole(user.role)) {
       goToPublicApp('/');
       return;
     }
+    if (user.role === UserRole.Editor) {
+      const blocked =
+        pathname.startsWith('/admin/users') ||
+        pathname.startsWith('/admin/menus') ||
+        pathname.startsWith('/admin/footer');
+      if (blocked) {
+        router.replace('/admin');
+        return;
+      }
+    }
     bounceIfWrongHost(user.role, `${window.location.pathname}${window.location.search}`);
-  }, [user]);
+  }, [user, pathname, router]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -73,26 +83,29 @@ export function AdminShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (user && user.role !== UserRole.SuperAdmin) {
+  if (user && !isCmsAdminRole(user.role)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--admin-bg)] text-sm text-slate-500">
-        Không có quyền Superadmin
+        Không có quyền truy cập admin
       </div>
     );
   }
 
+  const roleBadge = user?.role === UserRole.Editor ? 'Biên tập viên' : 'Superadmin';
+  const navSections = adminNavForRole(user?.role);
+
   const sidebar = (
     <aside className="flex h-full w-[248px] flex-col border-r border-slate-200/90 bg-white">
-      <div className="border-b border-slate-100 px-4 py-4">
+      <div className="shrink-0 border-b border-slate-100 px-4 py-4">
         <BrandSidebarLockup href="/admin" />
         <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
           <Shield className="h-3 w-3" />
-          Superadmin
+          {roleBadge}
           <span className="brand-accent-dot ml-0.5" aria-hidden />
         </p>
       </div>
-      <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
-        {ADMIN_NAV_SECTIONS.map((section) => (
+      <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
+        {navSections.map((section) => (
           <div key={section.title}>
             <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
               {section.title}
@@ -133,7 +146,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </div>
         ))}
       </nav>
-      <div className="border-t border-slate-100 p-3">
+      <div className="shrink-0 border-t border-slate-100 p-3">
         <p className="truncate px-2 text-[13px] font-semibold text-slate-800">
           {user?.displayName || 'Admin'}
         </p>
@@ -151,7 +164,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[var(--admin-bg)]">
-      <div className="hidden lg:block">{sidebar}</div>
+      {/* Desktop: sidebar cố định theo viewport khi cuộn nội dung */}
+      <div className="sticky top-0 z-40 hidden h-screen shrink-0 lg:block">{sidebar}</div>
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <button

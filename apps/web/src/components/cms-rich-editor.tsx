@@ -45,6 +45,8 @@ type Props = {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  /** Editor gọn hơn (mô tả danh mục…) */
+  compact?: boolean;
 };
 
 const TEXT_COLORS = [
@@ -175,7 +177,7 @@ function FormatSelect({ editor }: { editor: Editor }) {
   );
 }
 
-export function CmsRichEditor({ value, onChange, placeholder }: Props) {
+export function CmsRichEditor({ value, onChange, placeholder, compact = false }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'visual' | 'text'>('visual');
   const [kitchenSink, setKitchenSink] = useState(false);
@@ -190,6 +192,10 @@ export function CmsRichEditor({ value, onChange, placeholder }: Props) {
   const [htmlDraft, setHtmlDraft] = useState(value || '');
   const skipNextSync = useRef(false);
   const [, setToolbarTick] = useState(0);
+
+  const editorMinClass = compact
+    ? 'cms-tiptap-editor prose prose-slate max-w-none min-h-[160px] px-4 py-3 pl-9 outline-none text-[15px]'
+    : 'cms-tiptap-editor prose prose-slate max-w-none min-h-[420px] px-5 py-4 pl-10 outline-none';
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -225,8 +231,7 @@ export function CmsRichEditor({ value, onChange, placeholder }: Props) {
     content: value || '',
     editorProps: {
       attributes: {
-        class:
-          'cms-tiptap-editor prose prose-slate max-w-none min-h-[420px] px-5 py-4 pl-10 outline-none',
+        class: editorMinClass,
       },
       handlePaste: (_view, event) => {
         const items = event.clipboardData?.items;
@@ -283,6 +288,19 @@ export function CmsRichEditor({ value, onChange, placeholder }: Props) {
       setHtmlDraft(next);
     }
   }, [value, editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.setOptions({
+      editorProps: {
+        ...editor.options.editorProps,
+        attributes: {
+          ...(editor.options.editorProps?.attributes as Record<string, string>),
+          class: editorMinClass,
+        },
+      },
+    });
+  }, [editor, editorMinClass]);
 
   async function uploadImageFile(file: File, alt?: string) {
     if (!editor) return;
@@ -359,7 +377,11 @@ export function CmsRichEditor({ value, onChange, placeholder }: Props) {
 
   if (!editor) {
     return (
-      <div className="cms-panel flex min-h-[480px] items-center justify-center px-4 py-3 text-sm text-slate-400">
+      <div
+        className={`cms-panel flex items-center justify-center px-4 py-3 text-sm text-slate-400 ${
+          compact ? 'min-h-[220px]' : 'min-h-[480px]'
+        }`}
+      >
         Đang tải trình soạn thảo…
       </div>
     );
@@ -558,7 +580,9 @@ export function CmsRichEditor({ value, onChange, placeholder }: Props) {
 
       {mode === 'text' && (
         <textarea
-          className="min-h-[420px] w-full resize-y border-0 bg-slate-50/60 px-4 py-3 font-mono text-sm leading-relaxed text-slate-800 outline-none"
+          className={`w-full resize-y border-0 bg-slate-50/60 px-4 py-3 font-mono text-sm leading-relaxed text-slate-800 outline-none ${
+            compact ? 'min-h-[160px]' : 'min-h-[420px]'
+          }`}
           value={htmlDraft}
           onChange={(e) => setHtmlDraft(e.target.value)}
           onBlur={applyHtmlDraft}

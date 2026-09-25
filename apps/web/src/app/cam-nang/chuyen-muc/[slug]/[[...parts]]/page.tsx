@@ -4,16 +4,27 @@ import {
   cmsPostPublicPath,
 } from '@industriallink/contracts';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { CmsBreadcrumb } from '@/components/cms-breadcrumb';
+import {
+  CmsBlogHero,
+  CmsPagination,
+  CmsPostCard,
+  CmsPostEmpty,
+} from '@/components/cms-blog';
+import { CmsExpandableHtml } from '@/components/cms-expandable-html';
 import { BRAND_NAME } from '@/lib/brand';
-import { resolveCmsAssetUrl } from '@/lib/cms-assets';
-import { buildBreadcrumbJsonLd, formatCmsSeoTitle, stripHtml } from '@/lib/cms-seo';
+import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
+import {
+  buildBreadcrumbJsonLd,
+  cmsRobotsMeta,
+  formatCmsSeoTitle,
+  stripHtml,
+} from '@/lib/cms-seo';
 import { fetchPublicCmsCategory, fetchPublishedCmsPostsPage } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
-import { INDEX_ROBOTS, NOINDEX_ROBOTS } from '@/lib/seo-robots';
+import { NOINDEX_ROBOTS } from '@/lib/seo-robots';
 
 export const revalidate = 60;
 
@@ -46,23 +57,53 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? formatCmsSeoTitle(`${titleBase} - Trang ${pageNum}`)
       : formatCmsSeoTitle(titleBase);
   const description =
-    stripHtml(category.seoDescription || category.description) ||
+    stripHtml(category.seoDescription || category.ogDescription || category.description) ||
     `Bài viết chuyên mục ${category.name} trên ${BRAND_NAME}`;
-  const path = cmsCategoryPagePath(slug, pageNum);
-  const canonical = `${siteUrl()}${path}`;
-  const ogImage = resolveCmsAssetUrl(category.ogImageUrl);
+
+  const defaultPath = cmsCategoryPagePath(slug, pageNum);
+  let canonicalPath =
+    pageNum === 1 && category.canonicalPath
+      ? category.canonicalPath
+      : defaultPath;
+  const canonical = canonicalPath.startsWith('http')
+    ? canonicalPath
+    : `${siteUrl()}${canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`}`;
+
+  const ogImage = resolveCmsAssetUrl(
+    category.ogImageUrl || category.avatarUrl,
+  );
+
+  const robots =
+    pageNum > 1
+      ? NOINDEX_ROBOTS
+      : cmsRobotsMeta({
+          robotsIndex: category.robotsIndex,
+          robotsFollow: category.robotsFollow,
+          robotsMaxImagePreview: category.robotsMaxImagePreview,
+        });
+
+  const ogTitle = category.ogTitle || category.seoTitle || category.name;
+  const ogDesc =
+    stripHtml(category.ogDescription || category.seoDescription || category.description) ||
+    description;
 
   return {
     title: { absolute: title },
     description,
-    robots: pageNum > 1 ? NOINDEX_ROBOTS : INDEX_ROBOTS,
+    robots,
     alternates: { canonical },
     openGraph: {
-      title: titleBase,
-      description,
+      title: ogTitle,
+      description: ogDesc,
       images: ogImage ? [{ url: ogImage, width: 1200, height: 630 }] : undefined,
       type: 'website',
       url: canonical,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: ogTitle,
+      description: ogDesc,
+      images: ogImage ? [ogImage] : undefined,
     },
   };
 }
@@ -86,13 +127,22 @@ export default async function CmsCategoryPage({ params }: Props) {
   const base = siteUrl();
   const selfPath = cmsCategoryPagePath(slug, pageNum);
   const selfUrl = `${base}${selfPath}`;
+  const descriptionPlain = stripHtml(category.description || category.seoDescription);
+  const descriptionHtml = category.description
+    ? absolutizeCmsHtml(category.description)
+    : '';
+  const heroLead =
+    descriptionPlain.length > 180
+      ? `${descriptionPlain.slice(0, 177).trim()}…`
+      : descriptionPlain || null;
 
   const collectionLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: category.name,
+    name: category.seoTitle || category.name,
     description: stripHtml(category.seoDescription || category.description) || undefined,
     url: selfUrl,
+    image: resolveCmsAssetUrl(category.ogImageUrl || category.avatarUrl) || undefined,
     isPartOf: { '@type': 'WebSite', name: BRAND_NAME, url: base },
     mainEntity: {
       '@type': 'ItemList',
@@ -106,6 +156,19 @@ export default async function CmsCategoryPage({ params }: Props) {
     },
   };
 
+  const faqLd =
+    category.faq?.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: category.faq.map((f) => ({
+            '@type': 'Question',
+            name: f.question,
+            acceptedAnswer: { '@type': 'Answer', text: stripHtml(f.answer) },
+          })),
+        }
+      : null;
+
   const breadcrumbLd = buildBreadcrumbJsonLd([
     { name: 'Trang chủ', url: `${base}/` },
     { name: 'Cẩm nang', url: `${base}/cam-nang` },
@@ -117,87 +180,91 @@ export default async function CmsCategoryPage({ params }: Props) {
   const nextHref = pageNum < list.totalPages ? cmsCategoryPagePath(slug, pageNum + 1) : null;
 
   return (
-    <AppShell allowGuest>
+    <AppShell allowGuest flush bleed>
       {prevHref && <link rel="prev" href={`${base}${prevHref}`} />}
       {nextHref && <link rel="next" href={`${base}${nextHref}`} />}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }}
       />
+      {faqLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+        />
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
-      <div className="mx-auto max-w-3xl">
-        <CmsBreadcrumb
-          items={[
-            { name: 'Trang chủ', href: '/' },
-            { name: 'Cẩm nang', href: '/cam-nang' },
-            {
-              name: category.name,
-              href: pageNum > 1 ? cmsCategoryPublicPath(slug) : undefined,
-            },
-            ...(pageNum > 1 ? [{ name: `Trang ${pageNum}` }] : []),
-          ]}
-        />
-        <h1 className="mt-4 text-3xl font-bold text-slate-900">{category.name}</h1>
-        {(category.description || category.seoDescription) && (
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            {stripHtml(category.description || category.seoDescription)}
-          </p>
-        )}
 
-        <ul className="mt-8 space-y-4">
+      <CmsBlogHero
+        title={category.name}
+        description={heroLead}
+        eyebrow="Chuyên mục"
+        avatarUrl={category.avatarUrl}
+      />
+
+      <div className="border-b border-slate-200/80 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+          <CmsBreadcrumb
+            items={[
+              { name: 'Trang chủ', href: '/' },
+              { name: 'Cẩm nang', href: '/cam-nang' },
+              {
+                name: category.name,
+                href: pageNum > 1 ? cmsCategoryPublicPath(slug) : undefined,
+              },
+              ...(pageNum > 1 ? [{ name: `Trang ${pageNum}` }] : []),
+            ]}
+          />
+
+          {descriptionHtml ? (
+            <div className="mt-6">
+              <CmsExpandableHtml html={descriptionHtml} />
+            </div>
+          ) : null}
+
           {list.items.length === 0 ? (
-            <li className="rounded-xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center text-sm text-slate-500">
-              Chưa có bài trong chuyên mục này.
-            </li>
+            <div className="mt-8">
+              <CmsPostEmpty message="Chưa có bài trong chuyên mục này." />
+            </div>
           ) : (
-            list.items.map((post) => (
-              <li key={post.id}>
-                <Link
-                  href={cmsPostPublicPath(post.slug)}
-                  className="block rounded-xl border border-slate-200 bg-white px-5 py-4 transition hover:border-slate-300 hover:shadow-sm"
-                >
-                  <h2 className="text-lg font-bold text-slate-900">{post.title}</h2>
-                  {post.excerpt && (
-                    <p className="mt-1 text-sm leading-relaxed text-slate-600">{post.excerpt}</p>
-                  )}
-                  <p className="mt-2 text-xs text-slate-400">
-                    {post.publishedAt
-                      ? new Date(post.publishedAt).toLocaleDateString('vi-VN')
-                      : ''}
-                  </p>
-                </Link>
-              </li>
-            ))
+            <ul className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {list.items.map((post) => (
+                <li key={post.id}>
+                  <CmsPostCard post={post} />
+                </li>
+              ))}
+            </ul>
           )}
-        </ul>
 
-        {list.totalPages > 1 && (
-          <nav
-            aria-label="Phân trang"
-            className="mt-10 flex items-center justify-between border-t border-slate-200 pt-6 text-sm"
-          >
-            {prevHref ? (
-              <Link href={prevHref} className="font-semibold text-brand-600 hover:text-brand-700">
-                ← Trang trước
-              </Link>
-            ) : (
-              <span />
-            )}
-            <span className="text-slate-500">
-              Trang {pageNum} / {list.totalPages}
-            </span>
-            {nextHref ? (
-              <Link href={nextHref} className="font-semibold text-brand-600 hover:text-brand-700">
-                Trang sau →
-              </Link>
-            ) : (
-              <span />
-            )}
-          </nav>
-        )}
+          <CmsPagination
+            pageNum={pageNum}
+            totalPages={list.totalPages}
+            prevHref={prevHref}
+            nextHref={nextHref}
+          />
+
+          {category.faq?.length > 0 && (
+            <section className="mt-12 border-t border-slate-200 pt-10">
+              <h2 className="text-xl font-bold text-[var(--brand-navy)]">
+                Câu hỏi thường gặp
+              </h2>
+              <dl className="mt-5 space-y-3">
+                {category.faq.map((f) => (
+                  <div
+                    key={f.question}
+                    className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-4 sm:px-5"
+                  >
+                    <dt className="font-semibold text-slate-900">{f.question}</dt>
+                    <dd className="mt-2 text-sm leading-relaxed text-slate-600">{f.answer}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+        </div>
       </div>
     </AppShell>
   );

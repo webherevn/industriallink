@@ -4,20 +4,14 @@ import {
   type CmsCategoryView,
   type CmsPostListItem,
   type CmsPostView,
+  type CmsSeoOverview,
   type UpsertCmsCategoryRequest,
   type UpsertCmsPostRequest,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
 
-export async function fetchCmsOverview() {
-  return apiRequest<{
-    categories: number;
-    posts: number;
-    pages: number;
-    publishedPosts: number;
-    publishedPages: number;
-    drafts: number;
-  }>('/admin/cms/overview');
+export async function fetchCmsOverview(): Promise<CmsSeoOverview> {
+  return apiRequest<CmsSeoOverview>('/admin/cms/overview');
 }
 
 export async function listCmsCategories(): Promise<CmsCategoryView[]> {
@@ -126,6 +120,71 @@ export async function saveCmsMenuAdmin(
   );
 }
 
+export async function getCmsFooterAdmin() {
+  return apiRequest<import('@industriallink/contracts').CmsFooterSettingsView>('/admin/cms/footer');
+}
+
+export async function saveCmsFooterAdmin(
+  body: import('@industriallink/contracts').UpsertCmsFooterSettingsRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsFooterSettingsView>('/admin/cms/footer', {
+    method: 'PUT',
+    body,
+  });
+}
+
+export async function getCmsHomepageAdmin() {
+  return apiRequest<import('@industriallink/contracts').CmsHomepageSettingsView>(
+    '/admin/cms/homepage',
+  );
+}
+
+export async function saveCmsHomepageAdmin(
+  body: import('@industriallink/contracts').UpsertCmsHomepageSettingsRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsHomepageSettingsView>(
+    '/admin/cms/homepage',
+    { method: 'PUT', body },
+  );
+}
+
+export async function getCmsRobotsAdmin() {
+  return apiRequest<import('@industriallink/contracts').CmsRobotsSettingsView>(
+    '/admin/cms/robots',
+  );
+}
+
+export async function saveCmsRobotsAdmin(
+  body: import('@industriallink/contracts').UpsertCmsRobotsSettingsRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsRobotsSettingsView>(
+    '/admin/cms/robots',
+    { method: 'PUT', body },
+  );
+}
+
+export async function deleteCmsRobotsAdmin() {
+  return apiRequest<import('@industriallink/contracts').CmsRobotsSettingsView>(
+    '/admin/cms/robots',
+    { method: 'DELETE' },
+  );
+}
+
+export async function getCmsSiteCodeAdmin() {
+  return apiRequest<import('@industriallink/contracts').CmsSiteCodeSettingsView>(
+    '/admin/cms/site-code',
+  );
+}
+
+export async function saveCmsSiteCodeAdmin(
+  body: import('@industriallink/contracts').UpsertCmsSiteCodeSettingsRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsSiteCodeSettingsView>(
+    '/admin/cms/site-code',
+    { method: 'PUT', body },
+  );
+}
+
 export async function getCmsAuthorProfile() {
   return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
     '/admin/cms/author-profile',
@@ -137,6 +196,43 @@ export async function updateCmsAuthorProfile(
 ) {
   return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
     '/admin/cms/author-profile',
+    { method: 'PUT', body },
+  );
+}
+
+export async function listCmsAuthorProfiles() {
+  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView[]>(
+    '/admin/cms/author-profiles',
+  );
+}
+
+export async function listEligibleAuthorUsers() {
+  return apiRequest<Array<{ id: string; email: string; displayName: string; role: string }>>(
+    '/admin/cms/author-profiles/eligible-users',
+  );
+}
+
+export async function getCmsAuthorProfileByUser(userId: string) {
+  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
+    `/admin/cms/author-profiles/${encodeURIComponent(userId)}`,
+  );
+}
+
+export async function assignCmsAuthorProfile(
+  body: import('@industriallink/contracts').AssignCmsAuthorProfileRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
+    '/admin/cms/author-profiles',
+    { method: 'POST', body },
+  );
+}
+
+export async function updateCmsAuthorProfileByUser(
+  userId: string,
+  body: import('@industriallink/contracts').UpsertCmsAuthorProfileRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
+    `/admin/cms/author-profiles/${encodeURIComponent(userId)}`,
     { method: 'PUT', body },
   );
 }

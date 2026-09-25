@@ -1,6 +1,9 @@
 import type {
+  CmsAuthorProfileView,
   CmsCategoryView,
   CmsContentType,
+  CmsFooterSettingsView,
+  CmsHomepageSettingsView,
   CmsPostListItem,
   CmsPostListPage,
   CmsPostView,
@@ -26,12 +29,14 @@ export async function fetchPublicCmsCategory(slug: string): Promise<CmsCategoryV
 export async function fetchPublishedCmsPostsPage(params: {
   type?: CmsContentType;
   category?: string;
+  author?: string;
   limit?: number;
   page?: number;
 } = {}): Promise<CmsPostListPage> {
   const qs = new URLSearchParams();
   qs.set('type', params.type ?? CmsType.Post);
   if (params.category) qs.set('category', params.category);
+  if (params.author) qs.set('author', params.author);
   if (params.limit) qs.set('limit', String(params.limit));
   qs.set('page', String(params.page ?? 1));
   const res = await fetch(`${apiPublicBase()}/cms/posts?${qs}`, {
@@ -59,6 +64,7 @@ export async function fetchPublishedCmsPostsPage(params: {
 export async function fetchPublishedCmsPosts(params: {
   type?: CmsContentType;
   category?: string;
+  author?: string;
   limit?: number;
 } = {}): Promise<CmsPostListItem[]> {
   const page = await fetchPublishedCmsPostsPage({ ...params, page: 1 });
@@ -93,4 +99,62 @@ export async function fetchCmsRedirect(fromPath: string): Promise<CmsRedirectVie
   );
   if (res.status === 404 || !res.ok) return null;
   return (await res.json()) as CmsRedirectView;
+}
+
+export async function fetchPublicCmsAuthor(slug: string): Promise<CmsAuthorProfileView | null> {
+  const res = await fetch(`${apiPublicBase()}/cms/authors/${encodeURIComponent(slug)}`, {
+    next: { revalidate: 60 },
+    headers: { Accept: 'application/json' },
+  });
+  if (res.status === 404 || !res.ok) return null;
+  return (await res.json()) as CmsAuthorProfileView;
+}
+
+export async function fetchPublicCmsAuthors(): Promise<CmsAuthorProfileView[]> {
+  const res = await fetch(`${apiPublicBase()}/cms/authors`, {
+    next: { revalidate: 60 },
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return [];
+  return (await res.json()) as CmsAuthorProfileView[];
+}
+
+export async function fetchPublicCmsFooter(): Promise<CmsFooterSettingsView | null> {
+  const res = await fetch(`${apiPublicBase()}/cms/footer`, {
+    next: { revalidate: 60 },
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as CmsFooterSettingsView;
+}
+
+export async function fetchPublicCmsHomepage(): Promise<CmsHomepageSettingsView | null> {
+  const res = await fetch(`${apiPublicBase()}/cms/homepage`, {
+    next: { revalidate: 60 },
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as CmsHomepageSettingsView;
+}
+
+export async function fetchPublicCmsRobots(): Promise<
+  import('@industriallink/contracts').CmsRobotsSettingsView | null
+> {
+  const res = await fetch(`${apiPublicBase()}/cms/robots`, {
+    next: { revalidate: 60 },
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as import('@industriallink/contracts').CmsRobotsSettingsView;
+}
+
+export async function fetchPublicCmsSiteCode(): Promise<
+  import('@industriallink/contracts').CmsSiteCodeSettingsView | null
+> {
+  const res = await fetch(`${apiPublicBase()}/cms/site-code`, {
+    next: { revalidate: 30 },
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as import('@industriallink/contracts').CmsSiteCodeSettingsView;
 }

@@ -22,15 +22,33 @@ export class CmsPublicController {
   listPosts(
     @Query('type') type?: CmsContentType,
     @Query('category') category?: string,
+    @Query('author') author?: string,
     @Query('limit') limit?: string,
     @Query('page') page?: string,
   ) {
     return this.cms.listPublished({
       type: type ?? CmsContentType.Post,
       category,
+      author,
       limit: limit ? Number(limit) : undefined,
       page: page ? Number(page) : 1,
     });
+  }
+
+  @Public()
+  @Get('authors')
+  @ApiOperation({ summary: 'Danh sách tác giả public' })
+  listAuthors() {
+    return this.cms.listPublicAuthors();
+  }
+
+  @Public()
+  @Get('authors/:slug')
+  @ApiOperation({ summary: 'Hồ sơ tác giả public theo slug' })
+  async getAuthor(@Param('slug') slug: string) {
+    const author = await this.cms.getPublishedAuthorBySlug(slug);
+    if (!author) throw new NotFoundException('Không tìm thấy tác giả');
+    return author;
   }
 
   @Public()
@@ -66,5 +84,33 @@ export class CmsPublicController {
   @ApiOperation({ summary: 'Menu công khai theo vị trí (primary|footer)' })
   getMenu(@Param('location') location: string) {
     return this.cms.getMenuByLocation(location, true);
+  }
+
+  @Public()
+  @Get('footer')
+  @ApiOperation({ summary: 'Cấu hình chân trang công khai' })
+  getFooter() {
+    return this.cms.getFooterSettings();
+  }
+
+  @Public()
+  @Get('homepage')
+  @ApiOperation({ summary: 'SEO & hero trang chủ công khai' })
+  getHomepage() {
+    return this.cms.getHomepageSettings();
+  }
+
+  @Public()
+  @Get('robots')
+  @ApiOperation({ summary: 'robots.txt settings (JSON)' })
+  getRobots() {
+    return this.cms.getRobotsSettings();
+  }
+
+  @Public()
+  @Get('site-code')
+  @ApiOperation({ summary: 'Mã Header/Footer công khai (SEO scripts)' })
+  getSiteCode() {
+    return this.cms.getSiteCodeSettings();
   }
 }

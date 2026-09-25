@@ -32,7 +32,7 @@ export class CmsMediaController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SuperAdmin)
+  @Roles(UserRole.SuperAdmin, UserRole.Editor)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload ảnh CMS (nội dung / ảnh đại diện)' })

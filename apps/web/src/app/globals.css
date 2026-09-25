@@ -212,6 +212,10 @@ body {
   .progress-card:hover {
     @apply -translate-y-0.5 border-slate-300/90 shadow-[0_8px_24px_rgba(15,23,42,0.08)];
   }
+  /* Chi tiết việc làm — không lift hover (tránh lệch layout trên mobile/touch) */
+  .job-detail-card {
+    @apply rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)];
+  }
   .progress-nav-item {
     @apply relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-600 transition-all duration-200;
     transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
@@ -512,3 +516,181 @@ body {
     font-size: 0.875rem;
   }
 }
+
+/* —— Public blog / cẩm nang article body —— */
+.cms-prose {
+  color: #334155;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+.cms-prose > *:first-child {
+  margin-top: 0;
+}
+.cms-prose h2 {
+  margin: 2rem 0 0.75rem;
+  color: var(--brand-navy);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  scroll-margin-top: 5.5rem;
+}
+.cms-prose h3 {
+  margin: 1.5rem 0 0.5rem;
+  color: #0f172a;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.35;
+  scroll-margin-top: 5.5rem;
+}
+.cms-prose h4 {
+  margin: 1.25rem 0 0.4rem;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 600;
+  scroll-margin-top: 5.5rem;
+}
+.cms-prose p {
+  margin: 0.85rem 0;
+}
+.cms-prose ul,
+.cms-prose ol {
+  margin: 0.85rem 0;
+  padding-left: 1.35rem;
+}
+.cms-prose ul {
+  list-style: disc;
+}
+.cms-prose ol {
+  list-style: decimal;
+}
+.cms-prose li {
+  margin: 0.35rem 0;
+}
+.cms-prose li::marker {
+  color: var(--brand-accent);
+}
+.cms-prose a {
+  color: #0f3d6e;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #ffd0a3;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.cms-prose a:hover {
+  color: var(--brand-accent);
+  text-decoration-color: var(--brand-accent);
+}
+.cms-prose strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.cms-prose blockquote {
+  margin: 1.25rem 0;
+  border-left: 3px solid var(--brand-accent);
+  background: var(--brand-accent-soft);
+  padding: 0.75rem 1rem;
+  color: #475569;
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+.cms-prose img {
+  margin: 1.25rem 0;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+.cms-prose figure {
+  margin: 1.5rem 0;
+}
+.cms-prose figcaption {
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: #94a3b8;
+}
+.cms-prose hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 2rem 0;
+}
+.cms-prose table {
+  width: 100%;
+  margin: 1.25rem 0;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.cms-prose th,
+.cms-prose td {
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.cms-prose th {
+  background: #f8fafc;
+  color: var(--brand-navy);
+  font-weight: 700;
+}
+.cms-prose code {
+  border-radius: 0.25rem;
+  background: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.875em;
+  color: #0f172a;
+}
+.cms-prose pre {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  padding: 1rem 1.15rem;
+  color: #e2e8f0;
+  font-size: 0.875rem;
+}
+.cms-prose pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+/* Footer trên nền navy */
+.cms-footer-prose {
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.cms-footer-prose p {
+  margin: 0 0 0.65em;
+}
+.cms-footer-prose p:last-child {
+  margin-bottom: 0;
+}
+.cms-footer-prose a {
+  color: #fdba74;
+  text-decoration: none;
+  font-weight: 600;
+}
+.cms-footer-prose a:hover {
+  color: #fb923c;
+  text-decoration: underline;
+}
+.cms-footer-prose h2,
+.cms-footer-prose h3,
+.cms-footer-prose h4,
+.cms-footer-prose strong {
+  color: #f8fafc;
+}
+.cms-footer-prose ul,
+.cms-footer-prose ol {
+  margin: 0.35em 0 0.65em;
+  padding-left: 1.1rem;
+}
+.cms-footer-prose li {
+  margin: 0.2em 0;
+}
+.cms-footer-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+

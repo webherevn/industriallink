@@ -1,4 +1,4 @@
-import { UserRole } from '@industriallink/contracts';
+import { isCmsAdminRole, UserRole } from '@industriallink/contracts';
 import { handoffHashForToken, tokenStore } from './api';
 import {
   BRAND_ADMIN_HOST,
@@ -95,7 +95,7 @@ export function goToPublicApp(path = '/'): void {
 }
 
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
-  if (role === UserRole.SuperAdmin) {
+  if (isCmsAdminRole(role)) {
     const dest = nextPath && isAdminAppPath(nextPath) ? nextPath : '/admin';
     // Đã ở admin.inlink.vn → ở lại origin hiện tại (tránh nhảy nhầm host)
     if (isAdminHostname()) {
@@ -127,7 +127,7 @@ export function navigateAfterLogin(role: UserRole, nextPath?: string | null): vo
 export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boolean {
   if (!shouldUseSplitHosts()) return false;
 
-  if (role === UserRole.SuperAdmin) {
+  if (isCmsAdminRole(role)) {
     if (!isAdminHostname()) {
       const dest = isAdminAppPath(pathWithSearch) ? pathWithSearch : '/admin';
       goToAdminApp(dest);

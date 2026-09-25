@@ -4,7 +4,14 @@ export enum UserRole {
   Recruiter = 'recruiter',
   HiringManager = 'hiring_manager',
   CompanyAdmin = 'company_admin',
+  /** Biên tập viên CMS — viết/đăng bài, SEO, không quản trị nền tảng. */
+  Editor = 'editor',
   SuperAdmin = 'super_admin',
+}
+
+/** Có quyền vào admin CMS (Dashboard / bài viết / SEO…). */
+export function isCmsAdminRole(role: UserRole | string): boolean {
+  return role === UserRole.SuperAdmin || role === UserRole.Editor;
 }
 
 /** Trạng thái vòng đời của tài khoản người dùng. */

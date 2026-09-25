@@ -27,6 +27,7 @@ import { NotificationBell } from '@/components/notification-bell';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { PublicHeader } from '@/components/public-header';
 import { RecruiterShell } from '@/components/recruiter-shell';
+import { SiteFooter } from '@/components/site-footer';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
@@ -162,27 +163,28 @@ export function AppShell({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F5F7FB]">
+      <div className="flex min-h-screen flex-col bg-[#F5F7FB]">
         <PublicHeader />
         <main
           className={
             bleed
-              ? 'w-full'
+              ? 'w-full flex-1'
               : wide
                 ? flush
-                  ? 'mx-auto max-w-[1280px] px-4 sm:px-6'
-                  : 'mx-auto max-w-[1280px] px-4 py-6 sm:px-6'
-                : 'mx-auto max-w-6xl px-6 py-8'
+                  ? 'mx-auto w-full max-w-[1280px] flex-1 px-4 sm:px-6'
+                  : 'mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6'
+                : 'mx-auto w-full max-w-6xl flex-1 px-6 py-8'
           }
         >
           {children}
         </main>
+        <SiteFooter />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F7FB]">
+    <div className="flex min-h-screen flex-col bg-[#F5F7FB]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/85">
         <div className="mx-auto flex h-14 max-w-[1280px] items-stretch gap-4 px-4 sm:h-16 sm:px-6">
           <BrandLogo href="/" compact className="self-center" />
@@ -413,16 +415,17 @@ export function AppShell({
       <main
         className={
           bleed
-            ? 'w-full'
+            ? 'w-full flex-1'
             : wide
               ? flush
-                ? 'mx-auto max-w-[1280px] px-4 sm:px-6'
-                : 'mx-auto max-w-[1280px] px-4 py-6 sm:px-6'
-              : 'mx-auto max-w-6xl px-6 py-8'
+                ? 'mx-auto w-full max-w-[1280px] flex-1 px-4 sm:px-6'
+                : 'mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 sm:px-6'
+              : 'mx-auto w-full max-w-6xl flex-1 px-6 py-8'
         }
       >
         {children}
       </main>
+      <SiteFooter />
     </div>
   );
 }
