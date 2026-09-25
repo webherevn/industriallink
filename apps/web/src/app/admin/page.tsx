@@ -14,12 +14,12 @@ export default function AdminDashboardPage() {
 
   return (
     <AdminShell>
-      <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Khung Superadmin — CMS & SEO phase 1. Module nền tảng sẽ mở dần.
+      <h1 className="cms-page-title">Dashboard</h1>
+      <p className="cms-page-subtitle">
+        Superadmin — CMS & SEO. Module nền tảng mở dần.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {[
           { label: 'Danh mục', value: data?.categories, href: '/admin/categories' },
           { label: 'Bài viết', value: data?.posts, href: '/admin/posts' },
@@ -29,11 +29,11 @@ export default function AdminDashboardPage() {
           { label: 'Bản nháp', value: data?.drafts, href: '/admin/posts' },
         ].map((item) => (
           <Link key={item.label} href={item.href}>
-            <Card className="transition hover:border-slate-300 hover:shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <Card className="transition hover:border-brand-200 hover:shadow-md">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 {item.label}
               </p>
-              <p className="mt-2 text-3xl font-bold text-slate-900">
+              <p className="mt-2 text-3xl font-bold tracking-tight text-brand-600">
                 {isLoading ? '…' : (item.value ?? 0)}
               </p>
             </Card>

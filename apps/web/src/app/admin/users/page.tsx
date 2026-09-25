@@ -66,8 +66,8 @@ export default function AdminUsersPage() {
 
   return (
     <AdminShell>
-      <h1 className="text-2xl font-bold text-slate-900">Người dùng & phân quyền</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="cms-page-title">Người dùng & phân quyền</h1>
+      <p className="cms-page-subtitle">
         Tài khoản Superadmin mặc định: <b>ilinkadmin@inlink.vn</b>. Tạo thêm tài khoản và gán
         quyền tại đây.
       </p>

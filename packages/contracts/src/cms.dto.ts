@@ -36,13 +36,48 @@ export interface CmsPostListItem {
   updatedAt: string;
 }
 
+export interface CmsAuthorSocial {
+  website: string | null;
+  facebook: string | null;
+  linkedin: string | null;
+  twitter: string | null;
+  youtube: string | null;
+}
+
+/** Hồ sơ tác giả CMS (chỉnh trong SuperAdmin → Tác giả). */
+export interface CmsAuthorProfileView {
+  userId: string;
+  email: string | null;
+  displayName: string;
+  title: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  social: CmsAuthorSocial;
+  updatedAt: string;
+}
+
+export interface UpsertCmsAuthorProfileRequest {
+  displayName: string;
+  title?: string | null;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  websiteUrl?: string | null;
+  facebookUrl?: string | null;
+  linkedinUrl?: string | null;
+  twitterUrl?: string | null;
+  youtubeUrl?: string | null;
+}
+
 export interface CmsPostView extends CmsPostListItem {
   bodyHtml: string;
   authorId: string;
   authorName: string | null;
   authorTitle: string | null;
   authorBio: string | null;
+  authorAvatarUrl: string | null;
+  authorSocial: CmsAuthorSocial;
   seoDescription: string | null;
+  focusKeyword: string | null;
   canonicalPath: string | null;
   ogTitle: string | null;
   ogDescription: string | null;
@@ -73,11 +108,15 @@ export interface UpsertCmsPostRequest {
   bodyHtml?: string;
   categoryId?: string | null;
   coverImageUrl?: string | null;
+  /** @deprecated Tác giả lấy từ hồ sơ tài khoản đăng bài — bỏ qua nếu gửi. */
   authorName?: string | null;
+  /** @deprecated */
   authorTitle?: string | null;
+  /** @deprecated */
   authorBio?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
+  focusKeyword?: string | null;
   canonicalPath?: string | null;
   ogTitle?: string | null;
   ogDescription?: string | null;
@@ -90,6 +129,8 @@ export interface UpsertCmsPostRequest {
   faq?: CmsFaqItem[];
   /** Nếu true → published; false → draft. */
   publish?: boolean;
+  /** ISO datetime — cho phép chỉnh ngày đăng (giống WP). */
+  publishedAt?: string | null;
 }
 
 export interface ListCmsPostsQuery {
@@ -132,4 +173,47 @@ export function cmsContentPublicPath(type: CmsContentType, slug: string): string
 
 export function buildCmsRobotsString(index: boolean, follow: boolean): string {
   return `${index ? 'index' : 'noindex'},${follow ? 'follow' : 'nofollow'}`;
+}
+
+/** Vị trí menu trang chủ (không phải nav ứng viên / NTD). */
+export enum CmsMenuLocation {
+  Primary = 'primary',
+  Footer = 'footer',
+}
+
+export interface CmsMenuItemView {
+  id: string;
+  parentId: string | null;
+  label: string;
+  url: string;
+  sortOrder: number;
+  openInNewTab: boolean;
+  objectType: 'custom' | 'page' | 'post';
+  objectId: string | null;
+  children: CmsMenuItemView[];
+}
+
+export interface CmsMenuView {
+  id: string;
+  location: CmsMenuLocation | string;
+  name: string;
+  items: CmsMenuItemView[];
+  updatedAt: string;
+}
+
+export interface UpsertCmsMenuItemInput {
+  /** Có id = giữ item; không id = tạo mới. */
+  id?: string;
+  parentId?: string | null;
+  label: string;
+  url: string;
+  sortOrder?: number;
+  openInNewTab?: boolean;
+  objectType?: 'custom' | 'page' | 'post';
+  objectId?: string | null;
+}
+
+export interface SaveCmsMenuRequest {
+  name?: string;
+  items: UpsertCmsMenuItemInput[];
 }

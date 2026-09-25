@@ -67,7 +67,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   if (!sessionReady || isLoading || (hasToken && !user && !isError)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] text-slate-500">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--admin-bg)] text-sm text-slate-500">
         Đang tải admin...
       </div>
     );
@@ -75,21 +75,23 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   if (user && user.role !== UserRole.SuperAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] text-slate-500">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--admin-bg)] text-sm text-slate-500">
         Không có quyền Superadmin
       </div>
     );
   }
 
   const sidebar = (
-    <aside className="flex h-full w-[260px] flex-col border-r border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-4 py-5">
+    <aside className="flex h-full w-[248px] flex-col border-r border-slate-200/90 bg-white">
+      <div className="border-b border-slate-100 px-4 py-4">
         <BrandSidebarLockup href="/admin" />
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-          <Shield className="h-3 w-3" /> Superadmin
+        <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+          <Shield className="h-3 w-3" />
+          Superadmin
+          <span className="brand-accent-dot ml-0.5" aria-hidden />
         </p>
       </div>
-      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
         {ADMIN_NAV_SECTIONS.map((section) => (
           <div key={section.title}>
             <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
@@ -103,9 +105,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   return (
                     <li key={item.label}>
                       <span className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400">
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4 shrink-0" />
                         {item.label}
-                        <span className="ml-auto text-[10px] uppercase">Soon</span>
+                        <span className="ml-auto text-[10px] uppercase tracking-wide">Soon</span>
                       </span>
                     </li>
                   );
@@ -117,11 +119,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
                       className={clsx(
                         'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors',
                         active
-                          ? 'bg-slate-900 text-white'
+                          ? 'bg-brand-600 text-white shadow-sm'
                           : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                       )}
                     >
-                      <Icon className="h-4 w-4" />
+                      <Icon className={clsx('h-4 w-4 shrink-0', active ? 'opacity-95' : 'opacity-80')} />
                       {item.label}
                     </Link>
                   </li>
@@ -132,7 +134,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         ))}
       </nav>
       <div className="border-t border-slate-100 p-3">
-        <p className="truncate px-2 text-xs font-semibold text-slate-700">
+        <p className="truncate px-2 text-[13px] font-semibold text-slate-800">
           {user?.displayName || 'Admin'}
         </p>
         <p className="truncate px-2 text-[11px] text-slate-400">{user?.email}</p>
@@ -148,7 +150,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen bg-[#F1F5F9]">
+    <div className="flex min-h-screen bg-[var(--admin-bg)]">
       <div className="hidden lg:block">{sidebar}</div>
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
@@ -162,20 +164,23 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <button
             type="button"
             className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
             onClick={() => setMobileOpen(true)}
+            aria-label="Mở menu"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <div>
-            <p className="text-sm font-bold text-slate-900">inlink Admin</p>
-            <p className="text-xs text-slate-500">CMS · SEO · vận hành nền tảng</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-brand-600">inlink Admin</p>
+            <p className="truncate text-xs text-slate-500">CMS · SEO · vận hành nền tảng</p>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );

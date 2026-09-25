@@ -49,6 +49,12 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
+  async rewrites() {
+    // Local next dev: proxy /api → Nest để ảnh CMS relative `/api/v1/...` hoạt động.
+    const api = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+    if (!api || process.env.NODE_ENV === 'production') return [];
+    return [{ source: '/api/:path*', destination: `${api}/api/:path*` }];
+  },
 };
 
 export default nextConfig;

@@ -867,14 +867,17 @@ model CmsPost {
   status         String    @default("draft")
   categoryId     String?   @map("category_id") @db.Uuid
   publishedAt    DateTime? @map("published_at")
+  /// User.id của tài khoản đăng bài (kiểu WP author)
   authorId       String    @map("author_id") @db.Uuid
-  /// Schema Person — tên chuyên gia hiển thị (E-E-A-T)
+  /// Snapshot hiển thị — ưu tiên lấy từ CmsAuthorProfile khi đọc
   authorName     String?   @map("author_name")
   authorTitle    String?   @map("author_title")
   authorBio      String?   @map("author_bio")
   coverImageUrl  String?   @map("cover_image_url")
   seoTitle       String?   @map("seo_title")
   seoDescription String?   @map("seo_description")
+  /// Focus keyphrase (Yoast / Rank Math style)
+  focusKeyword   String?   @map("focus_keyword")
   canonicalPath  String?   @map("canonical_path")
   ogTitle        String?   @map("og_title")
   ogDescription  String?   @map("og_description")
@@ -910,6 +913,28 @@ model CmsPost {
   @@schema("cms")
 }
 
+/// Hồ sơ tác giả CMS (kiểu WP Users → Profile) — 1 user = 1 profile.
+model CmsAuthorProfile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// identity.user.id
+  userId      String   @unique @map("user_id") @db.Uuid
+  displayName String   @map("display_name")
+  title       String?
+  bio         String?
+  avatarUrl   String?  @map("avatar_url")
+  websiteUrl  String?  @map("website_url")
+  facebookUrl String?  @map("facebook_url")
+  linkedinUrl String?  @map("linkedin_url")
+  twitterUrl  String?  @map("twitter_url")
+  youtubeUrl  String?  @map("youtube_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  @@map("cms_author_profile")
+  @@schema("cms")
+}
+
 /// Redirect 301 khi đổi slug nội dung CMS (và dùng tay trong Redirect Manager).
 model CmsRedirect {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -924,6 +949,51 @@ model CmsRedirect {
 
   @@index([toPath])
   @@map("cms_redirect")
+  @@schema("cms")
+}
+
+/// Menu điều hướng trang chủ (kiểu WP Appearance → Menus), không phải nav ứng viên/NTD.
+model CmsMenu {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @default("default") @map("tenant_id")
+  /// primary | footer
+  location String
+  name     String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  items CmsMenuItem[]
+
+  @@unique([tenantId, location])
+  @@map("cms_menu")
+  @@schema("cms")
+}
+
+model CmsMenuItem {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menuId       String  @map("menu_id") @db.Uuid
+  parentId     String? @map("parent_id") @db.Uuid
+  label        String
+  url          String
+  sortOrder    Int     @default(0) @map("sort_order")
+  openInNewTab Boolean @default(false) @map("open_in_new_tab")
+  /// custom | page | post
+  objectType   String  @default("custom") @map("object_type")
+  objectId     String? @map("object_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  menu     CmsMenu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parent   CmsMenuItem? @relation("CmsMenuItemTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children CmsMenuItem[] @relation("CmsMenuItemTree")
+
+  @@index([menuId, sortOrder])
+  @@index([parentId])
+  @@map("cms_menu_item")
   @@schema("cms")
 }
 

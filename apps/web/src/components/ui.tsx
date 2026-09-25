@@ -532,7 +532,7 @@ export function Card({
 }) {
   const Tag = as;
   return (
-    <Tag className={clsx('rounded-2xl border border-slate-200 bg-white p-6 shadow-sm', className)}>
+    <Tag className={clsx('rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6', className)}>
       {children}
     </Tag>
   );

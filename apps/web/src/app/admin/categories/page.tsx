@@ -81,12 +81,12 @@ export default function AdminCategoriesPage() {
 
   return (
     <AdminShell>
-      <h1 className="text-2xl font-bold text-slate-900">Danh mục</h1>
-      <p className="mt-1 text-sm text-slate-500">Phân loại bài viết cẩm nang + meta SEO danh mục.</p>
+      <h1 className="cms-page-title">Danh mục</h1>
+      <p className="cms-page-subtitle">Phân loại bài viết cẩm nang + meta SEO danh mục.</p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <Card>
-          <h2 className="text-sm font-bold text-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900">
             {editingId ? 'Sửa danh mục' : 'Thêm danh mục'}
           </h2>
           <form

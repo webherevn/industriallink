@@ -190,6 +190,17 @@ export class JobTechnicalCriteriaDto {
   @IsArray()
   @IsString({ each: true })
   documentLiteracy?: string[];
+
+  @ApiPropertyOptional({ type: [String], description: 'Trường JD đánh dấu bắt buộc (lọc cứng)' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  hardFilters?: string[];
+
+  @ApiPropertyOptional({ enum: [85, 100], description: 'Ngưỡng lọc cứng ngành: 85 gần, 100 đúng ngành' })
+  @IsOptional()
+  @IsIn([85, 100])
+  industryHardMinS?: 85 | 100;
 }
 
 export class CreateJobDto {

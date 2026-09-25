@@ -98,3 +98,45 @@ export async function upsertCmsRedirect(body: {
 export async function deleteCmsRedirect(id: string): Promise<void> {
   await apiRequest(`/admin/cms/redirects/${id}`, { method: 'DELETE' });
 }
+
+export async function uploadCmsMedia(file: File): Promise<{
+  url: string;
+  filename: string;
+  mime: string;
+  size: number;
+}> {
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest('/cms/media', { method: 'POST', body: form, isForm: true });
+}
+
+export async function getCmsMenuAdmin(location: string) {
+  return apiRequest<import('@industriallink/contracts').CmsMenuView>(
+    `/admin/cms/menus/${encodeURIComponent(location)}`,
+  );
+}
+
+export async function saveCmsMenuAdmin(
+  location: string,
+  body: import('@industriallink/contracts').SaveCmsMenuRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsMenuView>(
+    `/admin/cms/menus/${encodeURIComponent(location)}`,
+    { method: 'PUT', body },
+  );
+}
+
+export async function getCmsAuthorProfile() {
+  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
+    '/admin/cms/author-profile',
+  );
+}
+
+export async function updateCmsAuthorProfile(
+  body: import('@industriallink/contracts').UpsertCmsAuthorProfileRequest,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView>(
+    '/admin/cms/author-profile',
+    { method: 'PUT', body },
+  );
+}

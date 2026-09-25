@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +18,9 @@ import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CmsService } from './cms.service';
+import { SaveCmsMenuDto } from './dto/save-cms-menu.dto';
 import { UpdateCmsPostStatusDto } from './dto/update-cms-post-status.dto';
+import { UpsertCmsAuthorProfileDto } from './dto/upsert-cms-author-profile.dto';
 import { UpsertCmsCategoryDto } from './dto/upsert-cms-category.dto';
 import { UpsertCmsPostDto } from './dto/upsert-cms-post.dto';
 import { UpsertCmsRedirectDto } from './dto/upsert-cms-redirect.dto';
@@ -128,5 +131,36 @@ export class CmsAdminController {
   @ApiOperation({ summary: 'Xoá redirect' })
   deleteRedirect(@Param('id') id: string) {
     return this.cms.deleteRedirect(id);
+  }
+
+  @Get('menus/:location')
+  @ApiOperation({ summary: 'Lấy menu theo vị trí (primary|footer)' })
+  getMenu(@Param('location') location: string) {
+    return this.cms.getMenuByLocation(location, true);
+  }
+
+  @Put('menus/:location')
+  @ApiOperation({ summary: 'Lưu toàn bộ menu (kiểu WP Menus)' })
+  saveMenu(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('location') location: string,
+    @Body() dto: SaveCmsMenuDto,
+  ) {
+    return this.cms.saveMenu(user, location, dto);
+  }
+
+  @Get('author-profile')
+  @ApiOperation({ summary: 'Hồ sơ tác giả của tài khoản đang đăng nhập' })
+  getAuthorProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.cms.getMyAuthorProfile(user);
+  }
+
+  @Put('author-profile')
+  @ApiOperation({ summary: 'Cập nhật hồ sơ tác giả (tên, bio, avatar, social)' })
+  updateAuthorProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpsertCmsAuthorProfileDto,
+  ) {
+    return this.cms.updateMyAuthorProfile(user, dto);
   }
 }

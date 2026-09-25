@@ -5,7 +5,9 @@ import {
   FileText,
   FolderTree,
   LayoutDashboard,
+  Menu,
   Search,
+  UserRound,
   Users,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -37,6 +39,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { href: '/admin/categories', label: 'Danh mục', icon: FolderTree },
       { href: '/admin/posts', label: 'Bài viết', icon: FileText },
       { href: '/admin/pages', label: 'Trang', icon: FileText },
+      { href: '/admin/menus', label: 'Menu trang chủ', icon: Menu },
+      { href: '/admin/author', label: 'Tác giả', icon: UserRound },
       { href: '/admin/redirects', label: 'Redirect 301', icon: Search },
     ],
   },

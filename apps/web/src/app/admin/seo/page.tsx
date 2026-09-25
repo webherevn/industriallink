@@ -14,9 +14,9 @@ export default function AdminSeoOverviewPage() {
 
   return (
     <AdminShell>
-      <h1 className="text-2xl font-bold text-slate-900">SEO overview</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Theo dõi số lượng nội dung indexable. Meta SEO chỉnh trong từng post/page/category.
+      <h1 className="cms-page-title">SEO overview</h1>
+      <p className="cms-page-subtitle">
+        Theo dõi nội dung indexable. Meta SEO chỉnh trong từng post/page/category.
       </p>
       <Card className="mt-6 space-y-3">
         <p className="text-sm text-slate-700">

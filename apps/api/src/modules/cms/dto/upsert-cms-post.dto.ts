@@ -86,6 +86,11 @@ export class UpsertCmsPostDto {
   @IsString()
   seoDescription?: string | null;
 
+  @ApiPropertyOptional({ description: 'Focus keyphrase (Yoast/Rank Math)' })
+  @IsOptional()
+  @IsString()
+  focusKeyword?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -132,4 +137,9 @@ export class UpsertCmsPostDto {
   @IsOptional()
   @IsBoolean()
   publish?: boolean;
+
+  @ApiPropertyOptional({ description: 'ISO datetime — chỉnh ngày đăng' })
+  @IsOptional()
+  @IsString()
+  publishedAt?: string | null;
 }

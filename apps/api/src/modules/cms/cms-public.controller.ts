@@ -58,4 +58,11 @@ export class CmsPublicController {
     if (!row) throw new NotFoundException('Không có redirect');
     return row;
   }
+
+  @Public()
+  @Get('menus/:location')
+  @ApiOperation({ summary: 'Menu công khai theo vị trí (primary|footer)' })
+  getMenu(@Param('location') location: string) {
+    return this.cms.getMenuByLocation(location, true);
+  }
 }

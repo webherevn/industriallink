@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { BRAND_NAME } from '@/lib/brand';
+import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { fetchCmsRedirect, fetchPublishedCmsPost } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
 
@@ -33,6 +34,7 @@ export async function generateMetadata({
   const description = post.seoDescription || post.excerpt || undefined;
   const path = post.canonicalPath || cmsPostPublicPath(post.slug);
   const canonical = path.startsWith('http') ? path : `${siteUrl()}${path}`;
+  const ogImage = resolveCmsAssetUrl(post.ogImageUrl || post.coverImageUrl);
   return {
     title: `${title} | ${BRAND_NAME}`,
     description,
@@ -41,7 +43,7 @@ export async function generateMetadata({
     openGraph: {
       title: post.ogTitle || title,
       description: post.ogDescription || description,
-      images: post.ogImageUrl || post.coverImageUrl ? [post.ogImageUrl || post.coverImageUrl!] : undefined,
+      images: ogImage ? [ogImage] : undefined,
       type: 'article',
     },
   };
@@ -63,6 +65,14 @@ export default async function CareerGuideArticlePage({
   const base = siteUrl();
   const url = `${base}${cmsPostPublicPath(post.slug)}`;
   const authorName = post.authorName || BRAND_NAME;
+  const authorAvatar = resolveCmsAssetUrl(post.authorAvatarUrl) || post.authorAvatarUrl || undefined;
+  const socialLinks = [
+    post.authorSocial?.website,
+    post.authorSocial?.linkedin,
+    post.authorSocial?.facebook,
+    post.authorSocial?.twitter,
+    post.authorSocial?.youtube,
+  ].filter((u): u is string => Boolean(u));
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -71,12 +81,15 @@ export default async function CareerGuideArticlePage({
     datePublished: post.publishedAt || post.createdAt,
     dateModified: post.updatedAt,
     mainEntityOfPage: url,
-    image: post.ogImageUrl || post.coverImageUrl || undefined,
+    image: resolveCmsAssetUrl(post.ogImageUrl || post.coverImageUrl) || undefined,
     author: {
       '@type': 'Person',
       name: authorName,
       jobTitle: post.authorTitle || undefined,
       description: post.authorBio || undefined,
+      image: authorAvatar,
+      sameAs: socialLinks.length ? socialLinks : undefined,
+      url: post.authorSocial?.website || undefined,
     },
     publisher: { '@type': 'Organization', name: BRAND_NAME, url: base },
   };
@@ -134,10 +147,87 @@ export default async function CareerGuideArticlePage({
         {post.excerpt && (
           <p className="mt-4 text-base leading-relaxed text-slate-600">{post.excerpt}</p>
         )}
+        {post.coverImageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={resolveCmsAssetUrl(post.coverImageUrl) || post.coverImageUrl}
+            alt={post.title}
+            className="mt-6 w-full rounded-xl object-cover"
+          />
+        )}
         <div
           className="prose prose-slate mt-8 max-w-none"
-          dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
+          dangerouslySetInnerHTML={{ __html: absolutizeCmsHtml(post.bodyHtml) }}
         />
+
+        {(post.authorName || post.authorBio || authorAvatar) && (
+          <aside className="mt-10 flex gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+            {authorAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={authorAvatar}
+                alt={authorName}
+                className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-lg font-bold text-brand-700">
+                {authorName.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Tác giả
+              </p>
+              <p className="text-base font-semibold text-slate-900">{authorName}</p>
+              {post.authorTitle ? (
+                <p className="text-sm text-slate-500">{post.authorTitle}</p>
+              ) : null}
+              {post.authorBio ? (
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{post.authorBio}</p>
+              ) : null}
+              {socialLinks.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-brand-600">
+                  {post.authorSocial?.website && (
+                    <li>
+                      <a href={post.authorSocial.website} target="_blank" rel="noopener noreferrer">
+                        Website
+                      </a>
+                    </li>
+                  )}
+                  {post.authorSocial?.linkedin && (
+                    <li>
+                      <a href={post.authorSocial.linkedin} target="_blank" rel="noopener noreferrer">
+                        LinkedIn
+                      </a>
+                    </li>
+                  )}
+                  {post.authorSocial?.facebook && (
+                    <li>
+                      <a href={post.authorSocial.facebook} target="_blank" rel="noopener noreferrer">
+                        Facebook
+                      </a>
+                    </li>
+                  )}
+                  {post.authorSocial?.twitter && (
+                    <li>
+                      <a href={post.authorSocial.twitter} target="_blank" rel="noopener noreferrer">
+                        X
+                      </a>
+                    </li>
+                  )}
+                  {post.authorSocial?.youtube && (
+                    <li>
+                      <a href={post.authorSocial.youtube} target="_blank" rel="noopener noreferrer">
+                        YouTube
+                      </a>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          </aside>
+        )}
+
         {post.faq.length > 0 && (
           <section className="mt-10 border-t border-slate-200 pt-8">
             <h2 className="text-xl font-bold text-slate-900">Câu hỏi thường gặp</h2>

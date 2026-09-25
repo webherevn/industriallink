@@ -6,21 +6,29 @@ import {
 import {
   CmsContentStatus,
   CmsContentType,
+  CmsMenuLocation,
   buildCmsRobotsString,
   cmsContentPublicPath,
   nextUniqueSlug,
   toSeoSlug,
+  type CmsAuthorProfileView,
+  type CmsAuthorSocial,
   type CmsCategoryView,
   type CmsFaqItem,
+  type CmsMenuItemView,
+  type CmsMenuView,
   type CmsPostListItem,
   type CmsPostView,
   type CmsRedirectView,
   type ListCmsPostsQuery,
+  type SaveCmsMenuRequest,
+  type UpsertCmsAuthorProfileRequest,
   type UpsertCmsCategoryRequest,
   type UpsertCmsPostRequest,
   type UpsertCmsRedirectRequest,
 } from '@industriallink/contracts';
-import type { CmsCategory, CmsPost, Prisma } from '@prisma/client';
+import type { CmsAuthorProfile, CmsCategory, CmsPost, Prisma } from '@prisma/client';
+import { v7 as uuidv7 } from 'uuid';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
@@ -178,7 +186,7 @@ export class CmsService {
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
     if (!row) throw new NotFoundException('Không tìm thấy nội dung');
-    return this.mapPost(row);
+    return this.mapPostView(row);
   }
 
   async getPublishedBySlug(type: CmsContentType, slug: string): Promise<CmsPostView | null> {
@@ -191,7 +199,7 @@ export class CmsService {
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
-    return row ? this.mapPost(row) : null;
+    return row ? this.mapPostView(row) : null;
   }
 
   async createPost(user: AuthenticatedUser, input: UpsertCmsPostRequest): Promise<CmsPostView> {
@@ -201,6 +209,8 @@ export class CmsService {
     const slug = await this.uniquePostSlug(type, base);
     const publish = Boolean(input.publish);
     const robots = this.resolveRobots(input);
+    const publishedAt = this.resolvePublishedAt(input.publishedAt, publish, null);
+    const author = await this.ensureAuthorProfile(user);
     const row = await this.prisma.cmsPost.create({
       data: {
         type,
@@ -209,15 +219,16 @@ export class CmsService {
         excerpt: input.excerpt ?? null,
         bodyHtml: sanitizeCmsHtml(input.bodyHtml ?? ''),
         status: publish ? CmsContentStatus.Published : CmsContentStatus.Draft,
-        publishedAt: publish ? new Date() : null,
+        publishedAt,
         categoryId: type === CmsContentType.Page ? null : (input.categoryId ?? null),
         authorId: user.id,
-        authorName: input.authorName ?? user.displayName,
-        authorTitle: input.authorTitle ?? null,
-        authorBio: input.authorBio ?? null,
+        authorName: author.displayName,
+        authorTitle: author.title,
+        authorBio: author.bio,
         coverImageUrl: input.coverImageUrl ?? null,
         seoTitle: input.seoTitle ?? null,
         seoDescription: input.seoDescription ?? null,
+        focusKeyword: input.focusKeyword?.trim() || null,
         canonicalPath: input.canonicalPath ?? null,
         ogTitle: input.ogTitle ?? null,
         ogDescription: input.ogDescription ?? null,
@@ -238,7 +249,7 @@ export class CmsService {
         'URL_UPDATED',
       );
     }
-    return this.mapPost(row);
+    return this.mapPostView(row);
   }
 
   async updatePost(
@@ -273,6 +284,9 @@ export class CmsService {
 
     let status = existing.status;
     let publishedAt = existing.publishedAt;
+    if (input.publishedAt !== undefined) {
+      publishedAt = this.parseOptionalDate(input.publishedAt);
+    }
     if (input.publish === true) {
       status = CmsContentStatus.Published;
       publishedAt = publishedAt ?? new Date();
@@ -281,6 +295,7 @@ export class CmsService {
     }
 
     const robots = this.resolveRobots(input, existing);
+    const authorSnap = await this.resolveAuthorSnapshot(existing.authorId);
 
     const row = await this.prisma.cmsPost.update({
       where: { id },
@@ -303,12 +318,17 @@ export class CmsService {
               : existing.categoryId,
         coverImageUrl:
           input.coverImageUrl !== undefined ? input.coverImageUrl : existing.coverImageUrl,
-        authorName: input.authorName !== undefined ? input.authorName : existing.authorName,
-        authorTitle: input.authorTitle !== undefined ? input.authorTitle : existing.authorTitle,
-        authorBio: input.authorBio !== undefined ? input.authorBio : existing.authorBio,
+        // Tác giả = tài khoản tạo bài; snapshot lấy từ hồ sơ tác giả (không sửa tay trên post)
+        authorName: authorSnap.displayName,
+        authorTitle: authorSnap.title,
+        authorBio: authorSnap.bio,
         seoTitle: input.seoTitle !== undefined ? input.seoTitle : existing.seoTitle,
         seoDescription:
           input.seoDescription !== undefined ? input.seoDescription : existing.seoDescription,
+        focusKeyword:
+          input.focusKeyword !== undefined
+            ? input.focusKeyword?.trim() || null
+            : existing.focusKeyword,
         canonicalPath:
           input.canonicalPath !== undefined ? input.canonicalPath : existing.canonicalPath,
         ogTitle: input.ogTitle !== undefined ? input.ogTitle : existing.ogTitle,
@@ -344,7 +364,7 @@ export class CmsService {
       );
     }
 
-    return this.mapPost(row);
+    return this.mapPostView(row);
   }
 
   async setPostStatus(
@@ -375,7 +395,7 @@ export class CmsService {
     } else if (existing.status === CmsContentStatus.Published) {
       void this.indexing.publish(url, 'URL_DELETED');
     }
-    return this.mapPost(row);
+    return this.mapPostView(row);
   }
 
   async deletePost(user: AuthenticatedUser, id: string): Promise<{ message: string }> {
@@ -483,6 +503,207 @@ export class CmsService {
     return { message: 'Đã xoá redirect' };
   }
 
+  // ---- Menus (trang chủ — kiểu WP Appearance → Menus) ----
+
+  async getMenuByLocation(
+    location: string,
+    ensureDefaults = false,
+  ): Promise<CmsMenuView> {
+    const loc = this.normalizeMenuLocation(location);
+    let menu = await this.prisma.cmsMenu.findUnique({
+      where: { tenantId_location: { tenantId: 'default', location: loc } },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!menu && ensureDefaults) {
+      menu = await this.seedDefaultMenu(loc, null);
+    }
+    if (!menu) {
+      return {
+        id: '',
+        location: loc,
+        name: loc === CmsMenuLocation.Primary ? 'Menu chính' : 'Menu chân trang',
+        items: [],
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return this.mapMenu(menu);
+  }
+
+  async saveMenu(
+    user: AuthenticatedUser,
+    location: string,
+    input: SaveCmsMenuRequest,
+  ): Promise<CmsMenuView> {
+    const loc = this.normalizeMenuLocation(location);
+    if (!Array.isArray(input.items)) {
+      throw new BadRequestException('items phải là mảng');
+    }
+    if (input.items.length > 40) {
+      throw new BadRequestException('Tối đa 40 mục menu');
+    }
+
+    const menu = await this.prisma.$transaction(async (tx) => {
+      const upserted = await tx.cmsMenu.upsert({
+        where: { tenantId_location: { tenantId: 'default', location: loc } },
+        create: {
+          location: loc,
+          name:
+            input.name?.trim() ||
+            (loc === CmsMenuLocation.Primary ? 'Menu chính' : 'Menu chân trang'),
+          createdBy: user.id,
+          updatedBy: user.id,
+        },
+        update: {
+          ...(input.name?.trim() ? { name: input.name.trim() } : {}),
+          updatedBy: user.id,
+        },
+      });
+
+      await tx.cmsMenuItem.deleteMany({ where: { menuId: upserted.id } });
+
+      const idMap = new Map<string, string>();
+      for (let i = 0; i < input.items.length; i++) {
+        const item = input.items[i]!;
+        const clientKey = item.id?.trim() || `anon-${i}`;
+        idMap.set(clientKey, uuidv7());
+      }
+
+      for (let i = 0; i < input.items.length; i++) {
+        const item = input.items[i]!;
+        const clientKey = item.id?.trim() || `anon-${i}`;
+        const dbId = idMap.get(clientKey)!;
+        await tx.cmsMenuItem.create({
+          data: {
+            id: dbId,
+            menuId: upserted.id,
+            parentId: null,
+            label: item.label.trim(),
+            url: this.normalizeMenuUrl(item.url),
+            sortOrder: item.sortOrder ?? i,
+            openInNewTab: Boolean(item.openInNewTab),
+            objectType: item.objectType || 'custom',
+            objectId: item.objectId || null,
+          },
+        });
+      }
+
+      for (let i = 0; i < input.items.length; i++) {
+        const item = input.items[i]!;
+        const clientKey = item.id?.trim() || `anon-${i}`;
+        const dbId = idMap.get(clientKey)!;
+        const parentKey = item.parentId?.trim();
+        if (!parentKey) continue;
+        const parentDb = idMap.get(parentKey);
+        if (!parentDb || parentDb === dbId) continue;
+        await tx.cmsMenuItem.update({
+          where: { id: dbId },
+          data: { parentId: parentDb },
+        });
+      }
+
+      return tx.cmsMenu.findUniqueOrThrow({
+        where: { id: upserted.id },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+
+    return this.mapMenu(menu);
+  }
+
+  private normalizeMenuLocation(location: string): CmsMenuLocation {
+    if (location === CmsMenuLocation.Footer) return CmsMenuLocation.Footer;
+    if (location === CmsMenuLocation.Primary) return CmsMenuLocation.Primary;
+    throw new BadRequestException('location phải là primary hoặc footer');
+  }
+
+  private normalizeMenuUrl(url: string): string {
+    const u = (url || '').trim();
+    if (!u) throw new BadRequestException('URL menu không được trống');
+    if (/^javascript:/i.test(u)) throw new BadRequestException('URL không hợp lệ');
+    return u;
+  }
+
+  private async seedDefaultMenu(location: CmsMenuLocation, userId: string | null) {
+    const name = location === CmsMenuLocation.Primary ? 'Menu chính' : 'Menu chân trang';
+    const defaults =
+      location === CmsMenuLocation.Primary
+        ? [
+            { label: 'Việc làm', url: '/viec-lam', sortOrder: 0 },
+            { label: 'Tạo CV', url: '/login?next=%2Fcv%2Fcreate', sortOrder: 1 },
+            { label: 'Cẩm nang nghề nghiệp', url: '/cam-nang', sortOrder: 2 },
+          ]
+        : [
+            { label: 'Việc làm', url: '/viec-lam', sortOrder: 0 },
+            { label: 'Cẩm nang', url: '/cam-nang', sortOrder: 1 },
+          ];
+
+    return this.prisma.cmsMenu.create({
+      data: {
+        location,
+        name,
+        createdBy: userId,
+        updatedBy: userId,
+        items: {
+          create: defaults.map((d) => ({
+            label: d.label,
+            url: d.url,
+            sortOrder: d.sortOrder,
+            objectType: 'custom',
+          })),
+        },
+      },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+  }
+
+  private mapMenu(
+    menu: {
+      id: string;
+      location: string;
+      name: string;
+      updatedAt: Date;
+      items: {
+        id: string;
+        parentId: string | null;
+        label: string;
+        url: string;
+        sortOrder: number;
+        openInNewTab: boolean;
+        objectType: string;
+        objectId: string | null;
+      }[];
+    },
+  ): CmsMenuView {
+    const byParent = new Map<string | null, typeof menu.items>();
+    for (const item of menu.items) {
+      const key = item.parentId;
+      const list = byParent.get(key) ?? [];
+      list.push(item);
+      byParent.set(key, list);
+    }
+    const mapItem = (item: (typeof menu.items)[number]): CmsMenuItemView => ({
+      id: item.id,
+      parentId: item.parentId,
+      label: item.label,
+      url: item.url,
+      sortOrder: item.sortOrder,
+      openInNewTab: item.openInNewTab,
+      objectType: (item.objectType as CmsMenuItemView['objectType']) || 'custom',
+      objectId: item.objectId,
+      children: (byParent.get(item.id) ?? [])
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(mapItem),
+    });
+    const roots = (byParent.get(null) ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
+    return {
+      id: menu.id,
+      location: menu.location,
+      name: menu.name,
+      items: roots.map(mapItem),
+      updatedAt: menu.updatedAt.toISOString(),
+    };
+  }
+
   private async upsertRedirectRecord(
     user: AuthenticatedUser,
     input: UpsertCmsRedirectRequest,
@@ -552,6 +773,30 @@ export class CmsService {
       index: existing?.robotsIndex ?? true,
       follow: existing?.robotsFollow ?? true,
     };
+  }
+
+  /** Parse ISO / datetime-local; null = xoá ngày. */
+  private parseOptionalDate(value: string | null | undefined): Date | null {
+    if (value === null || value === undefined || value === '') return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException('publishedAt không hợp lệ');
+    }
+    return d;
+  }
+
+  private resolvePublishedAt(
+    input: string | null | undefined,
+    publish: boolean,
+    existing: Date | null,
+  ): Date | null {
+    if (input !== undefined) {
+      const parsed = this.parseOptionalDate(input);
+      if (parsed) return parsed;
+      return publish ? new Date() : null;
+    }
+    if (publish) return existing ?? new Date();
+    return existing;
   }
 
   private normalizeFaq(faq?: CmsFaqItem[] | null): CmsFaqItem[] {
@@ -637,15 +882,152 @@ export class CmsService {
     };
   }
 
-  private mapPost(row: PostWithCategory): CmsPostView {
+  /** Đảm bảo user có hồ sơ tác giả (tạo lần đầu từ displayName). */
+  async ensureAuthorProfile(user: AuthenticatedUser): Promise<CmsAuthorProfile> {
+    const existing = await this.prisma.cmsAuthorProfile.findUnique({
+      where: { userId: user.id },
+    });
+    if (existing) return existing;
+    return this.prisma.cmsAuthorProfile.create({
+      data: {
+        userId: user.id,
+        displayName: user.displayName?.trim() || user.email,
+        updatedBy: user.id,
+      },
+    });
+  }
+
+  async getMyAuthorProfile(user: AuthenticatedUser): Promise<CmsAuthorProfileView> {
+    const profile = await this.ensureAuthorProfile(user);
+    return this.mapAuthorProfile(profile, user.email);
+  }
+
+  async updateMyAuthorProfile(
+    user: AuthenticatedUser,
+    input: UpsertCmsAuthorProfileRequest,
+  ): Promise<CmsAuthorProfileView> {
+    const displayName = input.displayName?.trim();
+    if (!displayName) throw new BadRequestException('Tên tác giả không được để trống');
+
+    const emptyToNull = (v?: string | null) => {
+      if (v === undefined) return undefined;
+      const t = v?.trim() || '';
+      return t || null;
+    };
+
+    await this.ensureAuthorProfile(user);
+    const row = await this.prisma.cmsAuthorProfile.update({
+      where: { userId: user.id },
+      data: {
+        displayName,
+        title: emptyToNull(input.title),
+        bio: emptyToNull(input.bio),
+        avatarUrl: emptyToNull(input.avatarUrl),
+        websiteUrl: emptyToNull(input.websiteUrl),
+        facebookUrl: emptyToNull(input.facebookUrl),
+        linkedinUrl: emptyToNull(input.linkedinUrl),
+        twitterUrl: emptyToNull(input.twitterUrl),
+        youtubeUrl: emptyToNull(input.youtubeUrl),
+        updatedBy: user.id,
+      },
+    });
+
+    // Đồng bộ snapshot trên bài của tác giả này (giống WP cập nhật display name)
+    await this.prisma.cmsPost.updateMany({
+      where: { authorId: user.id, isDeleted: false },
+      data: {
+        authorName: row.displayName,
+        authorTitle: row.title,
+        authorBio: row.bio,
+      },
+    });
+
+    return this.mapAuthorProfile(row, user.email);
+  }
+
+  private async resolveAuthorSnapshot(authorId: string): Promise<{
+    displayName: string;
+    title: string | null;
+    bio: string | null;
+  }> {
+    const profile = await this.prisma.cmsAuthorProfile.findUnique({
+      where: { userId: authorId },
+    });
+    if (profile) {
+      return {
+        displayName: profile.displayName,
+        title: profile.title,
+        bio: profile.bio,
+      };
+    }
+    const u = await this.prisma.user.findUnique({
+      where: { id: authorId },
+      select: { displayName: true, email: true },
+    });
+    return {
+      displayName: u?.displayName || u?.email || 'Tác giả',
+      title: null,
+      bio: null,
+    };
+  }
+
+  private emptySocial(): CmsAuthorSocial {
+    return {
+      website: null,
+      facebook: null,
+      linkedin: null,
+      twitter: null,
+      youtube: null,
+    };
+  }
+
+  private mapAuthorSocial(row: CmsAuthorProfile | null): CmsAuthorSocial {
+    if (!row) return this.emptySocial();
+    return {
+      website: row.websiteUrl,
+      facebook: row.facebookUrl,
+      linkedin: row.linkedinUrl,
+      twitter: row.twitterUrl,
+      youtube: row.youtubeUrl,
+    };
+  }
+
+  private mapAuthorProfile(row: CmsAuthorProfile, email: string | null): CmsAuthorProfileView {
+    return {
+      userId: row.userId,
+      email,
+      displayName: row.displayName,
+      title: row.title,
+      bio: row.bio,
+      avatarUrl: row.avatarUrl,
+      social: this.mapAuthorSocial(row),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private async mapPostView(row: PostWithCategory): Promise<CmsPostView> {
+    const profile = await this.prisma.cmsAuthorProfile.findUnique({
+      where: { userId: row.authorId },
+    });
+    let fallbackName = row.authorName;
+    if (!profile && !fallbackName) {
+      const u = await this.prisma.user.findUnique({
+        where: { id: row.authorId },
+        select: { displayName: true },
+      });
+      fallbackName = u?.displayName ?? null;
+    }
     return {
       ...this.mapPostList(row),
       bodyHtml: row.bodyHtml,
       authorId: row.authorId,
-      authorName: row.authorName,
-      authorTitle: row.authorTitle,
-      authorBio: row.authorBio,
+      authorName: profile?.displayName || fallbackName,
+      authorTitle: profile?.title ?? row.authorTitle,
+      authorBio: profile?.bio ?? row.authorBio,
+      authorAvatarUrl: profile?.avatarUrl ?? null,
+      authorSocial: this.mapAuthorSocial(profile),
       seoDescription: row.seoDescription,
+      focusKeyword: row.focusKeyword,
       canonicalPath: row.canonicalPath,
       ogTitle: row.ogTitle,
       ogDescription: row.ogDescription,

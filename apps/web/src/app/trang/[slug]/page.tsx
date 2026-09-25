@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { BRAND_NAME } from '@/lib/brand';
+import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { fetchCmsRedirect, fetchPublishedCmsPage } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
 
@@ -32,6 +33,7 @@ export async function generateMetadata({
   const description = page.seoDescription || page.excerpt || undefined;
   const path = page.canonicalPath || cmsPagePublicPath(page.slug);
   const canonical = path.startsWith('http') ? path : `${siteUrl()}${path}`;
+  const ogImage = resolveCmsAssetUrl(page.ogImageUrl || page.coverImageUrl);
   return {
     title: `${title} | ${BRAND_NAME}`,
     description,
@@ -40,7 +42,7 @@ export async function generateMetadata({
     openGraph: {
       title: page.ogTitle || title,
       description: page.ogDescription || description,
-      images: page.ogImageUrl || page.coverImageUrl ? [page.ogImageUrl || page.coverImageUrl!] : undefined,
+      images: ogImage ? [ogImage] : undefined,
       type: 'website',
     },
   };
@@ -107,9 +109,17 @@ export default async function StaticCmsPage({
         {page.excerpt && (
           <p className="mt-3 text-base leading-relaxed text-slate-600">{page.excerpt}</p>
         )}
+        {page.coverImageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={resolveCmsAssetUrl(page.coverImageUrl) || page.coverImageUrl}
+            alt={page.title}
+            className="mt-6 w-full rounded-xl object-cover"
+          />
+        )}
         <div
           className="prose prose-slate mt-8 max-w-none"
-          dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
+          dangerouslySetInnerHTML={{ __html: absolutizeCmsHtml(page.bodyHtml) }}
         />
         {page.faq.length > 0 && (
           <section className="mt-10 border-t border-slate-200 pt-8">
