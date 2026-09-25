@@ -77,6 +77,8 @@ export default function CompanyPage() {
     queryKey: ['my-company'],
     queryFn: getMyCompany,
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: logoUrl } = useQuery({
