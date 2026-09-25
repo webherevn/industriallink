@@ -518,9 +518,21 @@ export function SearchPageClient() {
 
   const matchMutation = useMutation({
     mutationFn: (jobId: string) => candidatesForJob(jobId),
-    onSuccess: (data) => {
+    onSuccess: (data, jobId) => {
       setMatchResults(data.map(matchToResult));
       setHasMatched(true);
+      // Nếu matching theo tin trống → tự chạy tìm mạng lưới theo tiêu đề tin (đồng bộ UX Copilot)
+      if (data.length === 0) {
+        const job = jdList.find((j) => j.id === jobId);
+        const q = (job?.title || filters.q || '').trim();
+        if (q.length >= 2) {
+          setFiltersOpen(true);
+          const next = { ...EMPTY, q };
+          setFilters(next);
+          writeUrl({ jobId, q });
+          mutateFilterRef.current(next);
+        }
+      }
       requestAnimationFrame(() => {
         matchAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -901,7 +913,7 @@ export function SearchPageClient() {
               results={matchResults}
               loading={matching}
               emptyTitle="Chưa thấy ứng viên khớp tin này"
-              emptyHint="Hồ sơ cần có dữ liệu catalog và vector. Thử tin khác hoặc dùng bộ lọc tuỳ chọn bên dưới."
+              emptyHint="Đang thử tìm trên mạng lưới theo tiêu đề tin (bên dưới). Nếu vẫn trống: kiểm tra hồ sơ đã nộp trong Inbox hoặc bổ sung bộ lọc."
             />
           </section>
         )}

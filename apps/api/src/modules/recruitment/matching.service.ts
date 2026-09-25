@@ -121,33 +121,96 @@ export class MatchingService {
 
   /** Gợi ý ứng viên phù hợp cho một tin tuyển dụng (phía nhà tuyển dụng). */
   async candidatesForJob(user: AuthenticatedUser, jobId: string): Promise<CandidateMatchView[]> {
-    const job = await this.prisma.job.findUnique({ where: { id: jobId }, include: { skills: true } });
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: { skills: true },
+    });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
 
-    let rows: { candidate_id: string; score: number }[] = [];
+    /** candidateId → điểm semantic (0 nếu fallback không có vector) */
+    const seedScores = new Map<string, number>();
+
+    // 1) Semantic (pgvector) — ưu tiên nếu có embedding
     try {
       const vector = await this.ai.embed(buildJobText(job, job.skills.map((s) => s.name)));
       const literal = `[${vector.join(',')}]`;
-      rows = await this.prisma.$queryRaw<{ candidate_id: string; score: number }[]>`
+      const rows = await this.prisma.$queryRaw<{ candidate_id: string; score: number }[]>`
         SELECT candidate_id, (1 - (embedding <=> ${literal}::vector))::float AS score
         FROM candidate.candidate_search_index
         WHERE tenant_id = ${user.tenantId} AND embedding IS NOT NULL
         ORDER BY embedding <=> ${literal}::vector
         LIMIT ${MATCH_LIMIT}`;
+      for (const r of rows) {
+        seedScores.set(r.candidate_id, Number(r.score) || 0);
+      }
     } catch (err) {
       this.logger.warn(`Semantic matching lỗi: ${String(err)}`);
     }
-    if (rows.length === 0) return [];
 
-    const scoreMap = new Map(rows.map((r) => [r.candidate_id, r.score]));
+    // 2) Hồ sơ đã nộp vào đúng tin này (giống Copilot ưu tiên inbox)
+    if (seedScores.size < MATCH_LIMIT) {
+      const applied = await this.prisma.application.findMany({
+        where: { jobId, isDeleted: false },
+        orderBy: { updatedAt: 'desc' },
+        take: MATCH_LIMIT,
+        select: { candidateId: true, matchScore: true },
+      });
+      for (const a of applied) {
+        if (seedScores.has(a.candidateId)) continue;
+        const pct = a.matchScore != null ? Math.max(0, Math.min(100, a.matchScore)) / 100 : 0.5;
+        seedScores.set(a.candidateId, pct);
+        if (seedScores.size >= MATCH_LIMIT) break;
+      }
+    }
+
+    // 3) Full-text trên chỉ mục theo tiêu đề tin (khi thiếu vector / chưa đủ pool)
+    if (seedScores.size < MATCH_LIMIT) {
+      const titleToken = job.title
+        .trim()
+        .split(/[\s/|,.\-–—]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 3)[0];
+      if (titleToken) {
+        const indexed = await this.prisma.candidateSearchIndex.findMany({
+          where: {
+            tenantId: user.tenantId,
+            searchText: { contains: titleToken, mode: 'insensitive' },
+          },
+          take: MATCH_LIMIT,
+          select: { candidateId: true },
+        });
+        for (const row of indexed) {
+          if (seedScores.has(row.candidateId)) continue;
+          seedScores.set(row.candidateId, 0.4);
+          if (seedScores.size >= MATCH_LIMIT) break;
+        }
+      }
+    }
+
+    // 4) Fallback cuối: ứng viên cập nhật gần đây cùng tenant (chấm bằng engine JD)
+    if (seedScores.size === 0) {
+      const recent = await this.prisma.candidate.findMany({
+        where: { tenantId: user.tenantId, isDeleted: false },
+        orderBy: { updatedAt: 'desc' },
+        take: MATCH_LIMIT,
+        select: { id: true },
+      });
+      for (const c of recent) {
+        seedScores.set(c.id, 0.35);
+      }
+    }
+
+    if (seedScores.size === 0) return [];
+
+    const candidateIds = [...seedScores.keys()];
     const candidates = await this.prisma.candidate.findMany({
-      where: { id: { in: rows.map((r) => r.candidate_id) } },
+      where: { id: { in: candidateIds }, isDeleted: false },
       include: CANDIDATE_MATCH_INCLUDE,
     });
 
     return candidates
       .map((c) => {
-        const explanation = this.explainPair(scoreMap.get(c.id) ?? 0, job, c);
+        const explanation = this.explainPair(seedScores.get(c.id) ?? 0, job, c);
         return {
           candidateId: c.id,
           displayName: c.displayName,
