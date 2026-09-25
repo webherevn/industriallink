@@ -1,0 +1,1463 @@
+{
+ "_doc": "Bo du lieu tra cuu engine matching iLink - nhanh KY THUAT. Sinh tu dong, khong go tay. Dung CHUNG bang nganh, dia diem, chuyen nganh voi nhanh Kinh doanh.",
+ "_canh_bao": "MA TRUONG jd.. CUA NHANH KY THUAT KHAC HAN NHANH KINH DOANH. Vi du jd09 o Kinh doanh la San pham (20 diem), o Ky thuat la Moi truong lam viec (4 diem). Trong code PHAI dat tien to: KYTHUAT.jd09 va SALES.jd09.",
+ "phien_ban": "1.0",
+ "ngay": "2026-09-21",
+ "nhanh": "ky_thuat",
+ "hang_so": {
+  "MAX_CHON_HO_SO": 3,
+  "CUNG_CUM_KHAC_NGANH": 85,
+  "CUNG_NHOM_KHAC_MUC": 85,
+  "KHAC_GAP_KHAC": 30,
+  "MOT_BEN_KHAC": 10,
+  "NGUONG_BE_DAY_NAM": 6,
+  "TRAN_THUONG_BE_DAY": 0.25,
+  "KHOI_CONG_TY": 70,
+  "KHOI_CHUNG": 30,
+  "NGUONG_LOC_CUNG_NGANH_MAC_DINH": 85
+ },
+ "trong_so": {
+  "jd01a": {
+   "ten": "Vị trí ứng tuyển",
+   "trong_so": 1,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "13"
+  },
+  "jd01b": {
+   "ten": "Vị trí đã làm",
+   "trong_so": 3,
+   "khoi": "cong_ty",
+   "alpha": 0.3,
+   "cv": "21"
+  },
+  "jd02": {
+   "ten": "Ngành / lĩnh vực kỹ thuật",
+   "trong_so": 15,
+   "khoi": "cong_ty",
+   "alpha": null,
+   "cv": "23"
+  },
+  "jd03": {
+   "ten": "Địa điểm làm việc",
+   "trong_so": 2,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "14"
+  },
+  "jd04": {
+   "ten": "Kinh nghiệm yêu cầu",
+   "trong_so": 6,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "22"
+  },
+  "jd05": {
+   "ten": "Mức thu nhập",
+   "trong_so": 2,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "15"
+  },
+  "jd08": {
+   "ten": "Thiết bị / hệ thống",
+   "trong_so": 21,
+   "khoi": "cong_ty",
+   "alpha": 0.7,
+   "cv": "24"
+  },
+  "jd09": {
+   "ten": "Môi trường làm việc",
+   "trong_so": 4,
+   "khoi": "cong_ty",
+   "alpha": 0.2,
+   "cv": "25"
+  },
+  "jd10": {
+   "ten": "Công việc kỹ thuật",
+   "trong_so": 17,
+   "khoi": "cong_ty",
+   "alpha": 0.3,
+   "cv": "26"
+  },
+  "jd11": {
+   "ten": "Mức độ tự chủ",
+   "trong_so": 10,
+   "khoi": "cong_ty",
+   "alpha": 0.4,
+   "cv": "27"
+  },
+  "jd12": {
+   "ten": "Trình độ học vấn",
+   "trong_so": 1,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "6"
+  },
+  "jd13": {
+   "ten": "Chuyên ngành",
+   "trong_so": 3,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "8"
+  },
+  "jd14": {
+   "ten": "Ngoại ngữ",
+   "trong_so": 1,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "10"
+  },
+  "jd15": {
+   "ten": "Chứng chỉ",
+   "trong_so": 2,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "9"
+  },
+  "jd16": {
+   "ten": "Giấy phép lái xe",
+   "trong_so": 3,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "11"
+  },
+  "jd17": {
+   "ten": "Khả năng đi công tác",
+   "trong_so": 3,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "12"
+  },
+  "jd18": {
+   "ten": "Khả năng làm ngoài giờ / xử lý sự cố",
+   "trong_so": 2,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "17"
+  },
+  "jd19": {
+   "ten": "Công cụ / phần mềm",
+   "trong_so": 1,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "18"
+  },
+  "jd20": {
+   "ten": "Bản vẽ / tài liệu kỹ thuật",
+   "trong_so": 3,
+   "khoi": "chung",
+   "alpha": 0,
+   "cv": "19"
+  }
+ },
+ "nganh": {
+  "_doc": "Dung chung voi nhanh Kinh doanh.",
+  "danh_muc": {
+   "1": {
+    "ten": "Máy móc & Thiết bị sản xuất",
+    "cum": 1
+   },
+   "2": {
+    "ten": "Tự động hóa & Điều khiển",
+    "cum": 2
+   },
+   "3": {
+    "ten": "Điện & Năng lượng công nghiệp",
+    "cum": 2
+   },
+   "4": {
+    "ten": "HVAC & Cơ điện M&E",
+    "cum": 3
+   },
+   "5": {
+    "ten": "Cơ khí & Chế tạo máy",
+    "cum": 1
+   },
+   "6": {
+    "ten": "Thiết bị & Vật tư MRO",
+    "cum": 1
+   },
+   "7": {
+    "ten": "Thủy lực & Khí nén",
+    "cum": 1
+   },
+   "8": {
+    "ten": "Dầu mỡ nhờn & Hóa chất công nghiệp",
+    "cum": 4
+   },
+   "9": {
+    "ten": "Đo lường & Thiết bị công nghiệp",
+    "cum": 2
+   },
+   "10": {
+    "ten": "Nhà thầu công nghiệp & EPC",
+    "cum": 3
+   },
+   "11": {
+    "ten": "Nhà máy & Sản xuất công nghiệp",
+    "cum": 6
+   },
+   "12": {
+    "ten": "Logistics & Thiết bị kho vận",
+    "cum": 5
+   }
+  },
+  "ten_cum": {
+   "1": "Máy móc · Cơ khí · Vật tư MRO · Thủy lực khí nén",
+   "2": "Tự động hóa · Điện · Đo lường",
+   "3": "HVAC · Cơ điện M&E · Nhà thầu EPC",
+   "4": "Dầu mỡ nhờn · Hóa chất công nghiệp",
+   "5": "Logistics · Thiết bị kho vận",
+   "6": "Nhà máy & Sản xuất công nghiệp"
+  },
+  "ma_tran_cum": {
+   "nhan": [
+    "cum1",
+    "cum2",
+    "cum3",
+    "cum4",
+    "cum5",
+    "cum6"
+   ],
+   "gia_tri": [
+    [
+     100,
+     65,
+     45,
+     50,
+     55,
+     55
+    ],
+    [
+     65,
+     100,
+     70,
+     30,
+     55,
+     55
+    ],
+    [
+     45,
+     70,
+     100,
+     30,
+     60,
+     55
+    ],
+    [
+     50,
+     30,
+     30,
+     100,
+     30,
+     55
+    ],
+    [
+     55,
+     55,
+     60,
+     30,
+     100,
+     55
+    ],
+    [
+     55,
+     55,
+     55,
+     55,
+     55,
+     100
+    ]
+   ]
+  }
+ },
+ "thiet_bi": {
+  "_doc": "CV 24 <-> jd08. Ma tran sinh tu quy tac nhom, khong khai tay.",
+  "ten_nhom": {
+   "1": "Cơ khí và Truyền động",
+   "2": "Điện, Tự động hóa và Đo lường",
+   "3": "Cơ điện công trình và Hạ tầng",
+   "4": "Vận hành và Bảo trì nhà máy"
+  },
+  "bang_nhom": {
+   "1-1": 100,
+   "1-2": 65,
+   "1-3": 60,
+   "1-4": 70,
+   "2-2": 100,
+   "2-3": 70,
+   "2-4": 65,
+   "3-3": 100,
+   "3-4": 50,
+   "4-4": 100
+  },
+  "danh_muc": [
+   {
+    "ma": "CK",
+    "ten": "Cơ khí / Cơ khí chế tạo",
+    "nhom": 1
+   },
+   {
+    "ma": "TL",
+    "ten": "Thủy lực",
+    "nhom": 1
+   },
+   {
+    "ma": "KN",
+    "ten": "Khí nén",
+    "nhom": 1
+   },
+   {
+    "ma": "BVT",
+    "ten": "Bơm / Van / Thiết bị công nghiệp",
+    "nhom": 1
+   },
+   {
+    "ma": "DIEN",
+    "ten": "Điện / Điện công nghiệp",
+    "nhom": 2
+   },
+   {
+    "ma": "TDH",
+    "ten": "Tự động hóa / Điều khiển",
+    "nhom": 2
+   },
+   {
+    "ma": "DT",
+    "ten": "Điện tử / Điện tử công nghiệp",
+    "nhom": 2
+   },
+   {
+    "ma": "ROB",
+    "ten": "Robot / Tự động hóa sản xuất",
+    "nhom": 2
+   },
+   {
+    "ma": "DL",
+    "ten": "Đo lường / Thiết bị đo",
+    "nhom": 2
+   },
+   {
+    "ma": "NL",
+    "ten": "Năng lượng / Điện năng",
+    "nhom": 2
+   },
+   {
+    "ma": "HVAC",
+    "ten": "HVAC / Điều hòa – thông gió",
+    "nhom": 3
+   },
+   {
+    "ma": "ME",
+    "ten": "M&E / MEP",
+    "nhom": 3
+   },
+   {
+    "ma": "PCCC",
+    "ten": "PCCC",
+    "nhom": 3
+   },
+   {
+    "ma": "XD",
+    "ten": "Xây dựng / Công trình kỹ thuật",
+    "nhom": 3
+   },
+   {
+    "ma": "XLN",
+    "ten": "Xử lý nước / Môi trường",
+    "nhom": 3
+   },
+   {
+    "ma": "SX",
+    "ten": "Sản xuất / Công nghệ sản xuất",
+    "nhom": 4
+   },
+   {
+    "ma": "BT",
+    "ten": "Bảo trì / Bảo dưỡng công nghiệp",
+    "nhom": 4
+   },
+   {
+    "ma": "KHAC",
+    "ten": "Khác",
+    "nhom": 0
+   }
+  ],
+  "ma_tran": {
+   "nhan": [
+    "CK",
+    "TL",
+    "KN",
+    "BVT",
+    "DIEN",
+    "TDH",
+    "DT",
+    "ROB",
+    "DL",
+    "NL",
+    "HVAC",
+    "ME",
+    "PCCC",
+    "XD",
+    "XLN",
+    "SX",
+    "BT",
+    "KHAC"
+   ],
+   "gia_tri": [
+    [
+     100,
+     85,
+     85,
+     85,
+     65,
+     65,
+     65,
+     65,
+     65,
+     65,
+     60,
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     10
+    ],
+    [
+     85,
+     100,
+     85,
+     85,
+     65,
+     65,
+     65,
+     65,
+     65,
+     65,
+     60,
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     10
+    ],
+    [
+     85,
+     85,
+     100,
+     85,
+     65,
+     65,
+     65,
+     65,
+     65,
+     65,
+     60,
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     10
+    ],
+    [
+     85,
+     85,
+     85,
+     100,
+     65,
+     65,
+     65,
+     65,
+     65,
+     65,
+     60,
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     10
+    ],
+    [
+     65,
+     65,
+     65,
+     65,
+     100,
+     85,
+     85,
+     85,
+     85,
+     85,
+     70,
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     10
+    ],
+    [
+     65,
+     65,
+     65,
+     65,
+     85,
+     100,
+     85,
+     85,
+     85,
+     85,
+     70,
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     10
+    ],
+    [
+     65,
+     65,
+     65,
+     65,
+     85,
+     85,
+     100,
+     85,
+     85,
+     85,
+     70,
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     10
+    ],
+    [
+     65,
+     65,
+     65,
+     65,
+     85,
+     85,
+     85,
+     100,
+     85,
+     85,
+     70,
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     10
+    ],
+    [
+     65,
+     65,
+     65,
+     65,
+     85,
+     85,
+     85,
+     85,
+     100,
+     85,
+     70,
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     10
+    ],
+    [
+     65,
+     65,
+     65,
+     65,
+     85,
+     85,
+     85,
+     85,
+     85,
+     100,
+     70,
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     10
+    ],
+    [
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     70,
+     70,
+     70,
+     70,
+     100,
+     85,
+     85,
+     85,
+     85,
+     50,
+     50,
+     10
+    ],
+    [
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     70,
+     70,
+     70,
+     70,
+     85,
+     100,
+     85,
+     85,
+     85,
+     50,
+     50,
+     10
+    ],
+    [
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     70,
+     70,
+     70,
+     70,
+     85,
+     85,
+     100,
+     85,
+     85,
+     50,
+     50,
+     10
+    ],
+    [
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     70,
+     70,
+     70,
+     70,
+     85,
+     85,
+     85,
+     100,
+     85,
+     50,
+     50,
+     10
+    ],
+    [
+     60,
+     60,
+     60,
+     60,
+     70,
+     70,
+     70,
+     70,
+     70,
+     70,
+     85,
+     85,
+     85,
+     85,
+     100,
+     50,
+     50,
+     10
+    ],
+    [
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     65,
+     65,
+     65,
+     65,
+     50,
+     50,
+     50,
+     50,
+     50,
+     100,
+     85,
+     10
+    ],
+    [
+     70,
+     70,
+     70,
+     70,
+     65,
+     65,
+     65,
+     65,
+     65,
+     65,
+     50,
+     50,
+     50,
+     50,
+     50,
+     85,
+     100,
+     10
+    ],
+    [
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     10,
+     30
+    ]
+   ]
+  }
+ },
+ "cong_viec_ky_thuat": {
+  "_doc": "CV 26 <-> jd10. Ma tran sinh tu quy tac nhom.",
+  "ten_nhom": {
+   "1": "Thiết kế và Chuẩn bị",
+   "2": "Triển khai và Bàn giao",
+   "3": "Vận hành và Duy trì",
+   "4": "Nâng cao"
+  },
+  "bang_nhom": {
+   "1-1": 100,
+   "1-2": 70,
+   "1-3": 45,
+   "1-4": 75,
+   "2-2": 100,
+   "2-3": 75,
+   "2-4": 65,
+   "3-3": 100,
+   "3-4": 70,
+   "4-4": 100
+  },
+  "danh_muc": [
+   {
+    "ma": "TK",
+    "ten": "Thiết kế",
+    "nhom": 1
+   },
+   {
+    "ma": "BTKS",
+    "ten": "Bóc tách / khảo sát",
+    "nhom": 1
+   },
+   {
+    "ma": "LTCD",
+    "ten": "Lập trình / cài đặt",
+    "nhom": 1
+   },
+   {
+    "ma": "LD",
+    "ten": "Lắp đặt",
+    "nhom": 2
+   },
+   {
+    "ma": "CTBG",
+    "ten": "Chạy thử / bàn giao",
+    "nhom": 2
+   },
+   {
+    "ma": "NT",
+    "ten": "Nghiệm thu",
+    "nhom": 2
+   },
+   {
+    "ma": "VH",
+    "ten": "Vận hành",
+    "nhom": 3
+   },
+   {
+    "ma": "BTBD",
+    "ten": "Bảo trì / bảo dưỡng",
+    "nhom": 3
+   },
+   {
+    "ma": "SC",
+    "ten": "Sửa chữa",
+    "nhom": 3
+   },
+   {
+    "ma": "XLSC",
+    "ten": "Xử lý sự cố",
+    "nhom": 3
+   },
+   {
+    "ma": "CTNC",
+    "ten": "Cải tiến / nâng cấp",
+    "nhom": 4
+   },
+   {
+    "ma": "DTHD",
+    "ten": "Đào tạo / hướng dẫn",
+    "nhom": 4
+   }
+  ],
+  "ma_tran": {
+   "nhan": [
+    "TK",
+    "BTKS",
+    "LTCD",
+    "LD",
+    "CTBG",
+    "NT",
+    "VH",
+    "BTBD",
+    "SC",
+    "XLSC",
+    "CTNC",
+    "DTHD"
+   ],
+   "gia_tri": [
+    [
+     100,
+     85,
+     85,
+     70,
+     70,
+     70,
+     45,
+     45,
+     45,
+     45,
+     75,
+     75
+    ],
+    [
+     85,
+     100,
+     85,
+     70,
+     70,
+     70,
+     45,
+     45,
+     45,
+     45,
+     75,
+     75
+    ],
+    [
+     85,
+     85,
+     100,
+     70,
+     70,
+     70,
+     45,
+     45,
+     45,
+     45,
+     75,
+     75
+    ],
+    [
+     70,
+     70,
+     70,
+     100,
+     85,
+     85,
+     75,
+     75,
+     75,
+     75,
+     65,
+     65
+    ],
+    [
+     70,
+     70,
+     70,
+     85,
+     100,
+     85,
+     75,
+     75,
+     75,
+     75,
+     65,
+     65
+    ],
+    [
+     70,
+     70,
+     70,
+     85,
+     85,
+     100,
+     75,
+     75,
+     75,
+     75,
+     65,
+     65
+    ],
+    [
+     45,
+     45,
+     45,
+     75,
+     75,
+     75,
+     100,
+     85,
+     85,
+     85,
+     70,
+     70
+    ],
+    [
+     45,
+     45,
+     45,
+     75,
+     75,
+     75,
+     85,
+     100,
+     85,
+     85,
+     70,
+     70
+    ],
+    [
+     45,
+     45,
+     45,
+     75,
+     75,
+     75,
+     85,
+     85,
+     100,
+     85,
+     70,
+     70
+    ],
+    [
+     45,
+     45,
+     45,
+     75,
+     75,
+     75,
+     85,
+     85,
+     85,
+     100,
+     70,
+     70
+    ],
+    [
+     75,
+     75,
+     75,
+     65,
+     65,
+     65,
+     70,
+     70,
+     70,
+     70,
+     100,
+     85
+    ],
+    [
+     75,
+     75,
+     75,
+     65,
+     65,
+     65,
+     70,
+     70,
+     70,
+     70,
+     85,
+     100
+    ]
+   ]
+  }
+ },
+ "moi_truong_lam_viec": {
+  "_doc": "CV 25 <-> jd09.",
+  "danh_muc": [
+   {
+    "ma": "NHA_MAY",
+    "ten": "Nhà máy / xưởng"
+   },
+   {
+    "ma": "CONG_TRUONG",
+    "ten": "Công trường / dự án"
+   },
+   {
+    "ma": "TAI_KHACH_HANG",
+    "ten": "Tại khách hàng"
+   },
+   {
+    "ma": "VAN_PHONG",
+    "ten": "Văn phòng"
+   },
+   {
+    "ma": "KHAC",
+    "ten": "Khác"
+   }
+  ],
+  "ma_tran": {
+   "nhan": [
+    "NHA_MAY",
+    "CONG_TRUONG",
+    "TAI_KHACH_HANG",
+    "VAN_PHONG",
+    "KHAC"
+   ],
+   "gia_tri": [
+    [
+     100,
+     60,
+     70,
+     50,
+     30
+    ],
+    [
+     60,
+     100,
+     80,
+     40,
+     30
+    ],
+    [
+     70,
+     80,
+     100,
+     50,
+     30
+    ],
+    [
+     50,
+     40,
+     50,
+     100,
+     30
+    ],
+    [
+     30,
+     30,
+     30,
+     30,
+     30
+    ]
+   ]
+  }
+ },
+ "ban_ve_tai_lieu": {
+  "_doc": "CV 19 <-> jd20.",
+  "danh_muc": [
+   {
+    "ma": "BV_CO_KHI",
+    "ten": "Bản vẽ cơ khí"
+   },
+   {
+    "ma": "BV_DIEN",
+    "ten": "Bản vẽ điện"
+   },
+   {
+    "ma": "PID",
+    "ten": "P&ID / sơ đồ công nghệ"
+   },
+   {
+    "ma": "DATASHEET",
+    "ten": "Datasheet / thông số kỹ thuật"
+   },
+   {
+    "ma": "MANUAL",
+    "ten": "Manual / tài liệu hướng dẫn"
+   },
+   {
+    "ma": "KHAC",
+    "ten": "Khác"
+   }
+  ],
+  "ma_tran": {
+   "nhan": [
+    "BV_CO_KHI",
+    "BV_DIEN",
+    "PID",
+    "DATASHEET",
+    "MANUAL",
+    "KHAC"
+   ],
+   "gia_tri": [
+    [
+     100,
+     50,
+     60,
+     40,
+     40,
+     10
+    ],
+    [
+     50,
+     100,
+     70,
+     40,
+     40,
+     10
+    ],
+    [
+     60,
+     70,
+     100,
+     50,
+     50,
+     10
+    ],
+    [
+     40,
+     40,
+     50,
+     100,
+     80,
+     10
+    ],
+    [
+     40,
+     40,
+     50,
+     80,
+     100,
+     10
+    ],
+    [
+     10,
+     10,
+     10,
+     10,
+     10,
+     30
+    ]
+   ]
+  }
+ },
+ "cong_cu_phan_mem": {
+  "_doc": "CV 18 <-> jd19. Chi so khop chinh xac, khong co ma tran tuong dong vi truong nay chi 1 diem.",
+  "danh_muc": [
+   "AutoCAD",
+   "SolidWorks",
+   "Inventor",
+   "Revit",
+   "PLC / HMI",
+   "ERP / SAP",
+   "Word / Excel",
+   "Khác"
+  ]
+ },
+ "vi_tri": {
+  "_doc": "CV 13 <-> jd01a, CV 21 <-> jd01b. Cap 1 thua hanh, 2 ky su, 3 quan ly.",
+  "danh_muc": [
+   {
+    "ten": "Kỹ thuật viên",
+    "cap": 1
+   },
+   {
+    "ten": "Kỹ sư dịch vụ / Bảo trì – sửa chữa",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư cơ khí",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư điện / Điện công nghiệp",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư tự động hóa / Điều khiển",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư thiết kế",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư dự án",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư sản xuất / Quy trình",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư chất lượng QA/QC",
+    "cap": 2
+   },
+   {
+    "ten": "Kỹ sư R&D",
+    "cap": 2
+   },
+   {
+    "ten": "Quản lý kỹ thuật",
+    "cap": 3
+   },
+   {
+    "ten": "Quản lý dự án",
+    "cap": 3
+   },
+   {
+    "ten": "Quản lý / vận hành nhà máy",
+    "cap": 3
+   },
+   {
+    "ten": "Khác",
+    "cap": 0
+   }
+  ],
+  "thang_diem": {
+   "trung_chuc_danh": 100,
+   "cung_cap_khac_chuyen_mon": 70,
+   "lech_1_cap": 60,
+   "lech_2_cap": 30,
+   "khong_chuan_hoa_duoc": 20
+  }
+ },
+ "thang_bac_co_thu_tu": {
+  "muc_do_tu_chu": {
+   "cv": "27",
+   "jd": "jd11",
+   "bac": [
+    "Cần người hướng dẫn",
+    "Có thể làm theo hướng dẫn",
+    "Có thể tự thực hiện",
+    "Có thể tự xử lý công việc phức tạp",
+    "Có thể hướng dẫn người khác"
+   ],
+   "diem_theo_khoang_cach": {
+    "bang_hoac_hon": 100,
+    "kem_1": 70,
+    "kem_2": 40,
+    "kem_3_tro_len": 10
+   }
+  },
+  "trinh_do_hoc_van": {
+   "cv": "6",
+   "jd": "jd12",
+   "bac": [
+    "THPT",
+    "Trung cấp",
+    "Cao đẳng",
+    "Đại học",
+    "Sau đại học"
+   ],
+   "diem_theo_khoang_cach": {
+    "bang_hoac_hon": 100,
+    "kem_1": 60,
+    "kem_2_tro_len": 20
+   }
+  },
+  "ngoai_ngu": {
+   "cv": "10",
+   "jd": "jd14",
+   "bac": [
+    "Cơ bản",
+    "Khá",
+    "Tốt",
+    "Thành thạo"
+   ],
+   "mac_dinh_khi_jd_khong_ghi_muc": "Khá",
+   "diem_theo_khoang_cach": {
+    "bang_hoac_hon": 100,
+    "kem_1": 60,
+    "kem_2_tro_len": 30,
+    "sai_ngon_ngu": 0
+   }
+  },
+  "di_cong_tac": {
+   "cv": "12",
+   "jd": "jd17",
+   "bac": [
+    "Không thể đi công tác",
+    "Có thể đi công tác khi cần",
+    "Có thể đi công tác thường xuyên",
+    "Sẵn sàng đi công tác dài ngày"
+   ],
+   "diem_theo_khoang_cach": {
+    "bang_hoac_hon": 100,
+    "kem_1": 50,
+    "kem_2_tro_len": 0
+   }
+  },
+  "lam_ngoai_gio": {
+   "cv": "17",
+   "jd": "jd18",
+   "bac": [
+    "Không thể",
+    "Có, nhưng có giới hạn",
+    "Có, sẵn sàng"
+   ],
+   "diem_theo_khoang_cach": {
+    "bang_hoac_hon": 100,
+    "kem_1": 50,
+    "kem_2_tro_len": 0
+   }
+  }
+ },
+ "dia_diem": {
+  "_doc": "Anh xa 34 don vi hanh chinh cap tinh (sau sap xep 2025) sang 3 mien. Dung cho jd04. KHONG can bang tinh lien ke.",
+  "thang_diem": {
+   "giao_nhau_hoac_vung_bao_tinh": 100,
+   "cung_mien_khac_tinh": 50,
+   "khac_mien": 10
+  },
+  "tinh_sang_mien": {
+   "Hà Nội": "BAC",
+   "Hải Phòng": "BAC",
+   "Quảng Ninh": "BAC",
+   "Bắc Ninh": "BAC",
+   "Hưng Yên": "BAC",
+   "Ninh Bình": "BAC",
+   "Phú Thọ": "BAC",
+   "Thái Nguyên": "BAC",
+   "Lào Cai": "BAC",
+   "Tuyên Quang": "BAC",
+   "Cao Bằng": "BAC",
+   "Lạng Sơn": "BAC",
+   "Sơn La": "BAC",
+   "Điện Biên": "BAC",
+   "Lai Châu": "BAC",
+   "Thanh Hóa": "TRUNG",
+   "Nghệ An": "TRUNG",
+   "Hà Tĩnh": "TRUNG",
+   "Quảng Trị": "TRUNG",
+   "Huế": "TRUNG",
+   "Đà Nẵng": "TRUNG",
+   "Quảng Ngãi": "TRUNG",
+   "Gia Lai": "TRUNG",
+   "Đắk Lắk": "TRUNG",
+   "Khánh Hòa": "TRUNG",
+   "Lâm Đồng": "TRUNG",
+   "TP Hồ Chí Minh": "NAM",
+   "Đồng Nai": "NAM",
+   "Tây Ninh": "NAM",
+   "Cần Thơ": "NAM",
+   "Vĩnh Long": "NAM",
+   "Đồng Tháp": "NAM",
+   "An Giang": "NAM",
+   "Cà Mau": "NAM"
+  }
+ },
+ "chuyen_nganh": {
+  "_doc": "Tu khoa de xep chuyen nganh vao 3 khoi. Dung cho jd15. So khop: bo dau, viet thuong, tim tu khoa xuat hien trong chuoi. Khong trung tu khoa nao thi xep khoi KHAC.",
+  "thang_diem": {
+   "trung_ten": 100,
+   "cung_khoi": 60,
+   "khac_khoi_hoac_khong_nhan_ra": 25,
+   "cv_bo_trong": 0
+  },
+  "tu_khoa": {
+   "KY_THUAT": [
+    "kỹ thuật",
+    "cơ khí",
+    "chế tạo",
+    "cơ điện tử",
+    "điện",
+    "điện tử",
+    "tự động hóa",
+    "điều khiển",
+    "nhiệt",
+    "lạnh",
+    "năng lượng",
+    "hóa",
+    "vật liệu",
+    "xây dựng",
+    "công trình",
+    "môi trường",
+    "dầu khí",
+    "luyện kim",
+    "ô tô",
+    "động lực",
+    "tàu thủy",
+    "hàng không",
+    "mỏ",
+    "địa chất",
+    "công nghệ thông tin",
+    "tin học",
+    "viễn thông",
+    "cấp thoát nước"
+   ],
+   "KINH_TE": [
+    "kinh tế",
+    "quản trị kinh doanh",
+    "quản trị",
+    "marketing",
+    "thương mại",
+    "tài chính",
+    "ngân hàng",
+    "kế toán",
+    "kiểm toán",
+    "ngoại thương",
+    "logistics",
+    "xuất nhập khẩu",
+    "bảo hiểm"
+   ]
+  }
+ }
+}

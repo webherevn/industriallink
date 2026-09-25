@@ -5,7 +5,7 @@ import { AiGatewayService } from '../ai/ai-gateway.service';
 import { inferSkillsFromText } from '../ai/providers/industrial-skills';
 import { OpenSearchService } from '../../shared/infrastructure/opensearch/opensearch.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
-import { buildB2bExplanation } from '../recruitment/matching.util';
+import { buildB2bExplanation, toB2bCandidateFromRecords } from '../recruitment/matching.util';
 
 function splitCsv(value?: string | string[]): string[] {
   if (!value) return [];
@@ -34,7 +34,7 @@ export class SearchService {
   async indexCandidate(candidateId: string): Promise<void> {
     const candidate = await this.prisma.candidate.findUnique({
       where: { id: candidateId },
-      include: { profile: true, skills: true },
+      include: { profile: true, skills: true, experiences: true },
     });
     if (!candidate) return;
 
@@ -44,14 +44,21 @@ export class SearchService {
       p?.currentPosition,
       p?.industry,
       ...(p?.industriesExperienced ?? []),
+      ...candidate.experiences.flatMap((e) => [e.jobTitle, ...(e.industries ?? [])]),
       p?.specialization,
       p?.summary,
       ...(p?.productsSold ?? []),
+      ...candidate.experiences.flatMap((e) => e.productsSold),
       ...(p?.customerSegments ?? []),
+      ...candidate.experiences.flatMap((e) => e.customerSegments),
       ...(p?.marketsCovered ?? []),
+      ...candidate.experiences.flatMap((e) => e.marketsCovered),
       p?.salesHighlights,
       p?.customerDevStyle,
       p?.dealType,
+      ...candidate.experiences.map((e) => e.dealType).filter(Boolean),
+      ...(p?.sellingStages ?? []),
+      ...candidate.experiences.flatMap((e) => e.sellingStages),
       p?.jobReadiness,
       ...(p?.languages ?? []),
       candidate.skills.map((s) => s.name).join(', '),
@@ -207,7 +214,7 @@ export class SearchService {
     const scoreMap = new Map(ids.map((r) => [r.candidate_id, r.score]));
     const candidates = await this.prisma.candidate.findMany({
       where: { id: { in: ids.map((r) => r.candidate_id) } },
-      include: { profile: true, skills: true },
+      include: { profile: true, skills: true, experiences: true },
     });
 
     return candidates
@@ -216,45 +223,11 @@ export class SearchService {
         const p = c.profile;
         const explanation = buildB2bExplanation({
           semantic,
-          candidate: {
-            industry: p?.industry,
-            industriesExperienced: p?.industriesExperienced ?? [],
-            productsSold: p?.productsSold ?? [],
-            customerSegments: p?.customerSegments ?? [],
-            b2bExperienceBand: p?.b2bExperienceBand,
-            totalExperienceYears: p?.totalExperienceYears,
-            marketsCovered: p?.marketsCovered ?? [],
-            latestRevenue: p?.latestRevenue,
-            kpiAchievementPct: p?.kpiAchievementPct,
-            salesHighlights: p?.salesHighlights,
-            customerDevStyle: p?.customerDevStyle,
-            newCustomerRatioPct: p?.newCustomerRatioPct,
-            dealType: p?.dealType,
-            typicalDealValue: p?.typicalDealValue,
-            maxDealValue: p?.maxDealValue,
-            sellingStages: p?.sellingStages ?? [],
-            jobReadiness: p?.jobReadiness,
-            availabilityBand: (p as { availabilityBand?: string | null } | null)?.availabilityBand,
-            noticePeriodDays: (p as { noticePeriodDays?: number | null } | null)?.noticePeriodDays,
-            expectedSalaryMin: p?.expectedSalaryMin,
-            expectedSalaryMax: p?.expectedSalaryMax,
-            expectedOte: (p as { expectedOte?: number | null } | null)?.expectedOte,
-            languages: p?.languages ?? [],
-            hasB2License: p?.hasB2License,
-            driverLicenseType: (p as { driverLicenseType?: string | null } | null)?.driverLicenseType,
-            willingToTravel: p?.willingToTravel,
-            travelAbility: (p as { travelAbility?: string | null } | null)?.travelAbility,
-            careerMotivations: (p as { careerMotivations?: string[] } | null)?.careerMotivations ?? [],
-            workStyles: (p as { workStyles?: string[] } | null)?.workStyles ?? [],
-            careerOrientation: (p as { careerOrientation?: string | null } | null)?.careerOrientation,
-            desiredPositions: (p as { desiredPositions?: string[] } | null)?.desiredPositions ?? [],
-            jobTrack: p?.jobTrack,
-            currentCity: p?.currentCity,
-            desiredLocations: p?.desiredLocations ?? [],
-            technicalAutonomyLevel: p?.technicalAutonomyLevel,
-            technicalWorkTypes: p?.technicalWorkTypes ?? [],
+          candidate: toB2bCandidateFromRecords({
+            profile: p,
+            experiences: c.experiences,
             skills: c.skills.map((s) => s.name),
-          },
+          }),
           job: {
             requiredSkills: querySkills,
             filterIndustries: filters.industries,

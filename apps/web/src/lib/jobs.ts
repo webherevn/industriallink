@@ -11,6 +11,7 @@ import type {
   JobStatus,
   JobView,
   ListPublishedJobsQuery,
+  ParseJobDescriptionResponse,
   UpdateJobRequest,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
@@ -67,6 +68,32 @@ export async function generateJobDraft(
   input: GenerateJobDraftRequest,
 ): Promise<GenerateJobDraftResponse> {
   return apiRequest('/jobs/ai/draft', { method: 'POST', body: input });
+}
+
+/** AI đọc JD dán text → 22 trường Sales hoặc 23 trường Kỹ thuật. */
+export async function parseJobFromText(
+  text: string,
+  jobTrack?: 'sales' | 'technical',
+): Promise<ParseJobDescriptionResponse> {
+  return apiRequest('/jobs/ai/parse-from-text', {
+    method: 'POST',
+    body: { text, ...(jobTrack ? { jobTrack } : {}) },
+  });
+}
+
+/** Upload JD PDF/DOCX/TXT → 22 trường Sales hoặc 23 trường Kỹ thuật. */
+export async function parseJobFromFile(
+  file: File,
+  jobTrack?: 'sales' | 'technical',
+): Promise<ParseJobDescriptionResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  if (jobTrack) form.append('jobTrack', jobTrack);
+  return apiRequest('/jobs/ai/parse-from-file', {
+    method: 'POST',
+    body: form,
+    isForm: true,
+  });
 }
 
 export async function publishJob(id: string): Promise<JobView> {

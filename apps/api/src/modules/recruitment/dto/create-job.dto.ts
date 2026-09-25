@@ -1,4 +1,4 @@
-import { EmploymentType, ExperienceBand, JobLevelCode } from '@industriallink/contracts';
+import { EmploymentType, ExperienceBand, JobLevelCode, JobTrack } from '@industriallink/contracts';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -7,6 +7,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   MaxLength,
@@ -31,6 +32,164 @@ export class JobSkillInputDto {
   @IsInt()
   @Min(0)
   weight?: number;
+}
+
+export class JobSalesCriteriaDto {
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  industries?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  productsSold?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  customerSegments?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dealTypes?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sellingStages?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  marketsCovered?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  educationLevel?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  educationMajor?: string | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  languages?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  driverLicenses?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  travelAbility?: string | null;
+
+  @ApiPropertyOptional({ type: [String], description: 'Trường JD đánh dấu bắt buộc (lọc cứng)' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  hardFilters?: string[];
+
+  @ApiPropertyOptional({ enum: [85, 100], description: 'Ngưỡng lọc cứng ngành: 85 gần, 100 đúng ngành' })
+  @IsOptional()
+  @IsIn([85, 100])
+  industryHardMinS?: 85 | 100;
+}
+
+export class JobTechnicalCriteriaDto {
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  industries?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  equipmentSystems?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  workEnvironments?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalWorkTypes?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  autonomyLevel?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  educationLevel?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  educationMajor?: string | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  languages?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  certificates?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  driverLicenses?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  travelAbility?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  shiftFlexibility?: string | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalTools?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  documentLiteracy?: string[];
 }
 
 export class CreateJobDto {
@@ -124,6 +283,23 @@ export class CreateJobDto {
   @ValidateNested({ each: true })
   @Type(() => JobSkillInputDto)
   skills?: JobSkillInputDto[];
+
+  @ApiPropertyOptional({ enum: JobTrack, example: JobTrack.Sales })
+  @IsOptional()
+  @IsEnum(JobTrack)
+  jobTrack?: JobTrack;
+
+  @ApiPropertyOptional({ type: () => JobSalesCriteriaDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => JobSalesCriteriaDto)
+  salesCriteria?: JobSalesCriteriaDto;
+
+  @ApiPropertyOptional({ type: () => JobTechnicalCriteriaDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => JobTechnicalCriteriaDto)
+  technicalCriteria?: JobTechnicalCriteriaDto;
 
   @ApiPropertyOptional({ default: false, description: 'true để đăng công khai ngay' })
   @IsOptional()

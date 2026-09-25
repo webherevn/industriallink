@@ -1,6 +1,6 @@
-import type { CareerAdviceView, SalaryEstimateView } from '@industriallink/contracts';
+import type { CareerAdviceView, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { AiProvider } from '../domain/ai-provider.interface';
-import type { JobDraftInput, JobDraftResult, ParsedResume, ResumeParseInput } from '../domain/types';
+import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from '../domain/types';
 import {
   buildCareerAdvice,
   buildSalaryEstimate,
@@ -8,6 +8,16 @@ import {
   type SalaryEstimateEngineInput,
 } from './career-salary.engine';
 import { deterministicEmbedding } from './embedding.util';
+import {
+  JOB_PARSE_SYSTEM_PROMPT,
+  buildJobParseUserPrompt,
+  normalizeParsedSalesJob,
+} from './llm-job-parse.util';
+import {
+  JOB_PARSE_TECHNICAL_SYSTEM_PROMPT,
+  buildTechnicalJobParseUserPrompt,
+  normalizeParsedTechnicalJob,
+} from './llm-job-parse-technical.util';
 import {
   JOB_DRAFT_SYSTEM_PROMPT,
   buildJobDraftUserPrompt,
@@ -78,6 +88,38 @@ export class AnthropicProvider implements AiProvider {
     }
     const data = (await res.json()) as { content: { text: string }[] };
     return normalizeJobDraft(extractJson(data.content[0]?.text ?? ''), input.title);
+  }
+
+  async parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft> {
+    const isTech = input.track === 'technical';
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.opts.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: this.opts.model,
+        max_tokens: 2500,
+        temperature: 0.1,
+        system: isTech ? JOB_PARSE_TECHNICAL_SYSTEM_PROMPT : JOB_PARSE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: isTech ? buildTechnicalJobParseUserPrompt(input) : buildJobParseUserPrompt(input),
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Anthropic job parse lỗi ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json()) as { content: { text: string }[] };
+    const raw = extractJson(data.content[0]?.text ?? '');
+    return isTech
+      ? normalizeParsedTechnicalJob(raw, input.text)
+      : normalizeParsedSalesJob(raw, input.text);
   }
 
   async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

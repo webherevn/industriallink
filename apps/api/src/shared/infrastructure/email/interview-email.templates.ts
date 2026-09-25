@@ -33,14 +33,14 @@ export function buildInterviewInviteEmail(p: InterviewInvitePayload): EmailMessa
   const text = [
     `Xin chào ${p.candidateName},`,
     '',
-    `${p.companyName} mời bạn tham gia buổi phỏng vấn trên IndustrialLink.`,
+    `${p.companyName} mời bạn tham gia buổi phỏng vấn trên inlink.`,
     '',
     details,
     '',
     `Xem hồ sơ ứng tuyển: ${p.applicationsUrl}`,
     '',
     'Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const rows = [
@@ -68,7 +68,7 @@ export function buildInterviewInviteEmail(p: InterviewInvitePayload): EmailMessa
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
         <tr>
           <td style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:24px 28px;color:#fff">
-            <div style="font-size:13px;opacity:.85">IndustrialLink</div>
+            <div style="font-size:13px;opacity:.85">inlink</div>
             <div style="font-size:22px;font-weight:700;margin-top:6px">Lời mời phỏng vấn</div>
           </td>
         </tr>
@@ -109,7 +109,7 @@ export function buildInterviewInviteEmail(p: InterviewInvitePayload): EmailMessa
 
   return {
     to: p.candidateEmail,
-    subject: `[IndustrialLink] Mời phỏng vấn — ${p.jobTitle} (${p.scheduledAtLabel})`,
+    subject: `[inlink] Mời phỏng vấn — ${p.jobTitle} (${p.scheduledAtLabel})`,
     text,
     html,
   };
@@ -131,7 +131,7 @@ export function buildInterviewCancelledEmail(p: {
     `Xem chi tiết: ${p.applicationsUrl}`,
     '',
     'Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
@@ -146,7 +146,7 @@ export function buildInterviewCancelledEmail(p: {
 
   return {
     to: p.candidateEmail,
-    subject: `[IndustrialLink] Huỷ lịch phỏng vấn — ${p.jobTitle}`,
+    subject: `[inlink] Huỷ lịch phỏng vấn — ${p.jobTitle}`,
     text,
     html,
   };

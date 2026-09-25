@@ -10,21 +10,21 @@ export function buildOtpEmail(p: {
   const text = [
     `Xin chào ${p.displayName},`,
     '',
-    `Mã xác thực ${p.purposeLabel} của bạn trên IndustrialLink:`,
+    `Mã xác thực ${p.purposeLabel} của bạn trên inlink:`,
     '',
     p.otp,
     '',
     `Mã có hiệu lực trong ${p.expiresMinutes} phút. Không chia sẻ mã này với người khác.`,
     '',
     'Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="vi"><body style="margin:0;padding:24px;background:#F8FAFC;font-family:Segoe UI,Arial,sans-serif;color:#0F172A">
   <table width="560" style="margin:0 auto;background:#fff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
     <tr><td style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:24px;color:#fff">
-      <div style="font-size:13px;opacity:.9">IndustrialLink</div>
+      <div style="font-size:13px;opacity:.9">inlink</div>
       <div style="font-size:22px;font-weight:700;margin-top:6px">Mã xác thực OTP</div>
     </td></tr>
     <tr><td style="padding:28px">
@@ -38,7 +38,7 @@ export function buildOtpEmail(p: {
 
   return {
     to: p.email,
-    subject: `[IndustrialLink] Mã OTP ${p.purposeLabel}`,
+    subject: `[inlink] Mã OTP ${p.purposeLabel}`,
     text,
     html,
   };

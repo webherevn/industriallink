@@ -25,6 +25,7 @@ import {
   formatSalary,
 } from '@/lib/format';
 import { getJob } from '@/lib/jobs';
+import { jobPublicPath } from '@/lib/public-paths';
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   [JobStatus.Draft]: 'Nháp',
@@ -156,7 +157,7 @@ export default function JobDetailManagePage() {
             </Button>
           </Link>
           {isPublic && (
-            <Link href={`/jobs/${job.id}`} target="_blank">
+            <Link href={jobPublicPath(job)} target="_blank">
               <Button>
                 <ExternalLink className="h-4 w-4" /> Xem bản công khai
               </Button>

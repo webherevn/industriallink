@@ -1,4 +1,9 @@
-import type { EmploymentType, SkillLevel } from '@industriallink/contracts';
+import type {
+  EmploymentType,
+  ParsedSalesJobDraft,
+  ParsedTechnicalJobDraft,
+  SkillLevel,
+} from '@industriallink/contracts';
 
 export interface ParsedResumeSkill {
   name: string;
@@ -158,3 +163,14 @@ export interface JobDraftResult {
   suggestedSalaryMax?: number;
   notes?: string;
 }
+
+/** Đầu vào AI đọc JD (PDF/DOCX/text) → 22 trường Sales hoặc 23 trường Kỹ thuật. */
+export interface JobParseInput {
+  fileName: string;
+  text: string;
+  fileBytes?: Buffer;
+  mimeType?: string;
+  track?: 'sales' | 'technical';
+}
+
+export type { ParsedSalesJobDraft, ParsedTechnicalJobDraft };

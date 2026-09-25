@@ -124,8 +124,8 @@ import { formatVndAmount } from '@/lib/format';
 /**
  * Bước 1 = A. Thông tin cơ bản (1–12, chung Kỹ thuật & Kinh doanh)
  * Bước 2 = Chọn hướng hồ sơ
- * Kinh doanh: B 13–16, C 17–19, D 20–34
- * Kỹ thuật: B 13–16, C 17–23, D 24–32
+ * Kinh doanh: B 13–17, tham khảo phong cách/động lực, C 18–32
+ * Kỹ thuật: B 13–16, C 17–19, tham khảo cách làm việc/định hướng, D 20–28
  */
 const STEPS = [
   { id: 1, label: 'Thông tin chung' },
@@ -382,7 +382,7 @@ function licensesToHasB2(licenses: string[]): boolean | null {
   return null;
 }
 
-/** Chuẩn hoá vị trí mong muốn cũ → 5 lựa chọn bản 18.8. */
+/** Chuẩn hoá vị trí mong muốn cũ → 4 bậc Sales (hoặc catalog Kỹ thuật). */
 function normalizeDesiredPositions(raw: string[]): string[] {
   return [
     ...new Set(
@@ -492,9 +492,9 @@ type TrackExtras = {
   documentLiteracy: string[];
   systemScaleNote: string | null;
   shiftFlexibility: string | null;
-  /** STT 20 KT — cách làm việc kỹ thuật (tối đa 3). */
+  /** Cách làm việc kỹ thuật — tham khảo, không tính điểm (tối đa 3). */
   technicalWorkStyles: string[];
-  /** STT 23 KT — môi trường làm việc mong muốn (tối đa 3). */
+  /** Môi trường làm việc mong muốn — tham khảo, không tính điểm (tối đa 3). */
   desiredWorkEnvironments: string[];
 };
 
@@ -1158,16 +1158,16 @@ export default function ProfileEditPage() {
   }, [candidate, hydrated]);
 
   const liveHints = useMemo(
-    () => fieldHintsFromDraft(draftFromEditForm(form, trackExtras)),
-    [form, trackExtras],
+    () => fieldHintsFromDraft(draftFromEditForm(form, trackExtras, me?.email ?? '')),
+    [form, trackExtras, me?.email],
   );
   const criteriaHints = useMemo(
     () => matrixCriteriaHints(liveHints, trackExtras.jobTrack),
     [liveHints, trackExtras.jobTrack],
   );
   const criteriaPercent = useMemo(
-    () => completionPercentFromHints(liveHints, trackExtras.jobTrack),
-    [liveHints, trackExtras.jobTrack],
+    () => completionPercentFromHints(criteriaHints, trackExtras.jobTrack),
+    [criteriaHints, trackExtras.jobTrack],
   );
   const filledCriteria = criteriaHints.filter((f) => f.status === 'filled');
   const criteriaGaps = criteriaHints.filter(
@@ -1308,12 +1308,11 @@ export default function ProfileEditPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
-              Hồ sơ ứng viên IndustrialLink
+              Hồ sơ ứng viên inlink
             </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">Hoàn thiện hồ sơ</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Mục 1–12: thông tin chung. Sau đó chọn Kinh doanh / Kỹ thuật — chọn Kinh doanh sẽ
-              hiện các mục 13–34.
+              Mục 1–12: thông tin chung. Kinh doanh: mục 13–32. Kỹ thuật: mục 13–28.
             </p>
           </div>
           <Link href="/dashboard">
@@ -1548,8 +1547,8 @@ export default function ProfileEditPage() {
                       Chọn hướng hồ sơ *
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Sau phần thông tin chung (1–12), chọn Kinh doanh (mục 13–34) hoặc Kỹ thuật
-                      (mục 13–32).
+                      Sau phần thông tin chung (1–12), chọn Kinh doanh (mục 13–32) hoặc Kỹ thuật
+                      (mục 13–28).
                     </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1558,12 +1557,12 @@ export default function ProfileEditPage() {
                         {
                           track: JobTrack.Sales,
                           icon: Briefcase,
-                          desc: 'Sales B2B công nghiệp — hiện đầy đủ các mục 13–34 (mong muốn, định hướng, kinh nghiệm bán hàng).',
+                          desc: 'Sales B2B công nghiệp — hiện đầy đủ các mục 13–32 (mong muốn, định hướng, kinh nghiệm bán hàng).',
                         },
                         {
                           track: JobTrack.Technical,
                           icon: Wrench,
-                          desc: 'Kỹ thuật / dịch vụ kỹ thuật — hiện đầy đủ các mục 13–32 (mong muốn, năng lực, kinh nghiệm kỹ thuật).',
+                          desc: 'Kỹ thuật / dịch vụ kỹ thuật — hiện đầy đủ các mục 13–28 (mong muốn, năng lực, kinh nghiệm kỹ thuật).',
                         },
                       ] as const
                     ).map(({ track, icon: Icon, desc }) => {
@@ -1605,8 +1604,16 @@ export default function ProfileEditPage() {
 
               {step === 3 && (
                 <MatrixSection
-                  title="B. Mong muốn nghề nghiệp (13–16)"
-                  subtitle="Vị trí, địa điểm, thu nhập và thời gian nhận việc"
+                  title={
+                    isSales
+                      ? 'B. Mong muốn nghề nghiệp (13–17)'
+                      : 'B. Mong muốn nghề nghiệp (13–16)'
+                  }
+                  subtitle={
+                    isSales
+                      ? 'Vị trí, địa điểm, thu nhập, thời gian nhận việc và định hướng'
+                      : 'Vị trí, địa điểm, thu nhập và thời gian nhận việc'
+                  }
                 >
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
                   {(isSales || isTechnical) && (
@@ -1616,10 +1623,13 @@ export default function ProfileEditPage() {
                           label="13. Vị trí ứng tuyển *"
                           description={DESIRED_POSITION_QUESTION}
                         >
+                          <p className="mb-2 text-xs text-slate-500">
+                            {`Tối đa 3 (${form.desiredPositions.length}/3)`}
+                          </p>
                           <MultiCheck
                             options={DESIRED_POSITIONS}
                             selected={form.desiredPositions}
-                            onChange={(v) => patch('desiredPositions', v)}
+                            onChange={(v) => patch('desiredPositions', v.slice(0, 3))}
                             columns={2}
                           />
                         </Field>
@@ -1694,6 +1704,22 @@ export default function ProfileEditPage() {
                           ))}
                         </Select>
                       </Field>
+                      {isSales && (
+                        <div className="space-y-3">
+                          <div>
+                            <NumberedFieldLabel
+                              title="17. Định hướng nghề nghiệp"
+                              description={CAREER_ORIENTATION_QUESTION}
+                            />
+                          </div>
+                          <RadioList
+                            name="careerOrientation"
+                            options={CAREER_ORIENTATIONS}
+                            value={form.careerOrientations[0] ?? ''}
+                            onChange={(v) => patch('careerOrientations', [v])}
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </MatrixSection>
@@ -1703,13 +1729,13 @@ export default function ProfileEditPage() {
                 <MatrixSection
                   title={
                     isTechnical
-                      ? 'C. Năng lực và định hướng (17–23)'
-                      : 'C. Định hướng & phù hợp (17–19)'
+                      ? 'C. Năng lực kỹ thuật (17–19)'
+                      : 'Tham khảo — phong cách làm việc & động lực'
                   }
                   subtitle={
                     isTechnical
-                      ? 'Ngoài giờ, công cụ, tài liệu, cách làm việc, định hướng và động lực'
-                      : 'Định hướng nghề nghiệp, phong cách làm việc và động lực'
+                      ? 'Ngoài giờ, công cụ và đọc bản vẽ / tài liệu — phần còn lại là tham khảo'
+                      : 'Không tính vào điểm hoàn thành hồ sơ'
                   }
                 >
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
@@ -1762,8 +1788,11 @@ export default function ProfileEditPage() {
                           placeholder="Khác — VD: Sơ đồ thủy lực…"
                         />
                       </Field>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Tham khảo — không tính vào điểm hoàn thành hồ sơ
+                      </p>
                       <Field
-                        label="20. Cách làm việc kỹ thuật"
+                        label="Cách làm việc kỹ thuật"
                         description={TECHNICAL_WORK_STYLE_QUESTION}
                       >
                         <p className="mb-2 text-xs text-amber-700">
@@ -1785,7 +1814,7 @@ export default function ProfileEditPage() {
                       <div className="space-y-3">
                         <div>
                           <NumberedFieldLabel
-                            title="21. Định hướng nghề nghiệp"
+                            title="Định hướng nghề nghiệp"
                             description={TECHNICAL_ORIENTATION_QUESTION}
                           />
                         </div>
@@ -1835,7 +1864,7 @@ export default function ProfileEditPage() {
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
                           <NumberedFieldLabel
-                            title="22. Động lực khi lựa chọn công việc mới"
+                            title="Động lực khi lựa chọn công việc mới"
                             description={TECHNICAL_MOTIVATION_QUESTION}
                           />
                         </div>
@@ -1853,7 +1882,7 @@ export default function ProfileEditPage() {
                         />
                       </div>
                       <Field
-                        label="23. Môi trường làm việc mong muốn"
+                        label="Môi trường làm việc mong muốn"
                         description={WORK_ENVIRONMENT_DESIRED_QUESTION}
                       >
                         <MultiCheck
@@ -1876,22 +1905,7 @@ export default function ProfileEditPage() {
                       <div className="space-y-3">
                         <div>
                           <NumberedFieldLabel
-                            title="17. Định hướng nghề nghiệp"
-                            description={CAREER_ORIENTATION_QUESTION}
-                          />
-                        </div>
-                        <RadioList
-                          name="careerOrientation"
-                          options={CAREER_ORIENTATIONS}
-                          value={form.careerOrientations[0] ?? ''}
-                          onChange={(v) => patch('careerOrientations', [v])}
-                        />
-                      </div>
-
-                      <div className="space-y-3 border-t border-slate-200 pt-6">
-                        <div>
-                          <NumberedFieldLabel
-                            title={`18. ${CULTURE_FIT_SECTION_TITLE}`}
+                            title={CULTURE_FIT_SECTION_TITLE}
                             description={CULTURE_FIT_SUBTITLE}
                           />
                         </div>
@@ -1935,7 +1949,7 @@ export default function ProfileEditPage() {
                       <div className="space-y-3 border-t border-slate-200 pt-6">
                         <div>
                           <NumberedFieldLabel
-                            title="19. Động lực khi lựa chọn công việc mới"
+                            title="Động lực khi lựa chọn công việc mới"
                             description={CAREER_MOTIVATION_QUESTION}
                           />
                         </div>
@@ -1961,13 +1975,13 @@ export default function ProfileEditPage() {
                 <MatrixSection
                   title={
                     isTechnical
-                      ? 'D. Kinh nghiệm công ty (24–32)'
-                      : 'D. Kinh nghiệm công ty (20–34)'
+                      ? 'D. Kinh nghiệm công ty (20–28)'
+                      : 'C. Kinh nghiệm công ty (18–32)'
                   }
                   subtitle={
                     isTechnical
-                      ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 24–32.'
-                      : 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 20–34.'
+                      ? 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 20–28.'
+                      : 'Mỗi công ty một mục — công ty thứ 2 trở đi lặp lại các câu 18–32.'
                   }
                 >
                   {!trackExtras.jobTrack && <ChooseTrackNote />}
@@ -1985,7 +1999,7 @@ export default function ProfileEditPage() {
                               subtitle={
                                 exp.companyName.trim()
                                   ? `${exp.companyName}${exp.jobTitle.trim() ? ` · ${exp.jobTitle}` : ''}`
-                                  : 'Bấm để điền các mục 24–32'
+                                  : 'Bấm để điền các mục 20–28'
                               }
                               extra={
                                 <div className="mt-1 space-y-1">
@@ -2014,189 +2028,6 @@ export default function ProfileEditPage() {
                               }
                             >
 
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label="24. Tên công ty *">
-                                  <Input
-                                    value={exp.companyName}
-                                    onChange={(e) =>
-                                      patchExperience(index, { companyName: e.target.value })
-                                    }
-                                    placeholder="Anh/chị từng làm việc tại công ty nào?"
-                                  />
-                                </Field>
-                                <Field label="25. Vị trí *">
-                                  <Input
-                                    value={exp.jobTitle}
-                                    onChange={(e) =>
-                                      patchExperience(index, { jobTitle: e.target.value })
-                                    }
-                                    placeholder="Anh/chị làm vị trí gì tại công ty này?"
-                                  />
-                                </Field>
-                              </div>
-                              <Field label="26. Thời gian làm việc *">
-                                <MonthYearRangeFields
-                                  start={exp.startYear}
-                                  end={exp.endYear}
-                                  current={exp.isCurrent}
-                                  onStartChange={(v) =>
-                                    patchExperience(index, { startYear: v })
-                                  }
-                                  onEndChange={(v) =>
-                                    patchExperience(index, { endYear: v })
-                                  }
-                                  onCurrentChange={(checked) =>
-                                    patchExperience(index, {
-                                      isCurrent: checked,
-                                      endYear: checked ? '' : exp.endYear,
-                                    })
-                                  }
-                                />
-                              </Field>
-
-                              <Field
-                                label="27. Lĩnh vực đã làm *"
-                                description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
-                              >
-                                <MultiCheck
-                                  options={EXPERIENCE_INDUSTRY_OPTIONS}
-                                  selected={exp.industries}
-                                  onChange={(v) => patchExperience(index, { industries: v })}
-                                  columns={2}
-                                  compact
-                                />
-                              </Field>
-
-                              <Field
-                                label="28. Thiết bị / hệ thống đã làm *"
-                                description={EQUIPMENT_SYSTEM_QUESTION}
-                              >
-                                <MultiCheckWithCustom
-                                  options={EQUIPMENT_SYSTEM_OPTIONS}
-                                  selected={exp.productsSold}
-                                  onChange={(v) => patchExperience(index, { productsSold: v })}
-                                  placeholder="Khác — nhập thiết bị / hệ thống…"
-                                  searchable
-                                />
-                              </Field>
-
-                              <Field
-                                label="29. Môi trường làm việc thực tế *"
-                                description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
-                              >
-                                <MultiCheckWithCustom
-                                  options={WORK_ENVIRONMENT_OPTIONS}
-                                  selected={exp.customerSegments}
-                                  onChange={(v) =>
-                                    patchExperience(index, { customerSegments: v })
-                                  }
-                                  placeholder="Khác — VD: Trạm điện, mỏ…"
-                                />
-                              </Field>
-
-                              <Field
-                                label="30. Công việc kỹ thuật đã thực hiện *"
-                                description={TECHNICAL_WORK_TYPES_QUESTION}
-                              >
-                                <MultiCheck
-                                  options={TECHNICAL_WORK_TYPES}
-                                  selected={exp.sellingStages}
-                                  onChange={(v) => patchExperience(index, { sellingStages: v })}
-                                  columns={2}
-                                />
-                              </Field>
-
-                              <Field
-                                label="31. Mức độ tự chủ"
-                                description={TECHNICAL_AUTONOMY_QUESTION}
-                              >
-                                <RadioList
-                                  name={`technicalAutonomy-${index}`}
-                                  options={TECHNICAL_AUTONOMY_LEVELS.map((lv) => lv.label)}
-                                  value={
-                                    TECHNICAL_AUTONOMY_LEVELS.find(
-                                      (lv) => lv.value === trackExtras.technicalAutonomyLevel,
-                                    )?.label ?? ''
-                                  }
-                                  onChange={(label) => {
-                                    const lv = TECHNICAL_AUTONOMY_LEVELS.find(
-                                      (o) => o.label === label,
-                                    );
-                                    setTrackExtras((prev) => ({
-                                      ...prev,
-                                      technicalAutonomyLevel: lv ? lv.value : null,
-                                    }));
-                                  }}
-                                />
-                              </Field>
-
-                              <Field
-                                label="32. Thành tích/dự án nổi bật"
-                                description={TECHNICAL_HIGHLIGHTS_QUESTION}
-                              >
-                                <Textarea
-                                  rows={3}
-                                  value={exp.highlights}
-                                  onChange={(e) =>
-                                    patchExperience(index, { highlights: e.target.value })
-                                  }
-                                  placeholder={TECHNICAL_HIGHLIGHTS_PLACEHOLDER}
-                                />
-                              </Field>
-                            </CollapsibleFormSection>
-                          );
-                        })}
-                      </div>
-                      <Button type="button" variant="outline" onClick={addExperience}>
-                        + Thêm công ty (lặp lại mục 24–32)
-                      </Button>
-                    </>
-                  )}
-                  {isSales && (
-                    <>
-                      <div className="space-y-6">
-                        {form.experiences.map((exp, index) => {
-                          const hasMissing = exp.missingFields.length > 0;
-                          const highlight = cvEntry && exp.source === 'cv_ai' && hasMissing;
-                          const dealTypesSelected = splitDealTypes(exp.dealType).map(
-                            (v) => DEAL_TYPE_LABEL[v],
-                          );
-                          return (
-                            <CollapsibleFormSection
-                              key={exp.id ?? `sales-${index}`}
-                              variant="company"
-                              title={`Kinh nghiệm công ty ${index + 1}`}
-                              subtitle={
-                                exp.companyName.trim()
-                                  ? `${exp.companyName}${exp.jobTitle.trim() ? ` · ${exp.jobTitle}` : ''}`
-                                  : 'Bấm để điền các mục 20–34'
-                              }
-                              extra={
-                                <div className="mt-1 space-y-1">
-                                  {exp.source === 'cv_ai' && (
-                                    <span className="inline-flex">
-                                      <Badge tone="brand">Từ CV AI</Badge>
-                                    </span>
-                                  )}
-                                  <MissingBadges fields={exp.missingFields} highlight={highlight} />
-                                </div>
-                              }
-                              open={expandedExp.has(index)}
-                              onOpenChange={(open) => toggleExp(index, open)}
-                              className={highlight ? 'ring-2 ring-amber-400/70' : undefined}
-                              actions={
-                                form.experiences.length > 1 ? (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className="text-red-600"
-                                    onClick={() => removeExperience(index)}
-                                  >
-                                    Xoá
-                                  </Button>
-                                ) : undefined
-                              }
-                            >
                               <div className="grid gap-4 sm:grid-cols-2">
                                 <Field label="20. Tên công ty *">
                                   <Input
@@ -2238,7 +2069,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
-                                label="23. Ngành / lĩnh vực *"
+                                label="23. Lĩnh vực đã làm *"
                                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
                               >
                                 <MultiCheck
@@ -2251,7 +2082,202 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
-                                label="24. Sản phẩm / thiết bị đã bán *"
+                                label="24. Thiết bị / hệ thống đã làm *"
+                                description={EQUIPMENT_SYSTEM_QUESTION}
+                              >
+                                <MultiCheckWithCustom
+                                  options={EQUIPMENT_SYSTEM_OPTIONS}
+                                  selected={exp.productsSold}
+                                  onChange={(v) => patchExperience(index, { productsSold: v })}
+                                  placeholder="Khác — nhập thiết bị / hệ thống…"
+                                  searchable
+                                />
+                              </Field>
+
+                              <Field
+                                label="25. Môi trường làm việc thực tế *"
+                                description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
+                              >
+                                <MultiCheckWithCustom
+                                  options={WORK_ENVIRONMENT_OPTIONS}
+                                  selected={exp.customerSegments}
+                                  onChange={(v) =>
+                                    patchExperience(index, { customerSegments: v })
+                                  }
+                                  placeholder="Khác — VD: Trạm điện, mỏ…"
+                                />
+                              </Field>
+
+                              <Field
+                                label="26. Công việc kỹ thuật đã thực hiện *"
+                                description={TECHNICAL_WORK_TYPES_QUESTION}
+                              >
+                                <MultiCheck
+                                  options={TECHNICAL_WORK_TYPES}
+                                  selected={exp.sellingStages}
+                                  onChange={(v) => patchExperience(index, { sellingStages: v })}
+                                  columns={2}
+                                />
+                              </Field>
+
+                              <Field
+                                label="27. Mức độ tự chủ"
+                                description={TECHNICAL_AUTONOMY_QUESTION}
+                              >
+                                <RadioList
+                                  name={`technicalAutonomy-${index}`}
+                                  options={TECHNICAL_AUTONOMY_LEVELS.map((lv) => lv.label)}
+                                  value={
+                                    TECHNICAL_AUTONOMY_LEVELS.find(
+                                      (lv) => lv.value === trackExtras.technicalAutonomyLevel,
+                                    )?.label ?? ''
+                                  }
+                                  onChange={(label) => {
+                                    const lv = TECHNICAL_AUTONOMY_LEVELS.find(
+                                      (o) => o.label === label,
+                                    );
+                                    setTrackExtras((prev) => ({
+                                      ...prev,
+                                      technicalAutonomyLevel: lv ? lv.value : null,
+                                    }));
+                                  }}
+                                />
+                              </Field>
+
+                              <Field
+                                label="28. Thành tích/dự án nổi bật"
+                                description={TECHNICAL_HIGHLIGHTS_QUESTION}
+                              >
+                                <Textarea
+                                  rows={3}
+                                  value={exp.highlights}
+                                  onChange={(e) =>
+                                    patchExperience(index, { highlights: e.target.value })
+                                  }
+                                  placeholder={TECHNICAL_HIGHLIGHTS_PLACEHOLDER}
+                                />
+                              </Field>
+                            </CollapsibleFormSection>
+                          );
+                        })}
+                      </div>
+                      <Button type="button" variant="outline" onClick={addExperience}>
+                        + Thêm công ty (lặp lại mục 20–28)
+                      </Button>
+                    </>
+                  )}
+                  {isSales && (
+                    <>
+                      <div className="space-y-6">
+                        {form.experiences.map((exp, index) => {
+                          const hasMissing = exp.missingFields.length > 0;
+                          const highlight = cvEntry && exp.source === 'cv_ai' && hasMissing;
+                          const dealTypesSelected = splitDealTypes(exp.dealType).map(
+                            (v) => DEAL_TYPE_LABEL[v],
+                          );
+                          return (
+                            <CollapsibleFormSection
+                              key={exp.id ?? `sales-${index}`}
+                              variant="company"
+                              title={`Kinh nghiệm công ty ${index + 1}`}
+                              subtitle={
+                                exp.companyName.trim()
+                                  ? `${exp.companyName}${exp.jobTitle.trim() ? ` · ${exp.jobTitle}` : ''}`
+                                  : 'Bấm để điền các mục 18–32'
+                              }
+                              extra={
+                                <div className="mt-1 space-y-1">
+                                  {exp.source === 'cv_ai' && (
+                                    <span className="inline-flex">
+                                      <Badge tone="brand">Từ CV AI</Badge>
+                                    </span>
+                                  )}
+                                  <MissingBadges fields={exp.missingFields} highlight={highlight} />
+                                </div>
+                              }
+                              open={expandedExp.has(index)}
+                              onOpenChange={(open) => toggleExp(index, open)}
+                              className={highlight ? 'ring-2 ring-amber-400/70' : undefined}
+                              actions={
+                                form.experiences.length > 1 ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="text-red-600"
+                                    onClick={() => removeExperience(index)}
+                                  >
+                                    Xoá
+                                  </Button>
+                                ) : undefined
+                              }
+                            >
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <Field label="18. Tên công ty *">
+                                  <Input
+                                    value={exp.companyName}
+                                    onChange={(e) =>
+                                      patchExperience(index, { companyName: e.target.value })
+                                    }
+                                    placeholder="Anh/chị từng làm việc tại công ty nào?"
+                                  />
+                                </Field>
+                                <Field label="19. Vị trí *">
+                                  <Select
+                                    value={exp.jobTitle}
+                                    onChange={(e) =>
+                                      patchExperience(index, { jobTitle: e.target.value })
+                                    }
+                                  >
+                                    <option value="">— Chọn 4 vị trí —</option>
+                                    {DESIRED_POSITIONS.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                    {exp.jobTitle.trim() &&
+                                    !(DESIRED_POSITIONS as readonly string[]).includes(exp.jobTitle) ? (
+                                      <option value={exp.jobTitle}>
+                                        {exp.jobTitle} (dữ liệu cũ — hãy chọn lại 1 trong 4 vị trí)
+                                      </option>
+                                    ) : null}
+                                  </Select>
+                                </Field>
+                              </div>
+                              <Field label="20. Thời gian làm việc *">
+                                <MonthYearRangeFields
+                                  start={exp.startYear}
+                                  end={exp.endYear}
+                                  current={exp.isCurrent}
+                                  onStartChange={(v) =>
+                                    patchExperience(index, { startYear: v })
+                                  }
+                                  onEndChange={(v) =>
+                                    patchExperience(index, { endYear: v })
+                                  }
+                                  onCurrentChange={(checked) =>
+                                    patchExperience(index, {
+                                      isCurrent: checked,
+                                      endYear: checked ? '' : exp.endYear,
+                                    })
+                                  }
+                                />
+                              </Field>
+
+                              <Field
+                                label="21. Ngành / lĩnh vực *"
+                                description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
+                              >
+                                <MultiCheck
+                                  options={EXPERIENCE_INDUSTRY_OPTIONS}
+                                  selected={exp.industries}
+                                  onChange={(v) => patchExperience(index, { industries: v })}
+                                  columns={2}
+                                  compact
+                                />
+                              </Field>
+
+                              <Field
+                                label="22. Sản phẩm / thiết bị đã bán *"
                                 description={PRODUCTS_SOLD_QUESTION}
                               >
                                 <BrandTechnologySearch
@@ -2264,7 +2290,7 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label="25. Nhóm khách hàng đã bán *">
+                              <Field label="23. Nhóm khách hàng đã bán *">
                                 <MultiCheck
                                   options={CUSTOMER_SEGMENTS}
                                   selected={exp.customerSegments}
@@ -2275,7 +2301,7 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label="26. Giải pháp sản phẩm *">
+                              <Field label="24. Giải pháp sản phẩm *">
                                 <MultiCheck
                                   options={DEAL_TYPE_CHECK_OPTIONS.map((o) => o.label)}
                                   selected={dealTypesSelected}
@@ -2296,7 +2322,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
-                                label="27. Phạm vi công việc bán hàng đã phụ trách"
+                                label="25. Phạm vi công việc bán hàng đã phụ trách"
                                 description={SELLING_STAGES_QUESTION}
                               >
                                 <div className="mb-2">
@@ -2344,11 +2370,11 @@ export default function ProfileEditPage() {
 
                               <CollapsibleFormSection
                                 variant="hot"
-                                title="Thông tin bán hàng chuyên sâu (28-34)"
-                                subtitle="Giúp A.I đủ 100% dữ liệu kết nối với NTD."
+                                title="Thông tin bán hàng chuyên sâu (26-32)"
+                                subtitle="Bổ sung để hoàn thành hồ sơ — không phải điểm matching JD."
                               >
                                   <Field
-                                    label="28. Hãng / thương hiệu sản phẩm"
+                                    label="26. Hãng / thương hiệu sản phẩm"
                                     description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
                                   >
                                     <BrandTechnologySearch
@@ -2358,7 +2384,7 @@ export default function ProfileEditPage() {
                                       }
                                     />
                                   </Field>
-                                  <Field label="29. Khu vực / thị trường phụ trách">
+                                  <Field label="27. Khu vực / thị trường phụ trách">
                                     <MultiCheck
                                       options={MARKET_REGIONS}
                                       selected={exp.marketsCovered}
@@ -2369,7 +2395,7 @@ export default function ProfileEditPage() {
                                     />
                                   </Field>
                                   <div className="grid gap-4 sm:grid-cols-2">
-                                    <Field label={`30. ${PERSONAL_REVENUE_QUESTION}`}>
+                                    <Field label={`28. ${PERSONAL_REVENUE_QUESTION}`}>
                                       <MoneyInput
                                         value={exp.latestRevenue}
                                         onChange={(v) =>
@@ -2379,7 +2405,7 @@ export default function ProfileEditPage() {
                                         hint={moneyHint(exp.latestRevenue)}
                                       />
                                     </Field>
-                                    <Field label="31. Mức độ hoàn thành KPI">
+                                    <Field label="29. Mức độ hoàn thành KPI">
                                       <Select
                                         value={exp.kpiBand}
                                         onChange={(e) =>
@@ -2394,7 +2420,7 @@ export default function ProfileEditPage() {
                                         ))}
                                       </Select>
                                     </Field>
-                                    <Field label="32. Tỷ lệ khách hàng tự tìm kiếm">
+                                    <Field label="30. Tỷ lệ khách hàng tự tìm kiếm">
                                       <Select
                                         value={exp.newCustomerRatioBand}
                                         onChange={(e) =>
@@ -2411,7 +2437,7 @@ export default function ProfileEditPage() {
                                         ))}
                                       </Select>
                                     </Field>
-                                    <Field label="33. Giá trị hợp đồng thường gặp">
+                                    <Field label="31. Giá trị hợp đồng thường gặp">
                                       <Select
                                         value={exp.typicalDealValueBand}
                                         onChange={(e) =>
@@ -2429,7 +2455,7 @@ export default function ProfileEditPage() {
                                       </Select>
                                     </Field>
                                   </div>
-                                  <Field label="34. Thành tích kinh doanh nổi bật tại công ty này?">
+                                  <Field label="32. Thành tích kinh doanh nổi bật tại công ty này?">
                                     <Textarea
                                       rows={3}
                                       value={exp.highlights}
@@ -2446,7 +2472,7 @@ export default function ProfileEditPage() {
                       </div>
 
                       <Button type="button" variant="outline" onClick={addExperience}>
-                        + Thêm công ty (lặp lại mục 20–34)
+                        + Thêm công ty (lặp lại mục 18–32)
                       </Button>
                     </>
                   )}
@@ -2519,7 +2545,7 @@ export default function ProfileEditPage() {
                       <>
                         <div className="space-y-2 pt-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-                            B. Mong muốn nghề nghiệp (13–16)
+                            B. Mong muốn nghề nghiệp (13–17)
                           </p>
                           <ReviewRow
                             label="Vị trí ứng tuyển"
@@ -2552,16 +2578,16 @@ export default function ProfileEditPage() {
                                 : '—'
                             }
                           />
-                        </div>
-
-                        <div className="space-y-2 pt-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-                            C. Định hướng & phù hợp (17–19)
-                          </p>
                           <ReviewRow
                             label="Định hướng"
                             value={form.careerOrientations[0] ?? '—'}
                           />
+                        </div>
+
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Tham khảo (không tính điểm)
+                          </p>
                           {CULTURE_FIT_QUESTIONS.map((q) => (
                             <ReviewRow
                               key={q.id}
@@ -2581,7 +2607,7 @@ export default function ProfileEditPage() {
 
                         <div className="space-y-2 pt-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-                            D. Kinh nghiệm công ty ({filledExperiences.length})
+                            C. Kinh nghiệm công ty ({filledExperiences.length})
                           </p>
                           {filledExperiences.length === 0 ? (
                             <p className="text-sm text-slate-500">Chưa có kinh nghiệm công ty.</p>
@@ -2656,7 +2682,7 @@ export default function ProfileEditPage() {
                         </div>
                         <div className="space-y-2 pt-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-                            C. Năng lực và định hướng (17–23)
+                            C. Năng lực kỹ thuật (17–19)
                           </p>
                           <ReviewRow
                             label="Làm ngoài giờ"
@@ -2674,6 +2700,11 @@ export default function ProfileEditPage() {
                             label="Đọc bản vẽ / tài liệu"
                             value={trackExtras.documentLiteracy.join(', ')}
                           />
+                        </div>
+                        <div className="space-y-2 pt-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Tham khảo (không tính điểm)
+                          </p>
                           <ReviewRow
                             label="Cách làm việc"
                             value={trackExtras.technicalWorkStyles.join(', ')}
@@ -2693,7 +2724,7 @@ export default function ProfileEditPage() {
                         </div>
                         <div className="space-y-2 pt-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-                            D. Kinh nghiệm (24–32)
+                            D. Kinh nghiệm (20–28)
                           </p>
                           {filledExperiences.length === 0 ? (
                             <p className="text-sm text-slate-500">Chưa có kinh nghiệm</p>

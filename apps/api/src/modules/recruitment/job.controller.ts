@@ -7,15 +7,25 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
 import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { IdempotencyInterceptor } from '../../shared/common/idempotency.interceptor';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
+import { Public } from '../../shared/security/public.decorator';
 import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
@@ -24,6 +34,7 @@ import { CreateJobDto } from './dto/create-job.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { BroadcastEmailDto } from './dto/broadcast-email.dto';
 import { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
+import { ParseJobDescriptionDto } from './dto/parse-job-description.dto';
 import { EstimateSalaryDto } from './dto/estimate-salary.dto';
 import { UpdateJobStatusDto } from './dto/update-job-status.dto';
 import { JobService } from './job.service';
@@ -65,6 +76,44 @@ export class JobController {
     return this.jobs.generateJobDraft(user, dto, correlationId);
   }
 
+  @Post('ai/parse-from-text')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({
+    summary: 'AI đọc JD dán text → 22 trường Sales hoặc 23 trường Kỹ thuật (không suy diễn)',
+  })
+  parseFromText(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ParseJobDescriptionDto,
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.jobs.parseJobFromText(user, dto.text, correlationId, dto.jobTrack);
+  }
+
+  @Post('ai/parse-from-file')
+  @Roles(...RECRUITER_ROLES)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload JD PDF/DOCX/TXT → AI trích 22 trường Sales hoặc 23 trường Kỹ thuật',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        jobTrack: { type: 'string', enum: ['sales', 'technical'] },
+      },
+    },
+  })
+  parseFromFile(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { jobTrack?: string },
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.jobs.parseJobFromFile(user, file, correlationId, body?.jobTrack);
+  }
+
   @Post('ai/salary')
   @Roles(...RECRUITER_ROLES)
   @ApiOperation({ summary: 'Salary Engine: ước lương theo cấp bậc VN (Kinh doanh / Kỹ thuật)' })
@@ -73,6 +122,7 @@ export class JobController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Danh sách tin tuyển dụng đang mở (ứng viên duyệt việc)' })
   @ApiQuery({ name: 'keyword', required: false })
   @ApiQuery({ name: 'industry', required: false })
@@ -86,7 +136,7 @@ export class JobController {
   @ApiQuery({ name: 'salaryMin', required: false })
   @ApiQuery({ name: 'salaryMax', required: false })
   listPublished(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: AuthenticatedUser | undefined,
     @Query('keyword') keyword?: string,
     @Query('industry') industry?: string,
     @Query('subIndustry') subIndustry?: string,
@@ -111,11 +161,12 @@ export class JobController {
       jobTrack,
       salaryMin: salaryMin != null && salaryMin !== '' ? Number(salaryMin) : undefined,
       salaryMax: salaryMax != null && salaryMax !== '' ? Number(salaryMax) : undefined,
-      userId: user.id,
+      userId: user?.id,
     });
   }
 
   @Get('stats/positions')
+  @Public()
   @ApiOperation({ summary: 'Vị trí đang tuyển theo ngành — lấy từ tin published trên nền tảng' })
   listPositionStats() {
     return this.jobs.listPublishedPositionStats();
@@ -150,8 +201,9 @@ export class JobController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Chi tiết tin tuyển dụng' })
-  getOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  getOne(@CurrentUser() user: AuthenticatedUser | undefined, @Param('id') id: string) {
     return this.jobs.getJob(id, user);
   }
 

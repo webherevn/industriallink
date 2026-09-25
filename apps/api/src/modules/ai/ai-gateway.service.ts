@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { CareerAdviceView, SalaryEstimateView } from '@industriallink/contracts';
+import type { CareerAdviceView, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { AppConfig } from '../../config/configuration';
 import type { AiProvider } from './domain/ai-provider.interface';
-import type { JobDraftInput, JobDraftResult, ParsedResume, ResumeParseInput } from './domain/types';
+import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from './domain/types';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import type {
   CareerAdviceEngineInput,
@@ -77,6 +77,10 @@ export class AiGatewayService {
 
   generateJobDraft(input: JobDraftInput): Promise<JobDraftResult> {
     return this.provider.generateJobDraft(input);
+  }
+
+  parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft> {
+    return this.provider.parseJobDescription(input);
   }
 
   adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

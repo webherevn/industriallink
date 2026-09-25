@@ -1,13 +1,13 @@
 /**
- * Tiêu chí hồ sơ Kỹ thuật — ma trận 32 mục.
- * Mục 1–12 dùng chung với Kinh doanh; file này chứa B (13–16 phần riêng),
- * C (17–23) và D (24–32) đặc thù kỹ thuật.
+ * Tiêu chí hồ sơ Kỹ thuật — ma trận hoàn thành 28 mục (PDF 8.9.2026).
+ * Mục 1–12 dùng chung với Kinh doanh; file này chứa B (13–16),
+ * C (17–19) và D (20–28) đặc thù kỹ thuật.
  */
 
 import { DESIRED_POSITIONS } from './sales-b2b-criteria';
 import { JobTrack } from './career-path';
 
-/** STT 28. Thiết bị / hệ thống đã trực tiếp làm việc (19%) — search + chọn nhiều + nhập thêm. */
+/** STT 24. Thiết bị / hệ thống đã trực tiếp làm việc (19%) — search + chọn nhiều + nhập thêm. */
 export const EQUIPMENT_SYSTEM_OPTIONS = [
   'Cơ khí / Cơ khí chế tạo',
   'Điện / Điện công nghiệp',
@@ -65,7 +65,7 @@ export {
   type FdiBrandPriority,
 } from './fdi-b2b-brands';
 
-/** STT 30. Công việc kỹ thuật đã trực tiếp thực hiện (17%). */
+/** STT 26. Công việc kỹ thuật đã trực tiếp thực hiện (16%). */
 export const TECHNICAL_WORK_TYPES = [
   'Thiết kế',
   'Lập trình / cài đặt',
@@ -86,7 +86,7 @@ export type TechnicalWorkType = (typeof TECHNICAL_WORK_TYPES)[number];
 export const TECHNICAL_WORK_TYPES_QUESTION =
   'Anh/chị đã trực tiếp thực hiện những công việc nào?';
 
-/** STT 31. Mức độ tự chủ trong công việc kỹ thuật (8%) — chọn mức cao nhất phù hợp. */
+/** STT 27. Mức độ tự chủ trong công việc kỹ thuật (9%) — chọn mức cao nhất phù hợp. */
 export const TECHNICAL_AUTONOMY_LEVELS = [
   { value: 1, label: 'Cần người hướng dẫn' },
   { value: 2, label: 'Có thể làm theo hướng dẫn' },
@@ -111,7 +111,7 @@ export const TROUBLESHOOTING_LEVELS = [
 
 export type TroubleshootingLevel = (typeof TROUBLESHOOTING_LEVELS)[number]['value'];
 
-/** STT 18. Phần mềm & công cụ đã sử dụng (2%) — chọn nhiều + "Khác" tự nhập. */
+/** STT 18. Phần mềm & công cụ đã sử dụng (2,5%) — chọn nhiều + "Khác" tự nhập. */
 export const TECHNICAL_TOOLS = [
   'AutoCAD',
   'SolidWorks',
@@ -127,7 +127,7 @@ export type TechnicalTool = (typeof TECHNICAL_TOOLS)[number];
 export const TECHNICAL_TOOLS_QUESTION =
   'Anh/chị sử dụng được những phần mềm/công cụ kỹ thuật nào?';
 
-/** STT 19. Đọc bản vẽ / tài liệu kỹ thuật (2%) — chọn nhiều + "Khác" tự nhập. */
+/** STT 19. Đọc bản vẽ / tài liệu kỹ thuật (2,5%) — chọn nhiều + "Khác" tự nhập. */
 export const DOCUMENT_LITERACY_OPTIONS = [
   'Bản vẽ cơ khí',
   'Bản vẽ điện',
@@ -140,7 +140,7 @@ export type DocumentLiteracyOption = (typeof DOCUMENT_LITERACY_OPTIONS)[number];
 
 export const DOCUMENT_LITERACY_QUESTION = 'Anh/chị có thể đọc những tài liệu nào?';
 
-/** STT 17. Khả năng làm ngoài giờ / xử lý sự cố khi cần (1%). */
+/** STT 17. Khả năng làm ngoài giờ / xử lý sự cố khi cần (1,5%). */
 export const SHIFT_FLEXIBILITY_OPTIONS = [
   { value: 'yes', label: 'Có, sẵn sàng' },
   { value: 'limited', label: 'Có, nhưng có giới hạn' },
@@ -152,7 +152,7 @@ export type ShiftFlexibility = (typeof SHIFT_FLEXIBILITY_OPTIONS)[number]['value
 export const SHIFT_FLEXIBILITY_QUESTION =
   'Anh/chị có thể làm ngoài giờ hoặc xử lý sự cố khi cần không?';
 
-/** STT 21. Định hướng nghề nghiệp 2–3 năm tới (tham khảo, 0%) — chọn 1. */
+/** Định hướng nghề nghiệp 2–3 năm tới — tham khảo, không tính điểm hoàn thành. */
 export const TECHNICAL_CAREER_ORIENTATIONS = [
   'Trở thành chuyên gia kỹ thuật',
   'Kỹ thuật dự án',
@@ -167,7 +167,7 @@ export const TECHNICAL_CAREER_ORIENTATIONS = [
 export const TECHNICAL_ORIENTATION_QUESTION =
   'Trong 2–3 năm tới anh/chị muốn phát triển theo hướng nào? Chọn 1 hướng phù hợp nhất.';
 
-/** STT 22. Động lực khi lựa chọn công việc mới (tham khảo, 0%) — chọn tối đa 3. */
+/** Động lực khi lựa chọn công việc mới — tham khảo, không tính điểm hoàn thành. */
 export const TECHNICAL_CAREER_MOTIVATIONS = [
   'Thu nhập tốt',
   'Công việc ổn định, lâu dài',
@@ -184,7 +184,7 @@ export const TECHNICAL_CAREER_MOTIVATIONS = [
 export const TECHNICAL_MOTIVATION_QUESTION =
   'Hãy chọn tối đa 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
 
-/** STT 20. Cách làm việc kỹ thuật (1%) — chọn tối đa 3. */
+/** Cách làm việc kỹ thuật — tham khảo, không tính điểm hoàn thành. */
 export const TECHNICAL_WORK_STYLES = [
   'Ưu tiên an toàn và đúng quy trình',
   'Phân tích nguyên nhân trước khi xử lý',
@@ -203,7 +203,7 @@ export function filterTechnicalWorkStyles(values: string[] | undefined): string[
 export const TECHNICAL_WORK_STYLE_QUESTION =
   'Anh/chị xử lý các tình huống kỹ thuật như thế nào? Chọn tối đa 3 phương án phù hợp nhất.';
 
-/** STT 23 (mong muốn) & 29 (thực tế). Môi trường làm việc. */
+/** Môi trường làm việc: mong muốn (tham khảo) & STT 25 thực tế (5%). */
 export const WORK_ENVIRONMENT_OPTIONS = [
   'Nhà máy / xưởng',
   'Công trường / dự án',
@@ -238,7 +238,7 @@ export const TRACK_FIELD_LABELS = {
   },
 } as const;
 
-/** STT 32. Thành tích/dự án nổi bật (5%) — ô nhập tự do. */
+/** STT 28. Thành tích/dự án nổi bật (2,5%) — ô nhập tự do. */
 export const TECHNICAL_HIGHLIGHTS_QUESTION = 'Thành tích/dự án nổi bật';
 
 /**
@@ -265,8 +265,8 @@ function uniquePreserveOrder(items: readonly string[]): string[] {
 
 /**
  * Danh sách vị trí ứng tuyển theo lĩnh vực (STT 13).
- * Kinh doanh: đúng 5 vị trí theo ma trận 34 mục (update 18.8).
- * Kỹ thuật: đúng 13 vị trí theo ma trận 32 mục, "Khác" tự nhập ở UI.
+ * Kinh doanh: đúng 5 vị trí theo ma trận hoàn thành 32 mục.
+ * Kỹ thuật: đúng 13 vị trí theo ma trận hoàn thành 28 mục, "Khác" tự nhập ở UI.
  */
 export function desiredPositionOptionsForTrack(
   track: JobTrack | 'sales' | 'technical' | null | undefined,

@@ -1,0 +1,51 @@
+import type { MetadataRoute } from 'next';
+
+/** Chỉ URL công khai được crawl. Bộ lọc động và khu vực tài khoản bị chặn. */
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: '*',
+      allow: ['/', '/viec-lam', '/viec-lam/', '/cong-ty/'],
+      disallow: [
+        '/login',
+        '/register',
+        '/search',
+        '/dashboard',
+        '/account',
+        '/profile',
+        '/company',
+        '/companies',
+        '/recruiter',
+        '/candidates',
+        '/cv',
+        '/applications',
+        '/connections',
+        '/progress',
+        '/recommended',
+        '/notifications',
+        '/upload',
+        '/analyze',
+        '/jobs',
+        '/jobs/',
+        '/?*',
+        '/viec-lam?*',
+        '/cam-nang?*',
+        '/*?*keyword=',
+        '/*?*industry=',
+        '/*?*subIndustry=',
+        '/*?*role=',
+        '/*?*location=',
+        '/*?*locations=',
+        '/*?*salary=',
+        '/*?*experienceBand=',
+        '/*?*jobLevel=',
+        '/*?*jobTrack=',
+        '/*?*company=',
+        '/*?*tab=',
+        '/*?*page=',
+        '/*?*q=',
+        '/*?*jobId=',
+      ],
+    },
+  };
+}

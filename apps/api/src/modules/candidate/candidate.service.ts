@@ -251,6 +251,7 @@ export class CandidateService {
         aiProfile: true,
         skills: { orderBy: { name: 'asc' } },
         experiences: { orderBy: { sortOrder: 'asc' } },
+        user: { select: { email: true } },
       },
     });
     if (!candidate) {
@@ -428,6 +429,8 @@ export class CandidateService {
       select: { summary: true },
     });
     const profileCompletion = computeProfileCompletion({
+      displayName: input.displayName,
+      email: user.email,
       aiProfile: existingAi,
       profile: profileData,
       skills: skillRows,
@@ -785,6 +788,7 @@ export class CandidateService {
     displayName: string;
     status: string;
     avatarStorageKey: string | null;
+    user?: { email?: string | null } | null;
     profile: Record<string, unknown> | null;
     aiProfile: {
       summary: string | null;
@@ -932,6 +936,8 @@ export class CandidateService {
       displayName: candidate.displayName,
       status: candidate.status as CandidateStatus,
       profileCompletion: computeProfileCompletion({
+        displayName: candidate.displayName,
+        email: candidate.user?.email,
         aiProfile: candidate.aiProfile,
         profile: p,
         skills: candidate.skills,
@@ -1160,6 +1166,8 @@ export class CandidateService {
 
     const firstDraftExp = draft.experience[0];
     const profileCompletion = computeProfileCompletion({
+      displayName: draft.fullName,
+      email: draft.email,
       aiProfile: { summary: draft.summary?.trim() || null },
       profile: {
         currentPosition: draft.title || null,
@@ -1664,6 +1672,9 @@ function parsePeriodYears(period: string | null | undefined): {
 }
 
 type ProfileCompletionInput = {
+  displayName?: string | null;
+  email?: string | null;
+  user?: { email?: string | null } | null;
   aiProfile: { summary: string | null } | null;
   profile: {
     currentPosition?: string | null;
@@ -1757,8 +1768,8 @@ function isFilledValue(value: unknown, weakIfShort = 0): 'filled' | 'weak' | 'mi
 }
 
 /**
- * % điểm gợi ý hồ sơ theo ma trận 34 mục (KD/KT).
- * filled=1, weak=0.5, missing=0 — nhân trọng số AI, chuẩn hoá 100%.
+ * % hoàn thành hồ sơ (Tạo CV / chỉnh hồ sơ) theo ma trận KD 32 / KT 28.
+ * Không phải Matching JD. filled=1, weak=0.5, missing=0.
  */
 export function computeProfileCompletion(candidate: ProfileCompletionInput): number {
   const p = candidate.profile;
@@ -1807,6 +1818,10 @@ export function computeProfileCompletion(candidate: ProfileCompletionInput): num
     (firstExp?.isCurrent ? 'Hiện tại' : '');
 
   const checks: Array<{ key: string; value: unknown; weakIfShort?: number }> = [
+    { key: 'fullName', value: candidate.displayName },
+    { key: 'birthYear', value: p?.birthYear ?? p?.birthDate },
+    { key: 'phone', value: p?.phone },
+    { key: 'email', value: candidate.email ?? candidate.user?.email },
     { key: 'location', value: p?.currentCity },
     { key: 'desiredPositions', value: p?.desiredPositions ?? [] },
     { key: 'desiredLocations', value: p?.desiredLocations ?? [] },

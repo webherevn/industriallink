@@ -16,8 +16,10 @@ describe('JobService', () => {
   const ai = {
     embed: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
     generateJobDraft: jest.fn(),
+    parseJobDescription: jest.fn(),
     estimateSalary: jest.fn(),
   };
+  const indexing = { notifyJob: jest.fn().mockResolvedValue(undefined) };
 
   function buildService(prisma: Record<string, unknown>) {
     events.publish.mockClear();
@@ -27,7 +29,9 @@ describe('JobService', () => {
     companies.requireUserCompany.mockClear();
     ai.embed.mockClear();
     ai.generateJobDraft.mockClear();
+    ai.parseJobDescription.mockClear();
     ai.estimateSalary.mockClear();
+    indexing.notifyJob.mockClear();
     return new JobService(
       prisma as never,
       codeGen as never,
@@ -36,6 +40,7 @@ describe('JobService', () => {
       skills as never,
       companies as never,
       ai as never,
+      indexing as never,
     );
   }
 
@@ -50,6 +55,7 @@ describe('JobService', () => {
 
   const baseJobRow = {
     id: 'job-1',
+    slug: 'ky-su-plc',
     tenantId: 'default',
     code: 'JOB-2026-000001',
     companyId: 'co-1',
@@ -68,17 +74,28 @@ describe('JobService', () => {
     experienceBand: null,
     salaryMin: null,
     salaryMax: null,
+    jobTrack: null,
+    salesCriteria: null,
+    technicalCriteria: null,
     status: JobStatus.Draft,
     isDeleted: false,
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     skills: [],
-    company: { id: 'co-1', name: 'Công ty ABC' },
+    publishedAt: null,
+    company: {
+      id: 'co-1',
+      name: 'Công ty ABC',
+      slug: 'cong-ty-abc',
+      website: null,
+      address: null,
+      profile: null,
+    },
   };
 
   describe('createJob', () => {
     it('tạo tin ở trạng thái Nháp, không gọi embedding khi publish=false', async () => {
       const create = jest.fn().mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft });
-      const prisma = { job: { create }, $executeRaw: jest.fn() };
+      const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: jest.fn() };
       const service = buildService(prisma);
 
       const result = await service.createJob(
@@ -97,7 +114,7 @@ describe('JobService', () => {
         .fn()
         .mockResolvedValue({ ...baseJobRow, status: JobStatus.Published, publishedAt: new Date() });
       const executeRaw = jest.fn().mockResolvedValue(undefined);
-      const prisma = { job: { create }, $executeRaw: executeRaw };
+      const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: executeRaw };
       const service = buildService(prisma);
 
       const result = await service.createJob(
@@ -124,7 +141,7 @@ describe('JobService', () => {
         .fn()
         .mockResolvedValue({ ...baseJobRow, status: JobStatus.Published, publishedAt: new Date() });
       ai.embed.mockRejectedValueOnce(new Error('AI down'));
-      const prisma = { job: { create }, $executeRaw: jest.fn() };
+      const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: jest.fn() };
       const service = buildService(prisma);
 
       await expect(
@@ -142,7 +159,7 @@ describe('JobService', () => {
     it('không làm gì thêm nếu tin đã Published', async () => {
       const prisma = {
         job: {
-          findUnique: jest
+          findFirst: jest
             .fn()
             .mockResolvedValue({ ...baseJobRow, status: JobStatus.Published }),
           update: jest.fn(),
@@ -164,7 +181,7 @@ describe('JobService', () => {
         .mockResolvedValue({ ...baseJobRow, status: JobStatus.Published });
       const prisma = {
         job: {
-          findUnique: jest.fn().mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft }),
+          findFirst: jest.fn().mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft }),
           update,
         },
         $executeRaw: jest.fn(),
@@ -181,7 +198,7 @@ describe('JobService', () => {
 
   describe('requireOwnedJob', () => {
     it('ném NotFoundException nếu tin không tồn tại hoặc đã xoá', async () => {
-      const prisma = { job: { findUnique: jest.fn().mockResolvedValue(null) } };
+      const prisma = { job: { findFirst: jest.fn().mockResolvedValue(null) } };
       const service = buildService(prisma);
 
       await expect(service.requireOwnedJob(recruiter, 'missing')).rejects.toBeInstanceOf(
@@ -192,7 +209,7 @@ describe('JobService', () => {
     it('ném ForbiddenException nếu tin không thuộc công ty của user', async () => {
       const prisma = {
         job: {
-          findUnique: jest.fn().mockResolvedValue({ ...baseJobRow, companyId: 'co-OTHER' }),
+          findFirst: jest.fn().mockResolvedValue({ ...baseJobRow, companyId: 'co-OTHER' }),
         },
       };
       const service = buildService(prisma);
@@ -203,7 +220,7 @@ describe('JobService', () => {
     });
 
     it('trả về tin nếu thuộc đúng công ty', async () => {
-      const prisma = { job: { findUnique: jest.fn().mockResolvedValue(baseJobRow) } };
+      const prisma = { job: { findFirst: jest.fn().mockResolvedValue(baseJobRow) } };
       const service = buildService(prisma);
 
       const job = await service.requireOwnedJob(recruiter, 'job-1');
@@ -214,7 +231,7 @@ describe('JobService', () => {
   describe('getJob', () => {
     it('đánh dấu hasApplied=true nếu ứng viên đã ứng tuyển', async () => {
       const prisma = {
-        job: { findUnique: jest.fn().mockResolvedValue(baseJobRow) },
+        job: { findFirst: jest.fn().mockResolvedValue(baseJobRow) },
         candidate: { findUnique: jest.fn().mockResolvedValue({ id: 'can-1' }) },
         application: { findUnique: jest.fn().mockResolvedValue({ id: 'app-1' }) },
       };
@@ -225,7 +242,7 @@ describe('JobService', () => {
     });
 
     it('ném NotFoundException nếu tin không tồn tại', async () => {
-      const prisma = { job: { findUnique: jest.fn().mockResolvedValue(null) } };
+      const prisma = { job: { findFirst: jest.fn().mockResolvedValue(null) } };
       const service = buildService(prisma);
 
       await expect(service.getJob('missing')).rejects.toBeInstanceOf(NotFoundException);
@@ -304,16 +321,15 @@ describe('JobService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             status: JobStatus.Published,
-            OR: expect.arrayContaining([
-              {
-                industry: {
-                  equals: 'Máy móc & Thiết bị sản xuất',
-                  mode: 'insensitive',
-                },
-              },
-            ]),
             experienceBand: '1_3',
-            jobLevel: { startsWith: 'sales.' },
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { jobTrack: 'sales' },
+                  { jobLevel: { startsWith: 'sales.' } },
+                ]),
+              }),
+            ]),
           }),
         }),
       );
@@ -349,7 +365,7 @@ describe('JobService', () => {
       const upsert = jest.fn().mockResolvedValue({});
       const prisma = {
         job: {
-          findUnique: jest.fn().mockResolvedValue({
+          findFirst: jest.fn().mockResolvedValue({
             ...baseJobRow,
             status: JobStatus.Published,
             isDeleted: false,

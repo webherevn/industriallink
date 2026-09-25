@@ -984,7 +984,7 @@ export default function DashboardPage() {
               {activityItems.length === 0 ? (
                 <p className="text-xs text-slate-500">
                   Chưa có hoạt động ứng tuyển.{' '}
-                  <Link href="/jobs" className="font-semibold text-amber-600 hover:underline">
+                  <Link href="/viec-lam" className="font-semibold text-amber-600 hover:underline">
                     Tìm việc
                   </Link>
                 </p>

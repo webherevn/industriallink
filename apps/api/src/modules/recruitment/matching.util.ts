@@ -2,6 +2,8 @@ import type { MatchCriterionScore, MatchExplanation } from '@industriallink/cont
 import {
   AvailabilityBand,
   CUSTOMER_SEGMENTS,
+  DEAL_TYPE_LABEL,
+  DealType,
   EQUIPMENT_SYSTEM_OPTIONS,
   JobReadiness,
   JobTrack,
@@ -15,10 +17,15 @@ import {
   b2bMatchWeightsForTrack,
   experienceBandToYears,
   getIndustryCatalog,
+  normalizeDealTypeValue,
   normalizeIndustries,
+  normalizeJobSalesCriteria,
+  normalizeJobTechnicalCriteria,
   normalizeSellingStage,
   noticeDaysToAvailability,
+  parseDriverLicenses,
   salesBehaviorToDevStyle,
+  splitDealTypes,
   trackImpliedByDepartment,
   yearsToB2bBand,
   type B2bMatchCriterionKey,
@@ -83,6 +90,40 @@ export function setOverlapScore(
     if (hit) matched.push(r);
   }
   return { score: matched.length / req.length, matched };
+}
+
+/** Gộp giá trị CV (profile + mọi công ty) — giữ thứ tự, không trùng (không phân biệt hoa/dấu). */
+export function unionUnique(
+  ...lists: Array<readonly string[] | string | null | undefined>
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const list of lists) {
+    const items = Array.isArray(list) ? list : list ? [list] : [];
+    for (const raw of items) {
+      const s = String(raw ?? '').trim();
+      if (!s) continue;
+      const key = norm(s);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+/** Tách địa điểm / chuỗi ghép "Hà Nội | Bắc Ninh". */
+export function splitJoinedValues(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/[|,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function maxNumeric(...vals: Array<number | null | undefined>): number | null {
+  const nums = vals.filter((v): v is number => v != null && Number.isFinite(v));
+  return nums.length ? Math.max(...nums) : null;
 }
 
 function tokenHaystack(parts: Array<string | null | undefined>): string {
@@ -197,6 +238,17 @@ export interface B2bCandidateMatchInput {
   desiredLocations?: string[];
   technicalAutonomyLevel?: number | null;
   technicalWorkTypes?: string[];
+  certificates?: string[];
+  technicalTools?: string[];
+  documentLiteracy?: string[];
+  shiftFlexibility?: string | null;
+  /** Loại hình KD đã chuẩn hoá (mọi công ty). */
+  dealTypes?: string[];
+  /** Vị trí đã làm + hiện tại — so với title JD (STT 1). */
+  jobTitles?: string[];
+  driverLicenses?: string[];
+  educationLevel?: string | null;
+  educationMajor?: string | null;
 }
 
 export interface B2bJobMatchInput {
@@ -231,6 +283,235 @@ export interface B2bJobMatchInput {
   jobTrack?: string | null;
   jobLevel?: string | null;
   department?: string | null;
+  /** Nhiều loại hình KD trên JD (STT 11). */
+  filterDealTypes?: string[];
+  filterDriverLicenses?: string[];
+  educationLevel?: string | null;
+  educationMajor?: string | null;
+  /** Mức tự chủ kỹ thuật tối thiểu 1–5 (JD trường 11). */
+  minTechnicalAutonomyLevel?: number | null;
+  /**
+   * Tin 22/23 trường: không suy diễn catalog, không chấm tiêu chí ngoài JD,
+   * JD trống → bỏ qua (không phạt / không thưởng trung tính).
+   */
+  strictJdCriteria?: boolean;
+}
+
+export interface CandidateExperienceMatchSlice {
+  companyName?: string | null;
+  jobTitle?: string | null;
+  startYear?: number | null;
+  endYear?: number | null;
+  isCurrent?: boolean | null;
+  industries?: string[] | null;
+  productsSold?: string[] | null;
+  customerSegments?: string[] | null;
+  marketsCovered?: string[] | null;
+  sellingStages?: string[] | null;
+  dealType?: string | null;
+  latestRevenue?: number | null;
+  kpiAchievementPct?: number | null;
+  typicalDealValue?: number | null;
+  maxDealValue?: number | null;
+  newCustomerRatioPct?: number | null;
+  highlights?: string | null;
+}
+
+/** Hồ sơ + mọi dòng kinh nghiệm → input matching (không lấy công ty đầu tiên thôi). */
+export function toB2bCandidateFromRecords(input: {
+  profile?: (Partial<B2bCandidateMatchInput> & {
+    currentPosition?: string | null;
+  }) | null;
+  experiences?: CandidateExperienceMatchSlice[] | null;
+  skills?: string[];
+}): B2bCandidateMatchInput {
+  const p = input.profile ?? {};
+  const exps = input.experiences ?? [];
+  const dealTypes = unionUnique(
+    splitDealTypes(p.dealType),
+    ...exps.map((e) => splitDealTypes(e.dealType)),
+  );
+  const jobTitles = unionUnique(p.currentPosition, p.jobTitles, ...exps.map((e) => e.jobTitle));
+
+  return {
+    industry: p.industry,
+    industriesExperienced: unionUnique(
+      p.industriesExperienced,
+      p.industry,
+      ...exps.map((e) => e.industries),
+    ),
+    productsSold: unionUnique(p.productsSold, ...exps.map((e) => e.productsSold)),
+    customerSegments: unionUnique(p.customerSegments, ...exps.map((e) => e.customerSegments)),
+    b2bExperienceBand: p.b2bExperienceBand,
+    totalExperienceYears: p.totalExperienceYears,
+    marketsCovered: unionUnique(p.marketsCovered, ...exps.map((e) => e.marketsCovered)),
+    latestRevenue: maxNumeric(p.latestRevenue, ...exps.map((e) => e.latestRevenue)),
+    kpiAchievementPct: maxNumeric(p.kpiAchievementPct, ...exps.map((e) => e.kpiAchievementPct)),
+    salesHighlights:
+      p.salesHighlights?.trim() ||
+      exps.find((e) => e.highlights?.trim())?.highlights ||
+      null,
+    customerDevStyle: p.customerDevStyle,
+    newCustomerRatioPct: maxNumeric(
+      p.newCustomerRatioPct,
+      ...exps.map((e) => e.newCustomerRatioPct),
+    ),
+    dealType: p.dealType ?? exps.find((e) => e.dealType)?.dealType ?? null,
+    dealTypes,
+    typicalDealValue: maxNumeric(p.typicalDealValue, ...exps.map((e) => e.typicalDealValue)),
+    maxDealValue: maxNumeric(p.maxDealValue, ...exps.map((e) => e.maxDealValue)),
+    sellingStages: unionUnique(p.sellingStages, ...exps.map((e) => e.sellingStages)),
+    jobReadiness: p.jobReadiness,
+    availabilityBand: p.availabilityBand,
+    noticePeriodDays: p.noticePeriodDays,
+    expectedSalaryMin: p.expectedSalaryMin,
+    expectedSalaryMax: p.expectedSalaryMax,
+    expectedOte: p.expectedOte,
+    languages: p.languages ?? [],
+    hasB2License: p.hasB2License,
+    driverLicenseType: p.driverLicenseType,
+    driverLicenses: unionUnique(p.driverLicenses, parseDriverLicenses(p.driverLicenseType)),
+    willingToTravel: p.willingToTravel,
+    travelAbility: p.travelAbility,
+    careerMotivations: p.careerMotivations ?? [],
+    workStyles: p.workStyles ?? [],
+    careerOrientation: p.careerOrientation,
+    desiredPositions: unionUnique(p.desiredPositions, jobTitles),
+    jobTitles,
+    skills: input.skills ?? p.skills ?? [],
+    jobTrack: p.jobTrack,
+    currentCity: p.currentCity,
+    desiredLocations: p.desiredLocations ?? [],
+    technicalAutonomyLevel: p.technicalAutonomyLevel,
+    technicalWorkTypes: p.technicalWorkTypes ?? [],
+    certificates: p.certificates ?? [],
+    technicalTools: p.technicalTools ?? [],
+    documentLiteracy: p.documentLiteracy ?? [],
+    shiftFlexibility: p.shiftFlexibility ?? null,
+    educationLevel: p.educationLevel,
+    educationMajor: p.educationMajor,
+  };
+}
+
+/** Map tin tuyển dụng (+ salesCriteria 22 / technicalCriteria 23 trường) → input matching. */
+export function jobToB2bMatchInput(job: {
+  title?: string | null;
+  industry?: string | null;
+  location?: string | null;
+  experienceBand?: string | null;
+  description?: string | null;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  jobLevel?: string | null;
+  department?: string | null;
+  jobTrack?: string | null;
+  salesCriteria?: unknown;
+  technicalCriteria?: unknown;
+  skills?: Array<{ name: string; required?: boolean } | string>;
+}): B2bJobMatchInput {
+  const requiredSkills = (job.skills ?? []).flatMap((s) => {
+    if (typeof s === 'string') return [];
+    return s.required ? [s.name] : [];
+  });
+  const sales = job.salesCriteria == null ? null : normalizeJobSalesCriteria(job.salesCriteria);
+  const tech =
+    job.technicalCriteria == null ? null : normalizeJobTechnicalCriteria(job.technicalCriteria);
+  const jobTrack = job.jobTrack?.trim() || null;
+  const trackHint = resolveMatchTrack({
+    job: { jobLevel: job.jobLevel, jobTrack, department: job.department },
+  });
+  const isTech =
+    trackHint === 'technical' ||
+    tech != null ||
+    jobTrack === JobTrack.Technical ||
+    jobTrack === 'technical' ||
+    (job.jobLevel ?? '').startsWith('technical.');
+  const strictJdCriteria = isTech
+    ? tech != null ||
+      jobTrack === JobTrack.Technical ||
+      jobTrack === 'technical' ||
+      (job.jobLevel ?? '').startsWith('technical.')
+    : sales != null ||
+      jobTrack === JobTrack.Sales ||
+      jobTrack === 'sales' ||
+      (job.jobLevel ?? '').startsWith('sales.');
+  const title = job.title?.trim() || null;
+
+  if (isTech) {
+    const licenses = (tech?.driverLicenses ?? []).filter((l) => l !== 'Chưa có');
+    return {
+      industry: job.industry,
+      location: job.location,
+      experienceBand: job.experienceBand,
+      title,
+      description: job.description,
+      salaryMin: job.salaryMin,
+      salaryMax: job.salaryMax,
+      requiredSkills,
+      jobLevel: job.jobLevel,
+      department: job.department,
+      jobTrack: jobTrack ?? (strictJdCriteria ? JobTrack.Technical : jobTrack),
+      strictJdCriteria,
+      filterIndustries: tech?.industries?.length
+        ? tech.industries
+        : job.industry
+          ? [job.industry]
+          : [],
+      filterProducts: tech?.equipmentSystems ?? (strictJdCriteria ? [] : undefined),
+      filterCustomerSegments: tech?.workEnvironments ?? (strictJdCriteria ? [] : undefined),
+      filterDealTypes: [],
+      filterDealType: null,
+      requiredSellingStages: tech?.technicalWorkTypes ?? [],
+      filterRegions: [],
+      filterLanguages: tech?.languages ?? [],
+      filterDriverLicenses: licenses,
+      requireB2License: licenses.length > 0,
+      minTravelAbility: tech?.travelAbility ?? null,
+      requireTravel: Boolean(tech?.travelAbility && tech.travelAbility !== TravelAbility.None),
+      educationLevel: tech?.educationLevel ?? null,
+      educationMajor: tech?.educationMajor ?? null,
+      minTechnicalAutonomyLevel: tech?.autonomyLevel ?? null,
+      careerPathTags: title ? [title] : [],
+      filterB2bExperience: job.experienceBand ?? null,
+    };
+  }
+
+  const licenses = (sales?.driverLicenses ?? []).filter((l) => l !== 'Chưa có');
+
+  return {
+    industry: job.industry,
+    location: job.location,
+    experienceBand: job.experienceBand,
+    title,
+    description: job.description,
+    salaryMin: job.salaryMin,
+    salaryMax: job.salaryMax,
+    requiredSkills,
+    jobLevel: job.jobLevel,
+    department: job.department,
+    jobTrack: jobTrack ?? (strictJdCriteria ? JobTrack.Sales : jobTrack),
+    strictJdCriteria,
+    filterIndustries: sales?.industries?.length
+      ? sales.industries
+      : job.industry
+        ? [job.industry]
+        : [],
+    filterProducts: sales?.productsSold ?? (strictJdCriteria ? [] : undefined),
+    filterCustomerSegments: sales?.customerSegments ?? (strictJdCriteria ? [] : undefined),
+    filterDealTypes: sales?.dealTypes ?? [],
+    filterDealType: sales?.dealTypes[0] ?? null,
+    requiredSellingStages: sales?.sellingStages ?? [],
+    filterRegions: sales?.marketsCovered ?? [],
+    filterLanguages: sales?.languages ?? [],
+    filterDriverLicenses: licenses,
+    requireB2License: licenses.length > 0,
+    minTravelAbility: sales?.travelAbility ?? null,
+    requireTravel: Boolean(sales?.travelAbility && sales.travelAbility !== TravelAbility.None),
+    educationLevel: sales?.educationLevel ?? null,
+    educationMajor: sales?.educationMajor ?? null,
+    careerPathTags: title ? [title] : [],
+    filterB2bExperience: job.experienceBand ?? null,
+  };
 }
 
 /**
@@ -307,7 +588,34 @@ function regionScore(
   filterRegions: string[] | undefined,
   markets: string[] | undefined,
   extraLocations?: string[],
+  opts?: { splitWorkplaceAndMarkets?: boolean },
 ): { score: number | null; note?: string } {
+  if (opts?.splitWorkplaceAndMarkets) {
+    const parts: { score: number; note: string }[] = [];
+    if (filterRegions?.length) {
+      const ov = setOverlapScore(filterRegions, markets);
+      parts.push({
+        score: ov.score ?? 0,
+        note: ov.matched.length
+          ? `Thị trường: ${ov.matched.join(', ')}`
+          : 'Chưa khớp thị trường phụ trách',
+      });
+    }
+    const workplaces = splitJoinedValues(jobLocation);
+    if (workplaces.length) {
+      const ov = setOverlapScore(workplaces, extraLocations);
+      parts.push({
+        score: ov.score ?? 0,
+        note: ov.matched.length
+          ? `Nơi làm: ${ov.matched.join(', ')}`
+          : 'Chưa khớp địa điểm làm việc',
+      });
+    }
+    if (!parts.length) return { score: null };
+    const score = parts.reduce((s, p) => s + p.score, 0) / parts.length;
+    return { score, note: parts.map((p) => p.note).join(' · ') };
+  }
+
   const required = [
     ...(filterRegions ?? []),
     ...(jobLocation?.trim() ? [jobLocation.trim()] : []),
@@ -381,32 +689,83 @@ function customerDevScore(
   return { score: Math.min(1, score), note: style ?? undefined };
 }
 
+function dealCodesOf(values: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const code = normalizeDealTypeValue(raw) ?? (raw?.trim() || null);
+    if (!code) continue;
+    if (seen.has(code)) continue;
+    seen.add(code);
+    out.push(code);
+  }
+  return out;
+}
+
 function dealProfileScore(
   c: B2bCandidateMatchInput,
   filterDealType?: string | null,
   track: 'sales' | 'technical' = 'sales',
+  opts?: { filterDealTypes?: string[]; strict?: boolean; minAutonomyLevel?: number | null },
 ): { score: number | null; note?: string } {
   if (track === 'technical') {
-    const level = c.technicalAutonomyLevel;
-    if (level == null || level < 1) return { score: null };
-    const clamped = Math.max(1, Math.min(5, level));
-    const label =
-      clamped >= 5
-        ? 'Hướng dẫn người khác'
-        : clamped >= 4
-          ? 'Tự xử lý việc phức tạp'
-          : clamped >= 3
-            ? 'Tự thực hiện'
-            : 'Cần hướng dẫn';
+    const need = opts?.minAutonomyLevel ?? null;
+    const have = c.technicalAutonomyLevel;
+    const autonomyNote = (level: number) => {
+      const clamped = Math.max(1, Math.min(5, level));
+      const label =
+        clamped >= 5
+          ? 'Hướng dẫn người khác'
+          : clamped >= 4
+            ? 'Tự xử lý việc phức tạp'
+            : clamped >= 3
+              ? 'Tự thực hiện'
+              : clamped >= 2
+                ? 'Làm theo hướng dẫn'
+                : 'Cần hướng dẫn';
+      return { clamped, label };
+    };
+
+    if (opts?.strict) {
+      if (need == null) return { score: null };
+      if (have == null || have < 1) {
+        return { score: 0, note: 'Chưa có mức tự chủ kỹ thuật' };
+      }
+      const { clamped, label } = autonomyNote(have);
+      if (clamped >= need) {
+        return { score: 1, note: `Tự chủ mức ${clamped}/5 · ${label}` };
+      }
+      return {
+        score: clamped / need,
+        note: `Tự chủ mức ${clamped}/5 (yêu cầu ${need}) · ${label}`,
+      };
+    }
+
+    if (have == null || have < 1) return { score: null };
+    const { clamped, label } = autonomyNote(have);
     return { score: Math.min(1, clamped / 4), note: `Tự chủ mức ${clamped}/5 · ${label}` };
   }
-  if (!c.dealType && c.typicalDealValue == null && c.maxDealValue == null) {
+
+  const have = dealCodesOf([...(c.dealTypes ?? []), c.dealType]);
+  const need = dealCodesOf([...(opts?.filterDealTypes ?? []), filterDealType]);
+
+  if (opts?.strict) {
+    if (!need.length) return { score: null };
+    const ov = setOverlapScore(need, have);
+    const labels = ov.matched.map((code) => DEAL_TYPE_LABEL[code as DealType] ?? code);
+    return {
+      score: ov.score ?? 0,
+      note: labels.length ? `Loại hình: ${labels.join(', ')}` : 'Chưa khớp loại hình kinh doanh',
+    };
+  }
+
+  if (!c.dealType && !have.length && c.typicalDealValue == null && c.maxDealValue == null) {
     return { score: null };
   }
   if (filterDealType && c.dealType && norm(c.dealType) !== norm(filterDealType)) {
     return { score: 0.4, note: `Thương vụ ${c.dealType}` };
   }
-  let score = c.dealType ? 0.7 : 0.5;
+  let score = c.dealType || have.length ? 0.7 : 0.5;
   if (c.maxDealValue != null && c.maxDealValue > 0) score = Math.min(1, score + 0.2);
   if (c.typicalDealValue != null && c.typicalDealValue > 0) score = Math.min(1, score + 0.1);
   return { score, note: c.dealType ?? undefined };
@@ -420,7 +779,7 @@ function dealProfileScore(
 function sellingCapabilityScore(
   stages: string[] | undefined,
   requiredStages?: string[],
-  opts?: { track?: string; technicalWorkTypes?: string[] },
+  opts?: { track?: string; technicalWorkTypes?: string[]; skipIfNoRequired?: boolean },
 ): { score: number | null; note?: string } {
   const isTech = opts?.track === 'technical';
   const haveRaw = isTech
@@ -429,16 +788,26 @@ function sellingCapabilityScore(
       )
     : (stages ?? []).map((s) => normalizeSellingStage(s) ?? s.trim());
   const have = [...new Set(haveRaw.filter(Boolean))];
-  if (have.length === 0) return { score: null };
+  const hasRequired = Boolean(requiredStages && requiredStages.length > 0);
 
-  const need =
-    requiredStages && requiredStages.length > 0
-      ? requiredStages
-          .map((s) => (isTech ? s.trim() : (normalizeSellingStage(s) ?? s.trim())))
-          .filter(Boolean)
-      : isTech
-        ? [...TECHNICAL_WORK_TYPES]
-        : [...SELLING_STAGES];
+  if (!hasRequired && opts?.skipIfNoRequired) return { score: null };
+  if (have.length === 0) {
+    if (hasRequired) {
+      return {
+        score: 0,
+        note: isTech ? 'Chưa có loại công việc kỹ thuật' : 'Chưa có giai đoạn bán hàng',
+      };
+    }
+    return { score: null };
+  }
+
+  const need = hasRequired
+    ? requiredStages!
+        .map((s) => (isTech ? s.trim() : (normalizeSellingStage(s) ?? s.trim())))
+        .filter(Boolean)
+    : isTech
+      ? [...TECHNICAL_WORK_TYPES]
+      : [...SELLING_STAGES];
 
   const { score, matched } = setOverlapScore(need, have);
   return {
@@ -497,9 +866,10 @@ function readinessScore(
 function languagesScore(
   have: string[] | undefined,
   required?: string[],
+  opts?: { skipIfUnspecified?: boolean },
 ): { score: number | null; note?: string } {
   if (!required?.length) {
-    if (!have?.length) return { score: null };
+    if (opts?.skipIfUnspecified || !have?.length) return { score: null };
     // Có ngoại ngữ nhưng JD không yêu cầu → điểm trung tính, không ép
     return { score: 0.75, note: have.join(', ') };
   }
@@ -515,6 +885,7 @@ function travelScore(
   willingToTravel: boolean | null | undefined,
   requireTravel?: boolean,
   minTravel?: string | null,
+  opts?: { skipIfUnspecified?: boolean },
 ): { score: number | null; note?: string } {
   const ability =
     travelAbility ??
@@ -525,7 +896,7 @@ function travelScore(
         : null);
 
   if (!requireTravel && !minTravel) {
-    if (ability == null) return { score: null };
+    if (opts?.skipIfUnspecified || ability == null) return { score: null };
     if (ability === TravelAbility.None) return { score: 0.5, note: 'Không đi công tác' };
     return { score: 0.85, note: ability };
   }
@@ -549,16 +920,31 @@ function driversLicenseScore(
   hasLicense: boolean | null | undefined,
   licenseType: string | null | undefined,
   require?: boolean,
+  opts?: { filterLicenses?: string[]; candidateLicenses?: string[]; skipIfUnspecified?: boolean },
 ): { score: number | null; note?: string } {
-  if (!require) {
-    if (hasLicense == null && !licenseType) return { score: null };
+  const have = unionUnique(
+    opts?.candidateLicenses,
+    parseDriverLicenses(licenseType),
+    hasLicense ? 'Ô tô' : undefined,
+  );
+  const need = (opts?.filterLicenses ?? []).filter((l) => l !== 'Chưa có');
+  if (need.length) {
+    const ov = setOverlapScore(need, have);
     return {
-      score: hasLicense === true || Boolean(licenseType) ? 1 : 0.5,
+      score: ov.score ?? 0,
+      note: ov.matched.length ? ov.matched.join(', ') : 'Thiếu giấy phép lái xe yêu cầu',
+    };
+  }
+  if (!require) {
+    if (opts?.skipIfUnspecified) return { score: null };
+    if (hasLicense == null && !licenseType && !have.length) return { score: null };
+    return {
+      score: hasLicense === true || Boolean(licenseType) || have.length ? 1 : 0.5,
       note: licenseType ?? (hasLicense ? 'Có bằng' : 'Không có bằng'),
     };
   }
-  if (hasLicense === true || Boolean(licenseType)) {
-    return { score: 1, note: licenseType ?? 'Có bằng lái' };
+  if (hasLicense === true || Boolean(licenseType) || have.length) {
+    return { score: 1, note: licenseType ?? have[0] ?? 'Có bằng lái' };
   }
   if (hasLicense === false) return { score: 0, note: 'Không có bằng lái' };
   return { score: 0, note: 'Chưa cập nhật bằng lái' };
@@ -570,11 +956,13 @@ function expectedIncomeScore(
   expectedOte?: number | null,
   jobMin?: number | null,
   jobMax?: number | null,
+  opts?: { skipIfUnspecified?: boolean },
 ): { score: number | null; note?: string } {
   const eMin = expectedMin ?? null;
   const eMax = expectedMax ?? expectedOte ?? expectedMin ?? null;
   if (eMin == null && eMax == null) return { score: null };
   if (jobMin == null && jobMax == null) {
+    if (opts?.skipIfUnspecified) return { score: null };
     return { score: 0.7, note: 'Có thu nhập kỳ vọng' };
   }
   const jMin = jobMin ?? 0;
@@ -633,6 +1021,8 @@ function careerOrientationScore(
   orientation: string | string[] | null | undefined,
   desired: string[] | undefined,
   pathTags?: string[],
+  extraTitles?: string[],
+  opts?: { skipIfUnspecified?: boolean },
 ): { score: number | null; note?: string } {
   const orientationList = Array.isArray(orientation)
     ? orientation
@@ -642,9 +1032,9 @@ function careerOrientationScore(
           .map((s) => s.trim())
           .filter(Boolean)
       : [];
-  const have = [...orientationList, ...(desired ?? [])];
+  const have = unionUnique(orientationList, desired, extraTitles);
   if (!pathTags?.length) {
-    if (!have.length) return { score: null };
+    if (opts?.skipIfUnspecified || !have.length) return { score: null };
     return { score: 0.7, note: have.slice(0, 2).join(', ') };
   }
   if (!have.length) return { score: 0, note: 'Chưa có định hướng nghề' };
@@ -691,6 +1081,7 @@ export function buildB2bExplanation(input: {
   const track = resolveMatchTrack({ job: input.job, candidate: input.candidate });
   const weights = b2bMatchWeightsForTrack(track);
   const isTech = track === 'technical';
+  const strict = Boolean(input.job.strictJdCriteria);
   const row = (key: B2bMatchCriterionKey, score: number | null, note?: string) =>
     criterion(key, score, note, weights, track);
 
@@ -704,19 +1095,21 @@ export function buildB2bExplanation(input: {
   ]);
   const industryOv = setOverlapScore(industriesNeed, industriesHave);
 
-  const inferredNeed = isTech
-    ? inferEquipmentFromJob({
-        industry: input.job.industry,
-        title: input.job.title,
-        description: input.job.description,
-        skills: requiredSkills,
-      })
-    : inferProductsFromJob({
-        industry: input.job.industry,
-        title: input.job.title,
-        description: input.job.description,
-        skills: requiredSkills,
-      });
+  const inferredNeed = strict
+    ? []
+    : isTech
+      ? inferEquipmentFromJob({
+          industry: input.job.industry,
+          title: input.job.title,
+          description: input.job.description,
+          skills: requiredSkills,
+        })
+      : inferProductsFromJob({
+          industry: input.job.industry,
+          title: input.job.title,
+          description: input.job.description,
+          skills: requiredSkills,
+        });
   const productsNeed = input.job.filterProducts?.length
     ? input.job.filterProducts
     : inferredNeed;
@@ -725,12 +1118,15 @@ export function buildB2bExplanation(input: {
       ? { score: null as number | null, matched: [] as string[] }
       : setOverlapScore(productsNeed, input.candidate.productsSold);
 
-  const segmentsNeed = input.job.filterCustomerSegments?.length
-    ? input.job.filterCustomerSegments
+  const inferredSegments = strict
+    ? []
     : inferCustomerSegmentsFromJob({
         title: input.job.title,
         description: input.job.description,
       });
+  const segmentsNeed = input.job.filterCustomerSegments?.length
+    ? input.job.filterCustomerSegments
+    : inferredSegments;
   const segmentsOv =
     (input.candidate.customerSegments?.length ?? 0) === 0 &&
     !input.job.filterCustomerSegments?.length
@@ -752,37 +1148,61 @@ export function buildB2bExplanation(input: {
       ...(input.candidate.currentCity?.trim() ? [input.candidate.currentCity.trim()] : []),
       ...(input.candidate.desiredLocations ?? []),
     ],
+    { splitWorkplaceAndMarkets: strict },
   );
-  const ach = achievementsScore(input.candidate, track);
-  const custDev = customerDevScore(
-    input.candidate.customerDevStyle,
-    input.candidate.newCustomerRatioPct,
-    input.job.filterCustomerDevStyle ?? input.job.salesPersona,
-  );
-  const deal = dealProfileScore(input.candidate, input.job.filterDealType, track);
+  const skipExtra = strict;
+  const ach = skipExtra
+    ? { score: null as number | null, note: undefined as string | undefined }
+    : achievementsScore(input.candidate, track);
+  const custDev = skipExtra
+    ? { score: null as number | null, note: undefined as string | undefined }
+    : customerDevScore(
+        input.candidate.customerDevStyle,
+        input.candidate.newCustomerRatioPct,
+        input.job.filterCustomerDevStyle ?? input.job.salesPersona,
+      );
+  const deal = dealProfileScore(input.candidate, input.job.filterDealType, track, {
+    filterDealTypes: input.job.filterDealTypes,
+    strict,
+    minAutonomyLevel: input.job.minTechnicalAutonomyLevel,
+  });
   const selling = sellingCapabilityScore(
     input.candidate.sellingStages,
     input.job.requiredSellingStages,
-    { track, technicalWorkTypes: input.candidate.technicalWorkTypes },
+    {
+      track,
+      technicalWorkTypes: input.candidate.technicalWorkTypes,
+      skipIfNoRequired: strict,
+    },
   );
-  const ready = readinessScore(
-    input.candidate.jobReadiness,
-    input.candidate.availabilityBand,
-    input.candidate.noticePeriodDays,
-    input.job.filterJobReadiness,
-    input.job.maxNoticeDays,
-  );
-  const langs = languagesScore(input.candidate.languages, input.job.filterLanguages);
+  const ready = skipExtra
+    ? { score: null as number | null, note: undefined as string | undefined }
+    : readinessScore(
+        input.candidate.jobReadiness,
+        input.candidate.availabilityBand,
+        input.candidate.noticePeriodDays,
+        input.job.filterJobReadiness,
+        input.job.maxNoticeDays,
+      );
+  const langs = languagesScore(input.candidate.languages, input.job.filterLanguages, {
+    skipIfUnspecified: strict,
+  });
   const travel = travelScore(
     input.candidate.travelAbility,
     input.candidate.willingToTravel,
     input.job.requireTravel,
     input.job.minTravelAbility,
+    { skipIfUnspecified: strict },
   );
   const license = driversLicenseScore(
     input.candidate.hasB2License,
     input.candidate.driverLicenseType,
     input.job.requireB2License,
+    {
+      filterLicenses: input.job.filterDriverLicenses,
+      candidateLicenses: input.candidate.driverLicenses,
+      skipIfUnspecified: strict,
+    },
   );
   const income = expectedIncomeScore(
     input.candidate.expectedSalaryMin,
@@ -790,25 +1210,34 @@ export function buildB2bExplanation(input: {
     input.candidate.expectedOte,
     input.job.salaryMin,
     input.job.salaryMax,
+    { skipIfUnspecified: strict },
   );
-  const style = salesStyleScore(
-    input.candidate.customerDevStyle,
-    input.job.salesPersona ?? input.job.filterCustomerDevStyle,
-  );
-  const motivation = tagOverlapScore(
-    input.candidate.careerMotivations,
-    input.job.motivationTags,
-    'Chưa có động lực nghề',
-  );
-  const culture = tagOverlapScore(
-    input.candidate.workStyles,
-    input.job.cultureTags,
-    'Chưa có phong cách làm việc',
-  );
+  const style = skipExtra
+    ? { score: null as number | null, note: undefined as string | undefined }
+    : salesStyleScore(
+        input.candidate.customerDevStyle,
+        input.job.salesPersona ?? input.job.filterCustomerDevStyle,
+      );
+  const motivation = skipExtra
+    ? { score: null as number | null, note: undefined as string | undefined }
+    : tagOverlapScore(
+        input.candidate.careerMotivations,
+        input.job.motivationTags,
+        'Chưa có động lực nghề',
+      );
+  const culture = skipExtra
+    ? { score: null as number | null, note: undefined as string | undefined }
+    : tagOverlapScore(
+        input.candidate.workStyles,
+        input.job.cultureTags,
+        'Chưa có phong cách làm việc',
+      );
   const orientation = careerOrientationScore(
     input.candidate.careerOrientation,
     input.candidate.desiredPositions,
     input.job.careerPathTags,
+    input.candidate.jobTitles,
+    { skipIfUnspecified: strict },
   );
 
   const productsGapNote = isTech
@@ -892,7 +1321,7 @@ export function buildB2bExplanation(input: {
           c.key,
         ) && (c.score ?? 0) >= 0.6,
     ).length;
-    parts.push(`Khớp ${applicable.length}/18 tiêu chí (năng lực lõi nổi bật: ${coreHit}).`);
+    parts.push(`Khớp ${applicable.length} tiêu chí (năng lực lõi nổi bật: ${coreHit}).`);
   }
   if (requiredCount > 0) {
     parts.push(

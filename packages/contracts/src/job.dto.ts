@@ -1,5 +1,7 @@
-import type { JobLevelCode } from './career-path';
+import type { JobLevelCode, JobTrack } from './career-path';
 import { EmploymentType, ExperienceBand, JobStatus } from './enums';
+import type { JobSalesCriteria, ParsedSalesJobDraft } from './jd-sales-matching';
+import type { JobTechnicalCriteria, ParsedTechnicalJobDraft } from './jd-technical-matching';
 
 export interface JobSkillInput {
   name: string;
@@ -26,6 +28,12 @@ export interface CreateJobRequest {
   salaryMin?: number;
   salaryMax?: number;
   skills?: JobSkillInput[];
+  /** sales | technical — lọc tin; JD Sales không hiện cấp bậc trên form. */
+  jobTrack?: JobTrack | string;
+  /** 22 trường matching Sales (nhóm B/C + ngành đa chọn) — JSON. */
+  salesCriteria?: JobSalesCriteria;
+  /** 23 trường matching Kỹ thuật (nhóm B/C + ngành đa chọn) — JSON. */
+  technicalCriteria?: JobTechnicalCriteria;
   /** true để đăng công khai ngay; false để lưu nháp. */
   publish?: boolean;
 }
@@ -47,8 +55,10 @@ export interface JobSkillView {
 
 export interface JobView {
   id: string;
+  slug: string;
   code: string;
   companyId: string;
+  companySlug: string | null;
   companyName: string;
   title: string;
   description: string;
@@ -66,17 +76,26 @@ export interface JobView {
   salaryMin: number | null;
   salaryMax: number | null;
   status: JobStatus;
+  jobTrack: string | null;
+  salesCriteria: JobSalesCriteria | null;
+  technicalCriteria: JobTechnicalCriteria | null;
   skills: JobSkillView[];
   createdAt: string;
+  publishedAt: string | null;
+  companyWebsite: string | null;
+  companyAddress: string | null;
+  companyHasLogo: boolean;
   /** Chỉ có khi ứng viên đang đăng nhập xem: đã ứng tuyển hay chưa. */
   hasApplied?: boolean;
 }
 
 export interface JobListItem {
   id: string;
+  slug: string;
   code: string;
   title: string;
   companyId: string;
+  companySlug: string | null;
   companyName: string;
   industry: string | null;
   subIndustry: string | null;
@@ -87,6 +106,7 @@ export interface JobListItem {
   salaryMin: number | null;
   salaryMax: number | null;
   status: JobStatus;
+  jobTrack: string | null;
   /** Tên kỹ năng (rút gọn cho thẻ tin). */
   skills: string[];
   createdAt: string;
@@ -167,3 +187,12 @@ export interface GenerateJobDraftResponse {
   /** Gợi ý ngắn cho nhà tuyển dụng (tuỳ chọn). */
   notes?: string;
 }
+
+/** Yêu cầu AI trích 22 trường JD Sales hoặc 23 trường JD Kỹ thuật từ văn bản. */
+export type ParseJobDescriptionFromTextRequest = {
+  text: string;
+  jobTrack?: JobTrack | string;
+};
+
+/** Kết quả AI đọc JD (upload PDF/DOCX hoặc dán text). */
+export type ParseJobDescriptionResponse = ParsedSalesJobDraft | ParsedTechnicalJobDraft;

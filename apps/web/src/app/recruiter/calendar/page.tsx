@@ -11,6 +11,7 @@ import { ApiError } from '@/lib/api';
 import { INTERVIEW_STATUS_LABEL, INTERVIEW_TYPE_LABEL } from '@/lib/format';
 import { getInterviewStats, listInterviews, updateInterview } from '@/lib/interviews';
 import { listMyJobs } from '@/lib/jobs';
+import { EXTERNAL_REL } from '@/lib/public-paths';
 
 function rangeDays(days: number): { from: string; to: string } {
   const from = new Date();
@@ -265,7 +266,7 @@ function InterviewCard({
               <a
                 href={interview.meetingLink}
                 target="_blank"
-                rel="noreferrer"
+                rel={EXTERNAL_REL}
                 className="inline-flex items-center gap-1 text-brand-600 hover:underline"
               >
                 <Link2 className="h-3.5 w-3.5" /> Link họp

@@ -205,10 +205,11 @@ function RadioList({
 }
 
 /**
- * Khối B/C theo ma trận Kỹ thuật 32 mục — hiện khi chọn hướng Kỹ thuật.
+ * Khối B/C theo ma trận hoàn thành Kỹ thuật 28 mục — hiện khi chọn hướng Kỹ thuật.
  * B. Mong muốn nghề nghiệp (13–16; STT 13 truyền vào qua `lead`)
- * C. Năng lực và định hướng (17–23)
- * D. Kinh nghiệm công ty (24–32) nằm ở khối CvTechnicalExperienceFields phía sau.
+ * C. Năng lực (17–19)
+ * Cách làm việc / định hướng / động lực / môi trường mong muốn: tham khảo.
+ * D. Kinh nghiệm công ty (20–28) nằm ở khối CvTechnicalExperienceFields phía sau.
  */
 export function CvTechnicalFields({
   draft,
@@ -292,8 +293,8 @@ export function CvTechnicalFields({
       </MatrixSection>
 
       <MatrixSection
-        title="C. Năng lực và định hướng (17–23)"
-        subtitle="Ngoài giờ, phần mềm, tài liệu, cách làm việc, định hướng, động lực, môi trường"
+        title="C. Năng lực kỹ thuật (17–19)"
+        subtitle="Ngoài giờ, phần mềm/công cụ và đọc bản vẽ / tài liệu"
       >
       <div>
         <NumberedFieldLabel
@@ -339,10 +340,15 @@ export function CvTechnicalFields({
           placeholder="VD: Sơ đồ thủy lực…"
         />
       </div>
+      </MatrixSection>
 
+      <MatrixSection
+        title="Tham khảo — cách làm việc, định hướng & động lực"
+        subtitle="Không tính vào điểm hoàn thành hồ sơ"
+      >
       <div>
         <NumberedFieldLabel
-          title="20. Cách làm việc kỹ thuật"
+          title="Cách làm việc kỹ thuật"
           description={TECHNICAL_WORK_STYLE_QUESTION}
         />
         <p className="mb-2 text-[11px] text-amber-700">
@@ -358,7 +364,7 @@ export function CvTechnicalFields({
 
       <div>
         <NumberedFieldLabel
-          title="21. Định hướng nghề nghiệp"
+          title="Định hướng nghề nghiệp"
           description={TECHNICAL_ORIENTATION_QUESTION}
         />
         <RadioList
@@ -397,7 +403,7 @@ export function CvTechnicalFields({
 
       <div>
         <NumberedFieldLabel
-          title="22. Động lực khi lựa chọn công việc mới"
+          title="Động lực khi lựa chọn công việc mới"
           description={TECHNICAL_MOTIVATION_QUESTION}
         />
         <p className="mb-2 text-[11px] text-amber-700">
@@ -415,7 +421,7 @@ export function CvTechnicalFields({
 
       <div>
         <NumberedFieldLabel
-          title="23. Môi trường làm việc mong muốn"
+          title="Môi trường làm việc mong muốn"
           description={WORK_ENVIRONMENT_DESIRED_QUESTION}
         />
         <MultiCheck

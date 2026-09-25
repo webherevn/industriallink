@@ -1,9 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import clsx from 'clsx';
-
-const BRAND_NAME = 'iLink';
-const BRAND_TAGLINE = 'Kết nối nhân tài – Dẫn lối công nghiệp';
+import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
 
 /** Icon vuông iL — dùng trên nav / sidebar. */
 export function BrandMark({
@@ -47,22 +45,26 @@ export function BrandMark({
 /** Logo đầy đủ (wordmark + slogan) — trang auth / landing. */
 export function BrandLogo({
   href = '/',
-  width = 220,
+  width = 320,
+  compact = false,
   className,
 }: {
   href?: string;
   width?: number;
+  compact?: boolean;
   className?: string;
 }) {
-  const height = Math.round(width * 0.55);
+  const height = Math.round(width * (313 / 878));
   return (
-    <Link href={href} className={clsx('inline-block', className)}>
+    <Link href={href} className={clsx('inline-flex shrink-0', className)}>
       <Image
         src="/logo.png"
         alt={`${BRAND_NAME} — ${BRAND_TAGLINE}`}
         width={width}
         height={height}
-        className="h-auto w-full max-w-full rounded-xl"
+        unoptimized
+        className={compact ? 'h-10 w-auto sm:h-11' : 'h-auto'}
+        style={compact ? undefined : { width }}
         priority
       />
     </Link>

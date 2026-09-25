@@ -1,13 +1,12 @@
 /**
- * Ma trận chuẩn hồ sơ ứng viên Sales B2B — IndustrialLink (update 18.8, 34 mục).
+ * Ma trận hoàn thành hồ sơ Sales B2B — IndustrialLink (PDF 8.9.2026, 32 mục).
+ * Điểm Tạo CV / chỉnh hồ sơ = tỷ lệ điền, không phải Matching JD.
  *
- * A. Thông tin cơ bản (STT 1–12, chung cho Kỹ thuật & Kinh doanh) — 7%
- * B. Mong muốn nghề nghiệp (STT 13–16) — 13%
- * C. Định hướng & phù hợp (STT 17–19) — 5%
- * D. Kinh nghiệm công ty (STT 20–34, lặp cho từng công ty) — 75% (CỐT LÕI)
+ * A. Thông tin cơ bản (STT 1–12) — 9,5%
+ * B. Mong muốn nghề nghiệp (STT 13–17) — 7,5%
+ * C. Kinh nghiệm công ty (STT 18–32, lặp cho từng công ty) — 83%
  *
- * AI đánh giá từng công ty theo mức độ liên quan với JD;
- * không lấy trung bình đơn giản giữa các công ty.
+ * Phong cách làm việc & động lực: thu thập tham khảo, không tính điểm.
  */
 
 import { INDUSTRY_GROUPS, type IndustryGroup } from './job-taxonomy';
@@ -22,7 +21,7 @@ export const SALES_INDUSTRY_OPTIONS: readonly IndustryGroup[] = INDUSTRY_GROUPS.
   (g) => g !== 'Khác',
 );
 
-/** STT 24. Sản phẩm / thiết bị đã bán — search + chọn nhiều + nhập thêm (16%). */
+/** STT 22. Sản phẩm / thiết bị đã bán — search + chọn nhiều + nhập thêm (17%). */
 export const PRODUCTS_SOLD = [
   'Máy nén khí',
   'Máy phát điện',
@@ -56,7 +55,7 @@ export type ProductSold = (typeof PRODUCTS_SOLD)[number];
 
 export const PRODUCTS_SOLD_QUESTION = 'Anh/chị đã bán sản phẩm / thiết bị nào?';
 
-/** STT 25. Nhóm khách hàng đã bán (11%) — ma trận 34 mục (update 18.8). */
+/** STT 23. Nhóm khách hàng đã bán (15%) — ma trận hoàn thành 32 mục. */
 export const CUSTOMER_SEGMENTS = [
   'Nhà thầu / đơn vị thi công',
   'Nhà máy FDI',
@@ -94,15 +93,15 @@ export function normalizeCustomerSegment(raw: string): CustomerSegment | null {
   }
   return LEGACY_CUSTOMER_SEGMENT_MAP[trimmed] ?? null;
 }
-/** STT 30. Doanh số cá nhân 12 tháng gần nhất — nhập tự do (khuyến khích). */
+/** STT 28. Doanh số cá nhân 12 tháng gần nhất — nhập tự do (1%). */
 export const PERSONAL_REVENUE_QUESTION =
   'Doanh số cá nhân của anh/chị trong 12 tháng gần nhất tại công ty này là bao nhiêu?';
 
 export const PERSONAL_REVENUE_PLACEHOLDER = 'Ví dụ: 12 tỷ/năm';
 
 /**
- * STT 31. Mức độ hoàn thành KPI (2%) — khuyến khích.
- * STT 32. Tỷ lệ khách hàng tự tìm kiếm (2%) — khuyến khích.
+ * STT 29. Mức độ hoàn thành KPI (1%).
+ * STT 30. Tỷ lệ khách hàng tự tìm kiếm (1%).
  */
 export const KPI_ACHIEVEMENT_BANDS = [
   { value: 'under_70', label: 'Dưới 70%', midPct: 60 },
@@ -169,8 +168,8 @@ export const B2B_EXPERIENCE_BAND_LABEL: Record<B2bExperienceBand, string> = {
 };
 
 /**
- * STT 27. Phạm vi công việc bán hàng đã phụ trách (8%).
- * 12 hoạt động chuẩn theo ma trận 34 mục — có nút “Chọn tất cả”.
+ * STT 25. Phạm vi công việc bán hàng đã phụ trách (12%).
+ * 12 hoạt động chuẩn — có nút “Chọn tất cả”.
  */
 export const SELLING_STAGES = [
   'Tìm kiếm khách hàng',
@@ -221,7 +220,7 @@ export function normalizeSellingStage(raw: string): SellingStage | null {
   return LEGACY_SELLING_STAGE_MAP[trimmed] ?? null;
 }
 
-/** STT 26. Giải pháp sản phẩm (5%) — chọn nhiều theo ma trận 34 mục. */
+/** STT 24. Giải pháp sản phẩm (5%) — chọn nhiều. */
 export enum DealType {
   Equipment = 'equipment',
   Consumables = 'consumables',
@@ -312,7 +311,7 @@ export function normalizeDealTypeValue(raw: string | null | undefined): DealType
   return null;
 }
 
-/** STT 33. Giá trị hợp đồng thường gặp (1%) — khuyến khích. */
+/** STT 31. Giá trị hợp đồng thường gặp (1%). */
 export const DEAL_VALUE_BANDS = [
   { value: 'under_50m', label: 'Dưới 50 triệu', midVnd: 25_000_000 },
   { value: '50_200m', label: '50 – 200 triệu', midVnd: 125_000_000 },
@@ -324,7 +323,7 @@ export const DEAL_VALUE_BANDS = [
 
 export type DealValueBand = (typeof DEAL_VALUE_BANDS)[number]['value'];
 
-/** STT 29. Khu vực / thị trường phụ trách (2%) — ma trận 34 mục. */
+/** STT 27. Khu vực / thị trường phụ trách (5%). */
 export const MARKET_REGIONS = [
   'Miền Bắc',
   'Miền Trung',
@@ -458,7 +457,7 @@ export const LANGUAGE_PROFICIENCY = [
 
 export type LanguageProficiency = (typeof LANGUAGE_PROFICIENCY)[number]['value'];
 
-/** Chi tiết ngoại ngữ theo ma trận 34 mục: 1 mức độ sử dụng trong công việc. */
+/** Chi tiết ngoại ngữ: 1 mức độ sử dụng trong công việc. */
 export interface LanguageSkill {
   language: string;
   /** Mức độ sử dụng trong công việc (Cơ bản / Khá / Tốt / Thành thạo). */
@@ -566,7 +565,7 @@ export function formatLanguageSkillSummary(skill: LanguageSkill): string {
   return `${skill.language} (${label})`;
 }
 
-/** STT 12. Khả năng đi công tác (1%) — bắt buộc. */
+/** STT 12. Khả năng đi công tác (1,5%) — bắt buộc. */
 export enum TravelAbility {
   None = 'none',
   UpTo25 = 'up_to_25',
@@ -608,7 +607,7 @@ export function joinDriverLicenses(values: string[]): string | null {
   return cleaned.length ? cleaned.join(', ') : null;
 }
 
-/** STT 15. Thu nhập tối thiểu có thể chấp nhận & thu nhập kỳ vọng (3%). */
+/** STT 15. Thu nhập tối thiểu có thể chấp nhận & thu nhập kỳ vọng (2%). */
 export const EXPECTED_INCOME_TITLE =
   'Thu nhập tối thiểu có thể chấp nhận & Thu nhập kỳ vọng';
 export const EXPECTED_INCOME_QUESTION = 'Mức thu nhập mong muốn?';
@@ -653,7 +652,7 @@ export function salesBehaviorToDevStyle(
   return null;
 }
 
-/** STT 19. Động lực khi lựa chọn công việc mới (1%) — chọn tối đa 3. */
+/** Động lực khi lựa chọn công việc mới — tham khảo, không tính điểm hoàn thành. */
 export const CAREER_MOTIVATIONS = [
   'Thu nhập & hoa hồng',
   'Sản phẩm/dịch vụ dễ bán',
@@ -668,7 +667,7 @@ export type CareerMotivation = (typeof CAREER_MOTIVATIONS)[number];
 export const CAREER_MOTIVATION_QUESTION =
   'Hãy chọn tối đa 3 yếu tố quan trọng nhất khi anh/chị lựa chọn công việc mới.';
 
-/** STT 18. Phong cách làm việc & môi trường phù hợp (2%) — 2 cặp A/B. */
+/** Phong cách làm việc & môi trường phù hợp — tham khảo, không tính điểm hoàn thành. */
 export const CULTURE_FIT_QUESTIONS = [
   {
     id: 'workstyle',
@@ -727,7 +726,7 @@ export function workStylesToCultureFitAnswers(
   return answers;
 }
 
-/** STT 17. Định hướng nghề nghiệp (2%) — chọn 1. */
+/** STT 17. Định hướng nghề nghiệp (1%) — chọn 1. */
 export const CAREER_ORIENTATIONS = [
   'Giỏi chuyên môn Sales',
   'Bán khách hàng lớn',
@@ -781,12 +780,11 @@ export const LEGACY_CAREER_ORIENTATION_MAP: Record<string, CareerOrientation> = 
   'Giám đốc kinh doanh': 'Quản lý kinh doanh/đội nhóm',
 };
 
-/** STT 13. Vị trí ứng tuyển (5%) — bắt buộc, chọn nhiều. */
+/** STT 13. Vị trí ứng tuyển — 4 bậc cố định, chọn nhiều (tối đa 3). */
 export const DESIRED_POSITIONS = [
   'Nhân viên kinh doanh',
   'Trưởng nhóm kinh doanh',
   'Trưởng phòng kinh doanh',
-  'Quản lý sản phẩm / ngành hàng',
   'Giám đốc kinh doanh',
 ] as const;
 
@@ -805,11 +803,12 @@ export const LEGACY_DESIRED_POSITION_MAP: Record<string, DesiredPosition> = {
   'Sales Supervisor': 'Trưởng nhóm kinh doanh',
   'Sales Manager': 'Trưởng phòng kinh doanh',
   'Area Sales Manager': 'Trưởng phòng kinh doanh',
-  'Product Manager': 'Quản lý sản phẩm / ngành hàng',
+  'Product Manager': 'Trưởng phòng kinh doanh',
+  'Quản lý sản phẩm / ngành hàng': 'Trưởng phòng kinh doanh',
 };
 
 /**
- * STT 34. Thành tích kinh doanh nổi bật tại công ty (2%) — khuyến khích.
+ * STT 32. Thành tích kinh doanh nổi bật tại công ty (1,5%).
  */
 export const SALES_HIGHLIGHTS_QUESTION =
   'Thành tích kinh doanh nổi bật tại công ty này?';
@@ -870,8 +869,8 @@ export function parseEducationDegree(degree: string | null | undefined): {
 }
 
 // ---------------------------------------------------------------------------
-// Trọng số matching NTD — gom từ ma trận điểm gợi ý (ai-suggestion-weights).
-// Kinh doanh 34 mục; Kỹ thuật 32 mục. Dùng b2bMatchWeightsForTrack(track).
+// Trọng số Matching JD — snapshot độc lập với % hoàn thành hồ sơ (Tạo CV).
+// Dùng b2bMatchWeightsForTrack(track).
 // ---------------------------------------------------------------------------
 
 const MATCH_CRITERION_KEYS = [

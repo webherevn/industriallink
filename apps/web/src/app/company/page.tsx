@@ -18,6 +18,7 @@ import {
   formatCompanySize,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { companyPublicPath } from '@/lib/public-paths';
 import { Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
@@ -204,7 +205,7 @@ export default function CompanyPage() {
               </Button>
             )}
             <Link
-              href={`/companies/${company.id}`}
+              href={companyPublicPath(company)}
               className="inline-flex items-center rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50"
             >
               Xem trang công khai

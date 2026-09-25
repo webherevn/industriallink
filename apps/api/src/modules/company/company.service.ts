@@ -17,7 +17,12 @@ import {
   type CompanyView,
   type UploadCompanyLogoResponse,
   normalizeIndustry,
+  looksLikeUuid,
 } from '@industriallink/contracts';
+import {
+  allocateUniqueCompanySlug,
+  backfillMissingJobSlugs,
+} from '../../shared/seo/unique-slug';
 import type { Company, Prisma } from '@prisma/client';
 import { v7 as uuidv7 } from 'uuid';
 import { createDomainEvent } from '../../shared/domain/domain-event';
@@ -66,9 +71,11 @@ export class CompanyService {
     }
 
     const code = await this.codeGen.next('COM');
+    const slug = await allocateUniqueCompanySlug(this.prisma, dto.name);
     const company = await this.prisma.company.create({
       data: {
         code,
+        slug,
         tenantId: user.tenantId,
         name: dto.name,
         taxCode: dto.taxCode ?? null,
@@ -164,40 +171,34 @@ export class CompanyService {
     return this.toView(updated, memberCount, membership.roleInCompany as CompanyRole);
   }
 
-  async getById(id: string): Promise<CompanyView> {
-    const company = await this.prisma.company.findUnique({ where: { id } });
-    if (!company || company.isDeleted) {
-      throw new NotFoundException('Không tìm thấy công ty');
-    }
+  async getById(ref: string): Promise<CompanyView> {
+    const company = await this.findCompanyByRef(ref);
+    const withSlug = await this.ensureCompanySlug(company);
     const memberCount = await this.prisma.companyMember.count({
-      where: { companyId: id },
+      where: { companyId: company.id },
     });
-    return this.toView(company, memberCount, CompanyRole.Member);
+    return this.toView(withSlug, memberCount, CompanyRole.Member);
   }
 
   /** Hồ sơ công khai đầy đủ cho trang thông tin NTD. */
   async getPublicProfile(
-    id: string,
+    ref: string,
     user?: AuthenticatedUser | null,
   ): Promise<CompanyPublicProfileView> {
-    const company = await this.prisma.company.findFirst({
-      where: { id, isDeleted: false },
-    });
-    if (!company) {
-      throw new NotFoundException('Không tìm thấy công ty');
-    }
+    const company = await this.ensureCompanySlug(await this.findCompanyByRef(ref));
 
     const [memberCount, openJobCount, jobs, membership] = await Promise.all([
-      this.prisma.companyMember.count({ where: { companyId: id } }),
+      this.prisma.companyMember.count({ where: { companyId: company.id } }),
       this.prisma.job.count({
-        where: { companyId: id, isDeleted: false, status: JobStatus.Published },
+        where: { companyId: company.id, isDeleted: false, status: JobStatus.Published },
       }),
       this.prisma.job.findMany({
-        where: { companyId: id, isDeleted: false, status: JobStatus.Published },
+        where: { companyId: company.id, isDeleted: false, status: JobStatus.Published },
         orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
         take: 12,
         select: {
           id: true,
+          slug: true,
           title: true,
           department: true,
           location: true,
@@ -208,16 +209,19 @@ export class CompanyService {
       }),
       user
         ? this.prisma.companyMember.findFirst({
-            where: { companyId: id, userId: user.id },
+            where: { companyId: company.id, userId: user.id },
           })
         : Promise.resolve(null),
     ]);
+
+    await backfillMissingJobSlugs(this.prisma, jobs);
 
     const myRole = (membership?.roleInCompany as CompanyRole | undefined) ?? CompanyRole.Member;
     const canEdit = Boolean(membership && ADMIN_ROLES.includes(myRole));
     const now = Date.now();
     const openJobs: CompanyJobCard[] = jobs.map((j) => ({
       id: j.id,
+      slug: j.slug ?? j.id,
       title: j.title,
       department: j.department,
       location: j.location,
@@ -433,13 +437,14 @@ export class CompanyService {
   }
 
   async getCompanyLogoBuffer(
-    companyId: string,
+    companyRef: string,
   ): Promise<{ buffer: Buffer; mime: string } | null> {
-    const company = await this.prisma.company.findFirst({
-      where: { id: companyId, isDeleted: false },
-    });
-    if (!company) return null;
-    return this.readLogoFromCompany(company);
+    try {
+      const company = await this.findCompanyByRef(companyRef);
+      return this.readLogoFromCompany(company);
+    } catch {
+      return null;
+    }
   }
 
   private async readLogoFromCompany(
@@ -451,10 +456,31 @@ export class CompanyService {
     return { buffer, mime: brand.logoMime ?? 'image/jpeg' };
   }
 
+  private async findCompanyByRef(ref: string): Promise<Company> {
+    const where = looksLikeUuid(ref) ? { id: ref } : { slug: ref };
+    const company = await this.prisma.company.findFirst({
+      where: { ...where, isDeleted: false },
+    });
+    if (!company) {
+      throw new NotFoundException('Không tìm thấy công ty');
+    }
+    return company;
+  }
+
+  private async ensureCompanySlug(company: Company): Promise<Company> {
+    if (company.slug) return company;
+    const slug = await allocateUniqueCompanySlug(this.prisma, company.name, company.id);
+    return this.prisma.company.update({
+      where: { id: company.id },
+      data: { slug },
+    });
+  }
+
   private toView(company: Company, memberCount: number, myRole: CompanyRole): CompanyView {
     const brand = parseBrandProfileStored(company.profile);
     return {
       id: company.id,
+      slug: company.slug ?? company.id,
       code: company.code,
       name: company.name,
       taxCode: company.taxCode,

@@ -42,7 +42,7 @@ type LoginResult =
 
 const MFA_PURPOSE = 'login';
 const MFA_TOKEN_TTL_SEC = 10 * 60;
-const TOTP_ISSUER = 'IndustrialLink';
+const TOTP_ISSUER = 'inlink';
 
 interface MfaTokenPayload {
   sub: string;

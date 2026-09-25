@@ -32,6 +32,7 @@ import {
   type JobMatchView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { fetchMe, logout } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
@@ -289,8 +290,8 @@ export default function RecommendedPage() {
   const navMain = [
     { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
     { href: '/dashboard', label: 'Hồ sơ của tôi', icon: UserRound },
-    { href: '/jobs?tab=applied', label: 'Việc đã ứng tuyển', icon: Send },
-    { href: '/jobs?tab=saved', label: 'Việc đã lưu', icon: Bookmark },
+    { href: '/viec-lam?tab=applied', label: 'Việc đã ứng tuyển', icon: Send },
+    { href: '/viec-lam?tab=saved', label: 'Việc đã lưu', icon: Bookmark },
     { href: '/recommended', label: 'Gợi ý việc làm AI', icon: Sparkles, active: true, badge: 'NEW' },
     { href: '/applications', label: 'Theo dõi đơn', icon: Eye },
     { href: '/progress', label: 'Tiến trình', icon: Target },
@@ -784,7 +785,7 @@ function MatchJobCard({
             <div className="mt-1 flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Link
-                  href={`/jobs/${job.jobId}`}
+                  href={jobPublicPath(job)}
                   className="text-[15px] font-semibold text-slate-900 hover:text-brand-500"
                 >
                   {job.title}
@@ -792,7 +793,7 @@ function MatchJobCard({
                 <p className="mt-0.5 text-sm text-slate-500">
                   {job.companyId ? (
                     <Link
-                      href={`/companies/${job.companyId}`}
+                      href={companyPublicPath(job)}
                       className="hover:text-amber-700 hover:underline"
                     >
                       {job.companyName}

@@ -29,7 +29,7 @@ export interface CandidateExperienceView {
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
-  /** STT 28 KD — hãng/thương hiệu theo từng công ty. */
+  /** STT 26 KD — hãng/thương hiệu theo từng công ty. */
   brandsTechnologies?: string[];
   revenueBand: string | null;
   latestRevenue: number | null;
@@ -121,7 +121,7 @@ export interface CandidateProfileView {
   documentLiteracy: string[];
   systemScaleNote: string | null;
   shiftFlexibility: string | null;
-  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  /** Môi trường làm việc mong muốn KT — tham khảo, không tính điểm (tối đa 3). */
   desiredWorkEnvironments: string[];
   sales: CandidateSalesProfileView | null;
 }
@@ -161,7 +161,7 @@ export interface CandidateExperienceInput {
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
-  /** STT 28 KD — hãng/thương hiệu theo từng công ty. */
+  /** STT 26 KD — hãng/thương hiệu theo từng công ty. */
   brandsTechnologies?: string[];
   revenueBand: string | null;
   latestRevenue: number | null;
@@ -247,7 +247,7 @@ export interface UpdateCandidateProfileRequest {
   documentLiteracy?: string[];
   systemScaleNote?: string | null;
   shiftFlexibility?: string | null;
-  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  /** Môi trường làm việc mong muốn KT — tham khảo, không tính điểm (tối đa 3). */
   desiredWorkEnvironments?: string[];
   skills: { name: string; level: SkillLevel | string }[];
   experiences: CandidateExperienceInput[];

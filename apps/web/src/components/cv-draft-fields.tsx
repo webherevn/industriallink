@@ -119,14 +119,13 @@ function SelectField({
 }
 
 /**
- * Khối B/C theo ma trận 34 mục — chỉ hiện khi đã chọn hướng Kinh doanh.
- * B. Mong muốn nghề nghiệp (13–16; STT 13 truyền vào qua `lead`)
- * C. Định hướng & phù hợp (17–19)
- * D. Kinh nghiệm công ty (20–34) nằm ở khối CvSalesExperienceFields phía sau.
+ * Khối B theo ma trận hoàn thành 32 mục — chỉ hiện khi đã chọn hướng Kinh doanh.
+ * B. Mong muốn nghề nghiệp (13–17; STT 13 truyền vào qua `lead`)
+ * Phong cách / động lực: tham khảo, không tính điểm.
+ * C. Kinh nghiệm công ty (18–32) nằm ở khối CvSalesExperienceFields phía sau.
  */
 export function CvDraftMatrixFields({
   draft,
-  fields,
   onChange,
   lead,
 }: {
@@ -142,18 +141,14 @@ export function CvDraftMatrixFields({
     onChange('workStyles', cultureFitAnswersToWorkStyles(next));
   }
 
-  function hint(key: string) {
-    return fields.find((f) => f.key === key);
-  }
-
   const orientation = draft.careerOrientations[0] ?? '';
   const selectedMotivations = filterCareerMotivations(draft.careerMotivations, 'sales');
 
   return (
     <div className="space-y-5">
       <MatrixSection
-        title="B. Mong muốn nghề nghiệp (13–16)"
-        subtitle="Vị trí, địa điểm, thu nhập và thời gian nhận việc"
+        title="B. Mong muốn nghề nghiệp (13–17)"
+        subtitle="Vị trí, địa điểm, thu nhập, thời gian nhận việc và định hướng"
       >
       {lead}
       <div>
@@ -210,12 +205,6 @@ export function CvDraftMatrixFields({
           label: AVAILABILITY_BAND_LABEL[v],
         }))}
       />
-      </MatrixSection>
-
-      <MatrixSection
-        title="C. Định hướng & phù hợp (17–19)"
-        subtitle="Định hướng nghề nghiệp, phong cách làm việc và động lực"
-      >
 
       <div>
         <NumberedFieldLabel
@@ -248,10 +237,15 @@ export function CvDraftMatrixFields({
           })}
         </div>
       </div>
+      </MatrixSection>
 
+      <MatrixSection
+        title="Tham khảo — phong cách làm việc & động lực"
+        subtitle="Không tính vào điểm hoàn thành hồ sơ"
+      >
       <div>
         <NumberedFieldLabel
-          title={`18. ${CULTURE_FIT_SECTION_TITLE}`}
+          title={CULTURE_FIT_SECTION_TITLE}
           description={CULTURE_FIT_SUBTITLE}
         />
         <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
@@ -296,15 +290,8 @@ export function CvDraftMatrixFields({
 
       <div>
         <NumberedFieldLabel
-          title="19. Động lực khi lựa chọn công việc mới"
+          title="Động lực khi lựa chọn công việc mới"
           description={CAREER_MOTIVATION_QUESTION}
-          extra={
-            hint('careerMotivations')?.status === 'missing' ? (
-              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
-                Thiếu
-              </span>
-            ) : null
-          }
         />
         <p className="mb-2 text-[11px] text-amber-700">
           {`Tối đa 3 (${selectedMotivations.length}/3)`}

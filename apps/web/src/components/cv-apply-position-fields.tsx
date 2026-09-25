@@ -18,7 +18,7 @@ type Props = {
 
 /**
  * STT 13. Vị trí ứng tuyển — Kinh doanh: danh sách 5 vị trí.
- * Kỹ thuật: chọn tối đa 3 + "Khác" tự nhập (ma trận 32 mục).
+ * Kỹ thuật: chọn tối đa 3 + "Khác" tự nhập (ma trận hoàn thành 28 mục).
  */
 export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   const track = draft.jobTrack;

@@ -516,6 +516,8 @@ model Company {
   code        String  @unique
   tenantId    String  @map("tenant_id")
   name        String
+  /// URL công khai: /companies/{slug}. Trùng tên thì slug-1, slug-2…
+  slug        String? @unique
   taxCode     String? @map("tax_code")
   industry    String?
   size        String?
@@ -572,6 +574,8 @@ model Job {
   tenantId       String  @map("tenant_id")
   companyId      String  @map("company_id") @db.Uuid
   title          String
+  /// URL công khai: /jobs/{slug}. Trùng tiêu đề thì slug-1, slug-2…
+  slug           String? @unique
   description    String
   requirements   String?
   benefits       String?
@@ -586,6 +590,12 @@ model Job {
   experienceBand String? @map("experience_band")
   salaryMin      Int?    @map("salary_min")
   salaryMax      Int?    @map("salary_max")
+  // sales | technical — loc track khi JD Sales khong con field cap bac.
+  jobTrack       String? @map("job_track")
+  // 22 truong matching Sales B2B (nhom B/C + nganh da chon).
+  salesCriteria  Json?   @map("sales_criteria")
+  // 23 truong matching Ky thuat (nhom B/C + nganh da chon).
+  technicalCriteria Json? @map("technical_criteria")
   status         String  @default("draft")
   // Embedding cá»§a mÃ´ táº£ cÃ´ng viá»‡c (JD) cho AI Matching, ghi/Ä‘á»c qua raw SQL.
   embedding      Unsupported("vector(768)")?
@@ -610,6 +620,7 @@ model Job {
 
   @@index([tenantId, status])
   @@index([companyId])
+  @@index([jobTrack])
   @@map("job")
   @@schema("recruitment")
 }

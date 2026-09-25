@@ -55,7 +55,8 @@ export function CollapsibleFormSection({
     >
       <div
         className={clsx(
-          'flex items-start gap-1',
+          'flex gap-1',
+          company ? 'items-center' : 'items-start',
           company
             ? 'bg-gradient-to-r from-[#3d5466]/[0.07] via-white to-[#f2b01f]/[0.12]'
             : hot
@@ -123,7 +124,16 @@ export function CollapsibleFormSection({
             )}
           />
         </button>
-        {actions ? <div className="shrink-0 py-1.5 pr-2">{actions}</div> : null}
+        {actions ? (
+          <div
+            className={clsx(
+              'shrink-0 pr-2',
+              company ? 'flex items-center self-stretch' : 'py-1.5',
+            )}
+          >
+            {actions}
+          </div>
+        ) : null}
       </div>
       {isOpen ? (
         <div

@@ -1,11 +1,21 @@
 import type { AiProvider } from '../domain/ai-provider.interface';
-import type { JobDraftInput, JobDraftResult, ParsedResume, ResumeParseInput } from '../domain/types';
+import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from '../domain/types';
 import {
   buildCareerAdvice,
   buildSalaryEstimate,
   type CareerAdviceEngineInput,
   type SalaryEstimateEngineInput,
 } from './career-salary.engine';
+import {
+  JOB_PARSE_SYSTEM_PROMPT,
+  buildJobParseUserPrompt,
+  normalizeParsedSalesJob,
+} from './llm-job-parse.util';
+import {
+  JOB_PARSE_TECHNICAL_SYSTEM_PROMPT,
+  buildTechnicalJobParseUserPrompt,
+  normalizeParsedTechnicalJob,
+} from './llm-job-parse-technical.util';
 import {
   JOB_DRAFT_SYSTEM_PROMPT,
   buildJobDraftUserPrompt,
@@ -17,7 +27,7 @@ import {
   extractJson,
   normalizeParsedResume,
 } from './llm-parse.util';
-import type { CareerAdviceView, SalaryEstimateView } from '@industriallink/contracts';
+import type { CareerAdviceView, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 
 export interface OpenAiOptions {
   apiKey: string;
@@ -78,6 +88,40 @@ export class OpenAiProvider implements AiProvider {
     }
     const data = (await res.json()) as { choices: { message: { content: string } }[] };
     return normalizeJobDraft(extractJson(data.choices[0]?.message?.content ?? ''), input.title);
+  }
+
+  async parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft> {
+    const isTech = input.track === 'technical';
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.opts.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.opts.model,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: isTech ? JOB_PARSE_TECHNICAL_SYSTEM_PROMPT : JOB_PARSE_SYSTEM_PROMPT,
+          },
+          {
+            role: 'user',
+            content: isTech ? buildTechnicalJobParseUserPrompt(input) : buildJobParseUserPrompt(input),
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`OpenAI job parse lỗi ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json()) as { choices: { message: { content: string } }[] };
+    const raw = extractJson(data.choices[0]?.message?.content ?? '');
+    return isTech
+      ? normalizeParsedTechnicalJob(raw, input.text)
+      : normalizeParsedSalesJob(raw, input.text);
   }
 
   async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

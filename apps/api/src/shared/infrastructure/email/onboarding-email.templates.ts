@@ -34,14 +34,14 @@ export function buildOnboardingWelcomeEmail(p: {
     `Chi tiết hồ sơ: ${p.applicationsUrl}`,
     '',
     'Hẹn gặp bạn vào ngày nhận việc. Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="vi"><body style="margin:0;padding:24px;background:#F8FAFC;font-family:Segoe UI,Arial,sans-serif;color:#0F172A">
   <table width="560" style="margin:0 auto;background:#fff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
     <tr><td style="background:linear-gradient(135deg,#1D4ED8,#3B82F6);padding:24px;color:#fff">
-      <div style="font-size:13px;opacity:.9">IndustrialLink</div>
+      <div style="font-size:13px;opacity:.9">inlink</div>
       <div style="font-size:22px;font-weight:700;margin-top:6px">Chào mừng — Onboarding</div>
     </td></tr>
     <tr><td style="padding:28px">
@@ -63,7 +63,7 @@ export function buildOnboardingWelcomeEmail(p: {
 
   return {
     to: p.candidateEmail,
-    subject: `[IndustrialLink] Onboarding — ${p.jobTitle} tại ${p.companyName}`,
+    subject: `[inlink] Onboarding — ${p.jobTitle} tại ${p.companyName}`,
     text,
     html,
   };

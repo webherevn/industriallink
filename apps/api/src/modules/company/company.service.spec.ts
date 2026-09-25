@@ -43,6 +43,7 @@ describe('CompanyService', () => {
     it('tạo công ty mới và gán user làm Owner', async () => {
       const create = jest.fn().mockResolvedValue({
         id: 'co-1',
+        slug: 'cong-ty-abc',
         code: 'COM-2026-000001',
         name: 'Công ty ABC',
         taxCode: null,
@@ -55,7 +56,7 @@ describe('CompanyService', () => {
       });
       const prisma = {
         companyMember: { findFirst: jest.fn().mockResolvedValue(null) },
-        company: { create },
+        company: { create, findMany: jest.fn().mockResolvedValue([]) },
       };
       const service = buildService(prisma);
 
@@ -88,6 +89,7 @@ describe('CompanyService', () => {
     it('cho phép Owner/Admin sửa hồ sơ công ty', async () => {
       const update = jest.fn().mockResolvedValue({
         id: 'co-1',
+        slug: 'ten-moi',
         name: 'Tên mới',
         taxCode: null,
         industry: null,

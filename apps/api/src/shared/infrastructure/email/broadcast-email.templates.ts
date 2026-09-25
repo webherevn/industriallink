@@ -18,14 +18,14 @@ export function buildBroadcastEmail(p: {
     `Xem hồ sơ: ${p.applicationsUrl}`,
     '',
     'Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="vi"><body style="margin:0;padding:24px;background:#F8FAFC;font-family:Segoe UI,Arial,sans-serif;color:#0F172A">
   <table width="560" style="margin:0 auto;background:#fff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
     <tr><td style="background:linear-gradient(135deg,#0F766E,#14B8A6);padding:24px;color:#fff">
-      <div style="font-size:13px;opacity:.9">IndustrialLink</div>
+      <div style="font-size:13px;opacity:.9">inlink</div>
       <div style="font-size:20px;font-weight:700;margin-top:6px">${esc(p.subject)}</div>
     </td></tr>
     <tr><td style="padding:28px">

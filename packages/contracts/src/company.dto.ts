@@ -14,6 +14,7 @@ export type UpdateCompanyRequest = CreateCompanyRequest;
 
 export interface CompanyView {
   id: string;
+  slug: string;
   code: string;
   name: string;
   taxCode: string | null;
@@ -92,6 +93,7 @@ export interface CompanyBrandProfile {
 /** Tin tuyển dụng rút gọn trên trang công ty. */
 export interface CompanyJobCard {
   id: string;
+  slug: string;
   title: string;
   department: string | null;
   location: string | null;

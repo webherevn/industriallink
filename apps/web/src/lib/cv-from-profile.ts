@@ -489,7 +489,7 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
       value: draft.desiredLocations,
       suggestion: 'Thêm địa điểm mong muốn làm việc.',
     },
-    // C. Định hướng & phù hợp (17–19)
+    // B. Mong muốn (13–17) — định hướng nghề nghiệp
     {
       key: 'careerOrientations',
       label: 'Định hướng nghề nghiệp',
@@ -517,7 +517,7 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
           ? 'Chọn tối đa 3 yếu tố quan trọng nhất.'
           : 'Chọn đúng 3 yếu tố quan trọng nhất.',
     },
-    // D. Kỹ thuật (khi jobTrack = technical) — ma trận 32 mục
+    // D. Kỹ thuật (khi jobTrack = technical) — ma trận hoàn thành 28 mục
     ...(draft.jobTrack === 'technical'
       ? [
           {
@@ -574,7 +574,7 @@ export function fieldHintsFromDraft(draft: CvDraft): CvDraftFieldHint[] {
   });
 }
 
-/** STT 1–34 Kinh doanh — không gồm ward / title trùng / b2bExperience ngoài ma trận. */
+/** STT 1–32 Kinh doanh (PDF 8.9.2026) — không gồm cultureFit / careerMotivations (tham khảo). */
 const SALES_MATRIX_HINT_KEYS = new Set([
   'fullName',
   'birthYear',
@@ -593,8 +593,6 @@ const SALES_MATRIX_HINT_KEYS = new Set([
   'expectedSalary',
   'availability',
   'careerOrientations',
-  'cultureFit',
-  'careerMotivations',
   'experience',
   'experienceRole',
   'experiencePeriod',
@@ -612,7 +610,7 @@ const SALES_MATRIX_HINT_KEYS = new Set([
   'salesHighlights',
 ]);
 
-/** STT 1–32 Kỹ thuật. */
+/** STT 1–28 Kỹ thuật (PDF 8.9.2026) — không gồm cách làm việc / định hướng / động lực / môi trường mong muốn. */
 const TECHNICAL_MATRIX_HINT_KEYS = new Set([
   'fullName',
   'birthYear',
@@ -633,10 +631,6 @@ const TECHNICAL_MATRIX_HINT_KEYS = new Set([
   'shiftFlexibility',
   'technicalTools',
   'documentLiteracy',
-  'cultureFit',
-  'careerOrientations',
-  'careerMotivations',
-  'desiredWorkEnvironments',
   'experience',
   'experienceRole',
   'experiencePeriod',
@@ -648,7 +642,7 @@ const TECHNICAL_MATRIX_HINT_KEYS = new Set([
   'salesHighlights',
 ]);
 
-/** Lọc hint theo đúng 34 tiêu chí KD hoặc 32 tiêu chí KT. */
+/** Lọc hint theo đúng 32 tiêu chí KD hoặc 28 tiêu chí KT. */
 export function matrixCriteriaHints(
   hints: CvDraftFieldHint[],
   track?: 'sales' | 'technical' | string | null,
@@ -657,7 +651,7 @@ export function matrixCriteriaHints(
   return hints.filter((h) => keys.has(h.key));
 }
 
-/** % điểm gợi ý theo ma trận KD/KT (trọng số AI, filled=1 / weak=0.5). */
+/** % hoàn thành hồ sơ theo ma trận KD/KT (không phải Matching JD). */
 export function completionPercentFromHints(
   hints: CvDraftFieldHint[],
   track?: 'sales' | 'technical' | string | null,

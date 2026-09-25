@@ -3,11 +3,12 @@
 import { UserRole } from '@industriallink/contracts';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/brand-logo';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { register, resendOtp, verifyOtp } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
+import { loginHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,6 +24,12 @@ export default function RegisterPage() {
   const [role, setRole] = useState<UserRole.Candidate | UserRole.Recruiter>(UserRole.Candidate);
   const [otp, setOtp] = useState('');
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [nextPath, setNextPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setNextPath(safeInternalPath(params.get('next')));
+  }, []);
 
   async function onSubmitForm(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +55,8 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await verifyOtp(email, otp);
-      router.push('/login?verified=1');
+      const loginTo = loginHref(nextPath);
+      router.push(loginTo.includes('?') ? `${loginTo}&verified=1` : `${loginTo}?verified=1`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Xác thực thất bại');
     } finally {
@@ -75,7 +83,7 @@ export default function RegisterPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
       <div className="mb-8 flex justify-center">
-        <BrandLogo href="/" width={240} />
+        <BrandLogo href="/" width={320} />
       </div>
       <Card>
         {step === 'form' ? (
@@ -154,7 +162,7 @@ export default function RegisterPage() {
       </Card>
       <p className="mt-4 text-center text-sm text-slate-500">
         Đã có tài khoản?{' '}
-        <Link href="/login" className="font-medium text-brand-600">
+        <Link href={loginHref(nextPath)} className="font-medium text-brand-600">
           Đăng nhập
         </Link>
       </p>

@@ -157,7 +157,7 @@ export interface CvDraft {
   documentLiteracy: string[];
   systemScaleNote: string | null;
   shiftFlexibility: string | null;
-  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  /** Môi trường làm việc mong muốn KT — tham khảo, không tính điểm (tối đa 3). */
   desiredWorkEnvironments: string[];
   experience: CvDraftExperience[];
   education: { school: string; degree: string; period: string }[];

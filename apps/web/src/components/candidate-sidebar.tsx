@@ -25,8 +25,13 @@ import { logout } from '@/lib/auth';
 
 function isActivePath(pathname: string, href: string): boolean {
   const pathOnly = href.split('#')[0].split('?')[0];
-  if (pathOnly === '/jobs') {
-    return pathname === '/jobs' || pathname.startsWith('/jobs/');
+  if (pathOnly === '/viec-lam' || pathOnly === '/jobs') {
+    return (
+      pathname === '/viec-lam' ||
+      pathname.startsWith('/viec-lam/') ||
+      pathname === '/jobs' ||
+      pathname.startsWith('/jobs/')
+    );
   }
   if (pathOnly === '/dashboard') {
     return pathname === '/dashboard';
@@ -171,7 +176,7 @@ export function CandidateSidebar({
               icon={BadgeCheck}
             />
             <NavItem
-              href="/jobs?tab=saved"
+              href="/viec-lam?tab=saved"
               label="Việc làm đã lưu"
               icon={Bookmark}
             />
@@ -200,7 +205,7 @@ export function CandidateSidebar({
               active={isActivePath(pathname, '/progress')}
             />
             <NavItem
-              href="/jobs?tab=applied"
+              href="/viec-lam?tab=applied"
               label="Việc đã ứng tuyển"
               icon={Send}
               active={false}
@@ -265,12 +270,12 @@ export function CandidateSidebar({
               <div>
                 <p className="text-sm font-bold text-slate-900">Bạn cần hỗ trợ?</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                  Liên hệ đội ngũ iLink khi cần hỗ trợ hồ sơ hoặc ứng tuyển.
+                  Liên hệ đội ngũ inlink khi cần hỗ trợ hồ sơ hoặc ứng tuyển.
                 </p>
               </div>
             </div>
             <a
-              href="mailto:support@industriallink.vn"
+              href="mailto:support@inlink.vn"
               className="progress-btn mt-3 w-full border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
             >
               Liên hệ hỗ trợ

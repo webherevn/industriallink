@@ -247,8 +247,8 @@ export default function CreateCvPage() {
   const weakFields = criteriaHints.filter((f) => f.status === 'weak');
   const filledFields = criteriaHints.filter((f) => f.status === 'filled');
   const criteriaPercent = useMemo(
-    () => completionPercentFromHints(liveFields, activeDraft.jobTrack),
-    [liveFields, activeDraft.jobTrack],
+    () => completionPercentFromHints(criteriaHints, activeDraft.jobTrack),
+    [criteriaHints, activeDraft.jobTrack],
   );
   const criteriaGaps = useMemo(
     () => [...missingFields, ...weakFields],
@@ -656,7 +656,7 @@ export default function CreateCvPage() {
                     <div className="flex flex-wrap gap-2">
                       {analyzed && criteriaHints.length > 0 && (
                         <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 ring-1 ring-brand-100">
-                          Điểm AI {criteriaPercent}/100
+                          Hoàn thành {criteriaPercent}/100
                         </span>
                       )}
                       {importSource === 'profile' && (
@@ -1063,9 +1063,9 @@ export default function CreateCvPage() {
                   ) : (
                     <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs text-slate-500">
                       Chọn <span className="font-semibold text-slate-700">Kinh doanh</span> ở trên
-                      để hiện các mục 13–34, hoặc{' '}
+                      để hiện các mục 13–32, hoặc{' '}
                       <span className="font-semibold text-slate-700">Kỹ thuật</span> để hiện các
-                      mục 13–32 theo bộ tiêu chí kỹ thuật.
+                      mục 13–28 theo bộ tiêu chí kỹ thuật.
                     </p>
                   )}
 

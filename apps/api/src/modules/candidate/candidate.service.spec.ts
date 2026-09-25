@@ -5,17 +5,26 @@ describe('computeProfileCompletion', () => {
     expect(computeProfileCompletion({ aiProfile: null, profile: null, skills: [] })).toBe(0);
   });
 
-  it('họ tên / tóm tắt / SĐT (0%) không tăng điểm gợi ý', () => {
+  it('họ tên / năm sinh / SĐT / email tăng điểm hoàn thành KD (0,5% mỗi mục)', () => {
     expect(
       computeProfileCompletion({
         aiProfile: { summary: 'Kỹ sư PLC 5 năm kinh nghiệm với nhiều dự án' },
-        profile: { phone: '0901234567', birthYear: 1990 },
+        profile: { jobTrack: 'sales' },
         skills: [{ id: '1' }],
       }),
     ).toBe(0);
+    expect(
+      computeProfileCompletion({
+        displayName: 'Nguyễn Văn A',
+        email: 'a@example.com',
+        aiProfile: { summary: 'Kỹ sư PLC 5 năm kinh nghiệm với nhiều dự án' },
+        profile: { phone: '0901234567', birthYear: 1990, jobTrack: 'sales' },
+        skills: [{ id: '1' }],
+      }),
+    ).toBe(2);
   });
 
-  it('nơi sống (2%) tăng điểm nhẹ; sản phẩm (16%) tăng nhiều hơn', () => {
+  it('nơi sống (0,5%) tăng điểm nhẹ; sản phẩm (17%) tăng nhiều hơn', () => {
     const withLocation = computeProfileCompletion({
       aiProfile: null,
       profile: { currentCity: 'Hà Nội', jobTrack: 'sales' },
@@ -100,7 +109,19 @@ describe('computeProfileCompletion', () => {
     expect(withTech).toBeGreaterThan(withoutTech);
   });
 
-  it('Kỹ thuật: thành tích/dự án (5%) tăng điểm; định hướng (0%) không tăng', () => {
+  it('họ tên / năm sinh / SĐT / email tăng điểm hoàn thành KT (0,5% mỗi mục)', () => {
+    expect(
+      computeProfileCompletion({
+        displayName: 'Nguyễn Văn B',
+        email: 'b@example.com',
+        aiProfile: null,
+        profile: { phone: '0901234567', birthYear: 1990, jobTrack: 'technical' },
+        skills: [],
+      }),
+    ).toBe(2);
+  });
+
+  it('Kỹ thuật: thành tích/dự án (2,5%) tăng điểm; định hướng (0%) không tăng', () => {
     const base = {
       jobTrack: 'technical' as const,
       currentCity: 'Hà Nội',

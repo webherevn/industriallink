@@ -10,7 +10,7 @@ import { JobService } from '../recruitment/job.service';
 import { SearchService } from '../search/search.service';
 import { AiGatewayService } from './ai-gateway.service';
 
-const COPILOT_SYSTEM = `Bạn là AI Copilot tuyển dụng của IndustrialLink (B2B công nghiệp Việt Nam).
+const COPILOT_SYSTEM = `Bạn là AI Copilot tuyển dụng của inlink (B2B công nghiệp Việt Nam).
 Trả lời ngắn gọn, tiếng Việt, dựa trên NGỮ CẢNH được cung cấp (pipeline, tin tuyển dụng, ứng viên).
 Khi gợi ý ứng viên: ưu tiên hồ sơ đã nộp vào tin của công ty; chỉ bổ sung từ mạng lưới khi thiếu.
 Không bịa số liệu ngoài ngữ cảnh. Nếu thiếu dữ liệu, nói rõ và gợi ý bước tiếp (Inbox, Search, Đăng tin).
@@ -160,7 +160,7 @@ export class CopilotService {
           scorePct: Math.max(1, Math.round(h.score * 100)),
           reason: h.reason?.trim()
             ? `Mạng lưới · ${h.reason}`
-            : 'Mạng lưới IndustrialLink',
+            : 'Mạng lưới inlink',
           origin: 'network',
         });
       }

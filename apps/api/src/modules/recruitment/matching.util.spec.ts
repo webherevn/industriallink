@@ -1,5 +1,18 @@
-import { buildB2bExplanation, buildExplanation, cosine, resolveMatchTrack, skillOverlap } from './matching.util';
-import { b2bMatchWeightsForTrack, sumB2bMatchWeights } from '@industriallink/contracts';
+import {
+  buildB2bExplanation,
+  buildExplanation,
+  cosine,
+  jobToB2bMatchInput,
+  resolveMatchTrack,
+  skillOverlap,
+  toB2bCandidateFromRecords,
+} from './matching.util';
+import {
+  DealType,
+  JobTrack,
+  b2bMatchWeightsForTrack,
+  sumB2bMatchWeights,
+} from '@industriallink/contracts';
 
 describe('cosine', () => {
   it('trả 1 khi hai vector đơn vị cùng hướng', () => {
@@ -134,5 +147,228 @@ describe('buildB2bExplanation theo track', () => {
     const deal = explanation.criteria?.find((c) => c.key === 'dealProfile');
     expect(deal?.label).toMatch(/tự chủ/i);
     expect(deal?.score).toBe(1);
+  });
+});
+
+describe('JD Sales 22 trường ↔ CV (dữ liệu, không suy diễn)', () => {
+  it('gộp sản phẩm / tệp KH / loại hình từ mọi công ty', () => {
+    const candidate = toB2bCandidateFromRecords({
+      profile: {
+        productsSold: ['Máy nén khí'],
+        customerSegments: ['Nhà máy FDI'],
+        dealType: DealType.Equipment,
+        desiredPositions: ['Nhân viên kinh doanh'],
+      },
+      experiences: [
+        {
+          jobTitle: 'Sales Engineer',
+          productsSold: ['Robot công nghiệp'],
+          customerSegments: ['Tổng thầu EPC'],
+          dealType: DealType.Project,
+          industries: ['Tự động hóa'],
+          marketsCovered: ['Miền Bắc'],
+        },
+      ],
+    });
+    expect(candidate.productsSold).toEqual(expect.arrayContaining(['Máy nén khí', 'Robot công nghiệp']));
+    expect(candidate.customerSegments).toEqual(
+      expect.arrayContaining(['Nhà máy FDI', 'Tổng thầu EPC']),
+    );
+    expect(candidate.dealTypes).toEqual(expect.arrayContaining([DealType.Equipment, DealType.Project]));
+    expect(candidate.jobTitles).toEqual(expect.arrayContaining(['Sales Engineer']));
+    expect(candidate.marketsCovered).toEqual(['Miền Bắc']);
+  });
+
+  it('JD có sản phẩm khớp CV — không suy diễn thêm từ title', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Nhân viên kinh doanh robot công nghiệp',
+      jobTrack: JobTrack.Sales,
+      salesCriteria: { productsSold: ['Máy nén khí'] },
+    });
+    expect(job.strictJdCriteria).toBe(true);
+    expect(job.filterProducts).toEqual(['Máy nén khí']);
+
+    const explanation = buildB2bExplanation({
+      semantic: 0.4,
+      candidate: { productsSold: ['Máy nén khí'], jobTrack: 'sales' },
+      job,
+    });
+    const products = explanation.criteria?.find((c) => c.key === 'products');
+    expect(products?.score).toBe(1);
+    expect(products?.note).toMatch(/Máy nén khí/);
+  });
+
+  it('JD không ghi sản phẩm → không suy robot từ title, bỏ qua tiêu chí', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Nhân viên kinh doanh robot công nghiệp',
+      description: 'Bán robot công nghiệp cho nhà máy FDI',
+      jobTrack: JobTrack.Sales,
+      salesCriteria: { productsSold: [] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.4,
+      candidate: { productsSold: ['Robot công nghiệp'], jobTrack: 'sales' },
+      job,
+    });
+    const products = explanation.criteria?.find((c) => c.key === 'products');
+    expect(products?.score).toBeNull();
+  });
+
+  it('thị trường JD không lấy nơi làm mong muốn của CV', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Sales B2B',
+      location: 'Hà Nội',
+      jobTrack: JobTrack.Sales,
+      salesCriteria: { marketsCovered: ['Miền Bắc'] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.2,
+      candidate: {
+        jobTrack: 'sales',
+        desiredLocations: ['Hà Nội'],
+        marketsCovered: [],
+      },
+      job,
+    });
+    const region = explanation.criteria?.find((c) => c.key === 'region');
+    expect(region?.score).toBeCloseTo(0.5, 5);
+    expect(region?.note).toMatch(/Nơi làm: Hà Nội/);
+    expect(region?.note).toMatch(/Chưa khớp thị trường/);
+  });
+
+  it('không chấm thành tích / hunter-farmer khi JD Sales 22 trường không có các mục đó', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Nhân viên kinh doanh',
+      jobTrack: JobTrack.Sales,
+      salesCriteria: { productsSold: ['Máy nén khí'] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.3,
+      candidate: {
+        jobTrack: 'sales',
+        productsSold: ['Máy nén khí'],
+        latestRevenue: 12_000_000_000,
+        kpiAchievementPct: 140,
+        customerDevStyle: 'hunter',
+        jobReadiness: 'active',
+        languages: ['Tiếng Anh'],
+      },
+      job,
+    });
+    expect(explanation.criteria?.find((c) => c.key === 'achievements')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'customerDev')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'salesStyle')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'readiness')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'languages')?.score).toBeNull();
+  });
+
+  it('giai đoạn bán: JD trống thì không so với full cycle 12 bước', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Sales',
+      jobTrack: JobTrack.Sales,
+      salesCriteria: { sellingStages: [] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.2,
+      candidate: { jobTrack: 'sales', sellingStages: ['Tìm kiếm khách hàng'] },
+      job,
+    });
+    expect(explanation.criteria?.find((c) => c.key === 'sellingCapability')?.score).toBeNull();
+  });
+
+  it('JD kỹ thuật: thiết bị khớp CV — không suy diễn thêm từ title', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Kỹ sư robot công nghiệp',
+      jobTrack: JobTrack.Technical,
+      technicalCriteria: { equipmentSystems: ['Tự động hóa / Điều khiển'] },
+    });
+    expect(job.strictJdCriteria).toBe(true);
+    expect(job.filterProducts).toEqual(['Tự động hóa / Điều khiển']);
+
+    const explanation = buildB2bExplanation({
+      semantic: 0.4,
+      candidate: { productsSold: ['Tự động hóa / Điều khiển'], jobTrack: 'technical' },
+      job,
+    });
+    const products = explanation.criteria?.find((c) => c.key === 'products');
+    expect(products?.score).toBe(1);
+    expect(products?.note).toMatch(/Tự động hóa/);
+  });
+
+  it('JD kỹ thuật không ghi thiết bị → không suy từ title, bỏ qua tiêu chí', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Kỹ sư robot công nghiệp',
+      description: 'Làm việc với robot công nghiệp tại nhà máy',
+      jobTrack: JobTrack.Technical,
+      technicalCriteria: { equipmentSystems: [] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.4,
+      candidate: { productsSold: ['Robot / Tự động hóa sản xuất'], jobTrack: 'technical' },
+      job,
+    });
+    const products = explanation.criteria?.find((c) => c.key === 'products');
+    expect(products?.score).toBeNull();
+  });
+
+  it('công việc kỹ thuật: JD trống thì không so với full catalog', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Kỹ sư bảo trì',
+      jobTrack: JobTrack.Technical,
+      technicalCriteria: { technicalWorkTypes: [] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.2,
+      candidate: { jobTrack: 'technical', technicalWorkTypes: ['Bảo trì / bảo dưỡng'] },
+      job,
+    });
+    expect(explanation.criteria?.find((c) => c.key === 'sellingCapability')?.score).toBeNull();
+  });
+
+  it('tự chủ JD yêu cầu mức 4 — ứng viên mức 4 đạt, mức 2 thấp hơn', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Kỹ sư PLC',
+      jobTrack: JobTrack.Technical,
+      technicalCriteria: { autonomyLevel: 4 },
+    });
+    const pass = buildB2bExplanation({
+      semantic: 0.2,
+      candidate: { jobTrack: 'technical', technicalAutonomyLevel: 4 },
+      job,
+    });
+    expect(pass.criteria?.find((c) => c.key === 'dealProfile')?.score).toBe(1);
+
+    const low = buildB2bExplanation({
+      semantic: 0.2,
+      candidate: { jobTrack: 'technical', technicalAutonomyLevel: 2 },
+      job,
+    });
+    expect(low.criteria?.find((c) => c.key === 'dealProfile')?.score).toBeCloseTo(0.5, 5);
+  });
+
+  it('không chấm thành tích / hunter khi JD kỹ thuật 23 trường không có các mục đó', () => {
+    const job = jobToB2bMatchInput({
+      title: 'Kỹ sư điện',
+      jobTrack: JobTrack.Technical,
+      technicalCriteria: { equipmentSystems: ['Điện / Điện công nghiệp'] },
+    });
+    const explanation = buildB2bExplanation({
+      semantic: 0.3,
+      candidate: {
+        jobTrack: 'technical',
+        productsSold: ['Điện / Điện công nghiệp'],
+        latestRevenue: 1,
+        kpiAchievementPct: 140,
+        customerDevStyle: 'hunter',
+        jobReadiness: 'active',
+        languages: ['Tiếng Anh'],
+      },
+      job,
+    });
+    expect(explanation.criteria?.find((c) => c.key === 'achievements')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'customerDev')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'salesStyle')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'readiness')?.score).toBeNull();
+    expect(explanation.criteria?.find((c) => c.key === 'languages')?.score).toBeNull();
   });
 });

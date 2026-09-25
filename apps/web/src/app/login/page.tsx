@@ -8,6 +8,7 @@ import { BrandLogo } from '@/components/brand-logo';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { login, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
+import { registerHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,13 +24,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [nextPath, setNextPath] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setVerified(params.get('verified') === '1');
+    setNextPath(safeInternalPath(params.get('next')));
   }, []);
 
   function goHome(role: UserRole) {
+    if (role === UserRole.Candidate && nextPath) {
+      router.push(nextPath);
+      return;
+    }
     router.push(role === UserRole.Candidate ? '/dashboard' : '/recruiter');
   }
 
@@ -95,7 +102,7 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
       <div className="mb-8 flex justify-center">
-        <BrandLogo href="/" width={240} />
+        <BrandLogo href="/" width={320} />
       </div>
       <Card>
         {step === 'credentials' ? (
@@ -187,7 +194,7 @@ export default function LoginPage() {
       </Card>
       <p className="mt-4 text-center text-sm text-slate-500">
         Chưa có tài khoản?{' '}
-        <Link href="/register" className="font-medium text-brand-600">
+        <Link href={registerHref(nextPath)} className="font-medium text-brand-600">
           Đăng ký
         </Link>
       </p>

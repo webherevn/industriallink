@@ -28,7 +28,7 @@ async function bootstrap(): Promise<void> {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('IndustrialLink API')
+    .setTitle('inlink API')
     .setDescription('API nền tảng tuyển dụng công nghiệp tích hợp AI')
     .setVersion('1.0')
     .addBearerAuth()
@@ -39,7 +39,7 @@ async function bootstrap(): Promise<void> {
   await app.listen(port);
   const logger = app.get(Logger);
   const otel = config.get('otel', { infer: true });
-  logger.log(`IndustrialLink API chạy tại http://localhost:${port} (docs: /docs)`);
+  logger.log(`inlink API chạy tại http://localhost:${port} (docs: /docs)`);
   if (otel.enabled) {
     logger.log(
       `OpenTelemetry: traces→${otel.otlpEndpoint} metrics→:${otel.metricsPort}/metrics`,

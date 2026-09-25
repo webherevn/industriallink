@@ -196,6 +196,7 @@ export class ResumeParseService {
           aiProfile: true,
           skills: true,
           experiences: true,
+          user: { select: { email: true } },
         },
       });
       const profileCompletion = refreshed

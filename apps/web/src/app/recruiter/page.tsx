@@ -283,7 +283,7 @@ export default function RecruiterDashboardPage() {
       <AppShell>
         <div className="mx-auto max-w-lg text-center">
           <Building2 className="mx-auto h-12 w-12 text-brand-500" />
-          <h1 className="mt-4 text-2xl font-bold text-slate-900">Chào mừng đến iLink</h1>
+          <h1 className="mt-4 text-2xl font-bold text-slate-900">Chào mừng đến inlink</h1>
           <p className="mt-2 text-slate-500">
             Tạo hồ sơ công ty để mở dashboard tuyển dụng đầy đủ.
           </p>

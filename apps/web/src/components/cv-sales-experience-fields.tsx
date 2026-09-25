@@ -196,8 +196,8 @@ function vndToDealValueBand(vnd: number | null | undefined): string {
 }
 
 /**
- * D. Kinh nghiệm công ty (20–34) theo ma trận 18.8 — mỗi công ty một khối,
- * công ty thứ 2 trở đi lặp lại 20–34 (mục E của PDF).
+ * C. Kinh nghiệm công ty (18–32) theo ma trận hoàn thành — mỗi công ty một khối,
+ * công ty thứ 2 trở đi lặp lại 18–32.
  */
 export function CvSalesExperienceFields({
   draft,
@@ -237,8 +237,8 @@ export function CvSalesExperienceFields({
 
   return (
     <MatrixSection
-      title="D. Kinh nghiệm công ty (20–34)"
-      subtitle="Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 20–34."
+      title="C. Kinh nghiệm công ty (18–32)"
+      subtitle="Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 18–32."
       extra={
         hint?.status === 'missing' ? (
           <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
@@ -254,7 +254,7 @@ export function CvSalesExperienceFields({
         const allStagesSelected = exp.sellingStages.length === SELLING_STAGES.length;
         const companyTitle = exp.company.trim()
           ? `${exp.company}${exp.role.trim() ? ` · ${exp.role}` : ''}`
-          : 'Bấm để điền các mục 20–34';
+          : 'Bấm để điền các mục 18–32';
         return (
           <CollapsibleFormSection
             key={`exp-${index}`}
@@ -293,7 +293,7 @@ export function CvSalesExperienceFields({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-semibold text-slate-800">
-                  <NumberedTitle text="20. Tên công ty" />
+                  <NumberedTitle text="18. Tên công ty" />
                 </span>
                 <input
                   value={exp.company}
@@ -304,7 +304,7 @@ export function CvSalesExperienceFields({
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-slate-800">
-                  <NumberedTitle text="21. Vị trí" />
+                  <NumberedTitle text="19. Vị trí" />
                 </span>
                 <input
                   value={exp.role}
@@ -319,7 +319,7 @@ export function CvSalesExperienceFields({
               const parts = periodParts(exp.period);
               return (
                 <div>
-                  <NumberedFieldLabel title="22. Thời gian làm việc" />
+                  <NumberedFieldLabel title="20. Thời gian làm việc" />
                   <MonthYearRangeFields
                     start={parts.start}
                     end={parts.end}
@@ -346,7 +346,7 @@ export function CvSalesExperienceFields({
 
             <div>
               <FieldLabel
-                title="23. Ngành / lĩnh vực"
+                title="21. Ngành / lĩnh vực"
                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
               />
               <MultiCheck
@@ -360,7 +360,7 @@ export function CvSalesExperienceFields({
 
             <div>
               <FieldLabel
-                title="24. Sản phẩm / thiết bị đã bán"
+                title="22. Sản phẩm / thiết bị đã bán"
                 description={PRODUCTS_SOLD_QUESTION}
               />
               <BrandTechnologySearch
@@ -374,7 +374,7 @@ export function CvSalesExperienceFields({
             </div>
 
             <div>
-              <FieldLabel title="25. Nhóm khách hàng đã bán" />
+              <FieldLabel title="23. Nhóm khách hàng đã bán" />
               <MultiCheck
                 options={CUSTOMER_SEGMENTS}
                 selected={exp.customerSegments}
@@ -384,7 +384,7 @@ export function CvSalesExperienceFields({
             </div>
 
             <div>
-              <FieldLabel title="26. Giải pháp sản phẩm" />
+              <FieldLabel title="24. Giải pháp sản phẩm" />
               <MultiCheck
                 options={dealTypeOptions.map((o) => o.label)}
                 selected={dealTypesSelected}
@@ -400,7 +400,7 @@ export function CvSalesExperienceFields({
 
             <div>
               <FieldLabel
-                title="27. Phạm vi công việc bán hàng đã phụ trách"
+                title="25. Phạm vi công việc bán hàng đã phụ trách"
                 description={SELLING_STAGES_QUESTION}
               />
               <button
@@ -441,12 +441,12 @@ export function CvSalesExperienceFields({
 
             <CollapsibleFormSection
               variant="hot"
-              title="Thông tin bán hàng chuyên sâu (28-34)"
-              subtitle="Giúp A.I đủ 100% dữ liệu kết nối với NTD."
+              title="Thông tin bán hàng chuyên sâu (26-32)"
+              subtitle="Bổ sung để hoàn thành hồ sơ — không phải điểm matching JD."
             >
                 <div>
                   <FieldLabel
-                    title="28. Hãng / thương hiệu sản phẩm"
+                    title="26. Hãng / thương hiệu sản phẩm"
                     description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
                   />
                   <BrandTechnologySearch
@@ -457,7 +457,7 @@ export function CvSalesExperienceFields({
                   />
                 </div>
                 <div>
-                  <FieldLabel title="29. Khu vực / thị trường phụ trách" />
+                  <FieldLabel title="27. Khu vực / thị trường phụ trách" />
                   <MultiCheck
                     options={MARKET_REGIONS}
                     selected={exp.marketsCovered}
@@ -468,7 +468,7 @@ export function CvSalesExperienceFields({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block">
                     <span className="text-sm font-semibold text-slate-800">
-                      <NumberedTitle text={`30. ${PERSONAL_REVENUE_QUESTION}`} />
+                      <NumberedTitle text={`28. ${PERSONAL_REVENUE_QUESTION}`} />
                     </span>
                     <div className="mt-1.5">
                       <MoneyInput
@@ -483,7 +483,7 @@ export function CvSalesExperienceFields({
                     </div>
                   </label>
                   <SelectField
-                    label="31. Mức độ hoàn thành KPI"
+                    label="29. Mức độ hoàn thành KPI"
                     value={pctToKpiBand(exp.kpiAchievementPct)}
                     onChange={(v) => {
                       const band = KPI_ACHIEVEMENT_BANDS.find((b) => b.value === v);
@@ -497,7 +497,7 @@ export function CvSalesExperienceFields({
                     }))}
                   />
                   <SelectField
-                    label="32. Tỷ lệ khách hàng tự tìm kiếm"
+                    label="30. Tỷ lệ khách hàng tự tìm kiếm"
                     value={pctToNewCustomerBand(exp.newCustomerRatioPct)}
                     onChange={(v) => {
                       const band = NEW_CUSTOMER_RATIO_BANDS.find((b) => b.value === v);
@@ -511,7 +511,7 @@ export function CvSalesExperienceFields({
                     }))}
                   />
                   <SelectField
-                    label="33. Giá trị hợp đồng thường gặp"
+                    label="31. Giá trị hợp đồng thường gặp"
                     value={vndToDealValueBand(exp.typicalDealValue)}
                     onChange={(v) => {
                       const band = DEAL_VALUE_BANDS.find((b) => b.value === v);
@@ -527,7 +527,7 @@ export function CvSalesExperienceFields({
                 </div>
                 <label className="block">
                   <span className="text-sm font-semibold text-slate-800">
-                    <NumberedTitle text="34. Thành tích kinh doanh nổi bật tại công ty này?" />
+                    <NumberedTitle text="32. Thành tích kinh doanh nổi bật tại công ty này?" />
                   </span>
                   <textarea
                     rows={3}
@@ -551,7 +551,7 @@ export function CvSalesExperienceFields({
         }}
         className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
       >
-        + Thêm công ty (lặp lại mục 20–34)
+        + Thêm công ty (lặp lại mục 18–32)
       </button>
     </MatrixSection>
   );

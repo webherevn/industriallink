@@ -359,7 +359,7 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                 <MessageSquare className="h-5 w-5" strokeWidth={1.75} />
               </Link>
               <a
-                href="mailto:support@industriallink.vn"
+                href="mailto:support@inlink.vn"
                 className="rounded-full p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                 title="Trợ giúp"
                 aria-label="Trợ giúp"

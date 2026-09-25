@@ -5,6 +5,8 @@ import {
   formatJobLevel,
   isJobLevelCode,
   type CareerAdviceView,
+  type ParsedSalesJobDraft,
+  type ParsedTechnicalJobDraft,
   type SalaryEstimateView,
 } from '@industriallink/contracts';
 import type { AiProvider } from '../domain/ai-provider.interface';
@@ -12,6 +14,7 @@ import type {
   JobDraftInput,
   JobDraftResult,
   JobDraftSkill,
+  JobParseInput,
   ParsedResume,
   ParsedResumeSkill,
   ResumeParseInput,
@@ -25,6 +28,8 @@ import {
 import { deterministicEmbedding } from './embedding.util';
 import { INDUSTRIAL_SKILL_KEYWORDS } from './industrial-skills';
 import { normalizeJobDraft } from './llm-job-draft.util';
+import { extractSalesJobFromText } from './llm-job-parse.util';
+import { extractTechnicalJobFromText } from './llm-job-parse-technical.util';
 
 /**
  * Provider AI mô phỏng - KHÔNG cần API key. Dùng làm mặc định cho dev/demo,
@@ -285,6 +290,12 @@ export class MockAiProvider implements AiProvider {
       },
       input.title,
     );
+  }
+
+  async parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft> {
+    const haystack = `${input.fileName ?? ''} ${input.text ?? ''}`.trim();
+    if (input.track === 'technical') return extractTechnicalJobFromText(haystack);
+    return extractSalesJobFromText(haystack);
   }
 
   async estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView> {

@@ -11,9 +11,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'iLink — Kết nối nhân tài, dẫn lối công nghiệp',
+  title: 'inlink — Kết nối nhân tài, dẫn lối công nghiệp',
   description:
     'Kết nối nhân tài – Dẫn lối công nghiệp. Nền tảng tuyển dụng công nghiệp tích hợp AI.',
+  robots: { index: false, follow: false },
   icons: {
     icon: [{ url: '/favicon.png', type: 'image/png' }],
     apple: [{ url: '/favicon.png', type: 'image/png' }],

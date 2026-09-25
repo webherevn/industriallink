@@ -22,9 +22,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { UserRole } from '@industriallink/contracts';
-import { BrandMark } from '@/components/brand-logo';
+import { BrandLogo } from '@/components/brand-logo';
 import { NotificationBell } from '@/components/notification-bell';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { PublicHeader } from '@/components/public-header';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
@@ -32,7 +33,7 @@ import { getMyCandidate } from '@/lib/candidate';
 
 /** Menu chính — hành trình ứng tuyển (không nhồi tài khoản/thông báo). */
 const CANDIDATE_PRIMARY_NAV = [
-  { href: '/jobs', label: 'Việc làm', icon: Briefcase },
+  { href: '/viec-lam', label: 'Việc làm', icon: Briefcase },
   { href: '/cv/create', label: 'Tạo CV', icon: FilePenLine },
   { href: '/recommended', label: 'Gợi ý AI', icon: Sparkles },
   { href: '/applications', label: 'Đơn ứng tuyển', icon: ClipboardList },
@@ -47,8 +48,8 @@ const CANDIDATE_ACCOUNT_LINKS = [
 ] as const;
 
 function isNavActive(pathname: string, href: string): boolean {
-  if (href === '/jobs') {
-    return pathname === '/jobs' || pathname.startsWith('/jobs/');
+  if (href === '/viec-lam') {
+    return pathname === '/' || pathname === '/viec-lam' || pathname.startsWith('/viec-lam/');
   }
   if (href === '/cv/create') {
     return pathname === '/cv/create' || pathname.startsWith('/cv/');
@@ -62,6 +63,7 @@ export function AppShell({
   wide = false,
   flush = false,
   bleed = false,
+  allowGuest = false,
 }: {
   children: ReactNode;
   /** Nội dung rộng hơn (trang Việc làm). */
@@ -70,35 +72,46 @@ export function AppShell({
   flush?: boolean;
   /** Full-bleed ngang (banner trang công ty). */
   bleed?: boolean;
+  /** Trang công khai: không bắt đăng nhập. */
+  allowGuest?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  const hasToken = hydrated && Boolean(tokenStore.get());
 
   const { data: user, isError, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
-    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    enabled: hasToken,
   });
 
   const { data: candidate } = useQuery({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
-    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    enabled: hasToken,
     retry: false,
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !tokenStore.get()) {
+    if (allowGuest) return;
+    if (hydrated && !tokenStore.get()) {
       router.replace('/login');
     }
-  }, [router]);
+  }, [router, allowGuest, hydrated]);
 
   useEffect(() => {
+    if (allowGuest) return;
     if (isError) router.replace('/login');
-  }, [isError, router]);
+  }, [isError, router, allowGuest]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -129,7 +142,7 @@ export function AppShell({
     router.replace('/login');
   }
 
-  if (isLoading || !user) {
+  if (!allowGuest && (!hydrated || isLoading || !user)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-slate-500">
         Đang tải...
@@ -137,20 +150,36 @@ export function AppShell({
     );
   }
 
-  if (user.role !== UserRole.Candidate) {
+  if (user && user.role !== UserRole.Candidate) {
     return <RecruiterShell>{children}</RecruiterShell>;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F5F7FB]">
+        <PublicHeader />
+        <main
+          className={
+            bleed
+              ? 'w-full'
+              : wide
+                ? flush
+                  ? 'mx-auto max-w-[1280px] px-4 sm:px-6'
+                  : 'mx-auto max-w-[1280px] px-4 py-6 sm:px-6'
+                : 'mx-auto max-w-6xl px-6 py-8'
+          }
+        >
+          {children}
+        </main>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-[#F5F7FB]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/85">
         <div className="mx-auto flex h-14 max-w-[1280px] items-stretch gap-4 px-4 sm:h-16 sm:px-6">
-          <BrandMark
-            href="/jobs"
-            size={32}
-            className="self-center"
-            wordmarkClassName="hidden sm:inline"
-          />
+          <BrandLogo href="/" compact className="self-center" />
 
           <nav
             className="ml-1 hidden h-full min-w-0 flex-1 items-stretch gap-0.5 lg:flex"
@@ -185,7 +214,7 @@ export function AppShell({
 
           <div className="ml-auto flex items-center gap-1 self-center sm:gap-1.5">
             <Link
-              href="/jobs"
+              href="/viec-lam"
               className="hidden items-center rounded-lg bg-brand-600 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-700 md:inline-flex"
             >
               Tìm việc

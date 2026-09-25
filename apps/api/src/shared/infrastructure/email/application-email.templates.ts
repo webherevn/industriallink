@@ -14,14 +14,14 @@ export function buildApplicationSubmittedEmail(p: {
     `Xem hồ sơ: ${p.applicantsUrl}`,
     '',
     'Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="vi"><body style="margin:0;padding:24px;background:#F8FAFC;font-family:Segoe UI,Arial,sans-serif;color:#0F172A">
   <table width="560" style="margin:0 auto;background:#fff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
     <tr><td style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:24px;color:#fff">
-      <div style="font-size:13px;opacity:.9">IndustrialLink</div>
+      <div style="font-size:13px;opacity:.9">inlink</div>
       <div style="font-size:22px;font-weight:700;margin-top:6px">Ứng viên mới</div>
     </td></tr>
     <tr><td style="padding:28px">
@@ -37,7 +37,7 @@ export function buildApplicationSubmittedEmail(p: {
 
   return {
     to: p.recruiterEmail,
-    subject: `[IndustrialLink] Ứng viên mới — ${p.jobTitle}`,
+    subject: `[inlink] Ứng viên mới — ${p.jobTitle}`,
     text,
     html,
   };
@@ -59,14 +59,14 @@ export function buildApplicationStatusChangedEmail(p: {
     `Xem chi tiết: ${p.applicationsUrl}`,
     '',
     'Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="vi"><body style="margin:0;padding:24px;background:#F8FAFC;font-family:Segoe UI,Arial,sans-serif;color:#0F172A">
   <table width="560" style="margin:0 auto;background:#fff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
     <tr><td style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:24px;color:#fff">
-      <div style="font-size:13px;opacity:.9">IndustrialLink</div>
+      <div style="font-size:13px;opacity:.9">inlink</div>
       <div style="font-size:22px;font-weight:700;margin-top:6px">Cập nhật hồ sơ ứng tuyển</div>
     </td></tr>
     <tr><td style="padding:28px">
@@ -86,7 +86,7 @@ export function buildApplicationStatusChangedEmail(p: {
 
   return {
     to: p.candidateEmail,
-    subject: `[IndustrialLink] Cập nhật hồ sơ — ${p.jobTitle}`,
+    subject: `[inlink] Cập nhật hồ sơ — ${p.jobTitle}`,
     text,
     html,
   };

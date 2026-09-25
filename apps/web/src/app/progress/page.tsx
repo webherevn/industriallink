@@ -490,7 +490,7 @@ export default function ProgressPage() {
                 <NavItem href="/dashboard" label="Hồ sơ của tôi" icon={UserRound} />
                 <NavItem href="/upload" label="CV & Thư xin việc" icon={FileText} />
                 <NavItem href="/dashboard" label="Kỹ năng & Chứng chỉ" icon={BadgeCheck} />
-                <NavItem href="/jobs?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
+                <NavItem href="/viec-lam?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
               </nav>
 
               <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
@@ -543,12 +543,12 @@ export default function ProgressPage() {
                 <div>
                   <p className="text-sm font-bold text-slate-900">Bạn cần hỗ trợ?</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                    Đội ngũ IndustrialLink sẵn sàng hỗ trợ bạn theo dõi tiến trình ứng tuyển.
+                    Đội ngũ inlink sẵn sàng hỗ trợ bạn theo dõi tiến trình ứng tuyển.
                   </p>
                 </div>
               </div>
               <a
-                href="mailto:support@industriallink.vn"
+                href="mailto:support@inlink.vn"
                 className="progress-btn mt-3 w-full border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
               >
                 Liên hệ hỗ trợ
@@ -720,7 +720,7 @@ export default function ProgressPage() {
                   Ứng tuyển việc phù hợp để theo dõi tiến trình tại đây.
                 </p>
                 <Link
-                  href="/jobs"
+                  href="/viec-lam"
                   className="progress-btn mt-4 bg-brand-600 text-white hover:bg-brand-700"
                 >
                   Tìm việc làm

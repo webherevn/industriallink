@@ -209,9 +209,9 @@ function FieldLabel({
 }
 
 /**
- * D. Kinh nghiệm công ty (24–32) theo ma trận Kỹ thuật —
- * mỗi công ty một khối; công ty thứ 2 trở đi lặp lại 24–32.
- * Mục 30 (công việc kỹ thuật) và 31 (mức tự chủ) lưu chung ở cấp hồ sơ.
+ * D. Kinh nghiệm công ty (20–28) theo ma trận hoàn thành Kỹ thuật —
+ * mỗi công ty một khối; công ty thứ 2 trở đi lặp lại 20–28.
+ * Mục 26 (công việc kỹ thuật) và 27 (mức tự chủ) lưu chung ở cấp hồ sơ.
  */
 export function CvTechnicalExperienceFields({
   draft,
@@ -254,8 +254,8 @@ export function CvTechnicalExperienceFields({
 
   return (
     <MatrixSection
-      title="D. Kinh nghiệm công ty (24–32)"
-      subtitle="Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 24–32."
+      title="D. Kinh nghiệm công ty (20–28)"
+      subtitle="Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 20–28."
       extra={
         hint?.status === 'missing' ? (
           <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">
@@ -268,7 +268,7 @@ export function CvTechnicalExperienceFields({
         const parts = periodParts(exp.period);
         const companyTitle = exp.company.trim()
           ? `${exp.company}${exp.role.trim() ? ` · ${exp.role}` : ''}`
-          : 'Bấm để điền các mục 24–32';
+          : 'Bấm để điền các mục 20–28';
         return (
           <CollapsibleFormSection
             key={`exp-${index}`}
@@ -307,7 +307,7 @@ export function CvTechnicalExperienceFields({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-semibold text-slate-800">
-                  <NumberedTitle text="24. Tên công ty" />
+                  <NumberedTitle text="20. Tên công ty" />
                 </span>
                 <input
                   value={exp.company}
@@ -318,7 +318,7 @@ export function CvTechnicalExperienceFields({
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-slate-800">
-                  <NumberedTitle text="25. Vị trí" />
+                  <NumberedTitle text="21. Vị trí" />
                 </span>
                 <input
                   value={exp.role}
@@ -330,7 +330,7 @@ export function CvTechnicalExperienceFields({
             </div>
 
             <div>
-              <FieldLabel title="26. Thời gian làm việc" />
+              <FieldLabel title="22. Thời gian làm việc" />
               <MonthYearRangeFields
                 start={parts.start}
                 end={parts.end}
@@ -355,7 +355,7 @@ export function CvTechnicalExperienceFields({
 
             <div>
               <FieldLabel
-                title="27. Lĩnh vực đã làm"
+                title="23. Lĩnh vực đã làm"
                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
               />
               <MultiCheck
@@ -369,7 +369,7 @@ export function CvTechnicalExperienceFields({
 
             <div>
               <FieldLabel
-                title="28. Thiết bị / hệ thống đã làm"
+                title="24. Thiết bị / hệ thống đã làm"
                 description={EQUIPMENT_SYSTEM_QUESTION}
               />
               <MultiCheckWithCustom
@@ -383,7 +383,7 @@ export function CvTechnicalExperienceFields({
 
             <div>
               <FieldLabel
-                title="29. Môi trường làm việc thực tế"
+                title="25. Môi trường làm việc thực tế"
                 description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
               />
               <MultiCheckWithCustom
@@ -396,7 +396,7 @@ export function CvTechnicalExperienceFields({
 
             <div>
               <FieldLabel
-                title="30. Công việc kỹ thuật đã thực hiện"
+                title="26. Công việc kỹ thuật đã thực hiện"
                 description={TECHNICAL_WORK_TYPES_QUESTION}
               />
               <MultiCheck
@@ -418,7 +418,7 @@ export function CvTechnicalExperienceFields({
 
             <div>
               <FieldLabel
-                title="31. Mức độ tự chủ"
+                title="27. Mức độ tự chủ"
                 description={TECHNICAL_AUTONOMY_QUESTION}
               />
               <div className="space-y-1.5">
@@ -450,7 +450,7 @@ export function CvTechnicalExperienceFields({
 
             <div>
               <FieldLabel
-                title="32. Thành tích/dự án nổi bật"
+                title="28. Thành tích/dự án nổi bật"
                 description={TECHNICAL_HIGHLIGHTS_QUESTION}
               />
               <textarea
@@ -478,7 +478,7 @@ export function CvTechnicalExperienceFields({
         }}
         className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
       >
-        + Thêm công ty (lặp lại mục 24–32)
+        + Thêm công ty (lặp lại mục 20–28)
       </button>
     </MatrixSection>
   );

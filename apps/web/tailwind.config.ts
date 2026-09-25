@@ -1,8 +1,8 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Brand navy chính: #072348 (theo brand iLink).
- * Accent cam nhẹ: chấm cam trên logo iLink — dùng điểm nhấn, không thay navy.
+ * Brand navy chính: #072348 (theo brand inlink).
+ * Accent cam nhẹ: chấm cam trên logo inlink — dùng điểm nhấn, không thay navy.
  */
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
@@ -24,7 +24,7 @@ const config: Config = {
           800: '#04142a',
           900: '#020c1a',
         },
-        /** Cam phụ brand (logo iLink) */
+        /** Cam phụ brand (logo inlink) */
         accent: {
           50: '#FFF8F1',
           100: '#FFE9D4',

@@ -3,7 +3,14 @@ import type {
   CareerAdviceEngineInput,
   SalaryEstimateEngineInput,
 } from '../providers/career-salary.engine';
-import type { JobDraftInput, JobDraftResult, ParsedResume, ResumeParseInput } from './types';
+import type {
+  JobDraftInput,
+  JobDraftResult,
+  JobParseInput,
+  ParsedResume,
+  ResumeParseInput,
+} from './types';
+import type { ParsedSalesJobDraft, ParsedTechnicalJobDraft } from '@industriallink/contracts';
 
 /**
  * Hợp đồng cho mọi nhà cung cấp AI. Nghiệp vụ chỉ phụ thuộc interface này,
@@ -15,6 +22,8 @@ export interface AiProvider {
   parseResume(input: ResumeParseInput): Promise<ParsedResume>;
   /** Sinh / chuẩn hoá bản nháp tin tuyển dụng từ tiêu đề + gợi ý. */
   generateJobDraft(input: JobDraftInput): Promise<JobDraftResult>;
+  /** Đọc JD (file/text) → 22 trường Sales hoặc 23 trường Kỹ thuật; không suy diễn. */
+  parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft>;
   /** Career Engine: lộ trình thăng tiến theo taxonomy VN. */
   adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView>;
   /** Salary Engine: ước lương theo cấp bậc VN. */

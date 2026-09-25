@@ -325,7 +325,7 @@ export default function ApplicationsPage() {
                 <NavItem href="/dashboard" label="Hồ sơ của tôi" icon={UserRound} />
                 <NavItem href="/upload" label="CV & Thư xin việc" icon={FileText} />
                 <NavItem href="/dashboard" label="Kỹ năng & Chứng chỉ" icon={BadgeCheck} />
-                <NavItem href="/jobs?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
+                <NavItem href="/viec-lam?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
               </nav>
 
               <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
@@ -339,7 +339,7 @@ export default function ApplicationsPage() {
                   active
                 />
                 <NavItem href="/progress" label="Tiến trình" icon={Target} />
-                <NavItem href="/jobs?tab=applied" label="Việc đã ứng tuyển" icon={Send} />
+                <NavItem href="/viec-lam?tab=applied" label="Việc đã ứng tuyển" icon={Send} />
                 <NavItem href="/progress#interviews" label="Lịch phỏng vấn" icon={CalendarDays} />
                 <NavItem href="/progress#offers" label="Đề nghị làm việc" icon={Gift} />
               </nav>
@@ -383,7 +383,7 @@ export default function ApplicationsPage() {
                 </div>
               </div>
               <a
-                href="mailto:support@industriallink.vn"
+                href="mailto:support@inlink.vn"
                 className="progress-btn mt-3 w-full border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
               >
                 Liên hệ hỗ trợ
@@ -553,7 +553,7 @@ export default function ApplicationsPage() {
                 </p>
                 {apps.length === 0 && (
                   <Link
-                    href="/jobs"
+                    href="/viec-lam"
                     className="progress-btn mt-4 bg-brand-600 text-white hover:bg-brand-700"
                   >
                     Tìm việc làm
@@ -607,7 +607,7 @@ export default function ApplicationsPage() {
                 Xem gợi ý AI
               </Link>
               <Link
-                href="/jobs"
+                href="/viec-lam"
                 className="progress-btn w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               >
                 Tìm thêm việc

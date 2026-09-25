@@ -20,6 +20,36 @@ describe('MockAiProvider', () => {
     expect(parsed.careerPath).toMatch(/Trưởng nhóm|Trưởng phòng|Giám đốc/);
   });
 
+  it('parseJobDescription: chỉ lấy sản phẩm/khách hàng có trong JD', async () => {
+    const parsed = await provider.parseJobDescription({
+      fileName: 'jd-sales.pdf',
+      text: 'Tuyển Nhân viên kinh doanh bán Máy nén khí cho Nhà máy FDI, phụ trách Miền Bắc. Kinh nghiệm 1-3 năm.',
+    });
+    expect('productsSold' in parsed).toBe(true);
+    if (!('productsSold' in parsed)) return;
+    expect(parsed.productsSold).toContain('Máy nén khí');
+    expect(parsed.productsSold).not.toContain('Robot công nghiệp');
+    expect(parsed.customerSegments).toContain('Nhà máy FDI');
+    expect(parsed.marketsCovered).toContain('Miền Bắc');
+  });
+
+  it('parseJobDescription technical: chỉ lấy thiết bị/công việc có trong JD', async () => {
+    const parsed = await provider.parseJobDescription({
+      fileName: 'jd-tech.pdf',
+      track: 'technical',
+      text: 'Tuyển Kỹ sư tự động hóa / Điều khiển. Làm việc với Tự động hóa / Điều khiển tại Nhà máy / xưởng. Bảo trì / bảo dưỡng, Sửa chữa. Có thể tự xử lý công việc phức tạp. Hà Nội, 3-5 năm.',
+    });
+    expect('equipmentSystems' in parsed).toBe(true);
+    if (!('equipmentSystems' in parsed)) return;
+    expect(parsed.equipmentSystems).toContain('Tự động hóa / Điều khiển');
+    expect(parsed.equipmentSystems).not.toContain('HVAC / Điều hòa – thông gió');
+    expect(parsed.workEnvironments).toContain('Nhà máy / xưởng');
+    expect(parsed.technicalWorkTypes).toEqual(
+      expect.arrayContaining(['Bảo trì / bảo dưỡng', 'Sửa chữa']),
+    );
+    expect(parsed.autonomyLevel).toBe(4);
+  });
+
   it('sinh embedding đúng số chiều và đã chuẩn hoá', async () => {
     const embedding = await provider.embed('PLC Siemens SCADA HVAC');
     expect(embedding).toHaveLength(768);

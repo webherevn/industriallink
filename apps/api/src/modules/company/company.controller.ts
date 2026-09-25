@@ -20,6 +20,7 @@ import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { IdempotencyInterceptor } from '../../shared/common/idempotency.interceptor';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
+import { Public } from '../../shared/security/public.decorator';
 import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
@@ -124,13 +125,8 @@ export class CompanyController {
   }
 
   @Get(':id/logo')
-  @Roles(
-    UserRole.Candidate,
-    UserRole.Recruiter,
-    UserRole.HiringManager,
-    UserRole.CompanyAdmin,
-    UserRole.SuperAdmin,
-  )
+  @Public()
+  @Roles()
   @ApiOperation({ summary: 'Logo công ty (binary, công khai trong app)' })
   @Header('Cache-Control', 'private, max-age=300')
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
@@ -146,19 +142,15 @@ export class CompanyController {
   }
 
   @Get(':id/profile')
-  @Roles(
-    UserRole.Candidate,
-    UserRole.Recruiter,
-    UserRole.HiringManager,
-    UserRole.CompanyAdmin,
-    UserRole.SuperAdmin,
-  )
+  @Public()
+  @Roles()
   @ApiOperation({ summary: 'Hồ sơ công khai công ty (banner, việc làm, văn hóa…)' })
-  getPublicProfile(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  getPublicProfile(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
     return this.companies.getPublicProfile(id, user);
   }
 
   @Get(':id')
+  @Public()
   @Roles()
   @ApiOperation({ summary: 'Xem hồ sơ công ty theo id' })
   getById(@Param('id') id: string) {

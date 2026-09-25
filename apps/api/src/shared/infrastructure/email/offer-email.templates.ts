@@ -29,14 +29,14 @@ export function buildOfferLetterEmail(p: OfferLetterPayload): EmailMessage {
   const text = [
     `Xin chào ${p.candidateName},`,
     '',
-    `${p.companyName} trân trọng gửi đến bạn đề nghị tuyển dụng (Offer) trên IndustrialLink.`,
+    `${p.companyName} trân trọng gửi đến bạn đề nghị tuyển dụng (Offer) trên inlink.`,
     '',
     details,
     '',
     `Xem chi tiết hồ sơ: ${p.applicationsUrl}`,
     '',
     'Vui lòng phản hồi sớm. Trân trọng,',
-    'IndustrialLink',
+    'inlink',
   ].join('\n');
 
   const html = `<!DOCTYPE html>
@@ -47,7 +47,7 @@ export function buildOfferLetterEmail(p: OfferLetterPayload): EmailMessage {
       <table width="560" style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
         <tr>
           <td style="background:linear-gradient(135deg,#0F766E,#14B8A6);padding:24px 28px;color:#fff">
-            <div style="font-size:13px;opacity:.9">IndustrialLink</div>
+            <div style="font-size:13px;opacity:.9">inlink</div>
             <div style="font-size:22px;font-weight:700;margin-top:6px">Đề nghị tuyển dụng (Offer)</div>
           </td>
         </tr>
@@ -81,7 +81,7 @@ export function buildOfferLetterEmail(p: OfferLetterPayload): EmailMessage {
 
   return {
     to: p.candidateEmail,
-    subject: `[IndustrialLink] Offer — ${p.jobTitle} tại ${p.companyName}`,
+    subject: `[inlink] Offer — ${p.jobTitle} tại ${p.companyName}`,
     text,
     html,
   };
@@ -97,7 +97,7 @@ export function buildOfferUpdatedEmail(p: {
 }): EmailMessage {
   return {
     to: p.candidateEmail,
-    subject: `[IndustrialLink] Cập nhật Offer — ${p.jobTitle}`,
+    subject: `[inlink] Cập nhật Offer — ${p.jobTitle}`,
     text: `Xin chào ${p.candidateName},\n\nOffer cho «${p.jobTitle}» tại ${p.companyName} đã cập nhật: ${p.statusLabel}.\n\n${p.applicationsUrl}`,
     html: `<p>Xin chào <strong>${esc(p.candidateName)}</strong>,</p>
 <p>Offer «${esc(p.jobTitle)}» tại ${esc(p.companyName)}: <strong>${esc(p.statusLabel)}</strong>.</p>

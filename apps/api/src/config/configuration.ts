@@ -68,6 +68,10 @@ export interface AppConfig {
     provider: 'memory' | 'rabbitmq';
     rabbitmqUrl: string;
   };
+  seo: {
+    siteUrl: string;
+    indexingCredentialsJson?: string;
+  };
 }
 
 function required(name: string, value: string | undefined): string {
@@ -118,7 +122,7 @@ export default (): AppConfig => ({
   },
   email: {
     provider: (process.env.EMAIL_PROVIDER as AppConfig['email']['provider']) ?? 'mock',
-    from: process.env.EMAIL_FROM ?? 'IndustrialLink <noreply@industriallink.local>',
+    from: process.env.EMAIL_FROM ?? 'inlink <noreply@inlink.local>',
     webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
     smtp: {
       host: process.env.SMTP_HOST ?? 'localhost',
@@ -142,5 +146,9 @@ export default (): AppConfig => ({
   eventBus: {
     provider: (process.env.EVENT_BUS_PROVIDER as AppConfig['eventBus']['provider']) ?? 'rabbitmq',
     rabbitmqUrl: process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672',
+  },
+  seo: {
+    siteUrl: process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000',
+    indexingCredentialsJson: process.env.GOOGLE_INDEXING_CREDENTIALS_JSON || undefined,
   },
 });

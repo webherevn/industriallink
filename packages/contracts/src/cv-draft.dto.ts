@@ -3,16 +3,16 @@ export interface CvDraftExperienceView {
   role: string;
   company: string;
   period: string;
-  /** Thành tích nổi bật tại công ty (STT 34). */
+  /** Thành tích nổi bật tại công ty (STT 32 KD). */
   bullets: string;
-  /** STT 27 — mô tả/phạm vi công việc thực tế (tự nhập). */
+  /** STT 25 KD — mô tả/phạm vi công việc thực tế (tự nhập). */
   jobDescription?: string;
   industries: string[];
   productsSold: string[];
   customerSegments: string[];
   marketsCovered: string[];
   sellingStages: string[];
-  /** STT 28 KD — hãng/thương hiệu theo từng công ty, không gộp giữa các công ty. */
+  /** STT 26 KD — hãng/thương hiệu theo từng công ty, không gộp giữa các công ty. */
   brandsTechnologies: string[];
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
@@ -93,7 +93,7 @@ export interface CvDraftView {
   systemScaleNote: string | null;
   /** Làm ca / ngoài giờ: yes | limited | no. */
   shiftFlexibility: string | null;
-  /** STT 23 (KT): môi trường làm việc mong muốn (tối đa 3). */
+  /** Môi trường làm việc mong muốn KT — tham khảo, không tính điểm (tối đa 3). */
   desiredWorkEnvironments: string[];
   experience: CvDraftExperienceView[];
   education: { school: string; degree: string; period: string }[];
@@ -134,7 +134,7 @@ export interface SaveCvDraftToProfileResponse {
 }
 
 /**
- * Tách mô tả công việc (STT 27) khỏi thành tích (STT 34).
+ * Tách mô tả công việc (STT 25 KD) khỏi thành tích (STT 32 KD).
  * Bản lưu cũ từng ghi trùng hai cột — khi trùng thì chỉ giữ thành tích.
  */
 export function splitExperienceNarrative(

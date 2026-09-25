@@ -1,7 +1,8 @@
 # IndustrialLink
 
 > Nền tảng kết nối nguồn nhân lực công nghiệp tích hợp AI.
-> _Kết nối đúng người – Thúc đẩy công nghiệp._
+> Thương hiệu công khai: **inlink** — [inlink.vn](https://inlink.vn)
+> Slogan: _Kết nối nhân tài – Dẫn lối công nghiệp._
 
 Đây là **walking skeleton** (bộ khung chạy được thật) cho IndustrialLink, dựng theo kiến trúc chuẩn:
 **Modular Monolith + Domain-Driven Design + Clean Architecture + Event-Driven + AI Gateway + API-first + Multi-tenant**.
