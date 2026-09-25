@@ -1,4 +1,5 @@
 import {
+  cmsCategoryPublicPath,
   cmsPagePublicPath,
   cmsPostPublicPath,
   companyPublicPath,
@@ -8,7 +9,7 @@ import {
 } from '@industriallink/contracts';
 import type { MetadataRoute } from 'next';
 import { BRAND_SITE_URL } from '@/lib/brand';
-import { fetchPublishedCmsPosts } from '@/lib/public-cms-api';
+import { fetchPublicCmsCategories, fetchPublishedCmsPosts } from '@/lib/public-cms-api';
 import { fetchPublishedJobs } from '@/lib/public-job-api';
 
 /** Sitemap index chia nhỏ: main, jobs, blog, pages. */
@@ -23,9 +24,17 @@ export default async function sitemap(props: {
   const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || BRAND_SITE_URL;
 
   if (id === 'blog') {
-    const posts = await fetchPublishedCmsPosts({ type: CmsContentType.Post, limit: 500 });
+    const [posts, categories] = await Promise.all([
+      fetchPublishedCmsPosts({ type: CmsContentType.Post, limit: 200 }),
+      fetchPublicCmsCategories(),
+    ]);
     return [
       { url: `${base}/cam-nang`, changeFrequency: 'weekly', priority: 0.7 },
+      ...categories.map((c) => ({
+        url: `${base}${cmsCategoryPublicPath(c.slug)}`,
+        changeFrequency: 'weekly' as const,
+        priority: 0.6,
+      })),
       ...posts.map((post) => ({
         url: `${base}${cmsPostPublicPath(post.slug)}`,
         lastModified: post.publishedAt ? new Date(post.publishedAt) : new Date(post.updatedAt),

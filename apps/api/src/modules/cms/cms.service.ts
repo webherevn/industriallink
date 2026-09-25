@@ -21,6 +21,7 @@ import {
   type CmsPostView,
   type CmsRedirectView,
   type ListCmsPostsQuery,
+  type CmsPostListPage,
   type SaveCmsMenuRequest,
   type UpsertCmsAuthorProfileRequest,
   type UpsertCmsCategoryRequest,
@@ -164,20 +165,34 @@ export class CmsService {
     return rows.map((r) => this.mapPostList(r));
   }
 
-  async listPublished(query: ListCmsPostsQuery = {}): Promise<CmsPostListItem[]> {
-    const rows = await this.prisma.cmsPost.findMany({
-      where: {
-        isDeleted: false,
-        status: CmsContentStatus.Published,
-        type: query.type ?? CmsContentType.Post,
-        robotsIndex: true,
-        ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
-      },
-      include: { category: { select: { id: true, name: true, slug: true } } },
-      orderBy: [{ publishedAt: 'desc' }, { updatedAt: 'desc' }],
-      take: Math.min(query.limit ?? 50, 200),
-    });
-    return rows.map((r) => this.mapPostList(r));
+  async listPublished(query: ListCmsPostsQuery = {}): Promise<CmsPostListPage> {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(Math.max(query.limit ?? 12, 1), 200);
+    const where = {
+      isDeleted: false,
+      status: CmsContentStatus.Published,
+      type: query.type ?? CmsContentType.Post,
+      robotsIndex: true,
+      ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
+    };
+    const [total, rows] = await Promise.all([
+      this.prisma.cmsPost.count({ where }),
+      this.prisma.cmsPost.findMany({
+        where,
+        include: { category: { select: { id: true, name: true, slug: true } } },
+        orderBy: [{ publishedAt: 'desc' }, { updatedAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return {
+      items: rows.map((r) => this.mapPostList(r)),
+      total,
+      page,
+      pageSize,
+      totalPages,
+    };
   }
 
   async getPostAdmin(id: string): Promise<CmsPostView> {

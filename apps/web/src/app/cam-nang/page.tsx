@@ -1,35 +1,45 @@
-import { cmsPostPublicPath } from '@industriallink/contracts';
+import {
+  cmsCategoryPublicPath,
+  cmsPostPublicPath,
+} from '@industriallink/contracts';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
-import { fetchPublicCmsCategories, fetchPublishedCmsPosts } from '@/lib/public-cms-api';
+import { CmsBreadcrumb } from '@/components/cms-breadcrumb';
+import { BRAND_NAME } from '@/lib/brand';
+import { buildBreadcrumbJsonLd, formatCmsSeoTitle } from '@/lib/cms-seo';
+import { fetchPublicCmsCategories, fetchPublishedCmsPostsPage } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
+import { INDEX_ROBOTS } from '@/lib/seo-robots';
 
 export const revalidate = 60;
 
-export default async function CareerGuidePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string }>;
-}) {
-  const { category } = await searchParams;
-  const [posts, categories] = await Promise.all([
-    fetchPublishedCmsPosts({ category }),
+export const metadata: Metadata = {
+  title: { absolute: formatCmsSeoTitle('Cẩm nang nghề nghiệp') },
+  description: `Kiến thức, lộ trình và mẹo ứng tuyển cho nhân tài công nghiệp B2B trên ${BRAND_NAME}.`,
+  robots: INDEX_ROBOTS,
+  alternates: { canonical: '/cam-nang' },
+};
+
+export default async function CareerGuidePage() {
+  const [list, categories] = await Promise.all([
+    fetchPublishedCmsPostsPage({ page: 1, limit: 24 }),
     fetchPublicCmsCategories(),
   ]);
   const base = siteUrl();
+  const posts = list.items;
 
-  const breadcrumbLd = {
+  const breadcrumbLd = buildBreadcrumbJsonLd([
+    { name: 'Trang chủ', url: `${base}/` },
+    { name: 'Cẩm nang nghề nghiệp', url: `${base}/cam-nang` },
+  ]);
+
+  const collectionLd = {
     '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Trang chủ', item: `${base}/` },
-      {
-        '@type': 'ListItem',
-        position: 2,
-        name: 'Cẩm nang nghề nghiệp',
-        item: `${base}/cam-nang`,
-      },
-    ],
+    '@type': 'CollectionPage',
+    name: 'Cẩm nang nghề nghiệp',
+    url: `${base}/cam-nang`,
+    isPartOf: { '@type': 'WebSite', name: BRAND_NAME, url: base },
   };
 
   return (
@@ -38,8 +48,15 @@ export default async function CareerGuidePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }}
+      />
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-3xl font-bold text-slate-900">Cẩm nang nghề nghiệp</h1>
+        <CmsBreadcrumb
+          items={[{ name: 'Trang chủ', href: '/' }, { name: 'Cẩm nang nghề nghiệp' }]}
+        />
+        <h1 className="mt-4 text-3xl font-bold text-slate-900">Cẩm nang nghề nghiệp</h1>
         <p className="mt-2 text-sm text-slate-600">
           Kiến thức, lộ trình và mẹo ứng tuyển cho nhân tài công nghiệp B2B.
         </p>
@@ -48,23 +65,15 @@ export default async function CareerGuidePage({
           <div className="mt-6 flex flex-wrap gap-2">
             <Link
               href="/cam-nang"
-              className={
-                !category
-                  ? 'rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white'
-                  : 'rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600'
-              }
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
             >
               Tất cả
             </Link>
             {categories.map((c) => (
               <Link
                 key={c.id}
-                href={`/cam-nang?category=${encodeURIComponent(c.slug)}`}
-                className={
-                  category === c.slug
-                    ? 'rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white'
-                    : 'rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600'
-                }
+                href={cmsCategoryPublicPath(c.slug)}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200"
               >
                 {c.name}
               </Link>
@@ -89,7 +98,12 @@ export default async function CareerGuidePage({
                     <p className="mt-1 text-sm leading-relaxed text-slate-600">{post.excerpt}</p>
                   )}
                   <p className="mt-2 text-xs text-slate-400">
-                    {post.categoryName ? `${post.categoryName} · ` : ''}
+                    {post.categoryName ? (
+                      <>
+                        <span>{post.categoryName}</span>
+                        {' · '}
+                      </>
+                    ) : null}
                     {post.publishedAt
                       ? new Date(post.publishedAt).toLocaleDateString('vi-VN')
                       : ''}

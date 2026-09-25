@@ -138,6 +138,8 @@ export interface ListCmsPostsQuery {
   status?: CmsContentStatus;
   category?: string;
   limit?: number;
+  /** 1-based page (public list). */
+  page?: number;
 }
 
 export interface CmsRedirectView {
@@ -167,8 +169,27 @@ export function cmsPagePublicPath(slug: string): string {
   return `/trang/${slug}`;
 }
 
+/** URL danh mục cẩm nang (trang 1). */
+export function cmsCategoryPublicPath(slug: string): string {
+  return `/cam-nang/chuyen-muc/${slug}`;
+}
+
+/** URL danh mục phân trang: /cam-nang/chuyen-muc/{slug}/page/{n} */
+export function cmsCategoryPagePath(slug: string, page: number): string {
+  if (page <= 1) return cmsCategoryPublicPath(slug);
+  return `/cam-nang/chuyen-muc/${slug}/page/${page}`;
+}
+
 export function cmsContentPublicPath(type: CmsContentType, slug: string): string {
   return type === CmsContentType.Page ? cmsPagePublicPath(slug) : cmsPostPublicPath(slug);
+}
+
+export interface CmsPostListPage {
+  items: CmsPostListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export function buildCmsRobotsString(index: boolean, follow: boolean): string {

@@ -2,24 +2,21 @@ import { cmsPagePublicPath } from '@industriallink/contracts';
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
+import { CmsBreadcrumb } from '@/components/cms-breadcrumb';
+import { CmsTableOfContents } from '@/components/cms-toc';
 import { BRAND_NAME } from '@/lib/brand';
 import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
+import {
+  buildBreadcrumbJsonLd,
+  cmsRobotsMeta,
+  formatCmsSeoTitle,
+  prepareCmsBodyHtml,
+  stripHtml,
+} from '@/lib/cms-seo';
 import { fetchCmsRedirect, fetchPublishedCmsPage } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
 
 export const revalidate = 60;
-
-function robotsMeta(page: {
-  robotsIndex: boolean;
-  robotsFollow: boolean;
-  robotsMaxImagePreview: boolean;
-}): Metadata['robots'] {
-  return {
-    index: page.robotsIndex,
-    follow: page.robotsFollow,
-    'max-image-preview': page.robotsMaxImagePreview ? 'large' : 'standard',
-  } as Metadata['robots'];
-}
 
 export async function generateMetadata({
   params,
@@ -29,21 +26,28 @@ export async function generateMetadata({
   const { slug } = await params;
   const page = await fetchPublishedCmsPage(slug);
   if (!page) return { title: 'Không tìm thấy', robots: { index: false, follow: false } };
-  const title = page.seoTitle || page.title;
-  const description = page.seoDescription || page.excerpt || undefined;
+  const title = formatCmsSeoTitle(page.seoTitle || page.title);
+  const description = stripHtml(page.seoDescription || page.excerpt) || undefined;
   const path = page.canonicalPath || cmsPagePublicPath(page.slug);
   const canonical = path.startsWith('http') ? path : `${siteUrl()}${path}`;
   const ogImage = resolveCmsAssetUrl(page.ogImageUrl || page.coverImageUrl);
   return {
-    title: `${title} | ${BRAND_NAME}`,
+    title: { absolute: title },
     description,
-    robots: robotsMeta(page),
+    robots: cmsRobotsMeta(page),
     alternates: { canonical },
     openGraph: {
-      title: page.ogTitle || title,
-      description: page.ogDescription || description,
-      images: ogImage ? [ogImage] : undefined,
+      title: page.ogTitle || page.seoTitle || page.title,
+      description: stripHtml(page.ogDescription || page.seoDescription || page.excerpt) || undefined,
+      images: ogImage ? [{ url: ogImage, width: 1200, height: 630 }] : undefined,
       type: 'website',
+      url: canonical,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: page.ogTitle || page.seoTitle || page.title,
+      description: stripHtml(page.ogDescription || page.seoDescription || page.excerpt) || undefined,
+      images: ogImage ? [ogImage] : undefined,
     },
   };
 }
@@ -63,11 +67,17 @@ export default async function StaticCmsPage({
 
   const base = siteUrl();
   const url = `${base}${cmsPagePublicPath(page.slug)}`;
+  const rawHtml = absolutizeCmsHtml(page.bodyHtml);
+  const { html: bodyHtml, toc } = prepareCmsBodyHtml(rawHtml, {
+    siteOrigin: base,
+    firstImageEager: !page.coverImageUrl,
+  });
+
   const webPageLd = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: page.title,
-    description: page.seoDescription || page.excerpt || undefined,
+    description: stripHtml(page.seoDescription || page.excerpt) || undefined,
     url,
     dateModified: page.updatedAt,
     isPartOf: { '@type': 'WebSite', name: BRAND_NAME, url: base },
@@ -87,10 +97,15 @@ export default async function StaticCmsPage({
           mainEntity: page.faq.map((f) => ({
             '@type': 'Question',
             name: f.question,
-            acceptedAnswer: { '@type': 'Answer', text: f.answer },
+            acceptedAnswer: { '@type': 'Answer', text: stripHtml(f.answer) },
           })),
         }
       : null;
+
+  const breadcrumbLd = buildBreadcrumbJsonLd([
+    { name: 'Trang chủ', url: `${base}/` },
+    { name: page.title, url },
+  ]);
 
   return (
     <AppShell allowGuest>
@@ -104,8 +119,15 @@ export default async function StaticCmsPage({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
         />
       )}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
       <article className="mx-auto max-w-3xl">
-        <h1 className="text-3xl font-bold text-slate-900">{page.title}</h1>
+        <CmsBreadcrumb
+          items={[{ name: 'Trang chủ', href: '/' }, { name: page.title }]}
+        />
+        <h1 className="mt-4 text-3xl font-bold text-slate-900">{page.title}</h1>
         {page.excerpt && (
           <p className="mt-3 text-base leading-relaxed text-slate-600">{page.excerpt}</p>
         )}
@@ -114,12 +136,21 @@ export default async function StaticCmsPage({
           <img
             src={resolveCmsAssetUrl(page.coverImageUrl) || page.coverImageUrl}
             alt={page.title}
-            className="mt-6 w-full rounded-xl object-cover"
+            width={1200}
+            height={630}
+            loading="eager"
+            decoding="async"
+            className="mt-6 h-auto w-full rounded-xl object-cover"
           />
+        )}
+        {toc.length >= 2 && (
+          <div className="mt-8">
+            <CmsTableOfContents items={toc} />
+          </div>
         )}
         <div
           className="prose prose-slate mt-8 max-w-none"
-          dangerouslySetInnerHTML={{ __html: absolutizeCmsHtml(page.bodyHtml) }}
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />
         {page.faq.length > 0 && (
           <section className="mt-10 border-t border-slate-200 pt-8">

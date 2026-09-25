@@ -1,26 +1,23 @@
-import { cmsPostPublicPath } from '@industriallink/contracts';
+import { cmsCategoryPublicPath, cmsPostPublicPath } from '@industriallink/contracts';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
+import { CmsBreadcrumb } from '@/components/cms-breadcrumb';
+import { CmsTableOfContents } from '@/components/cms-toc';
 import { BRAND_NAME } from '@/lib/brand';
 import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
+import {
+  buildBreadcrumbJsonLd,
+  cmsRobotsMeta,
+  formatCmsSeoTitle,
+  prepareCmsBodyHtml,
+  stripHtml,
+} from '@/lib/cms-seo';
 import { fetchCmsRedirect, fetchPublishedCmsPost } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
 
 export const revalidate = 60;
-
-function robotsMeta(post: {
-  robotsIndex: boolean;
-  robotsFollow: boolean;
-  robotsMaxImagePreview: boolean;
-}): Metadata['robots'] {
-  return {
-    index: post.robotsIndex,
-    follow: post.robotsFollow,
-    'max-image-preview': post.robotsMaxImagePreview ? 'large' : 'standard',
-  } as Metadata['robots'];
-}
 
 export async function generateMetadata({
   params,
@@ -30,21 +27,28 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = await fetchPublishedCmsPost(slug);
   if (!post) return { title: 'Không tìm thấy', robots: { index: false, follow: false } };
-  const title = post.seoTitle || post.title;
-  const description = post.seoDescription || post.excerpt || undefined;
+  const title = formatCmsSeoTitle(post.seoTitle || post.title);
+  const description = stripHtml(post.seoDescription || post.excerpt) || undefined;
   const path = post.canonicalPath || cmsPostPublicPath(post.slug);
   const canonical = path.startsWith('http') ? path : `${siteUrl()}${path}`;
   const ogImage = resolveCmsAssetUrl(post.ogImageUrl || post.coverImageUrl);
   return {
-    title: `${title} | ${BRAND_NAME}`,
+    title: { absolute: title },
     description,
-    robots: robotsMeta(post),
+    robots: cmsRobotsMeta(post),
     alternates: { canonical },
     openGraph: {
-      title: post.ogTitle || title,
-      description: post.ogDescription || description,
-      images: ogImage ? [ogImage] : undefined,
+      title: post.ogTitle || post.seoTitle || post.title,
+      description: stripHtml(post.ogDescription || post.seoDescription || post.excerpt) || undefined,
+      images: ogImage ? [{ url: ogImage, width: 1200, height: 630 }] : undefined,
       type: 'article',
+      url: canonical,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.ogTitle || post.seoTitle || post.title,
+      description: stripHtml(post.ogDescription || post.seoDescription || post.excerpt) || undefined,
+      images: ogImage ? [ogImage] : undefined,
     },
   };
 }
@@ -73,11 +77,18 @@ export default async function CareerGuideArticlePage({
     post.authorSocial?.twitter,
     post.authorSocial?.youtube,
   ].filter((u): u is string => Boolean(u));
+
+  const rawHtml = absolutizeCmsHtml(post.bodyHtml);
+  const { html: bodyHtml, toc } = prepareCmsBodyHtml(rawHtml, {
+    siteOrigin: base,
+    firstImageEager: !post.coverImageUrl,
+  });
+
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: post.title,
-    description: post.seoDescription || post.excerpt || undefined,
+    description: stripHtml(post.seoDescription || post.excerpt) || undefined,
     datePublished: post.publishedAt || post.createdAt,
     dateModified: post.updatedAt,
     mainEntityOfPage: url,
@@ -93,6 +104,7 @@ export default async function CareerGuideArticlePage({
     },
     publisher: { '@type': 'Organization', name: BRAND_NAME, url: base },
   };
+
   const faqLd =
     post.faq.length > 0
       ? {
@@ -101,19 +113,33 @@ export default async function CareerGuideArticlePage({
           mainEntity: post.faq.map((f) => ({
             '@type': 'Question',
             name: f.question,
-            acceptedAnswer: { '@type': 'Answer', text: f.answer },
+            acceptedAnswer: { '@type': 'Answer', text: stripHtml(f.answer) },
           })),
         }
       : null;
-  const breadcrumbLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Trang chủ', item: `${base}/` },
-      { '@type': 'ListItem', position: 2, name: 'Cẩm nang', item: `${base}/cam-nang` },
-      { '@type': 'ListItem', position: 3, name: post.title, item: url },
-    ],
-  };
+
+  const crumbUrls: Array<{ name: string; url: string }> = [
+    { name: 'Trang chủ', url: `${base}/` },
+    { name: 'Cẩm nang', url: `${base}/cam-nang` },
+  ];
+  if (post.categorySlug && post.categoryName) {
+    crumbUrls.push({
+      name: post.categoryName,
+      url: `${base}${cmsCategoryPublicPath(post.categorySlug)}`,
+    });
+  }
+  crumbUrls.push({ name: post.title, url });
+
+  const breadcrumbLd = buildBreadcrumbJsonLd(crumbUrls);
+
+  const breadcrumbUi = [
+    { name: 'Trang chủ', href: '/' },
+    { name: 'Cẩm nang', href: '/cam-nang' },
+    ...(post.categorySlug && post.categoryName
+      ? [{ name: post.categoryName, href: cmsCategoryPublicPath(post.categorySlug) }]
+      : []),
+    { name: post.title },
+  ];
 
   return (
     <AppShell allowGuest>
@@ -132,9 +158,7 @@ export default async function CareerGuideArticlePage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
       <article className="mx-auto max-w-3xl">
-        <Link href="/cam-nang" className="text-sm font-semibold text-brand-600">
-          ← Cẩm nang nghề nghiệp
-        </Link>
+        <CmsBreadcrumb items={breadcrumbUi} />
         <h1 className="mt-4 text-3xl font-bold text-slate-900">{post.title}</h1>
         <p className="mt-2 text-xs text-slate-400">
           {authorName}
@@ -152,12 +176,21 @@ export default async function CareerGuideArticlePage({
           <img
             src={resolveCmsAssetUrl(post.coverImageUrl) || post.coverImageUrl}
             alt={post.title}
-            className="mt-6 w-full rounded-xl object-cover"
+            width={1200}
+            height={630}
+            loading="eager"
+            decoding="async"
+            className="mt-6 h-auto w-full rounded-xl object-cover"
           />
+        )}
+        {toc.length >= 2 && (
+          <div className="mt-8">
+            <CmsTableOfContents items={toc} />
+          </div>
         )}
         <div
           className="prose prose-slate mt-8 max-w-none"
-          dangerouslySetInnerHTML={{ __html: absolutizeCmsHtml(post.bodyHtml) }}
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />
 
         {(post.authorName || post.authorBio || authorAvatar) && (
@@ -167,6 +200,9 @@ export default async function CareerGuideArticlePage({
               <img
                 src={authorAvatar}
                 alt={authorName}
+                width={64}
+                height={64}
+                loading="lazy"
                 className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover"
               />
             ) : (
@@ -189,35 +225,55 @@ export default async function CareerGuideArticlePage({
                 <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-brand-600">
                   {post.authorSocial?.website && (
                     <li>
-                      <a href={post.authorSocial.website} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={post.authorSocial.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         Website
                       </a>
                     </li>
                   )}
                   {post.authorSocial?.linkedin && (
                     <li>
-                      <a href={post.authorSocial.linkedin} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={post.authorSocial.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         LinkedIn
                       </a>
                     </li>
                   )}
                   {post.authorSocial?.facebook && (
                     <li>
-                      <a href={post.authorSocial.facebook} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={post.authorSocial.facebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         Facebook
                       </a>
                     </li>
                   )}
                   {post.authorSocial?.twitter && (
                     <li>
-                      <a href={post.authorSocial.twitter} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={post.authorSocial.twitter}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         X
                       </a>
                     </li>
                   )}
                   {post.authorSocial?.youtube && (
                     <li>
-                      <a href={post.authorSocial.youtube} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={post.authorSocial.youtube}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         YouTube
                       </a>
                     </li>
@@ -241,6 +297,12 @@ export default async function CareerGuideArticlePage({
             </dl>
           </section>
         )}
+
+        <p className="mt-10 text-sm">
+          <Link href="/cam-nang" className="font-semibold text-brand-600 hover:text-brand-700">
+            ← Xem thêm bài cẩm nang
+          </Link>
+        </p>
       </article>
     </AppShell>
   );

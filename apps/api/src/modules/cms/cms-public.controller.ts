@@ -18,16 +18,18 @@ export class CmsPublicController {
 
   @Public()
   @Get('posts')
-  @ApiOperation({ summary: 'Bài viết / trang đã xuất bản' })
+  @ApiOperation({ summary: 'Bài viết / trang đã xuất bản (phân trang)' })
   listPosts(
     @Query('type') type?: CmsContentType,
     @Query('category') category?: string,
     @Query('limit') limit?: string,
+    @Query('page') page?: string,
   ) {
     return this.cms.listPublished({
       type: type ?? CmsContentType.Post,
       category,
       limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : 1,
     });
   }
 
