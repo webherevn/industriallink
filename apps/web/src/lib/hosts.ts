@@ -33,7 +33,17 @@ export function recruiterSiteUrl(): string {
 }
 
 export function adminSiteUrl(): string {
-  return (process.env.NEXT_PUBLIC_ADMIN_SITE_URL || BRAND_ADMIN_SITE_URL).replace(/\/$/, '');
+  const raw = (process.env.NEXT_PUBLIC_ADMIN_SITE_URL || BRAND_ADMIN_SITE_URL).replace(/\/$/, '');
+  // Tránh bake nhầm admin → tuyendung (gây login SuperAdmin nhảy sang NTD)
+  try {
+    const host = new URL(raw).hostname;
+    if (host === BRAND_RECRUITER_HOST || host.startsWith('tuyendung.')) {
+      return BRAND_ADMIN_SITE_URL;
+    }
+  } catch {
+    return BRAND_ADMIN_SITE_URL;
+  }
+  return raw || BRAND_ADMIN_SITE_URL;
 }
 
 export function isRecruiterHostname(hostname = currentHostname()): boolean {
