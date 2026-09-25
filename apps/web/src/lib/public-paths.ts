@@ -29,7 +29,14 @@ export function siteUrl(): string {
 
 export function apiPublicBase(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (fromEnv) return `${fromEnv}/api/v1`;
+  if (fromEnv) {
+    return fromEnv.endsWith('/api/v1') ? fromEnv : `${fromEnv}/api/v1`;
+  }
+  // Production: nginx proxy cùng domain (tránh OG/meta ra localhost khi SSR)
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
+  if (site && !/localhost|127\.0\.0\.1/i.test(site)) {
+    return `${site}/api/v1`;
+  }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}/api/v1`;
   return 'http://localhost:3001/api/v1';
 }
