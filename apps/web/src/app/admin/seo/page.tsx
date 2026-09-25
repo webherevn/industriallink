@@ -503,7 +503,7 @@ function TechLinks({ data }: { data: CmsSeoOverview }) {
   );
 }
 
-export function AdminSeoOverviewPage() {
+export default function AdminSeoOverviewPage() {
   const [filter, setFilter] = useState<SeverityFilter>('all');
   const { data, isLoading, isFetching, refetch, isError, error } = useQuery({
     queryKey: ['admin-cms-overview'],
@@ -570,5 +570,3 @@ export function AdminSeoOverviewPage() {
     </AdminShell>
   );
 }
-
-export default AdminSeoOverviewPage;
