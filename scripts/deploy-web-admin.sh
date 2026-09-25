@@ -13,6 +13,13 @@ git fetch origin
 git reset --hard origin/main
 echo "GIT=$(git log -1 --oneline)"
 
+# Source phải có marker
+if ! grep -q 'admin-login-v3' apps/web/src/app/login/page.tsx; then
+  echo "FAIL: source thiếu admin-login-v3"
+  exit 1
+fi
+echo "OK: source có admin-login-v3"
+
 mkdir -p apps/web
 cat > apps/web/.env.production << 'EOF'
 NEXT_PUBLIC_SITE_URL=https://inlink.vn
@@ -27,27 +34,31 @@ grep -q '^WEB_ORIGIN=' .env 2>/dev/null || echo 'WEB_ORIGIN=https://inlink.vn' >
 grep -q '^AUTH_COOKIE_DOMAIN=' .env 2>/dev/null || echo 'AUTH_COOKIE_DOMAIN=.inlink.vn' >> .env
 
 rm -rf apps/web/.next
-pnpm --filter web build
 
-if ! grep -R "admin-login-v3\|admin.inlink.vn" apps/web/.next --include='*.js' | head -3; then
-  echo "FAIL: bundle thiếu admin marker — dừng lại"
+# ĐÚNG tên package — "web" không khớp @industriallink/web
+echo "Building @industriallink/web ..."
+pnpm --filter @industriallink/web build
+
+if [ ! -d apps/web/.next ]; then
+  echo "FAIL: không có apps/web/.next sau build"
   exit 1
 fi
-echo "OK: bundle có admin marker"
+
+if ! grep -R "admin-login-v3" apps/web/.next --include='*.js' --include='*.html' --include='*.rsc' -l | head -5; then
+  echo "FAIL: bundle thiếu admin-login-v3"
+  exit 1
+fi
+echo "OK: bundle có admin-login-v3"
 
 chown -R www:www apps/web/.next 2>/dev/null || true
 
-# Restart Next trên :3000
+# Chỉ restart PM2 — KHÔNG pkill (tránh giết process vừa start)
 if command -v pm2 >/dev/null 2>&1; then
-  pm2 restart inlink-web 2>/dev/null || pm2 restart all || true
+  pm2 describe inlink-web >/dev/null 2>&1 && pm2 restart inlink-web || pm2 restart all || true
+  sleep 2
   pm2 list || true
+  pm2 show inlink-web 2>/dev/null | sed -n '1,40p' || true
 fi
 
-# Kill stale next nếu cần (aaPanel sẽ tự start lại)
-pkill -f "next start -p 3000" 2>/dev/null || true
-sleep 1
-
-echo "LIVE chunk:"
-curl -s https://admin.inlink.vn/login | grep -oE 'login/page-[a-f0-9]+\.js' | head -1 || true
-echo "Expect HTML chứa admin-login-v3 sau khi process mới lên:"
-curl -s https://admin.inlink.vn/login | grep -o 'admin-login-v3' | head -1 || echo "(chưa thấy — Restart Node project web trên aaPanel rồi curl lại)"
+echo "LIVE check:"
+curl -s https://admin.inlink.vn/login | grep -o 'admin-login-v3' | head -1 || echo "CHƯA thấy marker trên live — xem pm2 cwd có phải $ROOT không"

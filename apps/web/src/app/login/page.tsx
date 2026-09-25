@@ -133,6 +133,10 @@ export default function LoginPage() {
                 admin-login-v3
               </p>
             )}
+            {/* Marker luôn có trong HTML/SSR để curl | grep kiểm tra deploy */}
+            <span hidden data-il-build="admin-login-v3">
+              admin-login-v3
+            </span>
             {verified && (
               <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
                 Xác thực thành công! Vui lòng đăng nhập.
