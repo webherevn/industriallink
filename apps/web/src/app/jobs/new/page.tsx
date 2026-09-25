@@ -41,7 +41,6 @@ export default function NewJobPage() {
     data: company,
     isLoading: companyLoading,
     isError,
-    error,
     isFetched,
   } = useQuery({
     // Gắn userId — tránh dùng nhầm cache company của tài khoản trước
