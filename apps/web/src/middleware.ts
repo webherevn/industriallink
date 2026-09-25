@@ -11,13 +11,22 @@ function hostnameOf(req: NextRequest): string {
   return req.headers.get('host')?.split(':')[0]?.toLowerCase() ?? '';
 }
 
-export function middleware(req: NextRequest) {
+function nextWithRequestHeaders(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-pathname', req.nextUrl.pathname);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  const pathname = req.nextUrl.pathname;
+  // Tránh trình duyệt giữ HTML cũ của listing blog (từng bị ISR STALE).
+  if (pathname === '/cam-nang' || pathname.startsWith('/cam-nang/')) {
+    res.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
+  }
+  return res;
+}
 
+export function middleware(req: NextRequest) {
   const host = hostnameOf(req);
   if (host === 'localhost' || host === '127.0.0.1') {
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return nextWithRequestHeaders(req);
   }
 
   const { pathname, search } = req.nextUrl;
@@ -39,7 +48,7 @@ export function middleware(req: NextRequest) {
       dest.pathname = '/admin';
       return NextResponse.redirect(dest);
     }
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return nextWithRequestHeaders(req);
   }
 
   if (isRecruiterHost) {
@@ -54,7 +63,7 @@ export function middleware(req: NextRequest) {
     if (isCandidatePublicPath(pathname)) {
       return NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`);
     }
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return nextWithRequestHeaders(req);
   }
 
   if (isPublicHost) {
@@ -66,7 +75,7 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return nextWithRequestHeaders(req);
 }
 
 export const config = {
