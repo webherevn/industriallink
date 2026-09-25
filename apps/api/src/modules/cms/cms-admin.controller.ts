@@ -20,6 +20,7 @@ import { CmsService } from './cms.service';
 import { UpdateCmsPostStatusDto } from './dto/update-cms-post-status.dto';
 import { UpsertCmsCategoryDto } from './dto/upsert-cms-category.dto';
 import { UpsertCmsPostDto } from './dto/upsert-cms-post.dto';
+import { UpsertCmsRedirectDto } from './dto/upsert-cms-redirect.dto';
 
 @ApiTags('Admin CMS')
 @ApiBearerAuth()
@@ -109,5 +110,23 @@ export class CmsAdminController {
   @ApiOperation({ summary: 'Xoá mềm post/page' })
   deletePost(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.cms.deletePost(user, id);
+  }
+
+  @Get('redirects')
+  @ApiOperation({ summary: 'Danh sách redirect 301' })
+  listRedirects() {
+    return this.cms.listRedirects();
+  }
+
+  @Post('redirects')
+  @ApiOperation({ summary: 'Tạo/cập nhật redirect' })
+  upsertRedirect(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpsertCmsRedirectDto) {
+    return this.cms.upsertRedirect(user, dto);
+  }
+
+  @Delete('redirects/:id')
+  @ApiOperation({ summary: 'Xoá redirect' })
+  deleteRedirect(@Param('id') id: string) {
+    return this.cms.deleteRedirect(id);
   }
 }

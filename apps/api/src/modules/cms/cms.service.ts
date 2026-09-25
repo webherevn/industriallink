@@ -6,18 +6,25 @@ import {
 import {
   CmsContentStatus,
   CmsContentType,
+  buildCmsRobotsString,
+  cmsContentPublicPath,
   nextUniqueSlug,
   toSeoSlug,
   type CmsCategoryView,
+  type CmsFaqItem,
   type CmsPostListItem,
   type CmsPostView,
+  type CmsRedirectView,
   type ListCmsPostsQuery,
   type UpsertCmsCategoryRequest,
   type UpsertCmsPostRequest,
+  type UpsertCmsRedirectRequest,
 } from '@industriallink/contracts';
-import type { CmsCategory, CmsPost } from '@prisma/client';
+import type { CmsCategory, CmsPost, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
+import { sanitizeCmsHtml } from './sanitize-cms-html';
 
 type PostWithCategory = CmsPost & {
   category: { id: string; name: string; slug: string } | null;
@@ -25,7 +32,10 @@ type PostWithCategory = CmsPost & {
 
 @Injectable()
 export class CmsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly indexing: GoogleIndexingService,
+  ) {}
 
   // ---- Categories ----
 
@@ -35,13 +45,6 @@ export class CmsService {
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
     return rows.map((r) => this.mapCategory(r));
-  }
-
-  async getCategoryBySlug(slug: string): Promise<CmsCategoryView | null> {
-    const row = await this.prisma.cmsCategory.findFirst({
-      where: { slug, isDeleted: false },
-    });
-    return row ? this.mapCategory(row) : null;
   }
 
   async createCategory(
@@ -144,9 +147,7 @@ export class CmsService {
         isDeleted: false,
         ...(query.type ? { type: query.type } : {}),
         ...(query.status ? { status: query.status } : {}),
-        ...(query.category
-          ? { category: { slug: query.category, isDeleted: false } }
-          : {}),
+        ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
       orderBy: [{ updatedAt: 'desc' }],
@@ -161,13 +162,12 @@ export class CmsService {
         isDeleted: false,
         status: CmsContentStatus.Published,
         type: query.type ?? CmsContentType.Post,
-        ...(query.category
-          ? { category: { slug: query.category, isDeleted: false } }
-          : {}),
+        robotsIndex: true,
+        ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
       orderBy: [{ publishedAt: 'desc' }, { updatedAt: 'desc' }],
-      take: Math.min(query.limit ?? 50, 100),
+      take: Math.min(query.limit ?? 50, 200),
     });
     return rows.map((r) => this.mapPostList(r));
   }
@@ -200,28 +200,44 @@ export class CmsService {
     const base = toSeoSlug(input.slug || input.title);
     const slug = await this.uniquePostSlug(type, base);
     const publish = Boolean(input.publish);
+    const robots = this.resolveRobots(input);
     const row = await this.prisma.cmsPost.create({
       data: {
         type,
         title: input.title.trim(),
         slug,
         excerpt: input.excerpt ?? null,
-        bodyHtml: input.bodyHtml ?? '',
+        bodyHtml: sanitizeCmsHtml(input.bodyHtml ?? ''),
         status: publish ? CmsContentStatus.Published : CmsContentStatus.Draft,
         publishedAt: publish ? new Date() : null,
         categoryId: type === CmsContentType.Page ? null : (input.categoryId ?? null),
         authorId: user.id,
+        authorName: input.authorName ?? user.displayName,
+        authorTitle: input.authorTitle ?? null,
+        authorBio: input.authorBio ?? null,
         coverImageUrl: input.coverImageUrl ?? null,
         seoTitle: input.seoTitle ?? null,
         seoDescription: input.seoDescription ?? null,
         canonicalPath: input.canonicalPath ?? null,
+        ogTitle: input.ogTitle ?? null,
+        ogDescription: input.ogDescription ?? null,
         ogImageUrl: input.ogImageUrl ?? null,
-        robots: input.robots?.trim() || 'index,follow',
+        robotsIndex: robots.index,
+        robotsFollow: robots.follow,
+        robotsMaxImagePreview: input.robotsMaxImagePreview ?? true,
+        robots: buildCmsRobotsString(robots.index, robots.follow),
+        faqJson: this.normalizeFaq(input.faq) as unknown as Prisma.InputJsonValue,
         createdBy: user.id,
         updatedBy: user.id,
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
+    if (publish && robots.index) {
+      void this.indexing.publish(
+        this.absolutePublicUrl(type, slug),
+        'URL_UPDATED',
+      );
+    }
     return this.mapPost(row);
   }
 
@@ -244,6 +260,17 @@ export class CmsService {
       }
     }
 
+    if (slug !== existing.slug) {
+      const fromPath = cmsContentPublicPath(existing.type as CmsContentType, existing.slug);
+      const toPath = cmsContentPublicPath(type, slug);
+      await this.upsertRedirectRecord(user, {
+        fromPath,
+        toPath,
+        statusCode: 301,
+        note: `Đổi slug ${existing.type}`,
+      });
+    }
+
     let status = existing.status;
     let publishedAt = existing.publishedAt;
     if (input.publish === true) {
@@ -253,6 +280,8 @@ export class CmsService {
       status = CmsContentStatus.Draft;
     }
 
+    const robots = this.resolveRobots(input, existing);
+
     const row = await this.prisma.cmsPost.update({
       where: { id },
       data: {
@@ -260,7 +289,10 @@ export class CmsService {
         title: input.title?.trim() ?? existing.title,
         slug,
         excerpt: input.excerpt !== undefined ? input.excerpt : existing.excerpt,
-        bodyHtml: input.bodyHtml !== undefined ? input.bodyHtml : existing.bodyHtml,
+        bodyHtml:
+          input.bodyHtml !== undefined
+            ? sanitizeCmsHtml(input.bodyHtml)
+            : existing.bodyHtml,
         status,
         publishedAt,
         categoryId:
@@ -271,18 +303,47 @@ export class CmsService {
               : existing.categoryId,
         coverImageUrl:
           input.coverImageUrl !== undefined ? input.coverImageUrl : existing.coverImageUrl,
+        authorName: input.authorName !== undefined ? input.authorName : existing.authorName,
+        authorTitle: input.authorTitle !== undefined ? input.authorTitle : existing.authorTitle,
+        authorBio: input.authorBio !== undefined ? input.authorBio : existing.authorBio,
         seoTitle: input.seoTitle !== undefined ? input.seoTitle : existing.seoTitle,
         seoDescription:
           input.seoDescription !== undefined ? input.seoDescription : existing.seoDescription,
         canonicalPath:
           input.canonicalPath !== undefined ? input.canonicalPath : existing.canonicalPath,
+        ogTitle: input.ogTitle !== undefined ? input.ogTitle : existing.ogTitle,
+        ogDescription:
+          input.ogDescription !== undefined ? input.ogDescription : existing.ogDescription,
         ogImageUrl: input.ogImageUrl !== undefined ? input.ogImageUrl : existing.ogImageUrl,
-        robots: input.robots?.trim() || existing.robots,
+        robotsIndex: robots.index,
+        robotsFollow: robots.follow,
+        robotsMaxImagePreview:
+          input.robotsMaxImagePreview !== undefined
+            ? input.robotsMaxImagePreview
+            : existing.robotsMaxImagePreview,
+        robots: buildCmsRobotsString(robots.index, robots.follow),
+        faqJson:
+          input.faq !== undefined
+            ? (this.normalizeFaq(input.faq) as unknown as Prisma.InputJsonValue)
+            : undefined,
         updatedBy: user.id,
         version: { increment: 1 },
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
+
+    const wasPublished = existing.status === CmsContentStatus.Published;
+    const isPublished = status === CmsContentStatus.Published;
+    const publicUrl = this.absolutePublicUrl(type, slug);
+    if (isPublished && robots.index) {
+      void this.indexing.publish(publicUrl, 'URL_UPDATED');
+    } else if (wasPublished && (!isPublished || !robots.index)) {
+      void this.indexing.publish(
+        this.absolutePublicUrl(existing.type as CmsContentType, existing.slug),
+        'URL_DELETED',
+      );
+    }
+
     return this.mapPost(row);
   }
 
@@ -308,6 +369,12 @@ export class CmsService {
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
+    const url = this.absolutePublicUrl(row.type as CmsContentType, row.slug);
+    if (status === CmsContentStatus.Published && row.robotsIndex) {
+      void this.indexing.publish(url, 'URL_UPDATED');
+    } else if (existing.status === CmsContentStatus.Published) {
+      void this.indexing.publish(url, 'URL_DELETED');
+    }
     return this.mapPost(row);
   }
 
@@ -326,6 +393,12 @@ export class CmsService {
         version: { increment: 1 },
       },
     });
+    if (existing.status === CmsContentStatus.Published) {
+      void this.indexing.publish(
+        this.absolutePublicUrl(existing.type as CmsContentType, existing.slug),
+        'URL_DELETED',
+      );
+    }
     return { message: 'Đã xoá nội dung' };
   }
 
@@ -336,41 +409,178 @@ export class CmsService {
     publishedPosts: number;
     publishedPages: number;
     drafts: number;
+    redirects: number;
   }> {
-    const [categories, posts, pages, publishedPosts, publishedPages, drafts] = await Promise.all([
-      this.prisma.cmsCategory.count({ where: { isDeleted: false } }),
-      this.prisma.cmsPost.count({
-        where: { isDeleted: false, type: CmsContentType.Post },
-      }),
-      this.prisma.cmsPost.count({
-        where: { isDeleted: false, type: CmsContentType.Page },
-      }),
-      this.prisma.cmsPost.count({
-        where: {
-          isDeleted: false,
-          type: CmsContentType.Post,
-          status: CmsContentStatus.Published,
-        },
-      }),
-      this.prisma.cmsPost.count({
-        where: {
-          isDeleted: false,
-          type: CmsContentType.Page,
-          status: CmsContentStatus.Published,
-        },
-      }),
-      this.prisma.cmsPost.count({
-        where: { isDeleted: false, status: CmsContentStatus.Draft },
-      }),
-    ]);
-    return { categories, posts, pages, publishedPosts, publishedPages, drafts };
+    const [categories, posts, pages, publishedPosts, publishedPages, drafts, redirects] =
+      await Promise.all([
+        this.prisma.cmsCategory.count({ where: { isDeleted: false } }),
+        this.prisma.cmsPost.count({ where: { isDeleted: false, type: CmsContentType.Post } }),
+        this.prisma.cmsPost.count({ where: { isDeleted: false, type: CmsContentType.Page } }),
+        this.prisma.cmsPost.count({
+          where: {
+            isDeleted: false,
+            type: CmsContentType.Post,
+            status: CmsContentStatus.Published,
+          },
+        }),
+        this.prisma.cmsPost.count({
+          where: {
+            isDeleted: false,
+            type: CmsContentType.Page,
+            status: CmsContentStatus.Published,
+          },
+        }),
+        this.prisma.cmsPost.count({
+          where: { isDeleted: false, status: CmsContentStatus.Draft },
+        }),
+        this.prisma.cmsRedirect.count(),
+      ]);
+    return { categories, posts, pages, publishedPosts, publishedPages, drafts, redirects };
+  }
+
+  // ---- Redirects ----
+
+  async listRedirects(): Promise<CmsRedirectView[]> {
+    const rows = await this.prisma.cmsRedirect.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 500,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      fromPath: r.fromPath,
+      toPath: r.toPath,
+      statusCode: r.statusCode,
+      note: r.note,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  }
+
+  async resolveRedirect(fromPath: string): Promise<CmsRedirectView | null> {
+    const path = fromPath.startsWith('/') ? fromPath : `/${fromPath}`;
+    const row = await this.prisma.cmsRedirect.findUnique({ where: { fromPath: path } });
+    if (!row) return null;
+    return {
+      id: row.id,
+      fromPath: row.fromPath,
+      toPath: row.toPath,
+      statusCode: row.statusCode,
+      note: row.note,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  async upsertRedirect(
+    user: AuthenticatedUser,
+    input: UpsertCmsRedirectRequest,
+  ): Promise<CmsRedirectView> {
+    return this.upsertRedirectRecord(user, input);
+  }
+
+  async deleteRedirect(id: string): Promise<{ message: string }> {
+    await this.prisma.cmsRedirect.delete({ where: { id } });
+    return { message: 'Đã xoá redirect' };
+  }
+
+  private async upsertRedirectRecord(
+    user: AuthenticatedUser,
+    input: UpsertCmsRedirectRequest,
+  ): Promise<CmsRedirectView> {
+    const fromPath = this.normalizePath(input.fromPath);
+    const toPath = this.normalizePath(input.toPath);
+    if (fromPath === toPath) {
+      throw new BadRequestException('fromPath và toPath không được trùng');
+    }
+    const row = await this.prisma.cmsRedirect.upsert({
+      where: { fromPath },
+      create: {
+        fromPath,
+        toPath,
+        statusCode: input.statusCode ?? 301,
+        note: input.note ?? null,
+        createdBy: user.id,
+      },
+      update: {
+        toPath,
+        statusCode: input.statusCode ?? 301,
+        note: input.note ?? null,
+      },
+    });
+    return {
+      id: row.id,
+      fromPath: row.fromPath,
+      toPath: row.toPath,
+      statusCode: row.statusCode,
+      note: row.note,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private normalizePath(path: string): string {
+    const p = path.trim();
+    if (!p.startsWith('/')) return `/${p}`;
+    return p.split('?')[0] || '/';
+  }
+
+  private absolutePublicUrl(type: CmsContentType, slug: string): string {
+    const base = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(
+      /\/$/,
+      '',
+    );
+    return `${base}${cmsContentPublicPath(type, slug)}`;
+  }
+
+  private resolveRobots(
+    input: UpsertCmsPostRequest,
+    existing?: CmsPost,
+  ): { index: boolean; follow: boolean } {
+    if (input.robotsIndex !== undefined || input.robotsFollow !== undefined) {
+      return {
+        index: input.robotsIndex ?? existing?.robotsIndex ?? true,
+        follow: input.robotsFollow ?? existing?.robotsFollow ?? true,
+      };
+    }
+    if (input.robots) {
+      return {
+        index: !input.robots.includes('noindex'),
+        follow: !input.robots.includes('nofollow'),
+      };
+    }
+    return {
+      index: existing?.robotsIndex ?? true,
+      follow: existing?.robotsFollow ?? true,
+    };
+  }
+
+  private normalizeFaq(faq?: CmsFaqItem[] | null): CmsFaqItem[] {
+    if (!faq?.length) return [];
+    return faq
+      .map((f) => ({
+        question: (f.question || '').trim(),
+        answer: (f.answer || '').trim(),
+      }))
+      .filter((f) => f.question && f.answer)
+      .slice(0, 30);
+  }
+
+  private parseFaq(json: Prisma.JsonValue | null): CmsFaqItem[] {
+    if (!json || !Array.isArray(json)) return [];
+    return json
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+        const o = item as Record<string, unknown>;
+        const question = typeof o.question === 'string' ? o.question : '';
+        const answer = typeof o.answer === 'string' ? o.answer : '';
+        if (!question || !answer) return null;
+        return { question, answer };
+      })
+      .filter((x): x is CmsFaqItem => Boolean(x));
   }
 
   private assertPostInput(input: UpsertCmsPostRequest): void {
     if (!input.title?.trim()) throw new BadRequestException('Thiếu tiêu đề');
-    if (input.type === CmsContentType.Post && !input.categoryId) {
-      // category optional for flexibility in phase 1
-    }
   }
 
   private async uniquePostSlug(
@@ -422,6 +632,7 @@ export class CmsService {
       publishedAt: row.publishedAt?.toISOString() ?? null,
       coverImageUrl: row.coverImageUrl,
       seoTitle: row.seoTitle,
+      robotsIndex: row.robotsIndex,
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -431,10 +642,18 @@ export class CmsService {
       ...this.mapPostList(row),
       bodyHtml: row.bodyHtml,
       authorId: row.authorId,
+      authorName: row.authorName,
+      authorTitle: row.authorTitle,
+      authorBio: row.authorBio,
       seoDescription: row.seoDescription,
       canonicalPath: row.canonicalPath,
+      ogTitle: row.ogTitle,
+      ogDescription: row.ogDescription,
       ogImageUrl: row.ogImageUrl,
       robots: row.robots,
+      robotsFollow: row.robotsFollow,
+      robotsMaxImagePreview: row.robotsMaxImagePreview,
+      faq: this.parseFaq(row.faqJson),
       createdAt: row.createdAt.toISOString(),
     };
   }

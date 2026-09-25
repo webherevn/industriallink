@@ -48,4 +48,14 @@ export class CmsPublicController {
     if (!page) throw new NotFoundException('Không tìm thấy trang');
     return page;
   }
+
+  @Public()
+  @Get('redirect')
+  @ApiOperation({ summary: 'Tra cứu redirect theo fromPath' })
+  async lookupRedirect(@Query('from') from: string) {
+    if (!from) throw new NotFoundException('Thiếu from');
+    const row = await this.cms.resolveRedirect(from);
+    if (!row) throw new NotFoundException('Không có redirect');
+    return row;
+  }
 }

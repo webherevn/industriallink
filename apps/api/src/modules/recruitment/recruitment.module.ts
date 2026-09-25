@@ -14,7 +14,6 @@ import { OfferController } from './offer.controller';
 import { OfferService } from './offer.service';
 import { OnboardingController } from './onboarding.controller';
 import { OnboardingService } from './onboarding.service';
-import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 
 @Module({
   imports: [AiModule, KnowledgeModule, CompanyModule],
@@ -33,7 +32,6 @@ import { GoogleIndexingService } from '../../shared/seo/google-indexing.service'
     InterviewService,
     OfferService,
     OnboardingService,
-    GoogleIndexingService,
   ],
   exports: [
     JobService,

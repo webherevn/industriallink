@@ -3,6 +3,7 @@ import type {
   CmsPostListItem,
   CmsPostView,
   CmsContentType,
+  CmsRedirectView,
 } from '@industriallink/contracts';
 import { CmsContentType as CmsType } from '@industriallink/contracts';
 import { apiPublicBase } from './public-paths';
@@ -49,4 +50,16 @@ export async function fetchPublishedCmsPage(slug: string): Promise<CmsPostView |
   });
   if (res.status === 404 || !res.ok) return null;
   return (await res.json()) as CmsPostView;
+}
+
+export async function fetchCmsRedirect(fromPath: string): Promise<CmsRedirectView | null> {
+  const res = await fetch(
+    `${apiPublicBase()}/cms/redirect?from=${encodeURIComponent(fromPath)}`,
+    {
+      next: { revalidate: 30 },
+      headers: { Accept: 'application/json' },
+    },
+  );
+  if (res.status === 404 || !res.ok) return null;
+  return (await res.json()) as CmsRedirectView;
 }

@@ -71,3 +71,30 @@ export async function setCmsPostStatus(id: string, status: CmsContentStatus): Pr
 export async function deleteCmsPost(id: string): Promise<void> {
   await apiRequest(`/admin/cms/posts/${id}`, { method: 'DELETE' });
 }
+
+export async function listCmsRedirects() {
+  return apiRequest<
+    {
+      id: string;
+      fromPath: string;
+      toPath: string;
+      statusCode: number;
+      note: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }[]
+  >('/admin/cms/redirects');
+}
+
+export async function upsertCmsRedirect(body: {
+  fromPath: string;
+  toPath: string;
+  statusCode?: number;
+  note?: string | null;
+}) {
+  return apiRequest('/admin/cms/redirects', { method: 'POST', body });
+}
+
+export async function deleteCmsRedirect(id: string): Promise<void> {
+  await apiRequest(`/admin/cms/redirects/${id}`, { method: 'DELETE' });
+}

@@ -11,6 +11,7 @@ import { PrismaService } from './infrastructure/prisma/prisma.service';
 import { redisProvider } from './infrastructure/redis/redis.provider';
 import { StorageService } from './infrastructure/storage/storage.service';
 import { JwtStrategy } from './security/jwt.strategy';
+import { GoogleIndexingService } from './seo/google-indexing.service';
 import { PasswordService } from './security/password.service';
 
 /**
@@ -30,6 +31,7 @@ import { PasswordService } from './security/password.service';
     JwtStrategy,
     EmailService,
     OpenSearchService,
+    GoogleIndexingService,
   ],
   exports: [
     PrismaService,
@@ -42,6 +44,7 @@ import { PasswordService } from './security/password.service';
     JwtModule,
     EmailService,
     OpenSearchService,
+    GoogleIndexingService,
   ],
 })
 export class SharedModule {}

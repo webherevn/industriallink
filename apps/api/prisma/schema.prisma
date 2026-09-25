@@ -868,12 +868,27 @@ model CmsPost {
   categoryId     String?   @map("category_id") @db.Uuid
   publishedAt    DateTime? @map("published_at")
   authorId       String    @map("author_id") @db.Uuid
+  /// Schema Person — tên chuyên gia hiển thị (E-E-A-T)
+  authorName     String?   @map("author_name")
+  authorTitle    String?   @map("author_title")
+  authorBio      String?   @map("author_bio")
   coverImageUrl  String?   @map("cover_image_url")
   seoTitle       String?   @map("seo_title")
   seoDescription String?   @map("seo_description")
   canonicalPath  String?   @map("canonical_path")
+  ogTitle        String?   @map("og_title")
+  ogDescription  String?   @map("og_description")
   ogImageUrl     String?   @map("og_image_url")
+  /// index | noindex
+  robotsIndex    Boolean   @default(true) @map("robots_index")
+  /// follow | nofollow
+  robotsFollow   Boolean   @default(true) @map("robots_follow")
+  /// max-image-preview:large (Google Discover)
+  robotsMaxImagePreview Boolean @default(true) @map("robots_max_image_preview")
+  /// Legacy combined robots string (đồng bộ từ robotsIndex/Follow)
   robots         String    @default("index,follow")
+  /// FAQ Schema: [{ "question": "...", "answer": "..." }]
+  faqJson        Json?     @map("faq_json")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid
@@ -892,6 +907,23 @@ model CmsPost {
   @@index([authorId])
   @@index([isDeleted])
   @@map("cms_post")
+  @@schema("cms")
+}
+
+/// Redirect 301 khi đổi slug nội dung CMS (và dùng tay trong Redirect Manager).
+model CmsRedirect {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @default("default") @map("tenant_id")
+  fromPath   String   @unique @map("from_path")
+  toPath     String   @map("to_path")
+  statusCode Int      @default(301) @map("status_code")
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  createdBy  String?  @map("created_by") @db.Uuid
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([toPath])
+  @@map("cms_redirect")
   @@schema("cms")
 }
 

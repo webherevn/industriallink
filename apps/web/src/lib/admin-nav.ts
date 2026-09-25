@@ -37,6 +37,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { href: '/admin/categories', label: 'Danh mục', icon: FolderTree },
       { href: '/admin/posts', label: 'Bài viết', icon: FileText },
       { href: '/admin/pages', label: 'Trang', icon: FileText },
+      { href: '/admin/redirects', label: 'Redirect 301', icon: Search },
     ],
   },
   {

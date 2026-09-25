@@ -1,6 +1,29 @@
-import { CmsContentType } from '@industriallink/contracts';
+import { CmsContentType, type CmsFaqItem } from '@industriallink/contracts';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, MinLength, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+
+class CmsFaqItemDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  question!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  answer!: string;
+}
 
 export class UpsertCmsPostDto {
   @ApiProperty({ enum: CmsContentType })
@@ -41,6 +64,21 @@ export class UpsertCmsPostDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  authorName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  authorTitle?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  authorBio?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   seoTitle?: string | null;
 
   @ApiPropertyOptional()
@@ -56,12 +94,39 @@ export class UpsertCmsPostDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  ogImageUrl?: string | null;
+  ogTitle?: string | null;
 
-  @ApiPropertyOptional({ example: 'index,follow' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  robots?: string;
+  ogDescription?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  ogImageUrl?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  robotsIndex?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  robotsFollow?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  robotsMaxImagePreview?: boolean;
+
+  @ApiPropertyOptional({ type: [CmsFaqItemDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CmsFaqItemDto)
+  faq?: CmsFaqItem[];
 
   @ApiPropertyOptional({ description: 'true = publish, false = draft' })
   @IsOptional()
