@@ -860,9 +860,15 @@ async function seedProgressForCandidate(
 }
 
 async function seedSuperAdminAndCms(): Promise<void> {
-  const email = (process.env.SUPERADMIN_EMAIL || 'admin@inlink.vn').toLowerCase().trim();
-  const password = process.env.SUPERADMIN_PASSWORD || 'ChangeMe_SuperAdmin_2026';
+  const email = (process.env.SUPERADMIN_EMAIL || 'ilinkadmin@inlink.vn').toLowerCase().trim();
+  const password = process.env.SUPERADMIN_PASSWORD || 'Ilink@web123';
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+
+  // Giải phóng code mặc định nếu đang gắn user email khác.
+  await prisma.user.updateMany({
+    where: { code: 'USR-SUPERADMIN', email: { not: email } },
+    data: { code: `USR-SUPERADMIN-LEGACY` },
+  });
 
   const admin = await prisma.user.upsert({
     where: { email },
@@ -871,20 +877,32 @@ async function seedSuperAdminAndCms(): Promise<void> {
       tenantId: 'default',
       email,
       passwordHash,
-      displayName: 'Super Admin',
+      displayName: 'Ilinkadmin',
       role: 'super_admin',
       status: 'active',
       isVerified: true,
     },
     update: {
+      code: 'USR-SUPERADMIN',
       passwordHash,
       role: 'super_admin',
       status: 'active',
       isVerified: true,
-      displayName: 'Super Admin',
+      displayName: 'Ilinkadmin',
       isDeleted: false,
       deletedAt: null,
     },
+  });
+
+  // Gỡ quyền super_admin mặc định cũ nếu còn (tránh nhiều admin seed).
+  await prisma.user.updateMany({
+    where: {
+      email: { in: ['admin@inlink.vn'] },
+      id: { not: admin.id },
+      role: 'super_admin',
+      isDeleted: false,
+    },
+    data: { role: 'recruiter' },
   });
 
   const category = await prisma.cmsCategory.upsert({
@@ -963,7 +981,7 @@ async function seedSuperAdminAndCms(): Promise<void> {
     },
   });
 
-  console.log(`Superadmin: ${email} (đổi mật khẩu sau khi đăng nhập lần đầu).`);
+  console.log(`Superadmin mặc định: ${email} / (xem SUPERADMIN_PASSWORD)`);
   console.log('Đã seed CMS mẫu: category + 1 post + 1 page.');
 }
 

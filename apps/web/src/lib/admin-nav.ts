@@ -42,7 +42,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   {
     title: 'Nền tảng',
     items: [
-      { href: '#', label: 'Người dùng', icon: Users, soon: true },
+      { href: '/admin/users', label: 'Người dùng', icon: Users },
       { href: '#', label: 'Tin tuyển dụng', icon: Briefcase, soon: true },
       { href: '#', label: 'Công ty', icon: Building2, soon: true },
       { href: '#', label: 'Báo cáo', icon: BarChart3, soon: true },

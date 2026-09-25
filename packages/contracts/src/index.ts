@@ -36,3 +36,4 @@ export * from './seo-slug';
 export * from './public-job-path';
 export * from './job-posting-schema';
 export * from './cms.dto';
+export * from './admin-user.dto';
