@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   BarChart3,
@@ -29,7 +29,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore } from '@/lib/api';
-import { fetchMe, logout } from '@/lib/auth';
+import { clearAuthQueryCache, fetchMe, logout } from '@/lib/auth';
 import { bounceIfWrongHost } from '@/lib/hosts';
 import {
   MY_COMPANY_LOGO_QUERY_KEY,
@@ -127,6 +127,7 @@ function CompanyAvatar({
 export function RecruiterShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
@@ -145,9 +146,9 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   });
 
   const { data: company } = useQuery({
-    queryKey: ['my-company'],
+    queryKey: ['my-company', user?.id ?? 'anon'],
     queryFn: getMyCompany,
-    enabled: hasToken,
+    enabled: hasToken && Boolean(user?.id),
     retry: false,
   });
 
@@ -211,6 +212,7 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   async function onLogout() {
     setAccountOpen(false);
     await logout();
+    clearAuthQueryCache(queryClient);
     router.replace('/login');
   }
 

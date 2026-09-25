@@ -80,5 +80,12 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** Xoá cache React Query khi đổi tài khoản (tránh giữ company của user cũ). */
+export function clearAuthQueryCache(queryClient: {
+  clear: () => void;
+}): void {
+  queryClient.clear();
+}
+
 export type { UserRole };
 export { isLoginMfaChallenge };

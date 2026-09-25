@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { JobTrack } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Button } from '@/components/ui';
-import { ApiError } from '@/lib/api';
+import { fetchMe } from '@/lib/auth';
 import { getMyCompany } from '@/lib/company';
 import { JdSalesCreateFlow } from './sales-create-flow';
 import { JdTechnicalCreateFlow } from './technical-create-flow';
@@ -30,39 +30,43 @@ function CompanyRequiredGate() {
 export default function NewJobPage() {
   const [track, setTrack] = useState<JobTrack>(JobTrack.Sales);
 
-  const { data: company, isLoading, isError, error } = useQuery({
-    queryKey: ['my-company'],
-    queryFn: getMyCompany,
+  const { data: me, isLoading: meLoading, isError: meError } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchMe,
     retry: false,
+    staleTime: 0,
   });
 
-  if (isLoading) {
+  const {
+    data: company,
+    isLoading: companyLoading,
+    isError,
+    error,
+    isFetched,
+  } = useQuery({
+    // Gắn userId — tránh dùng nhầm cache company của tài khoản trước
+    queryKey: ['my-company', me?.id ?? 'anon'],
+    queryFn: getMyCompany,
+    enabled: Boolean(me?.id),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+  });
+
+  if (meLoading || meError || !me?.id || (me.id && (companyLoading || !isFetched))) {
     return (
       <AppShell>
-        <p className="py-16 text-center text-sm text-slate-500">Đang tải...</p>
+        <p className="py-16 text-center text-sm text-slate-500">
+          {meError ? 'Vui lòng đăng nhập lại.' : 'Đang tải...'}
+        </p>
       </AppShell>
     );
   }
 
-  if (isError) {
-    const needCompany =
-      error instanceof ApiError && (error.status === 404 || error.status === 403);
-    if (needCompany) return <CompanyRequiredGate />;
-    return (
-      <AppShell>
-        <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white px-6 py-14 text-center">
-          <p className="text-sm text-slate-600">
-            {error instanceof ApiError ? error.message : 'Không tải được thông tin công ty.'}
-          </p>
-          <Link href="/company" className="mt-6 inline-block">
-            <Button variant="outline">Tới trang Công ty</Button>
-          </Link>
-        </div>
-      </AppShell>
-    );
+  if (isError || !company) {
+    return <CompanyRequiredGate />;
   }
-
-  if (!company) return <CompanyRequiredGate />;
 
   if (track === JobTrack.Technical) {
     return <JdTechnicalCreateFlow onSwitchTrack={setTrack} />;

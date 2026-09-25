@@ -2,16 +2,17 @@
 
 import { MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/brand-logo';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { ApiError } from '@/lib/api';
-import { login, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
+import { ApiError, tokenStore } from '@/lib/api';
+import { clearAuthQueryCache, login, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
 import { isAdminHostname, navigateAfterLogin } from '@/lib/hosts';
 import { registerHref, safeInternalPath } from '@/lib/safe-next';
-import { tokenStore } from '@/lib/api';
 
 export default function LoginPage() {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +36,7 @@ export default function LoginPage() {
   }, []);
 
   function goHome(role: UserRole) {
+    clearAuthQueryCache(queryClient);
     // admin.inlink.vn: luôn ở lại origin hiện tại, không gọi goToAdminApp/goToRecruiterApp
     if (typeof window !== 'undefined' && isAdminHostname()) {
       if (role !== UserRole.SuperAdmin) {
