@@ -12,9 +12,12 @@ function hostnameOf(req: NextRequest): string {
 }
 
 export function middleware(req: NextRequest) {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-pathname', req.nextUrl.pathname);
+
   const host = hostnameOf(req);
   if (host === 'localhost' || host === '127.0.0.1') {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   const { pathname, search } = req.nextUrl;
@@ -36,7 +39,7 @@ export function middleware(req: NextRequest) {
       dest.pathname = '/admin';
       return NextResponse.redirect(dest);
     }
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (isRecruiterHost) {
@@ -51,7 +54,7 @@ export function middleware(req: NextRequest) {
     if (isCandidatePublicPath(pathname)) {
       return NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`);
     }
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (isPublicHost) {
@@ -63,7 +66,7 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

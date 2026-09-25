@@ -141,24 +141,26 @@ export async function fetchPublicCmsHomepage(): Promise<CmsHomepageSettingsView 
   return (await res.json()) as CmsHomepageSettingsView;
 }
 
-export async function fetchPublicCmsRobots(): Promise<
-  import('@industriallink/contracts').CmsRobotsSettingsView | null
-> {
-  const res = await fetch(`${apiPublicBase()}/cms/robots`, {
-    next: { revalidate: 60 },
-    headers: { Accept: 'application/json' },
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as import('@industriallink/contracts').CmsRobotsSettingsView;
-}
-
 export async function fetchPublicCmsSiteCode(): Promise<
   import('@industriallink/contracts').CmsSiteCodeSettingsView | null
 > {
   const res = await fetch(`${apiPublicBase()}/cms/site-code`, {
-    next: { revalidate: 30 },
+    next: { revalidate: 0 },
+    cache: 'no-store',
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) return null;
   return (await res.json()) as import('@industriallink/contracts').CmsSiteCodeSettingsView;
+}
+
+export async function fetchPublicCmsRobots(): Promise<
+  import('@industriallink/contracts').CmsRobotsSettingsView | null
+> {
+  const res = await fetch(`${apiPublicBase()}/cms/robots`, {
+    next: { revalidate: 0 },
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as import('@industriallink/contracts').CmsRobotsSettingsView;
 }

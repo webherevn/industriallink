@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
-import { CmsCodeInjector } from '@/components/cms-code-injector';
+import { renderCmsHtmlSnippet } from '@/components/cms-html-snippet';
 import { Providers } from '@/components/providers';
 import { fetchPublicCmsSiteCode } from '@/lib/public-cms-api';
 import './globals.css';
@@ -24,23 +25,28 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const siteCode = await fetchPublicCmsSiteCode();
+  const headerList = await headers();
+  const pathname = headerList.get('x-pathname') || '';
+  const skipInject =
+    pathname.startsWith('/admin') || pathname.startsWith('/recruiter');
+
+  const siteCode = skipInject ? null : await fetchPublicCmsSiteCode();
   const headerHtml =
-    siteCode?.headerEnabled && siteCode.headerCode?.trim()
+    !skipInject && siteCode?.headerEnabled && siteCode.headerCode?.trim()
       ? siteCode.headerCode
       : null;
   const footerHtml =
-    siteCode?.footerEnabled && siteCode.footerCode?.trim()
+    !skipInject && siteCode?.footerEnabled && siteCode.footerCode?.trim()
       ? siteCode.footerCode
       : null;
 
   return (
     <html lang="vi" className={inter.variable}>
+      <head>{renderCmsHtmlSnippet(headerHtml)}</head>
       {/* suppressHydrationWarning: extension trình duyệt có thể chèn style/attr vào body trước khi React hydrate */}
       <body className="font-sans antialiased" suppressHydrationWarning>
-        {headerHtml ? <CmsCodeInjector html={headerHtml} target="head" /> : null}
         <Providers>{children}</Providers>
-        {footerHtml ? <CmsCodeInjector html={footerHtml} target="body" /> : null}
+        {renderCmsHtmlSnippet(footerHtml)}
       </body>
     </html>
   );
