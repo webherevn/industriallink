@@ -35,14 +35,15 @@ export default function LoginPage() {
   }, []);
 
   function goHome(role: UserRole) {
-    // admin.inlink.vn chỉ dành cho SuperAdmin — không nhảy sang tuyendung
-    if (onAdminHost || isAdminHostname()) {
+    // admin.inlink.vn: luôn ở lại origin hiện tại, không gọi goToAdminApp/goToRecruiterApp
+    if (typeof window !== 'undefined' && isAdminHostname()) {
       if (role !== UserRole.SuperAdmin) {
         tokenStore.clear();
         setError('Tài khoản này không có quyền Superadmin. Dùng email Superadmin để vào admin.');
         return;
       }
-      navigateAfterLogin(role, nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin');
+      const dest = nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin';
+      window.location.assign(dest);
       return;
     }
     if (role === UserRole.SuperAdmin) {
@@ -127,6 +128,11 @@ export default function LoginPage() {
                 ? 'Chỉ tài khoản Superadmin mới vào được bảng quản trị.'
                 : 'Chào mừng trở lại.'}
             </p>
+            {onAdminHost && (
+              <p className="mt-2 text-[11px] text-slate-400" data-il-build="admin-login-v3">
+                admin-login-v3
+              </p>
+            )}
             {verified && (
               <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
                 Xác thực thành công! Vui lòng đăng nhập.
