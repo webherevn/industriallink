@@ -527,7 +527,7 @@ export function Card({
   as = 'div',
 }: {
   className?: string;
-  children: ReactNode;
+  children?: ReactNode;
   as?: 'div' | 'li';
 }) {
   const Tag = as;
