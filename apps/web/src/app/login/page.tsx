@@ -7,8 +7,9 @@ import { BrandLogo } from '@/components/brand-logo';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { login, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
-import { navigateAfterLogin } from '@/lib/hosts';
+import { isAdminHostname, navigateAfterLogin } from '@/lib/hosts';
 import { registerHref, safeInternalPath } from '@/lib/safe-next';
+import { tokenStore } from '@/lib/api';
 
 export default function LoginPage() {
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
@@ -24,14 +25,26 @@ export default function LoginPage() {
   const [resending, setResending] = useState(false);
   const [verified, setVerified] = useState(false);
   const [nextPath, setNextPath] = useState<string | null>(null);
+  const [onAdminHost, setOnAdminHost] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setVerified(params.get('verified') === '1');
     setNextPath(safeInternalPath(params.get('next')));
+    setOnAdminHost(isAdminHostname());
   }, []);
 
   function goHome(role: UserRole) {
+    // admin.inlink.vn chỉ dành cho SuperAdmin — không nhảy sang tuyendung
+    if (onAdminHost || isAdminHostname()) {
+      if (role !== UserRole.SuperAdmin) {
+        tokenStore.clear();
+        setError('Tài khoản này không có quyền Superadmin. Dùng email Superadmin để vào admin.');
+        return;
+      }
+      navigateAfterLogin(role, nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin');
+      return;
+    }
     if (role === UserRole.SuperAdmin) {
       navigateAfterLogin(role, nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin');
       return;
@@ -106,8 +119,14 @@ export default function LoginPage() {
       <Card>
         {step === 'credentials' ? (
           <>
-            <h1 className="text-xl font-bold text-slate-900">Đăng nhập</h1>
-            <p className="mt-1 text-sm text-slate-500">Chào mừng trở lại.</p>
+            <h1 className="text-xl font-bold text-slate-900">
+              {onAdminHost ? 'Đăng nhập Superadmin' : 'Đăng nhập'}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {onAdminHost
+                ? 'Chỉ tài khoản Superadmin mới vào được bảng quản trị.'
+                : 'Chào mừng trở lại.'}
+            </p>
             {verified && (
               <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
                 Xác thực thành công! Vui lòng đăng nhập.
@@ -191,12 +210,14 @@ export default function LoginPage() {
           </>
         )}
       </Card>
-      <p className="mt-4 text-center text-sm text-slate-500">
-        Chưa có tài khoản?{' '}
-        <Link href={registerHref(nextPath)} className="font-medium text-brand-600">
-          Đăng ký
-        </Link>
-      </p>
+      {!onAdminHost && (
+        <p className="mt-4 text-center text-sm text-slate-500">
+          Chưa có tài khoản?{' '}
+          <Link href={registerHref(nextPath)} className="font-medium text-brand-600">
+            Đăng ký
+          </Link>
+        </p>
+      )}
     </main>
   );
 }
