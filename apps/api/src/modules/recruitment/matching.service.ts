@@ -23,6 +23,10 @@ import { explainSalesJobCandidate } from './sales-match-explain';
 import { explainTechnicalJobCandidate } from './technical-match-explain';
 
 const MATCH_LIMIT = 20;
+/** Pool ứng viên đưa vào engine Sales/Kỹ thuật khi matching theo JD. */
+const CANDIDATE_POOL = 80;
+/** Điểm tối thiểu (0–100) để hiện trong kết quả mạng lưới. */
+const MIN_ENGINE_SCORE = 1;
 
 const CANDIDATE_MATCH_INCLUDE = {
   profile: true,
@@ -119,7 +123,11 @@ export class MatchingService {
     return this.explainPair(semantic, job, candidate);
   }
 
-  /** Gợi ý ứng viên phù hợp cho một tin tuyển dụng (phía nhà tuyển dụng). */
+  /**
+   * Gợi ý ứng viên phù hợp cho một tin (NTD chọn JD → Tìm ngay).
+   * Chấm bằng engine Sales B2B / Kỹ thuật đã code — không thay bằng full-text search.
+   * Vector chỉ dùng để ưu tiên đưa vào pool khi có embedding.
+   */
   async candidatesForJob(user: AuthenticatedUser, jobId: string): Promise<CandidateMatchView[]> {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
@@ -127,99 +135,85 @@ export class MatchingService {
     });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
 
-    /** candidateId → điểm semantic (0 nếu fallback không có vector) */
-    const seedScores = new Map<string, number>();
+    const poolIds = new Set<string>();
+    const appliedIds = new Set<string>();
 
-    // 1) Semantic (pgvector) — ưu tiên nếu có embedding
+    // 1) Hồ sơ đã nộp vào đúng tin — luôn đưa vào pool để chấm lại bằng engine JD
+    const applied = await this.prisma.application.findMany({
+      where: { jobId, isDeleted: false },
+      orderBy: { updatedAt: 'desc' },
+      take: CANDIDATE_POOL,
+      select: { candidateId: true },
+    });
+    for (const a of applied) {
+      appliedIds.add(a.candidateId);
+      poolIds.add(a.candidateId);
+    }
+
+    // 2) Semantic recall (tuỳ chọn) — chỉ để mở rộng pool, không phải điểm cuối
     try {
       const vector = await this.ai.embed(buildJobText(job, job.skills.map((s) => s.name)));
       const literal = `[${vector.join(',')}]`;
-      const rows = await this.prisma.$queryRaw<{ candidate_id: string; score: number }[]>`
-        SELECT candidate_id, (1 - (embedding <=> ${literal}::vector))::float AS score
+      const rows = await this.prisma.$queryRaw<{ candidate_id: string }[]>`
+        SELECT candidate_id
         FROM candidate.candidate_search_index
         WHERE tenant_id = ${user.tenantId} AND embedding IS NOT NULL
         ORDER BY embedding <=> ${literal}::vector
-        LIMIT ${MATCH_LIMIT}`;
+        LIMIT ${CANDIDATE_POOL}`;
       for (const r of rows) {
-        seedScores.set(r.candidate_id, Number(r.score) || 0);
+        poolIds.add(r.candidate_id);
+        if (poolIds.size >= CANDIDATE_POOL) break;
       }
     } catch (err) {
-      this.logger.warn(`Semantic matching lỗi: ${String(err)}`);
+      this.logger.warn(`Semantic recall (pool) lỗi: ${String(err)}`);
     }
 
-    // 2) Hồ sơ đã nộp vào đúng tin này (giống Copilot ưu tiên inbox)
-    if (seedScores.size < MATCH_LIMIT) {
-      const applied = await this.prisma.application.findMany({
-        where: { jobId, isDeleted: false },
-        orderBy: { updatedAt: 'desc' },
-        take: MATCH_LIMIT,
-        select: { candidateId: true, matchScore: true },
-      });
-      for (const a of applied) {
-        if (seedScores.has(a.candidateId)) continue;
-        const pct = a.matchScore != null ? Math.max(0, Math.min(100, a.matchScore)) / 100 : 0.5;
-        seedScores.set(a.candidateId, pct);
-        if (seedScores.size >= MATCH_LIMIT) break;
-      }
-    }
-
-    // 3) Full-text trên chỉ mục theo tiêu đề tin (khi thiếu vector / chưa đủ pool)
-    if (seedScores.size < MATCH_LIMIT) {
-      const titleToken = job.title
-        .trim()
-        .split(/[\s/|,.\-–—]+/)
-        .map((t) => t.trim())
-        .filter((t) => t.length >= 3)[0];
-      if (titleToken) {
-        const indexed = await this.prisma.candidateSearchIndex.findMany({
-          where: {
-            tenantId: user.tenantId,
-            searchText: { contains: titleToken, mode: 'insensitive' },
-          },
-          take: MATCH_LIMIT,
-          select: { candidateId: true },
-        });
-        for (const row of indexed) {
-          if (seedScores.has(row.candidateId)) continue;
-          seedScores.set(row.candidateId, 0.4);
-          if (seedScores.size >= MATCH_LIMIT) break;
-        }
-      }
-    }
-
-    // 4) Fallback cuối: ứng viên cập nhật gần đây cùng tenant (chấm bằng engine JD)
-    if (seedScores.size === 0) {
+    // 3) Bổ sung ứng viên có hồ sơ (cùng tenant) để engine Sales/KT có đủ dữ liệu chấm
+    if (poolIds.size < CANDIDATE_POOL) {
       const recent = await this.prisma.candidate.findMany({
-        where: { tenantId: user.tenantId, isDeleted: false },
+        where: {
+          tenantId: user.tenantId,
+          isDeleted: false,
+          profile: { isNot: null },
+          ...(poolIds.size > 0 ? { id: { notIn: [...poolIds] } } : {}),
+        },
         orderBy: { updatedAt: 'desc' },
-        take: MATCH_LIMIT,
+        take: CANDIDATE_POOL - poolIds.size,
         select: { id: true },
       });
-      for (const c of recent) {
-        seedScores.set(c.id, 0.35);
-      }
+      for (const c of recent) poolIds.add(c.id);
     }
 
-    if (seedScores.size === 0) return [];
+    if (poolIds.size === 0) return [];
 
-    const candidateIds = [...seedScores.keys()];
     const candidates = await this.prisma.candidate.findMany({
-      where: { id: { in: candidateIds }, isDeleted: false },
+      where: { id: { in: [...poolIds] }, isDeleted: false },
       include: CANDIDATE_MATCH_INCLUDE,
     });
 
-    return candidates
-      .map((c) => {
-        const explanation = this.explainPair(seedScores.get(c.id) ?? 0, job, c);
-        return {
-          candidateId: c.id,
-          displayName: c.displayName,
-          currentPosition: c.profile?.currentPosition ?? null,
-          industry: c.profile?.industry ?? null,
-          match: explanation,
-        } satisfies CandidateMatchView;
-      })
+    // Điểm cuối = engine Sales / Kỹ thuật (explainPair), không dùng điểm embedding
+    const scored = candidates.map((c) => {
+      const explanation = this.explainPair(0, job, c);
+      return {
+        candidateId: c.id,
+        displayName: c.displayName,
+        currentPosition: c.profile?.currentPosition ?? null,
+        industry: c.profile?.industry ?? null,
+        match: explanation,
+        applied: appliedIds.has(c.id),
+      };
+    });
+
+    const appliedRows = scored
+      .filter((r) => r.applied)
       .sort((a, b) => b.match.score - a.match.score);
+    const networkRows = scored
+      .filter((r) => !r.applied && r.match.score >= MIN_ENGINE_SCORE)
+      .sort((a, b) => b.match.score - a.match.score);
+
+    return [...appliedRows, ...networkRows]
+      .slice(0, MATCH_LIMIT)
+      .map(({ applied: _applied, ...row }): CandidateMatchView => row);
   }
 
   /** Gợi ý tin tuyển dụng phù hợp cho ứng viên đang đăng nhập. */
