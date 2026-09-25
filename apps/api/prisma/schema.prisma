@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment"]
+  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment", "cms"]
 }
 
 // =========================================================================
@@ -819,5 +819,79 @@ model ApplicationTimeline {
   @@index([applicationId])
   @@map("application_timeline")
   @@schema("recruitment")
+}
+
+// =========================================================================
+// CMS DOMAIN (Superadmin content + SEO)
+// =========================================================================
+
+model CmsCategory {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String  @default("default") @map("tenant_id")
+  name          String
+  slug          String  @unique
+  description   String?
+  sortOrder     Int     @default(0) @map("sort_order")
+  seoTitle      String? @map("seo_title")
+  seoDescription String? @map("seo_description")
+  ogImageUrl    String? @map("og_image_url")
+  robots        String  @default("index,follow")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  posts CmsPost[]
+
+  @@index([tenantId, isDeleted])
+  @@index([sortOrder])
+  @@map("cms_category")
+  @@schema("cms")
+}
+
+model CmsPost {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @default("default") @map("tenant_id")
+  /// post | page
+  type           String
+  title          String
+  slug           String
+  excerpt        String?
+  bodyHtml       String    @default("") @map("body_html")
+  /// draft | published | archived
+  status         String    @default("draft")
+  categoryId     String?   @map("category_id") @db.Uuid
+  publishedAt    DateTime? @map("published_at")
+  authorId       String    @map("author_id") @db.Uuid
+  coverImageUrl  String?   @map("cover_image_url")
+  seoTitle       String?   @map("seo_title")
+  seoDescription String?   @map("seo_description")
+  canonicalPath  String?   @map("canonical_path")
+  ogImageUrl     String?   @map("og_image_url")
+  robots         String    @default("index,follow")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.Uuid
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  version   Int       @default(1)
+
+  category CmsCategory? @relation(fields: [categoryId], references: [id])
+
+  @@unique([type, slug])
+  @@index([tenantId, type, status, publishedAt])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([isDeleted])
+  @@map("cms_post")
+  @@schema("cms")
 }
 

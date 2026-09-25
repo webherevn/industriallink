@@ -1,14 +1,16 @@
 import { UserRole } from '@industriallink/contracts';
 import { handoffHashForToken, tokenStore } from './api';
 import {
+  BRAND_ADMIN_HOST,
+  BRAND_ADMIN_SITE_URL,
   BRAND_RECRUITER_HOST,
   BRAND_RECRUITER_SITE_URL,
   BRAND_SITE_HOST,
   BRAND_SITE_URL,
 } from './brand';
-import { isRecruiterAppPath } from './hosts-paths';
+import { isAdminAppPath, isRecruiterAppPath } from './hosts-paths';
 
-export { isCandidatePublicPath, isRecruiterAppPath } from './hosts-paths';
+export { isAdminAppPath, isCandidatePublicPath, isRecruiterAppPath } from './hosts-paths';
 
 export function currentHostname(): string {
   if (typeof window === 'undefined') return '';
@@ -30,8 +32,16 @@ export function recruiterSiteUrl(): string {
   );
 }
 
+export function adminSiteUrl(): string {
+  return (process.env.NEXT_PUBLIC_ADMIN_SITE_URL || BRAND_ADMIN_SITE_URL).replace(/\/$/, '');
+}
+
 export function isRecruiterHostname(hostname = currentHostname()): boolean {
   return hostname === BRAND_RECRUITER_HOST || hostname.startsWith('tuyendung.');
+}
+
+export function isAdminHostname(hostname = currentHostname()): boolean {
+  return hostname === BRAND_ADMIN_HOST || hostname.startsWith('admin.');
 }
 
 export function isPublicHostname(hostname = currentHostname()): boolean {
@@ -39,7 +49,7 @@ export function isPublicHostname(hostname = currentHostname()): boolean {
 }
 
 /** Local/dev: một origin, không nhảy domain. */
-export function shouldUseRecruiterHost(hostname = currentHostname()): boolean {
+export function shouldUseSplitHosts(hostname = currentHostname()): boolean {
   return !isBrowserLocalHost(hostname);
 }
 
@@ -48,54 +58,73 @@ function withPath(origin: string, path: string): string {
   return `${origin}${p}`;
 }
 
-export function goToRecruiterApp(path = '/recruiter'): void {
+function navigateToOrigin(origin: string, path: string): void {
   const destPath = path.startsWith('/') ? path : `/${path}`;
   const handoff = handoffHashForToken(tokenStore.get());
-  if (!shouldUseRecruiterHost()) {
+  if (!shouldUseSplitHosts()) {
     window.location.replace(`${destPath}${handoff}`);
     return;
   }
-  const origin = recruiterSiteUrl();
   if (window.location.origin === origin) {
     window.location.replace(`${destPath}${handoff}`);
     return;
   }
   window.location.replace(`${withPath(origin, destPath)}${handoff}`);
+}
+
+export function goToRecruiterApp(path = '/recruiter'): void {
+  navigateToOrigin(recruiterSiteUrl(), path);
+}
+
+export function goToAdminApp(path = '/admin'): void {
+  navigateToOrigin(adminSiteUrl(), path);
 }
 
 export function goToPublicApp(path = '/'): void {
-  const destPath = path.startsWith('/') ? path : `/${path}`;
-  const handoff = handoffHashForToken(tokenStore.get());
-  if (!shouldUseRecruiterHost()) {
-    window.location.replace(`${destPath}${handoff}`);
-    return;
-  }
-  const origin = publicSiteUrl();
-  if (window.location.origin === origin) {
-    window.location.replace(`${destPath}${handoff}`);
-    return;
-  }
-  window.location.replace(`${withPath(origin, destPath)}${handoff}`);
+  navigateToOrigin(publicSiteUrl(), path);
 }
 
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
+  if (role === UserRole.SuperAdmin) {
+    const dest = nextPath && isAdminAppPath(nextPath) ? nextPath : '/admin';
+    goToAdminApp(dest);
+    return;
+  }
   if (role === UserRole.Candidate) {
     const dest = nextPath || '/dashboard';
-    if (shouldUseRecruiterHost() && isRecruiterHostname()) {
+    if (shouldUseSplitHosts() && (isRecruiterHostname() || isAdminHostname())) {
       goToPublicApp(dest);
       return;
     }
     window.location.assign(dest);
     return;
   }
-  const dest =
-    nextPath && isRecruiterAppPath(nextPath) ? nextPath : '/recruiter';
+  const dest = nextPath && isRecruiterAppPath(nextPath) ? nextPath : '/recruiter';
   goToRecruiterApp(dest);
 }
 
 /** Trả true nếu đã bắt đầu chuyển host — caller không render tiếp. */
 export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boolean {
-  if (!shouldUseRecruiterHost()) return false;
+  if (!shouldUseSplitHosts()) return false;
+
+  if (role === UserRole.SuperAdmin) {
+    if (!isAdminHostname()) {
+      const dest = isAdminAppPath(pathWithSearch) ? pathWithSearch : '/admin';
+      goToAdminApp(dest);
+      return true;
+    }
+    return false;
+  }
+
+  if (isAdminHostname()) {
+    if (role === UserRole.Candidate) {
+      goToPublicApp('/dashboard');
+      return true;
+    }
+    goToRecruiterApp('/recruiter');
+    return true;
+  }
+
   if (role !== UserRole.Candidate && isPublicHostname()) {
     const dest = isRecruiterAppPath(pathWithSearch) ? pathWithSearch : '/recruiter';
     goToRecruiterApp(dest);

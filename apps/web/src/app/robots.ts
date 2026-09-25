@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: ['/', '/viec-lam', '/viec-lam/', '/cong-ty/'],
+      allow: ['/', '/viec-lam', '/viec-lam/', '/cong-ty/', '/cam-nang', '/cam-nang/', '/trang/'],
       disallow: [
         '/login',
         '/register',
@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
         '/company',
         '/companies',
         '/recruiter',
+        '/admin',
         '/candidates',
         '/cv',
         '/applications',

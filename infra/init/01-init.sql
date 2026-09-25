@@ -12,4 +12,5 @@ CREATE SCHEMA IF NOT EXISTS knowledge;
 CREATE SCHEMA IF NOT EXISTS shared;
 CREATE SCHEMA IF NOT EXISTS company;
 CREATE SCHEMA IF NOT EXISTS recruitment;
+CREATE SCHEMA IF NOT EXISTS cms;
 -- Bảng notification (shared) được Prisma db push tạo; email provider thật deferred.

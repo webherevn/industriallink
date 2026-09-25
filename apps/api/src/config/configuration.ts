@@ -6,6 +6,7 @@ function parseWebOrigins(): string[] {
   const items = [
     process.env.WEB_ORIGIN ?? 'http://localhost:3000',
     process.env.RECRUITER_WEB_ORIGIN,
+    process.env.ADMIN_WEB_ORIGIN,
     ...(process.env.WEB_ORIGINS ?? '').split(','),
   ]
     .map((s) => s?.trim())

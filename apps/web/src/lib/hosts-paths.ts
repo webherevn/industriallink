@@ -12,6 +12,11 @@ export function isRecruiterAppPath(pathname: string): boolean {
   return false;
 }
 
+export function isAdminAppPath(pathname: string): boolean {
+  const path = pathname.split('?')[0] ?? pathname;
+  return path === '/admin' || path.startsWith('/admin/');
+}
+
 export function isCandidatePublicPath(pathname: string): boolean {
   const path = pathname.split('?')[0] ?? pathname;
   const prefixes = [
@@ -21,6 +26,7 @@ export function isCandidatePublicPath(pathname: string): boolean {
     '/applications',
     '/cam-nang',
     '/cong-ty',
+    '/trang',
     '/recommended',
     '/progress',
     '/connections',

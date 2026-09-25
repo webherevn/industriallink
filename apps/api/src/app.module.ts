@@ -19,6 +19,7 @@ import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { SearchModule } from './modules/search/search.module';
+import { CmsModule } from './modules/cms/cms.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { SearchModule } from './modules/search/search.module';
     RecruitmentModule,
     NotificationModule,
     SearchModule,
+    CmsModule,
     HealthModule,
   ],
   providers: [

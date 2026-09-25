@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
@@ -858,12 +859,121 @@ async function seedProgressForCandidate(
   );
 }
 
+async function seedSuperAdminAndCms(): Promise<void> {
+  const email = (process.env.SUPERADMIN_EMAIL || 'admin@inlink.vn').toLowerCase().trim();
+  const password = process.env.SUPERADMIN_PASSWORD || 'ChangeMe_SuperAdmin_2026';
+  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+
+  const admin = await prisma.user.upsert({
+    where: { email },
+    create: {
+      code: 'USR-SUPERADMIN',
+      tenantId: 'default',
+      email,
+      passwordHash,
+      displayName: 'Super Admin',
+      role: 'super_admin',
+      status: 'active',
+      isVerified: true,
+    },
+    update: {
+      passwordHash,
+      role: 'super_admin',
+      status: 'active',
+      isVerified: true,
+      displayName: 'Super Admin',
+      isDeleted: false,
+      deletedAt: null,
+    },
+  });
+
+  const category = await prisma.cmsCategory.upsert({
+    where: { slug: 'lo-trinh-nghe' },
+    create: {
+      name: 'Lộ trình nghề',
+      slug: 'lo-trinh-nghe',
+      description: 'Định hướng nghề nghiệp công nghiệp B2B',
+      sortOrder: 1,
+      seoTitle: 'Lộ trình nghề công nghiệp | inlink',
+      seoDescription: 'Bài viết về lộ trình nghề cho kỹ sư và sales kỹ thuật.',
+      createdBy: admin.id,
+      updatedBy: admin.id,
+    },
+    update: {
+      name: 'Lộ trình nghề',
+      isDeleted: false,
+      deletedAt: null,
+      updatedBy: admin.id,
+    },
+  });
+
+  await prisma.cmsPost.upsert({
+    where: { type_slug: { type: 'post', slug: 'chao-mung-cam-nang-inlink' } },
+    create: {
+      type: 'post',
+      title: 'Chào mừng đến Cẩm nang inlink',
+      slug: 'chao-mung-cam-nang-inlink',
+      excerpt: 'Khởi đầu chuyên mục kiến thức nghề nghiệp công nghiệp B2B trên inlink.',
+      bodyHtml:
+        '<p>inlink mở chuyên mục <strong>Cẩm nang nghề nghiệp</strong> dành cho ứng viên kỹ thuật và kinh doanh B2B.</p><p>Bạn sẽ tìm thấy lộ trình nghề, mẹo CV, phỏng vấn và góc nhìn thị trường tuyển dụng công nghiệp.</p>',
+      status: 'published',
+      publishedAt: new Date(),
+      categoryId: category.id,
+      authorId: admin.id,
+      seoTitle: 'Chào mừng đến Cẩm nang inlink',
+      seoDescription: 'Giới thiệu chuyên mục cẩm nang nghề nghiệp công nghiệp trên inlink.vn',
+      robots: 'index,follow',
+      createdBy: admin.id,
+      updatedBy: admin.id,
+    },
+    update: {
+      title: 'Chào mừng đến Cẩm nang inlink',
+      status: 'published',
+      isDeleted: false,
+      deletedAt: null,
+      categoryId: category.id,
+      updatedBy: admin.id,
+    },
+  });
+
+  await prisma.cmsPost.upsert({
+    where: { type_slug: { type: 'page', slug: 'gioi-thieu' } },
+    create: {
+      type: 'page',
+      title: 'Giới thiệu inlink',
+      slug: 'gioi-thieu',
+      excerpt: 'inlink kết nối nhân tài và doanh nghiệp công nghiệp.',
+      bodyHtml:
+        '<p><strong>inlink</strong> là nền tảng tuyển dụng công nghiệp tích hợp AI — kết nối nhân tài với nhà tuyển dụng đúng ngành.</p>',
+      status: 'published',
+      publishedAt: new Date(),
+      authorId: admin.id,
+      seoTitle: 'Giới thiệu inlink',
+      seoDescription: 'Về nền tảng tuyển dụng công nghiệp inlink.vn',
+      robots: 'index,follow',
+      createdBy: admin.id,
+      updatedBy: admin.id,
+    },
+    update: {
+      title: 'Giới thiệu inlink',
+      status: 'published',
+      isDeleted: false,
+      deletedAt: null,
+      updatedBy: admin.id,
+    },
+  });
+
+  console.log(`Superadmin: ${email} (đổi mật khẩu sau khi đăng nhập lần đầu).`);
+  console.log('Đã seed CMS mẫu: category + 1 post + 1 page.');
+}
+
 async function main(): Promise<void> {
   await migrateLegacyIndustries();
   await seedSkills();
   await seedDemoJobs();
   await seedCandidateSalesProfiles();
   await seedDemoProgress();
+  await seedSuperAdminAndCms();
 }
 
 main()

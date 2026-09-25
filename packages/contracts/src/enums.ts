@@ -16,6 +16,19 @@ export enum UserStatus {
   Deleted = 'deleted',
 }
 
+/** Loại nội dung CMS. */
+export enum CmsContentType {
+  Post = 'post',
+  Page = 'page',
+}
+
+/** Trạng thái xuất bản CMS. */
+export enum CmsContentStatus {
+  Draft = 'draft',
+  Published = 'published',
+  Archived = 'archived',
+}
+
 /** Phương thức xác thực 2 lớp (MFA) đang bật cho tài khoản. */
 export enum MfaMethod {
   /** Gửi mã OTP qua email mỗi lần đăng nhập. */
