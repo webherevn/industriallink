@@ -87,6 +87,11 @@ export function goToPublicApp(path = '/'): void {
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
   if (role === UserRole.SuperAdmin) {
     const dest = nextPath && isAdminAppPath(nextPath) ? nextPath : '/admin';
+    // Đã ở admin.inlink.vn → ở lại origin hiện tại (tránh nhảy nhầm host)
+    if (isAdminHostname()) {
+      window.location.assign(dest);
+      return;
+    }
     goToAdminApp(dest);
     return;
   }
@@ -99,7 +104,12 @@ export function navigateAfterLogin(role: UserRole, nextPath?: string | null): vo
     window.location.assign(dest);
     return;
   }
+  // Recruiter / CompanyAdmin / HiringManager
   const dest = nextPath && isRecruiterAppPath(nextPath) ? nextPath : '/recruiter';
+  if (isRecruiterHostname()) {
+    window.location.assign(dest);
+    return;
+  }
   goToRecruiterApp(dest);
 }
 

@@ -32,6 +32,10 @@ export default function LoginPage() {
   }, []);
 
   function goHome(role: UserRole) {
+    if (role === UserRole.SuperAdmin) {
+      navigateAfterLogin(role, nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin');
+      return;
+    }
     navigateAfterLogin(role, role === UserRole.Candidate ? nextPath : null);
   }
 
