@@ -2,16 +2,15 @@
 
 import { MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/brand-logo';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { login, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
+import { navigateAfterLogin } from '@/lib/hosts';
 import { registerHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,11 +32,7 @@ export default function LoginPage() {
   }, []);
 
   function goHome(role: UserRole) {
-    if (role === UserRole.Candidate && nextPath) {
-      router.push(nextPath);
-      return;
-    }
-    router.push(role === UserRole.Candidate ? '/dashboard' : '/recruiter');
+    navigateAfterLogin(role, role === UserRole.Candidate ? nextPath : null);
   }
 
   async function onSubmitCredentials(e: React.FormEvent) {

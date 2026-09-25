@@ -22,7 +22,17 @@ async function bootstrap(): Promise<void> {
   // cross-origin: web (localhost:3000) cần fetch binary (avatar) từ API.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cookieParser());
-  app.enableCors({ origin: config.get('webOrigin', { infer: true }), credentials: true });
+  const webOrigins = config.get('webOrigins', { infer: true });
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin || webOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
+    credentials: true,
+  });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
   );

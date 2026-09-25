@@ -59,6 +59,12 @@ async function tryRefresh(): Promise<boolean> {
   }
 }
 
+/** Khôi phục access token từ cookie refresh — cần khi NTD nhảy sang tuyendung.inlink.vn. */
+export async function restoreSession(): Promise<boolean> {
+  if (tokenStore.get()) return true;
+  return tryRefresh();
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, isForm = false, retryOnUnauthorized = true } = options;
 

@@ -2,10 +2,25 @@
  * Tải và kiểm tra biến môi trường tập trung một chỗ.
  * Không đọc process.env rải rác trong code nghiệp vụ.
  */
+function parseWebOrigins(): string[] {
+  const items = [
+    process.env.WEB_ORIGIN ?? 'http://localhost:3000',
+    process.env.RECRUITER_WEB_ORIGIN,
+    ...(process.env.WEB_ORIGINS ?? '').split(','),
+  ]
+    .map((s) => s?.trim())
+    .filter((s): s is string => Boolean(s));
+  return [...new Set(items)];
+}
+
 export interface AppConfig {
   nodeEnv: string;
   port: number;
   webOrigin: string;
+  /** CORS: site ứng viên + site NTD (tuyendung.inlink.vn). */
+  webOrigins: string[];
+  /** Domain cookie refresh, vd. .inlink.vn — để NTD nhảy subdomain vẫn giữ phiên. */
+  cookieDomain?: string;
   databaseUrl: string;
   redis: {
     host: string;
@@ -85,6 +100,8 @@ export default (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.API_PORT ?? 3001),
   webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
+  webOrigins: parseWebOrigins(),
+  cookieDomain: process.env.AUTH_COOKIE_DOMAIN?.trim() || undefined,
   databaseUrl: required('DATABASE_URL', process.env.DATABASE_URL),
   redis: {
     host: process.env.REDIS_HOST ?? 'localhost',

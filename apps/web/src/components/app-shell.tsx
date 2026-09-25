@@ -27,9 +27,10 @@ import { NotificationBell } from '@/components/notification-bell';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { PublicHeader } from '@/components/public-header';
 import { RecruiterShell } from '@/components/recruiter-shell';
-import { tokenStore } from '@/lib/api';
+import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
+import { bounceIfWrongHost } from '@/lib/hosts';
 
 /** Menu chính — hành trình ứng tuyển (không nhồi tài khoản/thông báo). */
 const CANDIDATE_PRIMARY_NAV = [
@@ -83,7 +84,7 @@ export function AppShell({
   const accountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setHydrated(true);
+    void restoreSession().finally(() => setHydrated(true));
   }, []);
 
   const hasToken = hydrated && Boolean(tokenStore.get());
@@ -112,6 +113,11 @@ export function AppShell({
     if (allowGuest) return;
     if (isError) router.replace('/login');
   }, [isError, router, allowGuest]);
+
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+    bounceIfWrongHost(user.role, `${window.location.pathname}${window.location.search}`);
+  }, [user]);
 
   useEffect(() => {
     setMobileOpen(false);

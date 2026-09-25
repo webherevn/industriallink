@@ -28,8 +28,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { NotificationBell } from '@/components/notification-bell';
-import { tokenStore } from '@/lib/api';
+import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
+import { bounceIfWrongHost } from '@/lib/hosts';
 import {
   MY_COMPANY_LOGO_QUERY_KEY,
   fetchMyCompanyLogoObjectUrl,
@@ -128,18 +129,25 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void restoreSession().finally(() => setSessionReady(true));
+  }, []);
+
+  const hasToken = sessionReady && Boolean(tokenStore.get());
 
   const { data: user, isError } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
-    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    enabled: hasToken,
   });
 
   const { data: company } = useQuery({
     queryKey: ['my-company'],
     queryFn: getMyCompany,
-    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    enabled: hasToken,
     retry: false,
   });
 
@@ -151,14 +159,20 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !tokenStore.get()) {
+    if (!sessionReady) return;
+    if (!tokenStore.get()) {
       router.replace('/login');
     }
-  }, [router]);
+  }, [router, sessionReady]);
 
   useEffect(() => {
     if (isError) router.replace('/login');
   }, [isError, router]);
+
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+    bounceIfWrongHost(user.role, `${window.location.pathname}${window.location.search}`);
+  }, [user]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -204,6 +218,14 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
     if (href === '#') return false;
     if (href === '/recruiter') return pathname === '/recruiter';
     return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  if (!sessionReady || (hasToken && !user && !isError)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-slate-500">
+        Đang tải...
+      </div>
+    );
   }
 
   const displayName = company?.name || user?.displayName || 'Nhà tuyển dụng';

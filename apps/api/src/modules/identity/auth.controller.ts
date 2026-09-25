@@ -149,7 +149,7 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
     await this.identity.logout(token);
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_COOKIE, this.refreshCookieOptions());
     return { message: 'Đã đăng xuất' };
   }
 
@@ -223,13 +223,26 @@ export class AuthController {
     });
   }
 
-  private setRefreshCookie(res: Response, token: string): void {
+  private refreshCookieOptions(): {
+    path: string;
+    secure: boolean;
+    sameSite: 'lax';
+    domain?: string;
+  } {
     const isProd = this.config.get('nodeEnv', { infer: true }) === 'production';
-    res.cookie(REFRESH_COOKIE, token, {
-      httpOnly: true,
+    const domain = this.config.get('cookieDomain', { infer: true });
+    return {
+      path: '/api/v1/auth',
       secure: isProd,
       sameSite: 'lax',
-      path: '/api/v1/auth',
+      ...(domain ? { domain } : {}),
+    };
+  }
+
+  private setRefreshCookie(res: Response, token: string): void {
+    res.cookie(REFRESH_COOKIE, token, {
+      httpOnly: true,
+      ...this.refreshCookieOptions(),
       maxAge: this.config.get('jwt', { infer: true }).refreshTtl * 1000,
     });
   }
