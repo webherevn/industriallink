@@ -59,8 +59,27 @@ async function tryRefresh(): Promise<boolean> {
   }
 }
 
-/** Khôi phục access token từ cookie refresh — cần khi NTD nhảy sang tuyendung.inlink.vn. */
+const HANDOFF_HASH_PREFIX = '#il_at=';
+
+/** Nhận access token khi hop subdomain (hash, không gửi lên server). */
+export function consumeHandoffToken(): void {
+  if (typeof window === 'undefined') return;
+  const hash = window.location.hash;
+  if (!hash.startsWith(HANDOFF_HASH_PREFIX)) return;
+  const token = decodeURIComponent(hash.slice(HANDOFF_HASH_PREFIX.length));
+  if (token) tokenStore.set(token);
+  const clean = `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(null, '', clean);
+}
+
+export function handoffHashForToken(token: string | null | undefined): string {
+  if (!token) return '';
+  return `${HANDOFF_HASH_PREFIX}${encodeURIComponent(token)}`;
+}
+
+/** Khôi phục access token: handoff hash → localStorage → cookie refresh. */
 export async function restoreSession(): Promise<boolean> {
+  consumeHandoffToken();
   if (tokenStore.get()) return true;
   return tryRefresh();
 }

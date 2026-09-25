@@ -1,4 +1,5 @@
 import { UserRole } from '@industriallink/contracts';
+import { handoffHashForToken, tokenStore } from './api';
 import {
   BRAND_RECRUITER_HOST,
   BRAND_RECRUITER_SITE_URL,
@@ -49,30 +50,32 @@ function withPath(origin: string, path: string): string {
 
 export function goToRecruiterApp(path = '/recruiter'): void {
   const destPath = path.startsWith('/') ? path : `/${path}`;
+  const handoff = handoffHashForToken(tokenStore.get());
   if (!shouldUseRecruiterHost()) {
-    window.location.assign(destPath);
+    window.location.replace(`${destPath}${handoff}`);
     return;
   }
   const origin = recruiterSiteUrl();
   if (window.location.origin === origin) {
-    window.location.assign(destPath);
+    window.location.replace(`${destPath}${handoff}`);
     return;
   }
-  window.location.assign(withPath(origin, destPath));
+  window.location.replace(`${withPath(origin, destPath)}${handoff}`);
 }
 
 export function goToPublicApp(path = '/'): void {
   const destPath = path.startsWith('/') ? path : `/${path}`;
+  const handoff = handoffHashForToken(tokenStore.get());
   if (!shouldUseRecruiterHost()) {
-    window.location.assign(destPath);
+    window.location.replace(`${destPath}${handoff}`);
     return;
   }
   const origin = publicSiteUrl();
   if (window.location.origin === origin) {
-    window.location.assign(destPath);
+    window.location.replace(`${destPath}${handoff}`);
     return;
   }
-  window.location.assign(withPath(origin, destPath));
+  window.location.replace(`${withPath(origin, destPath)}${handoff}`);
 }
 
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
