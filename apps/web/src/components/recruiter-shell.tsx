@@ -28,7 +28,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { NotificationBell } from '@/components/notification-bell';
-import { restoreSession, tokenStore } from '@/lib/api';
+import { restoreSession, tokenStore, ApiError } from '@/lib/api';
 import { clearAuthQueryCache, fetchMe, logout } from '@/lib/auth';
 import { bounceIfWrongHost } from '@/lib/hosts';
 import {
@@ -139,10 +139,16 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
 
   const hasToken = sessionReady && Boolean(tokenStore.get());
 
-  const { data: user, isError } = useQuery({
+  const { data: user, isError, error: meError } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: hasToken,
+    retry: (count, err) => {
+      // 429: thử lại, không đá về login
+      if (err instanceof ApiError && err.status === 429) return count < 3;
+      return count < 1;
+    },
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
   });
 
   const { data: company } = useQuery({
@@ -167,8 +173,13 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   }, [router, sessionReady]);
 
   useEffect(() => {
-    if (isError) router.replace('/login');
-  }, [isError, router]);
+    if (!isError) return;
+    // Rate limit / lỗi tạm — không đá về login
+    if (meError instanceof ApiError && (meError.status === 429 || meError.status >= 500)) {
+      return;
+    }
+    router.replace('/login');
+  }, [isError, meError, router]);
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type {
   AuthUserView,
   LoginResponse,
@@ -135,6 +135,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
+  @SkipThrottle()
   @ApiOperation({ summary: 'Cấp lại access token bằng refresh token trong cookie' })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
@@ -154,6 +155,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Thông tin người dùng hiện tại' })

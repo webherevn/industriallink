@@ -18,6 +18,9 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(ConfigService<AppConfig, true>);
 
+  // Nginx proxy — req.ip lấy từ X-Forwarded-For (tránh mọi user chung 1 bucket throttle)
+  app.set('trust proxy', 1);
+
   app.setGlobalPrefix('api/v1');
   // cross-origin: web (localhost:3000) cần fetch binary (avatar) từ API.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));

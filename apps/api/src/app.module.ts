@@ -39,7 +39,8 @@ import { CmsModule } from './modules/cms/cms.module';
         customProps: (req) => ({ correlationId: (req as { correlationId?: string }).correlationId }),
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Production sau nginx: tăng hạn mức; tracker theo IP thật (trust proxy).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     ScheduleModule.forRoot(),
     SharedModule,
     AiModule,
