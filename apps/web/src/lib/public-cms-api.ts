@@ -40,7 +40,7 @@ export async function fetchPublishedCmsPostsPage(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   qs.set('page', String(params.page ?? 1));
   const res = await fetch(`${apiPublicBase()}/cms/posts?${qs}`, {
-    next: { revalidate: 60 },
+    next: { revalidate: 30 },
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) {
@@ -56,6 +56,10 @@ export async function fetchPublishedCmsPostsPage(params: {
       pageSize: data.length || 12,
       totalPages: 1,
     };
+  }
+  // Bảo vệ khi API lỗi shape / proxy trả HTML
+  if (!data || !Array.isArray(data.items)) {
+    return { items: [], total: 0, page: 1, pageSize: params.limit ?? 12, totalPages: 1 };
   }
   return data;
 }

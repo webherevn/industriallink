@@ -26,7 +26,7 @@ import { fetchPublicCmsCategory, fetchPublishedCmsPostsPage } from '@/lib/public
 import { siteUrl } from '@/lib/public-paths';
 import { NOINDEX_ROBOTS } from '@/lib/seo-robots';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 12;
 

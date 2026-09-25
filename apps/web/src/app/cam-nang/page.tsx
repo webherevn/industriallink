@@ -20,7 +20,7 @@ import { fetchPublicCmsCategories, fetchPublishedCmsPostsPage } from '@/lib/publ
 import { siteUrl } from '@/lib/public-paths';
 import { INDEX_ROBOTS } from '@/lib/seo-robots';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const PAGE_DESCRIPTION = `${CAM_NANG_INTRO} ${CAM_NANG_INTRO_DETAIL}`;
 
