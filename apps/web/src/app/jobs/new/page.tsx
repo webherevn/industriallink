@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { JobTrack } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Button } from '@/components/ui';
-import { fetchMe } from '@/lib/auth';
 import { getMyCompany } from '@/lib/company';
 import { JdSalesCreateFlow } from './sales-create-flow';
 import { JdTechnicalCreateFlow } from './technical-create-flow';
@@ -33,45 +32,21 @@ function CompanyRequiredGate() {
 export default function NewJobPage() {
   const [track, setTrack] = useState<JobTrack>(JobTrack.Sales);
 
-  const {
-    data: me,
-    isLoading: meLoading,
-    isPending: mePending,
-    isError: meError,
-    isSuccess: meOk,
-  } = useQuery({
-    queryKey: ['me'],
-    queryFn: fetchMe,
-    retry: false,
-    staleTime: 0,
-  });
-
+  // Auth do RecruiterShell lo — chỉ kiểm tra hồ sơ công ty
   const {
     data: company,
-    isLoading: companyLoading,
-    isPending: companyPending,
-    isSuccess: companyOk,
+    isLoading,
+    isFetching,
+    isSuccess,
+    isFetched,
   } = useQuery({
-    queryKey: ['my-company', me?.id ?? 'anon'],
+    queryKey: ['my-company'],
     queryFn: getMyCompany,
-    enabled: Boolean(me?.id),
     retry: false,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 30_000,
   });
 
-  if (meLoading || mePending || meError || !meOk || !me?.id) {
-    return (
-      <AppShell>
-        <p className="py-16 text-center text-sm text-slate-500">
-          {meError ? 'Vui lòng đăng nhập lại.' : 'Đang tải...'}
-        </p>
-      </AppShell>
-    );
-  }
-
-  if (companyLoading || companyPending) {
+  if (isLoading || (isFetching && !isFetched)) {
     return (
       <AppShell>
         <p className="py-16 text-center text-sm text-slate-500">Đang tải...</p>
@@ -79,8 +54,7 @@ export default function NewJobPage() {
     );
   }
 
-  // Chỉ mở form khi API trả công ty thành công — không dùng data cache kèm isError
-  if (!companyOk || !company?.id) {
+  if (!isSuccess || !company?.id) {
     return <CompanyRequiredGate />;
   }
 

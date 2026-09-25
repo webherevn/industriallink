@@ -139,16 +139,21 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
 
   const hasToken = sessionReady && Boolean(tokenStore.get());
 
-  const { data: user, isError, error: meError } = useQuery({
+  const {
+    data: user,
+    isError,
+    isFetching: meFetching,
+    error: meError,
+    refetch: refetchMe,
+  } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: hasToken,
     retry: (count, err) => {
-      // 429: thử lại, không đá về login
-      if (err instanceof ApiError && err.status === 429) return count < 3;
-      return count < 1;
+      if (err instanceof ApiError && err.status === 429) return count < 2;
+      return false;
     },
-    retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
+    retryDelay: (n) => Math.min(1500 * 2 ** n, 6000),
   });
 
   const { data: company } = useQuery({
@@ -165,6 +170,11 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
     staleTime: 5 * 60_000,
   });
 
+  const meRateLimited =
+    isError && meError instanceof ApiError && meError.status === 429;
+  const meServerError =
+    isError && meError instanceof ApiError && meError.status >= 500;
+
   useEffect(() => {
     if (!sessionReady) return;
     if (!tokenStore.get()) {
@@ -174,12 +184,10 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isError) return;
-    // Rate limit / lỗi tạm — không đá về login
-    if (meError instanceof ApiError && (meError.status === 429 || meError.status >= 500)) {
-      return;
-    }
+    // 429 / 5xx: không đá về login (tránh nhảy vòng)
+    if (meRateLimited || meServerError) return;
     router.replace('/login');
-  }, [isError, meError, router]);
+  }, [isError, meRateLimited, meServerError, router]);
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
@@ -233,10 +241,29 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  if (!sessionReady || (hasToken && !user && !isError)) {
+  if (!sessionReady || (hasToken && !user && meFetching)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-slate-500">
         Đang tải...
+      </div>
+    );
+  }
+
+  if (hasToken && !user && (meRateLimited || meServerError)) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#F8FAFC] px-6 text-center">
+        <p className="text-sm text-slate-600">
+          {meRateLimited
+            ? 'Máy chủ đang giới hạn truy cập (quá nhiều request). Đợi vài giây rồi thử lại.'
+            : 'Không kết nối được máy chủ. Thử lại sau.'}
+        </p>
+        <button
+          type="button"
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          onClick={() => void refetchMe()}
+        >
+          Thử lại
+        </button>
       </div>
     );
   }
