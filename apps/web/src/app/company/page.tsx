@@ -26,9 +26,11 @@ import {
   createCompany,
   fetchMyCompanyLogoObjectUrl,
   getMyCompany,
+  getMyCompanyVerification,
   inviteCompanyMember,
   listCompanyMembers,
   removeCompanyMember,
+  submitCompanyVerification,
   updateMyCompany,
   uploadCompanyLogo,
 } from '@/lib/company';
@@ -222,6 +224,8 @@ export default function CompanyPage() {
               : 'Không cập nhật được logo'}
           </p>
         )}
+
+        {isAdmin && <CompanyVerificationCard />}
 
         {editing && isAdmin ? (
           <Card className="mt-6 max-w-3xl space-y-4">
@@ -518,6 +522,101 @@ function MembersCard({ isAdmin }: { isAdmin: boolean }) {
             : 'Không gỡ được thành viên'}
         </p>
       )}
+    </Card>
+  );
+}
+
+function CompanyVerificationCard() {
+  const qc = useQueryClient();
+  const [note, setNote] = useState('');
+  const [askVerified, setAskVerified] = useState(true);
+  const [askTrusted, setAskTrusted] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-company-verification'],
+    queryFn: getMyCompanyVerification,
+  });
+
+  const submit = useMutation({
+    mutationFn: () => submitCompanyVerification({ note: note.trim(), askVerified, askTrusted }),
+    onSuccess: async () => {
+      setMessage('Đã gửi. SuperAdmin sẽ xét đơn.');
+      setNote('');
+      await qc.invalidateQueries({ queryKey: ['my-company-verification'] });
+    },
+    onError: (err) => {
+      setMessage(err instanceof ApiError ? err.message : 'Không gửi được đơn');
+    },
+  });
+
+  if (isLoading || !data) return null;
+
+  const pending = data.status === 'pending';
+  const canAskVerified = !data.verified;
+  const canAskTrusted = !data.trustedEmployer;
+
+  return (
+    <Card className="mt-6 max-w-3xl space-y-3">
+      <h2 className="text-base font-semibold text-slate-900">Xác minh nhà tuyển dụng</h2>
+      <p className="text-sm text-slate-600">
+        Huy hiệu «Đã xác thực» và «Nhà tuyển dụng uy tín» do SuperAdmin cấp. Bạn gửi đơn, không tự bật được.
+      </p>
+      <p className="text-sm text-slate-700">
+        Hiện tại: {data.verified ? 'Đã xác thực' : 'Chưa xác thực'}
+        {data.trustedEmployer ? ' · Nhà tuyển dụng uy tín' : ''}
+      </p>
+      {data.status !== 'none' && (
+        <p className="text-sm text-slate-600">
+          Đơn gần nhất:{' '}
+          {data.status === 'pending' ? 'đang chờ' : data.status === 'approved' ? 'đã duyệt' : 'bị từ chối'}
+          {data.reviewNote ? ` — ${data.reviewNote}` : ''}
+        </p>
+      )}
+      {pending ? (
+        <p className="text-sm text-amber-800">Đơn đang chờ xét: {data.note}</p>
+      ) : canAskVerified || canAskTrusted ? (
+        <div className="space-y-2">
+          {canAskVerified && (
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={askVerified}
+                onChange={(e) => setAskVerified(e.target.checked)}
+              />
+              Xin «Đã xác thực»
+            </label>
+          )}
+          {canAskTrusted && (
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={askTrusted}
+                onChange={(e) => setAskTrusted(e.target.checked)}
+              />
+              Xin «Nhà tuyển dụng uy tín»
+            </label>
+          )}
+          <Textarea
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="MST, website, người liên hệ… (ít nhất 10 ký tự)"
+          />
+          <Button
+            disabled={submit.isPending || note.trim().length < 10 || (!askVerified && !askTrusted)}
+            onClick={() => {
+              setMessage(null);
+              submit.mutate();
+            }}
+          >
+            {submit.isPending ? 'Đang gửi…' : 'Gửi đơn xác minh'}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-emerald-700">Công ty đã có đủ huy hiệu.</p>
+      )}
+      {message && <p className="text-sm text-slate-600">{message}</p>}
     </Card>
   );
 }

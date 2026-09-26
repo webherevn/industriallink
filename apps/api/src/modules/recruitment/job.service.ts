@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import {
+  CompanyStatus,
   DomainEvents,
   EmploymentType,
   JobModerationStatus,
@@ -67,6 +68,7 @@ const JOB_COMPANY_SELECT = {
   website: true,
   address: true,
   profile: true,
+  status: true,
 } as const;
 
 type JobWithRelations = Job & {
@@ -78,6 +80,7 @@ type JobWithRelations = Job & {
     website: string | null;
     address: string | null;
     profile: Prisma.JsonValue | null;
+    status: string;
   };
 };
 
@@ -219,16 +222,21 @@ export class JobService {
     private readonly moderationQueue: Queue<JobModerationJobData>,
   ) {}
 
-  /** Đưa tin vào hàng đợi kiểm duyệt (Lớp 2). */
-  private async enqueueModeration(
+  /** Đưa tin vào hàng đợi kiểm duyệt (Lớp 2). SuperAdmin requeue cũng gọi hàm này. */
+  async enqueueModeration(
     jobId: string,
     tenantId: string,
     correlationId: string,
+    opts?: { unique?: boolean },
   ): Promise<void> {
     await this.moderationQueue.add(
       'moderate',
       { jobId, tenantId, correlationId },
-      { jobId: `job-moderation:${jobId}` },
+      {
+        jobId: opts?.unique
+          ? `job-moderation:${jobId}:${Date.now()}`
+          : `job-moderation:${jobId}`,
+      },
     );
   }
 
@@ -402,8 +410,11 @@ export class JobService {
     correlationId: string,
   ): Promise<JobView> {
     const company = await this.companies.requireUserCompany(user.id);
-    const code = await this.codeGen.next('JOB');
     const willPublish = dto.publish === true;
+    if (willPublish) {
+      await this.companies.assertCompanyCanPost(company.companyId);
+    }
+    const code = await this.codeGen.next('JOB');
 
     const skillInputs = dto.skills ?? [];
     const skillData = await Promise.all(
@@ -510,6 +521,7 @@ export class JobService {
     correlationId: string,
   ): Promise<JobView> {
     const job = await this.requireOwnedJob(user, jobId);
+    await this.companies.assertCompanyCanPost(job.companyId);
     if (job.status === JobStatus.Published) {
       return this.toView(job);
     }
@@ -868,6 +880,7 @@ export class JobService {
       where: {
         status: JobStatus.Published,
         isDeleted: false,
+        company: { isDeleted: false, status: CompanyStatus.Active },
         ...(experienceBands.length === 1
           ? { experienceBand: experienceBands[0] }
           : experienceBands.length > 1
@@ -919,7 +932,11 @@ export class JobService {
   /** Vị trí đang tuyển — gom từ tin published trên nền tảng. */
   async listPublishedPositionStats(): Promise<JobPositionStatsView> {
     const jobs = await this.prisma.job.findMany({
-      where: { status: JobStatus.Published, isDeleted: false },
+      where: {
+        status: JobStatus.Published,
+        isDeleted: false,
+        company: { isDeleted: false, status: CompanyStatus.Active },
+      },
       select: { title: true, industry: true },
     });
     const popular = aggregateJobTitles(jobs, 12);

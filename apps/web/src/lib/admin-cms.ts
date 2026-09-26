@@ -37,11 +37,13 @@ export async function listCmsPostsAdmin(params: {
   type?: CmsContentType;
   status?: CmsContentStatus;
   category?: string;
+  trashed?: boolean;
 } = {}): Promise<CmsPostListItem[]> {
   const qs = new URLSearchParams();
   if (params.type) qs.set('type', params.type);
   if (params.status) qs.set('status', params.status);
   if (params.category) qs.set('category', params.category);
+  if (params.trashed) qs.set('trashed', '1');
   const suffix = qs.toString() ? `?${qs}` : '';
   return apiRequest(`/admin/cms/posts${suffix}`);
 }
@@ -64,6 +66,10 @@ export async function setCmsPostStatus(id: string, status: CmsContentStatus): Pr
 
 export async function deleteCmsPost(id: string): Promise<void> {
   await apiRequest(`/admin/cms/posts/${id}`, { method: 'DELETE' });
+}
+
+export async function restoreCmsPost(id: string): Promise<CmsPostView> {
+  return apiRequest(`/admin/cms/posts/${id}/restore`, { method: 'POST' });
 }
 
 export async function listCmsRedirects() {
@@ -102,6 +108,14 @@ export async function uploadCmsMedia(file: File): Promise<{
   const form = new FormData();
   form.append('file', file);
   return apiRequest('/cms/media', { method: 'POST', body: form, isForm: true });
+}
+
+export async function listCmsMedia(): Promise<import('@industriallink/contracts').CmsMediaList> {
+  return apiRequest('/admin/cms/media');
+}
+
+export async function deleteCmsMedia(filename: string): Promise<void> {
+  await apiRequest(`/admin/cms/media/${encodeURIComponent(filename)}`, { method: 'DELETE' });
 }
 
 export async function getCmsMenuAdmin(location: string) {

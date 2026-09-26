@@ -1,13 +1,15 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { AppConfig } from '../../../config/configuration';
 
@@ -88,6 +90,73 @@ export class StorageService implements OnModuleInit {
         'Không lưu được file CV (MinIO/S3 không kết nối được). Kiểm tra STORAGE_DRIVER / S3_ENDPOINT hoặc bật MinIO trên server.',
       );
     }
+  }
+
+  /** Liệt kê object theo prefix (vd. `cms-media/`). Tối đa 500 file, mới nhất trước. */
+  async listObjects(prefix: string): Promise<Array<{ key: string; size: number; updatedAt: Date }>> {
+    const safe = prefix.replace(/^\/+/, '');
+    if (this.driver === 'local') {
+      const dir = join(this.localRoot, safe);
+      let names: string[];
+      try {
+        names = await readdir(dir);
+      } catch {
+        return [];
+      }
+      const rows = await Promise.all(
+        names.map(async (name) => {
+          try {
+            const info = await stat(join(dir, name));
+            if (!info.isFile()) return null;
+            return { key: `${safe}${name}`, size: info.size, updatedAt: info.mtime };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      return rows
+        .filter((r): r is { key: string; size: number; updatedAt: Date } => r != null)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .slice(0, 500);
+    }
+    if (!this.client) return [];
+    const out: Array<{ key: string; size: number; updatedAt: Date }> = [];
+    let token: string | undefined;
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: safe,
+          ContinuationToken: token,
+          MaxKeys: 500,
+        }),
+      );
+      for (const obj of res.Contents ?? []) {
+        if (!obj.Key || obj.Key.endsWith('/')) continue;
+        out.push({
+          key: obj.Key,
+          size: obj.Size ?? 0,
+          updatedAt: obj.LastModified ?? new Date(0),
+        });
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token && out.length < 500);
+    return out.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()).slice(0, 500);
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    if (this.driver === 'local') {
+      try {
+        await unlink(join(this.localRoot, key));
+      } catch {
+        // File đã không còn — coi như xoá xong.
+      }
+      return;
+    }
+    if (!this.client) {
+      throw new ServiceUnavailableException('Object Storage chưa cấu hình.');
+    }
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
   async getObject(key: string): Promise<Buffer> {

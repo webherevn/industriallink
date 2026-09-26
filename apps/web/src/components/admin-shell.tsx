@@ -53,6 +53,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
         pathname.startsWith('/admin/users') ||
         pathname.startsWith('/admin/menus') ||
         pathname.startsWith('/admin/moderation') ||
+        pathname.startsWith('/admin/jobs') ||
+        pathname.startsWith('/admin/companies') ||
+        pathname.startsWith('/admin/verification') ||
+        pathname.startsWith('/admin/audit') ||
+        pathname.startsWith('/admin/reports') ||
         pathname.startsWith('/admin/ai-settings') ||
         pathname.startsWith('/admin/footer');
       if (blocked) {

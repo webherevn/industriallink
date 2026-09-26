@@ -77,8 +77,14 @@ export class CmsAdminController {
     @Query('type') type?: CmsContentType,
     @Query('status') status?: CmsContentStatus,
     @Query('category') category?: string,
+    @Query('trashed') trashed?: string,
   ) {
-    return this.cms.listPostsAdmin({ type, status, category });
+    return this.cms.listPostsAdmin({
+      type,
+      status,
+      category,
+      trashed: trashed === '1' || trashed === 'true',
+    });
   }
 
   @Get('posts/:id')
@@ -117,6 +123,12 @@ export class CmsAdminController {
   @ApiOperation({ summary: 'Xoá mềm post/page' })
   deletePost(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.cms.deletePost(user, id);
+  }
+
+  @Post('posts/:id/restore')
+  @ApiOperation({ summary: 'Khôi phục post/page từ thùng rác' })
+  restorePost(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.cms.restorePost(user, id);
   }
 
   @Get('redirects')

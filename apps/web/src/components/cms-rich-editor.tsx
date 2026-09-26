@@ -38,6 +38,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { CmsMediaPicker } from '@/components/cms-media-library';
 import { uploadCmsMedia } from '@/lib/admin-cms';
 import { ApiError } from '@/lib/api';
 
@@ -187,6 +188,7 @@ export function CmsRichEditor({ value, onChange, placeholder, compact = false }:
   const [linkUrl, setLinkUrl] = useState('https://');
   const [linkText, setLinkText] = useState('');
   const [imageOpen, setImageOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [imageAlt, setImageAlt] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [htmlDraft, setHtmlDraft] = useState(value || '');
@@ -664,7 +666,7 @@ export function CmsRichEditor({ value, onChange, placeholder, compact = false }:
         <Modal title="Thêm Media" onClose={() => setImageOpen(false)}>
           <div className="space-y-3">
             <p className="text-xs text-slate-500">
-              Tải ảnh lên máy chủ hoặc dán URL ảnh có sẵn. JPEG / PNG / WebP / GIF · tối đa 5MB.
+              Tải ảnh lên máy chủ hoặc dán URL ảnh có sẵn. JPEG / PNG / WebP / GIF · tối đa 5MB · hệ thống nén và lưu WebP.
             </p>
             <label className="block text-xs font-semibold text-slate-600">
               Alt text (SEO / accessibility)
@@ -685,6 +687,13 @@ export function CmsRichEditor({ value, onChange, placeholder, compact = false }:
               />
             </label>
             <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button
+                type="button"
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setLibraryOpen(true)}
+              >
+                Thư viện
+              </button>
               <button
                 type="button"
                 className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -715,6 +724,17 @@ export function CmsRichEditor({ value, onChange, placeholder, compact = false }:
           </div>
         </Modal>
       )}
+      <CmsMediaPicker
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={(url) => {
+          if (!editor) return;
+          editor.chain().focus().setImage({ src: url, alt: imageAlt || '' }).run();
+          setImageOpen(false);
+          setImageAlt('');
+          setImageUrl('');
+        }}
+      />
     </div>
   );
 }

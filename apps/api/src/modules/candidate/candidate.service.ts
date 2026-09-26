@@ -47,6 +47,7 @@ import { AppEventBus } from '../../shared/events/event-bus';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
+import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CompanyService } from '../company/company.service';
@@ -1063,22 +1064,15 @@ export class CandidateService {
     }
 
     const candidate = await this.getCandidateByUser(user.id);
-    const ext =
-      file.mimetype === 'image/png'
-        ? 'png'
-        : file.mimetype === 'image/webp'
-          ? 'webp'
-          : file.mimetype === 'image/gif'
-            ? 'gif'
-            : 'jpg';
-    const storageKey = `avatars/${candidate.id}/${uuidv7()}.${ext}`;
-    await this.storage.putObject(storageKey, file.buffer, file.mimetype);
+    const image = await compressUploadedImage(file.buffer, 512);
+    const storageKey = `avatars/${candidate.id}/${uuidv7()}.${image.ext}`;
+    await this.storage.putObject(storageKey, image.buffer, image.mime);
 
     await this.prisma.candidate.update({
       where: { id: candidate.id },
       data: {
         avatarStorageKey: storageKey,
-        avatarMime: file.mimetype,
+        avatarMime: image.mime,
         updatedBy: user.id,
       },
     });

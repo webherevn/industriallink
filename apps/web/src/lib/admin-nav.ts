@@ -1,15 +1,19 @@
 import { UserRole } from '@industriallink/contracts';
 import {
+  BadgeCheck,
   BarChart3,
+  Briefcase,
   Building2,
   Code2,
   FileText,
   FolderTree,
+  ImageIcon,
   Home,
   LayoutDashboard,
   Menu,
   PanelBottom,
   Bot,
+  ScrollText,
   Search,
   ShieldCheck,
   Sparkles,
@@ -49,6 +53,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { href: '/admin/posts', label: 'Bài viết', icon: FileText },
       { href: '/admin/pages', label: 'Trang', icon: FileText },
       { href: '/admin/author', label: 'Tác giả', icon: UserRound },
+      { href: '/admin/media', label: 'Thư viện media', icon: ImageIcon },
     ],
   },
   {
@@ -71,6 +76,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     items: [
       { href: '/admin/users', label: 'Người dùng', icon: Users, superAdminOnly: true },
       {
+        href: '/admin/jobs',
+        label: 'Tin tuyển dụng',
+        icon: Briefcase,
+        superAdminOnly: true,
+      },
+      {
         href: '/admin/moderation',
         label: 'Duyệt tin tuyển dụng',
         icon: ShieldCheck,
@@ -82,8 +93,15 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         icon: Sparkles,
         superAdminOnly: true,
       },
-      { href: '#', label: 'Công ty', icon: Building2, soon: true, superAdminOnly: true },
-      { href: '#', label: 'Báo cáo', icon: BarChart3, soon: true, superAdminOnly: true },
+      { href: '/admin/companies', label: 'Công ty', icon: Building2, superAdminOnly: true },
+      {
+        href: '/admin/verification',
+        label: 'Xác minh NTD',
+        icon: BadgeCheck,
+        superAdminOnly: true,
+      },
+      { href: '/admin/audit', label: 'Nhật ký', icon: ScrollText, superAdminOnly: true },
+      { href: '/admin/reports', label: 'Báo cáo', icon: BarChart3, superAdminOnly: true },
     ],
   },
 ];

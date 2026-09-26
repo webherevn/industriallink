@@ -205,9 +205,9 @@ export class CmsService {
   async listPostsAdmin(query: ListCmsPostsQuery = {}): Promise<CmsPostListItem[]> {
     const rows = await this.prisma.cmsPost.findMany({
       where: {
-        isDeleted: false,
+        isDeleted: Boolean(query.trashed),
         ...(query.type ? { type: query.type } : {}),
-        ...(query.status ? { status: query.status } : {}),
+        ...(query.status && !query.trashed ? { status: query.status } : {}),
         ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
@@ -236,14 +236,12 @@ export class CmsService {
       String(rawType).toLowerCase() === CmsContentType.Page
         ? CmsContentType.Page
         : CmsContentType.Post;
-    const where = {
-      isDeleted: false,
-      status: CmsContentStatus.Published,
+    const where = this.livePostWhere({
       type,
       robotsIndex: true,
       ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
       ...(authorUserId ? { authorId: authorUserId } : {}),
-    };
+    });
     const [total, rows] = await Promise.all([
       this.prisma.cmsPost.count({ where }),
       this.prisma.cmsPost.findMany({
@@ -275,12 +273,7 @@ export class CmsService {
 
   async getPublishedBySlug(type: CmsContentType, slug: string): Promise<CmsPostView | null> {
     const row = await this.prisma.cmsPost.findFirst({
-      where: {
-        type,
-        slug,
-        isDeleted: false,
-        status: CmsContentStatus.Published,
-      },
+      where: this.livePostWhere({ type, slug }),
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
     return row ? this.mapPostView(row) : null;
@@ -327,7 +320,11 @@ export class CmsService {
       },
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
-    if (publish && robots.index) {
+    if (
+      publish &&
+      robots.index &&
+      this.isPubliclyLive(CmsContentStatus.Published, publishedAt)
+    ) {
       void this.indexing.publish(
         this.absolutePublicUrl(type, slug),
         'URL_UPDATED',
@@ -436,12 +433,12 @@ export class CmsService {
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
 
-    const wasPublished = existing.status === CmsContentStatus.Published;
-    const isPublished = status === CmsContentStatus.Published;
+    const wasLive = this.isPubliclyLive(existing.status, existing.publishedAt);
+    const isLive = this.isPubliclyLive(status, publishedAt);
     const publicUrl = this.absolutePublicUrl(type, slug);
-    if (isPublished && robots.index) {
+    if (isLive && robots.index) {
       void this.indexing.publish(publicUrl, 'URL_UPDATED');
-    } else if (wasPublished && (!isPublished || !robots.index)) {
+    } else if (wasLive && (!isLive || !robots.index)) {
       void this.indexing.publish(
         this.absolutePublicUrl(existing.type as CmsContentType, existing.slug),
         'URL_DELETED',
@@ -474,9 +471,10 @@ export class CmsService {
       include: { category: { select: { id: true, name: true, slug: true } } },
     });
     const url = this.absolutePublicUrl(row.type as CmsContentType, row.slug);
-    if (status === CmsContentStatus.Published && row.robotsIndex) {
+    const nowLive = this.isPubliclyLive(row.status, row.publishedAt);
+    if (nowLive && row.robotsIndex) {
       void this.indexing.publish(url, 'URL_UPDATED');
-    } else if (existing.status === CmsContentStatus.Published) {
+    } else if (this.isPubliclyLive(existing.status, existing.publishedAt)) {
       void this.indexing.publish(url, 'URL_DELETED');
     }
     return this.mapPostView(row);
@@ -497,13 +495,38 @@ export class CmsService {
         version: { increment: 1 },
       },
     });
-    if (existing.status === CmsContentStatus.Published) {
+    if (this.isPubliclyLive(existing.status, existing.publishedAt)) {
       void this.indexing.publish(
         this.absolutePublicUrl(existing.type as CmsContentType, existing.slug),
         'URL_DELETED',
       );
     }
-    return { message: 'Đã xoá nội dung' };
+    return { message: 'Đã chuyển vào thùng rác' };
+  }
+
+  async restorePost(user: AuthenticatedUser, id: string): Promise<CmsPostView> {
+    const existing = await this.prisma.cmsPost.findFirst({
+      where: { id, isDeleted: true },
+    });
+    if (!existing) throw new NotFoundException('Không có trong thùng rác');
+    const row = await this.prisma.cmsPost.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null,
+        updatedBy: user.id,
+        version: { increment: 1 },
+      },
+      include: { category: { select: { id: true, name: true, slug: true } } },
+    });
+    if (this.isPubliclyLive(row.status, row.publishedAt) && row.robotsIndex) {
+      void this.indexing.publish(
+        this.absolutePublicUrl(row.type as CmsContentType, row.slug),
+        'URL_UPDATED',
+      );
+    }
+    return this.mapPostView(row);
   }
 
   async seoOverview(): Promise<CmsSeoOverview> {
@@ -532,18 +555,10 @@ export class CmsService {
       this.prisma.cmsPost.count({ where: { isDeleted: false, type: CmsContentType.Post } }),
       this.prisma.cmsPost.count({ where: { isDeleted: false, type: CmsContentType.Page } }),
       this.prisma.cmsPost.count({
-        where: {
-          isDeleted: false,
-          type: CmsContentType.Post,
-          status: CmsContentStatus.Published,
-        },
+        where: this.livePostWhere({ type: CmsContentType.Post }),
       }),
       this.prisma.cmsPost.count({
-        where: {
-          isDeleted: false,
-          type: CmsContentType.Page,
-          status: CmsContentStatus.Published,
-        },
+        where: this.livePostWhere({ type: CmsContentType.Page }),
       }),
       this.prisma.cmsPost.count({
         where: { isDeleted: false, status: CmsContentStatus.Draft },
@@ -556,14 +571,10 @@ export class CmsService {
         where: { isPublic: true, slug: { not: null } },
       }),
       this.prisma.cmsPost.count({
-        where: {
-          isDeleted: false,
-          status: CmsContentStatus.Published,
-          robotsIndex: false,
-        },
+        where: this.livePostWhere({ robotsIndex: false }),
       }),
       this.prisma.cmsPost.findMany({
-        where: { isDeleted: false, status: CmsContentStatus.Published },
+        where: this.livePostWhere(),
         select: {
           id: true,
           type: true,
@@ -1656,6 +1667,23 @@ export class CmsService {
     };
   }
 
+  /** Đã published và đến giờ (publishedAt null = hiện ngay). */
+  private isPubliclyLive(status: string, publishedAt: Date | null | undefined): boolean {
+    if (status !== CmsContentStatus.Published) return false;
+    if (!publishedAt) return true;
+    return publishedAt.getTime() <= Date.now();
+  }
+
+  /** Bài khách được thấy: published, chưa xoá, publishedAt null hoặc đã đến. */
+  private livePostWhere(extra: Prisma.CmsPostWhereInput = {}): Prisma.CmsPostWhereInput {
+    return {
+      ...extra,
+      isDeleted: false,
+      status: CmsContentStatus.Published,
+      OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }],
+    };
+  }
+
   /** Parse ISO / datetime-local; null = xoá ngày. */
   private parseOptionalDate(value: string | null | undefined): Date | null {
     if (value === null || value === undefined || value === '') return null;
@@ -1812,12 +1840,10 @@ export class CmsService {
       }),
       this.prisma.cmsPost.groupBy({
         by: ['authorId'],
-        where: {
+        where: this.livePostWhere({
           authorId: { in: userIds },
-          isDeleted: false,
-          status: CmsContentStatus.Published,
           type: CmsContentType.Post,
-        },
+        }),
         _count: { _all: true },
       }),
     ]);
@@ -1860,12 +1886,10 @@ export class CmsService {
       select: { email: true },
     });
     const postCount = await this.prisma.cmsPost.count({
-      where: {
+      where: this.livePostWhere({
         authorId: userId,
-        isDeleted: false,
-        status: CmsContentStatus.Published,
         type: CmsContentType.Post,
-      },
+      }),
     });
     return this.mapAuthorProfile(row, u?.email ?? null, postCount);
   }

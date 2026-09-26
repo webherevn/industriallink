@@ -130,6 +130,11 @@ export function AdminJobModerationPage() {
           <p className="cms-page-subtitle">
             Hàng đợi được AI (Gemini) lọc trước. Chỉ các tin gắn cờ “cần duyệt
             tay” mới cần bạn quyết định — đọc lý do, chọn hành động trong 3 giây.
+            Xem mọi tin (ẩn / đóng / đẩy duyệt lại) ở{' '}
+            <a href="/admin/jobs" className="font-semibold text-brand-600 hover:underline">
+              Tin tuyển dụng
+            </a>
+            .
           </p>
         </div>
       </div>

@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nes
 import { UserRole } from '@industriallink/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
+import { compressUploadedImage } from '../../shared/media/optimize-image';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
 import { Public } from '../../shared/security/public.decorator';
 import { Roles } from '../../shared/security/roles.decorator';
@@ -50,22 +51,15 @@ export class CmsMediaController {
     if (file.size > MAX_SIZE) {
       throw new BadRequestException('Ảnh vượt quá 5MB');
     }
-    const ext =
-      file.mimetype === 'image/png'
-        ? 'png'
-        : file.mimetype === 'image/webp'
-          ? 'webp'
-          : file.mimetype === 'image/gif'
-            ? 'gif'
-            : 'jpg';
-    const filename = `${uuidv7()}.${ext}`;
+    const image = await compressUploadedImage(file.buffer, 2048);
+    const filename = `${uuidv7()}.${image.ext}`;
     const storageKey = `cms-media/${filename}`;
-    await this.storage.putObject(storageKey, file.buffer, file.mimetype);
+    await this.storage.putObject(storageKey, image.buffer, image.mime);
     return {
       url: `/api/v1/cms/media/${filename}`,
       filename,
-      mime: file.mimetype,
-      size: file.size,
+      mime: image.mime,
+      size: image.buffer.length,
     };
   }
 

@@ -8,13 +8,16 @@ import {
 import {
   CompanyRole,
   CompanySize,
+  CompanyStatus,
   DomainEvents,
   JobStatus,
   type CompanyBrandProfile,
   type CompanyJobCard,
   type CompanyMemberView,
   type CompanyPublicProfileView,
+  type CompanyVerificationView,
   type CompanyView,
+  type SubmitCompanyVerificationRequest,
   type UploadCompanyLogoResponse,
   normalizeIndustry,
   looksLikeUuid,
@@ -31,7 +34,9 @@ import { AuditService } from '../../shared/infrastructure/audit.service';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
+import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { readBrandJson, toPublicBrand, type VerificationRequestStored } from './company-verification';
 import type { CreateCompanyDto } from './dto/create-company.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
 
@@ -44,6 +49,7 @@ const LOGO_MAX_SIZE = 2 * 1024 * 1024;
 type BrandProfileStored = CompanyBrandProfile & {
   logoStorageKey?: string | null;
   logoMime?: string | null;
+  verificationRequest?: VerificationRequestStored | null;
 };
 
 @Injectable()
@@ -171,6 +177,74 @@ export class CompanyService {
     return this.toView(updated, memberCount, membership.roleInCompany as CompanyRole);
   }
 
+  async getMyVerification(user: AuthenticatedUser): Promise<CompanyVerificationView> {
+    const membership = await this.requireMembership(user.id);
+    const company = await this.prisma.company.findFirst({
+      where: { id: membership.companyId, isDeleted: false },
+      select: { profile: true },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+    return this.toVerificationView(readBrandJson(company.profile));
+  }
+
+  /** NTD gửi đơn — không tự bật verified / trustedEmployer. */
+  async submitVerification(
+    user: AuthenticatedUser,
+    input: SubmitCompanyVerificationRequest,
+    correlationId: string,
+  ): Promise<CompanyVerificationView> {
+    const membership = await this.requireMembership(user.id);
+    this.requireAdmin(membership.roleInCompany as CompanyRole);
+    const note = input.note?.trim() ?? '';
+    if (note.length < 10) {
+      throw new BadRequestException('Ghi chú cần ít nhất 10 ký tự (MST, website, người liên hệ…)');
+    }
+    if (note.length > 2000) throw new BadRequestException('Ghi chú quá dài');
+
+    const company = await this.prisma.company.findFirst({
+      where: { id: membership.companyId, isDeleted: false },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+    const brand = readBrandJson(company.profile);
+    const current = brand.verificationRequest;
+    if (current?.status === 'pending') {
+      throw new BadRequestException('Đã có đơn đang chờ SuperAdmin xét');
+    }
+
+    const askVerified = input.askVerified !== false && !brand.verified;
+    const askTrusted = Boolean(input.askTrusted) && !brand.trustedEmployer;
+    if (!askVerified && !askTrusted) {
+      throw new BadRequestException('Công ty đã có các huy hiệu bạn xin, hoặc chưa chọn mục nào');
+    }
+
+    const request: VerificationRequestStored = {
+      status: 'pending',
+      note,
+      requestedAt: new Date().toISOString(),
+      requestedBy: user.id,
+      askVerified,
+      askTrusted,
+      reviewedAt: null,
+      reviewedBy: null,
+      reviewNote: null,
+    };
+    brand.verificationRequest = request;
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { profile: brand as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      action: 'company.verification.request',
+      entityType: 'company',
+      entityId: company.id,
+      after: { askVerified, askTrusted, note },
+      correlationId,
+    });
+    return this.toVerificationView(brand);
+  }
+
   async getById(ref: string): Promise<CompanyView> {
     const company = await this.findCompanyByRef(ref);
     const withSlug = await this.ensureCompanySlug(company);
@@ -187,26 +261,32 @@ export class CompanyService {
   ): Promise<CompanyPublicProfileView> {
     const company = await this.ensureCompanySlug(await this.findCompanyByRef(ref));
 
+    const showOpenJobs = company.status === CompanyStatus.Active;
+    const publishedWhere = {
+      companyId: company.id,
+      isDeleted: false,
+      status: JobStatus.Published,
+    };
     const [memberCount, openJobCount, jobs, membership] = await Promise.all([
       this.prisma.companyMember.count({ where: { companyId: company.id } }),
-      this.prisma.job.count({
-        where: { companyId: company.id, isDeleted: false, status: JobStatus.Published },
-      }),
-      this.prisma.job.findMany({
-        where: { companyId: company.id, isDeleted: false, status: JobStatus.Published },
-        orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 12,
-        select: {
-          id: true,
-          slug: true,
-          title: true,
-          department: true,
-          location: true,
-          salaryMin: true,
-          salaryMax: true,
-          publishedAt: true,
-        },
-      }),
+      showOpenJobs ? this.prisma.job.count({ where: publishedWhere }) : Promise.resolve(0),
+      showOpenJobs
+        ? this.prisma.job.findMany({
+            where: publishedWhere,
+            orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+            take: 12,
+            select: {
+              id: true,
+              slug: true,
+              title: true,
+              department: true,
+              location: true,
+              salaryMin: true,
+              salaryMax: true,
+              publishedAt: true,
+            },
+          })
+        : Promise.resolve([]),
       user
         ? this.prisma.companyMember.findFirst({
             where: { companyId: company.id, userId: user.id },
@@ -233,7 +313,7 @@ export class CompanyService {
 
     return {
       ...this.toView(company, memberCount, myRole),
-      brand: parseBrandProfile(company.profile),
+      brand: toPublicBrand(readBrandJson(company.profile)),
       openJobs,
       openJobCount,
       canEdit,
@@ -356,6 +436,22 @@ export class CompanyService {
     return { companyId: membership.companyId, companyName: membership.company.name };
   }
 
+  /** SuperAdmin treo/cấm công ty → NTD không được đăng tin mới. */
+  async assertCompanyCanPost(companyId: string): Promise<void> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, isDeleted: false },
+      select: { status: true, name: true },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+    if (company.status !== CompanyStatus.Active) {
+      throw new ForbiddenException(
+        company.status === CompanyStatus.Banned
+          ? 'Công ty đã bị cấm đăng tin. Liên hệ SuperAdmin.'
+          : 'Công ty đang bị tạm dừng. Liên hệ SuperAdmin.',
+      );
+    }
+  }
+
   private async requireMembership(userId: string) {
     const membership = await this.prisma.companyMember.findFirst({ where: { userId } });
     if (!membership) {
@@ -394,22 +490,15 @@ export class CompanyService {
       throw new NotFoundException('Không tìm thấy công ty');
     }
 
-    const ext =
-      file.mimetype === 'image/png'
-        ? 'png'
-        : file.mimetype === 'image/webp'
-          ? 'webp'
-          : file.mimetype === 'image/gif'
-            ? 'gif'
-            : 'jpg';
-    const storageKey = `company-logos/${company.id}/${uuidv7()}.${ext}`;
-    await this.storage.putObject(storageKey, file.buffer, file.mimetype);
+    const image = await compressUploadedImage(file.buffer, 1024);
+    const storageKey = `company-logos/${company.id}/${uuidv7()}.${image.ext}`;
+    await this.storage.putObject(storageKey, image.buffer, image.mime);
 
     const prev = parseBrandProfileStored(company.profile);
     const next: BrandProfileStored = {
       ...prev,
       logoStorageKey: storageKey,
-      logoMime: file.mimetype,
+      logoMime: image.mime,
       // Giữ URL công khai dạng endpoint stream (web dùng blob URL từ /me/logo)
       logoUrl: `/companies/${company.id}/logo`,
     };
@@ -495,12 +584,20 @@ export class CompanyService {
       hasLogo: Boolean(brand.logoStorageKey),
     };
   }
-}
 
-function parseBrandProfile(raw: Prisma.JsonValue | null | undefined): CompanyBrandProfile {
-  const stored = parseBrandProfileStored(raw);
-  const { logoStorageKey: _k, logoMime: _m, ...publicBrand } = stored;
-  return publicBrand;
+  private toVerificationView(brand: BrandProfileStored): CompanyVerificationView {
+    const req = brand.verificationRequest;
+    return {
+      verified: Boolean(brand.verified),
+      trustedEmployer: Boolean(brand.trustedEmployer),
+      status: req?.status ?? 'none',
+      note: req?.note ?? null,
+      reviewNote: req?.reviewNote ?? null,
+      requestedAt: req?.requestedAt ?? null,
+      askVerified: Boolean(req?.askVerified),
+      askTrusted: Boolean(req?.askTrusted),
+    };
+  }
 }
 
 function parseBrandProfileStored(

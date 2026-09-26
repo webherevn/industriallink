@@ -12,6 +12,7 @@ describe('JobService', () => {
     requireUserCompany: jest
       .fn()
       .mockResolvedValue({ companyId: 'co-1', companyName: 'Công ty ABC' }),
+    assertCompanyCanPost: jest.fn().mockResolvedValue(undefined),
   };
   const ai = {
     embed: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),

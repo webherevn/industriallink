@@ -27,6 +27,7 @@ import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CompanyService } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
+import { SubmitCompanyVerificationDto } from './dto/submit-company-verification.dto';
 
 const RECRUITER_ROLES = [UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin];
 
@@ -95,6 +96,22 @@ export class CompanyController {
       type: logo.mime,
       disposition: 'inline',
     });
+  }
+
+  @Get('me/verification')
+  @ApiOperation({ summary: 'Trạng thái xác minh NTD (huy hiệu do SuperAdmin cấp)' })
+  getMyVerification(@CurrentUser() user: AuthenticatedUser) {
+    return this.companies.getMyVerification(user);
+  }
+
+  @Post('me/verification')
+  @ApiOperation({ summary: 'Gửi đơn xin xác minh — không tự bật verified / trustedEmployer' })
+  submitVerification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitCompanyVerificationDto,
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.companies.submitVerification(user, dto, correlationId);
   }
 
   @Get('me/members')

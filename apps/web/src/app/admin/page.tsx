@@ -115,6 +115,14 @@ export default function AdminDashboardPage() {
           </h1>
           <p className="cms-page-subtitle">
             {roleLabel} · Trung tâm vận hành CMS & SEO
+            {me?.role === UserRole.SuperAdmin ? (
+              <>
+                {' · '}
+                <Link href="/admin/reports" className="font-semibold text-brand-600 hover:underline">
+                  Báo cáo nền tảng
+                </Link>
+              </>
+            ) : null}
             {data ? ` · cập nhật ${formatShortDate(data.generatedAt)}` : ''}
           </p>
         </div>

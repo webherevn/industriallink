@@ -88,6 +88,15 @@ export enum CompanySize {
   Enterprise = 'enterprise', // > 1000
 }
 
+/** Trạng thái vận hành công ty trên nền tảng (SuperAdmin). */
+export enum CompanyStatus {
+  Active = 'active',
+  /** Tạm dừng: tin đang đăng bị ẩn, không đăng tin mới. */
+  Suspended = 'suspended',
+  /** Cấm: tin đang đăng bị đóng, không đăng tin mới. */
+  Banned = 'banned',
+}
+
 /** Trạng thái tin tuyển dụng. */
 export enum JobStatus {
   Draft = 'draft',
@@ -130,6 +139,18 @@ export enum JobModerationDecision {
   Approve = 'approve',
   Reject = 'reject',
   BanUser = 'ban_user',
+}
+
+/** Thao tác SuperAdmin trên console tất cả tin (/admin/jobs). */
+export enum AdminJobAction {
+  /** Ẩn khỏi trang công khai (paused). */
+  Hide = 'hide',
+  /** Hiện lại nếu đã được duyệt trước đó. */
+  Unhide = 'unhide',
+  /** Đóng tin (không nhận ứng viên). */
+  Close = 'close',
+  /** Đưa lại hàng đợi kiểm duyệt (gỡ public). */
+  Requeue = 'requeue',
 }
 
 /** Hình thức làm việc. */

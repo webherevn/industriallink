@@ -193,6 +193,8 @@ export interface ListCmsPostsQuery {
   type?: CmsContentType;
   status?: CmsContentStatus;
   category?: string;
+  /** true = chỉ bài trong thùng rác (soft-delete). */
+  trashed?: boolean;
   /** Lọc theo slug tác giả (/tac-gia/{slug}) */
   author?: string;
   limit?: number;

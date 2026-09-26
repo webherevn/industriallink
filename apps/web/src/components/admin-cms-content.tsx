@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AdminShell } from '@/components/admin-shell';
+import { CmsMediaPicker } from '@/components/cms-media-library';
 import { CmsRichEditor } from '@/components/cms-rich-editor';
 import { CmsSeoPanel } from '@/components/cms-seo-panel';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
@@ -32,6 +33,7 @@ import {
   getCmsPostAdmin,
   listCmsCategories,
   listCmsPostsAdmin,
+  restoreCmsPost,
   setCmsPostStatus,
   updateCmsPost,
   uploadCmsMedia,
@@ -172,6 +174,7 @@ function ContentEditor({
   const [bodyHtml, setBodyHtml] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverUploading, setCoverUploading] = useState(false);
+  const [coverLibraryOpen, setCoverLibraryOpen] = useState(false);
   const [categoryId, setCategoryId] = useState('');
   const [seoTitle, setSeoTitle] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
@@ -829,6 +832,11 @@ function ContentEditor({
                 </button>
               )}
             </div>
+            {publishedAtLocal && new Date(publishedAtLocal).getTime() > Date.now() && (
+              <p className="mt-1.5 text-[11px] text-amber-700">
+                Hẹn giờ: khách chưa thấy bài cho đến thời điểm này.
+              </p>
+            )}
           </Field>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
@@ -844,9 +852,9 @@ function ContentEditor({
                 {saveMutation.isPending ? 'Đang lưu…' : 'Lưu nháp'}
               </span>
             </Button>
-            {existing && isPublished && (
+            {editId && (
               <a
-                href={cmsContentPublicPath(type, existing.slug)}
+                href={`/admin/preview/${editId}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -878,7 +886,7 @@ function ContentEditor({
               className="w-full text-center text-xs font-semibold text-rose-600 hover:underline"
               disabled={deleteMutation.isPending}
               onClick={() => {
-                if (confirm(`Chuyển “${title}” vào thùng rác (xoá vĩnh viễn)?`)) {
+                if (confirm(`Chuyển “${title}” vào thùng rác? Có thể khôi phục sau.`)) {
                   deleteMutation.mutate();
                 }
               }}
@@ -923,6 +931,13 @@ function ContentEditor({
                 }}
               />
             </label>
+            <button
+              type="button"
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => setCoverLibraryOpen(true)}
+            >
+              Thư viện
+            </button>
             {coverImageUrl && (
               <button
                 type="button"
@@ -932,6 +947,14 @@ function ContentEditor({
                 Xoá
               </button>
             )}
+            <CmsMediaPicker
+              open={coverLibraryOpen}
+              onClose={() => setCoverLibraryOpen(false)}
+              onSelect={(url) => {
+                setCoverImageUrl(url);
+                if (!ogImageUrl) setOgImageUrl(url);
+              }}
+            />
           </div>
           <Input
             value={coverImageUrl}
@@ -1030,14 +1053,42 @@ function ContentEditor({
     return null;
   }
 }
+function postStatusLabel(status: CmsContentStatus, publishedAt: string | null): string {
+  if (
+    status === CmsContentStatus.Published &&
+    publishedAt &&
+    new Date(publishedAt).getTime() > Date.now()
+  ) {
+    return 'Hẹn giờ';
+  }
+  if (status === CmsContentStatus.Published) return 'Đã xuất bản';
+  if (status === CmsContentStatus.Archived) return 'Lưu trữ';
+  return 'Bản nháp';
+}
+
 function ContentList({ type }: { type: CmsContentType }) {
   const qc = useQueryClient();
   const isPage = type === CmsContentType.Page;
   const base = isPage ? '/admin/pages' : '/admin/posts';
+  const [statusFilter, setStatusFilter] = useState<'' | CmsContentStatus | 'trash'>('');
+  const [categorySlug, setCategorySlug] = useState('');
+  const trashed = statusFilter === 'trash';
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['admin-cms-categories'],
+    queryFn: listCmsCategories,
+    enabled: !isPage,
+  });
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ['admin-cms-posts', type],
-    queryFn: () => listCmsPostsAdmin({ type }),
+    queryKey: ['admin-cms-posts', type, statusFilter, categorySlug],
+    queryFn: () =>
+      listCmsPostsAdmin({
+        type,
+        status: !statusFilter || trashed ? undefined : statusFilter,
+        category: categorySlug || undefined,
+        trashed,
+      }),
   });
 
   const statusMutation = useMutation({
@@ -1051,6 +1102,14 @@ function ContentList({ type }: { type: CmsContentType }) {
 
   const deleteMutation = useMutation({
     mutationFn: deleteCmsPost,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['admin-cms-posts'] });
+      await qc.invalidateQueries({ queryKey: ['admin-cms-overview'] });
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: restoreCmsPost,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['admin-cms-posts'] });
       await qc.invalidateQueries({ queryKey: ['admin-cms-overview'] });
@@ -1071,11 +1130,41 @@ function ContentList({ type }: { type: CmsContentType }) {
         </Link>
       </div>
 
-      <Card className="mt-5 overflow-x-auto !rounded-xl !p-4 sm:!p-5">
+      <div className="mt-4 flex flex-wrap gap-2">
+        <select
+          className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as '' | CmsContentStatus | 'trash')}
+        >
+          <option value="">Mọi trạng thái</option>
+          <option value={CmsContentStatus.Published}>Đã xuất bản</option>
+          <option value={CmsContentStatus.Draft}>Bản nháp</option>
+          <option value={CmsContentStatus.Archived}>Lưu trữ</option>
+          <option value="trash">Thùng rác</option>
+        </select>
+        {!isPage && (
+          <select
+            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+            value={categorySlug}
+            onChange={(e) => setCategorySlug(e.target.value)}
+          >
+            <option value="">Mọi danh mục</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <Card className="mt-4 overflow-x-auto !rounded-xl !p-4 sm:!p-5">
         {isLoading ? (
           <p className="text-sm text-slate-500">Đang tải...</p>
         ) : data.length === 0 ? (
-          <p className="text-sm text-slate-500">Chưa có nội dung.</p>
+          <p className="text-sm text-slate-500">
+            {trashed ? 'Thùng rác trống.' : 'Không có nội dung khớp bộ lọc.'}
+          </p>
         ) : (
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
@@ -1106,12 +1195,16 @@ function ContentList({ type }: { type: CmsContentType }) {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <Link
-                          href={`${base}/${row.id}`}
-                          className="font-semibold text-slate-900 hover:text-brand-600"
-                        >
-                          {row.title}
-                        </Link>
+                        {trashed ? (
+                          <p className="font-semibold text-slate-900">{row.title}</p>
+                        ) : (
+                          <Link
+                            href={`${base}/${row.id}`}
+                            className="font-semibold text-slate-900 hover:text-brand-600"
+                          >
+                            {row.title}
+                          </Link>
+                        )}
                         {row.categoryName && (
                           <p className="mt-0.5 text-[11px] text-slate-400">{row.categoryName}</p>
                         )}
@@ -1122,12 +1215,13 @@ function ContentList({ type }: { type: CmsContentType }) {
                   <td className="py-3 pr-3">
                     <span
                       className={
-                        row.status === CmsContentStatus.Published
+                        row.status === CmsContentStatus.Published &&
+                        !(row.publishedAt && new Date(row.publishedAt).getTime() > Date.now())
                           ? 'cms-status-pill cms-status-pill--ok'
                           : 'cms-status-pill cms-status-pill--warn'
                       }
                     >
-                      {row.status === CmsContentStatus.Published ? 'Published' : 'Draft'}
+                      {postStatusLabel(row.status, row.publishedAt)}
                     </span>
                   </td>
                   <td className="py-3 pr-3 text-xs text-slate-500">
@@ -1138,42 +1232,67 @@ function ContentList({ type }: { type: CmsContentType }) {
                   </td>
                   <td className="py-3 text-right">
                     <div className="flex justify-end gap-2.5">
-                      <Link href={`${base}/${row.id}`} className="text-xs font-semibold text-brand-600 hover:underline">
-                        Sửa
-                      </Link>
-                      {row.status !== CmsContentStatus.Published ? (
+                      {trashed ? (
                         <button
                           type="button"
-                          className="text-xs font-semibold text-emerald-600 hover:underline"
-                          onClick={() =>
-                            statusMutation.mutate({
-                              id: row.id,
-                              status: CmsContentStatus.Published,
-                            })
-                          }
+                          className="text-xs font-semibold text-brand-600 hover:underline"
+                          disabled={restoreMutation.isPending}
+                          onClick={() => restoreMutation.mutate(row.id)}
                         >
-                          Publish
+                          Khôi phục
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          className="text-xs font-semibold text-amber-600 hover:underline"
-                          onClick={() =>
-                            statusMutation.mutate({ id: row.id, status: CmsContentStatus.Draft })
-                          }
-                        >
-                          Unpublish
-                        </button>
+                        <>
+                          <Link
+                            href={`${base}/${row.id}`}
+                            className="text-xs font-semibold text-brand-600 hover:underline"
+                          >
+                            Sửa
+                          </Link>
+                          <Link
+                            href={`/admin/preview/${row.id}`}
+                            target="_blank"
+                            className="text-xs font-semibold text-slate-600 hover:underline"
+                          >
+                            Xem trước
+                          </Link>
+                          {row.status !== CmsContentStatus.Published ? (
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-emerald-600 hover:underline"
+                              onClick={() =>
+                                statusMutation.mutate({
+                                  id: row.id,
+                                  status: CmsContentStatus.Published,
+                                })
+                              }
+                            >
+                              Xuất bản
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-amber-600 hover:underline"
+                              onClick={() =>
+                                statusMutation.mutate({ id: row.id, status: CmsContentStatus.Draft })
+                              }
+                            >
+                              Gỡ xuất bản
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-rose-600 hover:underline"
+                            onClick={() => {
+                              if (confirm(`Chuyển “${row.title}” vào thùng rác?`)) {
+                                deleteMutation.mutate(row.id);
+                              }
+                            }}
+                          >
+                            Xoá
+                          </button>
+                        </>
                       )}
-                      <button
-                        type="button"
-                        className="text-xs font-semibold text-rose-600 hover:underline"
-                        onClick={() => {
-                          if (confirm(`Xoá “${row.title}”?`)) deleteMutation.mutate(row.id);
-                        }}
-                      >
-                        Xoá
-                      </button>
                     </div>
                   </td>
                 </tr>

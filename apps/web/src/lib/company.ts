@@ -1,9 +1,11 @@
 import type {
   CompanyMemberView,
   CompanyPublicProfileView,
+  CompanyVerificationView,
   CompanyView,
   CreateCompanyRequest,
   InviteCompanyMemberRequest,
+  SubmitCompanyVerificationRequest,
   UpdateCompanyRequest,
   UploadCompanyLogoResponse,
 } from '@industriallink/contracts';
@@ -13,6 +15,16 @@ export const MY_COMPANY_LOGO_QUERY_KEY = ['my-company-logo'] as const;
 
 export async function getMyCompany(): Promise<CompanyView> {
   return apiRequest('/companies/me');
+}
+
+export async function getMyCompanyVerification(): Promise<CompanyVerificationView> {
+  return apiRequest('/companies/me/verification');
+}
+
+export async function submitCompanyVerification(
+  body: SubmitCompanyVerificationRequest,
+): Promise<CompanyVerificationView> {
+  return apiRequest('/companies/me/verification', { method: 'POST', body });
 }
 
 export async function getCompanyPublicProfile(id: string): Promise<CompanyPublicProfileView> {
