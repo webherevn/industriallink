@@ -13,7 +13,7 @@ function hostnameOf(req: NextRequest): string {
 
 /** Cookie đánh dấu đã gửi Clear-Site-Data (purge cache HTML cũ). */
 const CACHE_PURGE_COOKIE = 'il_cd';
-const CACHE_PURGE_VERSION = '4';
+const CACHE_PURGE_VERSION = '5';
 
 function applyNoStore(res: NextResponse) {
   res.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
@@ -24,7 +24,7 @@ function applyNoStore(res: NextResponse) {
 }
 
 function withCachePurge(req: NextRequest, res: NextResponse) {
-  if (!req.cookies.get(CACHE_PURGE_COOKIE)) {
+  if (req.cookies.get(CACHE_PURGE_COOKIE)?.value !== CACHE_PURGE_VERSION) {
     res.headers.set('Clear-Site-Data', '"cache"');
     res.cookies.set(CACHE_PURGE_COOKIE, CACHE_PURGE_VERSION, {
       path: '/',
@@ -42,7 +42,13 @@ function nextWithRequestHeaders(req: NextRequest) {
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   const pathname = req.nextUrl.pathname;
   // Tránh trình duyệt / CDN giữ HTML cũ của listing blog (từng bị ISR s-maxage=1y).
-  if (pathname === '/cam-nang' || pathname.startsWith('/cam-nang/') || pathname === '/') {
+  if (
+    pathname === '/cam-nang' ||
+    pathname.startsWith('/cam-nang/') ||
+    pathname === '/' ||
+    pathname.startsWith('/admin') ||
+    pathname === '/login'
+  ) {
     applyNoStore(res);
   }
   return withCachePurge(req, res);
