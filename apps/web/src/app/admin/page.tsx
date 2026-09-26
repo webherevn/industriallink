@@ -90,10 +90,13 @@ export default function AdminDashboardPage() {
 
   const inv = data?.inventory;
   const g = data ? gradeMeta(data.healthGrade) : null;
-  const issueTotal = data?.issues.reduce((s, i) => s + i.count, 0) ?? 0;
-  const critical = data?.issues.filter((i) => i.severity === 'critical') ?? [];
-  const warnings = data?.issues.filter((i) => i.severity === 'warning') ?? [];
+  const issues = Array.isArray(data?.issues) ? data.issues : [];
+  const issueTotal = issues.reduce((s, i) => s + i.count, 0);
+  const critical = issues.filter((i) => i.severity === 'critical');
+  const warnings = issues.filter((i) => i.severity === 'warning');
   const attention = [...critical, ...warnings].slice(0, 5);
+  const recentPublished = Array.isArray(data?.recentPublished) ? data.recentPublished : [];
+  const coverage = Array.isArray(data?.coverage) ? data.coverage : [];
 
   const published = (inv?.publishedPosts ?? 0) + (inv?.publishedPages ?? 0);
   const drafts = inv?.drafts ?? 0;
@@ -389,7 +392,7 @@ export default function AdminDashboardPage() {
                   Tất cả →
                 </Link>
               </div>
-              {data.recentPublished.length === 0 ? (
+              {recentPublished.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
                   <p className="text-sm text-slate-500">Chưa có nội dung published.</p>
                   <Link
@@ -401,7 +404,7 @@ export default function AdminDashboardPage() {
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {data.recentPublished.slice(0, 6).map((item) => (
+                  {recentPublished.slice(0, 6).map((item) => (
                     <li key={item.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                       <span
                         className={clsx(
@@ -447,7 +450,7 @@ export default function AdminDashboardPage() {
               </Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {data.coverage.slice(0, 4).map((c) => (
+              {coverage.slice(0, 4).map((c) => (
                 <div key={c.id}>
                   <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                     <span className="font-semibold text-slate-800">{c.label}</span>

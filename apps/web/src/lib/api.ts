@@ -119,5 +119,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new ApiError(res.status, message);
   }
 
+  if (!isJson) {
+    throw new ApiError(res.status || 502, 'API không trả JSON');
+  }
+
   return payload as T;
 }

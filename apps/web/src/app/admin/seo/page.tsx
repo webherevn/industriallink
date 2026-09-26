@@ -308,7 +308,7 @@ function IssuesPanel({
                 </button>
                 {open && (
                   <ul className="border-t border-slate-100 bg-slate-50/50 px-2 py-2">
-                    {group.items.map((item) => (
+                    {(Array.isArray(group.items) ? group.items : []).map((item) => (
                       <li key={item.id}>
                         <Link
                           href={item.editPath}
@@ -541,7 +541,13 @@ export default function AdminSeoOverviewPage() {
             ))}
           </div>
         </div>
-      ) : isError || !data ? (
+      ) : isError ||
+        !data ||
+        !Array.isArray(data.issues) ||
+        !Array.isArray(data.coverage) ||
+        !Array.isArray(data.topKeywords) ||
+        !Array.isArray(data.recentPublished) ||
+        !Array.isArray(data.quickLinks) ? (
         <Card className="mt-6 border-rose-200 bg-rose-50/50 py-10 text-center">
           <p className="text-sm font-semibold text-rose-700">Không tải được SEO overview</p>
           <p className="mt-1 text-xs text-rose-600">

@@ -8,14 +8,21 @@ import {
   type UpsertCmsCategoryRequest,
   type UpsertCmsPostRequest,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { ApiError, apiRequest } from './api';
+
+function asList<T>(payload: unknown, label: string): T[] {
+  if (!Array.isArray(payload)) {
+    throw new ApiError(502, `${label} không đúng định dạng`);
+  }
+  return payload as T[];
+}
 
 export async function fetchCmsOverview(): Promise<CmsSeoOverview> {
   return apiRequest<CmsSeoOverview>('/admin/cms/overview');
 }
 
 export async function listCmsCategories(): Promise<CmsCategoryView[]> {
-  return apiRequest('/admin/cms/categories');
+  return asList(await apiRequest<unknown>('/admin/cms/categories'), 'Danh mục');
 }
 
 export async function createCmsCategory(body: UpsertCmsCategoryRequest): Promise<CmsCategoryView> {
@@ -45,7 +52,7 @@ export async function listCmsPostsAdmin(params: {
   if (params.category) qs.set('category', params.category);
   if (params.trashed) qs.set('trashed', '1');
   const suffix = qs.toString() ? `?${qs}` : '';
-  return apiRequest(`/admin/cms/posts${suffix}`);
+  return asList(await apiRequest<unknown>(`/admin/cms/posts${suffix}`), 'Danh sách bài viết');
 }
 
 export async function getCmsPostAdmin(id: string): Promise<CmsPostView> {

@@ -262,7 +262,7 @@ function ContentEditor({
     setRobotsIndex(existing.robotsIndex);
     setRobotsFollow(existing.robotsFollow);
     setRobotsMaxImagePreview(existing.robotsMaxImagePreview);
-    setFaq(existing.faq ?? []);
+    setFaq(Array.isArray(existing.faq) ? existing.faq : []);
   }, [existing]);
 
   useEffect(() => {
@@ -1074,13 +1074,14 @@ function ContentList({ type }: { type: CmsContentType }) {
   const [categorySlug, setCategorySlug] = useState('');
   const trashed = statusFilter === 'trash';
 
-  const { data: categories = [] } = useQuery({
+  const { data: categoryData } = useQuery({
     queryKey: ['admin-cms-categories'],
     queryFn: listCmsCategories,
     enabled: !isPage,
   });
+  const categories = Array.isArray(categoryData) ? categoryData : [];
 
-  const { data = [], isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['admin-cms-posts', type, statusFilter, categorySlug],
     queryFn: () =>
       listCmsPostsAdmin({
@@ -1090,6 +1091,7 @@ function ContentList({ type }: { type: CmsContentType }) {
         trashed,
       }),
   });
+  const rows = Array.isArray(data) ? data : [];
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: CmsContentStatus }) =>
@@ -1161,7 +1163,11 @@ function ContentList({ type }: { type: CmsContentType }) {
       <Card className="mt-4 overflow-x-auto !rounded-xl !p-4 sm:!p-5">
         {isLoading ? (
           <p className="text-sm text-slate-500">Đang tải...</p>
-        ) : data.length === 0 ? (
+        ) : isError || (data != null && !Array.isArray(data)) ? (
+          <p className="text-sm text-rose-600">
+            {error instanceof Error ? error.message : 'Không tải được danh sách.'}
+          </p>
+        ) : rows.length === 0 ? (
           <p className="text-sm text-slate-500">
             {trashed ? 'Thùng rác trống.' : 'Không có nội dung khớp bộ lọc.'}
           </p>
@@ -1178,7 +1184,7 @@ function ContentList({ type }: { type: CmsContentType }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {data.map((row) => (
+              {rows.map((row) => (
                 <tr key={row.id} className="align-top hover:bg-slate-50/80">
                   <td className="py-3 pr-3">
                     <div className="flex gap-3">
