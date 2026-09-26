@@ -16,20 +16,40 @@ function nextWithRequestHeaders(req: NextRequest) {
   requestHeaders.set('x-pathname', req.nextUrl.pathname);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   const pathname = req.nextUrl.pathname;
-  // Tránh trình duyệt giữ HTML cũ của listing blog (từng bị ISR STALE).
+  // Tránh trình duyệt / CDN giữ HTML cũ của listing blog (từng bị ISR s-maxage=1y).
   if (pathname === '/cam-nang' || pathname.startsWith('/cam-nang/')) {
     res.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
+    res.headers.set('CDN-Cache-Control', 'no-store');
+    res.headers.set('Surrogate-Control', 'no-store');
+    res.headers.set('Pragma', 'no-cache');
+    res.headers.set('Expires', '0');
   }
   return res;
 }
 
 export function middleware(req: NextRequest) {
   const host = hostnameOf(req);
+  const { pathname, search } = req.nextUrl;
+
+  // Bust HTML disk-cache cũ: /cam-nang (không query) → /cam-nang?v=2
+  if (
+    (pathname === '/cam-nang' || pathname === '/cam-nang/') &&
+    !req.nextUrl.searchParams.has('v')
+  ) {
+    const dest = req.nextUrl.clone();
+    dest.pathname = '/cam-nang';
+    dest.searchParams.set('v', '2');
+    const redirect = NextResponse.redirect(dest, 307);
+    redirect.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
+    redirect.headers.set('CDN-Cache-Control', 'no-store');
+    redirect.headers.set('Surrogate-Control', 'no-store');
+    return redirect;
+  }
+
   if (host === 'localhost' || host === '127.0.0.1') {
     return nextWithRequestHeaders(req);
   }
 
-  const { pathname, search } = req.nextUrl;
   const isRecruiterHost = host === BRAND_RECRUITER_HOST || host.startsWith('tuyendung.');
   const isAdminHost = host === BRAND_ADMIN_HOST || host.startsWith('admin.');
   const isPublicHost = host === BRAND_SITE_HOST || host === `www.${BRAND_SITE_HOST}`;

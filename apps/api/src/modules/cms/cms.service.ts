@@ -231,10 +231,15 @@ export class CmsService {
       }
       authorUserId = author.userId;
     }
+    const rawType = (query.type ?? CmsContentType.Post) as string;
+    const type =
+      String(rawType).toLowerCase() === CmsContentType.Page
+        ? CmsContentType.Page
+        : CmsContentType.Post;
     const where = {
       isDeleted: false,
       status: CmsContentStatus.Published,
-      type: query.type ?? CmsContentType.Post,
+      type,
       robotsIndex: true,
       ...(query.category ? { category: { slug: query.category, isDeleted: false } } : {}),
       ...(authorUserId ? { authorId: authorUserId } : {}),

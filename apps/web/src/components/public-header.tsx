@@ -14,6 +14,8 @@ import { loginHref } from '@/lib/safe-next';
 
 export const CREATE_CV_LOGIN_HREF = loginHref('/cv/create');
 export const CAREER_GUIDE_PATH = '/cam-nang';
+/** Query bust HTML cache cũ (trình duyệt từng giữ bản s-maxage=1 năm). */
+export const CAREER_GUIDE_HREF = '/cam-nang?v=2';
 
 /** Fallback khi chưa cấu hình CMS menu. */
 const DEFAULT_PRIMARY_ITEMS: CmsMenuItemView[] = [
@@ -43,7 +45,7 @@ const DEFAULT_PRIMARY_ITEMS: CmsMenuItemView[] = [
     id: 'default-guide',
     parentId: null,
     label: 'Cẩm nang nghề nghiệp',
-    url: CAREER_GUIDE_PATH,
+    url: CAREER_GUIDE_HREF,
     sortOrder: 2,
     openInNewTab: false,
     objectType: 'custom',
@@ -52,9 +54,29 @@ const DEFAULT_PRIMARY_ITEMS: CmsMenuItemView[] = [
   },
 ];
 
+function menuPathOf(url: string): string {
+  try {
+    return url.startsWith('http') ? new URL(url).pathname : url.split('?')[0] || '/';
+  } catch {
+    return url.split('?')[0] || '/';
+  }
+}
+
+/** Cẩm nang: full document load + cache-bust (tránh Router Cache / HTML disk cache). */
+function resolveNavHref(url: string): { href: string; forceDocument: boolean } {
+  const path = menuPathOf(url);
+  if (path === CAREER_GUIDE_PATH || path.startsWith(`${CAREER_GUIDE_PATH}/`)) {
+    if (path === CAREER_GUIDE_PATH && !url.includes('?')) {
+      return { href: CAREER_GUIDE_HREF, forceDocument: true };
+    }
+    return { href: url, forceDocument: true };
+  }
+  return { href: url, forceDocument: false };
+}
+
 function isItemActive(pathname: string, url: string): boolean {
   try {
-    const path = url.startsWith('http') ? new URL(url).pathname : url.split('?')[0] || '/';
+    const path = menuPathOf(url);
     if (path === '/viec-lam' || path === '/') {
       return pathname === '/' || pathname === '/viec-lam' || pathname.startsWith('/viec-lam/');
     }
@@ -90,13 +112,14 @@ function NavLink({
   className?: string;
 }) {
   const active = isItemActive(pathname, item.url);
-  const external = item.url.startsWith('http') || item.openInNewTab;
+  const { href, forceDocument } = resolveNavHref(item.url);
+  const external = item.url.startsWith('http') || item.openInNewTab || forceDocument;
   const shared = clsx(className, active && 'text-brand-600');
 
   if (external) {
     return (
       <a
-        href={item.url}
+        href={href}
         target={item.openInNewTab || item.url.startsWith('http') ? '_blank' : undefined}
         rel={item.url.startsWith('http') ? 'noopener noreferrer' : undefined}
         onClick={onNavigate}
@@ -108,7 +131,7 @@ function NavLink({
   }
 
   return (
-    <Link href={item.url} onClick={onNavigate} className={shared}>
+    <Link href={href} onClick={onNavigate} className={shared} prefetch={false}>
       {item.label}
     </Link>
   );

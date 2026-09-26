@@ -40,7 +40,7 @@ export async function fetchPublishedCmsPostsPage(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   qs.set('page', String(params.page ?? 1));
   const res = await fetch(`${apiPublicBase()}/cms/posts?${qs}`, {
-    next: { revalidate: 30 },
+    cache: 'no-store',
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) {
@@ -77,7 +77,7 @@ export async function fetchPublishedCmsPosts(params: {
 
 export async function fetchPublishedCmsPost(slug: string): Promise<CmsPostView | null> {
   const res = await fetch(`${apiPublicBase()}/cms/posts/${encodeURIComponent(slug)}`, {
-    next: { revalidate: 60 },
+    cache: 'no-store',
     headers: { Accept: 'application/json' },
   });
   if (res.status === 404 || !res.ok) return null;

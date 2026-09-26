@@ -44,6 +44,13 @@ const nextConfig = {
   // Next đọc thẳng mã nguồn TS của gói contracts (điều kiện "import" -> src/index.ts)
   // và tự biên dịch, tránh lỗi Fast Refresh với bản build CommonJS.
   transpilePackages: ['@industriallink/contracts', '@industriallink/vn-admin'],
+  // Tránh Router Cache giữ HTML/RSC cũ của /cam-nang (từng bị ISR stale).
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+      static: 0,
+    },
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
