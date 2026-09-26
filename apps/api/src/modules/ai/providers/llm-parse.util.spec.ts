@@ -98,7 +98,8 @@ describe('normalizeParsedResume', () => {
     expect(parsed.education[0].school).toContain('Bách khoa');
     expect(parsed.education[0].level).toBe('Đại học');
     expect(parsed.experiences[0].latestRevenue).toBe(1200000000);
-    expect(parsed.experiences[0].sellingStages).toContain('Báo giá');
+    // 'Báo giá' được chuẩn hoá về nhãn canonical trong SELLING_STAGES.
+    expect(parsed.experiences[0].sellingStages).toContain('Lập & gửi báo giá');
     expect(parsed.experiences[0].responsibilities.length).toBe(3);
     expect(parsed.experiences[0].jobDescription).toMatch(/Lên kế hoạch/);
     expect(parsed.experiences[0].missingFields).toEqual([]);
