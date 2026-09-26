@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertTriangle, Check, KeyRound, Loader2, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, Check, KeyRound, Loader2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   AiProviderKind,
@@ -128,13 +128,12 @@ export function AdminAiSettingsPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="admin-dash-rise flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="cms-page-title flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-brand-600" />
-            Cấu hình AI
-          </h1>
-          <p className="cms-page-subtitle">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Nền tảng</p>
+          <h1 className="cms-page-title mt-1.5">Cấu hình AI</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="cms-page-subtitle max-w-2xl">
             Đổi nhà cung cấp AI (Gemini / OpenAI / Claude) và API key ngay tại đây —
             áp dụng tức thì, không cần SSH sửa <code>.env</code> hay restart.
           </p>
@@ -143,7 +142,7 @@ export function AdminAiSettingsPage() {
           <span className="text-xs text-slate-500">Đang chạy</span>
           <span
             className={clsx(
-              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-semibold ring-1',
+              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold ring-1',
               activeIsMockFallback
                 ? 'bg-amber-50 text-amber-700 ring-amber-200'
                 : 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -155,7 +154,7 @@ export function AdminAiSettingsPage() {
       </div>
 
       {activeIsMockFallback ? (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+        <div className="mt-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Provider đã chọn (<b>{PROVIDER_LABEL[data.provider]}</b>) chưa có API key nên
@@ -167,7 +166,7 @@ export function AdminAiSettingsPage() {
       {banner ? (
         <p
           className={clsx(
-            'mt-4 rounded-lg border px-3 py-2 text-sm',
+            'mt-4 rounded-2xl border px-3 py-2 text-sm',
             banner.tone === 'ok'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
               : 'border-rose-200 bg-rose-50 text-rose-700',
@@ -178,7 +177,7 @@ export function AdminAiSettingsPage() {
       ) : null}
 
       {/* Provider + embedding */}
-      <Card className="mt-5 space-y-4">
+      <Card className="admin-dash-card admin-dash-rise mt-5 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nhà cung cấp (provider)" description="Áp dụng cho toàn bộ tính năng AI: duyệt tin, parse CV, tư vấn nghề, embedding.">
             <Select
@@ -267,7 +266,7 @@ export function AdminAiSettingsPage() {
       {test ? (
         <div
           className={clsx(
-            'mt-5 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm',
+            'mt-5 flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-sm',
             test.ok
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
               : 'border-rose-200 bg-rose-50 text-rose-700',
@@ -286,7 +285,7 @@ export function AdminAiSettingsPage() {
 
       {/* Actions */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        <Button onClick={onSave} disabled={saveMutation.isPending}>
+        <Button onClick={onSave} disabled={saveMutation.isPending} className="!rounded-xl !bg-[#072348] hover:!bg-[#0c3a72]">
           {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Lưu thay đổi
         </Button>
@@ -344,14 +343,14 @@ function ProviderCard({
   return (
     <Card
       className={clsx(
-        'mt-4',
-        selected ? 'ring-2 ring-brand-200' : '',
+        'admin-dash-card mt-4',
+        selected ? 'ring-2 ring-[#FFD0A3]' : '',
       )}
     >
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+        <h2 className="text-sm font-semibold text-[#072348]">{title}</h2>
         {selected ? (
-          <span className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+          <span className="rounded-full bg-[#FFF8F1] px-2 py-0.5 text-[11px] font-semibold text-[#072348] ring-1 ring-[#FFD0A3]">
             Đang chọn
           </span>
         ) : null}

@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Ban,
   Check,
-  ShieldCheck,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -121,22 +120,19 @@ export function AdminJobModerationPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="cms-page-title flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-brand-600" />
-            Duyệt tin tuyển dụng
-          </h1>
-          <p className="cms-page-subtitle">
-            Hàng đợi được AI (Gemini) lọc trước. Chỉ các tin gắn cờ “cần duyệt
-            tay” mới cần bạn quyết định — đọc lý do, chọn hành động trong 3 giây.
-            Xem mọi tin (ẩn / đóng / đẩy duyệt lại) ở{' '}
-            <a href="/admin/jobs" className="font-semibold text-brand-600 hover:underline">
-              Tin tuyển dụng
-            </a>
-            .
-          </p>
-        </div>
+      <div className="admin-dash-rise">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Nền tảng</p>
+        <h1 className="cms-page-title mt-1.5">Duyệt tin tuyển dụng</h1>
+        <div className="brand-accent-bar mt-2" />
+        <p className="cms-page-subtitle max-w-2xl">
+          Hàng đợi được AI (Gemini) lọc trước. Chỉ các tin gắn cờ “cần duyệt
+          tay” mới cần bạn quyết định — đọc lý do, chọn hành động trong 3 giây.
+          Xem mọi tin (ẩn / đóng / đẩy duyệt lại) ở{' '}
+          <a href="/admin/jobs" className="font-semibold text-[#E8872A] hover:underline">
+            Tin tuyển dụng
+          </a>
+          .
+        </p>
       </div>
 
       {/* Thẻ thống kê nhanh */}
@@ -159,10 +155,10 @@ export function AdminJobModerationPage() {
             type="button"
             onClick={() => setTab(t.status)}
             className={clsx(
-              'rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
+              'rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors',
               tab === t.status
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-900',
+                ? 'bg-[#072348] text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.9)]'
+                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-[#FFF8F1] hover:text-[#072348]',
             )}
           >
             {t.label}
@@ -171,17 +167,20 @@ export function AdminJobModerationPage() {
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}
         </p>
       ) : null}
 
       {isLoading ? (
-        <p className="mt-6 text-sm text-slate-500">Đang tải hàng đợi…</p>
+        <div className="mt-6 space-y-2">
+          <div className="admin-dash-skel h-24 rounded-2xl" />
+          <div className="admin-dash-skel h-24 rounded-2xl" />
+        </div>
       ) : items.length === 0 ? (
-        <Card className="mt-5 p-8 text-center text-sm text-slate-500">
-          Không có tin nào trong mục này. 🎉
-        </Card>
+        <div className="mt-5 rounded-[1.15rem] border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-10 text-center text-sm text-slate-500">
+          Không có tin nào trong mục này.
+        </div>
       ) : (
         <div className="mt-5 space-y-3">
           {items.map((item) => {
@@ -191,7 +190,7 @@ export function AdminJobModerationPage() {
               item.moderationStatus === JobModerationStatus.RejectedAuto;
             const busy = pendingId === item.id;
             return (
-              <Card key={item.id} className="p-4 sm:p-5">
+              <Card key={item.id} className="admin-dash-card p-4 sm:p-5">
                 <div className="flex flex-col gap-4 lg:flex-row">
                   {/* Điểm rủi ro */}
                   <div
@@ -214,7 +213,7 @@ export function AdminJobModerationPage() {
                   {/* Nội dung */}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-[15px] font-bold text-slate-900">
+                      <h3 className="text-[15px] font-bold text-[#072348]">
                         {item.title}
                       </h3>
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">
@@ -253,7 +252,7 @@ export function AdminJobModerationPage() {
                     ) : null}
 
                     <details className="mt-2 text-[13px] text-slate-600">
-                      <summary className="cursor-pointer select-none text-[12px] font-semibold text-brand-600">
+                      <summary className="cursor-pointer select-none text-[12px] font-semibold text-[#E8872A]">
                         Xem mô tả tin
                       </summary>
                       <p className="mt-1.5 whitespace-pre-wrap rounded-lg border border-slate-100 bg-white p-3 text-[13px] leading-relaxed text-slate-700">
@@ -266,7 +265,7 @@ export function AdminJobModerationPage() {
                   <div className="flex shrink-0 flex-row gap-2 lg:w-40 lg:flex-col">
                     <Button
                       type="button"
-                      className="flex-1 justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                      className="flex-1 justify-center gap-1.5 !rounded-xl bg-emerald-600 hover:bg-emerald-700"
                       disabled={busy || !canAct}
                       onClick={() => act(item, JobModerationDecision.Approve)}
                     >
@@ -275,7 +274,7 @@ export function AdminJobModerationPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="flex-1 justify-center gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50"
+                      className="flex-1 justify-center gap-1.5 !rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
                       disabled={busy || !canAct}
                       onClick={() => act(item, JobModerationDecision.Reject)}
                     >
@@ -317,7 +316,7 @@ function StatCard({
     slate: 'text-slate-700',
   }[tone];
   return (
-    <Card className="px-3.5 py-3">
+    <Card className="admin-dash-card px-3.5 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>

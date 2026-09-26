@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
 import {
   CmsContentStatus,
   CmsContentType,
@@ -15,6 +16,7 @@ import {
   ExternalLink,
   GripVertical,
   ImageIcon,
+  Plus,
   Save,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -1092,6 +1094,7 @@ function ContentList({ type }: { type: CmsContentType }) {
       }),
   });
   const rows = Array.isArray(data) ? data : [];
+  const dash = true;
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: CmsContentStatus }) =>
@@ -1118,23 +1121,48 @@ function ContentList({ type }: { type: CmsContentType }) {
     },
   });
 
+  const selectClass = dash
+    ? 'h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-[#072348] shadow-sm outline-none transition focus:border-[#FFD0A3] focus:ring-2 focus:ring-[#FFF8F1]'
+    : 'h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700';
+
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className={clsx('flex flex-wrap items-end justify-between gap-4', dash && 'admin-dash-rise')}>
         <div>
-          <h1 className="cms-page-title">{isPage ? 'Trang' : 'Bài viết'}</h1>
-          <p className="cms-page-subtitle">
+          {dash ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">CMS & SEO</p>
+          ) : null}
+          <h1 className={clsx('cms-page-title', dash && 'mt-1.5')}>{isPage ? 'Trang' : 'Bài viết'}</h1>
+          {dash ? <div className="brand-accent-bar mt-2" /> : null}
+          <p className="cms-page-subtitle max-w-xl">
             {isPage ? 'Trang tĩnh (/trang/slug)' : 'Cẩm nang (/cam-nang/slug)'} · soạn thảo Classic Editor
           </p>
         </div>
-        <Link href={`${base}/new`}>
-          <Button>Thêm mới</Button>
+        <Link
+          href={`${base}/new`}
+          className={
+            dash
+              ? 'inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72]'
+              : undefined
+          }
+        >
+          {dash ? (
+            <>
+              <Plus className="h-4 w-4" />
+              Thêm mới
+            </>
+          ) : (
+            <Button>Thêm mới</Button>
+          )}
         </Link>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div
+        className={clsx('mt-5 flex flex-wrap items-center gap-2', dash && 'admin-dash-card admin-dash-rise px-4 py-3')}
+        style={dash ? { animationDelay: '60ms' } : undefined}
+      >
         <select
-          className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+          className={selectClass}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as '' | CmsContentStatus | 'trash')}
         >
@@ -1146,7 +1174,7 @@ function ContentList({ type }: { type: CmsContentType }) {
         </select>
         {!isPage && (
           <select
-            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+            className={selectClass}
             value={categorySlug}
             onChange={(e) => setCategorySlug(e.target.value)}
           >
@@ -1158,45 +1186,75 @@ function ContentList({ type }: { type: CmsContentType }) {
             ))}
           </select>
         )}
+        {dash ? (
+          <span className="ml-auto rounded-full bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-semibold text-[#072348] ring-1 ring-[#FFD0A3]">
+            {isLoading ? '…' : rows.length}
+          </span>
+        ) : null}
       </div>
 
-      <Card className="mt-4 overflow-x-auto !rounded-xl !p-4 sm:!p-5">
+      <Card
+        className={clsx(
+          'mt-4 overflow-x-auto',
+          dash
+            ? 'admin-dash-card admin-dash-rise !rounded-[1.15rem] !p-0'
+            : '!rounded-xl !p-4 sm:!p-5',
+        )}
+      >
         {isLoading ? (
-          <p className="text-sm text-slate-500">Đang tải...</p>
+          dash ? (
+            <div className="space-y-2 p-5">
+              <div className="admin-dash-skel h-16" />
+              <div className="admin-dash-skel h-16" />
+              <div className="admin-dash-skel h-16" />
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Đang tải...</p>
+          )
         ) : isError || (data != null && !Array.isArray(data)) ? (
-          <p className="text-sm text-rose-600">
+          <p className={clsx('text-sm text-rose-600', dash && 'm-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3')}>
             {error instanceof Error ? error.message : 'Không tải được danh sách.'}
           </p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className={clsx('text-sm text-slate-500', dash && 'm-5 rounded-2xl border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-8 text-center')}>
             {trashed ? 'Thùng rác trống.' : 'Không có nội dung khớp bộ lọc.'}
           </p>
         ) : (
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
-                <th className="pb-2.5 font-semibold">Tiêu đề</th>
-                <th className="pb-2.5 font-semibold">Slug</th>
-                <th className="pb-2.5 font-semibold">Trạng thái</th>
-                <th className="pb-2.5 font-semibold">Index</th>
-                <th className="pb-2.5 font-semibold">Cập nhật</th>
-                <th className="pb-2.5 font-semibold" />
+              <tr className={clsx('border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400', dash && 'bg-[#f8fafc]')}>
+                <th className={clsx('font-semibold', dash ? 'px-5 py-3' : 'pb-2.5')}>Tiêu đề</th>
+                <th className={clsx('font-semibold', dash ? 'px-3 py-3' : 'pb-2.5')}>Slug</th>
+                <th className={clsx('font-semibold', dash ? 'px-3 py-3' : 'pb-2.5')}>Trạng thái</th>
+                <th className={clsx('font-semibold', dash ? 'px-3 py-3' : 'pb-2.5')}>Index</th>
+                <th className={clsx('font-semibold', dash ? 'px-3 py-3' : 'pb-2.5')}>Cập nhật</th>
+                <th className={clsx('font-semibold', dash ? 'px-5 py-3' : 'pb-2.5')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => (
-                <tr key={row.id} className="align-top hover:bg-slate-50/80">
-                  <td className="py-3 pr-3">
+                <tr key={row.id} className={clsx('align-top', dash ? 'admin-dash-row' : 'hover:bg-slate-50/80')}>
+                  <td className={clsx(dash ? 'px-5 py-3.5' : 'py-3 pr-3')}>
                     <div className="flex gap-3">
                       {row.coverImageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={resolveCmsAssetUrl(row.coverImageUrl) || row.coverImageUrl}
                           alt=""
-                          className="h-12 w-16 shrink-0 rounded-md object-cover"
+                          className={clsx(
+                            'h-12 w-16 shrink-0 object-cover',
+                            dash ? 'rounded-xl ring-1 ring-slate-200' : 'rounded-md',
+                          )}
                         />
                       ) : (
-                        <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-300">
+                        <div
+                          className={clsx(
+                            'flex h-12 w-16 shrink-0 items-center justify-center',
+                            dash
+                              ? 'rounded-xl bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]'
+                              : 'rounded-md bg-slate-100 text-slate-300',
+                          )}
+                        >
                           <ImageIcon className="h-4 w-4" />
                         </div>
                       )}
@@ -1206,7 +1264,10 @@ function ContentList({ type }: { type: CmsContentType }) {
                         ) : (
                           <Link
                             href={`${base}/${row.id}`}
-                            className="font-semibold text-slate-900 hover:text-brand-600"
+                            className={clsx(
+                              'font-semibold',
+                              dash ? 'text-[#072348] hover:text-[#E8872A]' : 'text-slate-900 hover:text-brand-600',
+                            )}
                           >
                             {row.title}
                           </Link>
@@ -1217,31 +1278,41 @@ function ContentList({ type }: { type: CmsContentType }) {
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 pr-3 font-mono text-xs text-slate-500">{row.slug}</td>
-                  <td className="py-3 pr-3">
+                  <td className={clsx('font-mono text-xs text-slate-500', dash ? 'px-3 py-3.5' : 'py-3 pr-3')}>
+                    {row.slug}
+                  </td>
+                  <td className={dash ? 'px-3 py-3.5' : 'py-3 pr-3'}>
                     <span
                       className={
-                        row.status === CmsContentStatus.Published &&
-                        !(row.publishedAt && new Date(row.publishedAt).getTime() > Date.now())
-                          ? 'cms-status-pill cms-status-pill--ok'
-                          : 'cms-status-pill cms-status-pill--warn'
+                        dash
+                          ? clsx(
+                              'inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1',
+                              row.status === CmsContentStatus.Published &&
+                                !(row.publishedAt && new Date(row.publishedAt).getTime() > Date.now())
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                                : 'bg-[#FFF8F1] text-[#072348] ring-[#FFD0A3]',
+                            )
+                          : row.status === CmsContentStatus.Published &&
+                              !(row.publishedAt && new Date(row.publishedAt).getTime() > Date.now())
+                            ? 'cms-status-pill cms-status-pill--ok'
+                            : 'cms-status-pill cms-status-pill--warn'
                       }
                     >
                       {postStatusLabel(row.status, row.publishedAt)}
                     </span>
                   </td>
-                  <td className="py-3 pr-3 text-xs text-slate-500">
+                  <td className={clsx('text-xs text-slate-500', dash ? 'px-3 py-3.5' : 'py-3 pr-3')}>
                     {row.robotsIndex ? 'index' : 'noindex'}
                   </td>
-                  <td className="py-3 pr-3 text-xs text-slate-400">
+                  <td className={clsx('text-xs text-slate-400', dash ? 'px-3 py-3.5' : 'py-3 pr-3')}>
                     {new Date(row.updatedAt).toLocaleDateString('vi-VN')}
                   </td>
-                  <td className="py-3 text-right">
+                  <td className={clsx('text-right', dash ? 'px-5 py-3.5' : 'py-3')}>
                     <div className="flex justify-end gap-2.5">
                       {trashed ? (
                         <button
                           type="button"
-                          className="text-xs font-semibold text-brand-600 hover:underline"
+                          className="text-xs font-semibold text-[#E8872A] hover:underline"
                           disabled={restoreMutation.isPending}
                           onClick={() => restoreMutation.mutate(row.id)}
                         >
@@ -1251,7 +1322,10 @@ function ContentList({ type }: { type: CmsContentType }) {
                         <>
                           <Link
                             href={`${base}/${row.id}`}
-                            className="text-xs font-semibold text-brand-600 hover:underline"
+                            className={clsx(
+                              'text-xs font-semibold hover:underline',
+                              dash ? 'text-[#E8872A]' : 'text-brand-600',
+                            )}
                           >
                             Sửa
                           </Link>

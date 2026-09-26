@@ -28,21 +28,27 @@ export function AdminReportsPage() {
 
   return (
     <AdminShell>
-      <div>
-        <h1 className="cms-page-title flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-brand-600" />
-          Báo cáo nền tảng
-        </h1>
-        <p className="cms-page-subtitle">
+      <div className="admin-dash-rise">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Nền tảng</p>
+        <h1 className="cms-page-title mt-1.5">Báo cáo nền tảng</h1>
+        <div className="brand-accent-bar mt-2" />
+        <p className="cms-page-subtitle max-w-2xl">
           KPI vận hành tuyển dụng: hàng đợi kiểm duyệt, tỷ lệ duyệt/từ chối, công ty, tài khoản
           khoá, tin đăng theo ngày.
         </p>
       </div>
 
       {isLoading ? (
-        <p className="mt-6 text-sm text-slate-500">Đang tổng hợp số liệu…</p>
+        <div className="mt-6 space-y-2">
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="admin-dash-skel h-28 rounded-2xl" />
+            <div className="admin-dash-skel h-28 rounded-2xl" />
+            <div className="admin-dash-skel h-28 rounded-2xl" />
+            <div className="admin-dash-skel h-28 rounded-2xl" />
+          </div>
+        </div>
       ) : isError || !data ? (
-        <Card className="mt-6 border-rose-200 bg-rose-50 py-8 text-center text-sm text-rose-700">
+        <Card className="admin-dash-card mt-6 border-rose-200 bg-rose-50 py-8 text-center text-sm text-rose-700">
           Không tải được báo cáo.
         </Card>
       ) : (
@@ -93,8 +99,8 @@ function ReportsBody({ data }: { data: AdminReportsView }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-800">Tỷ lệ duyệt / từ chối</h2>
+        <Card className="admin-dash-card">
+          <h2 className="text-sm font-semibold text-[#072348]">Tỷ lệ duyệt / từ chối</h2>
           <p className="mt-1 text-xs text-slate-500">
             Trên {decided} tin đã có kết quả (AI + duyệt tay). Không tính nháp và tin đang chờ.
           </p>
@@ -136,15 +142,15 @@ function ReportsBody({ data }: { data: AdminReportsView }) {
           )}
         </Card>
 
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-800">Tin được đăng — 14 ngày</h2>
+        <Card className="admin-dash-card">
+          <h2 className="text-sm font-semibold text-[#072348]">Tin được đăng — 14 ngày</h2>
           <p className="mt-1 text-xs text-slate-500">Theo ngày xuất bản (giờ Việt Nam), kể cả tin sau đó bị ẩn/đóng.</p>
           <div className="mt-4 flex h-40 items-end gap-1">
             {data.jobs.byDay.map((d) => (
               <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
                 <span className="text-[10px] font-semibold text-slate-500">{d.count || ''}</span>
                 <div
-                  className="w-full rounded-t bg-brand-600"
+                  className="w-full rounded-t bg-[#E8872A]"
                   style={{ height: `${Math.max(d.count ? 8 : 2, (d.count / maxDay) * 120)}px` }}
                   title={`${dayLabel(d.date)}: ${d.count}`}
                 />
@@ -184,13 +190,15 @@ function Kpi({
     emerald: 'ring-emerald-200 bg-emerald-50/40',
   }[tone];
   return (
-    <Link href={href}>
-      <Card className={clsx('h-full transition hover:shadow-md', ring)}>
+    <Link href={href} className="admin-dash-lift block h-full">
+      <Card className={clsx('admin-dash-card h-full', ring)}>
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          <Icon className="h-3.5 w-3.5" />
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]">
+            <Icon className="h-3.5 w-3.5" />
+          </span>
           {label}
         </div>
-        <p className="mt-1 text-3xl font-bold text-slate-900">{value}</p>
+        <p className="mt-1 text-3xl font-bold text-[#072348]">{value}</p>
         <p className="mt-1 text-xs text-slate-500">{hint}</p>
       </Card>
     </Link>

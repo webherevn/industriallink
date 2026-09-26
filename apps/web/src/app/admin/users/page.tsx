@@ -176,14 +176,20 @@ export default function AdminUsersPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="admin-dash-rise flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="cms-page-title">Người dùng & phân quyền</h1>
-          <p className="cms-page-subtitle">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Nền tảng</p>
+          <h1 className="cms-page-title mt-1.5">Người dùng & phân quyền</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="cms-page-subtitle max-w-xl">
             Quản lý tài khoản, vai trò RBAC và trạng thái truy cập nền tảng.
           </p>
         </div>
-        <Button type="button" onClick={openCreate} className="shrink-0 gap-1.5 self-start sm:self-auto">
+        <Button
+          type="button"
+          onClick={openCreate}
+          className="shrink-0 gap-1.5 self-start !rounded-xl !bg-[#072348] !px-4 !py-2.5 !font-semibold shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] hover:!bg-[#0c3a72] sm:self-auto"
+        >
           <UserPlus className="h-4 w-4" />
           Tạo tài khoản
         </Button>
@@ -192,7 +198,7 @@ export default function AdminUsersPage() {
       {(info || error) && !createOpen && !pwUser && (
         <div
           className={clsx(
-            'mt-4 rounded-xl border px-4 py-3 text-sm',
+            'mt-4 rounded-2xl border px-4 py-3 text-sm',
             error
               ? 'border-rose-200 bg-rose-50 text-rose-700'
               : 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -204,7 +210,7 @@ export default function AdminUsersPage() {
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: 'Tổng tài khoản', value: stats.total, icon: Users, tone: 'text-brand-600 bg-brand-50' },
+          { label: 'Tổng tài khoản', value: stats.total, icon: Users, tone: 'text-[#E8872A] bg-[#FFF8F1]' },
           { label: 'Đang hoạt động', value: stats.active, icon: ShieldCheck, tone: 'text-emerald-600 bg-emerald-50' },
           { label: 'Superadmin', value: stats.admins, icon: Shield, tone: 'text-accent-600 bg-accent-50' },
           { label: 'Đã khoá', value: stats.locked, icon: Lock, tone: 'text-rose-600 bg-rose-50' },
@@ -213,7 +219,7 @@ export default function AdminUsersPage() {
           return (
             <div
               key={s.label}
-              className="rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-sm"
+              className="admin-dash-card px-4 py-3.5"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -223,13 +229,13 @@ export default function AdminUsersPage() {
                   <Icon className="h-3.5 w-3.5" />
                 </span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{s.value}</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">{s.value}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-5 rounded-xl border border-slate-200/90 bg-white shadow-sm">
+      <div className="admin-dash-card admin-dash-rise mt-6 overflow-hidden" style={{ animationDelay: '80ms' }}>
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="relative min-w-0 flex-1 sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -269,11 +275,17 @@ export default function AdminUsersPage() {
         </div>
 
         {isLoading ? (
-          <p className="px-5 py-10 text-center text-sm text-slate-500">Đang tải...</p>
+          <div className="space-y-2 px-5 py-8">
+            <div className="admin-dash-skel h-12 rounded-xl" />
+            <div className="admin-dash-skel h-12 rounded-xl" />
+            <div className="admin-dash-skel h-12 rounded-xl" />
+          </div>
         ) : filtered.length === 0 ? (
           <div className="px-5 py-12 text-center">
-            <Users className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-3 text-sm font-medium text-slate-600">Không có tài khoản phù hợp</p>
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]">
+              <Users className="h-6 w-6" />
+            </span>
+            <p className="mt-3 text-sm font-semibold text-[#072348]">Không có tài khoản phù hợp</p>
             <p className="mt-1 text-xs text-slate-400">Thử đổi bộ lọc hoặc tạo tài khoản mới.</p>
           </div>
         ) : (
@@ -283,7 +295,7 @@ export default function AdminUsersPage() {
               {filtered.map((u) => (
                 <li key={u.id} className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#072348] text-xs font-bold text-white ring-2 ring-[#FFD0A3]">
                       {initials(u.displayName)}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -356,7 +368,7 @@ export default function AdminUsersPage() {
                         setPwValue('');
                         setPwError(null);
                       }}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-brand-600 transition hover:border-accent-200"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#E8872A] transition hover:border-[#FFD0A3] hover:bg-[#FFF8F1]"
                     >
                       <KeyRound className="h-3.5 w-3.5" />
                       Đổi mật khẩu
@@ -370,7 +382,7 @@ export default function AdminUsersPage() {
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[780px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-slate-100 bg-[#f8fafc] text-[11px] uppercase tracking-wide text-slate-400">
                     <th className="px-5 py-3 font-semibold">Người dùng</th>
                     <th className="px-3 py-3 font-semibold">Vai trò</th>
                     <th className="px-3 py-3 font-semibold">Trạng thái</th>
@@ -380,14 +392,14 @@ export default function AdminUsersPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((u) => (
-                    <tr key={u.id} className="transition hover:bg-slate-50/60">
+                    <tr key={u.id} className="admin-dash-row">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#072348] text-[11px] font-bold text-white ring-2 ring-[#FFD0A3]">
                             {initials(u.displayName)}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-slate-900">{u.displayName}</p>
+                            <p className="truncate font-semibold text-[#072348]">{u.displayName}</p>
                             <p className="truncate text-xs text-slate-500">{u.email}</p>
                           </div>
                         </div>
@@ -455,7 +467,7 @@ export default function AdminUsersPage() {
                             setPwValue('');
                             setPwError(null);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition hover:bg-brand-50"
+                          className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-[#E8872A] transition hover:bg-[#FFF8F1]"
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                           Đổi MK
@@ -482,10 +494,10 @@ export default function AdminUsersPage() {
             aria-label="Đóng"
             onClick={() => setCreateOpen(false)}
           />
-          <div className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-soft-rise">
+          <div className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-[0_24px_50px_-24px_rgba(7,35,72,0.55)] animate-soft-rise">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div>
-                <p className="text-sm font-bold text-slate-900">Tạo tài khoản</p>
+                <p className="text-sm font-semibold text-[#072348]">Tạo tài khoản</p>
                 <p className="text-xs text-slate-500">Gán vai trò và mật khẩu đăng nhập</p>
               </div>
               <button
@@ -551,7 +563,7 @@ export default function AdminUsersPage() {
                 >
                   Huỷ
                 </Button>
-                <Button type="submit" className="flex-1 gap-1.5" disabled={createMutation.isPending}>
+                <Button type="submit" className="flex-1 gap-1.5 !rounded-xl !bg-[#072348] hover:!bg-[#0c3a72]" disabled={createMutation.isPending}>
                   <Plus className="h-4 w-4" />
                   {createMutation.isPending ? 'Đang tạo...' : 'Tạo tài khoản'}
                 </Button>
@@ -570,10 +582,10 @@ export default function AdminUsersPage() {
             aria-label="Đóng"
             onClick={() => setPwUser(null)}
           />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl animate-soft-rise">
+          <div className="admin-dash-card relative z-10 w-full max-w-md p-5 animate-soft-rise">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-slate-900">Đổi mật khẩu</p>
+                <p className="text-sm font-semibold text-[#072348]">Đổi mật khẩu</p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {pwUser.displayName} · {pwUser.email}
                 </p>
@@ -612,7 +624,7 @@ export default function AdminUsersPage() {
                 <Button type="button" variant="ghost" className="flex-1" onClick={() => setPwUser(null)}>
                   Huỷ
                 </Button>
-                <Button type="submit" className="flex-1" disabled={updateMutation.isPending}>
+                <Button type="submit" className="flex-1 !rounded-xl !bg-[#072348] hover:!bg-[#0c3a72]" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? 'Đang lưu...' : 'Cập nhật'}
                 </Button>
               </div>

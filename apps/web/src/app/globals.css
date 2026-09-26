@@ -694,3 +694,140 @@ body {
   border-radius: 0.5rem;
 }
 
+/* SuperAdmin dashboard — surface, shadow, motion */
+@keyframes admin-dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes admin-dash-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-16px, 12px, 0) scale(1.08);
+  }
+}
+@keyframes admin-dash-ring {
+  from {
+    stroke-dashoffset: var(--ring-full);
+  }
+  to {
+    stroke-dashoffset: var(--ring-offset);
+  }
+}
+@keyframes admin-dash-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes admin-dash-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.admin-dash-rise {
+  animation: admin-dash-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.admin-dash-card {
+  border-radius: 1.15rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  box-shadow:
+    0 1px 1px rgba(7, 35, 72, 0.04),
+    0 14px 36px -20px rgba(7, 35, 72, 0.22);
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease;
+}
+a.admin-dash-card:hover,
+.admin-dash-lift:hover {
+  transform: translateY(-3px);
+  border-color: #ffd0a3;
+  box-shadow:
+    0 1px 1px rgba(7, 35, 72, 0.04),
+    0 22px 44px -18px rgba(7, 35, 72, 0.32);
+}
+.admin-dash-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  color: #fff;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(232, 135, 42, 0.28), transparent 46%),
+    linear-gradient(145deg, #04162f 0%, #072348 46%, #0c3a72 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 24px 50px -24px rgba(7, 35, 72, 0.7);
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.admin-dash-hero:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 30px 60px -22px rgba(7, 35, 72, 0.78);
+}
+.admin-dash-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(36px);
+  pointer-events: none;
+  animation: admin-dash-float 7s ease-in-out infinite;
+}
+.admin-dash-ring {
+  stroke-dasharray: var(--ring-full);
+  stroke-dashoffset: var(--ring-offset);
+  animation: admin-dash-ring 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.admin-dash-bar {
+  transform-origin: left center;
+  animation: admin-dash-bar 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.admin-dash-skel {
+  border-radius: 1.15rem;
+  background: linear-gradient(90deg, #e8eef6 0%, #f8fafc 42%, #e4ebf4 80%);
+  background-size: 200% 100%;
+  animation: admin-dash-shimmer 1.35s ease infinite;
+}
+.admin-dash-row {
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+.admin-dash-row:hover {
+  background: #fff8f1;
+  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dash-rise,
+  .admin-dash-glow,
+  .admin-dash-ring,
+  .admin-dash-bar,
+  .admin-dash-skel {
+    animation: none !important;
+  }
+  .admin-dash-hero:hover,
+  a.admin-dash-card:hover,
+  .admin-dash-lift:hover,
+  .admin-dash-row:hover {
+    transform: none;
+  }
+}
+

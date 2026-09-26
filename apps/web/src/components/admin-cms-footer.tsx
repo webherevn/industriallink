@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { AdminShell } from '@/components/admin-shell';
 import { CmsCollapsiblePanel } from '@/components/cms-collapsible-panel';
 import { CmsRichEditor } from '@/components/cms-rich-editor';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { getCmsFooterAdmin, saveCmsFooterAdmin } from '@/lib/admin-cms';
 
@@ -47,12 +47,12 @@ function FooterBlockEditor({
   defaultOpen?: boolean;
 }) {
   return (
-    <CmsCollapsiblePanel title={title} defaultOpen={defaultOpen}>
+    <CmsCollapsiblePanel title={title} tone="dash" defaultOpen={defaultOpen}>
       <p className="text-xs text-slate-500">{hint}</p>
-      <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+      <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#072348]">
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          className="h-4 w-4 rounded border-slate-300 accent-[#E8872A]"
           checked={block.enabled}
           onChange={(e) => onChange({ ...block, enabled: e.target.checked })}
         />
@@ -65,6 +65,7 @@ function FooterBlockEditor({
             <CmsCollapsiblePanel
               key={idx}
               title={`Cột ${idx + 1}`}
+              tone="dash"
               defaultOpen={Boolean(block.columns[idx]?.html?.trim())}
             >
               <p className="mb-2 text-[11px] text-slate-400">
@@ -83,7 +84,7 @@ function FooterBlockEditor({
           ))}
         </div>
       ) : (
-        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <p className="mt-3 rounded-2xl border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-2 text-xs text-slate-500">
           Đang tắt — khối này không render trên trang public.
         </p>
       )}
@@ -138,50 +139,58 @@ export function AdminFooterPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="admin-dash-rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="cms-page-title">Chân trang</h1>
-          <p className="cms-page-subtitle">
-            Footer 1 & Footer 2 (mỗi cái 4 cột rich text) · tick ẩn/hiện · copyright tuỳ biến.
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Cấu hình</p>
+          <h1 className="cms-page-title mt-1.5">Chân trang</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="cms-page-subtitle max-w-xl">
+            Footer 1 và Footer 2, mỗi khối 4 cột. Bật hoặc tắt từng khối, rồi chỉnh dòng copyright.
           </p>
         </div>
-        <Button
+        <button
           type="button"
-          className="gap-1.5"
           disabled={saveMutation.isPending || isLoading}
           onClick={() => saveMutation.mutate()}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
         >
           <Save className="h-4 w-4" />
           {saveMutation.isPending ? 'Đang lưu…' : 'Lưu chân trang'}
-        </Button>
+        </button>
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p className="admin-dash-rise mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </p>
       ) : null}
       {saved ? (
-        <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <p className="admin-dash-rise mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           Đã lưu cấu hình chân trang.
         </p>
       ) : null}
 
       {isLoading ? (
-        <p className="mt-6 text-sm text-slate-500">Đang tải…</p>
+        <div className="mt-6 space-y-3">
+          <div className="admin-dash-skel h-28" />
+          <div className="admin-dash-skel h-40" />
+          <div className="admin-dash-skel h-16" />
+        </div>
       ) : (
-        <div className="mt-5 space-y-4">
-          <Card className="flex items-start gap-3 border-brand-100 bg-brand-50/40">
-            <Columns3 className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
-            <div className="text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">Cách hoạt động</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-slate-600">
+        <div className="mt-6 space-y-4">
+          <div className="admin-dash-card admin-dash-rise flex items-start gap-3 p-5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]">
+              <Columns3 className="h-4 w-4" />
+            </span>
+            <div className="text-sm text-slate-600">
+              <p className="font-semibold text-[#072348]">Cách hoạt động</p>
+              <ul className="mt-2 space-y-1.5 text-xs leading-relaxed">
                 <li>Tắt cả khối Footer bằng checkbox «Hiển thị».</li>
                 <li>Cột để trống HTML sẽ tự ẩn — grid co theo số cột còn nội dung.</li>
-                <li>Hàng copyright luôn nằm dưới cùng (absolute bottom bar).</li>
+                <li>Hàng copyright luôn nằm dưới cùng.</li>
               </ul>
             </div>
-          </Card>
+          </div>
 
           <FooterBlockEditor
             title="Footer 1"
@@ -199,7 +208,7 @@ export function AdminFooterPage() {
             defaultOpen={form.footer2.enabled}
           />
 
-          <CmsCollapsiblePanel title="Copyright (hàng dưới cùng)" defaultOpen>
+          <CmsCollapsiblePanel title="Copyright (hàng dưới cùng)" tone="dash" defaultOpen>
             <Field label="Nội dung copyright">
               <Input
                 value={form.copyrightText}

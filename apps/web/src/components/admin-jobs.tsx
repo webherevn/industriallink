@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Briefcase, Eye, EyeOff, RotateCcw, Search, XCircle } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw, Search, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
@@ -137,21 +137,18 @@ export function AdminJobsPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="cms-page-title flex items-center gap-2">
-            <Briefcase className="h-5 w-5 text-brand-600" />
-            Tất cả tin tuyển dụng
-          </h1>
-          <p className="cms-page-subtitle">
-            Toàn bộ tin trên nền tảng — lọc theo trạng thái, kiểm duyệt, công ty.
-            Ẩn / đóng / đẩy lại hàng đợi. Hàng duyệt tay nằm ở{' '}
-            <Link href="/admin/moderation" className="font-semibold text-brand-600 hover:underline">
-              Duyệt tin
-            </Link>
-            .
-          </p>
-        </div>
+      <div className="admin-dash-rise">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Nền tảng</p>
+        <h1 className="cms-page-title mt-1.5">Tất cả tin tuyển dụng</h1>
+        <div className="brand-accent-bar mt-2" />
+        <p className="cms-page-subtitle max-w-2xl">
+          Toàn bộ tin trên nền tảng — lọc theo trạng thái, kiểm duyệt, công ty.
+          Ẩn / đóng / đẩy lại hàng đợi. Hàng duyệt tay nằm ở{' '}
+          <Link href="/admin/moderation" className="font-semibold text-[#E8872A] hover:underline">
+            Duyệt tin
+          </Link>
+          .
+        </p>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
@@ -173,10 +170,10 @@ export function AdminJobsPage() {
               setPage(1);
             }}
             className={clsx(
-              'rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
+              'rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors',
               status === t.value
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-900',
+                ? 'bg-[#072348] text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.9)]'
+                : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-[#FFF8F1] hover:text-[#072348]',
             )}
           >
             {t.label}
@@ -222,27 +219,31 @@ export function AdminJobsPage() {
             </option>
           ))}
         </Select>
-        <Button type="submit" variant="outline">
+        <Button type="submit" variant="outline" className="!rounded-xl hover:!border-[#FFD0A3] hover:!bg-[#FFF8F1]">
           Lọc
         </Button>
       </form>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}
         </p>
       ) : null}
 
       {isLoading ? (
-        <p className="mt-6 text-sm text-slate-500">Đang tải danh sách tin…</p>
+        <div className="mt-6 space-y-2">
+          <div className="admin-dash-skel h-12 rounded-xl" />
+          <div className="admin-dash-skel h-12 rounded-xl" />
+          <div className="admin-dash-skel h-12 rounded-xl" />
+        </div>
       ) : items.length === 0 ? (
-        <Card className="mt-5 p-8 text-center text-sm text-slate-500">
+        <div className="mt-5 rounded-[1.15rem] border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-10 text-center text-sm text-slate-500">
           Không có tin khớp bộ lọc.
-        </Card>
+        </div>
       ) : (
-        <div className="mt-5 overflow-x-auto rounded-xl ring-1 ring-slate-200">
+        <div className="admin-dash-card mt-5 overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <thead className="bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2.5">Tin</th>
                 <th className="px-3 py-2.5">Công ty</th>
@@ -260,11 +261,11 @@ export function AdminJobsPage() {
                     ? `${siteUrl()}${jobPublicPath(item)}`
                     : null;
                 return (
-                  <tr key={item.id} className="align-top">
+                  <tr key={item.id} className="admin-dash-row align-top">
                     <td className="px-3 py-3">
-                      <p className="font-semibold text-slate-900">
+                      <p className="font-semibold text-[#072348]">
                         {href ? (
-                          <a href={href} target="_blank" rel="noreferrer" className="hover:underline">
+                          <a href={href} target="_blank" rel="noreferrer" className="hover:text-[#E8872A]">
                             {item.title}
                           </a>
                         ) : (
@@ -403,16 +404,16 @@ function Stat({
   value?: number;
   tone?: 'slate' | 'emerald' | 'amber' | 'rose';
 }) {
-  const wrap = {
-    slate: 'bg-white ring-slate-200',
-    emerald: 'bg-emerald-50 ring-emerald-100',
-    amber: 'bg-amber-50 ring-amber-100',
-    rose: 'bg-rose-50 ring-rose-100',
+  const num = {
+    slate: 'text-[#072348]',
+    emerald: 'text-emerald-600',
+    amber: 'text-amber-600',
+    rose: 'text-rose-600',
   }[tone];
   return (
-    <Card className={clsx('px-3 py-2.5', wrap)}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-0.5 text-xl font-bold text-slate-900">{value ?? '—'}</p>
+    <Card className="admin-dash-card px-3.5 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={clsx('mt-0.5 text-xl font-bold', num)}>{value ?? '—'}</p>
     </Card>
   );
 }

@@ -79,61 +79,74 @@ function ScoreHero({ data }: { data: CmsSeoOverview }) {
   const critical = data.issues.filter((i) => i.severity === 'critical').reduce((s, i) => s + i.count, 0);
   const warning = data.issues.filter((i) => i.severity === 'warning').reduce((s, i) => s + i.count, 0);
   const info = data.issues.filter((i) => i.severity === 'info').reduce((s, i) => s + i.count, 0);
+  const ringR = 32;
+  const ringFull = 2 * Math.PI * ringR;
+  const ringOffset = ringFull - (data.healthScore / 100) * ringFull;
 
   return (
-    <Card className="relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white via-white to-brand-50/40 p-5 sm:p-6">
-      <div
-        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent-200/30 blur-3xl"
-        aria-hidden
-      />
+    <div className="admin-dash-hero p-5 sm:p-7">
+      <span className="admin-dash-glow -right-10 -top-12 h-44 w-44 bg-accent-500/45" aria-hidden />
+      <span className="admin-dash-glow -bottom-16 left-1/4 h-28 w-28 bg-sky-300/25" aria-hidden />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-5">
-          <div
-            className={clsx(
-              'flex h-[88px] w-[88px] flex-col items-center justify-center rounded-full border-[4px] bg-white shadow-sm',
-              g.ring,
-            )}
-          >
-            <span className={clsx('text-3xl font-bold leading-none tracking-tight', g.color)}>
-              {data.healthScore}
-            </span>
-            <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              /100
-            </span>
+          <div className="relative h-[104px] w-[104px] shrink-0">
+            <svg className="h-full w-full -rotate-90" viewBox="0 0 80 80" aria-hidden>
+              <circle cx="40" cy="40" r={ringR} stroke="rgba(255,255,255,0.16)" strokeWidth="6" fill="none" />
+              <circle
+                className="admin-dash-ring"
+                cx="40"
+                cy="40"
+                r={ringR}
+                stroke="#E8872A"
+                strokeWidth="6"
+                fill="none"
+                strokeLinecap="round"
+                style={{
+                  ['--ring-full' as string]: ringFull,
+                  ['--ring-offset' as string]: ringOffset,
+                }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold leading-none tracking-tight">{data.healthScore}</span>
+              <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/65">
+                /100
+              </span>
+            </div>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-300">
               Site SEO Health
             </p>
-            <h2 className={clsx('mt-1 text-2xl font-bold tracking-tight', g.color)}>{g.label}</h2>
-            <p className="mt-1 max-w-md text-sm text-slate-500">
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">{g.label}</h2>
+            <p className="mt-1 max-w-md text-sm text-slate-300">
               Điểm tổng hợp từ coverage on-page, indexability và số vấn đề critical trên nội dung đã
               xuất bản.
             </p>
-            <p className="mt-2 text-[11px] text-slate-400">
+            <p className="mt-2 text-[11px] text-white/55">
               Cập nhật {formatTime(data.generatedAt)} · {data.siteUrl.replace(/^https?:\/\//, '')}
             </p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3 sm:min-w-[280px]">
           {[
-            { label: 'Critical', value: critical, className: 'text-rose-600' },
-            { label: 'Warning', value: warning, className: 'text-amber-600' },
-            { label: 'Info', value: info, className: 'text-sky-600' },
+            { label: 'Critical', value: critical, className: 'text-rose-200' },
+            { label: 'Warning', value: warning, className: 'text-amber-200' },
+            { label: 'Info', value: info, className: 'text-sky-200' },
           ].map((s) => (
             <div
               key={s.label}
-              className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-3 text-center"
+              className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3 text-center backdrop-blur-sm"
             >
               <p className={clsx('text-2xl font-bold tabular-nums', s.className)}>{s.value}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
                 {s.label}
               </p>
             </div>
           ))}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -154,20 +167,18 @@ function InventoryGrid({ data }: { data: CmsSeoOverview }) {
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <Link key={item.label} href={item.href}>
-            <Card className="flex items-center gap-3 transition hover:border-brand-200 hover:shadow-md">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                <Icon className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  {item.label}
-                </p>
-                <p className="text-2xl font-bold tabular-nums text-[var(--brand-navy)]">
-                  {item.value}
-                </p>
-              </div>
-            </Card>
+          <Link key={item.label} href={item.href} className="admin-dash-card flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand-accent-soft)] text-accent-600">
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {item.label}
+              </p>
+              <p className="text-2xl font-bold tabular-nums leading-none text-[var(--brand-navy)]">
+                {item.value}
+              </p>
+            </div>
           </Link>
         );
       })}
@@ -177,7 +188,7 @@ function InventoryGrid({ data }: { data: CmsSeoOverview }) {
 
 function CoveragePanel({ data }: { data: CmsSeoOverview }) {
   return (
-    <Card className="space-y-4">
+    <div className="admin-dash-card space-y-4 p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-slate-900">Coverage checklist</h3>
@@ -199,7 +210,7 @@ function CoveragePanel({ data }: { data: CmsSeoOverview }) {
             <div className="h-2 overflow-hidden rounded-full bg-slate-100">
               <div
                 className={clsx(
-                  'h-full rounded-full transition-all',
+                  'admin-dash-bar h-full rounded-full',
                   c.percent >= 80
                     ? 'bg-emerald-500'
                     : c.percent >= 50
@@ -213,7 +224,7 @@ function CoveragePanel({ data }: { data: CmsSeoOverview }) {
           </li>
         ))}
       </ul>
-    </Card>
+    </div>
   );
 }
 
@@ -237,7 +248,7 @@ function IssuesPanel({
   }, [filter, filtered]);
 
   return (
-    <Card className="space-y-4">
+    <div className="admin-dash-card space-y-4 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-slate-900">Vấn đề cần xử lý</h3>
@@ -259,10 +270,10 @@ function IssuesPanel({
               type="button"
               onClick={() => onFilter(id)}
               className={clsx(
-                'rounded-md px-2.5 py-1 text-[11px] font-semibold transition',
+                'rounded-full px-3 py-1 text-[11px] font-semibold transition',
                 filter === id
-                  ? 'bg-[var(--brand-navy)] text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                  ? 'bg-[var(--brand-navy)] text-white shadow-md shadow-[rgba(7,35,72,0.25)]'
+                  : 'bg-slate-100 text-slate-600 hover:bg-[var(--brand-accent-soft)] hover:text-accent-700',
               )}
             >
               {label}
@@ -285,12 +296,12 @@ function IssuesPanel({
             return (
               <li
                 key={group.code}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_24px_-18px_rgba(7,35,72,0.45)]"
               >
                 <button
                   type="button"
                   onClick={() => setOpenCode(open ? null : group.code)}
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50/80"
+                  className="admin-dash-row flex w-full items-start gap-3 px-4 py-3 text-left"
                 >
                   <span className={clsx('mt-0.5 rounded-md p-1.5', meta.chip)}>
                     <Icon className="h-3.5 w-3.5" />
@@ -312,7 +323,7 @@ function IssuesPanel({
                       <li key={item.id}>
                         <Link
                           href={item.editPath}
-                          className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition hover:bg-white"
+                          className="admin-dash-row flex items-center gap-2 rounded-xl px-2 py-2 text-sm"
                         >
                           <span
                             className={clsx(
@@ -347,22 +358,22 @@ function IssuesPanel({
           })}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }
 
 function KeywordsPanel({ data }: { data: CmsSeoOverview }) {
   if (data.topKeywords.length === 0) {
     return (
-      <Card>
+      <div className="admin-dash-card p-5 sm:p-6">
         <h3 className="text-sm font-bold text-slate-900">Focus keywords</h3>
         <p className="mt-3 text-sm text-slate-500">Chưa có focus keyword trên nội dung published.</p>
-      </Card>
+      </div>
     );
   }
   const max = data.topKeywords[0]?.count ?? 1;
   return (
-    <Card className="space-y-4">
+    <div className="admin-dash-card space-y-4 p-5 sm:p-6">
       <div>
         <h3 className="text-sm font-bold text-slate-900">Top focus keywords</h3>
         <p className="mt-0.5 text-xs text-slate-500">
@@ -387,8 +398,8 @@ function KeywordsPanel({ data }: { data: CmsSeoOverview }) {
               <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className={clsx(
-                    'h-full rounded-full',
-                    k.count >= 2 ? 'bg-amber-500' : 'bg-brand-500',
+                    'admin-dash-bar h-full rounded-full',
+                    k.count >= 2 ? 'bg-amber-500' : 'bg-[var(--brand-accent)]',
                   )}
                   style={{ width: `${Math.max(8, (k.count / max) * 100)}%` }}
                 />
@@ -397,13 +408,13 @@ function KeywordsPanel({ data }: { data: CmsSeoOverview }) {
           </li>
         ))}
       </ul>
-    </Card>
+    </div>
   );
 }
 
 function RecentPanel({ data }: { data: CmsSeoOverview }) {
   return (
-    <Card className="space-y-4">
+    <div className="admin-dash-card space-y-4 p-5 sm:p-6">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-bold text-slate-900">Published gần đây</h3>
@@ -416,9 +427,9 @@ function RecentPanel({ data }: { data: CmsSeoOverview }) {
       {data.recentPublished.length === 0 ? (
         <p className="text-sm text-slate-500">Chưa có nội dung published.</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="space-y-1">
           {data.recentPublished.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-center gap-2 py-3 first:pt-0 last:pb-0">
+            <li key={item.id} className="admin-dash-row flex flex-wrap items-center gap-2 rounded-xl px-2 py-2.5">
               <Link
                 href={item.editPath}
                 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 hover:text-accent-600"
@@ -446,7 +457,7 @@ function RecentPanel({ data }: { data: CmsSeoOverview }) {
           ))}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -465,7 +476,7 @@ function Flag({ ok, label }: { ok: boolean; label: string }) {
 
 function TechLinks({ data }: { data: CmsSeoOverview }) {
   return (
-    <Card className="space-y-3">
+    <div className="admin-dash-card space-y-3 p-5 sm:p-6">
       <div>
         <h3 className="text-sm font-bold text-slate-900">Technical & quick links</h3>
         <p className="mt-0.5 text-xs text-slate-500">
@@ -480,7 +491,7 @@ function TechLinks({ data }: { data: CmsSeoOverview }) {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent-200 hover:text-brand-700"
+                className="admin-dash-row flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-accent-200 hover:text-[var(--brand-navy)]"
               >
                 <Search className="h-3.5 w-3.5 text-slate-400" />
                 <span className="min-w-0 flex-1 truncate">{link.label}</span>
@@ -489,7 +500,7 @@ function TechLinks({ data }: { data: CmsSeoOverview }) {
             ) : (
               <Link
                 href={link.href}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent-200 hover:text-brand-700"
+                className="admin-dash-row flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-accent-200 hover:text-[var(--brand-navy)]"
               >
                 <Search className="h-3.5 w-3.5 text-slate-400" />
                 <span className="min-w-0 flex-1 truncate">{link.label}</span>
@@ -499,7 +510,7 @@ function TechLinks({ data }: { data: CmsSeoOverview }) {
           </li>
         ))}
       </ul>
-    </Card>
+    </div>
   );
 }
 
@@ -513,17 +524,22 @@ export default function AdminSeoOverviewPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="admin-dash space-y-6">
+      <div className="admin-dash-rise flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="cms-page-title">SEO overview</h1>
-          <p className="cms-page-subtitle">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-600">
+            Audit
+          </p>
+          <h1 className="cms-page-title mt-1.5">SEO overview</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="cms-page-subtitle mt-2">
             Audit sức khỏe SEO toàn site — coverage, issues, keywords & technical links.
           </p>
         </div>
         <Button
           type="button"
           variant="ghost"
-          className="gap-1.5"
+          className="gap-1.5 shadow-sm"
           onClick={() => void refetch()}
           disabled={isFetching}
         >
@@ -533,11 +549,11 @@ export default function AdminSeoOverviewPage() {
       </div>
 
       {isLoading ? (
-        <div className="mt-6 space-y-4">
-          <Card className="h-36 animate-pulse bg-slate-100" />
+        <div className="space-y-4">
+          <div className="admin-dash-skel h-40" />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <Card key={i} className="h-20 animate-pulse bg-slate-100" />
+              <div key={i} className="admin-dash-skel h-20" />
             ))}
           </div>
         </div>
@@ -548,18 +564,25 @@ export default function AdminSeoOverviewPage() {
         !Array.isArray(data.topKeywords) ||
         !Array.isArray(data.recentPublished) ||
         !Array.isArray(data.quickLinks) ? (
-        <Card className="mt-6 border-rose-200 bg-rose-50/50 py-10 text-center">
+        <Card className="border-rose-200 bg-rose-50/50 py-10 text-center">
           <p className="text-sm font-semibold text-rose-700">Không tải được SEO overview</p>
           <p className="mt-1 text-xs text-rose-600">
             {error instanceof Error ? error.message : 'Thử làm mới trang.'}
           </p>
         </Card>
       ) : (
-        <div className="mt-5 space-y-5">
-          <ScoreHero data={data} />
-          <InventoryGrid data={data} />
+        <div className="space-y-6">
+          <div className="admin-dash-rise">
+            <ScoreHero data={data} />
+          </div>
+          <div className="admin-dash-rise" style={{ animationDelay: '80ms' }}>
+            <InventoryGrid data={data} />
+          </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <div
+            className="admin-dash-rise grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]"
+            style={{ animationDelay: '140ms' }}
+          >
             <IssuesPanel issues={data.issues} filter={filter} onFilter={setFilter} />
             <div className="space-y-5">
               <CoveragePanel data={data} />
@@ -567,12 +590,16 @@ export default function AdminSeoOverviewPage() {
             </div>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div
+            className="admin-dash-rise grid gap-5 lg:grid-cols-2"
+            style={{ animationDelay: '200ms' }}
+          >
             <RecentPanel data={data} />
             <TechLinks data={data} />
           </div>
         </div>
       )}
+      </div>
     </AdminShell>
   );
 }

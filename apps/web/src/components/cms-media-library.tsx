@@ -1,11 +1,11 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImageIcon, Trash2, X } from 'lucide-react';
+import clsx from 'clsx';
+import { ImageIcon, Trash2, Upload, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { CmsMediaItem } from '@industriallink/contracts';
 import { AdminShell } from '@/components/admin-shell';
-import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { deleteCmsMedia, listCmsMedia, uploadCmsMedia } from '@/lib/admin-cms';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
@@ -19,16 +19,15 @@ function formatSize(bytes: number): string {
 export function AdminCmsMediaPage() {
   return (
     <AdminShell>
-      <div>
-        <h1 className="cms-page-title flex items-center gap-2">
-          <ImageIcon className="h-5 w-5 text-brand-600" />
-          Thư viện media
-        </h1>
-        <p className="cms-page-subtitle">
-          Ảnh đã tải cho bài viết, trang, danh mục. File mới được nén và lưu WebP. Chọn lại khi soạn, hoặc xoá file không dùng.
+      <div className="admin-dash-rise">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">CMS & SEO</p>
+        <h1 className="cms-page-title mt-1.5">Thư viện media</h1>
+        <div className="brand-accent-bar mt-2" />
+        <p className="cms-page-subtitle max-w-xl">
+          Ảnh đã tải cho bài viết, trang và danh mục. File mới được nén và lưu WebP.
         </p>
       </div>
-      <CmsMediaGrid className="mt-5" />
+      <CmsMediaGrid className="mt-6" />
     </AdminShell>
   );
 }
@@ -44,11 +43,15 @@ export function CmsMediaPicker({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-800">Chọn từ thư viện</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#04162f]/45 p-4">
+      <div className="admin-dash-card flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-[#072348]">Chọn từ thư viện</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-slate-400 transition hover:bg-[#FFF8F1] hover:text-[#072348]"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -105,19 +108,22 @@ function CmsMediaGrid({
 
   return (
     <div className={className}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500">
-          {items.length} ảnh · JPEG, PNG, WebP, GIF · tối đa 5MB · lưu WebP
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          className="py-2 text-xs"
-          disabled={uploadMutation.isPending}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploadMutation.isPending ? 'Đang tải…' : 'Tải ảnh mới'}
-        </Button>
+      <div className="admin-dash-card admin-dash-rise mb-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <p className="text-xs text-slate-500">JPEG, PNG, WebP, GIF · tối đa 5MB · lưu WebP</p>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-semibold text-[#072348] ring-1 ring-[#FFD0A3]">
+            {isLoading ? '…' : items.length}
+          </span>
+          <button
+            type="button"
+            disabled={uploadMutation.isPending}
+            onClick={() => fileRef.current?.click()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {uploadMutation.isPending ? 'Đang tải…' : 'Tải ảnh mới'}
+          </button>
+        </div>
         <input
           ref={fileRef}
           type="file"
@@ -131,34 +137,48 @@ function CmsMediaGrid({
         />
       </div>
       {error ? (
-        <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>
       ) : null}
       {isLoading ? (
-        <p className="text-sm text-slate-500">Đang tải thư viện…</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="admin-dash-skel h-40" />
+          <div className="admin-dash-skel h-40" />
+          <div className="admin-dash-skel h-40" />
+          <div className="admin-dash-skel h-40" />
+        </div>
       ) : items.length === 0 ? (
-        <Card className="py-10 text-center text-sm text-slate-500">Chưa có ảnh nào.</Card>
+        <div className="admin-dash-card px-6 py-12 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]">
+            <ImageIcon className="h-6 w-6" />
+          </span>
+          <p className="mt-3 text-sm font-semibold text-[#072348]">Chưa có ảnh nào.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {items.map((item) => {
+          {items.map((item, index) => {
             const src = resolveCmsAssetUrl(item.url) || item.url;
             return (
-              <div key={item.filename} className="overflow-hidden rounded-lg ring-1 ring-slate-200">
+              <div
+                key={item.filename}
+                className="admin-dash-card admin-dash-lift admin-dash-rise overflow-hidden"
+                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+              >
                 <button
                   type="button"
-                  className="block w-full bg-slate-50"
+                  className={clsx('block w-full bg-[#f8fafc]', selectable && 'cursor-pointer')}
                   disabled={!selectable}
                   onClick={() => onSelect?.(item)}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" className="h-28 w-full object-cover" />
+                  <img src={src} alt="" className="h-32 w-full object-cover" />
                 </button>
-                <div className="flex items-center justify-between gap-1 px-2 py-1.5">
-                  <span className="truncate text-[10px] text-slate-400">{formatSize(item.size)}</span>
-                  <div className="flex shrink-0 gap-1">
+                <div className="flex items-center justify-between gap-1 px-2.5 py-2">
+                  <span className="truncate text-[10px] font-medium text-slate-400">{formatSize(item.size)}</span>
+                  <div className="flex shrink-0 items-center gap-2">
                     {selectable ? (
                       <button
                         type="button"
-                        className="text-[11px] font-semibold text-brand-600"
+                        className="text-[11px] font-semibold text-[#E8872A]"
                         onClick={() => onSelect?.(item)}
                       >
                         Chọn

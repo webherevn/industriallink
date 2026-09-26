@@ -2,12 +2,13 @@
 
 import { cmsCategoryPublicPath, type CmsFaqItem } from '@industriallink/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
 import { useState } from 'react';
 import { AdminShell } from '@/components/admin-shell';
 import { CmsCollapsiblePanel } from '@/components/cms-collapsible-panel';
 import { CmsRichEditor } from '@/components/cms-rich-editor';
 import { CmsSeoPanel } from '@/components/cms-seo-panel';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Field, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
   createCmsCategory,
@@ -175,17 +176,27 @@ export default function AdminCategoriesPage() {
 
   return (
     <AdminShell>
-      <h1 className="cms-page-title">Danh mục</h1>
-      <p className="cms-page-subtitle">
-        Phân loại bài viết cẩm nang — avatar + meta SEO (tương tự bài/trang, không có tác giả).
-      </p>
+      <div className="admin-dash-rise">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">CMS & SEO</p>
+        <h1 className="cms-page-title mt-1.5">Danh mục</h1>
+        <div className="brand-accent-bar mt-2" />
+        <p className="cms-page-subtitle max-w-xl">
+          Phân loại bài viết cẩm nang — avatar và meta SEO, không gắn tác giả.
+        </p>
+      </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-5">
-          <Card>
-            <h2 className="text-sm font-semibold text-slate-900">
-              {form.editingId ? 'Sửa danh mục' : 'Thêm danh mục'}
-            </h2>
+      <div className="mt-6 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="admin-dash-card admin-dash-rise p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-[#072348]">
+                {form.editingId ? 'Sửa danh mục' : 'Thêm danh mục'}
+              </h2>
+              {form.editingId ? (
+                <span className="rounded-full bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-semibold text-[#072348] ring-1 ring-[#FFD0A3]">
+                  Đang sửa
+                </span>
+              ) : null}
+            </div>
             <form
               className="mt-4 space-y-4"
               onSubmit={(e) => {
@@ -208,7 +219,7 @@ export default function AdminCategoriesPage() {
 
               <Field label="Avatar danh mục">
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#072348] text-white shadow-[0_12px_24px_-14px_rgba(7,35,72,0.7)] ring-2 ring-[#FFD0A3]">
                     {form.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -217,7 +228,7 @@ export default function AdminCategoriesPage() {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <span className="text-xs font-bold text-slate-300">in</span>
+                      <span className="text-sm font-bold">in</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1 space-y-2">
@@ -227,7 +238,7 @@ export default function AdminCategoriesPage() {
                       placeholder="URL ảnh hoặc tải lên"
                     />
                     <div className="flex flex-wrap gap-2">
-                      <label className="inline-flex cursor-pointer rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
+                      <label className="inline-flex cursor-pointer rounded-xl bg-[#072348] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_10px_20px_-14px_rgba(7,35,72,0.8)] transition hover:bg-[#0c3a72]">
                         {avatarUploading ? 'Đang tải…' : form.avatarUrl ? 'Thay avatar' : 'Tải avatar'}
                         <input
                           type="file"
@@ -255,7 +266,7 @@ export default function AdminCategoriesPage() {
                 </div>
               </Field>
 
-              <CmsCollapsiblePanel title="Mô tả" defaultOpen={Boolean(form.description)}>
+              <CmsCollapsiblePanel title="Mô tả" tone="dash" defaultOpen={Boolean(form.description)}>
                 <p className="text-xs text-slate-500">
                   Trình soạn thảo giống bài viết / trang (font, cỡ chữ, định dạng…). Tap tiêu đề
                   panel để thu gọn.
@@ -269,7 +280,7 @@ export default function AdminCategoriesPage() {
                 />
               </CmsCollapsiblePanel>
 
-              <CmsCollapsiblePanel title="SEO" defaultOpen>
+              <CmsCollapsiblePanel title="SEO" tone="dash" defaultOpen>
                 <CmsSeoPanel
                   title={form.name}
                   slug={form.slug}
@@ -325,7 +336,7 @@ export default function AdminCategoriesPage() {
                 </label>
               </CmsCollapsiblePanel>
 
-              <CmsCollapsiblePanel title="Open Graph" defaultOpen={false}>
+              <CmsCollapsiblePanel title="Open Graph" tone="dash" defaultOpen={false}>
                 <Field label="OG Title">
                   <Input
                     value={form.ogTitle}
@@ -355,7 +366,7 @@ export default function AdminCategoriesPage() {
                       onChange={(e) => patch('ogImageUrl', e.target.value)}
                       placeholder="Để trống = avatar"
                     />
-                    <label className="inline-flex cursor-pointer text-xs font-semibold text-brand-600">
+                    <label className="inline-flex cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#072348] shadow-sm transition hover:border-[#FFD0A3] hover:bg-[#FFF8F1]">
                       {ogUploading ? 'Đang tải…' : 'Tải ảnh OG'}
                       <input
                         type="file"
@@ -373,12 +384,12 @@ export default function AdminCategoriesPage() {
                 </Field>
               </CmsCollapsiblePanel>
 
-              <CmsCollapsiblePanel title="FAQ Schema" defaultOpen={form.faq.length > 0}>
+              <CmsCollapsiblePanel title="FAQ Schema" tone="dash" defaultOpen={form.faq.length > 0}>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs text-slate-500">Xuất JSON-LD FAQPage trên trang chuyên mục.</p>
                   <button
                     type="button"
-                    className="text-xs font-semibold text-brand-600"
+                    className="rounded-full bg-[#FFF8F1] px-2.5 py-1 text-xs font-semibold text-[#072348] ring-1 ring-[#FFD0A3]"
                     onClick={() => patch('faq', [...form.faq, { question: '', answer: '' }])}
                   >
                     + Thêm FAQ
@@ -389,7 +400,7 @@ export default function AdminCategoriesPage() {
                 ) : (
                   <ul className="space-y-3">
                     {form.faq.map((item, idx) => (
-                      <li key={idx} className="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+                      <li key={idx} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
                         <Input
                           value={item.question}
                           onChange={(e) => {
@@ -424,77 +435,108 @@ export default function AdminCategoriesPage() {
                 )}
               </CmsCollapsiblePanel>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error ? (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </p>
+              ) : null}
               <div className="flex gap-2">
-                <Button type="submit" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? 'Đang lưu...' : 'Lưu'}
-                </Button>
-                {form.editingId && (
-                  <Button type="button" variant="ghost" onClick={resetForm}>
+                <button
+                  type="submit"
+                  disabled={saveMutation.isPending}
+                  className="inline-flex items-center rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                >
+                  {saveMutation.isPending ? 'Đang lưu…' : 'Lưu'}
+                </button>
+                {form.editingId ? (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#072348] transition hover:border-[#FFD0A3] hover:bg-[#FFF8F1]"
+                  >
                     Huỷ
-                  </Button>
-                )}
+                  </button>
+                ) : null}
               </div>
             </form>
-          </Card>
         </div>
 
-        <Card className="h-fit">
-          <h2 className="text-sm font-bold text-slate-900">Danh sách</h2>
+        <aside className="admin-dash-card admin-dash-rise h-fit p-5 xl:sticky xl:top-4" style={{ animationDelay: '80ms' }}>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-[#072348]">Danh sách</h2>
+            <span className="rounded-full bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-semibold text-[#072348] ring-1 ring-[#FFD0A3]">
+              {isLoading ? '…' : data.length}
+            </span>
+          </div>
           {isLoading ? (
-            <p className="mt-3 text-sm text-slate-500">Đang tải...</p>
+            <div className="mt-4 space-y-2">
+              <div className="admin-dash-skel h-14" />
+              <div className="admin-dash-skel h-14" />
+              <div className="admin-dash-skel h-14" />
+            </div>
           ) : data.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">Chưa có danh mục.</p>
+            <p className="mt-4 rounded-2xl border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-6 text-center text-sm text-slate-500">
+              Chưa có danh mục.
+            </p>
           ) : (
-            <ul className="mt-3 divide-y divide-slate-100">
-              {data.map((c) => (
-                <li key={c.id} className="flex items-start justify-between gap-3 py-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                      {c.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={resolveCmsAssetUrl(c.avatarUrl) || c.avatarUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-300">
-                          {c.name.slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
+            <ul className="mt-3 space-y-1">
+              {data.map((c) => {
+                const active = form.editingId === c.id;
+                return (
+                  <li
+                    key={c.id}
+                    className={clsx(
+                      'admin-dash-row flex items-start justify-between gap-3 rounded-2xl px-2 py-2.5',
+                      active && 'bg-[#FFF8F1] ring-1 ring-[#FFD0A3]',
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#072348] text-white ring-1 ring-[#FFD0A3]">
+                        {c.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={resolveCmsAssetUrl(c.avatarUrl) || c.avatarUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[11px] font-bold">
+                            {c.name.slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#072348]">{c.name}</p>
+                        <p className="truncate text-xs text-slate-400">/{c.slug}</p>
+                        <p className="mt-0.5 text-[10px] font-medium text-slate-400">
+                          {c.robotsIndex ? 'index' : 'noindex'} · {c.robotsFollow ? 'follow' : 'nofollow'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{c.name}</p>
-                      <p className="text-xs text-slate-400">/{c.slug}</p>
-                      <p className="mt-0.5 text-[10px] font-medium text-slate-400">
-                        {c.robotsIndex ? 'index' : 'noindex'} · {c.robotsFollow ? 'follow' : 'nofollow'}
-                      </p>
+                    <div className="flex shrink-0 gap-2 pt-1">
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-[#E8872A]"
+                        onClick={() => startEdit(c.id)}
+                      >
+                        Sửa
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-rose-600"
+                        onClick={() => {
+                          if (confirm(`Xoá danh mục “${c.name}”?`)) deleteMutation.mutate(c.id);
+                        }}
+                      >
+                        Xoá
+                      </button>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      className="text-xs font-semibold text-brand-600"
-                      onClick={() => startEdit(c.id)}
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs font-semibold text-rose-600"
-                      onClick={() => {
-                        if (confirm(`Xoá danh mục “${c.name}”?`)) deleteMutation.mutate(c.id);
-                      }}
-                    >
-                      Xoá
-                    </button>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
-        </Card>
+        </aside>
       </div>
     </AdminShell>
   );

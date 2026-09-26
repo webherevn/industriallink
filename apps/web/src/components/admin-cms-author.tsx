@@ -7,12 +7,13 @@ import {
   type UpsertCmsAuthorProfileRequest,
 } from '@industriallink/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
 import { ExternalLink, ImageIcon, Plus, UserPlus, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AdminShell } from '@/components/admin-shell';
 import { CmsCollapsiblePanel } from '@/components/cms-collapsible-panel';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Field, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
   assignCmsAuthorProfile,
@@ -198,20 +199,23 @@ export function AdminAuthorProfilePage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="admin-dash-rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="cms-page-title">Hồ sơ tác giả</h1>
-          <p className="cms-page-subtitle">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">CMS & SEO</p>
+          <h1 className="cms-page-title mt-1.5">Hồ sơ tác giả</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="cms-page-subtitle max-w-xl">
             {isSuper
-              ? 'Gán tài khoản viết bài · trang public '
-              : 'Thông tin hiển thị trên bài viết & trang '}
-            <code className="text-xs">/tac-gia/&#123;slug&#125;</code> · Schema Person (E-E-A-T).
+              ? 'Gán tài khoản viết bài và trang public '
+              : 'Thông tin hiển thị trên bài viết và trang '}
+            <span className="font-medium text-[#072348]">/tac-gia/&#123;slug&#125;</span>
+            {' '}· Schema Person.
           </p>
         </div>
         {isSuper && mode === 'list' ? (
-          <Button
+          <button
             type="button"
-            className="gap-1.5"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
             onClick={() => {
               setForm(emptyForm());
               setMode('assign');
@@ -220,71 +224,84 @@ export function AdminAuthorProfilePage() {
           >
             <UserPlus className="h-4 w-4" />
             Gán tài khoản
-          </Button>
+          </button>
         ) : isSuper ? (
-          <Button type="button" variant="ghost" onClick={() => setMode('list')}>
+          <button
+            type="button"
+            onClick={() => setMode('list')}
+            className="admin-dash-card inline-flex items-center px-3.5 py-2.5 text-sm font-semibold text-[#072348]"
+          >
             ← Danh sách
-          </Button>
+          </button>
         ) : null}
       </div>
 
       {!isSuper && myLoading ? (
-        <p className="mt-5 text-sm text-slate-500">Đang tải hồ sơ…</p>
+        <div className="mt-6 space-y-3">
+          <div className="admin-dash-skel h-28" />
+          <div className="admin-dash-skel h-64" />
+        </div>
       ) : null}
 
       {isSuper && mode === 'list' && (
-        <div className="mt-5">
+        <div className="mt-6">
           {isLoading ? (
-            <p className="text-sm text-slate-500">Đang tải…</p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="admin-dash-skel h-24" />
+              <div className="admin-dash-skel h-24" />
+              <div className="admin-dash-skel h-24" />
+            </div>
           ) : profiles.length === 0 ? (
-            <Card className="py-12 text-center">
-              <UserRound className="mx-auto h-8 w-8 text-slate-300" />
-              <p className="mt-3 text-sm font-medium text-slate-600">Chưa có hồ sơ tác giả</p>
-              <p className="mt-1 text-xs text-slate-400">
+            <div className="admin-dash-card admin-dash-rise px-6 py-12 text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]">
+                <UserRound className="h-6 w-6" />
+              </span>
+              <p className="mt-3 text-sm font-semibold text-[#072348]">Chưa có hồ sơ tác giả</p>
+              <p className="mt-1 text-xs text-slate-500">
                 Gán tài khoản để tạo trang /tac-gia/… và Schema Person.
               </p>
-            </Card>
+            </div>
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {profiles.map((p) => {
+              {profiles.map((p, index) => {
                 const av = resolveCmsAssetUrl(p.avatarUrl) || p.avatarUrl;
+                const live = Boolean(p.isPublic && p.slug);
                 return (
-                  <li key={p.userId}>
+                  <li key={p.userId} className="admin-dash-rise" style={{ animationDelay: `${index * 50}ms` }}>
                     <button
                       type="button"
                       onClick={() => {
                         setForm(profileToForm(p));
                         setMode('edit');
                       }}
-                      className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-accent-200 hover:shadow-md"
+                      className="admin-dash-card admin-dash-lift flex w-full items-start gap-3 p-4 text-left"
                     >
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#072348] text-white ring-2 ring-[#FFD0A3]">
                         {av ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={av} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <UserRound className="h-5 w-5 text-brand-400" />
+                          <UserRound className="h-5 w-5" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-slate-900">{p.displayName}</p>
+                        <p className="truncate font-semibold text-[#072348]">{p.displayName}</p>
                         <p className="truncate text-xs text-slate-500">{p.title || '—'}</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <span
-                            className={
-                              p.isPublic && p.slug
-                                ? 'rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700'
-                                : 'rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500'
-                            }
+                            className={clsx(
+                              'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1',
+                              live
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+                                : 'bg-[#FFF8F1] text-[#072348] ring-[#FFD0A3]',
+                            )}
                           >
-                            {p.isPublic && p.slug ? 'Public' : 'Ẩn'}
+                            {live ? 'Public' : 'Ẩn'}
                           </span>
                           {p.slug ? (
                             <span className="truncate text-[10px] text-slate-400">/{p.slug}</span>
                           ) : null}
-                          <span className="text-[10px] text-slate-400">
-                            {p.postCount ?? 0} bài
-                          </span>
+                          <span className="text-[10px] text-slate-400">{p.postCount ?? 0} bài</span>
                         </div>
                       </div>
                     </button>
@@ -305,8 +322,8 @@ export function AdminAuthorProfilePage() {
           }}
         >
           {mode === 'assign' && (
-            <Card className="space-y-3">
-              <h2 className="text-sm font-semibold text-slate-900">Chọn tài khoản</h2>
+            <div className="admin-dash-card admin-dash-rise space-y-3 p-5">
+              <h2 className="text-sm font-semibold text-[#072348]">Chọn tài khoản</h2>
               <Field label="Tài khoản được phép viết bài">
                 <Select
                   value={form.userId}
@@ -329,27 +346,27 @@ export function AdminAuthorProfilePage() {
                   ))}
                 </Select>
               </Field>
-            </Card>
+            </div>
           )}
 
           <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <Card className="h-fit space-y-3">
-              <h2 className="text-sm font-semibold text-slate-900">Ảnh đại diện</h2>
+            <aside className="admin-dash-card admin-dash-rise h-fit space-y-3 p-5">
+              <h2 className="text-sm font-semibold text-[#072348]">Ảnh đại diện</h2>
               <div className="flex flex-col items-center gap-3">
                 {avatarSrc ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={avatarSrc}
                     alt=""
-                    className="h-28 w-28 rounded-full border border-slate-200 object-cover"
+                    className="h-28 w-28 rounded-full object-cover shadow-[0_16px_32px_-18px_rgba(7,35,72,0.7)] ring-2 ring-[#FFD0A3]"
                   />
                 ) : (
-                  <div className="flex h-28 w-28 items-center justify-center rounded-full bg-brand-50 text-brand-400">
+                  <div className="flex h-28 w-28 items-center justify-center rounded-full bg-[#072348] text-white shadow-[0_16px_32px_-18px_rgba(7,35,72,0.7)] ring-2 ring-[#FFD0A3]">
                     <UserRound className="h-12 w-12" />
                   </div>
                 )}
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                  <ImageIcon className="h-3.5 w-3.5" />
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-[#072348] shadow-sm transition hover:border-[#FFD0A3] hover:bg-[#FFF8F1]">
+                  <ImageIcon className="h-3.5 w-3.5 text-[#E8872A]" />
                   {uploading ? 'Đang tải…' : 'Tải ảnh'}
                   <input
                     type="file"
@@ -371,15 +388,15 @@ export function AdminAuthorProfilePage() {
                 <Link
                   href={publicHref}
                   target="_blank"
-                  className="inline-flex w-full items-center justify-center gap-1 text-xs font-semibold text-brand-600 hover:text-accent-600"
+                  className="inline-flex w-full items-center justify-center gap-1 text-xs font-semibold text-[#E8872A]"
                 >
                   Xem trang public <ExternalLink className="h-3 w-3" />
                 </Link>
               )}
-            </Card>
+            </aside>
 
             <div className="space-y-3">
-              <CmsCollapsiblePanel title="Thông tin cơ bản" defaultOpen>
+              <CmsCollapsiblePanel title="Thông tin cơ bản" tone="dash" defaultOpen>
                 <Field label="Tên hiển thị *">
                   <Input
                     value={form.displayName}
@@ -430,7 +447,7 @@ export function AdminAuthorProfilePage() {
                 </div>
               </CmsCollapsiblePanel>
 
-              <CmsCollapsiblePanel title="Mạng xã hội (sameAs)" defaultOpen={false}>
+              <CmsCollapsiblePanel title="Mạng xã hội (sameAs)" tone="dash" defaultOpen={false}>
                 <p className="text-xs text-slate-500">
                   LinkedIn quan trọng nhất cho B2B. Chỉ URL https:// — Schema không in giá trị
                   rỗng.
@@ -471,7 +488,7 @@ export function AdminAuthorProfilePage() {
                 </div>
               </CmsCollapsiblePanel>
 
-              <CmsCollapsiblePanel title="SEO trang tác giả" defaultOpen={false}>
+              <CmsCollapsiblePanel title="SEO trang tác giả" tone="dash" defaultOpen={false}>
                 <Field label="Focus keyphrase">
                   <Input
                     value={form.focusKeyword ?? ''}
@@ -541,15 +558,27 @@ export function AdminAuthorProfilePage() {
                 </Field>
               </CmsCollapsiblePanel>
 
-              {error && <p className="text-sm text-rose-600">{error}</p>}
+              {error ? (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </p>
+              ) : null}
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" onClick={() => setMode('list')}>
+                <button
+                  type="button"
+                  onClick={() => setMode('list')}
+                  className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#072348] transition hover:border-[#FFD0A3] hover:bg-[#FFF8F1]"
+                >
                   Huỷ
-                </Button>
-                <Button type="submit" className="gap-1.5" disabled={saveMutation.isPending}>
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                  disabled={saveMutation.isPending}
+                >
                   <Plus className="h-4 w-4" />
                   {saveMutation.isPending ? 'Đang lưu…' : mode === 'assign' ? 'Gán & tạo' : 'Lưu hồ sơ'}
-                </Button>
+                </button>
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import clsx from 'clsx';
 import {
   CmsContentStatus,
   CmsContentType,
@@ -12,7 +13,7 @@ import {
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminShell } from '@/components/admin-shell';
-import { Button, Card, Field, Input, Select } from '@/components/ui';
+import { Field, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
   getCmsMenuAdmin,
@@ -141,19 +142,26 @@ export function AdminMenusPage() {
 
   return (
     <AdminShell>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="admin-dash-rise flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="cms-page-title">Menu trang chủ</h1>
-          <p className="cms-page-subtitle">
-            Header/footer site công khai — không đụng menu ứng viên hay NTD.
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Cấu hình</p>
+          <h1 className="cms-page-title mt-1.5">Menu trang chủ</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="cms-page-subtitle max-w-xl">
+            Header và footer của site công khai. Không đụng menu ứng viên hay nhà tuyển dụng.
           </p>
         </div>
-        <Button disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+        <button
+          type="button"
+          disabled={saveMutation.isPending}
+          onClick={() => saveMutation.mutate()}
+          className="inline-flex items-center rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:-translate-y-0.5 hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+        >
           {saveMutation.isPending ? 'Đang lưu…' : 'Lưu menu'}
-        </Button>
+        </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end gap-3">
+      <div className="admin-dash-card admin-dash-rise mt-6 grid gap-3 p-4 sm:grid-cols-2" style={{ animationDelay: '60ms' }}>
         <Field label="Vị trí hiển thị">
           <Select
             value={location}
@@ -168,13 +176,17 @@ export function AdminMenusPage() {
         </Field>
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error ? (
+        <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </p>
+      ) : null}
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* Nguồn thêm mục */}
         <div className="space-y-4">
-          <Card className="space-y-3">
-            <h2 className="text-sm font-bold text-slate-900">Liên kết tuỳ chỉnh</h2>
+          <div className="admin-dash-card admin-dash-rise space-y-3 p-5">
+            <h2 className="text-sm font-semibold text-[#072348]">Liên kết tuỳ chỉnh</h2>
             <Field label="Nhãn">
               <Input value={customLabel} onChange={(e) => setCustomLabel(e.target.value)} />
             </Field>
@@ -185,22 +197,22 @@ export function AdminMenusPage() {
                 placeholder="/viec-lam hoặc https://…"
               />
             </Field>
-            <Button
+            <button
               type="button"
-              variant="outline"
               disabled={!customLabel.trim() || !customUrl.trim()}
               onClick={() => {
                 addItem({ label: customLabel.trim(), url: customUrl.trim(), objectType: 'custom' });
                 setCustomLabel('');
                 setCustomUrl('');
               }}
+              className="inline-flex items-center rounded-xl bg-[#072348] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_14px_28px_-16px_rgba(7,35,72,0.85)] transition hover:bg-[#0c3a72] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Thêm vào menu
-            </Button>
-          </Card>
+            </button>
+          </div>
 
-          <Card className="space-y-2">
-            <h2 className="text-sm font-bold text-slate-900">Trang đã xuất bản</h2>
+          <div className="admin-dash-card admin-dash-rise space-y-2 p-5" style={{ animationDelay: '60ms' }}>
+            <h2 className="text-sm font-semibold text-[#072348]">Trang đã xuất bản</h2>
             {pages.length === 0 ? (
               <p className="text-xs text-slate-400">Chưa có trang published.</p>
             ) : (
@@ -210,7 +222,7 @@ export function AdminMenusPage() {
                     <span className="truncate text-slate-700">{p.title}</span>
                     <button
                       type="button"
-                      className="shrink-0 text-xs font-semibold text-brand-600"
+                      className="shrink-0 text-xs font-semibold text-[#E8872A]"
                       onClick={() =>
                         addItem({
                           label: p.title,
@@ -226,10 +238,10 @@ export function AdminMenusPage() {
                 ))}
               </ul>
             )}
-          </Card>
+          </div>
 
-          <Card className="space-y-2">
-            <h2 className="text-sm font-bold text-slate-900">Bài viết đã xuất bản</h2>
+          <div className="admin-dash-card admin-dash-rise space-y-2 p-5" style={{ animationDelay: '100ms' }}>
+            <h2 className="text-sm font-semibold text-[#072348]">Bài viết đã xuất bản</h2>
             {posts.length === 0 ? (
               <p className="text-xs text-slate-400">Chưa có bài published.</p>
             ) : (
@@ -239,7 +251,7 @@ export function AdminMenusPage() {
                     <span className="truncate text-slate-700">{p.title}</span>
                     <button
                       type="button"
-                      className="shrink-0 text-xs font-semibold text-brand-600"
+                      className="shrink-0 text-xs font-semibold text-[#E8872A]"
                       onClick={() =>
                         addItem({
                           label: p.title,
@@ -255,22 +267,27 @@ export function AdminMenusPage() {
                 ))}
               </ul>
             )}
-          </Card>
+          </div>
         </div>
 
         {/* Cấu trúc menu */}
-        <Card className="space-y-3">
+        <div className="admin-dash-card admin-dash-rise space-y-3 p-5 sm:p-6" style={{ animationDelay: '80ms' }}>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-slate-900">
+            <h2 className="text-sm font-semibold text-[#072348]">
               Cấu trúc menu —{' '}
               {location === CmsMenuLocation.Primary ? 'Header trang chủ' : 'Footer'}
             </h2>
-            <span className="text-xs text-slate-400">{items.length} mục</span>
+            <span className="rounded-full bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-semibold text-[#072348] ring-1 ring-[#FFD0A3]">
+              {isLoading ? '…' : items.length}
+            </span>
           </div>
           {isLoading ? (
-            <p className="text-sm text-slate-500">Đang tải…</p>
+            <div className="space-y-2">
+              <div className="admin-dash-skel h-24" />
+              <div className="admin-dash-skel h-24" />
+            </div>
           ) : roots.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-8 text-center text-sm text-slate-400">
+            <p className="rounded-2xl border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-8 text-center text-sm text-slate-500">
               Chưa có mục. Thêm liên kết hoặc trang từ cột trái.
             </p>
           ) : (
@@ -289,9 +306,11 @@ export function AdminMenusPage() {
                       setDragFrom(null);
                       setDragOver(null);
                     }}
-                    className={`rounded-xl border bg-white p-3 shadow-sm ${
-                      dragOver === rootIdx ? 'border-brand-400 ring-2 ring-brand-100' : 'border-slate-200'
-                    } ${dragFrom === rootIdx ? 'opacity-60' : ''}`}
+                    className={clsx(
+                      'rounded-2xl border bg-white p-3 shadow-[0_10px_28px_-18px_rgba(7,35,72,0.35)]',
+                      dragOver === rootIdx ? 'border-[#E8872A] ring-2 ring-[#FFD0A3]' : 'border-slate-100',
+                      dragFrom === rootIdx && 'opacity-60',
+                    )}
                   >
                     <div className="flex items-start gap-2">
                       <span
@@ -301,7 +320,7 @@ export function AdminMenusPage() {
                           setDragFrom(null);
                           setDragOver(null);
                         }}
-                        className="mt-1 cursor-grab text-slate-400 hover:text-slate-700 active:cursor-grabbing"
+                        className="mt-1 cursor-grab text-[#E8872A] active:cursor-grabbing"
                         title="Kéo sắp xếp"
                       >
                         <GripVertical className="h-4 w-4" />
@@ -376,9 +395,9 @@ export function AdminMenusPage() {
                     </div>
 
                     {/* submenu 1 cấp */}
-                    <div className="mt-3 space-y-2 border-l-2 border-slate-100 pl-4">
+                    <div className="mt-3 space-y-2 border-l-2 border-[#FFD0A3] pl-4">
                       {childrenOf(item.id).map((child) => (
-                        <div key={child.id} className="flex gap-2 rounded bg-slate-50 p-2">
+                        <div key={child.id} className="flex gap-2 rounded-xl bg-[#FFF8F1] p-2">
                           <div className="min-w-0 flex-1 space-y-1">
                             <Input
                               value={child.label}
@@ -414,7 +433,7 @@ export function AdminMenusPage() {
                       ))}
                       <button
                         type="button"
-                        className="text-xs font-semibold text-brand-600"
+                        className="text-xs font-semibold text-[#E8872A]"
                         onClick={() =>
                           addItem({
                             label: 'Mục con',
@@ -432,11 +451,10 @@ export function AdminMenusPage() {
               ))}
             </ul>
           )}
-          <p className="text-[11px] text-slate-400">
-            Sau khi lưu, menu Primary hiện trên header khách (PublicHeader). Footer sẵn sàng khi
-            gắn component chân trang.
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            Sau khi lưu, menu Primary hiện trên header khách. Footer hiện khi gắn chân trang.
           </p>
-        </Card>
+        </div>
       </div>
     </AdminShell>
   );
