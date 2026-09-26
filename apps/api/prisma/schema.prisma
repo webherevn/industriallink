@@ -26,6 +26,31 @@ model Sequence {
   @@schema("shared")
 }
 
+/// Cấu hình AI Gateway chỉnh runtime qua /admin/ai-settings (SuperAdmin).
+/// Bản ghi đơn (scope="default"). API key được mã hoá AES-256-GCM trước khi lưu.
+/// Giá trị ở đây (nếu có) ưu tiên hơn biến môi trường.
+model AiSetting {
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope                String  @unique @default("default")
+  provider             String?
+  embeddingDim         Int?    @map("embedding_dim")
+  openaiApiKeyEnc      String? @map("openai_api_key_enc")
+  openaiModel          String? @map("openai_model")
+  openaiEmbeddingModel String? @map("openai_embedding_model")
+  anthropicApiKeyEnc   String? @map("anthropic_api_key_enc")
+  anthropicModel       String? @map("anthropic_model")
+  geminiApiKeyEnc      String? @map("gemini_api_key_enc")
+  geminiModel          String? @map("gemini_model")
+  geminiEmbeddingModel String? @map("gemini_embedding_model")
+
+  updatedBy String?  @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_setting")
+  @@schema("shared")
+}
+
 /// ThÃ´ng bÃ¡o in-app (MVP). Email tháº­t Ä‘á»ƒ giai Ä‘oáº¡n sau.
 model Notification {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

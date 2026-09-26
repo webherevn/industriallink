@@ -203,3 +203,11 @@ export enum ConnectionStatus {
   Rejected = 'rejected',
   Cancelled = 'cancelled',
 }
+
+/** Nhà cung cấp AI cho AI Gateway (cấu hình runtime trong /admin/ai-settings). */
+export enum AiProviderKind {
+  Mock = 'mock',
+  OpenAi = 'openai',
+  Anthropic = 'anthropic',
+  Gemini = 'gemini',
+}

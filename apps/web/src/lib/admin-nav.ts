@@ -12,6 +12,7 @@ import {
   Bot,
   Search,
   ShieldCheck,
+  Sparkles,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -73,6 +74,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: '/admin/moderation',
         label: 'Duyệt tin tuyển dụng',
         icon: ShieldCheck,
+        superAdminOnly: true,
+      },
+      {
+        href: '/admin/ai-settings',
+        label: 'Cấu hình AI',
+        icon: Sparkles,
         superAdminOnly: true,
       },
       { href: '#', label: 'Công ty', icon: Building2, soon: true, superAdminOnly: true },

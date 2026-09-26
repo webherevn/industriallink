@@ -56,6 +56,8 @@ export interface AppConfig {
     geminiApiKey?: string;
     geminiModel: string;
     geminiEmbeddingModel: string;
+    /** Khoá mã hoá API key khi lưu DB (AES-256-GCM). Mặc định lấy từ JWT secret. */
+    settingsEncryptionKey?: string;
   };
   email: {
     provider: 'mock' | 'smtp' | 'resend';
@@ -137,6 +139,7 @@ export default (): AppConfig => ({
     /** Flash mới nhất (GA): gemini-3.6-flash — miễn phí trên AI Studio Free/Paid. */
     geminiModel: process.env.GEMINI_MODEL ?? 'gemini-3.6-flash',
     geminiEmbeddingModel: process.env.GEMINI_EMBEDDING_MODEL ?? 'text-embedding-004',
+    settingsEncryptionKey: process.env.SETTINGS_ENCRYPTION_KEY || undefined,
   },
   email: {
     provider: (process.env.EMAIL_PROVIDER as AppConfig['email']['provider']) ?? 'mock',

@@ -1,75 +1,51 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { CareerAdviceView, JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { JobModerationInput } from './providers/job-moderation.util';
 import type { AppConfig } from '../../config/configuration';
 import type { AiProvider } from './domain/ai-provider.interface';
 import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from './domain/types';
-import { AnthropicProvider } from './providers/anthropic.provider';
 import type {
   CareerAdviceEngineInput,
   SalaryEstimateEngineInput,
 } from './providers/career-salary.engine';
-import { GeminiProvider } from './providers/gemini.provider';
-import { MockAiProvider } from './providers/mock.provider';
-import { OpenAiProvider } from './providers/openai.provider';
+import { AiSettingsService } from './ai-settings.service';
+import { buildAiProvider } from './providers/ai-provider.factory';
 
 /**
  * AI Gateway: cửa duy nhất để nghiệp vụ gọi AI (Chương 5.13).
  * Chọn provider theo cấu hình; nếu thiếu key thì tự lùi về mock để hệ thống vẫn chạy.
  */
 @Injectable()
-export class AiGatewayService {
+export class AiGatewayService implements OnModuleInit {
   private readonly logger = new Logger(AiGatewayService.name);
-  private readonly provider: AiProvider;
+  private provider: AiProvider;
 
-  constructor(private readonly config: ConfigService<AppConfig, true>) {
-    this.provider = this.resolveProvider();
-    this.logger.log(`AI Gateway dùng provider: ${this.provider.name}`);
+  constructor(
+    private readonly config: ConfigService<AppConfig, true>,
+    private readonly settings: AiSettingsService,
+  ) {
+    // Provider tạm từ env để service luôn sẵn sàng ngay khi khởi tạo;
+    // onModuleInit() sẽ nạp lại cấu hình từ DB (nếu có) đè lên.
+    this.provider = buildAiProvider(this.config.get('ai', { infer: true }), this.logger).provider;
   }
 
-  private resolveProvider(): AiProvider {
-    const ai = this.config.get('ai', { infer: true });
-    const dim = ai.embeddingDim;
+  async onModuleInit(): Promise<void> {
+    await this.reload();
+  }
 
-    switch (ai.provider) {
-      case 'openai':
-        if (ai.openaiApiKey) {
-          return new OpenAiProvider({
-            apiKey: ai.openaiApiKey,
-            model: ai.openaiModel,
-            embeddingModel: ai.openaiEmbeddingModel,
-            embeddingDim: dim,
-          });
-        }
-        break;
-      case 'anthropic':
-        if (ai.anthropicApiKey) {
-          return new AnthropicProvider({
-            apiKey: ai.anthropicApiKey,
-            model: ai.anthropicModel,
-            embeddingDim: dim,
-          });
-        }
-        break;
-      case 'gemini':
-        if (ai.geminiApiKey) {
-          return new GeminiProvider({
-            apiKey: ai.geminiApiKey,
-            model: ai.geminiModel,
-            embeddingModel: ai.geminiEmbeddingModel,
-            embeddingDim: dim,
-          });
-        }
-        break;
-      default:
-        break;
+  /**
+   * Nạp lại provider theo cấu hình hiện tại (DB > env). Gọi sau khi
+   * SuperAdmin cập nhật /admin/ai-settings để đổi provider mà không cần restart.
+   */
+  async reload(): Promise<void> {
+    try {
+      const cfg = await this.settings.resolveConfig();
+      this.provider = buildAiProvider(cfg, this.logger).provider;
+      this.logger.log(`AI Gateway dùng provider: ${this.provider.name}`);
+    } catch (err) {
+      this.logger.error(`Nạp cấu hình AI thất bại, giữ provider hiện tại: ${String(err)}`);
     }
-
-    if (ai.provider !== 'mock') {
-      this.logger.warn(`Thiếu API key cho provider "${ai.provider}", tạm dùng mock.`);
-    }
-    return new MockAiProvider(dim);
   }
 
   parseResume(input: ResumeParseInput): Promise<ParsedResume> {

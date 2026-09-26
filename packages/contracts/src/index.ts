@@ -39,3 +39,4 @@ export * from './job-posting-schema';
 export * from './cms.dto';
 export * from './cms-robots';
 export * from './admin-user.dto';
+export * from './ai-settings.dto';
