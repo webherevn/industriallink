@@ -27,6 +27,12 @@ import {
 } from './career-salary.engine';
 import { deterministicEmbedding } from './embedding.util';
 import { INDUSTRIAL_SKILL_KEYWORDS } from './industrial-skills';
+import {
+  buildJobModerationUserPrompt,
+  normalizeJobModerationResult,
+  type JobModerationInput,
+} from './job-moderation.util';
+import { JobModerationAction, type JobModerationAiResult } from '@industriallink/contracts';
 import { normalizeJobDraft } from './llm-job-draft.util';
 import { extractSalesJobFromText } from './llm-job-parse.util';
 import { extractTechnicalJobFromText } from './llm-job-parse-technical.util';
@@ -300,6 +306,36 @@ export class MockAiProvider implements AiProvider {
 
   async estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView> {
     return buildSalaryEstimate(input);
+  }
+
+  /** Heuristic mô phỏng kiểm duyệt: chấm rủi ro theo từ khoá & độ dài. */
+  async moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult> {
+    const haystack = buildJobModerationUserPrompt(input).toLowerCase();
+    const scamHints = [
+      'da cap', 'đa cấp', 'dat coc', 'đặt cọc', 'viec nhe luong cao', 'việc nhẹ lương cao',
+      'telegram', 'zalo', 'kiem tien online', 'kiếm tiền online', 'nap the', 'nạp thẻ',
+      'forex', 'hoa hong', 'hoa hồng', 'tuyen tuyen duoi',
+    ];
+    const hits = scamHints.filter((h) => haystack.includes(h)).length;
+    const short = (input.description ?? '').trim().length < 120;
+    let risk = hits * 22 + (short ? 25 : 0);
+    risk = Math.min(100, risk);
+    const action =
+      risk >= 70
+        ? JobModerationAction.Reject
+        : risk >= 40
+          ? JobModerationAction.ManualReview
+          : JobModerationAction.Publish;
+    return normalizeJobModerationResult({
+      risk_score: risk,
+      is_b2b: hits === 0 && !short,
+      reason: hits
+        ? `Mô phỏng: phát hiện ${hits} dấu hiệu rủi ro trong nội dung.`
+        : short
+          ? 'Mô phỏng: nội dung khá ngắn, nên soát lại.'
+          : 'Mô phỏng: không phát hiện dấu hiệu bất thường.',
+      suggested_action: action,
+    });
   }
 
   async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

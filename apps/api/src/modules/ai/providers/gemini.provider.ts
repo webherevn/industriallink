@@ -30,6 +30,13 @@ import {
   extractJson,
   normalizeParsedResume,
 } from './llm-parse.util';
+import {
+  JOB_MODERATION_SYSTEM_PROMPT,
+  buildJobModerationUserPrompt,
+  normalizeJobModerationResult,
+  type JobModerationInput,
+} from './job-moderation.util';
+import type { JobModerationAiResult } from '@industriallink/contracts';
 
 export interface GeminiOptions {
   apiKey: string;
@@ -240,6 +247,15 @@ export class GeminiProvider implements AiProvider {
     return isTech
       ? normalizeParsedTechnicalJob(raw, input.text)
       : normalizeParsedSalesJob(raw, input.text);
+  }
+
+  async moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult> {
+    const raw = await this.generateJson(
+      JOB_MODERATION_SYSTEM_PROMPT,
+      [{ text: buildJobModerationUserPrompt(input) }],
+      0,
+    );
+    return normalizeJobModerationResult(raw);
   }
 
   async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

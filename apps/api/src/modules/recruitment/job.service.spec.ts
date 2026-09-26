@@ -20,6 +20,7 @@ describe('JobService', () => {
     estimateSalary: jest.fn(),
   };
   const indexing = { notifyJob: jest.fn().mockResolvedValue(undefined) };
+  const moderationQueue = { add: jest.fn().mockResolvedValue(undefined) };
 
   function buildService(prisma: Record<string, unknown>) {
     events.publish.mockClear();
@@ -32,6 +33,7 @@ describe('JobService', () => {
     ai.parseJobDescription.mockClear();
     ai.estimateSalary.mockClear();
     indexing.notifyJob.mockClear();
+    moderationQueue.add.mockClear();
     return new JobService(
       prisma as never,
       codeGen as never,
@@ -41,6 +43,7 @@ describe('JobService', () => {
       companies as never,
       ai as never,
       indexing as never,
+      moderationQueue as never,
     );
   }
 
@@ -109,15 +112,15 @@ describe('JobService', () => {
       expect(events.publish).not.toHaveBeenCalled();
     });
 
-    it('tạo và đăng công khai ngay khi publish=true → sinh embedding + phát JobPublished', async () => {
+    it('publish=true → đưa vào hàng đợi kiểm duyệt, KHÔNG publish/embed trực tiếp', async () => {
       const create = jest
         .fn()
-        .mockResolvedValue({ ...baseJobRow, status: JobStatus.Published, publishedAt: new Date() });
+        .mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft, moderationStatus: 'pending' });
       const executeRaw = jest.fn().mockResolvedValue(undefined);
       const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: executeRaw };
       const service = buildService(prisma);
 
-      const result = await service.createJob(
+      await service.createJob(
         recruiter,
         {
           title: 'Kỹ sư PLC',
@@ -128,30 +131,31 @@ describe('JobService', () => {
         'corr-2',
       );
 
-      expect(result.status).toBe(JobStatus.Published);
       expect(skills.resolveSkillId).toHaveBeenCalledWith('PLC Siemens');
-      expect(ai.embed).toHaveBeenCalledTimes(1);
+      // Không sinh embedding và không phát JobPublished tại thời điểm tạo.
+      expect(ai.embed).not.toHaveBeenCalled();
+      expect(moderationQueue.add).toHaveBeenCalledTimes(1);
       expect(events.publish).toHaveBeenCalledTimes(1);
-      const published = events.publish.mock.calls[0][0];
-      expect(published.name).toBe('recruitment.JobPublished.v1');
+      const submitted = events.publish.mock.calls[0][0];
+      expect(submitted.name).toBe('recruitment.JobSubmittedForModeration.v1');
     });
 
-    it('vẫn tạo được tin dù embedding lỗi (bỏ qua, không throw)', async () => {
+    it('vẫn tạo được tin (nháp) mà không đưa vào hàng đợi khi publish=false', async () => {
       const create = jest
         .fn()
-        .mockResolvedValue({ ...baseJobRow, status: JobStatus.Published, publishedAt: new Date() });
-      ai.embed.mockRejectedValueOnce(new Error('AI down'));
+        .mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft, moderationStatus: 'draft' });
       const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: jest.fn() };
       const service = buildService(prisma);
 
       await expect(
         service.createJob(
           recruiter,
-          { title: 'Kỹ sư PLC', description: 'Vận hành và bảo trì hệ thống PLC nhà máy', publish: true },
+          { title: 'Kỹ sư PLC', description: 'Vận hành và bảo trì hệ thống PLC nhà máy', publish: false },
           'corr-3',
         ),
       ).resolves.toBeDefined();
-      expect(events.publish).toHaveBeenCalledTimes(1);
+      expect(moderationQueue.add).not.toHaveBeenCalled();
+      expect(events.publish).not.toHaveBeenCalled();
     });
   });
 

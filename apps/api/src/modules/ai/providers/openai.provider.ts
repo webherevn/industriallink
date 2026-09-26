@@ -27,7 +27,13 @@ import {
   extractJson,
   normalizeParsedResume,
 } from './llm-parse.util';
-import type { CareerAdviceView, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import type { CareerAdviceView, JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import {
+  JOB_MODERATION_SYSTEM_PROMPT,
+  buildJobModerationUserPrompt,
+  normalizeJobModerationResult,
+  type JobModerationInput,
+} from './job-moderation.util';
 
 export interface OpenAiOptions {
   apiKey: string;
@@ -122,6 +128,30 @@ export class OpenAiProvider implements AiProvider {
     return isTech
       ? normalizeParsedTechnicalJob(raw, input.text)
       : normalizeParsedSalesJob(raw, input.text);
+  }
+
+  async moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult> {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.opts.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.opts.model,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: JOB_MODERATION_SYSTEM_PROMPT },
+          { role: 'user', content: buildJobModerationUserPrompt(input) },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`OpenAI moderation lỗi ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json()) as { choices: { message: { content: string } }[] };
+    return normalizeJobModerationResult(extractJson(data.choices[0]?.message?.content ?? ''));
   }
 
   async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

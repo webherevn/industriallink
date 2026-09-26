@@ -1,5 +1,11 @@
-import type { CareerAdviceView, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import type { CareerAdviceView, JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { AiProvider } from '../domain/ai-provider.interface';
+import {
+  JOB_MODERATION_SYSTEM_PROMPT,
+  buildJobModerationUserPrompt,
+  normalizeJobModerationResult,
+  type JobModerationInput,
+} from './job-moderation.util';
 import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from '../domain/types';
 import {
   buildCareerAdvice,
@@ -120,6 +126,29 @@ export class AnthropicProvider implements AiProvider {
     return isTech
       ? normalizeParsedTechnicalJob(raw, input.text)
       : normalizeParsedSalesJob(raw, input.text);
+  }
+
+  async moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult> {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.opts.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: this.opts.model,
+        max_tokens: 500,
+        temperature: 0,
+        system: JOB_MODERATION_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: buildJobModerationUserPrompt(input) }],
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Anthropic moderation lỗi ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json()) as { content: { text: string }[] };
+    return normalizeJobModerationResult(extractJson(data.content[0]?.text ?? ''));
   }
 
   async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {

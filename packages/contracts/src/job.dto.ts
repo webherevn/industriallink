@@ -1,4 +1,5 @@
 import type { JobLevelCode, JobTrack } from './career-path';
+import type { JobModerationAction, JobModerationStatus } from './enums';
 import { EmploymentType, ExperienceBand, JobStatus } from './enums';
 import type { JobSalesCriteria, ParsedSalesJobDraft } from './jd-sales-matching';
 import type { JobTechnicalCriteria, ParsedTechnicalJobDraft } from './jd-technical-matching';
@@ -85,6 +86,11 @@ export interface JobView {
   companyWebsite: string | null;
   companyAddress: string | null;
   companyHasLogo: boolean;
+  /** Trạng thái kiểm duyệt (recruiter thấy để biết tin đang chờ AI/Admin). */
+  moderationStatus?: JobModerationStatus;
+  aiRiskScore?: number | null;
+  aiReason?: string | null;
+  aiSuggestedAction?: JobModerationAction | null;
   /** Chỉ có khi ứng viên đang đăng nhập xem: đã ứng tuyển hay chưa. */
   hasApplied?: boolean;
 }
@@ -113,6 +119,8 @@ export interface JobListItem {
   publishedAt: string | null;
   /** Tin đăng trong 48h gần nhất. */
   isNew: boolean;
+  /** Trạng thái kiểm duyệt (dùng ở trang "Tin của tôi" phía recruiter). */
+  moderationStatus?: JobModerationStatus;
   /** Chỉ có khi ứng viên đã đăng nhập và đã lưu tin. */
   isBookmarked?: boolean;
 }

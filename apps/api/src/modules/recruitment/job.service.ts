@@ -3,14 +3,17 @@ import {
   BadRequestException,
   ForbiddenException,
   HttpException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import {
   DomainEvents,
   EmploymentType,
+  JobModerationStatus,
   JobStatus,
   JobTrack,
   defaultDepartmentForTrack,
@@ -48,6 +51,10 @@ import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { SkillService } from '../knowledge/skill.service';
 import { CompanyService } from '../company/company.service';
+import {
+  JOB_MODERATION_QUEUE_TOKEN,
+  type JobModerationJobData,
+} from './moderation/job-moderation.constants';
 import type { CreateJobDto } from './dto/create-job.dto';
 import type { EstimateSalaryDto } from './dto/estimate-salary.dto';
 import type { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
@@ -208,7 +215,36 @@ export class JobService {
     private readonly companies: CompanyService,
     private readonly ai: AiGatewayService,
     private readonly indexing: GoogleIndexingService,
+    @Inject(JOB_MODERATION_QUEUE_TOKEN)
+    private readonly moderationQueue: Queue<JobModerationJobData>,
   ) {}
+
+  /** Đưa tin vào hàng đợi kiểm duyệt (Lớp 2). */
+  private async enqueueModeration(
+    jobId: string,
+    tenantId: string,
+    correlationId: string,
+  ): Promise<void> {
+    await this.moderationQueue.add(
+      'moderate',
+      { jobId, tenantId, correlationId },
+      { jobId: `job-moderation:${jobId}` },
+    );
+  }
+
+  /**
+   * Side-effect khi tin được duyệt & xuất bản: embedding JD, ping Google Indexing,
+   * phát JobPublished. Gọi bởi JobModerationService sau khi flip status=Published.
+   */
+  async applyPublishSideEffects(jobId: string, correlationId: string): Promise<void> {
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId },
+      include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+    });
+    if (!job) return;
+    await this.embedAndPublish(job, correlationId);
+    void this.indexing.notifyJob(job, 'URL_UPDATED');
+  }
 
   /** AI soạn / chuẩn hoá bản nháp tin tuyển dụng (không lưu DB). */
   async generateJobDraft(
@@ -422,8 +458,13 @@ export class JobService {
         experienceBand: dto.experienceBand ?? null,
         salaryMin: dto.salaryMin ?? null,
         salaryMax: dto.salaryMax ?? null,
-        status: willPublish ? JobStatus.Published : JobStatus.Draft,
-        publishedAt: willPublish ? new Date() : null,
+        // Tin chỉ public sau khi qua kiểm duyệt. Khi "đăng", đưa vào hàng đợi
+        // (status=Draft + moderation=pending), worker mới quyết định publish.
+        status: JobStatus.Draft,
+        moderationStatus: willPublish
+          ? JobModerationStatus.Pending
+          : JobModerationStatus.Draft,
+        publishedAt: null,
         createdBy: user.id,
         skills: {
           create: skillData.map((s) => ({
@@ -448,11 +489,48 @@ export class JobService {
     });
 
     if (willPublish) {
-      await this.embedAndPublish(job, correlationId);
-      void this.indexing.notifyJob(job, 'URL_UPDATED');
+      await this.enqueueModeration(job.id, job.tenantId, correlationId);
+      this.events.publish(
+        createDomainEvent({
+          name: DomainEvents.JobSubmittedForModeration,
+          tenantId: job.tenantId,
+          correlationId,
+          payload: { jobId: job.id, code: job.code, title: job.title },
+        }),
+      );
     }
 
     return this.toView(job);
+  }
+
+  /** Gửi tin (nháp) vào hàng đợi kiểm duyệt thay vì publish trực tiếp. */
+  async submitForModeration(
+    user: AuthenticatedUser,
+    jobId: string,
+    correlationId: string,
+  ): Promise<JobView> {
+    const job = await this.requireOwnedJob(user, jobId);
+    if (job.status === JobStatus.Published) {
+      return this.toView(job);
+    }
+    const updated = await this.prisma.job.update({
+      where: { id: job.id },
+      data: {
+        moderationStatus: JobModerationStatus.Pending,
+        updatedBy: user.id,
+      },
+      include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+    });
+    await this.enqueueModeration(job.id, job.tenantId, correlationId);
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.JobSubmittedForModeration,
+        tenantId: job.tenantId,
+        correlationId,
+        payload: { jobId: job.id, code: job.code, title: job.title },
+      }),
+    );
+    return this.toView(updated);
   }
 
   async publishJob(
@@ -460,7 +538,7 @@ export class JobService {
     jobId: string,
     correlationId: string,
   ): Promise<JobView> {
-    return this.updateJobStatus(user, jobId, JobStatus.Published, correlationId);
+    return this.submitForModeration(user, jobId, correlationId);
   }
 
   async updateJob(
@@ -560,37 +638,33 @@ export class JobService {
       return this.toView(job);
     }
 
-    const publishedAt =
-      status === JobStatus.Published ? (job.publishedAt ?? new Date()) : job.publishedAt;
+    // Chuyển sang "Đăng" phải qua kiểm duyệt, không publish trực tiếp.
+    if (status === JobStatus.Published) {
+      return this.submitForModeration(user, jobId, correlationId);
+    }
+
+    // Các chuyển trạng thái còn lại: nháp / tạm dừng / đóng.
     const updated = await this.prisma.job.update({
       where: { id: job.id },
       data: {
         status,
-        publishedAt,
-        deadline:
-          status === JobStatus.Published && !job.deadline
-            ? defaultJobDeadline(publishedAt ?? new Date())
-            : job.deadline,
+        publishedAt: job.publishedAt,
+        deadline: job.deadline,
         updatedBy: user.id,
       },
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
     });
 
-    if (status === JobStatus.Published) {
-      await this.embedAndPublish(updated, correlationId);
-      void this.indexing.notifyJob(updated, 'URL_UPDATED');
-    } else {
-      this.events.publish(
-        createDomainEvent({
-          name: DomainEvents.JobUpdated,
-          tenantId: updated.tenantId,
-          correlationId,
-          payload: { jobId: updated.id, code: updated.code, title: updated.title, status },
-        }),
-      );
-      if (status === JobStatus.Closed || status === JobStatus.Paused) {
-        void this.indexing.notifyJob(updated, 'URL_DELETED');
-      }
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.JobUpdated,
+        tenantId: updated.tenantId,
+        correlationId,
+        payload: { jobId: updated.id, code: updated.code, title: updated.title, status },
+      }),
+    );
+    if (status === JobStatus.Closed || status === JobStatus.Paused) {
+      void this.indexing.notifyJob(updated, 'URL_DELETED');
     }
 
     return this.toView(updated);
@@ -942,6 +1016,11 @@ export class JobService {
       salaryMin: job.salaryMin,
       salaryMax: job.salaryMax,
       status: job.status as JobStatus,
+      moderationStatus: (job.moderationStatus as JobModerationStatus) ?? undefined,
+      aiRiskScore: job.aiRiskScore ?? null,
+      aiReason: job.aiReason ?? null,
+      aiSuggestedAction:
+        (job.aiSuggestedAction as JobView['aiSuggestedAction']) ?? null,
       jobTrack: job.jobTrack ?? null,
       salesCriteria: parseStoredSalesCriteria(job.salesCriteria),
       technicalCriteria: parseStoredTechnicalCriteria(job.technicalCriteria),
@@ -986,6 +1065,7 @@ export class JobService {
       salaryMin: job.salaryMin,
       salaryMax: job.salaryMax,
       status: job.status as JobStatus,
+      moderationStatus: (job.moderationStatus as JobModerationStatus) ?? undefined,
       jobTrack: job.jobTrack ?? null,
       skills: (job.skills ?? []).map((s) => s.name),
       createdAt: job.createdAt.toISOString(),

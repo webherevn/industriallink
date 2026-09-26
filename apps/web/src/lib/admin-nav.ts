@@ -1,7 +1,6 @@
 import { UserRole } from '@industriallink/contracts';
 import {
   BarChart3,
-  Briefcase,
   Building2,
   Code2,
   FileText,
@@ -12,6 +11,7 @@ import {
   PanelBottom,
   Bot,
   Search,
+  ShieldCheck,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -69,7 +69,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     title: 'Nền tảng',
     items: [
       { href: '/admin/users', label: 'Người dùng', icon: Users, superAdminOnly: true },
-      { href: '#', label: 'Tin tuyển dụng', icon: Briefcase, soon: true, superAdminOnly: true },
+      {
+        href: '/admin/moderation',
+        label: 'Duyệt tin tuyển dụng',
+        icon: ShieldCheck,
+        superAdminOnly: true,
+      },
       { href: '#', label: 'Công ty', icon: Building2, soon: true, superAdminOnly: true },
       { href: '#', label: 'Báo cáo', icon: BarChart3, soon: true, superAdminOnly: true },
     ],

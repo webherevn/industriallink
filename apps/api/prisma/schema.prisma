@@ -525,6 +525,8 @@ model Company {
   website     String?
   description String?
   status      String  @default("active")
+  /// Điểm tín nhiệm 0–100: +1 mỗi tin hợp lệ, -10 nếu bị report. Mặc định 50.
+  trustScore  Int     @default(50) @map("trust_score")
   /// Há»“ sÆ¡ thÆ°Æ¡ng hiá»‡u cÃ´ng khai (banner, gallery, reviewsâ€¦).
   profile     Json?
 
@@ -597,6 +599,16 @@ model Job {
   // 23 truong matching Ky thuat (nhom B/C + nganh da chon).
   technicalCriteria Json? @map("technical_criteria")
   status         String  @default("draft")
+  // Kiểm duyệt 2 lớp (bộ lọc tĩnh + Gemini). Tin chỉ public khi được duyệt.
+  // 'draft' = chưa gửi duyệt; 'pending' = đang trong hàng đợi kiểm duyệt.
+  moderationStatus  String    @default("draft") @map("moderation_status")
+  aiRiskScore       Int?      @map("ai_risk_score")
+  aiReason          String?   @map("ai_reason")
+  aiIsB2b           Boolean?  @map("ai_is_b2b")
+  aiSuggestedAction String?   @map("ai_suggested_action")
+  moderationNote    String?   @map("moderation_note")
+  moderatedAt       DateTime? @map("moderated_at")
+  moderatedBy       String?   @map("moderated_by") @db.Uuid
   // Embedding cá»§a mÃ´ táº£ cÃ´ng viá»‡c (JD) cho AI Matching, ghi/Ä‘á»c qua raw SQL.
   embedding      Unsupported("vector(768)")?
   publishedAt    DateTime? @map("published_at")
@@ -621,6 +633,7 @@ model Job {
   @@index([tenantId, status])
   @@index([companyId])
   @@index([jobTrack])
+  @@index([moderationStatus])
   @@map("job")
   @@schema("recruitment")
 }

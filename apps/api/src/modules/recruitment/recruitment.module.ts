@@ -14,11 +14,16 @@ import { OfferController } from './offer.controller';
 import { OfferService } from './offer.service';
 import { OnboardingController } from './onboarding.controller';
 import { OnboardingService } from './onboarding.service';
+import { JobModerationController } from './moderation/job-moderation.controller';
+import { JobModerationService } from './moderation/job-moderation.service';
+import { JobModerationWorker } from './moderation/job-moderation.worker';
+import { jobModerationQueueProvider } from './moderation/job-moderation.queue';
 
 @Module({
   imports: [AiModule, KnowledgeModule, CompanyModule],
   controllers: [
     JobController,
+    JobModerationController,
     ApplicationController,
     MatchingController,
     InterviewController,
@@ -27,6 +32,9 @@ import { OnboardingService } from './onboarding.service';
   ],
   providers: [
     JobService,
+    JobModerationService,
+    JobModerationWorker,
+    jobModerationQueueProvider,
     ApplicationService,
     MatchingService,
     InterviewService,
@@ -35,6 +43,7 @@ import { OnboardingService } from './onboarding.service';
   ],
   exports: [
     JobService,
+    JobModerationService,
     ApplicationService,
     MatchingService,
     InterviewService,

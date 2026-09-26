@@ -21,6 +21,8 @@ export const DomainEvents = {
   CompanyCreated: 'company.CompanyCreated.v1',
 
   // Recruitment
+  JobSubmittedForModeration: 'recruitment.JobSubmittedForModeration.v1',
+  JobModerated: 'recruitment.JobModerated.v1',
   JobPublished: 'recruitment.JobPublished.v1',
   JobUpdated: 'recruitment.JobUpdated.v1',
   ApplicationSubmitted: 'recruitment.ApplicationSubmitted.v1',

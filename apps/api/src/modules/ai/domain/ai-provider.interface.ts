@@ -10,7 +10,12 @@ import type {
   ParsedResume,
   ResumeParseInput,
 } from './types';
-import type { ParsedSalesJobDraft, ParsedTechnicalJobDraft } from '@industriallink/contracts';
+import type {
+  JobModerationAiResult,
+  ParsedSalesJobDraft,
+  ParsedTechnicalJobDraft,
+} from '@industriallink/contracts';
+import type { JobModerationInput } from '../providers/job-moderation.util';
 
 /**
  * Hợp đồng cho mọi nhà cung cấp AI. Nghiệp vụ chỉ phụ thuộc interface này,
@@ -24,6 +29,8 @@ export interface AiProvider {
   generateJobDraft(input: JobDraftInput): Promise<JobDraftResult>;
   /** Đọc JD (file/text) → 22 trường Sales hoặc 23 trường Kỹ thuật; không suy diễn. */
   parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft>;
+  /** Kiểm duyệt tin tuyển dụng (Lớp 2): chấm rủi ro + đề xuất hành động. */
+  moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult>;
   /** Career Engine: lộ trình thăng tiến theo taxonomy VN. */
   adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView>;
   /** Salary Engine: ước lương theo cấp bậc VN. */

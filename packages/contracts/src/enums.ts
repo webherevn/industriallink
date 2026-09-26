@@ -96,6 +96,42 @@ export enum JobStatus {
   Closed = 'closed',
 }
 
+/**
+ * Trạng thái kiểm duyệt tin tuyển dụng (2 lớp: bộ lọc tĩnh + Gemini).
+ * Tách khỏi JobStatus: tin chỉ public khi status=published, và luôn phải
+ * đi qua kiểm duyệt trước đó.
+ */
+export enum JobModerationStatus {
+  /** Bản nháp chưa gửi kiểm duyệt (không nằm trong hàng đợi). */
+  Draft = 'draft',
+  /** Vừa gửi, đang chờ worker xử lý. */
+  Pending = 'pending',
+  /** AI chấm an toàn → tự động xuất bản. */
+  ApprovedAuto = 'approved_auto',
+  /** AI nghi ngờ → chờ SuperAdmin duyệt tay. */
+  NeedsManualReview = 'needs_manual_review',
+  /** Bộ lọc tĩnh hoặc AI chặn tự động. */
+  RejectedAuto = 'rejected_auto',
+  /** SuperAdmin duyệt tay → xuất bản. */
+  ApprovedManual = 'approved_manual',
+  /** SuperAdmin từ chối tay. */
+  RejectedManual = 'rejected_manual',
+}
+
+/** Hành động Gemini đề xuất sau khi phân tích tin. */
+export enum JobModerationAction {
+  Publish = 'PUBLISH',
+  ManualReview = 'MANUAL_REVIEW',
+  Reject = 'REJECT',
+}
+
+/** Quyết định của SuperAdmin trên hàng đợi duyệt tay. */
+export enum JobModerationDecision {
+  Approve = 'approve',
+  Reject = 'reject',
+  BanUser = 'ban_user',
+}
+
 /** Hình thức làm việc. */
 export enum EmploymentType {
   FullTime = 'full_time',

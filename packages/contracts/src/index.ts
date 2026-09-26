@@ -24,6 +24,7 @@ export * from './connection.dto';
 export * from './cv-draft.dto';
 export * from './company.dto';
 export * from './job.dto';
+export * from './job-moderation.dto';
 export * from './application.dto';
 export * from './interview.dto';
 export * from './offer.dto';

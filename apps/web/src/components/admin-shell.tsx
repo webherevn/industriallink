@@ -52,6 +52,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       const blocked =
         pathname.startsWith('/admin/users') ||
         pathname.startsWith('/admin/menus') ||
+        pathname.startsWith('/admin/moderation') ||
         pathname.startsWith('/admin/footer');
       if (blocked) {
         router.replace('/admin');
