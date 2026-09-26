@@ -11,7 +11,9 @@ function hostnameOf(req: NextRequest): string {
   return req.headers.get('host')?.split(':')[0]?.toLowerCase() ?? '';
 }
 
-const CAM_NANG_CACHE_BUST = '3';
+/** Cookie đánh dấu đã gửi Clear-Site-Data (purge cache HTML cũ). */
+const CACHE_PURGE_COOKIE = 'il_cd';
+const CACHE_PURGE_VERSION = '4';
 
 function applyNoStore(res: NextResponse) {
   res.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
@@ -19,6 +21,19 @@ function applyNoStore(res: NextResponse) {
   res.headers.set('Surrogate-Control', 'no-store');
   res.headers.set('Pragma', 'no-cache');
   res.headers.set('Expires', '0');
+}
+
+function withCachePurge(req: NextRequest, res: NextResponse) {
+  if (!req.cookies.get(CACHE_PURGE_COOKIE)) {
+    res.headers.set('Clear-Site-Data', '"cache"');
+    res.cookies.set(CACHE_PURGE_COOKIE, CACHE_PURGE_VERSION, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 400,
+      sameSite: 'lax',
+      secure: true,
+    });
+  }
+  return res;
 }
 
 function nextWithRequestHeaders(req: NextRequest) {
@@ -30,43 +45,24 @@ function nextWithRequestHeaders(req: NextRequest) {
   if (pathname === '/cam-nang' || pathname.startsWith('/cam-nang/') || pathname === '/') {
     applyNoStore(res);
   }
-  // Một lần: xóa HTTP disk-cache trình duyệt (bản /cam-nang trống từng bị cache 1 năm).
-  if (!req.cookies.get('il_cd')) {
-    res.headers.set('Clear-Site-Data', '"cache"');
-    res.cookies.set('il_cd', CAM_NANG_CACHE_BUST, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 400,
-      sameSite: 'lax',
-      secure: true,
-    });
-  }
-  return res;
+  return withCachePurge(req, res);
 }
 
 export function middleware(req: NextRequest) {
   const host = hostnameOf(req);
   const { pathname, search } = req.nextUrl;
 
-  // Bust HTML disk-cache cũ: /cam-nang (không query / v cũ) → /cam-nang?v=3
-  if (pathname === '/cam-nang' || pathname === '/cam-nang/') {
-    const v = req.nextUrl.searchParams.get('v');
-    if (v !== CAM_NANG_CACHE_BUST) {
-      const dest = req.nextUrl.clone();
-      dest.pathname = '/cam-nang';
-      dest.searchParams.set('v', CAM_NANG_CACHE_BUST);
-      const redirect = NextResponse.redirect(dest, 307);
-      applyNoStore(redirect);
-      if (!req.cookies.get('il_cd')) {
-        redirect.headers.set('Clear-Site-Data', '"cache"');
-        redirect.cookies.set('il_cd', CAM_NANG_CACHE_BUST, {
-          path: '/',
-          maxAge: 60 * 60 * 24 * 400,
-          sameSite: 'lax',
-          secure: true,
-        });
-      }
-      return redirect;
-    }
+  // SEO: gộp /cam-nang?v=* về URL sạch /cam-nang (bỏ cache-bust query tạm thời).
+  if (
+    (pathname === '/cam-nang' || pathname === '/cam-nang/') &&
+    req.nextUrl.searchParams.has('v')
+  ) {
+    const dest = req.nextUrl.clone();
+    dest.pathname = '/cam-nang';
+    dest.searchParams.delete('v');
+    const redirect = NextResponse.redirect(dest, 301);
+    applyNoStore(redirect);
+    return withCachePurge(req, redirect);
   }
 
   if (host === 'localhost' || host === '127.0.0.1') {

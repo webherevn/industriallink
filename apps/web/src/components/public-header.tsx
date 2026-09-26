@@ -14,8 +14,6 @@ import { loginHref } from '@/lib/safe-next';
 
 export const CREATE_CV_LOGIN_HREF = loginHref('/cv/create');
 export const CAREER_GUIDE_PATH = '/cam-nang';
-/** Query bust HTML cache cũ (trình duyệt từng giữ bản s-maxage=1 năm). */
-export const CAREER_GUIDE_HREF = '/cam-nang?v=3';
 
 /** Fallback khi chưa cấu hình CMS menu. */
 const DEFAULT_PRIMARY_ITEMS: CmsMenuItemView[] = [
@@ -45,7 +43,7 @@ const DEFAULT_PRIMARY_ITEMS: CmsMenuItemView[] = [
     id: 'default-guide',
     parentId: null,
     label: 'Cẩm nang nghề nghiệp',
-    url: CAREER_GUIDE_HREF,
+    url: CAREER_GUIDE_PATH,
     sortOrder: 2,
     openInNewTab: false,
     objectType: 'custom',
@@ -62,14 +60,14 @@ function menuPathOf(url: string): string {
   }
 }
 
-/** Cẩm nang: full document load + cache-bust (tránh Router Cache / HTML disk cache). */
+/** Chuẩn hóa URL menu: bỏ ?v=* tạm thời, giữ path sạch cho SEO. */
 function resolveNavHref(url: string): { href: string; forceDocument: boolean } {
   const path = menuPathOf(url);
-  if (path === CAREER_GUIDE_PATH || path.startsWith(`${CAREER_GUIDE_PATH}/`)) {
-    if (path === CAREER_GUIDE_PATH && !url.includes('?')) {
-      return { href: CAREER_GUIDE_HREF, forceDocument: true };
-    }
-    return { href: url, forceDocument: true };
+  if (path === CAREER_GUIDE_PATH) {
+    return { href: CAREER_GUIDE_PATH, forceDocument: true };
+  }
+  if (path.startsWith(`${CAREER_GUIDE_PATH}/`)) {
+    return { href: path + (url.includes('#') ? `#${url.split('#')[1]}` : ''), forceDocument: false };
   }
   return { href: url, forceDocument: false };
 }
