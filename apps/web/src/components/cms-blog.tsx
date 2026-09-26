@@ -101,7 +101,7 @@ export function CmsCategoryChips({
   return (
     <nav aria-label="Chuyên mục" className="flex flex-wrap gap-2">
       <Link
-        href="/cam-nang?v=2"
+        href="/cam-nang?v=3"
         prefetch={false}
         className={
           allActive

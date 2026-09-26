@@ -15,7 +15,7 @@ import { loginHref } from '@/lib/safe-next';
 export const CREATE_CV_LOGIN_HREF = loginHref('/cv/create');
 export const CAREER_GUIDE_PATH = '/cam-nang';
 /** Query bust HTML cache cũ (trình duyệt từng giữ bản s-maxage=1 năm). */
-export const CAREER_GUIDE_HREF = '/cam-nang?v=2';
+export const CAREER_GUIDE_HREF = '/cam-nang?v=3';
 
 /** Fallback khi chưa cấu hình CMS menu. */
 const DEFAULT_PRIMARY_ITEMS: CmsMenuItemView[] = [
