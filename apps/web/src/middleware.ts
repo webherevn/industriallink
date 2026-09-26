@@ -13,7 +13,7 @@ function hostnameOf(req: NextRequest): string {
 
 /** Cookie đánh dấu đã gửi Clear-Site-Data (purge cache HTML cũ). */
 const CACHE_PURGE_COOKIE = 'il_cd';
-const CACHE_PURGE_VERSION = '5';
+const CACHE_PURGE_VERSION = '6';
 
 function applyNoStore(res: NextResponse) {
   res.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
