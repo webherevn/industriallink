@@ -31,6 +31,9 @@ import {
   type CmsPostListItem,
   type CmsPostView,
   type CmsRedirectView,
+  type CmsOutboundLink,
+  type CmsOutboundReport,
+  type CmsOutboundSource,
   type CmsSeoIssueItem,
   type CmsSeoOverview,
   type ListCmsPostsQuery,
@@ -52,6 +55,110 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 import { sanitizeCmsHtml } from './sanitize-cms-html';
+
+function siteHosts(siteUrl: string): Set<string> {
+  const hosts = new Set(['inlink.vn', 'localhost', '127.0.0.1']);
+  try {
+    const host = new URL(siteUrl).hostname.replace(/^www\./, '').toLowerCase();
+    if (host) hosts.add(host);
+  } catch {
+    /* siteUrl không phải URL tuyệt đối */
+  }
+  return hosts;
+}
+
+function attrValue(attrs: string, name: string): string {
+  const match = attrs.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
+  return (match?.[1] || match?.[2] || match?.[3] || '').trim();
+}
+
+/** Các thẻ <a> trỏ http(s) ra domain khác site. */
+function outboundLinksFromHtml(html: string, hosts: Set<string>): CmsOutboundLink[] {
+  const links: CmsOutboundLink[] = [];
+  const seen = new Set<string>();
+  const anchorRe = /<a\b([^>]*?)>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = anchorRe.exec(html))) {
+    const attrs = match[1] || '';
+    const raw = attrValue(attrs, 'href');
+    if (!raw || raw.startsWith('#') || raw.startsWith('/') || /^mailto:|^tel:|^javascript:/i.test(raw)) {
+      continue;
+    }
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    if (!host || hosts.has(host) || host.endsWith('.inlink.vn')) continue;
+    const href = url.href.slice(0, 500);
+    if (seen.has(href)) continue;
+    seen.add(href);
+    const rel = attrValue(attrs, 'rel').toLowerCase();
+    const anchor = (match[2] || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 140);
+    links.push({
+      href,
+      host,
+      anchor,
+      nofollow: /\bnofollow\b/.test(rel),
+      sponsored: /\bsponsored\b/.test(rel),
+    });
+    if (links.length >= 40) break;
+  }
+  return links;
+}
+
+function faqHtml(json: unknown): string {
+  if (!Array.isArray(json)) return '';
+  return json
+    .map((item) => {
+      if (!item || typeof item !== 'object') return '';
+      const answer = (item as { answer?: unknown }).answer;
+      return typeof answer === 'string' ? answer : '';
+    })
+    .join('\n');
+}
+
+function buildOutboundReport(
+  sources: CmsOutboundSource[],
+): CmsOutboundReport {
+  const hostCount = new Map<string, number>();
+  let totalLinks = 0;
+  let dofollow = 0;
+  let nofollow = 0;
+  for (const source of sources) {
+    for (const link of source.links) {
+      totalLinks += 1;
+      hostCount.set(link.host, (hostCount.get(link.host) || 0) + 1);
+      if (link.nofollow || link.sponsored) nofollow += 1;
+      else dofollow += 1;
+    }
+  }
+  const topHosts = [...hostCount.entries()]
+    .map(([host, count]) => ({ host, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+  const items = [...sources].sort((a, b) => {
+    const followA = a.links.filter((link) => !link.nofollow && !link.sponsored).length;
+    const followB = b.links.filter((link) => !link.nofollow && !link.sponsored).length;
+    return followB - followA || b.links.length - a.links.length;
+  });
+  return {
+    totalLinks,
+    uniqueHosts: hostCount.size,
+    dofollow,
+    nofollow,
+    sources: items.length,
+    topHosts,
+    items: items.slice(0, 80),
+  };
+}
 
 type PostWithCategory = CmsPost & {
   category: { id: string; name: string; slug: string } | null;
@@ -617,6 +724,7 @@ export class CmsService {
           ogImageUrl: true,
           avatarUrl: true,
           robotsIndex: true,
+          faqJson: true,
           updatedAt: true,
         },
         take: 200,
@@ -951,6 +1059,41 @@ export class CmsService {
         return rank[a.severity] - rank[b.severity] || b.count - a.count;
       });
 
+    const hosts = siteHosts(siteUrl);
+    const outboundSources: CmsOutboundSource[] = [];
+    for (const row of publishedRows) {
+      const kind = row.type === CmsContentType.Page ? ('page' as const) : ('post' as const);
+      const links = outboundLinksFromHtml(
+        [row.bodyHtml, row.excerpt, faqHtml(row.faqJson)].filter(Boolean).join('\n'),
+        hosts,
+      );
+      if (links.length === 0) continue;
+      outboundSources.push({
+        id: row.id,
+        kind,
+        title: row.title,
+        editPath: kind === 'page' ? `/admin/pages/${row.id}` : `/admin/posts/${row.id}`,
+        publicPath: kind === 'page' ? cmsPagePublicPath(row.slug) : cmsPostPublicPath(row.slug),
+        links,
+      });
+    }
+    for (const cat of categoryRows) {
+      const links = outboundLinksFromHtml(
+        [cat.description, faqHtml(cat.faqJson)].filter(Boolean).join('\n'),
+        hosts,
+      );
+      if (links.length === 0) continue;
+      outboundSources.push({
+        id: cat.id,
+        kind: 'category',
+        title: cat.name,
+        editPath: '/admin/categories',
+        publicPath: cmsCategoryPublicPath(cat.slug),
+        links,
+      });
+    }
+    const outbound = buildOutboundReport(outboundSources);
+
     const recentPublished = publishedRows.slice(0, 8).map((row) => {
       const kind = row.type === CmsContentType.Page ? ('page' as const) : ('post' as const);
       return {
@@ -990,6 +1133,7 @@ export class CmsService {
       issues,
       recentPublished,
       topKeywords: topKeywords.slice(0, 12),
+      outbound,
       quickLinks: [
         { label: 'Sitemap blog', href: `${siteUrl}/sitemap/blog.xml`, external: true },
         { label: 'Sitemap pages', href: `${siteUrl}/sitemap/pages.xml`, external: true },

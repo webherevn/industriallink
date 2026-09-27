@@ -530,6 +530,34 @@ export interface CmsSeoRecentItem {
   robotsIndex: boolean;
 }
 
+export interface CmsOutboundLink {
+  href: string;
+  host: string;
+  anchor: string;
+  nofollow: boolean;
+  sponsored: boolean;
+}
+
+export interface CmsOutboundSource {
+  id: string;
+  kind: 'post' | 'page' | 'category';
+  title: string;
+  editPath: string;
+  publicPath: string;
+  links: CmsOutboundLink[];
+}
+
+/** Link http(s) trỏ ra ngoài site, gom theo bài / trang / danh mục. */
+export interface CmsOutboundReport {
+  totalLinks: number;
+  uniqueHosts: number;
+  dofollow: number;
+  nofollow: number;
+  sources: number;
+  topHosts: Array<{ host: string; count: number }>;
+  items: CmsOutboundSource[];
+}
+
 export interface CmsSeoOverview {
   generatedAt: string;
   siteUrl: string;
@@ -553,4 +581,5 @@ export interface CmsSeoOverview {
   recentPublished: CmsSeoRecentItem[];
   topKeywords: Array<{ keyword: string; count: number }>;
   quickLinks: Array<{ label: string; href: string; external?: boolean }>;
+  outbound: CmsOutboundReport;
 }

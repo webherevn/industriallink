@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  CmsOutboundSource,
   CmsSeoIssueGroup,
   CmsSeoIssueSeverity,
   CmsSeoOverview,
@@ -474,6 +475,176 @@ function Flag({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
+function outboundPath(href: string): string {
+  try {
+    const path = new URL(href).pathname;
+    return path === '/' ? '' : path;
+  } catch {
+    return '';
+  }
+}
+
+const KIND_LABEL: Record<CmsOutboundSource['kind'], string> = {
+  post: 'Bài viết',
+  page: 'Trang',
+  category: 'Danh mục',
+};
+
+function OutboundPanel({ data }: { data: CmsSeoOverview }) {
+  const report = data.outbound;
+  const [kind, setKind] = useState<'all' | CmsOutboundSource['kind']>('all');
+  const [q, setQ] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const query = q.trim().toLowerCase();
+  const items = useMemo(() => {
+    if (!report) return [];
+    return report.items.filter((item) => {
+      if (kind !== 'all' && item.kind !== kind) return false;
+      if (!query) return true;
+      if (item.title.toLowerCase().includes(query)) return true;
+      return item.links.some(
+        (link) => link.host.includes(query) || link.href.toLowerCase().includes(query) || link.anchor.toLowerCase().includes(query),
+      );
+    });
+  }, [report, kind, query]);
+  const hostMax = Math.max(1, ...(report?.topHosts.map((host) => host.count) ?? [1]));
+
+  if (!report) return null;
+
+  return (
+    <section className="admin-dash-card p-5 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">Link out</h3>
+          <p className="mt-0.5 max-w-2xl text-xs text-slate-500">
+            Liên kết http(s) từ bài viết, trang và danh mục đã xuất bản trỏ ra domain khác. Dofollow là link
+            không có rel nofollow hoặc sponsored.
+          </p>
+        </div>
+        <div className="flex rounded-xl bg-[#f8fafc] p-1 ring-1 ring-slate-200">
+          {(['all', 'post', 'page', 'category'] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              className={clsx(
+                'rounded-lg px-2.5 py-1 text-xs font-semibold',
+                kind === id ? 'bg-[#072348] text-white' : 'text-slate-500',
+              )}
+              onClick={() => setKind(id)}
+            >
+              {id === 'all' ? 'Tất cả' : KIND_LABEL[id]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[
+          ['Tổng link', report.totalLinks],
+          ['Domain', report.uniqueHosts],
+          ['Dofollow', report.dofollow],
+          ['Nofollow', report.nofollow],
+          ['Nội dung', report.sources],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="rounded-2xl bg-[#f8fafc] px-4 py-3 ring-1 ring-slate-100">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-[#072348]">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {report.topHosts.length > 0 ? (
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+          {report.topHosts.map((host) => (
+            <li key={host.host}>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate font-medium text-[#072348]">{host.host}</span>
+                <span className="font-semibold text-slate-500">{host.count}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="admin-dash-bar h-full rounded-full bg-[#E8872A]"
+                  style={{ width: `${Math.max(8, Math.round((host.count / hostMax) * 100))}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <input
+        className="mt-4 h-10 w-full max-w-sm rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#FFD0A3]"
+        placeholder="Lọc theo trang, domain hoặc anchor"
+        value={q}
+        onChange={(event) => setQ(event.target.value)}
+      />
+
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-[1.15rem] border border-dashed border-[#FFD0A3] bg-[#FFF8F1] px-3 py-8 text-center text-sm text-slate-500">
+          {report.totalLinks === 0
+            ? 'Chưa có link out trên bài viết, trang và danh mục đã xuất bản.'
+            : 'Không có link out khớp bộ lọc.'}
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-slate-100">
+          {items.map((item) => {
+            const open = openId === `${item.kind}:${item.id}`;
+            const follow = item.links.filter((link) => !link.nofollow && !link.sponsored).length;
+            return (
+              <li key={`${item.kind}:${item.id}`} className="py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-[#f8fafc] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 ring-1 ring-slate-200">
+                    {KIND_LABEL[item.kind]}
+                  </span>
+                  <Link href={item.editPath} className="min-w-0 flex-1 truncate text-sm font-semibold text-[#072348] hover:text-accent-600">
+                    {item.title}
+                  </Link>
+                  <span className="text-xs text-slate-500">
+                    {item.links.length} link · {follow} dofollow
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-[#E8872A]"
+                    onClick={() => setOpenId(open ? null : `${item.kind}:${item.id}`)}
+                  >
+                    {open ? 'Thu gọn' : 'Xem link'}
+                  </button>
+                </div>
+                {open ? (
+                  <ul className="mt-2 space-y-1.5 pl-1">
+                    {item.links.map((link) => (
+                      <li key={link.href} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="nofollow noopener noreferrer"
+                          className="max-w-full truncate font-medium text-[#072348] hover:text-accent-600"
+                        >
+                          {link.host}
+                          {outboundPath(link.href)}
+                        </a>
+                        <span
+                          className={clsx(
+                            'rounded px-1.5 py-0.5 text-[10px] font-bold',
+                            link.nofollow ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-800',
+                          )}
+                        >
+                          {link.sponsored ? 'sponsored' : link.nofollow ? 'nofollow' : 'dofollow'}
+                        </span>
+                        {link.anchor ? <span className="truncate text-slate-400">“{link.anchor}”</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function TechLinks({ data }: { data: CmsSeoOverview }) {
   return (
     <div className="admin-dash-card space-y-3 p-5 sm:p-6">
@@ -533,7 +704,7 @@ export default function AdminSeoOverviewPage() {
           <h1 className="cms-page-title mt-1.5">SEO overview</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle mt-2">
-            Audit sức khỏe SEO toàn site — coverage, issues, keywords & technical links.
+            Audit sức khỏe SEO toàn site — coverage, link out, issues và technical links.
           </p>
         </div>
         <Button
@@ -577,6 +748,9 @@ export default function AdminSeoOverviewPage() {
           </div>
           <div className="admin-dash-rise" style={{ animationDelay: '80ms' }}>
             <InventoryGrid data={data} />
+          </div>
+          <div className="admin-dash-rise" style={{ animationDelay: '110ms' }}>
+            <OutboundPanel data={data} />
           </div>
 
           <div
