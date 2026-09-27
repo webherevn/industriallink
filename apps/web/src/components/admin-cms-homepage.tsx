@@ -1,8 +1,9 @@
 'use client';
 
-import type {
-  CmsHomepageSettingsView,
-  UpsertCmsHomepageSettingsRequest,
+import {
+  parseCustomSchemaInput,
+  type CmsHomepageSettingsView,
+  type UpsertCmsHomepageSettingsRequest,
 } from '@industriallink/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -43,6 +44,7 @@ const DEFAULTS: FormState = {
   robotsIndex: true,
   robotsFollow: true,
   robotsMaxImagePreview: true,
+  customSchema: '',
 };
 
 function fromView(v: CmsHomepageSettingsView): FormState {
@@ -60,6 +62,7 @@ function fromView(v: CmsHomepageSettingsView): FormState {
     robotsIndex: v.robotsIndex,
     robotsFollow: v.robotsFollow,
     robotsMaxImagePreview: v.robotsMaxImagePreview,
+    customSchema: v.customSchema ?? '',
   };
 }
 
@@ -79,7 +82,18 @@ function toPayload(form: FormState): UpsertCmsHomepageSettingsRequest {
     robotsIndex: form.robotsIndex ?? true,
     robotsFollow: form.robotsFollow ?? true,
     robotsMaxImagePreview: form.robotsMaxImagePreview ?? true,
+    customSchema: form.customSchema ?? '',
   };
+}
+
+function CustomSchemaHint({ value }: { value?: string | null }) {
+  if (!value?.trim()) return null;
+  const parsed = parseCustomSchemaInput(value);
+  return parsed.ok ? (
+    <p className="text-xs text-emerald-700">JSON-LD hợp lệ.</p>
+  ) : (
+    <p className="text-xs text-rose-600">{parsed.error}</p>
+  );
 }
 
 function CharMeter({ value, soft, label }: { value: string; soft: number; label: string }) {
@@ -168,7 +182,9 @@ export function AdminHomepageSeoPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const body = toPayload(form);
+      const parsedSchema = parseCustomSchemaInput(form.customSchema);
+      if (!parsedSchema.ok) throw new ApiError(400, parsedSchema.error);
+      const body = { ...toPayload(form), customSchema: parsedSchema.value };
       if (!body.heading) throw new ApiError(400, 'H1 là bắt buộc');
       return saveCmsHomepageAdmin(body);
     },
@@ -429,6 +445,27 @@ export function AdminHomepageSeoPage() {
                   ) : null}
                 </div>
               </Field>
+            </SeoPanel>
+
+            <SeoPanel
+              title="Custom Schema"
+              hint="JSON-LD riêng cho trang chủ. Để trống thì giữ mặc định"
+              icon={Search}
+              defaultOpen={Boolean(form.customSchema?.trim())}
+              delay="180ms"
+            >
+              <p className="text-xs leading-relaxed text-slate-500">
+                Dán JSON hoặc thẻ script application/ld+json cho riêng trang chủ. Có nội dung thì
+                schema này thay schema mặc định. Để trống thì giữ mặc định.
+              </p>
+              <textarea
+                className="cms-field-control min-h-[160px] font-mono text-xs"
+                value={form.customSchema ?? ''}
+                onChange={(e) => patch('customSchema', e.target.value)}
+                placeholder={'{\n  "@context": "https://schema.org",\n  "@type": "WebSite"\n}'}
+                spellCheck={false}
+              />
+              <CustomSchemaHint value={form.customSchema} />
             </SeoPanel>
           </div>
 

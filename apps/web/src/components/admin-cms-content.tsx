@@ -7,6 +7,7 @@ import {
   CmsContentType,
   cmsAuthorPublicPath,
   cmsContentPublicPath,
+  parseCustomSchemaInput,
   toSeoSlug,
   type CmsFaqItem,
 } from '@industriallink/contracts';
@@ -190,6 +191,7 @@ function ContentEditor({
   const [robotsFollow, setRobotsFollow] = useState(true);
   const [robotsMaxImagePreview, setRobotsMaxImagePreview] = useState(true);
   const [faq, setFaq] = useState<CmsFaqItem[]>([]);
+  const [customSchema, setCustomSchema] = useState('');
   const [faqDragFrom, setFaqDragFrom] = useState<number | null>(null);
   const [faqDragOver, setFaqDragOver] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -265,6 +267,7 @@ function ContentEditor({
     setRobotsFollow(existing.robotsFollow);
     setRobotsMaxImagePreview(existing.robotsMaxImagePreview);
     setFaq(Array.isArray(existing.faq) ? existing.faq : []);
+    setCustomSchema(existing.customSchema ?? '');
   }, [existing]);
 
   useEffect(() => {
@@ -282,6 +285,8 @@ function ContentEditor({
 
   const saveMutation = useMutation({
     mutationFn: async (publish: boolean) => {
+      const parsedSchema = parseCustomSchemaInput(customSchema);
+      if (!parsedSchema.ok) throw new ApiError(400, parsedSchema.error);
       const body = {
         type,
         title,
@@ -302,6 +307,7 @@ function ContentEditor({
         robotsFollow,
         robotsMaxImagePreview,
         faq,
+        customSchema: parsedSchema.value,
         publish,
       };
       if (editId) return updateCmsPost(editId, body);
@@ -661,6 +667,31 @@ function ContentEditor({
           >
             + Thêm FAQ
           </Button>
+        </SortableMetabox>
+      );
+    }
+
+    if (id === 'customSchema') {
+      const parsed = customSchema.trim() ? parseCustomSchemaInput(customSchema) : null;
+      return (
+        <SortableMetabox key={id} {...common} defaultOpen={Boolean(customSchema.trim())}>
+          <p className="text-xs text-slate-500">
+            Dán JSON-LD cho riêng {isPage ? 'trang' : 'bài'} này. Có nội dung thì thay schema{' '}
+            {isPage ? 'WebPage' : 'Article'} mặc định. FAQ Schema vẫn xuất riêng. Để trống để dùng
+            schema mặc định.
+          </p>
+          <textarea
+            className="cms-field-control min-h-[160px] font-mono text-xs"
+            value={customSchema}
+            onChange={(e) => setCustomSchema(e.target.value)}
+            placeholder={'{\n  "@context": "https://schema.org",\n  "@type": "Article"\n}'}
+            spellCheck={false}
+          />
+          {parsed && !parsed.ok ? (
+            <p className="text-xs text-rose-600">{parsed.error}</p>
+          ) : customSchema.trim() ? (
+            <p className="text-xs text-emerald-700">JSON-LD hợp lệ. Sẽ thay schema mặc định.</p>
+          ) : null}
         </SortableMetabox>
       );
     }

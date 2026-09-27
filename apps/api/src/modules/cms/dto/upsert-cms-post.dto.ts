@@ -126,6 +126,11 @@ export class UpsertCmsPostDto {
   @IsBoolean()
   robotsMaxImagePreview?: boolean;
 
+  @ApiPropertyOptional({ description: 'JSON-LD tùy biến. Rỗng = schema mặc định.' })
+  @IsOptional()
+  @IsString()
+  customSchema?: string | null;
+
   @ApiPropertyOptional({ type: [CmsFaqItemDto] })
   @IsOptional()
   @IsArray()

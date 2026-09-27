@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CmsCustomSchemaScripts } from '@/components/cms-custom-schema';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { cmsRobotsMeta, formatCmsSeoTitle } from '@/lib/cms-seo';
 import { isQueryVariant, parentCanonicalMetadata } from '@/lib/listing-seo';
@@ -65,11 +66,16 @@ export default async function HomePage() {
     fetchPublicCmsHomepage(),
   ]);
   return (
-    <JobsListingClient
-      initialJobs={jobs}
-      heroHeading={home?.heading}
-      heroHeadingAccent={home?.headingAccent}
-      heroSubtitle={home?.subtitle}
-    />
+    <>
+      {home?.customSchema?.trim() ? (
+        <CmsCustomSchemaScripts schema={home.customSchema} />
+      ) : null}
+      <JobsListingClient
+        initialJobs={jobs}
+        heroHeading={home?.heading}
+        heroHeadingAccent={home?.headingAccent}
+        heroSubtitle={home?.subtitle}
+      />
+    </>
   );
 }

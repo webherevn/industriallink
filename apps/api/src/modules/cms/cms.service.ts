@@ -15,6 +15,7 @@ import {
   cmsPagePublicPath,
   cmsPostPublicPath,
   nextUniqueSlug,
+  parseCustomSchemaInput,
   toSeoSlug,
   type CmsAuthorProfileView,
   type CmsAuthorSocial,
@@ -315,6 +316,7 @@ export class CmsService {
         robotsMaxImagePreview: input.robotsMaxImagePreview ?? true,
         robots: buildCmsRobotsString(robots.index, robots.follow),
         faqJson: this.normalizeFaq(input.faq) as unknown as Prisma.InputJsonValue,
+        customSchema: this.requireCustomSchema(input.customSchema),
         createdBy: user.id,
         updatedBy: user.id,
       },
@@ -426,6 +428,10 @@ export class CmsService {
         faqJson:
           input.faq !== undefined
             ? (this.normalizeFaq(input.faq) as unknown as Prisma.InputJsonValue)
+            : undefined,
+        customSchema:
+          input.customSchema !== undefined
+            ? this.requireCustomSchema(input.customSchema)
             : undefined,
         updatedBy: user.id,
         version: { increment: 1 },
@@ -1160,6 +1166,7 @@ export class CmsService {
       robotsIndex: true,
       robotsFollow: true,
       robotsMaxImagePreview: true,
+      customSchema: null,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -1178,6 +1185,7 @@ export class CmsService {
     robotsIndex: boolean;
     robotsFollow: boolean;
     robotsMaxImagePreview: boolean;
+    customSchema: string | null;
     updatedAt: Date;
   }): CmsHomepageSettingsView {
     return {
@@ -1194,6 +1202,7 @@ export class CmsService {
       robotsIndex: row.robotsIndex,
       robotsFollow: row.robotsFollow,
       robotsMaxImagePreview: row.robotsMaxImagePreview,
+      customSchema: row.customSchema,
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -1230,6 +1239,9 @@ export class CmsService {
       robotsIndex: input.robotsIndex ?? true,
       robotsFollow: input.robotsFollow ?? true,
       robotsMaxImagePreview: input.robotsMaxImagePreview ?? true,
+      ...(input.customSchema !== undefined
+        ? { customSchema: this.requireCustomSchema(input.customSchema) }
+        : {}),
       updatedBy: user.id,
     };
     const row = await this.prisma.cmsHomepageSettings.upsert({
@@ -1749,6 +1761,12 @@ export class CmsService {
     if (!input.title?.trim()) throw new BadRequestException('Thiếu tiêu đề');
   }
 
+  private requireCustomSchema(raw: string | null | undefined): string | null {
+    const parsed = parseCustomSchemaInput(raw);
+    if (!parsed.ok) throw new BadRequestException(parsed.error);
+    return parsed.value;
+  }
+
   private async uniquePostSlug(
     type: CmsContentType,
     base: string,
@@ -2199,6 +2217,7 @@ export class CmsService {
       robotsFollow: row.robotsFollow,
       robotsMaxImagePreview: row.robotsMaxImagePreview,
       faq: this.parseFaq(row.faqJson),
+      customSchema: row.customSchema,
       createdAt: row.createdAt.toISOString(),
     };
   }

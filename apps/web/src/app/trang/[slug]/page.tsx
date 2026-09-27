@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { CmsBreadcrumb } from '@/components/cms-breadcrumb';
+import { CmsCustomSchemaScripts } from '@/components/cms-custom-schema';
 import { CmsTableOfContents } from '@/components/cms-toc';
 import { BRAND_NAME } from '@/lib/brand';
 import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
@@ -109,10 +110,14 @@ export default async function StaticCmsPage({
 
   return (
     <AppShell allowGuest>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageLd) }}
-      />
+      {page.customSchema?.trim() ? (
+        <CmsCustomSchemaScripts schema={page.customSchema} />
+      ) : (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageLd) }}
+        />
+      )}
       {faqLd && (
         <script
           type="application/ld+json"

@@ -11,6 +11,7 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { CmsBreadcrumb } from '@/components/cms-breadcrumb';
 import { CmsRelatedPosts, formatViDate } from '@/components/cms-blog';
+import { CmsCustomSchemaScripts } from '@/components/cms-custom-schema';
 import { CmsTableOfContents } from '@/components/cms-toc';
 import { BRAND_NAME } from '@/lib/brand';
 import { absolutizeCmsHtml, resolveCmsAssetUrl } from '@/lib/cms-assets';
@@ -194,10 +195,14 @@ export default async function CareerGuideArticlePage({
 
   return (
     <AppShell allowGuest flush bleed>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }}
-      />
+      {post.customSchema?.trim() ? (
+        <CmsCustomSchemaScripts schema={post.customSchema} />
+      ) : (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }}
+        />
+      )}
       {faqLd && (
         <script
           type="application/ld+json"

@@ -3,6 +3,7 @@ export type CmsMetaboxColumn = 'main' | 'side';
 export type CmsMetaboxId =
   | 'excerpt'
   | 'faq'
+  | 'customSchema'
   | 'seo'
   | 'og'
   | 'publish'
@@ -18,6 +19,7 @@ export type CmsMetaboxLayout = {
 export const CMS_METABOX_LABELS: Record<CmsMetaboxId, string> = {
   excerpt: 'Đoạn trích (Excerpt)',
   faq: 'FAQ Schema (FAQPage)',
+  customSchema: 'Custom Schema',
   seo: 'SEO (Yoast / Rank Math)',
   og: 'Open Graph / Social',
   publish: 'Xuất bản',
@@ -27,7 +29,7 @@ export const CMS_METABOX_LABELS: Record<CmsMetaboxId, string> = {
 };
 
 export const DEFAULT_CMS_METABOX_LAYOUT: CmsMetaboxLayout = {
-  main: ['excerpt', 'faq', 'seo', 'og'],
+  main: ['excerpt', 'faq', 'customSchema', 'seo', 'og'],
   side: ['publish', 'cover', 'categories', 'author'],
 };
 
@@ -36,6 +38,7 @@ const STORAGE_KEY = 'il_cms_metabox_layout_v1';
 const ALL_IDS: CmsMetaboxId[] = [
   'excerpt',
   'faq',
+  'customSchema',
   'seo',
   'og',
   'publish',
@@ -72,7 +75,23 @@ export function normalizeCmsMetaboxLayout(raw: unknown): CmsMetaboxLayout {
     cleanSide.push(id);
   }
   for (const id of ALL_IDS) {
-    if (!seen.has(id)) cleanSide.push(id);
+    if (seen.has(id)) continue;
+    if (id === 'customSchema') {
+      const faqMain = cleanMain.indexOf('faq');
+      if (faqMain >= 0) {
+        cleanMain.splice(faqMain + 1, 0, id);
+        seen.add(id);
+        continue;
+      }
+      const faqSide = cleanSide.indexOf('faq');
+      if (faqSide >= 0) {
+        cleanSide.splice(faqSide + 1, 0, id);
+        seen.add(id);
+        continue;
+      }
+    }
+    seen.add(id);
+    cleanSide.push(id);
   }
   return { main: cleanMain, side: cleanSide };
 }

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { headers } from 'next/headers';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
+import { AnalyticsBeacon } from '@/components/analytics-beacon';
 import { renderCmsHtmlSnippet } from '@/components/cms-html-snippet';
 import { Providers } from '@/components/providers';
 import { fetchPublicCmsSiteCode } from '@/lib/public-cms-api';
@@ -53,6 +54,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       {/* suppressHydrationWarning: extension trình duyệt có thể chèn style/attr vào body trước khi React hydrate */}
       <body className="font-sans antialiased" suppressHydrationWarning>
         <Providers>{children}</Providers>
+        <Suspense fallback={null}>
+          <AnalyticsBeacon />
+        </Suspense>
         {renderCmsHtmlSnippet(footerHtml)}
       </body>
     </html>

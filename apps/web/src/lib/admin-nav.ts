@@ -1,5 +1,6 @@
 import { UserRole } from '@industriallink/contracts';
 import {
+  Activity,
   BadgeCheck,
   BarChart3,
   Briefcase,
@@ -42,6 +43,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     title: 'Tổng quan',
     items: [
       { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/admin/analytics', label: 'Analytics', icon: Activity, superAdminOnly: true },
       { href: '/admin/seo', label: 'SEO overview', icon: Search },
       { href: '/admin/homepage', label: 'SEO trang chủ', icon: Home },
     ],

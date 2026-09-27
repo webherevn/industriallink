@@ -132,6 +132,8 @@ export interface CmsPostView extends CmsPostListItem {
   robotsFollow: boolean;
   robotsMaxImagePreview: boolean;
   faq: CmsFaqItem[];
+  /** JSON-LD tùy biến. Rỗng = dùng schema Article/WebPage mặc định. */
+  customSchema: string | null;
   createdAt: string;
 }
 
@@ -183,6 +185,8 @@ export interface UpsertCmsPostRequest {
   /** @deprecated dùng robotsIndex/robotsFollow */
   robots?: string;
   faq?: CmsFaqItem[];
+  /** JSON-LD (object, mảng, hoặc thẻ script). Rỗng = schema mặc định. */
+  customSchema?: string | null;
   /** Nếu true → published; false → draft. */
   publish?: boolean;
   /** ISO datetime — cho phép chỉnh ngày đăng (giống WP). */
@@ -351,6 +355,8 @@ export interface CmsHomepageSettingsView {
   robotsIndex: boolean;
   robotsFollow: boolean;
   robotsMaxImagePreview: boolean;
+  /** JSON-LD tùy biến cho trang chủ. Rỗng = không thêm schema. */
+  customSchema: string | null;
   updatedAt: string;
 }
 
@@ -368,6 +374,75 @@ export interface UpsertCmsHomepageSettingsRequest {
   robotsIndex?: boolean;
   robotsFollow?: boolean;
   robotsMaxImagePreview?: boolean;
+  /** JSON-LD (object, mảng, hoặc thẻ script). Rỗng = không thêm schema. */
+  customSchema?: string | null;
+}
+
+const CUSTOM_SCHEMA_MAX = 50_000;
+
+/** Chuẩn hoá JSON-LD admin dán vào. Rỗng → null. Không hợp lệ → error. */
+export function parseCustomSchemaInput(
+  raw: string | null | undefined,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  const text = (raw ?? '').replace(/^\uFEFF/, '').trim();
+  if (!text) return { ok: true, value: null };
+  if (text.length > CUSTOM_SCHEMA_MAX) {
+    return { ok: false, error: 'Custom schema quá dài (tối đa 50.000 ký tự)' };
+  }
+
+  const scriptRe =
+    /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const chunks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = scriptRe.exec(text))) {
+    const body = match[1]?.trim();
+    if (body) chunks.push(body);
+  }
+  const sources = chunks.length > 0 ? chunks : [text];
+  const nodes: unknown[] = [];
+
+  for (const source of sources) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch {
+      return { ok: false, error: 'Custom schema phải là JSON-LD hợp lệ' };
+    }
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return { ok: false, error: 'Mỗi schema phải là một object JSON' };
+        }
+        nodes.push(item);
+      }
+      continue;
+    }
+    if (!parsed || typeof parsed !== 'object') {
+      return { ok: false, error: 'Custom schema phải là object hoặc mảng JSON-LD' };
+    }
+    nodes.push(parsed);
+  }
+
+  if (nodes.length === 0) {
+    return { ok: false, error: 'Custom schema không có nội dung JSON-LD' };
+  }
+  return { ok: true, value: JSON.stringify(nodes.length === 1 ? nodes[0] : nodes) };
+}
+
+/** Các node JSON-LD đã lưu (rỗng nếu không có hoặc không parse được). */
+export function customSchemaNodes(stored: string | null | undefined): unknown[] {
+  const text = stored?.trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
+    }
+    if (parsed && typeof parsed === 'object') return [parsed];
+  } catch {
+    return [];
+  }
+  return [];
 }
 
 /** robots.txt (RankMath-style). */

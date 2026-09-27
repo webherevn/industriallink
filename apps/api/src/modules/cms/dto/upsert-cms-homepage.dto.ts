@@ -92,4 +92,11 @@ export class UpsertCmsHomepageSettingsDto {
   @IsOptional()
   @IsBoolean()
   robotsMaxImagePreview?: boolean;
+
+  @ApiPropertyOptional({ description: 'JSON-LD tùy biến cho trang chủ. Rỗng = không thêm schema.' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  @MaxLength(50000)
+  customSchema?: string | null;
 }
