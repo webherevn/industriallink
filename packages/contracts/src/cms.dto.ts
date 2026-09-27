@@ -229,15 +229,15 @@ export function cmsPagePublicPath(slug: string): string {
   return `/trang/${slug}`;
 }
 
-/** URL danh mục cẩm nang (trang 1). */
+/** URL danh mục cẩm nang (trang 1): /cam-nang/{slug} */
 export function cmsCategoryPublicPath(slug: string): string {
-  return `/cam-nang/chuyen-muc/${slug}`;
+  return `/cam-nang/${slug}`;
 }
 
-/** URL danh mục phân trang: /cam-nang/chuyen-muc/{slug}/page/{n} */
+/** URL danh mục phân trang: /cam-nang/{slug}/page/{n} */
 export function cmsCategoryPagePath(slug: string, page: number): string {
   if (page <= 1) return cmsCategoryPublicPath(slug);
-  return `/cam-nang/chuyen-muc/${slug}/page/${page}`;
+  return `/cam-nang/${slug}/page/${page}`;
 }
 
 /** URL hồ sơ tác giả công khai. */

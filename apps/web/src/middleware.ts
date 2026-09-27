@@ -32,6 +32,21 @@ export function middleware(req: NextRequest) {
   const host = hostnameOf(req);
   const { pathname, search } = req.nextUrl;
 
+  // Đường cũ /cam-nang/chuyen-muc/{slug} → /cam-nang/{slug}
+  const legacyCategory = pathname.match(
+    /^\/cam-nang\/chuyen-muc\/([^/]+)(?:\/page\/(\d+))?\/?$/,
+  );
+  if (legacyCategory) {
+    const slug = decodeURIComponent(legacyCategory[1]);
+    const page = legacyCategory[2] ? Number(legacyCategory[2]) : 1;
+    const dest = req.nextUrl.clone();
+    dest.pathname =
+      Number.isFinite(page) && page > 1
+        ? `/cam-nang/${slug}/page/${Math.floor(page)}`
+        : `/cam-nang/${slug}`;
+    return applyNoStore(NextResponse.redirect(dest, 301));
+  }
+
   // SEO: gộp /cam-nang?v=* về URL sạch /cam-nang (bỏ cache-bust query tạm thời).
   if (
     (pathname === '/cam-nang' || pathname === '/cam-nang/') &&

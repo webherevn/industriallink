@@ -23,10 +23,12 @@ import {
 } from '@/lib/cms-seo';
 import {
   fetchCmsRedirect,
+  fetchPublicCmsCategory,
   fetchPublishedCmsPost,
   fetchPublishedCmsPostsPage,
 } from '@/lib/public-cms-api';
 import { siteUrl } from '@/lib/public-paths';
+import { CategoryScreen, categoryMetadata } from '../cms-category-screen';
 
 export const revalidate = 60;
 
@@ -60,6 +62,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  if (await fetchPublicCmsCategory(slug)) return categoryMetadata(slug, 1);
   const post = await fetchPublishedCmsPost(slug);
   if (!post) return { title: 'Không tìm thấy', robots: { index: false, follow: false } };
   const title = formatCmsSeoTitle(post.seoTitle || post.title);
@@ -94,6 +97,9 @@ export default async function CareerGuideArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (await fetchPublicCmsCategory(slug)) {
+    return <CategoryScreen slug={slug} pageNum={1} />;
+  }
   const post = await fetchPublishedCmsPost(slug);
   if (!post) {
     const redir = await fetchCmsRedirect(cmsPostPublicPath(slug));
