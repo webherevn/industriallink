@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useChunkAutoReload } from '@/components/app-error-recovery';
+import { hardRefresh, useChunkAutoReload } from '@/components/app-error-recovery';
 
 /**
  * Bắt lỗi ở tầng root layout (khi các error boundary con không xử lý được).
@@ -64,7 +64,7 @@ export default function GlobalError({
             </button>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => hardRefresh()}
               style={{
                 borderRadius: 6,
                 background: '#fff',

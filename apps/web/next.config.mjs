@@ -56,6 +56,18 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
+  async headers() {
+    const noStore = [
+      { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+      { key: 'CDN-Cache-Control', value: 'no-store' },
+      { key: 'Surrogate-Control', value: 'no-store' },
+    ];
+    return [
+      { source: '/admin', headers: noStore },
+      { source: '/admin/:path*', headers: noStore },
+      { source: '/login', headers: noStore },
+    ];
+  },
   async rewrites() {
     // Local next dev: proxy /api → Nest để ảnh CMS relative `/api/v1/...` hoạt động.
     const api = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');

@@ -7,7 +7,18 @@ import { useEffect } from 'react';
  * HTML/JS cũ trong cache của trình duyệt trỏ tới file chunk đã bị đổi tên → tải lỗi.
  */
 const CHUNK_ERROR_RE =
-  /ChunkLoadError|Loading chunk\s+[\w-]+\s+failed|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i;
+  /ChunkLoadError|Loading(?:\s+CSS)?\s+chunk\s+\S+\s+failed|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Failed to load chunk|Unexpected token\s*</i;
+
+/** Bỏ qua HTML đang bị cache (cùng URL) và lấy document mới. */
+export function hardRefresh(): void {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('_r', String(Date.now()));
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
+}
 
 export function isChunkLoadError(error: unknown): boolean {
   if (!error) return false;
@@ -37,10 +48,10 @@ export function useChunkAutoReload(error: unknown): boolean {
       const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) || '0');
       if (now - last > RELOAD_GUARD_MS) {
         sessionStorage.setItem(RELOAD_GUARD_KEY, String(now));
-        window.location.reload();
+        hardRefresh();
       }
     } catch {
-      window.location.reload();
+      hardRefresh();
     }
   }, [isChunk]);
   return isChunk;
