@@ -44,6 +44,15 @@ export class JobModerationWorker implements OnModuleInit, OnModuleDestroy {
     this.worker.on('failed', (job, err) => {
       this.logger.error(`Kiểm duyệt job ${job?.id} thất bại: ${err.message}`);
     });
+
+    void this.service
+      .requeuePending()
+      .then((n) => {
+        if (n > 0) this.logger.log(`Đẩy lại ${n} tin đang chờ kiểm duyệt vào hàng đợi`);
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(`Không đẩy lại được tin chờ kiểm duyệt: ${String(err)}`);
+      });
   }
 
   async onModuleDestroy(): Promise<void> {

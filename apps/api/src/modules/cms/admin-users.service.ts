@@ -152,6 +152,12 @@ export class AdminUsersService {
     }
 
     const row = await this.prisma.user.update({ where: { id }, data });
+    if (input.status === UserStatus.Locked || input.status === UserStatus.Deleted) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
     return this.map(row);
   }
 

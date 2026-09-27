@@ -7,6 +7,7 @@ import { ApplicationService } from './application.service';
 import { InterviewController } from './interview.controller';
 import { InterviewService } from './interview.service';
 import { JobController } from './job.controller';
+import { JobExpiryService } from './job-expiry.service';
 import { JobService } from './job.service';
 import { MatchingController } from './matching.controller';
 import { MatchingService } from './matching.service';
@@ -38,6 +39,7 @@ import { jobModerationQueueProvider } from './moderation/job-moderation.queue';
   ],
   providers: [
     JobService,
+    JobExpiryService,
     AdminJobsService,
     AdminReportsService,
     JobModerationService,

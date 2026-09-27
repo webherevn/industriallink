@@ -3,6 +3,7 @@ import {
   Activity,
   BadgeCheck,
   BarChart3,
+  BookOpen,
   Briefcase,
   Building2,
   Code2,
@@ -113,6 +114,10 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { href: '/admin/audit', label: 'Nhật ký', icon: ScrollText, superAdminOnly: true },
       { href: '/admin/reports', label: 'Báo cáo', icon: BarChart3, superAdminOnly: true },
     ],
+  },
+  {
+    title: 'Tài liệu',
+    items: [{ href: '/admin/docs', label: 'Documents (Tài liệu)', icon: BookOpen }],
   },
 ];
 

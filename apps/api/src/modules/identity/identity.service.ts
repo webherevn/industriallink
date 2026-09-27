@@ -458,6 +458,13 @@ export class IdentityService {
     if (!user || user.isDeleted) {
       throw new UnauthorizedException('Tài khoản không hợp lệ');
     }
+    if (user.status === UserStatus.Locked || user.status === UserStatus.Deleted) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Tài khoản đã bị khoá');
+    }
 
     // Xoay vòng: thu hồi token cũ, cấp cặp mới.
     await this.prisma.refreshToken.update({

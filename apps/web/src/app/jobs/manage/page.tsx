@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { JobStatus, type JobListItem } from '@industriallink/contracts';
+import { JobModerationStatus, JobStatus, type JobListItem } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Badge, Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -48,6 +48,35 @@ function statusTone(status: JobStatus): 'green' | 'slate' | 'amber' | 'red' {
   return 'slate';
 }
 
+/** Tin nháp đã bấm "Đăng tin" và đang chờ worker kiểm duyệt (vài giây). */
+function isModerating(job: JobListItem): boolean {
+  return job.status === JobStatus.Draft && job.moderationStatus === JobModerationStatus.Pending;
+}
+
+function isAwaitingAdmin(job: JobListItem): boolean {
+  return (
+    job.status === JobStatus.Draft &&
+    job.moderationStatus === JobModerationStatus.NeedsManualReview
+  );
+}
+
+function isRejected(job: JobListItem): boolean {
+  return (
+    job.status === JobStatus.Draft &&
+    (job.moderationStatus === JobModerationStatus.RejectedAuto ||
+      job.moderationStatus === JobModerationStatus.RejectedManual)
+  );
+}
+
+function jobBadge(job: JobListItem): { label: string; tone: 'green' | 'slate' | 'amber' | 'red' } {
+  if (isModerating(job)) return { label: 'Đang kiểm duyệt', tone: 'amber' };
+  if (isAwaitingAdmin(job)) return { label: 'Chờ Admin duyệt', tone: 'amber' };
+  if (isRejected(job)) return { label: 'Bị từ chối', tone: 'red' };
+  return { label: STATUS_LABEL[job.status], tone: statusTone(job.status) };
+}
+
+const MODERATION_POLL_MS = 3000;
+
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
   { value: JobStatus.Published, label: 'Đang tuyển' },
@@ -65,6 +94,8 @@ export default function ManageJobsPage() {
     queryKey: ['my-jobs'],
     queryFn: listMyJobs,
     retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.some(isModerating) ? MODERATION_POLL_MS : false,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
@@ -100,7 +131,9 @@ export default function ManageJobsPage() {
     return {
       total: list.length,
       published: list.filter((j) => j.status === JobStatus.Published).length,
-      draft: list.filter((j) => j.status === JobStatus.Draft).length,
+      draft: list.filter(
+        (j) => j.status === JobStatus.Draft && !isModerating(j) && !isAwaitingAdmin(j),
+      ).length,
       paused: list.filter((j) => j.status === JobStatus.Paused).length,
     };
   }, [jobs]);
@@ -286,6 +319,8 @@ function JobManageCard({
   onClose: () => void;
   onDelete: () => void;
 }) {
+  const badge = jobBadge(job);
+  const inReview = isModerating(job) || isAwaitingAdmin(job);
   const created = new Date(job.createdAt).toLocaleDateString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -302,7 +337,7 @@ function JobManageCard({
           >
             {job.title}
           </Link>
-          <Badge tone={statusTone(job.status)}>{STATUS_LABEL[job.status]}</Badge>
+          <Badge tone={badge.tone}>{badge.label}</Badge>
           {job.isNew && <Badge tone="accent">Mới</Badge>}
         </div>
 
@@ -370,7 +405,7 @@ function JobManageCard({
 
         <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:inline-block" aria-hidden />
 
-        {job.status === JobStatus.Draft && (
+        {job.status === JobStatus.Draft && !inReview && (
           <ActionChip onClick={onPublish} disabled={busy}>
             <Play className="h-3.5 w-3.5" />
             Đăng tin

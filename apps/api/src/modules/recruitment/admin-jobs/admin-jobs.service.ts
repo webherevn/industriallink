@@ -185,7 +185,7 @@ export class AdminJobsService {
           updatedBy: admin.id,
         },
       });
-      await this.jobs.enqueueModeration(job.id, job.tenantId, correlationId, { unique: true });
+      await this.jobs.enqueueModeration(job.id, job.tenantId, correlationId);
       this.events.publish(
         createDomainEvent({
           name: DomainEvents.JobSubmittedForModeration,

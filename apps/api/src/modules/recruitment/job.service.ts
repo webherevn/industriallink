@@ -17,6 +17,7 @@ import {
   JobModerationStatus,
   JobStatus,
   JobTrack,
+  UserRole,
   defaultDepartmentForTrack,
   expandJobSearchKeywords,
   industrySearchValues,
@@ -227,15 +228,14 @@ export class JobService {
     jobId: string,
     tenantId: string,
     correlationId: string,
-    opts?: { unique?: boolean },
   ): Promise<void> {
     await this.moderationQueue.add(
       'moderate',
       { jobId, tenantId, correlationId },
       {
-        jobId: opts?.unique
-          ? `job-moderation:${jobId}:${Date.now()}`
-          : `job-moderation:${jobId}`,
+        // BullMQ 5 cấm ':' trong jobId; id trùng với job đã xong (vẫn lưu trong queue)
+        // sẽ bị bỏ qua âm thầm khi gửi duyệt lại → luôn dùng id mới. Worker idempotent.
+        jobId: `job-moderation-${jobId}-${Date.now()}`,
       },
     );
   }
@@ -561,6 +561,8 @@ export class JobService {
   ): Promise<JobView> {
     const owned = await this.requireOwnedJob(user, jobId);
     const id = owned.id;
+    // Sửa tin đang công khai → gỡ khỏi public và kiểm duyệt lại nội dung mới.
+    const wasPublished = owned.status === JobStatus.Published;
 
     const skillInputs = dto.skills ?? [];
     const skillData = await Promise.all(
@@ -605,6 +607,9 @@ export class JobService {
         salaryMin: dto.salaryMin ?? null,
         salaryMax: dto.salaryMax ?? null,
         updatedBy: user.id,
+        ...(wasPublished
+          ? { status: JobStatus.Draft, moderationStatus: JobModerationStatus.Pending }
+          : {}),
         skills: {
           create: skillData,
         },
@@ -612,9 +617,16 @@ export class JobService {
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
     });
 
-    if (updated.status === JobStatus.Published) {
-      await this.embedAndPublish(updated, correlationId);
-      void this.indexing.notifyJob(updated, 'URL_UPDATED');
+    if (wasPublished) {
+      await this.enqueueModeration(updated.id, updated.tenantId, correlationId);
+      this.events.publish(
+        createDomainEvent({
+          name: DomainEvents.JobSubmittedForModeration,
+          tenantId: updated.tenantId,
+          correlationId,
+          payload: { jobId: updated.id, code: updated.code, title: updated.title },
+        }),
+      );
     } else {
       this.events.publish(
         createDomainEvent({
@@ -960,6 +972,11 @@ export class JobService {
     const job = await this.findJobByRef(ref);
     const withSlug = await this.ensureJobSlug(job);
     const view = this.toView(withSlug);
+    if (!(await this.canSeeModerationDetails(user, job.companyId))) {
+      delete view.aiRiskScore;
+      delete view.aiReason;
+      delete view.aiSuggestedAction;
+    }
     if (user) {
       const candidate = await this.prisma.candidate.findUnique({
         where: { userId: user.id },
@@ -974,6 +991,18 @@ export class JobService {
       }
     }
     return view;
+  }
+
+  /** Điểm rủi ro / lý do AI chỉ dành cho SuperAdmin và thành viên công ty đăng tin. */
+  private async canSeeModerationDetails(
+    user: AuthenticatedUser | undefined,
+    companyId: string,
+  ): Promise<boolean> {
+    if (!user) return false;
+    if (user.role === UserRole.SuperAdmin) return true;
+    if (user.role === UserRole.Candidate) return false;
+    const membership = await this.companies.requireUserCompany(user.id).catch(() => null);
+    return membership?.companyId === companyId;
   }
 
   /** Đảm bảo job thuộc công ty của user (dùng cho các thao tác quản trị tin). */

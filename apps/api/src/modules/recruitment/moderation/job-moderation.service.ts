@@ -6,6 +6,7 @@ import {
   JobModerationStatus,
   JobStatus,
   UserStatus,
+  jobPublicPath,
   type DecideJobModerationRequest,
   type JobModerationQueueItem,
   type JobModerationQueuePage,
@@ -14,6 +15,11 @@ import type { Prisma } from '@prisma/client';
 import { createDomainEvent } from '../../../shared/domain/domain-event';
 import { AppEventBus } from '../../../shared/events/event-bus';
 import { AuditService } from '../../../shared/infrastructure/audit.service';
+import { EmailService } from '../../../shared/infrastructure/email/email.service';
+import {
+  buildJobModerationResultEmail,
+  type JobModerationEmailOutcome,
+} from '../../../shared/infrastructure/email/job-moderation-email.templates';
 import { PrismaService } from '../../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../../shared/security/security.types';
 import { AiGatewayService } from '../../ai/ai-gateway.service';
@@ -57,7 +63,21 @@ export class JobModerationService {
     private readonly events: AppEventBus,
     private readonly audit: AuditService,
     private readonly jobs: JobService,
+    private readonly email: EmailService,
   ) {}
+
+  /** Đẩy lại các tin còn 'pending' (vd. từng lỗi khi enqueue); bản trùng trong queue sẽ tự bỏ qua. */
+  async requeuePending(): Promise<number> {
+    const rows = await this.prisma.job.findMany({
+      where: { isDeleted: false, moderationStatus: JobModerationStatus.Pending },
+      select: { id: true, tenantId: true },
+      take: 500,
+    });
+    for (const row of rows) {
+      await this.jobs.enqueueModeration(row.id, row.tenantId, 'startup-requeue');
+    }
+    return rows.length;
+  }
 
   /**
    * Worker gọi hàm này cho mỗi tin trong hàng đợi.
@@ -93,6 +113,7 @@ export class JobModerationService {
         { riskScore: 100, action: JobModerationAction.Reject, isB2b: false },
       );
       this.logger.log(`Job ${job.code} bị chặn bởi bộ lọc tĩnh: ${staticResult.reason}`);
+      void this.notifySubmitter(job.id, 'rejected', staticResult.reason);
       return;
     }
 
@@ -148,6 +169,7 @@ export class JobModerationService {
       await this.bumpTrust(job.companyId, TRUST_DELTA_VALID_JOB);
       this.emitModerated(job.id, job.tenantId, JobModerationStatus.ApprovedAuto, data.correlationId);
       this.logger.log(`Job ${job.code} tự động duyệt (risk=${ai.risk_score}).`);
+      void this.notifySubmitter(job.id, 'approved');
       return;
     }
 
@@ -160,6 +182,7 @@ export class JobModerationService {
       });
       this.emitModerated(job.id, job.tenantId, JobModerationStatus.RejectedAuto, data.correlationId);
       this.logger.log(`Job ${job.code} bị AI từ chối (risk=${ai.risk_score}).`);
+      void this.notifySubmitter(job.id, 'rejected', ai.reason);
       return;
     }
 
@@ -281,6 +304,10 @@ export class JobModerationService {
           where: { id: job.createdBy },
           data: { status: UserStatus.Locked, updatedBy: admin.id },
         });
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: job.createdBy, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
       }
       await this.bumpTrust(job.companyId, -TRUST_DELTA_REPORTED);
     } else {
@@ -297,6 +324,13 @@ export class JobModerationService {
       correlationId,
     });
     this.emitModerated(jobId, admin.tenantId, JobModerationStatus.ApprovedManual, correlationId);
+    if (dto.decision === JobModerationDecision.Approve) {
+      void this.notifySubmitter(jobId, 'approved');
+    } else if (dto.decision === JobModerationDecision.Reject) {
+      void this.notifySubmitter(jobId, 'rejected', dto.note || job.aiReason);
+    } else {
+      void this.notifySubmitter(jobId, 'banned', dto.note || 'Vi phạm quy định đăng tin.');
+    }
 
     const fresh = await this.prisma.job.findFirst({
       where: { id: jobId },
@@ -312,6 +346,47 @@ export class JobModerationService {
   }
 
   // ---- Helpers ----
+
+  /** Email kết quả duyệt cho người đăng tin; lỗi gửi không ảnh hưởng luồng duyệt. */
+  private async notifySubmitter(
+    jobId: string,
+    outcome: JobModerationEmailOutcome,
+    reason?: string | null,
+  ): Promise<void> {
+    try {
+      const job = await this.prisma.job.findFirst({
+        where: { id: jobId },
+        select: { id: true, slug: true, industry: true, title: true, createdBy: true },
+      });
+      if (!job?.createdBy) return;
+      const user = await this.prisma.user.findUnique({
+        where: { id: job.createdBy },
+        select: { email: true, displayName: true },
+      });
+      if (!user?.email) return;
+
+      const origin = this.email.webOrigin;
+      const url =
+        outcome === 'approved'
+          ? `${origin}${jobPublicPath(job)}`
+          : outcome === 'rejected'
+            ? `${origin}/jobs/manage`
+            : origin;
+      const sent = await this.email.sendSafe(
+        buildJobModerationResultEmail({
+          to: user.email,
+          displayName: user.displayName || user.email,
+          jobTitle: job.title,
+          outcome,
+          reason,
+          url,
+        }),
+      );
+      this.logger.log(`Email kết quả duyệt (${outcome}) job ${jobId} → ${user.email}: ${sent ? 'sent' : 'failed'}`);
+    } catch (err) {
+      this.logger.warn(`Không gửi được email kết quả duyệt job ${jobId}: ${String(err)}`);
+    }
+  }
 
   private async finalizeReject(
     jobId: string,
