@@ -4,14 +4,15 @@ import type {
   ApplicationView,
   UpdateApplicationStatusRequest,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 
 export async function myApplications(): Promise<ApplicationView[]> {
-  return apiRequest('/applications/mine');
+  return asArray(await apiRequest('/applications/mine'));
 }
 
 export async function getApplicationDetail(id: string): Promise<ApplicationDetailView> {
-  return apiRequest(`/applications/${id}`);
+  const data = await apiRequest<ApplicationDetailView>(`/applications/${id}`);
+  return { ...data, timeline: asArray(data?.timeline) };
 }
 
 export async function updateApplicationStatus(

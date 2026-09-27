@@ -1,5 +1,5 @@
 import type { AuditLogListPage, AuditLogListQuery } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, withItems } from './api';
 
 export async function fetchAuditLog(params: AuditLogListQuery = {}): Promise<AuditLogListPage> {
   const qs = new URLSearchParams();
@@ -9,5 +9,5 @@ export async function fetchAuditLog(params: AuditLogListQuery = {}): Promise<Aud
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs}` : '';
-  return apiRequest(`/admin/audit${suffix}`);
+  return withItems(await apiRequest<AuditLogListPage>(`/admin/audit${suffix}`));
 }

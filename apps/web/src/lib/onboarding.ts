@@ -3,7 +3,7 @@ import type {
   OnboardingView,
   UpdateOnboardingRequest,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 
 export async function listOnboardings(params: {
   jobId?: string;
@@ -13,11 +13,11 @@ export async function listOnboardings(params: {
   if (params.jobId) qs.set('jobId', params.jobId);
   if (params.status) qs.set('status', params.status);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return apiRequest(`/onboardings${suffix}`);
+  return asArray(await apiRequest(`/onboardings${suffix}`));
 }
 
 export async function listMyOnboardings(): Promise<OnboardingView[]> {
-  return apiRequest('/onboardings/mine');
+  return asArray(await apiRequest('/onboardings/mine'));
 }
 
 export async function startOnboarding(

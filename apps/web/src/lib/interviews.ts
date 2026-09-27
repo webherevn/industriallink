@@ -3,7 +3,7 @@ import type {
   InterviewView,
   UpdateInterviewRequest,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 
 export async function listInterviews(params: {
   from?: string;
@@ -17,11 +17,11 @@ export async function listInterviews(params: {
   if (params.jobId) qs.set('jobId', params.jobId);
   if (params.status) qs.set('status', params.status);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return apiRequest(`/interviews${suffix}`);
+  return asArray(await apiRequest(`/interviews${suffix}`));
 }
 
 export async function listMyInterviews(): Promise<InterviewView[]> {
-  return apiRequest('/interviews/mine');
+  return asArray(await apiRequest('/interviews/mine'));
 }
 
 export async function getInterviewStats(): Promise<{

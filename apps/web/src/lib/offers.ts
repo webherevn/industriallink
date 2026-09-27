@@ -1,5 +1,5 @@
 import { OfferStatus, type CreateOfferRequest, type OfferView, type UpdateOfferRequest } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 
 export async function listOffers(params: {
   jobId?: string;
@@ -9,11 +9,11 @@ export async function listOffers(params: {
   if (params.jobId) qs.set('jobId', params.jobId);
   if (params.status) qs.set('status', params.status);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return apiRequest(`/offers${suffix}`);
+  return asArray(await apiRequest(`/offers${suffix}`));
 }
 
 export async function listMyOffers(): Promise<OfferView[]> {
-  return apiRequest('/offers/mine');
+  return asArray(await apiRequest('/offers/mine'));
 }
 
 export async function createOffer(input: CreateOfferRequest): Promise<OfferView> {

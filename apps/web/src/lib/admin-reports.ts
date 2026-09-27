@@ -1,6 +1,13 @@
 import type { AdminReportsView } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 
 export async function fetchAdminReports(): Promise<AdminReportsView> {
-  return apiRequest<AdminReportsView>('/admin/reports');
+  const data = await apiRequest<AdminReportsView>('/admin/reports');
+  return {
+    ...data,
+    jobs: {
+      ...data?.jobs,
+      byDay: asArray(data?.jobs?.byDay),
+    },
+  };
 }

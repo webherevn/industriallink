@@ -4,7 +4,7 @@ import type {
   AdminJobListPage,
   AdminJobListQuery,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray, withItems } from './api';
 
 export async function fetchAdminJobs(params: AdminJobListQuery = {}): Promise<AdminJobListPage> {
   const qs = new URLSearchParams();
@@ -15,7 +15,8 @@ export async function fetchAdminJobs(params: AdminJobListQuery = {}): Promise<Ad
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs}` : '';
-  return apiRequest<AdminJobListPage>(`/admin/jobs${suffix}`);
+  const page = withItems(await apiRequest<AdminJobListPage>(`/admin/jobs${suffix}`));
+  return { ...page, companies: asArray(page?.companies) };
 }
 
 export async function actAdminJob(

@@ -4,7 +4,7 @@ import type {
   JobModerationQueuePage,
   JobModerationStatus,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, withItems } from './api';
 
 /** Hàng đợi kiểm duyệt tin (mặc định: cần duyệt tay). */
 export async function fetchJobModerationQueue(params: {
@@ -15,7 +15,7 @@ export async function fetchJobModerationQueue(params: {
   if (params.status) qs.set('status', params.status);
   if (params.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs}` : '';
-  return apiRequest<JobModerationQueuePage>(`/admin/job-moderation/queue${suffix}`);
+  return withItems(await apiRequest<JobModerationQueuePage>(`/admin/job-moderation/queue${suffix}`));
 }
 
 /** SuperAdmin quyết định 1 tin: duyệt / từ chối / khoá tài khoản. */

@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 import type { CandidateSearchFilters, CandidateSearchResult } from '@industriallink/contracts';
 
 export type { CandidateSearchFilters, CandidateSearchResult };
@@ -33,5 +33,11 @@ export async function searchCandidates(
   }
 
   const suffix = qs.toString();
-  return apiRequest(`/search/candidates${suffix ? `?${suffix}` : ''}`);
+  return asArray<CandidateSearchResult>(
+    await apiRequest(`/search/candidates${suffix ? `?${suffix}` : ''}`),
+  ).map((row) => ({
+    ...row,
+    matchedSkills: asArray(row?.matchedSkills),
+    criteria: row?.criteria == null ? row?.criteria : asArray(row.criteria),
+  }));
 }

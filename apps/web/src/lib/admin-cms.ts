@@ -8,7 +8,7 @@ import {
   type UpsertCmsCategoryRequest,
   type UpsertCmsPostRequest,
 } from '@industriallink/contracts';
-import { ApiError, apiRequest } from './api';
+import { ApiError, apiRequest, asArray, withItems } from './api';
 
 function asList<T>(payload: unknown, label: string): T[] {
   if (!Array.isArray(payload)) {
@@ -79,18 +79,18 @@ export async function restoreCmsPost(id: string): Promise<CmsPostView> {
   return apiRequest(`/admin/cms/posts/${id}/restore`, { method: 'POST' });
 }
 
-export async function listCmsRedirects() {
-  return apiRequest<
-    {
-      id: string;
-      fromPath: string;
-      toPath: string;
-      statusCode: number;
-      note: string | null;
-      createdAt: string;
-      updatedAt: string;
-    }[]
-  >('/admin/cms/redirects');
+type CmsRedirectRow = {
+  id: string;
+  fromPath: string;
+  toPath: string;
+  statusCode: number;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function listCmsRedirects(): Promise<CmsRedirectRow[]> {
+  return asArray(await apiRequest<CmsRedirectRow[]>('/admin/cms/redirects'));
 }
 
 export async function upsertCmsRedirect(body: {
@@ -118,7 +118,9 @@ export async function uploadCmsMedia(file: File): Promise<{
 }
 
 export async function listCmsMedia(): Promise<import('@industriallink/contracts').CmsMediaList> {
-  return apiRequest('/admin/cms/media');
+  return withItems(
+    await apiRequest<import('@industriallink/contracts').CmsMediaList>('/admin/cms/media'),
+  );
 }
 
 export async function deleteCmsMedia(filename: string): Promise<void> {
@@ -126,9 +128,10 @@ export async function deleteCmsMedia(filename: string): Promise<void> {
 }
 
 export async function getCmsMenuAdmin(location: string) {
-  return apiRequest<import('@industriallink/contracts').CmsMenuView>(
+  const menu = await apiRequest<import('@industriallink/contracts').CmsMenuView>(
     `/admin/cms/menus/${encodeURIComponent(location)}`,
   );
+  return { ...menu, items: asArray<import('@industriallink/contracts').CmsMenuItemView>(menu?.items) };
 }
 
 export async function saveCmsMenuAdmin(
@@ -221,15 +224,23 @@ export async function updateCmsAuthorProfile(
   );
 }
 
-export async function listCmsAuthorProfiles() {
-  return apiRequest<import('@industriallink/contracts').CmsAuthorProfileView[]>(
-    '/admin/cms/author-profiles',
+export async function listCmsAuthorProfiles(): Promise<
+  import('@industriallink/contracts').CmsAuthorProfileView[]
+> {
+  return asArray(
+    await apiRequest<import('@industriallink/contracts').CmsAuthorProfileView[]>(
+      '/admin/cms/author-profiles',
+    ),
   );
 }
 
-export async function listEligibleAuthorUsers() {
-  return apiRequest<Array<{ id: string; email: string; displayName: string; role: string }>>(
-    '/admin/cms/author-profiles/eligible-users',
+export async function listEligibleAuthorUsers(): Promise<
+  Array<{ id: string; email: string; displayName: string; role: string }>
+> {
+  return asArray(
+    await apiRequest<Array<{ id: string; email: string; displayName: string; role: string }>>(
+      '/admin/cms/author-profiles/eligible-users',
+    ),
   );
 }
 

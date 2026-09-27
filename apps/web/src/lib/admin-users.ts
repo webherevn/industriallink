@@ -3,10 +3,10 @@ import type {
   AdminUpdateUserRequest,
   AdminUserView,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
 
 export async function listAdminUsers(): Promise<AdminUserView[]> {
-  return apiRequest('/admin/users');
+  return asArray(await apiRequest('/admin/users'));
 }
 
 export async function createAdminUser(body: AdminCreateUserRequest): Promise<AdminUserView> {

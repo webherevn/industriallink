@@ -14,7 +14,17 @@ import type {
   ParseJobDescriptionResponse,
   UpdateJobRequest,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, asArray } from './api';
+
+function withJobSkills<T extends { skills?: unknown }>(job: T): T {
+  if (!job || typeof job !== 'object') return job;
+  return { ...job, skills: asArray(job.skills) };
+}
+
+function withMatchedSkills<T extends { matchedSkills?: unknown }>(row: T): T {
+  if (!row || typeof row !== 'object') return row;
+  return { ...row, matchedSkills: asArray(row.matchedSkills) };
+}
 
 export async function listPublishedJobs(
   params: ListPublishedJobsQuery = {},
@@ -32,23 +42,30 @@ export async function listPublishedJobs(
   if (params.salaryMin != null) qs.set('salaryMin', String(params.salaryMin));
   if (params.salaryMax != null) qs.set('salaryMax', String(params.salaryMax));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return apiRequest(`/jobs${suffix}`);
+  return asArray<JobListItem>(await apiRequest(`/jobs${suffix}`)).map(withJobSkills);
 }
 
 export async function fetchJobPositionStats(): Promise<JobPositionStatsView> {
-  return apiRequest('/jobs/stats/positions');
+  const data = await apiRequest<JobPositionStatsView>('/jobs/stats/positions');
+  return {
+    popular: asArray(data?.popular),
+    byIndustry: asArray<JobPositionStatsView['byIndustry'][number]>(data?.byIndustry).map((group) => ({
+      ...group,
+      positions: asArray(group.positions),
+    })),
+  };
 }
 
 export async function getJob(id: string): Promise<JobView> {
-  return apiRequest(`/jobs/${id}`);
+  return withJobSkills(await apiRequest<JobView>(`/jobs/${id}`));
 }
 
 export async function listMyJobs(): Promise<JobListItem[]> {
-  return apiRequest('/jobs/mine');
+  return asArray<JobListItem>(await apiRequest('/jobs/mine')).map(withJobSkills);
 }
 
 export async function listBookmarkedJobs(): Promise<JobListItem[]> {
-  return apiRequest('/jobs/bookmarks/mine');
+  return asArray<JobListItem>(await apiRequest('/jobs/bookmarks/mine')).map(withJobSkills);
 }
 
 export async function addJobBookmark(id: string): Promise<{ ok: true }> {
@@ -120,7 +137,7 @@ export async function applyToJob(id: string, input: ApplyJobRequest): Promise<Ap
 }
 
 export async function listApplicants(id: string): Promise<ApplicantView[]> {
-  return apiRequest(`/jobs/${id}/applications`);
+  return asArray<ApplicantView>(await apiRequest(`/jobs/${id}/applications`)).map(withMatchedSkills);
 }
 
 export async function broadcastJobEmail(

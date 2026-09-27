@@ -9,7 +9,7 @@ import type {
   UpdateCompanyRequest,
   UploadCompanyLogoResponse,
 } from '@industriallink/contracts';
-import { apiRequest, getApiBase, tokenStore } from './api';
+import { apiRequest, asArray, getApiBase, tokenStore } from './api';
 
 export const MY_COMPANY_LOGO_QUERY_KEY = ['my-company-logo'] as const;
 
@@ -58,7 +58,7 @@ export async function fetchMyCompanyLogoObjectUrl(): Promise<string | null> {
 }
 
 export async function listCompanyMembers(): Promise<CompanyMemberView[]> {
-  return apiRequest('/companies/me/members');
+  return asArray(await apiRequest('/companies/me/members'));
 }
 
 export async function inviteCompanyMember(

@@ -125,3 +125,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   return payload as T;
 }
+
+/** Danh sách API đôi khi không phải mảng (object lỗi). Trả [] để trang không gọi .map trên object. */
+export function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/** Giữ nguyên trang phân trang, chỉ ép `items` thành mảng. */
+export function withItems<T extends { items?: unknown }>(page: T): T {
+  if (!page || typeof page !== 'object') return page;
+  return { ...page, items: asArray<NonNullable<T['items']> extends (infer U)[] ? U : never>(page.items) } as T;
+}
