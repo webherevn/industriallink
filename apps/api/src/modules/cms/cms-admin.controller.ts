@@ -26,6 +26,8 @@ import { SeoVitalsService } from './seo-vitals.service';
 import { AiSettingsService } from '../ai/ai-settings.service';
 import { SemanticAssistDto } from './dto/semantic-assist.dto';
 import { StartCwvScanDto, UpdateCwvSettingsDto } from './dto/web-vitals.dto';
+import { IndexingSubmitDto, UpdateIndexingSettingsDto } from './dto/indexing.dto';
+import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 import { SaveCmsMenuDto } from './dto/save-cms-menu.dto';
 import { UpdateCmsPostStatusDto } from './dto/update-cms-post-status.dto';
 import { UpsertCmsAuthorProfileDto, AssignCmsAuthorProfileDto } from './dto/upsert-cms-author-profile.dto';
@@ -51,6 +53,7 @@ export class CmsAdminController {
     private readonly seoSemantic: SeoSemanticService,
     private readonly seoVitals: SeoVitalsService,
     private readonly aiSettings: AiSettingsService,
+    private readonly googleIndexing: GoogleIndexingService,
   ) {}
 
   @Get('overview')
@@ -63,6 +66,34 @@ export class CmsAdminController {
   @ApiOperation({ summary: 'Chỉ mục, sitemap, trang mồ côi, chuỗi redirect' })
   crawlReport() {
     return this.seoCrawl.report();
+  }
+
+  @Get('indexing/settings')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Khóa service account Google Indexing API' })
+  indexingSettings() {
+    return this.googleIndexing.settingsView();
+  }
+
+  @Put('indexing/settings')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu khóa service account và công tắc tự gửi' })
+  updateIndexingSettings(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateIndexingSettingsDto) {
+    return this.googleIndexing.updateSettings(dto, user.id);
+  }
+
+  @Post('indexing/test')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Kiểm tra token và quyền Chủ sở hữu trong Search Console' })
+  indexingTest() {
+    return this.googleIndexing.test();
+  }
+
+  @Post('indexing/submit')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Gửi URL lên Google Indexing API (thủ công hoặc toàn bộ tin tuyển dụng)' })
+  indexingSubmit(@Body() dto: IndexingSubmitDto) {
+    return this.googleIndexing.submit(dto);
   }
 
   @Get('trust')

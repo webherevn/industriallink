@@ -18,9 +18,8 @@ import {
   type CmsSitemapHealthItem,
 } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
-import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
+import { GoogleIndexingService, INDEXING_QUOTA_LIMIT as QUOTA_LIMIT } from '../../shared/seo/google-indexing.service';
 
-const QUOTA_LIMIT = 200;
 const BLOG_HOME_LINKS = 24;
 
 function siteUrl(): string {
@@ -101,8 +100,10 @@ export class SeoCrawlService {
   }
 
   private async indexingMonitor(): Promise<CmsIndexingMonitor> {
+    const settings = await this.indexing.settingsView();
     const empty: CmsIndexingMonitor = {
-      configured: this.indexing.isConfigured(),
+      configured: settings.hasCredentials,
+      autoNotify: settings.autoNotify,
       quotaLimit: QUOTA_LIMIT,
       quotaUsed: 0,
       todayUpdated: 0,
@@ -114,7 +115,12 @@ export class SeoCrawlService {
       recent: [],
     };
     if (!empty.configured) {
-      empty.alerts.push('Chưa có GOOGLE_INDEXING_CREDENTIALS_JSON — API chưa gửi URL nào.');
+      empty.alerts.push('Chưa có khóa service account — Indexing API chưa gửi URL nào. Dán khóa JSON ở mục bên dưới.');
+    } else if (!empty.autoNotify) {
+      empty.alerts.push('Đang tắt tự gửi — tin mới đăng hoặc gỡ không được báo cho Google.');
+    }
+    if (settings.siteIsLocal) {
+      empty.alerts.push(`Site đang là ${settings.siteUrl} — Google chỉ nhận URL inlink.vn, nên máy local không gửi.`);
     }
     try {
       const grouped = await this.prisma.$queryRaw<

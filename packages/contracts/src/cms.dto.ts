@@ -586,15 +586,72 @@ export interface CmsSeoOverview {
 
 export interface CmsIndexingLogItem {
   url: string;
-  type: 'URL_UPDATED' | 'URL_DELETED';
+  type: IndexingNotificationType;
   statusCode: number | null;
   ok: boolean;
   error: string | null;
   createdAt: string;
 }
 
+export type IndexingNotificationType = 'URL_UPDATED' | 'URL_DELETED';
+
+export interface IndexingSettingsView {
+  hasCredentials: boolean;
+  /** db = nhập trong admin, env = GOOGLE_INDEXING_CREDENTIALS_JSON. */
+  source: 'db' | 'env' | null;
+  /** Email service account — phải thêm làm Chủ sở hữu trong Search Console. */
+  clientEmail: string | null;
+  projectId: string | null;
+  autoNotify: boolean;
+  siteUrl: string;
+  /** siteUrl là localhost → Google không nhận URL. */
+  siteIsLocal: boolean;
+  updatedAt: string | null;
+}
+
+export interface UpdateIndexingSettingsRequest {
+  /** Chuỗi JSON service account. null = xoá khóa đã lưu, bỏ trống = giữ. */
+  credentialsJson?: string | null;
+  autoNotify?: boolean;
+}
+
+export interface IndexingTestResult {
+  ok: boolean;
+  step: 'credentials' | 'token' | 'ownership';
+  clientEmail: string | null;
+  url: string | null;
+  statusCode: number | null;
+  message: string;
+}
+
+export interface IndexingSubmitRequest {
+  /** Đường dẫn bắt đầu bằng / hoặc URL đầy đủ cùng domain. */
+  urls?: string[];
+  /** jobs = mọi tin tuyển dụng đang hiển thị, trong giới hạn quota còn lại. */
+  target?: 'jobs';
+  type?: IndexingNotificationType;
+}
+
+export interface IndexingSubmitItem {
+  url: string;
+  ok: boolean;
+  statusCode: number | null;
+  error: string | null;
+}
+
+export interface IndexingSubmitResult {
+  requested: number;
+  sent: number;
+  failed: number;
+  /** Bị bỏ vì hết quota ngày. */
+  skipped: number;
+  quotaLeft: number;
+  items: IndexingSubmitItem[];
+}
+
 export interface CmsIndexingMonitor {
   configured: boolean;
+  autoNotify: boolean;
   quotaLimit: number;
   quotaUsed: number;
   todayUpdated: number;

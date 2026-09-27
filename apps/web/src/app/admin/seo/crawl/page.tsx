@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import { AdminIndexingPanel } from '@/components/admin-indexing-panel';
 import { AdminShell } from '@/components/admin-shell';
 import { Button } from '@/components/ui';
 import { fetchCmsCrawl } from '@/lib/admin-cms';
@@ -69,7 +70,19 @@ export default function AdminSeoCrawlPage() {
             <section className="admin-dash-card p-5 sm:p-6">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900">Google Indexing API</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-sm font-bold text-slate-900">Google Indexing API</h2>
+                    <span
+                      className={clsx(
+                        'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1',
+                        data.indexing.configured && data.indexing.autoNotify
+                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                          : 'bg-amber-50 text-amber-700 ring-amber-200',
+                      )}
+                    >
+                      {!data.indexing.configured ? 'Chưa kết nối' : data.indexing.autoNotify ? 'Tự gửi: bật' : 'Tự gửi: tắt'}
+                    </span>
+                  </div>
                   <p className="mt-0.5 text-xs text-slate-500">
                     Request URL_UPDATED và URL_DELETED trong ngày (giờ Việt Nam). Hạn mức mặc định {data.indexing.quotaLimit}/ngày.
                   </p>
@@ -123,6 +136,8 @@ export default function AdminSeoCrawlPage() {
                 <p className="mt-4 text-xs text-slate-500">Chưa có request nào được ghi lại.</p>
               )}
             </section>
+
+            <AdminIndexingPanel />
 
             <section className="grid gap-3 sm:grid-cols-2">
               {data.sitemaps.map((map) => (

@@ -49,6 +49,9 @@ model AiSetting {
   pagespeedApiKeyEnc   String? @map("pagespeed_api_key_enc")
   pagespeedSiteUrl     String? @map("pagespeed_site_url") @db.VarChar(200)
   pagespeedAutoScan    Boolean @default(true) @map("pagespeed_auto_scan")
+  /// JSON service account cho Google Indexing API (đè GOOGLE_INDEXING_CREDENTIALS_JSON).
+  indexingCredentialsEnc String? @map("indexing_credentials_enc")
+  indexingAutoNotify     Boolean @default(true) @map("indexing_auto_notify")
 
   updatedBy String?  @map("updated_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
