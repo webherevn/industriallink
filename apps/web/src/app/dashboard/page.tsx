@@ -215,7 +215,7 @@ export default function DashboardPage() {
 
   const hasSalesData = Boolean(
     sales &&
-      (sales.productsSold?.length ?? 0) > 0 ||
+      ((sales.productsSold?.length ?? 0) > 0 ||
         (sales.customerSegments?.length ?? 0) > 0 ||
         (sales.marketsCovered?.length ?? 0) > 0 ||
         (sales.sellingStages?.length ?? 0) > 0 ||
