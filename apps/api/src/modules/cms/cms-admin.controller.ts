@@ -18,6 +18,14 @@ import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CmsService } from './cms.service';
+import { SeoCrawlService } from './seo-crawl.service';
+import { SeoLinksService } from './seo-links.service';
+import { SeoSemanticService } from './seo-semantic.service';
+import { SeoTrustService } from './seo-trust.service';
+import { SeoVitalsService } from './seo-vitals.service';
+import { AiSettingsService } from '../ai/ai-settings.service';
+import { SemanticAssistDto } from './dto/semantic-assist.dto';
+import { StartCwvScanDto, UpdateCwvSettingsDto } from './dto/web-vitals.dto';
 import { SaveCmsMenuDto } from './dto/save-cms-menu.dto';
 import { UpdateCmsPostStatusDto } from './dto/update-cms-post-status.dto';
 import { UpsertCmsAuthorProfileDto, AssignCmsAuthorProfileDto } from './dto/upsert-cms-author-profile.dto';
@@ -35,12 +43,89 @@ import { UpsertCmsSiteCodeSettingsDto } from './dto/upsert-cms-site-code.dto';
 @Roles(UserRole.SuperAdmin, UserRole.Editor)
 @Controller('admin/cms')
 export class CmsAdminController {
-  constructor(private readonly cms: CmsService) {}
+  constructor(
+    private readonly cms: CmsService,
+    private readonly seoCrawl: SeoCrawlService,
+    private readonly seoTrust: SeoTrustService,
+    private readonly seoLinks: SeoLinksService,
+    private readonly seoSemantic: SeoSemanticService,
+    private readonly seoVitals: SeoVitalsService,
+    private readonly aiSettings: AiSettingsService,
+  ) {}
 
   @Get('overview')
   @ApiOperation({ summary: 'Tổng quan CMS / SEO' })
   overview() {
     return this.cms.seoOverview();
+  }
+
+  @Get('crawl')
+  @ApiOperation({ summary: 'Chỉ mục, sitemap, trang mồ côi, chuỗi redirect' })
+  crawlReport() {
+    return this.seoCrawl.report();
+  }
+
+  @Get('trust')
+  @ApiOperation({ summary: 'Điểm E-E-A-T tác giả và kiểm tra schema JobPosting' })
+  trustReport() {
+    return this.seoTrust.report();
+  }
+
+  @Get('link-suggestions')
+  @ApiOperation({ summary: 'Gợi ý liên kết nội bộ theo tiêu đề hoặc từ khóa' })
+  linkSuggestions(@Query('q') q?: string, @Query('excludeId') excludeId?: string) {
+    return this.seoLinks.suggestions(q || '', excludeId);
+  }
+
+  @Get('link-audit')
+  @ApiOperation({ summary: 'Link nội bộ gãy và URL không còn trang' })
+  linkAudit() {
+    return this.seoLinks.audit();
+  }
+
+  @Get('semantic')
+  @ApiOperation({ summary: 'Tỷ lệ chữ/HTML và độ phủ thực thể của nội dung đã xuất bản' })
+  semanticReport() {
+    return this.seoSemantic.report();
+  }
+
+  @Post('semantic/assist')
+  @ApiOperation({ summary: 'Gợi ý thực thể và FAQ cho bài đang soạn' })
+  semanticAssist(@Body() dto: SemanticAssistDto) {
+    return this.seoSemantic.assist(dto);
+  }
+
+  @Get('vitals')
+  @ApiOperation({ summary: 'Core Web Vitals theo URL: CrUX, đo thật trên inlink, Lighthouse' })
+  vitalsReport(@Query('strategy') strategy?: string) {
+    return this.seoVitals.report(strategy === 'desktop' ? 'desktop' : 'mobile');
+  }
+
+  @Post('vitals/scan')
+  @ApiOperation({ summary: 'Chạy PageSpeed Insights cho danh sách URL (chạy nền)' })
+  vitalsScan(@Body() dto: StartCwvScanDto) {
+    return this.seoVitals.start(dto.strategy ?? 'mobile', dto.paths);
+  }
+
+  @Get('vitals/settings')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Khóa PageSpeed Insights và domain đo' })
+  vitalsSettings() {
+    return this.aiSettings.pagespeedView();
+  }
+
+  @Put('vitals/settings')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu khóa PageSpeed Insights và domain đo' })
+  updateVitalsSettings(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateCwvSettingsDto) {
+    return this.aiSettings.updatePagespeed(dto, user.id);
+  }
+
+  @Post('vitals/test')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Thử khóa PageSpeed Insights với trang chủ' })
+  vitalsTest() {
+    return this.seoVitals.test();
   }
 
   @Get('categories')

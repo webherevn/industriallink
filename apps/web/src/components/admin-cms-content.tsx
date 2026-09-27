@@ -26,6 +26,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AdminShell } from '@/components/admin-shell';
 import { CmsMediaPicker } from '@/components/cms-media-library';
 import { CmsRichEditor } from '@/components/cms-rich-editor';
+import { CmsInternalLinkSuggestions } from '@/components/cms-internal-links';
+import { CmsSemanticPanel } from '@/components/cms-semantic-panel';
 import { CmsSeoPanel } from '@/components/cms-seo-panel';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -716,6 +718,21 @@ function ContentEditor({
             onFocusKeywordChange={setFocusKeyword}
             onSeoTitleChange={setSeoTitle}
             onSeoDescriptionChange={setSeoDescription}
+          />
+          <CmsInternalLinkSuggestions
+            title={title}
+            focusKeyword={focusKeyword}
+            excludeId={existing?.id}
+            bodyHtml={bodyHtml}
+            onInsert={setBodyHtml}
+          />
+          <CmsSemanticPanel
+            title={title}
+            focusKeyword={focusKeyword}
+            bodyHtml={bodyHtml}
+            livePath={existing && isPublished ? cmsContentPublicPath(type, existing.slug) : undefined}
+            faq={faq}
+            onAddFaq={setFaq}
           />
           <Field label="Canonical URL">
             <Input

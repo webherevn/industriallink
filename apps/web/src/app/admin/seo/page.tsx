@@ -707,6 +707,37 @@ export default function AdminSeoOverviewPage() {
             Audit sức khỏe SEO toàn site — coverage, link out, issues và technical links.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <Link
+          href="/admin/seo/crawl"
+          className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-[#072348] ring-1 ring-slate-200 transition hover:bg-[#FFF8F1] hover:ring-[#FFD0A3]"
+        >
+          Crawl & index
+        </Link>
+        <Link
+          href="/admin/seo/trust"
+          className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-[#072348] ring-1 ring-slate-200 transition hover:bg-[#FFF8F1] hover:ring-[#FFD0A3]"
+        >
+          E-E-A-T
+        </Link>
+        <Link
+          href="/admin/seo/links"
+          className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-[#072348] ring-1 ring-slate-200 transition hover:bg-[#FFF8F1] hover:ring-[#FFD0A3]"
+        >
+          Link nội bộ
+        </Link>
+        <Link
+          href="/admin/seo/semantic"
+          className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-[#072348] ring-1 ring-slate-200 transition hover:bg-[#FFF8F1] hover:ring-[#FFD0A3]"
+        >
+          AI Overviews
+        </Link>
+        <Link
+          href="/admin/seo/vitals"
+          className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-[#072348] ring-1 ring-slate-200 transition hover:bg-[#FFF8F1] hover:ring-[#FFD0A3]"
+        >
+          Core Web Vitals
+        </Link>
         <Button
           type="button"
           variant="ghost"
@@ -717,6 +748,7 @@ export default function AdminSeoOverviewPage() {
           <RefreshCw className={clsx('h-3.5 w-3.5', isFetching && 'animate-spin')} />
           Làm mới
         </Button>
+        </div>
       </div>
 
       {isLoading ? (

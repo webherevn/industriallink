@@ -46,3 +46,4 @@ export * from './cms-media.dto';
 export * from './cms-robots';
 export * from './admin-user.dto';
 export * from './ai-settings.dto';
+export * from './web-vitals.dto';

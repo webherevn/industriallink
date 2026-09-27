@@ -42,6 +42,13 @@ model AiSetting {
   geminiApiKeyEnc      String? @map("gemini_api_key_enc")
   geminiModel          String? @map("gemini_model")
   geminiEmbeddingModel String? @map("gemini_embedding_model")
+  /// Khóa Gemini chỉ cho quét SEO bài viết (thực thể + tỷ lệ chữ). Không dùng cho JD/CV.
+  seoGeminiApiKeyEnc   String? @map("seo_gemini_api_key_enc")
+  seoGeminiModel       String? @map("seo_gemini_model")
+  /// Khóa Google PageSpeed Insights cho trang Core Web Vitals.
+  pagespeedApiKeyEnc   String? @map("pagespeed_api_key_enc")
+  pagespeedSiteUrl     String? @map("pagespeed_site_url") @db.VarChar(200)
+  pagespeedAutoScan    Boolean @default(true) @map("pagespeed_auto_scan")
 
   updatedBy String?  @map("updated_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
@@ -71,6 +78,65 @@ model AnalyticsHit {
   @@index([sessionId, createdAt])
   @@index([visitorId, createdAt])
   @@map("analytics_hit")
+  @@schema("shared")
+}
+
+/// Mỗi lần gọi Google Indexing API (URL_UPDATED / URL_DELETED).
+model IndexingNotification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  url        String   @db.VarChar(600)
+  type       String   @db.VarChar(20)
+  statusCode Int?     @map("status_code")
+  ok         Boolean  @default(false)
+  error      String?  @db.VarChar(300)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("indexing_notification")
+  @@schema("shared")
+}
+
+/// Core Web Vitals đo trên trình duyệt khách (LCP, INP, CLS, FCP, TTFB).
+model WebVitalSample {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  metricId  String   @unique @map("metric_id") @db.VarChar(100)
+  path      String   @db.VarChar(500)
+  name      String   @db.VarChar(8)
+  value     Float
+  device    String   @default("desktop") @db.VarChar(16)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([path, name, createdAt])
+  @@map("web_vital_sample")
+  @@schema("shared")
+}
+
+/// Một lần gọi PageSpeed Insights cho một URL.
+model CwvScan {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  path         String   @db.VarChar(500)
+  url          String   @db.VarChar(700)
+  strategy     String   @db.VarChar(10)
+  performance  Int?
+  cruxUrl      Boolean  @default(false) @map("crux_url")
+  fieldLcpMs   Int?     @map("field_lcp_ms")
+  fieldInpMs   Int?     @map("field_inp_ms")
+  fieldCls     Float?   @map("field_cls")
+  originLcpMs  Int?     @map("origin_lcp_ms")
+  originInpMs  Int?     @map("origin_inp_ms")
+  originCls    Float?   @map("origin_cls")
+  labLcpMs     Int?     @map("lab_lcp_ms")
+  labTbtMs     Int?     @map("lab_tbt_ms")
+  labCls       Float?   @map("lab_cls")
+  labFcpMs     Int?     @map("lab_fcp_ms")
+  labTtfbMs    Int?     @map("lab_ttfb_ms")
+  error        String?  @db.VarChar(400)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([path, strategy, createdAt])
+  @@index([createdAt])
+  @@map("cwv_scan")
   @@schema("shared")
 }
 

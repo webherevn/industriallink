@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertTriangle, Check, KeyRound, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Check, KeyRound, Loader2, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   AiProviderKind,
@@ -13,7 +13,7 @@ import {
 import { AdminShell } from '@/components/admin-shell';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { fetchAiSettings, testAiConnection, updateAiSettings } from '@/lib/admin-ai-settings';
+import { fetchAiSettings, testAiConnection, testSeoGeminiConnection, updateAiSettings } from '@/lib/admin-ai-settings';
 
 const PROVIDER_LABEL: Record<AiProviderKind, string> = {
   [AiProviderKind.Mock]: 'Mock — không gọi AI thật (heuristic)',
@@ -32,6 +32,7 @@ interface FormState {
   anthropicModel: string;
   geminiModel: string;
   geminiEmbeddingModel: string;
+  seoGeminiModel: string;
 }
 
 function toForm(v: AiSettingsView): FormState {
@@ -43,11 +44,12 @@ function toForm(v: AiSettingsView): FormState {
     anthropicModel: v.anthropic.model,
     geminiModel: v.gemini.model,
     geminiEmbeddingModel: v.gemini.embeddingModel,
+    seoGeminiModel: v.seoGemini.model,
   };
 }
 
-const emptyKeys = { openai: '', anthropic: '', gemini: '' };
-const emptyClear = { openai: false, anthropic: false, gemini: false };
+const emptyKeys = { openai: '', anthropic: '', gemini: '', seoGemini: '' };
+const emptyClear = { openai: false, anthropic: false, gemini: false, seoGemini: false };
 
 export function AdminAiSettingsPage() {
   const qc = useQueryClient();
@@ -57,10 +59,10 @@ export function AdminAiSettingsPage() {
   });
 
   const [form, setForm] = useState<FormState | null>(null);
-  const [keys, setKeys] = useState<Record<ProviderKey, string>>(emptyKeys);
-  const [clear, setClear] = useState<Record<ProviderKey, boolean>>(emptyClear);
+  const [keys, setKeys] = useState<Record<ProviderKey | 'seoGemini', string>>(emptyKeys);
+  const [clear, setClear] = useState<Record<ProviderKey | 'seoGemini', boolean>>(emptyClear);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
-  const [test, setTest] = useState<TestAiConnectionResponse | null>(null);
+  const [test, setTest] = useState<(TestAiConnectionResponse & { seo: boolean }) | null>(null);
 
   // Nạp form khi dữ liệu về (và sau mỗi lần lưu).
   useEffect(() => {
@@ -84,8 +86,9 @@ export function AdminAiSettingsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: (provider: AiProviderKind) => testAiConnection({ provider }),
-    onSuccess: (res) => setTest(res),
+    mutationFn: (provider: AiProviderKind | 'seo') =>
+      provider === 'seo' ? testSeoGeminiConnection() : testAiConnection({ provider }),
+    onSuccess: (res, provider) => setTest({ ...res, seo: provider === 'seo' }),
     onError: (err) => {
       setTest(null);
       setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Test thất bại' });
@@ -114,12 +117,15 @@ export function AdminAiSettingsPage() {
       anthropicModel: form.anthropicModel.trim() || undefined,
       geminiModel: form.geminiModel.trim() || undefined,
       geminiEmbeddingModel: form.geminiEmbeddingModel.trim() || undefined,
+      seoGeminiModel: form.seoGeminiModel.trim() || undefined,
     };
     (['openai', 'anthropic', 'gemini'] as ProviderKey[]).forEach((p) => {
       const field = `${p}ApiKey` as 'openaiApiKey' | 'anthropicApiKey' | 'geminiApiKey';
       if (clear[p]) body[field] = null;
       else if (keys[p].trim()) body[field] = keys[p].trim();
     });
+    if (clear.seoGemini) body.seoGeminiApiKey = null;
+    else if (keys.seoGemini.trim()) body.seoGeminiApiKey = keys.seoGemini.trim();
     setBanner(null);
     saveMutation.mutate(body);
   }
@@ -179,7 +185,7 @@ export function AdminAiSettingsPage() {
       {/* Provider + embedding */}
       <Card className="admin-dash-card admin-dash-rise mt-5 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nhà cung cấp (provider)" description="Áp dụng cho toàn bộ tính năng AI: duyệt tin, parse CV, tư vấn nghề, embedding.">
+          <Field label="Nhà cung cấp (provider)" description="Dùng cho duyệt tin, đọc JD, parse CV, tư vấn nghề và embedding. Không dùng cho quét SEO bài viết.">
             <Select
               value={form.provider}
               onChange={(e) => upd('provider', e.target.value as AiProviderKind)}
@@ -202,9 +208,9 @@ export function AdminAiSettingsPage() {
         </div>
       </Card>
 
-      {/* Gemini */}
+      {/* Gemini — JD / CV / duyệt tin */}
       <ProviderCard
-        title="Google Gemini"
+        title="Google Gemini — JD, CV, duyệt tin"
         selected={form.provider === AiProviderKind.Gemini}
         view={data.gemini}
         keyValue={keys.gemini}
@@ -222,6 +228,90 @@ export function AdminAiSettingsPage() {
           />
         </Field>
       </ProviderCard>
+
+      <Card className="admin-dash-card mt-4 border-[#FFD0A3] bg-gradient-to-b from-[#FFF8F1] to-white">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-accent-600 ring-1 ring-[#FFD0A3]">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-[#072348]">Gemini SEO bài viết</h2>
+              <p className="mt-0.5 text-xs font-medium text-accent-700">Khóa riêng · chỉ dùng trong trình soạn bài và trang</p>
+            </div>
+          </div>
+          <span
+            className={clsx(
+              'rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1',
+              data.seoGemini.hasKey
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                : 'bg-amber-50 text-amber-700 ring-amber-200',
+            )}
+          >
+            {data.seoGemini.hasKey ? `Đã có khóa ${data.seoGemini.keyPreview ?? ''}` : 'Chưa có khóa'}
+          </span>
+        </div>
+        <ul className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+          <li className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-100">
+            <span className="font-semibold text-[#072348]">Dùng cho:</span> quét thực thể B2B đã có và còn thiếu, góp ý tỷ lệ chữ trên HTML, gợi ý sửa bài và FAQ.
+          </li>
+          <li className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-100">
+            <span className="font-semibold text-[#072348]">Không dùng cho:</span> upload JD, đọc CV, duyệt tin, embedding, Copilot. Nhập khóa khác mục JD/CV để không chung hạn mức.
+          </li>
+        </ul>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Model quét bài" description="Mặc định gemini-2.5-flash. Chỉ model này được gọi từ trình soạn bài.">
+            <Input value={form.seoGeminiModel} onChange={(e) => upd('seoGeminiModel', e.target.value)} />
+          </Field>
+          <Field
+            label="API key Gemini SEO"
+            description={
+              data.seoGemini.hasKey
+                ? `Đã lưu ${data.seoGemini.keyPreview ?? ''}. Để trống khi bấm Lưu = giữ khóa hiện tại.`
+                : 'Chưa có khóa. Dán khóa Gemini riêng vào đây rồi Lưu.'
+            }
+          >
+            <Input
+              type="password"
+              autoComplete="off"
+              value={clear.seoGemini ? '' : keys.seoGemini}
+              disabled={clear.seoGemini}
+              placeholder={data.seoGemini.hasKey ? '•••••••• giữ khóa đã lưu' : 'Dán API key Gemini SEO'}
+              onChange={(e) => setKeys((k) => ({ ...k, seoGemini: e.target.value }))}
+            />
+          </Field>
+        </div>
+        {data.seoGemini.keySource === 'db' ? (
+          <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-500">
+            <input
+              type="checkbox"
+              checked={clear.seoGemini}
+              onChange={(e) => setClear((s) => ({ ...s, seoGemini: e.target.checked }))}
+            />
+            Xoá khóa SEO đã lưu. Quét bài sẽ dừng cho đến khi dán khóa mới. Không lấy khóa JD/CV thay thế.
+          </label>
+        ) : null}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={testMutation.isPending}
+            onClick={() => {
+              setBanner(null);
+              testMutation.mutate('seo');
+            }}
+          >
+            {testMutation.isPending && testMutation.variables === 'seo' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <KeyRound className="h-4 w-4" />
+            )}
+            Test khóa Gemini SEO
+          </Button>
+          <span className="text-xs text-slate-400">Test dùng khóa đã lưu. Dán khóa mới thì bấm Lưu thay đổi trước.</span>
+        </div>
+        {test?.seo ? <TestResult test={test} /> : null}
+      </Card>
 
       {/* OpenAI */}
       <ProviderCard
@@ -263,25 +353,7 @@ export function AdminAiSettingsPage() {
       </ProviderCard>
 
       {/* Test result */}
-      {test ? (
-        <div
-          className={clsx(
-            'mt-5 flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-sm',
-            test.ok
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-rose-200 bg-rose-50 text-rose-700',
-          )}
-        >
-          {test.ok ? (
-            <Check className="mt-0.5 h-4 w-4 shrink-0" />
-          ) : (
-            <X className="mt-0.5 h-4 w-4 shrink-0" />
-          )}
-          <span>
-            <b>{PROVIDER_LABEL[test.provider]}</b> · {test.model} · {test.latencyMs}ms — {test.message}
-          </span>
-        </div>
-      ) : null}
+      {test && !test.seo ? <TestResult test={test} /> : null}
 
       {/* Actions */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
@@ -297,7 +369,7 @@ export function AdminAiSettingsPage() {
           }}
           disabled={testMutation.isPending}
         >
-          {testMutation.isPending ? (
+          {testMutation.isPending && testMutation.variables !== 'seo' ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <KeyRound className="h-4 w-4" />
@@ -314,6 +386,22 @@ export function AdminAiSettingsPage() {
           : 'Chưa từng lưu từ giao diện — đang dùng biến môi trường.'}
       </p>
     </AdminShell>
+  );
+}
+
+function TestResult({ test }: { test: TestAiConnectionResponse }) {
+  return (
+    <div
+      className={clsx(
+        'mt-4 flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-sm',
+        test.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700',
+      )}
+    >
+      {test.ok ? <Check className="mt-0.5 h-4 w-4 shrink-0" /> : <X className="mt-0.5 h-4 w-4 shrink-0" />}
+      <span>
+        <b>{PROVIDER_LABEL[test.provider]}</b> · {test.model} · {test.latencyMs}ms — {test.message}
+      </span>
+    </div>
   );
 }
 

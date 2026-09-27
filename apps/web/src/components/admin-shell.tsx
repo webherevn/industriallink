@@ -77,9 +77,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
     goToPublicApp('/login');
   }
 
-  function isActive(href: string) {
+  function matches(href: string) {
     if (href === '/admin') return pathname === '/admin';
     return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  function isActive(href: string) {
+    if (!matches(href)) return false;
+    return !navSections.some((section) =>
+      section.items.some((item) => item.href.length > href.length && matches(item.href)),
+    );
   }
 
   if (!sessionReady || isLoading || (hasToken && !user && !isError)) {

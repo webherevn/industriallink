@@ -5,6 +5,7 @@ import { Suspense, type ReactNode } from 'react';
 import { AnalyticsBeacon } from '@/components/analytics-beacon';
 import { renderCmsHtmlSnippet } from '@/components/cms-html-snippet';
 import { Providers } from '@/components/providers';
+import { WebVitalsBeacon } from '@/components/web-vitals-beacon';
 import { fetchPublicCmsSiteCode } from '@/lib/public-cms-api';
 import './globals.css';
 
@@ -57,6 +58,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <Suspense fallback={null}>
           <AnalyticsBeacon />
         </Suspense>
+        {skipInject ? null : <WebVitalsBeacon />}
         {renderCmsHtmlSnippet(footerHtml)}
       </body>
     </html>

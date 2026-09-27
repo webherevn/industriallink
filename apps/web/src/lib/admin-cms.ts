@@ -4,7 +4,13 @@ import {
   type CmsCategoryView,
   type CmsPostListItem,
   type CmsPostView,
+  type CmsCrawlReport,
+  type CmsLinkAudit,
+  type CmsLinkSuggestion,
+  type CmsSemanticAssist,
+  type CmsSemanticReport,
   type CmsSeoOverview,
+  type CmsTrustReport,
   type UpsertCmsCategoryRequest,
   type UpsertCmsPostRequest,
 } from '@industriallink/contracts';
@@ -19,6 +25,37 @@ function asList<T>(payload: unknown, label: string): T[] {
 
 export async function fetchCmsOverview(): Promise<CmsSeoOverview> {
   return apiRequest<CmsSeoOverview>('/admin/cms/overview');
+}
+
+export async function fetchCmsCrawl(): Promise<CmsCrawlReport> {
+  return apiRequest<CmsCrawlReport>('/admin/cms/crawl');
+}
+
+export async function fetchCmsTrust(): Promise<CmsTrustReport> {
+  return apiRequest<CmsTrustReport>('/admin/cms/trust');
+}
+
+export async function fetchLinkSuggestions(q: string, excludeId?: string): Promise<CmsLinkSuggestion[]> {
+  const qs = new URLSearchParams({ q });
+  if (excludeId) qs.set('excludeId', excludeId);
+  return asArray(await apiRequest<CmsLinkSuggestion[]>(`/admin/cms/link-suggestions?${qs}`));
+}
+
+export async function fetchLinkAudit(): Promise<CmsLinkAudit> {
+  return apiRequest<CmsLinkAudit>('/admin/cms/link-audit');
+}
+
+export async function fetchCmsSemantic(): Promise<CmsSemanticReport> {
+  return apiRequest<CmsSemanticReport>('/admin/cms/semantic');
+}
+
+export async function assistCmsSemantic(body: {
+  title: string;
+  focusKeyword?: string;
+  html: string;
+  publicPath?: string;
+}): Promise<CmsSemanticAssist> {
+  return apiRequest<CmsSemanticAssist>('/admin/cms/semantic/assist', { method: 'POST', body });
 }
 
 export async function listCmsCategories(): Promise<CmsCategoryView[]> {

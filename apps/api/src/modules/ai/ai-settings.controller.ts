@@ -49,4 +49,10 @@ export class AiSettingsController {
   test(@Body() dto: TestAiConnectionDto): Promise<TestAiConnectionResponse> {
     return this.settings.testConnection(dto.provider);
   }
+
+  @Post('test-seo-gemini')
+  @ApiOperation({ summary: 'Test khóa Gemini riêng cho quét SEO bài viết' })
+  testSeoGemini(): Promise<TestAiConnectionResponse> {
+    return this.settings.testSeoGemini();
+  }
 }

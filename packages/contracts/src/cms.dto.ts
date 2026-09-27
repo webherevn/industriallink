@@ -583,3 +583,206 @@ export interface CmsSeoOverview {
   quickLinks: Array<{ label: string; href: string; external?: boolean }>;
   outbound: CmsOutboundReport;
 }
+
+export interface CmsIndexingLogItem {
+  url: string;
+  type: 'URL_UPDATED' | 'URL_DELETED';
+  statusCode: number | null;
+  ok: boolean;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface CmsIndexingMonitor {
+  configured: boolean;
+  quotaLimit: number;
+  quotaUsed: number;
+  todayUpdated: number;
+  todayDeleted: number;
+  todayErrors: number;
+  http403: number;
+  http429: number;
+  alerts: string[];
+  recent: CmsIndexingLogItem[];
+}
+
+export interface CmsSitemapHealthItem {
+  id: 'main' | 'jobs' | 'blog' | 'pages';
+  label: string;
+  href: string;
+  urlCount: number;
+  excludedNoindex: number;
+  redirectConflicts: number;
+  warnings: string[];
+}
+
+export interface CmsOrphanItem {
+  id: string;
+  kind: 'post' | 'page';
+  title: string;
+  editPath: string;
+  publicPath: string;
+  reason: string;
+}
+
+export interface CmsRedirectIssue {
+  kind: 'chain' | 'loop';
+  hops: string[];
+}
+
+/** Chỉ mục, sitemap, trang mồ côi và chuỗi redirect — dữ liệu nội bộ, không cần GSC. */
+export interface CmsCrawlReport {
+  generatedAt: string;
+  indexing: CmsIndexingMonitor;
+  sitemaps: CmsSitemapHealthItem[];
+  orphans: CmsOrphanItem[];
+  redirectIssues: CmsRedirectIssue[];
+}
+
+export type CmsTrustGrade = 'great' | 'good' | 'ok' | 'bad';
+
+export interface CmsAuthorTrustItem {
+  userId: string;
+  displayName: string;
+  editPath: string;
+  publicPath: string | null;
+  score: number;
+  grade: CmsTrustGrade;
+  postCount: number;
+  missing: string[];
+}
+
+export interface CmsJobSchemaIssue {
+  code: string;
+  severity: 'critical' | 'warning';
+  label: string;
+}
+
+export interface CmsJobSchemaItem {
+  id: string;
+  title: string;
+  companyName: string;
+  editPath: string;
+  publicPath: string;
+  issues: CmsJobSchemaIssue[];
+}
+
+/** Điểm hồ sơ tác giả và các tin JobPosting thiếu trường Google yêu cầu. */
+export interface CmsTrustReport {
+  generatedAt: string;
+  authors: {
+    count: number;
+    averageScore: number;
+    items: CmsAuthorTrustItem[];
+  };
+  jobs: {
+    scanned: number;
+    valid: number;
+    withIssues: number;
+    missingSalary: number;
+    missingDeadline: number;
+    expired: number;
+    items: CmsJobSchemaItem[];
+  };
+}
+
+export interface CmsLinkSuggestion {
+  id: string;
+  kind: 'post' | 'page' | 'category';
+  title: string;
+  publicPath: string;
+  anchor: string;
+}
+
+export interface CmsBrokenLinkSource {
+  title: string;
+  editPath: string;
+}
+
+export interface CmsBrokenLink {
+  path: string;
+  hits: number;
+  suggestedTo: string;
+  sources: CmsBrokenLinkSource[];
+}
+
+/** Link nội bộ gãy và URL người dùng đã mở nhưng không còn trang. */
+export interface CmsLinkAudit {
+  generatedAt: string;
+  broken: CmsBrokenLink[];
+  unknownHits: CmsBrokenLink[];
+}
+
+export type CmsSemanticIssue = 'thin' | 'markup' | 'entities';
+
+export interface CmsSemanticItem {
+  id: string;
+  kind: 'post' | 'page' | 'category';
+  title: string;
+  editPath: string;
+  textChars: number;
+  htmlChars: number;
+  /** Phần trăm ký tự chữ trên tổng HTML đã lưu. */
+  ratio: number;
+  entities: string[];
+  issues: CmsSemanticIssue[];
+  /** Đo trên trang công khai đã render (chỉ danh mục). */
+  page: CmsPageRatio | null;
+}
+
+/** Tỷ lệ chữ trên toàn bộ HTML trang công khai, gồm cả script và style. */
+export interface CmsPageRatio {
+  path: string;
+  htmlChars: number;
+  textChars: number;
+  scriptChars: number;
+  styleChars: number;
+  ratio: number;
+  /** Phần trăm HTML là script + style. */
+  codeShare: number;
+  verdict: CmsSemanticRatioVerdict;
+  error: string | null;
+}
+
+export interface CmsSemanticReport {
+  generatedAt: string;
+  scanned: number;
+  ok: number;
+  thin: number;
+  markup: number;
+  fewEntities: number;
+  items: CmsSemanticItem[];
+}
+
+export interface CmsSemanticEntity {
+  name: string;
+  present: boolean;
+  /** Loại thực thể do Gemini gắn: vị trí, kỹ năng, ngành, công cụ… */
+  type?: string | null;
+  /** Nên thêm ở đâu, chỉ có với thực thể còn thiếu. */
+  hint?: string | null;
+}
+
+export type CmsSemanticCoverage = 'enough' | 'partial' | 'thin';
+export type CmsSemanticRatioVerdict = 'good' | 'warn';
+
+export interface CmsSemanticAssist {
+  /** gemini = đã gọi khóa SEO riêng. unavailable = chưa có khóa hoặc Gemini lỗi. */
+  source: 'gemini' | 'unavailable';
+  textChars: number;
+  htmlChars: number;
+  ratio: number;
+  ratioVerdict: CmsSemanticRatioVerdict;
+  ratioAdvice: string;
+  /** Trang công khai hiện tại, null nếu bài chưa xuất bản. */
+  page: CmsPageRatio | null;
+  /** Số mục checklist B2B đã phủ trên tổng số mục. */
+  coveredCount: number;
+  checklistTotal: number;
+  coverage: CmsSemanticCoverage;
+  coverageAdvice: string;
+  entities: CmsSemanticEntity[];
+  suggestions: string[];
+  faq: CmsFaqItem[];
+  note: string | null;
+}

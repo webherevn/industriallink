@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { CollectHitDto } from './dto/collect-hit.dto';
+import type { CollectWebVitalDto } from './dto/collect-web-vital.dto';
 
 const DIRECT = 'Trực tiếp';
 const SELF_HOSTS = new Set(['inlink.vn', 'www.inlink.vn', 'localhost', '127.0.0.1']);
@@ -193,6 +194,19 @@ export class AnalyticsService {
         userAgent: ua || null,
         device: deviceOf(ua),
       },
+    });
+    return { ok: true };
+  }
+
+  async collectVital(dto: CollectWebVitalDto, req: Request): Promise<{ ok: true }> {
+    const ua = String(req.headers['user-agent'] || '').slice(0, 400);
+    if (!ua || BOT_UA.test(ua)) return { ok: true };
+    const parsed = normalizePath(dto.path);
+    if (!parsed || !isTrackedPath(parsed.path)) return { ok: true };
+    const value = dto.name === 'CLS' ? Math.min(10, dto.value) : Math.round(Math.min(60_000, dto.value));
+    await this.prisma.webVitalSample.createMany({
+      data: [{ metricId: `${dto.name}:${dto.id}`.slice(0, 100), path: parsed.path, name: dto.name, value, device: deviceOf(ua) }],
+      skipDuplicates: true,
     });
     return { ok: true };
   }
@@ -462,6 +476,12 @@ export class AnalyticsService {
     });
     if (removed.count > 0) {
       this.logger.log(`Đã xoá ${removed.count} lượt xem cũ hơn 180 ngày`);
+    }
+    const vitals = await this.prisma.webVitalSample.deleteMany({
+      where: { createdAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
+    });
+    if (vitals.count > 0) {
+      this.logger.log(`Đã xoá ${vitals.count} mẫu Web Vitals cũ hơn 90 ngày`);
     }
   }
 

@@ -66,4 +66,15 @@ export class UpdateAiSettingsDto implements UpdateAiSettingsRequest {
   @IsString()
   @MaxLength(200)
   geminiEmbeddingModel?: string;
+
+  @IsOptional()
+  @NotNull()
+  @IsString()
+  @MaxLength(500)
+  seoGeminiApiKey?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  seoGeminiModel?: string;
 }

@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { jobPublicPath } from '@industriallink/contracts';
 import type { AppConfig } from '../../config/configuration';
+import { PrismaService } from '../infrastructure/prisma/prisma.service';
 
 type IndexingType = 'URL_UPDATED' | 'URL_DELETED';
 
@@ -15,7 +16,14 @@ interface ServiceAccount {
 export class GoogleIndexingService {
   private readonly logger = new Logger(GoogleIndexingService.name);
 
-  constructor(private readonly config: ConfigService<AppConfig, true>) {}
+  constructor(
+    private readonly config: ConfigService<AppConfig, true>,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  isConfigured(): boolean {
+    return this.credentials() !== null;
+  }
 
   async notifyJob(
     job: { slug?: string | null; id: string; industry?: string | null },
@@ -33,6 +41,9 @@ export class GoogleIndexingService {
       );
       return;
     }
+    let statusCode: number | null = null;
+    let ok = false;
+    let error: string | null = null;
     try {
       const token = await this.accessToken(creds);
       const res = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
@@ -43,14 +54,35 @@ export class GoogleIndexingService {
         },
         body: JSON.stringify({ url, type }),
       });
+      statusCode = res.status;
       if (!res.ok) {
-        const body = await res.text();
-        this.logger.warn(`Indexing API ${type} ${res.status}: ${body.slice(0, 300)}`);
-        return;
+        error = (await res.text()).slice(0, 300);
+        this.logger.warn(`Indexing API ${type} ${res.status}: ${error}`);
+      } else {
+        ok = true;
+        this.logger.log(`Indexing API ${type} ${url}`);
       }
-      this.logger.log(`Indexing API ${type} ${url}`);
     } catch (err) {
-      this.logger.warn(`Indexing API lỗi: ${String(err)}`);
+      error = String(err).slice(0, 300);
+      this.logger.warn(`Indexing API lỗi: ${error}`);
+    }
+    await this.record(url, type, statusCode, ok, error);
+  }
+
+  private async record(
+    url: string,
+    type: IndexingType,
+    statusCode: number | null,
+    ok: boolean,
+    error: string | null,
+  ): Promise<void> {
+    try {
+      await this.prisma.$executeRaw`
+        INSERT INTO shared.indexing_notification (id, url, type, status_code, ok, error)
+        VALUES (gen_random_uuid(), ${url.slice(0, 600)}, ${type}, ${statusCode}, ${ok}, ${error})
+      `;
+    } catch (err) {
+      this.logger.warn(`Không ghi nhật ký Indexing API: ${String(err)}`);
     }
   }
 

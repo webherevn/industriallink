@@ -26,6 +26,11 @@ export interface AiSettingsView {
   openai: AiProviderView & { model: string; embeddingModel: string };
   anthropic: AiProviderView & { model: string };
   gemini: AiProviderView & { model: string; embeddingModel: string };
+  /**
+   * Khóa Gemini riêng cho quét bài đang viết (thực thể B2B + tỷ lệ chữ/HTML).
+   * Không dùng cho upload JD, đọc CV, duyệt tin hay embedding.
+   */
+  seoGemini: AiProviderView & { model: string };
 
   /** Provider/model đang lấy từ DB hay env. */
   configSource: AiSettingsSource;
@@ -51,6 +56,10 @@ export interface UpdateAiSettingsRequest {
   geminiApiKey?: string | null;
   geminiModel?: string;
   geminiEmbeddingModel?: string;
+
+  /** Khóa Gemini chỉ cho SEO bài viết. null = xoá. Không fallback sang khóa JD/CV. */
+  seoGeminiApiKey?: string | null;
+  seoGeminiModel?: string;
 }
 
 /** Yêu cầu test kết nối. Không truyền provider = test cấu hình đang lưu. */

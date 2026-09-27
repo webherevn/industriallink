@@ -27,3 +27,10 @@ export async function testAiConnection(
     body,
   });
 }
+
+/** Test khóa Gemini chỉ dùng khi quét bài viết, không đụng khóa JD/CV. */
+export async function testSeoGeminiConnection(): Promise<TestAiConnectionResponse> {
+  return apiRequest<TestAiConnectionResponse>('/admin/ai-settings/test-seo-gemini', {
+    method: 'POST',
+  });
+}

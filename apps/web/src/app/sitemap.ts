@@ -51,7 +51,7 @@ export default async function sitemap(props: {
           changeFrequency: 'weekly' as const,
           priority: 0.55,
         })),
-      ...posts.map((post) => ({
+      ...posts.filter((post) => post.robotsIndex !== false).map((post) => ({
         url: `${base}${cmsPostPublicPath(post.slug)}`,
         lastModified: post.publishedAt ? new Date(post.publishedAt) : new Date(post.updatedAt),
         changeFrequency: 'weekly' as const,
@@ -62,7 +62,7 @@ export default async function sitemap(props: {
 
   if (id === 'pages') {
     const pages = await fetchPublishedCmsPosts({ type: CmsContentType.Page, limit: 200 });
-    return pages.map((page) => ({
+    return pages.filter((page) => page.robotsIndex !== false).map((page) => ({
       url: `${base}${cmsPagePublicPath(page.slug)}`,
       lastModified: page.publishedAt ? new Date(page.publishedAt) : new Date(page.updatedAt),
       changeFrequency: 'monthly' as const,

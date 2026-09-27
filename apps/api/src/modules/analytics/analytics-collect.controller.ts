@@ -4,6 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AnalyticsService } from './analytics.service';
 import { CollectHitDto } from './dto/collect-hit.dto';
+import { CollectWebVitalDto } from './dto/collect-web-vital.dto';
 
 @ApiTags('Analytics')
 @Controller('analytics')
@@ -16,5 +17,13 @@ export class AnalyticsCollectController {
   @ApiOperation({ summary: 'Ghi một lượt xem trang (beacon, không cần đăng nhập)' })
   collect(@Body() dto: CollectHitDto, @Req() req: Request) {
     return this.analytics.collect(dto, req);
+  }
+
+  @Post('vitals')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Ghi một chỉ số Core Web Vitals đo trên trình duyệt khách' })
+  vitals(@Body() dto: CollectWebVitalDto, @Req() req: Request) {
+    return this.analytics.collectVital(dto, req);
   }
 }

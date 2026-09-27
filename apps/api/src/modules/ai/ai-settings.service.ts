@@ -4,14 +4,17 @@ import {
   AiProviderKind,
   type AiSettingsSource,
   type AiSettingsView,
+  type CwvSettingsView,
   type TestAiConnectionResponse,
   type UpdateAiSettingsRequest,
+  type UpdateCwvSettingsRequest,
 } from '@industriallink/contracts';
 import type { Prisma } from '@prisma/client';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { decryptSecret, encryptSecret, keyPreview } from './ai-settings.cipher';
 import { buildAiProvider, type ResolvedAiConfig } from './providers/ai-provider.factory';
+import { GeminiProvider } from './providers/gemini.provider';
 import type { JobModerationInput } from './providers/job-moderation.util';
 
 const SCOPE = 'default';
@@ -130,6 +133,7 @@ export class AiSettingsService {
         keyPreview: keyPreview(resolved.geminiApiKey),
         keySource: keySource(row?.geminiApiKeyEnc, env.geminiApiKey),
       },
+      seoGemini: this.seoGeminiView(row),
       configSource: row?.provider ? 'db' : 'env',
       updatedAt: row?.updatedAt ? row.updatedAt.toISOString() : null,
       updatedByEmail,
@@ -163,6 +167,7 @@ export class AiSettingsService {
     if (dto.anthropicModel !== undefined) data.anthropicModel = dto.anthropicModel;
     if (dto.geminiModel !== undefined) data.geminiModel = dto.geminiModel;
     if (dto.geminiEmbeddingModel !== undefined) data.geminiEmbeddingModel = dto.geminiEmbeddingModel;
+    if (dto.seoGeminiModel !== undefined) data.seoGeminiModel = dto.seoGeminiModel.trim() || null;
 
     const openaiEnc = keyUpdate(dto.openaiApiKey);
     if (openaiEnc !== undefined) data.openaiApiKeyEnc = openaiEnc;
@@ -170,6 +175,8 @@ export class AiSettingsService {
     if (anthropicEnc !== undefined) data.anthropicApiKeyEnc = anthropicEnc;
     const geminiEnc = keyUpdate(dto.geminiApiKey);
     if (geminiEnc !== undefined) data.geminiApiKeyEnc = geminiEnc;
+    const seoGeminiEnc = keyUpdate(dto.seoGeminiApiKey);
+    if (seoGeminiEnc !== undefined) data.seoGeminiApiKeyEnc = seoGeminiEnc;
 
     await this.prisma.aiSetting.upsert({
       where: { scope: SCOPE },
@@ -181,6 +188,125 @@ export class AiSettingsService {
     });
 
     return this.getView();
+  }
+
+  /**
+   * Khóa Gemini chỉ dùng khi quét bài đang viết. Không lấy khóa JD/CV.
+   * null nếu chưa lưu.
+   */
+  async resolveSeoGemini(): Promise<{ apiKey: string; model: string } | null> {
+    const row = await this.row();
+    const apiKey = this.decrypt(row?.seoGeminiApiKeyEnc);
+    if (!apiKey) return null;
+    return { apiKey, model: row?.seoGeminiModel?.trim() || 'gemini-2.5-flash' };
+  }
+
+  /** Test đúng khóa SEO, không gọi moderateJobPosting của khóa JD/CV. */
+  async testSeoGemini(): Promise<TestAiConnectionResponse> {
+    const seo = await this.resolveSeoGemini();
+    if (!seo) {
+      return {
+        ok: false,
+        provider: AiProviderKind.Gemini,
+        model: 'gemini-2.5-flash',
+        latencyMs: 0,
+        message: 'Chưa lưu khóa Gemini SEO. Khóa Google Gemini phía trên không được dùng cho mục này.',
+      };
+    }
+    const started = Date.now();
+    try {
+      const text = await this.seoClient(seo).chat({
+        system: 'Trả lời đúng một từ: OK',
+        user: 'Kiểm tra kết nối.',
+      });
+      return {
+        ok: Boolean(text.trim()),
+        provider: AiProviderKind.Gemini,
+        model: seo.model,
+        latencyMs: Date.now() - started,
+        message: text.trim()
+          ? 'Khóa Gemini SEO kết nối được. Khóa này không dùng cho JD hay CV.'
+          : 'Gemini SEO trả về rỗng.',
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        provider: AiProviderKind.Gemini,
+        model: seo.model,
+        latencyMs: Date.now() - started,
+        message: this.shortError(err),
+      };
+    }
+  }
+
+  /** Domain công khai mặc định cho PageSpeed; localhost không dùng được. */
+  defaultPagespeedSite(): string | null {
+    const raw = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || '').trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(raw)) return null;
+    try {
+      const host = new URL(raw).hostname;
+      if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) return null;
+    } catch {
+      return null;
+    }
+    return raw;
+  }
+
+  async resolvePagespeed(): Promise<{ apiKey: string | null; siteUrl: string | null; autoScan: boolean }> {
+    const row = await this.row();
+    return {
+      apiKey: this.decrypt(row?.pagespeedApiKeyEnc) ?? null,
+      siteUrl: row?.pagespeedSiteUrl?.trim() || this.defaultPagespeedSite(),
+      autoScan: row?.pagespeedAutoScan ?? true,
+    };
+  }
+
+  async pagespeedView(): Promise<CwvSettingsView> {
+    const row = await this.row();
+    const apiKey = this.decrypt(row?.pagespeedApiKeyEnc);
+    return {
+      hasKey: Boolean(apiKey),
+      keyPreview: keyPreview(apiKey),
+      siteUrl: row?.pagespeedSiteUrl?.trim() || null,
+      defaultSiteUrl: this.defaultPagespeedSite(),
+      autoScan: row?.pagespeedAutoScan ?? true,
+      updatedAt: row?.updatedAt ? row.updatedAt.toISOString() : null,
+    };
+  }
+
+  async updatePagespeed(dto: UpdateCwvSettingsRequest, adminId: string): Promise<CwvSettingsView> {
+    const data: Prisma.AiSettingUncheckedUpdateInput = { updatedBy: adminId };
+    if (dto.apiKey === null) data.pagespeedApiKeyEnc = null;
+    else if (typeof dto.apiKey === 'string' && dto.apiKey.trim()) {
+      data.pagespeedApiKeyEnc = encryptSecret(dto.apiKey.trim(), this.encryptionSecret());
+    }
+    if (dto.siteUrl !== undefined) data.pagespeedSiteUrl = dto.siteUrl?.trim().replace(/\/$/, '') || null;
+    if (dto.autoScan !== undefined) data.pagespeedAutoScan = dto.autoScan;
+    await this.prisma.aiSetting.upsert({
+      where: { scope: SCOPE },
+      create: { scope: SCOPE, ...(data as Prisma.AiSettingUncheckedCreateInput) },
+      update: data,
+    });
+    return this.pagespeedView();
+  }
+
+  seoClient(seo: { apiKey: string; model: string }): GeminiProvider {
+    return new GeminiProvider({
+      apiKey: seo.apiKey,
+      model: seo.model,
+      embeddingModel: 'text-embedding-004',
+      embeddingDim: 768,
+    });
+  }
+
+  private seoGeminiView(row: AiSettingRow | null): AiSettingsView['seoGemini'] {
+    const apiKey = this.decrypt(row?.seoGeminiApiKeyEnc);
+    return {
+      model: row?.seoGeminiModel?.trim() || 'gemini-2.5-flash',
+      hasKey: Boolean(apiKey),
+      keyPreview: keyPreview(apiKey),
+      keySource: row?.seoGeminiApiKeyEnc ? 'db' : null,
+    };
   }
 
   /** Test kết nối provider (mặc định: provider đang lưu). Chạy 1 call nhỏ. */
