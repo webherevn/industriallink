@@ -140,7 +140,7 @@ export default function DashboardPage() {
   });
 
   const hasAnalysis = Boolean(
-    candidate?.aiProfile?.summary || candidate?.profile?.summary || (candidate?.skills.length ?? 0) > 0,
+    candidate?.aiProfile?.summary || candidate?.profile?.summary || (candidate?.skills?.length ?? 0) > 0,
   );
 
   const { data: career, isLoading: careerLoading } = useQuery({
@@ -215,13 +215,13 @@ export default function DashboardPage() {
 
   const hasSalesData = Boolean(
     sales &&
-      (sales.productsSold.length > 0 ||
-        sales.customerSegments.length > 0 ||
-        sales.marketsCovered.length > 0 ||
-        sales.sellingStages.length > 0 ||
+      (sales.productsSold?.length ?? 0) > 0 ||
+        (sales.customerSegments?.length ?? 0) > 0 ||
+        (sales.marketsCovered?.length ?? 0) > 0 ||
+        (sales.sellingStages?.length ?? 0) > 0 ||
         sales.latestRevenue != null ||
         sales.kpiAchievementPct != null ||
-        sales.desiredPositions.length > 0 ||
+        (sales.desiredPositions?.length ?? 0) > 0 ||
         sales.expectedSalaryMin != null ||
         sales.expectedOte != null ||
         Boolean(sales.salesHighlights)),

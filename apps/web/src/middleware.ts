@@ -11,28 +11,12 @@ function hostnameOf(req: NextRequest): string {
   return req.headers.get('host')?.split(':')[0]?.toLowerCase() ?? '';
 }
 
-/** Cookie đánh dấu đã gửi Clear-Site-Data (purge cache HTML cũ). */
-const CACHE_PURGE_COOKIE = 'il_cd';
-const CACHE_PURGE_VERSION = '7';
-
 function applyNoStore(res: NextResponse) {
   res.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
   res.headers.set('CDN-Cache-Control', 'no-store');
   res.headers.set('Surrogate-Control', 'no-store');
   res.headers.set('Pragma', 'no-cache');
   res.headers.set('Expires', '0');
-}
-
-function withCachePurge(req: NextRequest, res: NextResponse) {
-  if (req.cookies.get(CACHE_PURGE_COOKIE)?.value !== CACHE_PURGE_VERSION) {
-    res.headers.set('Clear-Site-Data', '"cache"');
-    res.cookies.set(CACHE_PURGE_COOKIE, CACHE_PURGE_VERSION, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 400,
-      sameSite: 'lax',
-      secure: true,
-    });
-  }
   return res;
 }
 
@@ -40,18 +24,8 @@ function nextWithRequestHeaders(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-pathname', req.nextUrl.pathname);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
-  const pathname = req.nextUrl.pathname;
-  // Tránh trình duyệt / CDN giữ HTML cũ của listing blog (từng bị ISR s-maxage=1y).
-  if (
-    pathname === '/cam-nang' ||
-    pathname.startsWith('/cam-nang/') ||
-    pathname === '/' ||
-    pathname.startsWith('/admin') ||
-    pathname === '/login'
-  ) {
-    applyNoStore(res);
-  }
-  return withCachePurge(req, res);
+  // Mọi HTML đi qua middleware. File /_next/static đã bị loại khỏi matcher nên vẫn cache theo hash.
+  return applyNoStore(res);
 }
 
 export function middleware(req: NextRequest) {
@@ -67,8 +41,7 @@ export function middleware(req: NextRequest) {
     dest.pathname = '/cam-nang';
     dest.searchParams.delete('v');
     const redirect = NextResponse.redirect(dest, 301);
-    applyNoStore(redirect);
-    return withCachePurge(req, redirect);
+    return applyNoStore(redirect);
   }
 
   if (host === 'localhost' || host === '127.0.0.1') {
@@ -83,15 +56,15 @@ export function middleware(req: NextRequest) {
     if (pathname === '/' || pathname === '') {
       const dest = req.nextUrl.clone();
       dest.pathname = '/admin';
-      return NextResponse.redirect(dest);
+      return applyNoStore(NextResponse.redirect(dest));
     }
     if (!isAdminAppPath(pathname) && pathname !== '/login') {
       if (isCandidatePublicPath(pathname) || isRecruiterAppPath(pathname)) {
-        return NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`);
+        return applyNoStore(NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`));
       }
       const dest = req.nextUrl.clone();
       dest.pathname = '/admin';
-      return NextResponse.redirect(dest);
+      return applyNoStore(NextResponse.redirect(dest));
     }
     return nextWithRequestHeaders(req);
   }
@@ -100,23 +73,23 @@ export function middleware(req: NextRequest) {
     if (pathname === '/' || pathname === '') {
       const dest = req.nextUrl.clone();
       dest.pathname = '/recruiter';
-      return NextResponse.redirect(dest);
+      return applyNoStore(NextResponse.redirect(dest));
     }
     if (isAdminAppPath(pathname)) {
-      return NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`);
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`));
     }
     if (isCandidatePublicPath(pathname)) {
-      return NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`);
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`));
     }
     return nextWithRequestHeaders(req);
   }
 
   if (isPublicHost) {
     if (isAdminAppPath(pathname)) {
-      return NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`);
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`));
     }
     if (isRecruiterAppPath(pathname)) {
-      return NextResponse.redirect(`https://${BRAND_RECRUITER_HOST}${pathname}${search}`);
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_RECRUITER_HOST}${pathname}${search}`));
     }
   }
 

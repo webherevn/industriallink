@@ -7,7 +7,7 @@ import { useEffect } from 'react';
  * HTML/JS cũ trong cache của trình duyệt trỏ tới file chunk đã bị đổi tên → tải lỗi.
  */
 const CHUNK_ERROR_RE =
-  /ChunkLoadError|Loading(?:\s+CSS)?\s+chunk\s+\S+\s+failed|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Failed to load chunk|Unexpected token\s*</i;
+  /ChunkLoadError|Loading(?:\s+CSS)?\s+chunk\s+\S+\s+failed|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Failed to load chunk|Unexpected token\s*<|reading ['"]call['"]/i;
 
 /** Bỏ qua HTML đang bị cache (cùng URL) và lấy document mới. */
 export function hardRefresh(): void {

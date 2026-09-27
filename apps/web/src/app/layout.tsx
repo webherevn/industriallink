@@ -42,7 +42,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="vi" className={inter.variable}>
-      <head>{renderCmsHtmlSnippet(headerHtml)}</head>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var KEY='il_chunk_reloaded_at';function stale(m){return /ChunkLoadError|Loading(?:\\s+CSS)?\\s+chunk|dynamically imported module|Importing a module script failed|reading ['"]call['"]/i.test(m||'');}function recover(){try{var now=Date.now();var last=Number(sessionStorage.getItem(KEY)||'0');if(now-last<10000)return;sessionStorage.setItem(KEY,String(now));var u=new URL(location.href);u.searchParams.set('_r',String(now));location.replace(u.toString());}catch(e){location.reload();}}window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'&&String(t.src||'').indexOf('/_next/static/')!==-1){recover();return;}if(stale(e.message))recover();},true);window.addEventListener('unhandledrejection',function(e){var r=e.reason;if(stale(r&&(r.message||String(r))))recover();});})();`,
+          }}
+        />
+        {renderCmsHtmlSnippet(headerHtml)}
+      </head>
       {/* suppressHydrationWarning: extension trình duyệt có thể chèn style/attr vào body trước khi React hydrate */}
       <body className="font-sans antialiased" suppressHydrationWarning>
         <Providers>{children}</Providers>
