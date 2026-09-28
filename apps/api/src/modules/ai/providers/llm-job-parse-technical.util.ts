@@ -15,6 +15,8 @@ import {
   TravelAbility,
   WORK_ENVIRONMENT_OPTIONS,
   emptyParsedTechnicalJobDraft,
+  findTechnicalPositionInText,
+  matchTechnicalPosition,
   normalizeJobTechnicalCriteria,
   type JdTechnicalFieldKey,
   type ParsedTechnicalJobDraft,
@@ -33,6 +35,7 @@ const CERT_LIST = JD_TECHNICAL_CERTIFICATE_OPTIONS.join(' | ');
 const TOOL_LIST = TECHNICAL_TOOLS.join(' | ');
 const DOC_LIST = DOCUMENT_LITERACY_OPTIONS.join(' | ');
 const SHIFT_LIST = SHIFT_FLEXIBILITY_OPTIONS.map((o) => `${o.value}=${o.label}`).join(' | ');
+const POSITION_LIST = TECHNICAL_DESIRED_POSITIONS.join(' | ');
 
 export const JOB_PARSE_TECHNICAL_SYSTEM_PROMPT = [
   'Bạn là chuyên gia tuyển dụng kỹ thuật công nghiệp tại Việt Nam.',
@@ -48,6 +51,7 @@ export const JOB_PARSE_TECHNICAL_SYSTEM_PROMPT = [
   'Trả về DUY NHẤT một JSON:',
   '{',
   '  "title": string,',
+  '  "position": string,',
   '  "industries": string[],',
   '  "location": string,',
   '  "experienceBand": "none"|"under_1"|"1_3"|"3_5"|"5_plus"|null,',
@@ -74,6 +78,8 @@ export const JOB_PARSE_TECHNICAL_SYSTEM_PROMPT = [
   '  "uncertainKeys": string[],',
   '  "notes": string|null',
   '}',
+  'title: tiêu đề tin nguyên văn như JD ghi.',
+  `position: chọn đúng 1 trong: ${POSITION_LIST}. Không khớp rõ vị trí nào → chuỗi rỗng.`,
   `industries chỉ chọn trong: ${INDUSTRY_LIST}`,
   `equipmentSystems ưu tiên catalog: ${EQUIPMENT_LIST}. Tên thiết bị cụ thể chỉ khi JD nêu rõ.`,
   `workEnvironments chỉ chọn trong: ${ENV_LIST}`,
@@ -282,9 +288,12 @@ export function normalizeParsedTechnicalJob(
   const description = String(r.description ?? '').trim();
   const requirements = String(r.requirements ?? '').trim();
   const benefits = String(r.benefits ?? '').trim();
+  const position =
+    matchTechnicalPosition(String(r.position ?? '')) ?? findTechnicalPositionInText(title) ?? '';
 
   return {
     title,
+    position,
     industries,
     location,
     experienceBand: asExperience(r.experienceBand ?? r.experience),
@@ -459,6 +468,7 @@ export function extractTechnicalJobFromText(text: string): ParsedTechnicalJobDra
   return normalizeParsedTechnicalJob(
     {
       title: extractTitleFromText(source),
+      position: findTechnicalPositionInText(source) ?? '',
       industries: matchCatalogInText(source, INDUSTRY_GROUPS),
       location: extractLocationFromText(source),
       experienceBand: asExperience(source),

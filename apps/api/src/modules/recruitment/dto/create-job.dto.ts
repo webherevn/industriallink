@@ -111,6 +111,12 @@ export class JobSalesCriteriaDto {
 }
 
 export class JobTechnicalCriteriaDto {
+  @ApiPropertyOptional({ description: 'Vị trí tuyển dụng (1 trong 13 vị trí Kỹ thuật hoặc tự nhập)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  position?: string | null;
+
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()

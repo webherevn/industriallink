@@ -97,6 +97,18 @@ export const TECHNICAL_AUTONOMY_LEVELS = [
 
 export type TechnicalAutonomyLevel = (typeof TECHNICAL_AUTONOMY_LEVELS)[number]['value'];
 
+/**
+ * Mức tự chủ cấp hồ sơ = mức cao nhất đã khai theo từng công ty (matching dùng mức từng công ty;
+ * giá trị hồ sơ chỉ để hiển thị / dữ liệu cũ). Không công ty nào có → giữ fallback.
+ */
+export function profileAutonomyFromCompanies(
+  levels: ReadonlyArray<number | null | undefined>,
+  fallback: number | null = null,
+): number | null {
+  const valid = levels.filter((v): v is number => v != null && v >= 1 && v <= 5);
+  return valid.length ? Math.max(...valid) : fallback;
+}
+
 export const TECHNICAL_AUTONOMY_QUESTION =
   'Anh/chị có thể tự thực hiện công việc ở mức nào? Chọn mức cao nhất phù hợp.';
 

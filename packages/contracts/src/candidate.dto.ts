@@ -31,6 +31,8 @@ export interface CandidateExperienceView {
   sellingStages: string[];
   /** STT 26 KD — hãng/thương hiệu theo từng công ty. */
   brandsTechnologies?: string[];
+  /** KT — mức tự chủ 1–5 tại công ty này (matching jd11 theo từng công ty). */
+  technicalAutonomyLevel?: number | null;
   revenueBand: string | null;
   latestRevenue: number | null;
   kpiBand: string | null;
@@ -163,6 +165,8 @@ export interface CandidateExperienceInput {
   sellingStages: string[];
   /** STT 26 KD — hãng/thương hiệu theo từng công ty. */
   brandsTechnologies?: string[];
+  /** KT — mức tự chủ 1–5 tại công ty này. */
+  technicalAutonomyLevel?: number | null;
   revenueBand: string | null;
   latestRevenue: number | null;
   kpiBand: string | null;

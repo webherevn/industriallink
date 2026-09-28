@@ -3,7 +3,8 @@
  * Dùng cho tạo / sửa tin tuyển dụng Kinh doanh: AI trích xuất, HR xác nhận.
  *
  * Trọng số chỉ dùng backend matching (chưa chấm điểm trên UI).
- * Không có field cấp bậc trên JD — suy luận thầm từ vị trí nếu cần lọc.
+ * Cấp bậc (jobLevel) chọn riêng trên form — dùng cho bộ lọc; không tính điểm matching.
+ * Vị trí (title) vẫn dùng cho matching chức danh.
  */
 
 import {
@@ -23,7 +24,7 @@ import {
 } from './sales-b2b-criteria';
 import { INDUSTRY_GROUPS } from './job-taxonomy';
 import { EmploymentType, ExperienceBand } from './enums';
-
+import { JobLevelCode, isJobLevelCode } from './career-path';
 export const JD_SALES_TOTAL_FIELDS = 22;
 
 export type JdSalesGroup = 'A' | 'B' | 'C' | 'D';
@@ -134,8 +135,43 @@ const HARD_FILTER_ALLOWED = new Set<JdSalesFieldKey>([
 /** Catalog gợi ý vị trí JD Sales (không bắt buộc chọn trong list). */
 export const JD_SALES_TITLE_OPTIONS = DESIRED_POSITIONS;
 
-export const JD_SALES_INDUSTRY_OPTIONS = [...SALES_INDUSTRY_OPTIONS, 'Khác'] as const;
+/** 4 cấp bậc Kinh doanh — chọn trên form, không ràng buộc theo title (title có thể nhập tự do). */
+export const SALES_JOB_LEVELS: readonly JobLevelCode[] = [
+  JobLevelCode.SalesStaff,
+  JobLevelCode.SalesTeamLead,
+  JobLevelCode.SalesDeptHead,
+  JobLevelCode.SalesDirector,
+];
 
+/** Gợi ý cấp bậc khi HR chọn chip vị trí catalog (1:1 với 4 chức danh). */
+const LEVEL_BY_CATALOG_TITLE: Record<(typeof DESIRED_POSITIONS)[number], JobLevelCode> = {
+  'Nhân viên kinh doanh': JobLevelCode.SalesStaff,
+  'Trưởng nhóm kinh doanh': JobLevelCode.SalesTeamLead,
+  'Trưởng phòng kinh doanh': JobLevelCode.SalesDeptHead,
+  'Giám đốc kinh doanh': JobLevelCode.SalesDirector,
+};
+
+export function defaultSalesLevelForTitle(
+  title: string | null | undefined,
+): JobLevelCode | null {
+  const t = String(title ?? '').trim();
+  if (!t) return null;
+  const hit = DESIRED_POSITIONS.find(
+    (p) => p === t || p.toLowerCase() === t.toLowerCase(),
+  );
+  return hit ? LEVEL_BY_CATALOG_TITLE[hit] : null;
+}
+
+export function salesLevelForForm(
+  current: string | null | undefined,
+): JobLevelCode | '' {
+  if (isJobLevelCode(current) && (SALES_JOB_LEVELS as readonly string[]).includes(current)) {
+    return current;
+  }
+  return '';
+}
+
+export const JD_SALES_INDUSTRY_OPTIONS = [...SALES_INDUSTRY_OPTIONS, 'Khác'] as const;
 /** Tiêu chí Sales lưu JSON trên tin (nhóm B + C + ngành đa chọn). */
 export interface JobSalesCriteria {
   industries: string[];

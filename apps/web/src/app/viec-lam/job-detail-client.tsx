@@ -21,9 +21,16 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ExperienceBand, JobStatus, looksLikeUuid } from '@industriallink/contracts';
+import {
+  ExperienceBand,
+  JobStatus,
+  looksLikeUuid,
+  shouldUseSalesMatchEngine,
+  shouldUseTechnicalMatchEngine,
+} from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { ApiError } from '@/lib/api';
+import { ApiError, tokenStore } from '@/lib/api';
+import { getMyCandidate } from '@/lib/candidate';
 import {
   EMPLOYMENT_LABEL,
   EXPERIENCE_LABEL,
@@ -88,6 +95,34 @@ function splitLines(text: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+function jobDetailTrack(job: {
+  jobTrack?: string | null;
+  jobLevel?: string | null;
+  salesCriteria?: unknown;
+  technicalCriteria?: unknown;
+}): 'sales' | 'technical' | null {
+  if (shouldUseTechnicalMatchEngine(job)) return 'technical';
+  if (shouldUseSalesMatchEngine(job)) return 'sales';
+  return null;
+}
+
+function candidateDetailTrack(
+  jobTrack: string | null | undefined,
+): 'sales' | 'technical' | null {
+  const t = jobTrack?.trim().toLowerCase();
+  return t === 'sales' || t === 'technical' ? t : null;
+}
+
+function crossTrackApplyMessage(
+  candTrack: 'sales' | 'technical',
+  jobTrack: 'sales' | 'technical',
+): string | null {
+  if (candTrack === jobTrack) return null;
+  return candTrack === 'sales'
+    ? 'Hồ sơ Kinh doanh không thể nộp tin Kỹ thuật'
+    : 'Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh';
+}
+
 export function JobDetailClient({
   initialJob,
   jobRef,
@@ -118,6 +153,13 @@ export function JobDetailClient({
     queryKey: ['related-jobs', job?.companyId],
     queryFn: () => listPublishedJobs({ keyword: job?.companyName ?? undefined }),
     enabled: Boolean(job?.companyId),
+    retry: false,
+  });
+
+  const { data: myCandidate } = useQuery({
+    queryKey: ['my-candidate'],
+    queryFn: getMyCandidate,
+    enabled: Boolean(tokenStore.get()),
     retry: false,
   });
 
@@ -207,6 +249,11 @@ export function JobDetailClient({
   const jobTitle = job.title;
   const companyName = job.companyName;
   const jobCode = job.code;
+  const jobTrack = jobDetailTrack(job);
+  const candTrack = candidateDetailTrack(myCandidate?.profile?.jobTrack);
+  const trackMismatchHint =
+    candTrack && jobTrack ? crossTrackApplyMessage(candTrack, jobTrack) : null;
+  const applyBlockedByTrack = Boolean(trackMismatchHint);
 
   async function onShare() {
     const url = window.location.href;
@@ -451,6 +498,11 @@ export function JobDetailClient({
                         className="mt-1.5 w-full max-w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 hover:border-amber-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                       />
                     </label>
+                    {trackMismatchHint && (
+                      <p className="break-words rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 ring-1 ring-amber-100">
+                        {trackMismatchHint}. Vui lòng dùng hồ sơ cùng lĩnh vực hoặc chọn tin phù hợp.
+                      </p>
+                    )}
                     {applyMutation.isError && (
                       <p className="break-words text-sm text-red-600">
                         {applyMutation.error instanceof ApiError
@@ -461,7 +513,7 @@ export function JobDetailClient({
                     <button
                       type="button"
                       onClick={() => applyMutation.mutate()}
-                      disabled={applyMutation.isPending}
+                      disabled={applyMutation.isPending || applyBlockedByTrack}
                       className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.99] disabled:opacity-60"
                     >
                       {applyMutation.isPending ? 'Đang gửi…' : 'Ứng tuyển ngay'}

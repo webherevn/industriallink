@@ -289,6 +289,7 @@ export class CandidateService {
         marketsCovered: cleanList(e.marketsCovered),
         sellingStages: cleanList(e.sellingStages),
         brandsTechnologies: cleanList(e.brandsTechnologies ?? []),
+        technicalAutonomyLevel: toIntOrNull(e.technicalAutonomyLevel),
         revenueBand: emptyToNull(e.revenueBand),
         latestRevenue: e.latestRevenue,
         kpiBand: emptyToNull(e.kpiBand),
@@ -416,7 +417,13 @@ export class CandidateService {
         ? brandsFromExperiences
         : cleanList(input.brandsTechnologies ?? []),
       technicalWorkTypes: cleanList(input.technicalWorkTypes ?? []),
-      technicalAutonomyLevel: toIntOrNull(input.technicalAutonomyLevel),
+      technicalAutonomyLevel: (() => {
+        const fromExp = experienceRows
+          .map((e) => e.technicalAutonomyLevel)
+          .filter((n): n is number => n != null && n >= 1 && n <= 5);
+        if (fromExp.length) return Math.max(...fromExp);
+        return toIntOrNull(input.technicalAutonomyLevel);
+      })(),
       troubleshootingLevel: toIntOrNull(input.troubleshootingLevel),
       technicalTools: cleanList(input.technicalTools ?? []),
       documentLiteracy: cleanList(input.documentLiteracy ?? []),
@@ -883,6 +890,7 @@ export class CandidateService {
         marketsCovered?: string[];
         sellingStages?: string[];
         brandsTechnologies?: string[];
+        technicalAutonomyLevel?: number | null;
         revenueBand: string | null;
         latestRevenue: number | null;
         kpiBand: string | null;
@@ -913,6 +921,7 @@ export class CandidateService {
         marketsCovered: e.marketsCovered ?? [],
         sellingStages: e.sellingStages ?? [],
         brandsTechnologies: e.brandsTechnologies ?? [],
+        technicalAutonomyLevel: e.technicalAutonomyLevel ?? null,
         revenueBand: e.revenueBand,
         latestRevenue: e.latestRevenue,
         kpiBand: e.kpiBand,
@@ -1224,6 +1233,7 @@ export class CandidateService {
         jobTitle: e.role,
         period: e.period,
         brandsTechnologies: e.brandsTechnologies,
+        technicalAutonomyLevel: e.technicalAutonomyLevel,
         sellingStages: e.sellingStages,
         productsSold: e.productsSold,
         customerSegments: e.customerSegments,
@@ -1373,7 +1383,13 @@ export class CandidateService {
             : (draft.brandsTechnologies ?? []),
         ),
         technicalWorkTypes: cleanList(draft.technicalWorkTypes ?? []),
-        technicalAutonomyLevel: toIntOrNull(draft.technicalAutonomyLevel),
+        technicalAutonomyLevel: (() => {
+          const fromExp = draft.experience
+            .map((e) => toIntOrNull(e.technicalAutonomyLevel))
+            .filter((n): n is number => n != null && n >= 1 && n <= 5);
+          if (fromExp.length) return Math.max(...fromExp);
+          return toIntOrNull(draft.technicalAutonomyLevel);
+        })(),
         troubleshootingLevel: toIntOrNull(draft.troubleshootingLevel),
         technicalTools: cleanList(draft.technicalTools ?? []),
         documentLiteracy: cleanList(draft.documentLiteracy ?? []),
@@ -1429,6 +1445,7 @@ export class CandidateService {
             marketsCovered: exp.marketsCovered ?? [],
             sellingStages: exp.sellingStages ?? [],
             brandsTechnologies: exp.brandsTechnologies ?? [],
+            technicalAutonomyLevel: toIntOrNull(exp.technicalAutonomyLevel),
             latestRevenue: exp.latestRevenue ?? null,
             kpiAchievementPct: exp.kpiAchievementPct ?? null,
             newCustomerRatioPct: exp.newCustomerRatioPct ?? null,

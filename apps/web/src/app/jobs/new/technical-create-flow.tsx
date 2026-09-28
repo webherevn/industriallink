@@ -16,6 +16,7 @@ import { useMemo, useRef, useState } from 'react';
 import {
   JD_TECHNICAL_AUTONOMY_OPTIONS,
   JD_TECHNICAL_TOTAL_FIELDS,
+  JOB_LEVEL_LABEL,
   JobTrack,
   type JdTechnicalFieldKey,
   type ParsedTechnicalJobDraft,
@@ -127,7 +128,10 @@ export function JdTechnicalCreateFlow({
 
   const analyzing = fileMutation.isPending || textMutation.isPending;
   const busy = analyzing || saveMutation.isPending;
-  const canPublish = form.title.trim().length >= 3 && form.description.trim().length >= 10;
+  const canPublish =
+    form.title.trim().length >= 3 &&
+    form.description.trim().length >= 10 &&
+    Boolean(form.jobLevel);
   const autonomyLabel =
     form.autonomyLevel != null
       ? JD_TECHNICAL_AUTONOMY_OPTIONS.find((o) => o.value === form.autonomyLevel)?.label
@@ -324,6 +328,11 @@ export function JdTechnicalCreateFlow({
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900">{form.title || 'Chưa có vị trí'}</h2>
               <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-slate-600">
+                {form.jobLevel && (
+                  <span className="rounded-md bg-brand-50 px-2 py-1 text-brand-800 ring-1 ring-brand-200">
+                    {JOB_LEVEL_LABEL[form.jobLevel]}
+                  </span>
+                )}
                 {form.industries.map((i) => (
                   <span key={i} className="rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-200">
                     {i}
@@ -390,6 +399,9 @@ export function JdTechnicalCreateFlow({
               )}
             </div>
             <div className="flex items-center gap-3">
+              {step === 3 && !form.jobLevel && (
+                <span className="text-sm text-amber-700">Chọn Cấp bậc ở bước 2 để đăng tin.</span>
+              )}
               <span className="text-sm text-slate-400">Bước {step}/3</span>
               {step < 3 ? (
                 <Button type="button" disabled={busy} onClick={() => setStep(step + 1)}>

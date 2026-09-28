@@ -20,6 +20,7 @@ import { MonthYearRangeFields } from '@/components/ui';
 import { CollapsibleFormSection } from '@/components/collapsible-form-section';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
+import { TechnicalPositionSelect } from '@/components/technical-position-select';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
 
 /** Tách chuỗi "03/2021 – 05/2024" (hoặc "2021 - Hiện tại") → YYYY-MM cho picker. */
@@ -316,17 +317,16 @@ export function CvTechnicalExperienceFields({
                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
                 />
               </label>
-              <label className="block">
+              <div className="block">
                 <span className="text-sm font-semibold text-slate-800">
                   <NumberedTitle text="21. Vị trí" />
                 </span>
-                <input
+                <TechnicalPositionSelect
+                  className="mt-1.5"
                   value={exp.role}
-                  onChange={(e) => updateExperience(index, { role: e.target.value })}
-                  placeholder="Anh/chị làm vị trí gì tại công ty này?"
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                  onChange={(role) => updateExperience(index, { role })}
                 />
-              </label>
+              </div>
             </div>
 
             <div>
@@ -423,7 +423,7 @@ export function CvTechnicalExperienceFields({
               />
               <div className="space-y-1.5">
                 {TECHNICAL_AUTONOMY_LEVELS.map((lv) => {
-                  const checked = draft.technicalAutonomyLevel === lv.value;
+                  const checked = exp.technicalAutonomyLevel === lv.value;
                   return (
                     <label
                       key={lv.value}
@@ -439,7 +439,7 @@ export function CvTechnicalExperienceFields({
                         name={`cv-technicalAutonomy-${index}`}
                         className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                         checked={checked}
-                        onChange={() => onChange('technicalAutonomyLevel', lv.value)}
+                        onChange={() => updateExperience(index, { technicalAutonomyLevel: lv.value })}
                       />
                       <span>{lv.label}</span>
                     </label>

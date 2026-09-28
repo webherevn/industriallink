@@ -107,6 +107,7 @@ import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { TechnicalPositionSelect } from '@/components/technical-position-select';
 import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearRangeFields, Select, Textarea, YearInput } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
 import { filterCareerMotivations } from '@/lib/career-motivations';
@@ -166,6 +167,8 @@ type ExperienceRow = {
   marketsCovered: string[];
   sellingStages: string[];
   brandsTechnologies: string[];
+  /** KT — mức tự chủ 1–5 tại công ty này. */
+  technicalAutonomyLevel: number | null;
   revenueBand: string;
   latestRevenue: string;
   kpiBand: string;
@@ -248,6 +251,7 @@ function emptyExperience(): ExperienceRow {
     marketsCovered: [],
     sellingStages: [],
     brandsTechnologies: [],
+    technicalAutonomyLevel: null,
     revenueBand: '',
     latestRevenue: '',
     kpiBand: '',
@@ -424,6 +428,7 @@ function experienceFromView(exp: {
   marketsCovered: string[];
   sellingStages: string[];
   brandsTechnologies?: string[];
+  technicalAutonomyLevel?: number | null;
   revenueBand: string | null;
   latestRevenue: number | null;
   kpiBand: string | null;
@@ -464,6 +469,7 @@ function experienceFromView(exp: {
       ),
     ],
     brandsTechnologies: [...(exp.brandsTechnologies ?? [])],
+    technicalAutonomyLevel: exp.technicalAutonomyLevel ?? null,
     revenueBand: exp.revenueBand ?? '',
     latestRevenue: exp.latestRevenue != null ? String(exp.latestRevenue) : '',
     kpiBand: exp.kpiBand ?? '',
@@ -552,6 +558,7 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
         marketsCovered: e.marketsCovered,
         sellingStages: e.sellingStages,
         brandsTechnologies: e.brandsTechnologies,
+        technicalAutonomyLevel: e.technicalAutonomyLevel,
         revenueBand: e.revenueBand || null,
         latestRevenue,
         kpiBand: e.kpiBand || null,
@@ -665,7 +672,13 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
       track.jobTrack === JobTrack.Technical
         ? unionArrays(track.technicalWorkTypes, ...experiences.map((e) => e.sellingStages))
         : track.technicalWorkTypes,
-    technicalAutonomyLevel: track.technicalAutonomyLevel,
+    technicalAutonomyLevel: (() => {
+      const fromExp = experiences
+        .map((e) => e.technicalAutonomyLevel)
+        .filter((n): n is number => n != null && n >= 1 && n <= 5);
+      if (fromExp.length) return Math.max(...fromExp);
+      return track.technicalAutonomyLevel;
+    })(),
     troubleshootingLevel: track.troubleshootingLevel,
     technicalTools: track.technicalTools,
     documentLiteracy: track.documentLiteracy,
@@ -918,6 +931,7 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
       marketsCovered: e.marketsCovered,
       sellingStages: e.sellingStages,
       brandsTechnologies: e.brandsTechnologies,
+      technicalAutonomyLevel: e.technicalAutonomyLevel,
       latestRevenue:
         parseOptionalNumber(e.latestRevenue) ?? dealValueBandToVnd(e.revenueBand),
       kpiAchievementPct:
@@ -999,7 +1013,13 @@ function draftFromEditForm(form: FormState, track: TrackExtras, email = ''): CvD
       track.jobTrack === JobTrack.Technical
         ? unionArrays(track.technicalWorkTypes, ...form.experiences.map((e) => e.sellingStages))
         : track.technicalWorkTypes,
-    technicalAutonomyLevel: track.technicalAutonomyLevel,
+    technicalAutonomyLevel: (() => {
+      const fromExp = form.experiences
+        .map((e) => e.technicalAutonomyLevel)
+        .filter((n): n is number => n != null && n >= 1 && n <= 5);
+      if (fromExp.length) return Math.max(...fromExp);
+      return track.technicalAutonomyLevel;
+    })(),
     troubleshootingLevel: track.troubleshootingLevel,
     technicalTools: track.technicalTools,
     documentLiteracy: track.documentLiteracy,
@@ -1057,6 +1077,16 @@ export default function ProfileEditPage() {
       exps[0].sellingStages.length === 0
     ) {
       exps[0] = { ...exps[0], sellingStages: [...(p.technicalWorkTypes ?? [])] };
+    }
+    // Hồ sơ cũ: mức tự chủ chỉ lưu ở profile → gán tạm vào từng công ty chưa có giá trị.
+    if (
+      p?.jobTrack === JobTrack.Technical &&
+      p.technicalAutonomyLevel != null &&
+      exps.every((e) => e.technicalAutonomyLevel == null)
+    ) {
+      for (let i = 0; i < exps.length; i++) {
+        exps[i] = { ...exps[i], technicalAutonomyLevel: p.technicalAutonomyLevel };
+      }
     }
     const hasCvAi = candidate.experiences.some((e) => e.source === 'cv_ai');
 
@@ -2039,12 +2069,9 @@ export default function ProfileEditPage() {
                                   />
                                 </Field>
                                 <Field label="21. Vị trí *">
-                                  <Input
+                                  <TechnicalPositionSelect
                                     value={exp.jobTitle}
-                                    onChange={(e) =>
-                                      patchExperience(index, { jobTitle: e.target.value })
-                                    }
-                                    placeholder="Anh/chị làm vị trí gì tại công ty này?"
+                                    onChange={(jobTitle) => patchExperience(index, { jobTitle })}
                                   />
                                 </Field>
                               </div>
@@ -2129,17 +2156,16 @@ export default function ProfileEditPage() {
                                   options={TECHNICAL_AUTONOMY_LEVELS.map((lv) => lv.label)}
                                   value={
                                     TECHNICAL_AUTONOMY_LEVELS.find(
-                                      (lv) => lv.value === trackExtras.technicalAutonomyLevel,
+                                      (lv) => lv.value === exp.technicalAutonomyLevel,
                                     )?.label ?? ''
                                   }
                                   onChange={(label) => {
                                     const lv = TECHNICAL_AUTONOMY_LEVELS.find(
                                       (o) => o.label === label,
                                     );
-                                    setTrackExtras((prev) => ({
-                                      ...prev,
+                                    patchExperience(index, {
                                       technicalAutonomyLevel: lv ? lv.value : null,
-                                    }));
+                                    });
                                   }}
                                 />
                               </Field>
@@ -2763,11 +2789,18 @@ export default function ProfileEditPage() {
                             ))
                           )}
                           <ReviewRow
-                            label="Mức tự chủ"
+                            label="Mức tự chủ (theo công ty)"
                             value={
-                              TECHNICAL_AUTONOMY_LEVELS.find(
-                                (lv) => lv.value === trackExtras.technicalAutonomyLevel,
-                              )?.label ?? '—'
+                              form.experiences
+                                .filter((e) => e.companyName.trim() || e.jobTitle.trim())
+                                .map((e) => {
+                                  const label =
+                                    TECHNICAL_AUTONOMY_LEVELS.find(
+                                      (lv) => lv.value === e.technicalAutonomyLevel,
+                                    )?.label ?? '—';
+                                  return `${e.companyName || e.jobTitle || 'Công ty'}: ${label}`;
+                                })
+                                .join(' · ') || '—'
                             }
                           />
                         </div>

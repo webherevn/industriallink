@@ -96,6 +96,8 @@ export interface CvDraftExperience {
   sellingStages: string[];
   /** STT 28 KD — hãng/thương hiệu theo từng công ty. */
   brandsTechnologies: string[];
+  /** KT — mức tự chủ 1–5 tại công ty này. */
+  technicalAutonomyLevel?: number | null;
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
   newCustomerRatioPct: number | null;
@@ -178,6 +180,7 @@ export function emptyCvExperience(): CvDraftExperience {
     marketsCovered: [],
     sellingStages: [],
     brandsTechnologies: [],
+    technicalAutonomyLevel: null,
     latestRevenue: null,
     kpiAchievementPct: null,
     newCustomerRatioPct: null,
@@ -264,6 +267,7 @@ export function normalizeCvDraft(raw: Partial<CvDraft> | null | undefined, fallb
     marketsCovered: e.marketsCovered ?? [],
     sellingStages: e.sellingStages ?? [],
     brandsTechnologies: e.brandsTechnologies ?? [],
+    technicalAutonomyLevel: e.technicalAutonomyLevel ?? null,
     latestRevenue: e.latestRevenue ?? null,
     kpiAchievementPct: e.kpiAchievementPct ?? null,
     newCustomerRatioPct: e.newCustomerRatioPct ?? null,

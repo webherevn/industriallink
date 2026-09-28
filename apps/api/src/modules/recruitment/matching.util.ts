@@ -308,6 +308,8 @@ export interface CandidateExperienceMatchSlice {
   customerSegments?: string[] | null;
   marketsCovered?: string[] | null;
   sellingStages?: string[] | null;
+  /** KT — mức tự chủ 1–5 tại công ty này. */
+  technicalAutonomyLevel?: number | null;
   dealType?: string | null;
   latestRevenue?: number | null;
   kpiAchievementPct?: number | null;

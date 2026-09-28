@@ -13,6 +13,7 @@ import {
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { buildJobText } from './job.service';
+import { candidateMatchTrack, jobMatchTrack, type MatchTrack } from './match-track.util';
 import {
   buildB2bExplanation,
   cosine,
@@ -33,6 +34,11 @@ const CANDIDATE_MATCH_INCLUDE = {
   skills: true,
   experiences: true,
 } as const;
+
+/** Chỉ chấm cùng nhóm (KD↔KD, KT↔KT). Thiếu nhóm → không đưa vào gợi ý mạng lưới. */
+function sameMatchTrack(jobTrack: MatchTrack | null, candTrack: MatchTrack | null): boolean {
+  return Boolean(jobTrack && candTrack && jobTrack === candTrack);
+}
 
 type CandidateWithSales = {
   displayName: string;
@@ -134,6 +140,7 @@ export class MatchingService {
       include: { skills: true },
     });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+    const jobTrack = jobMatchTrack(job);
 
     const poolIds = new Set<string>();
     const appliedIds = new Set<string>();
@@ -168,13 +175,24 @@ export class MatchingService {
       this.logger.warn(`Semantic recall (pool) lỗi: ${String(err)}`);
     }
 
+    if (jobTrack) {
+      const otherTrack = await this.prisma.candidate.findMany({
+        where: {
+          id: { in: [...poolIds].filter((id) => !appliedIds.has(id)) },
+          profile: { is: { jobTrack: { not: jobTrack } } },
+        },
+        select: { id: true },
+      });
+      for (const c of otherTrack) poolIds.delete(c.id);
+    }
+
     // 3) Bổ sung ứng viên có hồ sơ (cùng tenant) để engine Sales/KT có đủ dữ liệu chấm
     if (poolIds.size < CANDIDATE_POOL) {
       const recent = await this.prisma.candidate.findMany({
         where: {
           tenantId: user.tenantId,
           isDeleted: false,
-          profile: { isNot: null },
+          profile: jobTrack ? { is: { jobTrack } } : { isNot: null },
           ...(poolIds.size > 0 ? { id: { notIn: [...poolIds] } } : {}),
         },
         orderBy: { updatedAt: 'desc' },
@@ -191,8 +209,12 @@ export class MatchingService {
       include: CANDIDATE_MATCH_INCLUDE,
     });
 
-    // Điểm cuối = engine Sales / Kỹ thuật (explainPair), không dùng điểm embedding
-    const scored = candidates.map((c) => {
+    // Điểm cuối = engine Sales / Kỹ thuật (explainPair), không dùng điểm embedding.
+    // Ứng viên đã nộp vào tin luôn giữ lại để NTD thấy đủ hồ sơ ứng tuyển.
+    const eligible = candidates.filter(
+      (c) => appliedIds.has(c.id) || sameMatchTrack(jobTrack, candidateMatchTrack(c)),
+    );
+    const scored = eligible.map((c) => {
       const explanation = this.explainPair(0, job, c);
       return {
         candidateId: c.id,
@@ -223,6 +245,10 @@ export class MatchingService {
       include: CANDIDATE_MATCH_INCLUDE,
     });
     if (!candidate) throw new NotFoundException('Chưa có hồ sơ ứng viên');
+    const candTrack = candidateMatchTrack(candidate);
+    const fetchLimit = candTrack ? MATCH_LIMIT * 3 : MATCH_LIMIT;
+    const fitsTrack = (j: Parameters<typeof jobMatchTrack>[0]) =>
+      sameMatchTrack(jobMatchTrack(j), candTrack);
 
     let rows: { id: string; score: number }[] = [];
     try {
@@ -236,7 +262,7 @@ export class MatchingService {
           AND is_deleted = false
           AND embedding IS NOT NULL
         ORDER BY embedding <=> ${literal}::vector
-        LIMIT ${MATCH_LIMIT}`;
+        LIMIT ${fetchLimit}`;
     } catch (err) {
       this.logger.warn(`Semantic matching (job) lỗi: ${String(err)}`);
     }
@@ -251,14 +277,15 @@ export class MatchingService {
         },
         include: { skills: true, company: { select: { id: true, name: true, slug: true } } },
         orderBy: { publishedAt: 'desc' },
-        take: MATCH_LIMIT,
+        take: fetchLimit,
       });
-      await backfillMissingJobSlugs(this.prisma, published);
+      const sameTrackJobs = published.filter(fitsTrack).slice(0, MATCH_LIMIT);
+      await backfillMissingJobSlugs(this.prisma, sameTrackJobs);
       await backfillMissingCompanySlugs(
         this.prisma,
-        published.map((j) => j.company),
+        sameTrackJobs.map((j) => j.company),
       );
-      return published
+      return sameTrackJobs
         .map((j) => {
           const explanation = this.explainPair(0, j, candidate);
           return this.toJobMatchView(j, explanation);
@@ -268,10 +295,14 @@ export class MatchingService {
     }
 
     const scoreMap = new Map(rows.map((r) => [r.id, r.score]));
-    const jobs = await this.prisma.job.findMany({
+    const fetched = await this.prisma.job.findMany({
       where: { id: { in: rows.map((r) => r.id) } },
       include: { skills: true, company: { select: { id: true, name: true, slug: true } } },
     });
+    const jobs = fetched
+      .filter(fitsTrack)
+      .sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0))
+      .slice(0, MATCH_LIMIT);
 
     await backfillMissingJobSlugs(this.prisma, jobs);
     await backfillMissingCompanySlugs(

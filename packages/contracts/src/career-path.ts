@@ -199,11 +199,11 @@ export function resolveJobLevel(input: {
     /kinh doanh|sales|account|bdm|business development/.test(text);
 
   // CEO / tổng giám đốc → bậc cao nhất còn hỗ trợ trên nền tảng (GĐ Kinh doanh)
-  if (/giám đốc công ty|ceo|tổng giám đốc|general director/.test(text)) {
+  if (/giám đốc công ty|\bceo\b|tổng giám đốc|general director/.test(text)) {
     return JobLevelCode.SalesDirector;
   }
   if (/giám đốc kinh doanh|sales director/.test(text)) return JobLevelCode.SalesDirector;
-  if (/giám đốc kỹ thuật|technical director|cto/.test(text)) return JobLevelCode.TechDirector;
+  if (/giám đốc kỹ thuật|technical director|\bcto\b/.test(text)) return JobLevelCode.TechDirector;
   if (/trưởng phòng kinh doanh/.test(text)) return JobLevelCode.SalesDeptHead;
   if (/trưởng phòng kỹ thuật|trưởng phòng/.test(text)) {
     return salesHint ? JobLevelCode.SalesDeptHead : JobLevelCode.TechDeptHead;
@@ -214,8 +214,14 @@ export function resolveJobLevel(input: {
   if (/trưởng nhóm|team lead|supervisor/.test(text)) {
     return salesHint ? JobLevelCode.SalesTeamLead : JobLevelCode.TechTeamLead;
   }
-  if (/senior|lead|manager/.test(text) && salesHint) return JobLevelCode.SalesTeamLead;
-  if (/senior|lead|manager/.test(text)) return JobLevelCode.TechTeamLead;
+  // «Quản lý …» / manager ngang Trưởng phòng (khớp cấp gợi ý cho 3 vị trí Quản lý Kỹ thuật);
+  // «Kỹ sư quản lý chất lượng», «Nhân viên quản lý kho» vẫn là cấp nhân viên.
+  const staffTitle = /nhân viên|kỹ sư|chuyên viên|kỹ thuật viên|engineer|executive|staff|specialist/;
+  if (/quản lý|manager/.test(text) && !staffTitle.test(text)) {
+    return salesHint ? JobLevelCode.SalesDeptHead : JobLevelCode.TechDeptHead;
+  }
+  if (/senior|lead/.test(text) && salesHint) return JobLevelCode.SalesTeamLead;
+  if (/senior|lead/.test(text)) return JobLevelCode.TechTeamLead;
   if (salesHint || /kinh doanh|sales/.test(text)) return JobLevelCode.SalesStaff;
   return JobLevelCode.TechStaff;
 }

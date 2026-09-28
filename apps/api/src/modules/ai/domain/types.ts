@@ -37,6 +37,8 @@ export interface ParsedResumeExperience {
   marketsCovered: string[];
   industries: string[];
   sellingStages: string[];
+  /** KT — mức tự chủ 1–5 tại công ty này. */
+  technicalAutonomyLevel?: number | null;
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
   newCustomerRatioPct: number | null;

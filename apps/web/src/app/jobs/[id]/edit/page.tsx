@@ -100,7 +100,9 @@ export default function EditJobPage() {
             disabled={
               saveMutation.isPending ||
               !hydrated ||
-              (isSales ? salesForm.title.trim().length < 3 : techForm.title.trim().length < 3)
+              (isSales
+                ? salesForm.title.trim().length < 3 || !salesForm.jobLevel
+                : techForm.title.trim().length < 3 || !techForm.jobLevel)
             }
           >
             {saveMutation.isPending ? (
@@ -143,7 +145,11 @@ export default function EditJobPage() {
               </Link>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending || salesForm.title.trim().length < 3}
+                disabled={
+                  saveMutation.isPending ||
+                  salesForm.title.trim().length < 3 ||
+                  !salesForm.jobLevel
+                }
               >
                 {saveMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -175,7 +181,9 @@ export default function EditJobPage() {
               </Link>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending || techForm.title.trim().length < 3}
+                disabled={
+                  saveMutation.isPending || techForm.title.trim().length < 3 || !techForm.jobLevel
+                }
               >
                 {saveMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

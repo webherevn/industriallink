@@ -204,6 +204,8 @@ export interface TechnicalMatchCompanyInput {
   equipmentSystems: string[];
   workEnvironments: string[];
   technicalWorkTypes: string[];
+  /** Mức tự chủ 1–5 tại công ty này; trống → dùng mức cấp hồ sơ (dữ liệu cũ). */
+  autonomyLevel?: number | null;
   startYear?: number | null;
   endYear?: number | null;
   isCurrent?: boolean;
@@ -269,6 +271,7 @@ function norm(s: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
     .replace(/\s*\/\s*/g, '/')
     .replace(/\s+/g, ' ');
 }
@@ -590,7 +593,12 @@ function scoreFieldS(
         ),
       };
     case 'tech.jd11':
-      return { S: autonomySimilarityS(jd.autonomyLevel, profile.autonomyLevel) };
+      return {
+        S: autonomySimilarityS(
+          jd.autonomyLevel,
+          company?.autonomyLevel ?? profile.autonomyLevel,
+        ),
+      };
     case 'tech.jd12':
       return { S: educationSimilarityS(jd.educationLevel, profile.educationLevel) };
     case 'tech.jd13':
@@ -916,7 +924,7 @@ export function jobTechnicalCriteriaToMatchJd(
       ? [job.industry]
       : [];
   return {
-    title: job.title ?? null,
+    title: tech?.position?.trim() || job.title || null,
     industries,
     location: job.location ?? null,
     experienceBand: job.experienceBand ?? null,

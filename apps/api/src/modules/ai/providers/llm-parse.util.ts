@@ -2,6 +2,9 @@ import {
   B2bExperienceBand,
   EDUCATION_LEVELS,
   SkillLevel,
+  TECHNICAL_DESIRED_POSITIONS,
+  findTechnicalPositionInText,
+  matchTechnicalPosition,
   normalizeDealTypeValue,
   normalizeSellingStage,
 } from '@industriallink/contracts';
@@ -17,6 +20,8 @@ import type {
 
 const SELLING_STAGE_HINT =
   'Tìm kiếm khách hàng|Tiếp cận|Xác định nhu cầu|Khảo sát|Tư vấn sản phẩm|Xây dựng giải pháp|Báo giá|Thuyết trình|Đàm phán|Chốt hợp đồng|Triển khai/giao hàng|Thu hồi công nợ|Chăm sóc/bán thêm';
+
+const TECHNICAL_POSITION_HINT = TECHNICAL_DESIRED_POSITIONS.join(' | ');
 
 export const RESUME_SYSTEM_PROMPT = [
   'Bạn là chuyên gia tuyển dụng Sales B2B / kỹ thuật công nghiệp tại Việt Nam.',
@@ -38,10 +43,11 @@ export const RESUME_SYSTEM_PROMPT = [
   '13) dealType: equipment|consumables|service|technical_solution|project|rental|other|null (Thiết bị / Vật tư tiêu hao / Dịch vụ / Giải pháp kỹ thuật / Dự án / Cho thuê thiết bị / Khác)',
   '14) missingFields chỉ mã thật sự thiếu: revenue|kpi|newCustomerRatio|dealValue|sellingStages|products|customerSegments|markets|industries|responsibilities',
   '15) jobTrack: "sales" nếu CV thiên doanh số/KPI/bán hàng; "technical" nếu thiên bảo trì/lắp đặt/PLC/thiết bị/kỹ sư dịch vụ. Chỉ null khi không suy được.',
-  '16) Kỹ thuật: brandsTechnologies, technicalWorkTypes (Thiết kế|Bảo trì|Commissioning…), technicalAutonomyLevel 1-5, troubleshootingLevel 1-5, technicalTools, documentLiteracy, systemScaleNote, shiftFlexibility yes|limited|no.',
+  '16) Kỹ thuật: brandsTechnologies, technicalWorkTypes (Thiết kế|Bảo trì|Commissioning…), technicalAutonomyLevel 1-5 (theo từng công ty nếu CV mô tả), troubleshootingLevel 1-5, technicalTools, documentLiteracy, systemScaleNote, shiftFlexibility yes|limited|no.',
   '17) Thiết bị/hệ thống → productsSold; môi trường làm việc (FDI/EPC…) → customerSegments — dùng chung field, không tạo field trùng.',
   '18) Khi jobTrack=technical: salesHighlights = dự án/thành tích nổi bật theo format "Tên dự án → thiết bị → vai trò → quy mô → kết quả (bao nhiêu dự án đảm bảo đúng thời hạn)". Ưu tiên số liệu đúng hạn nếu CV có.',
-  '19) Trả DUY NHẤT JSON hợp lệ, không markdown.',
+  `19) Khi jobTrack=technical: jobTitle / currentPosition / desiredPositions ƯU TIÊN chọn đúng 1 trong: ${TECHNICAL_POSITION_HINT}. Không khớp rõ → giữ nguyên văn CV (sẽ hiện «Khác»).`,
+  '20) Trả DUY NHẤT JSON hợp lệ, không markdown.',
   '',
   'Schema JSON:',
   '{',
@@ -63,6 +69,7 @@ export const RESUME_SYSTEM_PROMPT = [
   '    "startYear": number|null, "endYear": number|null, "isCurrent": boolean,',
   '    "productsSold": string[], "customerSegments": string[], "marketsCovered": string[],',
   '    "industries": string[], "sellingStages": string[],',
+  '    "technicalAutonomyLevel": number|null,',
   '    "latestRevenue": number|null, "kpiAchievementPct": number|null, "newCustomerRatioPct": number|null,',
   '    "dealType": string|null, "typicalDealValue": number|null, "maxDealValue": number|null,',
   '    "responsibilities": string[],',
@@ -359,6 +366,7 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
         marketsCovered,
         industries,
         sellingStages,
+        technicalAutonomyLevel: level1to5(e.technicalAutonomyLevel),
         latestRevenue,
         kpiAchievementPct,
         newCustomerRatioPct,
@@ -452,11 +460,37 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
   // Không lấy summary làm mục tiêu nghề nghiệp
   const careerObjective = str(r.careerObjective);
 
+  const jobTrack = normalizeJobTrack(r.jobTrack) ?? inferJobTrack(r, experiences);
+  const currentPositionRaw = str(r.currentPosition);
+  const desiredRaw = strArr(r.desiredPositions, 5);
+
+  let normalizedExperiences = experiences;
+  let currentPosition = currentPositionRaw;
+  let desiredPositions = desiredRaw;
+  let profileAutonomy = level1to5(r.technicalAutonomyLevel);
+
+  if (jobTrack === 'technical') {
+    normalizedExperiences = experiences.map((e) => ({
+      ...e,
+      jobTitle: canonicalizeTechnicalPosition(e.jobTitle),
+    }));
+    currentPosition = currentPositionRaw
+      ? canonicalizeTechnicalPosition(currentPositionRaw)
+      : currentPositionRaw;
+    desiredPositions = desiredRaw.map(canonicalizeTechnicalPosition);
+    if (profileAutonomy == null) {
+      const fromExp = normalizedExperiences
+        .map((e) => e.technicalAutonomyLevel)
+        .filter((n): n is number => n != null && n >= 1 && n <= 5);
+      if (fromExp.length) profileAutonomy = Math.max(...fromExp);
+    }
+  }
+
   return {
     contact,
     summary: str(r.summary) ?? '',
     careerObjective,
-    currentPosition: str(r.currentPosition),
+    currentPosition,
     jobLevel: str(r.jobLevel),
     totalExperienceYears,
     b2bExperienceBand: normalizeBand(r.b2bExperienceBand, totalExperienceYears),
@@ -464,7 +498,7 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
     specialization: str(r.specialization),
     skills,
     softSkills: softSkills.length ? softSkills : strengths.slice(0, 8),
-    experiences,
+    experiences: normalizedExperiences,
     education,
     certificates: strArr(r.certificates),
     languages: strArr(r.languages),
@@ -475,7 +509,7 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
     marketsCovered,
     industriesExperienced,
     sellingStages,
-    desiredPositions: strArr(r.desiredPositions, 5),
+    desiredPositions,
     desiredLocations: strArr(r.desiredLocations, 8),
     expectedSalaryMin: num(r.expectedSalaryMin),
     expectedSalaryMax: num(r.expectedSalaryMax),
@@ -489,10 +523,10 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
     strengths,
     weaknesses: strArr(r.weaknesses),
     careerPath: str(r.careerPath),
-    jobTrack: normalizeJobTrack(r.jobTrack) ?? inferJobTrack(r, experiences),
+    jobTrack,
     brandsTechnologies: strArr(r.brandsTechnologies, 24),
     technicalWorkTypes: strArr(r.technicalWorkTypes, 20),
-    technicalAutonomyLevel: level1to5(r.technicalAutonomyLevel),
+    technicalAutonomyLevel: profileAutonomy,
     troubleshootingLevel: level1to5(r.troubleshootingLevel),
     technicalTools: strArr(r.technicalTools, 20),
     documentLiteracy: strArr(r.documentLiteracy, 16),
@@ -501,6 +535,13 @@ export function normalizeParsedResume(raw: unknown): ParsedResume {
     aiScore: Math.max(0, Math.min(100, num(r.aiScore) ?? 60)),
     confidence: Math.max(0, Math.min(1, num(r.confidence) ?? 0.7)),
   };
+}
+
+/** Map free-text → 1 trong 13 vị trí Kỹ thuật nếu nhận diện được; không thì giữ nguyên. */
+function canonicalizeTechnicalPosition(raw: string): string {
+  const s = raw.trim();
+  if (!s) return s;
+  return matchTechnicalPosition(s) ?? findTechnicalPositionInText(s) ?? s;
 }
 
 /** Suy jobTrack khi LLM không trả — dựa title / trách nhiệm. */

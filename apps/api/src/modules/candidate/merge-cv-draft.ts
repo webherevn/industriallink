@@ -77,6 +77,7 @@ export type ProfileDraftSource = {
     marketsCovered: string[];
     sellingStages: string[];
     brandsTechnologies?: string[];
+    technicalAutonomyLevel?: number | null;
     latestRevenue: number | null;
     kpiAchievementPct: number | null;
     newCustomerRatioPct: number | null;
@@ -112,6 +113,7 @@ export function profileSourceToCvDraft(src: ProfileDraftSource): CvDraftView {
     marketsCovered: e.marketsCovered ?? [],
     sellingStages: e.sellingStages ?? [],
     brandsTechnologies: e.brandsTechnologies ?? [],
+    technicalAutonomyLevel: e.technicalAutonomyLevel ?? null,
     latestRevenue: e.latestRevenue,
     kpiAchievementPct: e.kpiAchievementPct,
     newCustomerRatioPct: e.newCustomerRatioPct,
@@ -259,6 +261,7 @@ function mergeExperience(primary: Exp[], fallback: Exp[]): Exp[] {
       marketsCovered: unionList(pe.marketsCovered, fe?.marketsCovered),
       sellingStages: unionList(pe.sellingStages, fe?.sellingStages),
       brandsTechnologies: unionList(pe.brandsTechnologies, fe?.brandsTechnologies),
+      technicalAutonomyLevel: pe.technicalAutonomyLevel ?? fe?.technicalAutonomyLevel ?? null,
       latestRevenue: pe.latestRevenue ?? fe?.latestRevenue ?? null,
       kpiAchievementPct: pe.kpiAchievementPct ?? fe?.kpiAchievementPct ?? null,
       newCustomerRatioPct: pe.newCustomerRatioPct ?? fe?.newCustomerRatioPct ?? null,

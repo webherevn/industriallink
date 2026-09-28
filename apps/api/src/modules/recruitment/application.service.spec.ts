@@ -56,6 +56,37 @@ describe('ApplicationService', () => {
   };
 
   describe('apply', () => {
+    const candidateWithSalesTrack = {
+      id: 'can-1',
+      tenantId: 'default',
+      profile: { jobTrack: 'sales' },
+    };
+    const candidateWithTechnicalTrack = {
+      id: 'can-1',
+      tenantId: 'default',
+      profile: { jobTrack: 'technical' },
+    };
+    const publishedSalesJob = {
+      id: 'job-1',
+      code: 'JOB-1',
+      title: 'Sales Engineer',
+      status: JobStatus.Published,
+      isDeleted: false,
+      jobTrack: 'sales',
+      jobLevel: 'sales.staff',
+      company: { name: 'Công ty ABC' },
+    };
+    const publishedTechnicalJob = {
+      id: 'job-1',
+      code: 'JOB-1',
+      title: 'Kỹ sư PLC',
+      status: JobStatus.Published,
+      isDeleted: false,
+      jobTrack: 'technical',
+      jobLevel: 'technical.staff',
+      company: { name: 'Công ty ABC' },
+    };
+
     it('ứng tuyển thành công, tính match score và phát ApplicationSubmitted', async () => {
       const create = jest.fn().mockResolvedValue({
         id: 'app-1',
@@ -67,16 +98,9 @@ describe('ApplicationService', () => {
         createdAt: new Date('2026-07-01T00:00:00.000Z'),
       });
       const prisma = {
-        candidate: { findUnique: jest.fn().mockResolvedValue({ id: 'can-1', tenantId: 'default' }) },
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithTechnicalTrack) },
         job: {
-          findUnique: jest.fn().mockResolvedValue({
-            id: 'job-1',
-            code: 'JOB-1',
-            title: 'Kỹ sư PLC',
-            status: JobStatus.Published,
-            isDeleted: false,
-            company: { name: 'Công ty ABC' },
-          }),
+          findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob),
         },
         application: { findUnique: jest.fn().mockResolvedValue(null), create },
       };
@@ -100,13 +124,11 @@ describe('ApplicationService', () => {
 
     it('từ chối nếu tin chưa được đăng công khai', async () => {
       const prisma = {
-        candidate: { findUnique: jest.fn().mockResolvedValue({ id: 'can-1', tenantId: 'default' }) },
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithTechnicalTrack) },
         job: {
           findUnique: jest.fn().mockResolvedValue({
-            id: 'job-1',
+            ...publishedTechnicalJob,
             status: JobStatus.Draft,
-            isDeleted: false,
-            company: { name: 'Công ty ABC' },
           }),
         },
       };
@@ -119,14 +141,9 @@ describe('ApplicationService', () => {
 
     it('từ chối nếu đã ứng tuyển vị trí này rồi', async () => {
       const prisma = {
-        candidate: { findUnique: jest.fn().mockResolvedValue({ id: 'can-1', tenantId: 'default' }) },
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithTechnicalTrack) },
         job: {
-          findUnique: jest.fn().mockResolvedValue({
-            id: 'job-1',
-            status: JobStatus.Published,
-            isDeleted: false,
-            company: { name: 'Công ty ABC' },
-          }),
+          findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob),
         },
         application: { findUnique: jest.fn().mockResolvedValue({ id: 'app-existing' }) },
       };
@@ -135,6 +152,93 @@ describe('ApplicationService', () => {
       await expect(service.apply(candidateUser, 'job-1', {}, 'corr-4')).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it('từ chối nếu hồ sơ chưa chọn lĩnh vực', async () => {
+      const prisma = {
+        candidate: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'can-1',
+            tenantId: 'default',
+            profile: { jobTrack: null },
+          }),
+        },
+        job: { findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob) },
+        application: { findUnique: jest.fn().mockResolvedValue(null) },
+      };
+      const service = buildService(prisma);
+
+      await expect(service.apply(candidateUser, 'job-1', {}, 'corr-track-1')).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: expect.stringMatching(/chọn lĩnh vực/i),
+        }),
+      });
+      expect(matching.computePairMatch).not.toHaveBeenCalled();
+    });
+
+    it('từ chối nếu hồ sơ Kinh doanh nộp tin Kỹ thuật', async () => {
+      const prisma = {
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithSalesTrack) },
+        job: { findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob) },
+        application: { findUnique: jest.fn().mockResolvedValue(null) },
+      };
+      const service = buildService(prisma);
+
+      await expect(service.apply(candidateUser, 'job-1', {}, 'corr-track-2')).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: 'Hồ sơ Kinh doanh không thể nộp tin Kỹ thuật',
+        }),
+      });
+      expect(matching.computePairMatch).not.toHaveBeenCalled();
+    });
+
+    it('từ chối nếu hồ sơ Kỹ thuật nộp tin Kinh doanh', async () => {
+      const prisma = {
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithTechnicalTrack) },
+        job: { findUnique: jest.fn().mockResolvedValue(publishedSalesJob) },
+        application: { findUnique: jest.fn().mockResolvedValue(null) },
+      };
+      const service = buildService(prisma);
+
+      await expect(service.apply(candidateUser, 'job-1', {}, 'corr-track-3')).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: 'Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh',
+        }),
+      });
+    });
+
+    it('cho phép nộp tin legacy không có track khi hồ sơ đã có lĩnh vực', async () => {
+      const create = jest.fn().mockResolvedValue({
+        id: 'app-legacy',
+        code: 'APP-2026-000001',
+        jobId: 'job-1',
+        status: ApplicationStatus.Applied,
+        matchScore: 80,
+        coverLetter: null,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      });
+      const prisma = {
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithSalesTrack) },
+        job: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'job-1',
+            code: 'JOB-1',
+            title: 'Nhân viên',
+            status: JobStatus.Published,
+            isDeleted: false,
+            jobTrack: null,
+            jobLevel: null,
+            salesCriteria: null,
+            technicalCriteria: null,
+            company: { name: 'Công ty ABC' },
+          }),
+        },
+        application: { findUnique: jest.fn().mockResolvedValue(null), create },
+      };
+      const service = buildService(prisma);
+
+      const result = await service.apply(candidateUser, 'job-1', {}, 'corr-track-4');
+      expect(result.id).toBe('app-legacy');
     });
   });
 

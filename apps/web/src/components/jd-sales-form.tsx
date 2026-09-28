@@ -12,12 +12,16 @@ import {
   JD_SALES_GROUPS,
   JD_SALES_INDUSTRY_OPTIONS,
   JD_SALES_TITLE_OPTIONS,
+  JOB_LEVEL_LABEL,
+  JobLevelCode,
   LANGUAGE_OPTIONS,
   MARKET_REGIONS,
   PRODUCTS_SOLD,
+  SALES_JOB_LEVELS,
   SELLING_STAGES,
   TRAVEL_ABILITY_LABEL,
   TravelAbility,
+  defaultSalesLevelForTitle,
   type JdSalesFieldKey,
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
@@ -160,7 +164,12 @@ export function JdSalesForm({
               <button
                 key={opt}
                 type="button"
-                onClick={() => onChange({ title: opt })}
+                onClick={() =>
+                  onChange({
+                    title: opt,
+                    jobLevel: defaultSalesLevelForTitle(opt) ?? form.jobLevel,
+                  })
+                }
                 className={clsx(
                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                   form.title === opt
@@ -172,6 +181,24 @@ export function JdSalesForm({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <NumberedFieldLabel title="Cấp bậc" />
+          <Select
+            value={form.jobLevel}
+            onChange={(e) => onChange({ jobLevel: e.target.value as JobLevelCode | '' })}
+          >
+            <option value="">— Chọn cấp bậc —</option>
+            {SALES_JOB_LEVELS.map((code) => (
+              <option key={code} value={code}>
+                {JOB_LEVEL_LABEL[code]}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Dùng cho bộ lọc Cấp bậc ở trang chủ / Việc làm. Không tính vào điểm matching.
+          </p>
         </div>
 
         <div>

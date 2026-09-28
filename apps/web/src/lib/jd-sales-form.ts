@@ -3,11 +3,14 @@ import {
   ExperienceBand,
   JD_SALES_FIELDS,
   JD_SALES_TOTAL_FIELDS,
+  JobLevelCode,
   JobTrack,
   defaultDepartmentForTrack,
+  defaultSalesLevelForTitle,
   emptyJobSalesCriteria,
   hasJobFitCriteria,
   normalizeJobSalesCriteria,
+  salesLevelForForm,
   type CreateJobRequest,
   type JdSalesFieldKey,
   type JobSalesCriteria,
@@ -17,6 +20,8 @@ import {
 
 export type JdSalesFormState = {
   title: string;
+  /** Cấp bậc (4 cấp Kinh doanh) — dùng cho bộ lọc, không tính điểm matching. */
+  jobLevel: JobLevelCode | '';
   industries: string[];
   employmentType: EmploymentType | '';
   location: string;
@@ -46,6 +51,7 @@ export type JdSalesFormState = {
 export function emptyJdSalesForm(): JdSalesFormState {
   return {
     title: '',
+    jobLevel: '',
     industries: [],
     employmentType: EmploymentType.FullTime,
     location: '',
@@ -77,8 +83,10 @@ function money(v: number | null | undefined): string {
 }
 
 export function parsedJobToForm(parsed: ParsedSalesJobDraft): JdSalesFormState {
+  const title = parsed.title ?? '';
   return {
-    title: parsed.title ?? '',
+    title,
+    jobLevel: defaultSalesLevelForTitle(title) ?? '',
     industries: parsed.industries ?? [],
     employmentType: parsed.employmentType ?? EmploymentType.FullTime,
     location: parsed.location ?? '',
@@ -131,8 +139,10 @@ export function jobViewToForm(job: JobView): JdSalesFormState {
       : job.industry
         ? [job.industry]
         : [];
+  const savedLevel = salesLevelForForm(job.jobLevel);
   return {
     title: job.title,
+    jobLevel: savedLevel || defaultSalesLevelForTitle(job.title) || '',
     industries,
     employmentType: job.employmentType ?? EmploymentType.FullTime,
     location: job.location ?? '',
@@ -180,6 +190,7 @@ export function formToCreateJobRequest(
     benefits: form.benefits.trim() || undefined,
     industry: form.industries[0] || undefined,
     jobTrack: JobTrack.Sales,
+    jobLevel: form.jobLevel || undefined,
     department: defaultDepartmentForTrack(JobTrack.Sales),
     employmentType: form.employmentType || undefined,
     location: form.location || undefined,

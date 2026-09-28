@@ -18,6 +18,7 @@ import {
   JobStatus,
   JobTrack,
   UserRole,
+  allowedTechnicalLevelsForPosition,
   defaultDepartmentForTrack,
   expandJobSearchKeywords,
   industrySearchValues,
@@ -152,6 +153,14 @@ function isTechnicalParsedJob(
   draft: ParsedSalesJobDraft | ParsedTechnicalJobDraft,
 ): draft is ParsedTechnicalJobDraft {
   return 'equipmentSystems' in draft;
+}
+
+function assertTechnicalLevelFitsPosition(dto: CreateJobDto, track: JobTrack | null): void {
+  if (track !== JobTrack.Technical || !dto.jobLevel) return;
+  const allowed = allowedTechnicalLevelsForPosition(dto.technicalCriteria?.position);
+  if (!allowed.includes(dto.jobLevel)) {
+    throw new BadRequestException('Cấp bậc không phù hợp với vị trí tuyển dụng');
+  }
 }
 
 function inferJobLevelFromTitle(title: string, track: JobTrack | null): string | undefined {
@@ -427,6 +436,7 @@ export class JobService {
     );
 
     const track = resolveCreateJobTrack(dto);
+    assertTechnicalLevelFitsPosition(dto, track);
     const inferredLevel = dto.jobLevel ?? inferJobLevelFromTitle(dto.title, track);
     const department =
       dto.department ??
@@ -577,6 +587,7 @@ export class JobService {
     await this.prisma.jobSkill.deleteMany({ where: { jobId: id } });
 
     const track = resolveCreateJobTrack(dto);
+    assertTechnicalLevelFitsPosition(dto, track);
     const inferredLevel = dto.jobLevel ?? inferJobLevelFromTitle(dto.title, track);
     const primaryIndustry =
       dto.industry ||

@@ -101,6 +101,7 @@ export function buildExperienceRowFromParsed(
     marketsCovered: exp.marketsCovered,
     sellingStages: exp.sellingStages,
     brandsTechnologies: [],
+    technicalAutonomyLevel: exp.technicalAutonomyLevel ?? null,
     latestRevenue: exp.latestRevenue,
     kpiAchievementPct: exp.kpiAchievementPct,
     newCustomerRatioPct: exp.newCustomerRatioPct,

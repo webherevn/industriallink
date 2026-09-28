@@ -14,6 +14,8 @@ export interface CvDraftExperienceView {
   sellingStages: string[];
   /** STT 26 KD — hãng/thương hiệu theo từng công ty, không gộp giữa các công ty. */
   brandsTechnologies: string[];
+  /** KT — mức tự chủ 1–5 tại công ty này. */
+  technicalAutonomyLevel?: number | null;
   latestRevenue: number | null;
   kpiAchievementPct: number | null;
   newCustomerRatioPct: number | null;

@@ -25,6 +25,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CompanyService } from '../company/company.service';
 import { JobService } from './job.service';
+import { candidateMatchTrack, jobMatchTrack } from './match-track.util';
 import { MatchingService } from './matching.service';
 import { skillOverlap } from './matching.util';
 import type { ApplyJobDto, UpdateApplicationStatusDto } from './dto/apply-job.dto';
@@ -51,7 +52,10 @@ export class ApplicationService {
     dto: ApplyJobDto,
     correlationId: string,
   ): Promise<ApplicationView> {
-    const candidate = await this.prisma.candidate.findUnique({ where: { userId: user.id } });
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { userId: user.id },
+      include: { profile: { select: { jobTrack: true } } },
+    });
     if (!candidate) {
       throw new BadRequestException('Chỉ ứng viên mới có thể ứng tuyển');
     }
@@ -73,6 +77,8 @@ export class ApplicationService {
     if (existing) {
       throw new BadRequestException('Bạn đã ứng tuyển vị trí này');
     }
+
+    assertCompatibleApplyTrack(candidate, job);
 
     const match = await this.matching.computePairMatch(jobId, candidate.id);
     const code = await this.codeGen.next('APP');
@@ -531,6 +537,31 @@ export class ApplicationService {
       failed: result.failed,
     };
   }
+}
+
+/**
+ * Chặn nộp chéo track (KD↔KT). Thiếu track ứng viên → bắt hoàn thiện hồ sơ.
+ * Tin legacy không suy ra được track → vẫn cho nộp.
+ */
+function assertCompatibleApplyTrack(
+  candidate: { profile?: { jobTrack?: string | null } | null },
+  job: Parameters<typeof jobMatchTrack>[0],
+): void {
+  const candTrack = candidateMatchTrack(candidate);
+  if (!candTrack) {
+    throw new BadRequestException(
+      'Vui lòng chọn lĩnh vực hồ sơ (Kinh doanh hoặc Kỹ thuật) trước khi ứng tuyển',
+    );
+  }
+
+  const jobTrack = jobMatchTrack(job);
+  if (!jobTrack || jobTrack === candTrack) return;
+
+  throw new BadRequestException(
+    candTrack === 'sales'
+      ? 'Hồ sơ Kinh doanh không thể nộp tin Kỹ thuật'
+      : 'Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh',
+  );
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

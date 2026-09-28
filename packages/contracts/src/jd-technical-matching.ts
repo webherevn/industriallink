@@ -3,7 +3,7 @@
  * Dùng cho tạo / sửa tin tuyển dụng Kỹ thuật: AI trích xuất, HR xác nhận.
  *
  * Trọng số chỉ dùng backend matching (chưa chấm điểm trên UI).
- * Không có field cấp bậc trên JD — suy luận thầm từ vị trí / kinh nghiệm / tự chủ.
+ * Cấp bậc (jobLevel) chọn riêng theo vị trí, chỉ dùng cho bộ lọc — không tính điểm matching.
  */
 
 import {
@@ -21,9 +21,11 @@ import {
   TECHNICAL_TOOLS,
   TECHNICAL_WORK_TYPES,
   WORK_ENVIRONMENT_OPTIONS,
+  type TechnicalDesiredPosition,
 } from './technical-criteria';
 import { INDUSTRY_GROUPS } from './job-taxonomy';
 import { ExperienceBand } from './enums';
+import { JobLevelCode } from './career-path';
 
 export const JD_TECHNICAL_TOTAL_FIELDS = 23;
 
@@ -132,6 +134,11 @@ export type JobTechnicalShiftFlexibility = (typeof SHIFT_FLEXIBILITY_OPTIONS)[nu
 
 /** Tiêu chí kỹ thuật lưu JSON trên tin (nhóm B + C + ngành đa chọn). */
 export interface JobTechnicalCriteria {
+  /**
+   * Vị trí dùng cho matching (1 trong 13 vị trí hoặc tự nhập khi chọn «Khác»).
+   * Tách khỏi tiêu đề tin; tin cũ không có → matching dùng tiêu đề.
+   */
+  position?: string | null;
   industries: string[];
   equipmentSystems: string[];
   workEnvironments: string[];
@@ -153,6 +160,7 @@ export interface JobTechnicalCriteria {
 }
 
 export const EMPTY_JOB_TECHNICAL_CRITERIA: JobTechnicalCriteria = {
+  position: null,
   industries: [],
   equipmentSystems: [],
   workEnvironments: [],
@@ -264,6 +272,141 @@ function pickShift(raw: unknown): string | null {
   return null;
 }
 
+function positionKey(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s+/g, ' ');
+}
+
+/** Khớp chuỗi với 1 trong 13 vị trí Kỹ thuật (không phân biệt hoa thường / dấu). */
+export function matchTechnicalPosition(
+  raw: string | null | undefined,
+): TechnicalDesiredPosition | null {
+  const key = positionKey(String(raw ?? ''));
+  if (!key) return null;
+  const exact = TECHNICAL_DESIRED_POSITIONS.find((p) => positionKey(p) === key);
+  if (exact) return exact;
+  return matchTechnicalPositionAlias(String(raw ?? ''));
+}
+
+/**
+ * Đồng nghĩa / tiếng Anh phổ biến → 1 trong 13 vị trí (kiểu taxonomy job title của LinkedIn/Indeed).
+ * Thứ tự: cụ thể trước, chung sau.
+ */
+const TECHNICAL_POSITION_ALIASES: ReadonlyArray<{
+  re: RegExp;
+  position: TechnicalDesiredPosition;
+}> = [
+  { re: /\b(technician|ky\s*thuat\s*vien)\b/i, position: 'Kỹ thuật viên' },
+  {
+    re: /\b(service\s*engineer|maintenance\s*engineer|field\s*service)\b/i,
+    position: 'Kỹ sư dịch vụ / Bảo trì – sửa chữa',
+  },
+  { re: /\b(mechanical\s*engineer|ky\s*su\s*co\s*khi)\b/i, position: 'Kỹ sư cơ khí' },
+  {
+    re: /\b(electrical\s*engineer|ky\s*su\s*dien|dien\s*cong\s*nghiep)\b/i,
+    position: 'Kỹ sư điện / Điện công nghiệp',
+  },
+  {
+    re: /\b(automation|control\s*engineer|plc\s*engineer|tu\s*dong\s*hoa)\b/i,
+    position: 'Kỹ sư tự động hóa / Điều khiển',
+  },
+  { re: /\b(design\s*engineer|ky\s*su\s*thiet\s*ke)\b/i, position: 'Kỹ sư thiết kế' },
+  { re: /\b(project\s*engineer|ky\s*su\s*du\s*an)\b/i, position: 'Kỹ sư dự án' },
+  {
+    re: /\b(process\s*engineer|production\s*engineer|manufacturing\s*engineer)\b/i,
+    position: 'Kỹ sư sản xuất / Quy trình',
+  },
+  { re: /\b(qa\s*engineer|qc\s*engineer|quality\s*engineer)\b/i, position: 'Kỹ sư chất lượng QA/QC' },
+  { re: /\b(r\s*&\s*d|r\s*and\s*d|research\s*engineer)\b/i, position: 'Kỹ sư R&D' },
+  {
+    re: /\b(technical\s*manager|engineering\s*manager|quan\s*ly\s*ky\s*thuat)\b/i,
+    position: 'Quản lý kỹ thuật',
+  },
+  { re: /\b(project\s*manager|quan\s*ly\s*du\s*an)\b/i, position: 'Quản lý dự án' },
+  {
+    re: /\b(plant\s*manager|factory\s*manager|van\s*hanh\s*nha\s*may)\b/i,
+    position: 'Quản lý / vận hành nhà máy',
+  },
+];
+
+function matchTechnicalPositionAlias(raw: string): TechnicalDesiredPosition | null {
+  const key = positionKey(raw);
+  if (!key) return null;
+  for (const a of TECHNICAL_POSITION_ALIASES) {
+    if (a.re.test(raw) || a.re.test(key)) return a.position;
+  }
+  return null;
+}
+
+/** Tìm vị trí trong danh sách 13 xuất hiện trong một đoạn văn (vd. tiêu đề tin). */
+export function findTechnicalPositionInText(
+  text: string | null | undefined,
+): TechnicalDesiredPosition | null {
+  const hay = positionKey(String(text ?? ''));
+  if (!hay) return null;
+  // Ưu tiên chuỗi dài hơn để tránh «Kỹ sư» khớp nhầm trước «Kỹ sư cơ khí»
+  const byLength = [...TECHNICAL_DESIRED_POSITIONS].sort(
+    (a, b) => positionKey(b).length - positionKey(a).length,
+  );
+  const hit = byLength.find((p) => hay.includes(positionKey(p)));
+  if (hit) return hit;
+  return matchTechnicalPositionAlias(String(text ?? ''));
+}
+
+export const TECHNICAL_JOB_LEVELS: readonly JobLevelCode[] = [
+  JobLevelCode.TechStaff,
+  JobLevelCode.TechTeamLead,
+  JobLevelCode.TechDeptHead,
+  JobLevelCode.TechDirector,
+];
+
+const TECHNICIAN_POSITIONS: readonly TechnicalDesiredPosition[] = ['Kỹ thuật viên'];
+const MANAGER_POSITIONS: readonly TechnicalDesiredPosition[] = [
+  'Quản lý kỹ thuật',
+  'Quản lý dự án',
+  'Quản lý / vận hành nhà máy',
+];
+
+/**
+ * Cấp bậc hợp lệ theo vị trí Kỹ thuật: thừa hành → Nhân viên/Trưởng nhóm;
+ * kỹ sư → Nhân viên/Trưởng nhóm/Trưởng phòng; quản lý → Trưởng nhóm/Trưởng phòng/Giám đốc.
+ * Vị trí «Khác» hoặc chưa chọn → cả 4 cấp.
+ */
+export function allowedTechnicalLevelsForPosition(
+  position: string | null | undefined,
+): readonly JobLevelCode[] {
+  const hit = matchTechnicalPosition(position);
+  if (!hit) return TECHNICAL_JOB_LEVELS;
+  if (TECHNICIAN_POSITIONS.includes(hit)) {
+    return [JobLevelCode.TechStaff, JobLevelCode.TechTeamLead];
+  }
+  if (MANAGER_POSITIONS.includes(hit)) {
+    return [JobLevelCode.TechTeamLead, JobLevelCode.TechDeptHead, JobLevelCode.TechDirector];
+  }
+  return [JobLevelCode.TechStaff, JobLevelCode.TechTeamLead, JobLevelCode.TechDeptHead];
+}
+
+/** Cấp bậc gợi ý sẵn khi HR chọn vị trí (null nếu vị trí «Khác» / chưa chọn). */
+export function defaultTechnicalLevelForPosition(
+  position: string | null | undefined,
+): JobLevelCode | null {
+  const hit = matchTechnicalPosition(position);
+  if (!hit) return null;
+  return MANAGER_POSITIONS.includes(hit) ? JobLevelCode.TechDeptHead : JobLevelCode.TechStaff;
+}
+
+function pickPosition(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  return matchTechnicalPosition(s) ?? s.slice(0, 120);
+}
+
 function pickAutonomy(raw: unknown): number | null {
   const n = typeof raw === 'number' ? raw : Number(raw);
   if (!Number.isFinite(n)) return null;
@@ -276,6 +419,7 @@ export function normalizeJobTechnicalCriteria(raw: unknown): JobTechnicalCriteri
   const r = (raw ?? {}) as Record<string, unknown>;
   const educationMajor = String(r.educationMajor ?? '').trim();
   return {
+    position: pickPosition(r.position),
     industries: pickIndustries(r.industries),
     equipmentSystems: pickCatalogOrCustom(
       r.equipmentSystems ?? r.productsSold,
@@ -351,6 +495,8 @@ export function hasTechnicalJobFitCriteria(c: JobTechnicalCriteria): boolean {
 
 export interface ParsedTechnicalJobDraft {
   title: string;
+  /** Vị trí matching (1 trong 13) — rỗng nếu JD không khớp vị trí nào. */
+  position: string;
   industries: string[];
   location: string;
   experienceBand: ExperienceBand | null;
@@ -381,6 +527,7 @@ export interface ParsedTechnicalJobDraft {
 export function emptyParsedTechnicalJobDraft(): ParsedTechnicalJobDraft {
   return {
     title: '',
+    position: '',
     industries: [],
     location: '',
     experienceBand: null,
@@ -411,6 +558,7 @@ export function emptyParsedTechnicalJobDraft(): ParsedTechnicalJobDraft {
 
 export function parsedDraftToTechnicalCriteria(draft: ParsedTechnicalJobDraft): JobTechnicalCriteria {
   return normalizeJobTechnicalCriteria({
+    position: draft.position,
     industries: draft.industries,
     equipmentSystems: draft.equipmentSystems,
     workEnvironments: draft.workEnvironments,

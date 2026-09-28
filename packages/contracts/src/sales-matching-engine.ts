@@ -453,7 +453,8 @@ function norm(s: string): string {
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
 }
 
 function isKhacValue(raw: string | null | undefined): boolean {

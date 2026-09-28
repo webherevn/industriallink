@@ -35,6 +35,7 @@ export function toTechnicalMatchCompanies(
     equipmentSystems: e.productsSold ?? [],
     workEnvironments: e.customerSegments ?? [],
     technicalWorkTypes: e.sellingStages ?? [],
+    autonomyLevel: e.technicalAutonomyLevel ?? null,
     startYear: e.startYear ?? null,
     endYear: e.endYear ?? null,
     isCurrent: Boolean(e.isCurrent),

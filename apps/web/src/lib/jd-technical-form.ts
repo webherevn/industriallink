@@ -2,10 +2,14 @@ import {
   ExperienceBand,
   JD_TECHNICAL_FIELDS,
   JD_TECHNICAL_TOTAL_FIELDS,
+  JobLevelCode,
   JobTrack,
+  allowedTechnicalLevelsForPosition,
   defaultDepartmentForTrack,
+  defaultTechnicalLevelForPosition,
   emptyJobTechnicalCriteria,
   hasTechnicalJobFitCriteria,
+  matchTechnicalPosition,
   normalizeJobTechnicalCriteria,
   type CreateJobRequest,
   type JdTechnicalFieldKey,
@@ -15,6 +19,11 @@ import {
 } from '@industriallink/contracts';
 
 export type JdTechnicalFormState = {
+  /** Vị trí tuyển dụng dùng cho matching (1 trong 13 vị trí hoặc tự nhập). */
+  position: string;
+  /** Cấp bậc (4 cấp Kỹ thuật) — dùng cho bộ lọc, không tính điểm matching. */
+  jobLevel: JobLevelCode | '';
+  /** Tiêu đề tin hiển thị cho ứng viên. */
   title: string;
   industries: string[];
   location: string;
@@ -43,6 +52,8 @@ export type JdTechnicalFormState = {
 
 export function emptyJdTechnicalForm(): JdTechnicalFormState {
   return {
+    position: '',
+    jobLevel: '',
     title: '',
     industries: [],
     location: '',
@@ -76,6 +87,8 @@ function money(v: number | null | undefined): string {
 
 export function parsedJobToTechnicalForm(parsed: ParsedTechnicalJobDraft): JdTechnicalFormState {
   return {
+    position: parsed.position ?? '',
+    jobLevel: defaultTechnicalLevelForPosition(parsed.position) ?? '',
     title: parsed.title ?? '',
     industries: parsed.industries ?? [],
     location: parsed.location ?? '',
@@ -105,6 +118,7 @@ export function parsedJobToTechnicalForm(parsed: ParsedTechnicalJobDraft): JdTec
 
 export function formToTechnicalCriteria(form: JdTechnicalFormState): JobTechnicalCriteria {
   return normalizeJobTechnicalCriteria({
+    position: form.position || null,
     industries: form.industries,
     equipmentSystems: form.equipmentSystems,
     workEnvironments: form.workEnvironments,
@@ -122,11 +136,25 @@ export function formToTechnicalCriteria(form: JdTechnicalFormState): JobTechnica
   });
 }
 
+/** Giữ cấp bậc đang lưu nếu hợp lệ với vị trí; nếu không → cấp gợi ý theo vị trí. */
+export function technicalLevelForForm(
+  current: string | null | undefined,
+  position: string,
+): JobLevelCode | '' {
+  const allowed = allowedTechnicalLevelsForPosition(position);
+  const hit = allowed.find((code) => code === current);
+  if (hit) return hit;
+  return defaultTechnicalLevelForPosition(position) ?? '';
+}
+
 export function jobViewToTechnicalForm(job: JobView): JdTechnicalFormState {
   const c = job.technicalCriteria ?? emptyJobTechnicalCriteria();
   const industries =
     c.industries.length > 0 ? c.industries : job.industry ? [job.industry] : [];
+  const position = c.position ?? matchTechnicalPosition(job.title) ?? '';
   return {
+    position,
+    jobLevel: technicalLevelForForm(job.jobLevel, position),
     title: job.title,
     industries,
     location: job.location ?? '',
@@ -165,6 +193,7 @@ export function formToCreateTechnicalJobRequest(
     benefits: form.benefits.trim() || undefined,
     industry: form.industries[0] || undefined,
     jobTrack: JobTrack.Technical,
+    jobLevel: form.jobLevel || undefined,
     department: defaultDepartmentForTrack(JobTrack.Technical),
     location: form.location || undefined,
     headcount: form.headcount ? Number(form.headcount) : 1,
@@ -180,7 +209,7 @@ export function formToCreateTechnicalJobRequest(
 function isFilled(form: JdTechnicalFormState, key: JdTechnicalFieldKey): boolean {
   switch (key) {
     case 'title':
-      return form.title.trim().length >= 3;
+      return form.position.trim().length > 0;
     case 'industries':
       return form.industries.length > 0;
     case 'location':

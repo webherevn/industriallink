@@ -12,8 +12,10 @@ import {
   JD_TECHNICAL_GROUPS,
   JD_TECHNICAL_INDUSTRY_OPTIONS,
   JD_TECHNICAL_SHIFT_OPTIONS,
-  JD_TECHNICAL_TITLE_OPTIONS,
+  JOB_LEVEL_LABEL,
+  JobLevelCode,
   LANGUAGE_OPTIONS,
+  allowedTechnicalLevelsForPosition,
   TECHNICAL_TOOLS,
   TECHNICAL_WORK_TYPES,
   TRAVEL_ABILITY_LABEL,
@@ -26,10 +28,12 @@ import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import { LocationPicker } from '@/components/location-picker';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { TechnicalPositionSelect } from '@/components/technical-position-select';
 import { Input, MoneyInput, Select, Textarea } from '@/components/ui';
 import { EXPERIENCE_LABEL } from '@/lib/format';
 import {
   formHasTechnicalJobFit,
+  technicalLevelForForm,
   type JdTechnicalFormState,
 } from '@/lib/jd-technical-form';
 
@@ -157,28 +161,51 @@ export function JdTechnicalForm({
             title="1. Vị trí tuyển dụng"
             extra={<UncertainBadge show={uncertain.has('title')} />}
           />
+          <TechnicalPositionSelect
+            value={form.position}
+            disabled={disabled}
+            onChange={(position) => {
+              const titleFollowsPosition =
+                Boolean(position.trim()) && (!form.title.trim() || form.title === form.position);
+              const jobLevel = technicalLevelForForm(form.jobLevel, position);
+              onChange(
+                titleFollowsPosition ? { position, jobLevel, title: position } : { position, jobLevel },
+              );
+            }}
+          />
+          <p className="mt-1 text-[11px] text-slate-500">
+            Dùng để chấm điểm matching với vị trí ứng viên đã làm / muốn ứng tuyển.
+          </p>
+        </div>
+
+        <div>
+          <NumberedFieldLabel title="Cấp bậc" />
+          <Select
+            value={form.jobLevel}
+            onChange={(e) => onChange({ jobLevel: e.target.value as JobLevelCode | '' })}
+          >
+            <option value="">— Chọn cấp bậc —</option>
+            {allowedTechnicalLevelsForPosition(form.position).map((code) => (
+              <option key={code} value={code}>
+                {JOB_LEVEL_LABEL[code]}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Dùng cho bộ lọc Cấp bậc ở trang chủ / Việc làm. Không tính vào điểm matching.
+          </p>
+        </div>
+
+        <div>
+          <NumberedFieldLabel title="Tiêu đề tin" />
           <Input
             value={form.title}
             onChange={(e) => onChange({ title: e.target.value })}
-            placeholder="VD: Kỹ sư tự động hóa / Điều khiển"
+            placeholder="VD: Tuyển Kỹ sư tự động hóa PLC Siemens – KCN VSIP"
           />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {JD_TECHNICAL_TITLE_OPTIONS.map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => onChange({ title: opt })}
-                className={clsx(
-                  'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
-                  form.title === opt
-                    ? 'border-brand-400 bg-brand-50 text-brand-800'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200',
-                )}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Tên tin hiển thị cho ứng viên, có thể ghi tự do.
+          </p>
         </div>
 
         <div>
@@ -331,7 +358,7 @@ export function JdTechnicalForm({
         <div>
           <NumberedFieldLabel
             title="11. Mức độ tự chủ"
-            description="Không hiện cấp bậc trên JD — chỉ mức tự chủ 1–5 khi JD mô tả."
+            description="Chỉ chọn mức tự chủ 1–5 khi JD mô tả — khác với Cấp bậc ở phần A."
             extra={<UncertainBadge show={uncertain.has('autonomyLevel')} />}
           />
           <PillGroup

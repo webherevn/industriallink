@@ -116,6 +116,12 @@ class CvDraftExperienceDto {
   @IsString({ each: true })
   brandsTechnologies?: string[];
 
+  @ApiPropertyOptional({ description: 'KT — mức tự chủ 1–5 tại công ty này' })
+  @IsOptional()
+  @Transform(nullOrNumber)
+  @IsNumber()
+  technicalAutonomyLevel?: number | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(nullOrNumber)
