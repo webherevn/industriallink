@@ -30,6 +30,7 @@ import {
   yearsToB2bBand,
   type B2bMatchCriterionKey,
 } from '@industriallink/contracts';
+import { stripHtml } from './html.util';
 
 /** Độ tương đồng cosine giữa hai vector embedding. */
 export function cosine(a: number[], b: number[]): number {
@@ -438,6 +439,9 @@ export function jobToB2bMatchInput(job: {
       jobTrack === 'sales' ||
       (job.jobLevel ?? '').startsWith('sales.');
   const title = job.title?.trim() || null;
+  // Job description/requirements/benefits giờ là HTML từ Tiptap — bóc tách
+  // trước khi đưa vào AI matching để không lẫn tag vào keyword extraction.
+  const descriptionText = stripHtml(job.description);
 
   if (isTech) {
     const licenses = (tech?.driverLicenses ?? []).filter((l) => l !== 'Chưa có');
@@ -446,7 +450,7 @@ export function jobToB2bMatchInput(job: {
       location: job.location,
       experienceBand: job.experienceBand,
       title,
-      description: job.description,
+      description: descriptionText,
       salaryMin: job.salaryMin,
       salaryMax: job.salaryMax,
       requiredSkills,

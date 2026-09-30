@@ -23,6 +23,7 @@ import {
 import { PrismaService } from '../../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../../shared/security/security.types';
 import { AiGatewayService } from '../../ai/ai-gateway.service';
+import { stripHtml } from '../html.util';
 import { JobService } from '../job.service';
 import { runJobStaticFilter } from './job-static-filter';
 import type { JobModerationJobData } from './job-moderation.constants';
@@ -100,9 +101,9 @@ export class JobModerationService {
     // ---- Lớp 1: Bộ lọc tĩnh ----
     const staticResult = runJobStaticFilter({
       title: job.title,
-      description: job.description,
-      requirements: job.requirements,
-      benefits: job.benefits,
+      description: stripHtml(job.description),
+      requirements: stripHtml(job.requirements),
+      benefits: stripHtml(job.benefits),
     });
 
     if (staticResult.blocked) {
@@ -122,9 +123,9 @@ export class JobModerationService {
     try {
       ai = await this.ai.moderateJobPosting({
         title: job.title,
-        description: job.description,
-        requirements: job.requirements,
-        benefits: job.benefits,
+        description: stripHtml(job.description),
+        requirements: stripHtml(job.requirements),
+        benefits: stripHtml(job.benefits),
         companyName: job.company?.name,
         staticFilterNote: staticResult.reason || null,
       });

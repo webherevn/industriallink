@@ -37,24 +37,24 @@ export function Button({
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {
-    return (
-      <input
-        ref={ref}
-        className={clsx(
-          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
-          className,
-        )}
-        {...props}
-      />
-    );
-  },
+  return (
+    <input
+      ref={ref}
+      className={clsx(
+        'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+        className,
+      )}
+      {...props}
+    />
+  );
+},
 );
 
 const inputClassName =
-  'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const selectClassName =
-  'h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-8 text-sm leading-normal outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-8 text-[13px] leading-normal outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 /** ISO YYYY-MM-DD → hiển thị DD/MM/YYYY. */
 export function isoToDisplayDate(iso: string): string {
@@ -324,7 +324,7 @@ export function MoneyInput({
           onChange(next);
         }}
       />
-      {hint ? <p className="mt-1 text-[11px] font-medium text-amber-700">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-xs font-medium text-amber-700">{hint}</p> : null}
     </div>
   );
 }
@@ -472,7 +472,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
       <textarea
         ref={ref}
         className={clsx(
-          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
           className,
         )}
         {...props}
@@ -487,7 +487,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       <select
         ref={ref}
         className={clsx(
-          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
           className,
         )}
         {...props}

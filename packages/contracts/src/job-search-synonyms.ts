@@ -81,6 +81,28 @@ export const JOB_SEARCH_SYNONYM_GROUPS: readonly (readonly string[])[] = [
     'điều hòa không khí',
     'dieu hoa khong khi',
   ],
+  // Technical / kỹ thuật — generic cho mọi vị trí kỹ thuật (vận hành, bảo trì, sửa chữa…)
+  [
+    'kỹ thuật',
+    'ky thuat',
+    'technical',
+    'technician',
+    'kỹ thuật viên',
+    'ky thuat vien',
+    'nhân viên kỹ thuật',
+    'nhan vien ky thuat',
+    'nhân viên kỹ thuật viên',
+    'kỹ sư',
+    'ky su',
+    'engineer',
+    'vận hành',
+    'van hanh',
+    'bảo trì',
+    'bao tri',
+    'maintenance',
+    'sửa chữa',
+    'sua chua',
+  ],
 ];
 
 function groupMatchesQuery(group: readonly string[], queryNorm: string): boolean {

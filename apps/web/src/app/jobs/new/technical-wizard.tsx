@@ -415,7 +415,7 @@ export function NewJobTechnicalWizard({
                   type="button"
                   onClick={() => setStep(s.id)}
                   className={clsx(
-                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition',
+                    'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
                     active && 'bg-brand-600 text-white',
                     !active && done && 'bg-brand-50 text-brand-700',
                     !active && !done && 'bg-slate-100 text-slate-500',

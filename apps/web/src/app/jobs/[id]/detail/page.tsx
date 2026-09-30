@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ExperienceBand, JobStatus } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { Badge, Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
@@ -97,9 +98,6 @@ export default function JobDetailManagePage() {
     );
   }
 
-  const descriptionLines = splitLines(job.description);
-  const requirementLines = splitLines(job.requirements);
-  const benefitLines = splitLines(job.benefits);
   const isPublic = job.status === JobStatus.Published;
 
   return (
@@ -222,13 +220,13 @@ export default function JobDetailManagePage() {
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <ContentBlock
           title="Mô tả công việc"
-          lines={descriptionLines}
+          html={job.description}
           fallback={job.description}
           className="lg:col-span-2"
         />
         <div className="space-y-4">
-          <ContentBlock title="Yêu cầu ứng viên" lines={requirementLines} fallback={job.requirements} />
-          <ContentBlock title="Quyền lợi" lines={benefitLines} fallback={job.benefits} />
+          <ContentBlock title="Yêu cầu ứng viên" html={job.requirements} fallback={job.requirements} />
+          <ContentBlock title="Quyền lợi" html={job.benefits} fallback={job.benefits} />
         </div>
       </div>
     </AppShell>
@@ -257,38 +255,53 @@ function InfoTile({
 
 function ContentBlock({
   title,
-  lines,
+  html,
   fallback,
   className,
 }: {
   title: string;
-  lines: string[];
+  /** HTML đã sanitize từ job — nếu có thẻ <…>, render HTML; ngược lại xuống fallback. */
+  html: string | null | undefined;
+  /** Text mode cũ: tách dòng rồi bullet. Dùng khi html thuần text. */
   fallback: string | null | undefined;
   className?: string;
 }) {
-  const hasContent = lines.length > 0 || Boolean(fallback?.trim());
+  const hasHtml = Boolean(html?.trim()) && looksLikeHtml(html);
+  const lines = splitLines(fallback);
+  const hasFallback = lines.length > 0 || Boolean(fallback?.trim());
+  if (!hasHtml && !hasFallback) {
+    return (
+      <section
+        className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] ${className ?? ''}`}
+      >
+        <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
+        <p className="mt-3 text-sm text-slate-400">Chưa cập nhật.</p>
+      </section>
+    );
+  }
   return (
     <section
       className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] ${className ?? ''}`}
     >
       <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
-      {!hasContent && <p className="mt-3 text-sm text-slate-400">Chưa cập nhật.</p>}
-      {lines.length > 0 ? (
-        <ul className="mt-3 space-y-2 text-[14px] leading-relaxed text-slate-700">
-          {lines.map((line) => (
-            <li key={line} className="flex gap-2">
-              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        fallback?.trim() && (
-          <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-slate-700">
+      <div className="mt-3">
+        {hasHtml ? (
+          <SafeHtml html={html} />
+        ) : lines.length > 0 ? (
+          <ul className="space-y-2 text-[14px] leading-relaxed text-slate-700">
+            {lines.map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-slate-700">
             {fallback}
           </p>
-        )
-      )}
+        )}
+      </div>
     </section>
   );
 }

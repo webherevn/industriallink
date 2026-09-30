@@ -21,6 +21,7 @@ import {
   type JdTechnicalFieldKey,
   type ParsedTechnicalJobDraft,
 } from '@industriallink/contracts';
+import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { AppShell } from '@/components/app-shell';
 import { JdTechnicalForm } from '@/components/jd-technical-form';
 import { JobTrackToggle } from '@/components/job-track-toggle';
@@ -142,7 +143,7 @@ export function JdTechnicalCreateFlow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Đăng tin tuyển dụng</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-[13px] text-slate-500">
             Upload JD hoặc dán nội dung — AI điền 23 trường kỹ thuật, HR chỉ xác nhận.
           </p>
         </div>
@@ -169,7 +170,7 @@ export function JdTechnicalCreateFlow({
                   type="button"
                   onClick={() => setStep(s.id)}
                   className={clsx(
-                    'flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition',
+                    'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
                     active && 'bg-brand-600 text-white',
                     !active && done && 'bg-brand-50 text-brand-700',
                     !active && !done && 'bg-slate-100 text-slate-500',
@@ -219,7 +220,7 @@ export function JdTechnicalCreateFlow({
                       <FileUp className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">Upload file JD</p>
+                      <p className="text-[13px] font-semibold text-slate-900">Upload file JD</p>
                       <p className="mt-0.5 text-xs text-slate-500">
                         PDF, DOC, DOCX hoặc TXT · tối đa 5MB. AI chỉ điền mục có căn cứ trong file.
                       </p>
@@ -235,7 +236,7 @@ export function JdTechnicalCreateFlow({
                     type="button"
                     disabled={busy}
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-50"
                   >
                     {fileMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -263,7 +264,7 @@ export function JdTechnicalCreateFlow({
                 onChange={(e) => setText(e.target.value)}
                 rows={10}
                 placeholder="Dán mô tả tin tuyển dụng kỹ thuật tại đây (tối thiểu ~40 ký tự)…"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-brand-500/30 focus:ring-2"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none ring-brand-500/30 focus:ring-2"
               />
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -290,14 +291,14 @@ export function JdTechnicalCreateFlow({
                 </Button>
                 <button
                   type="button"
-                  className="text-sm font-semibold text-slate-500 hover:text-brand-700"
+                  className="text-[13px] font-semibold text-slate-500 hover:text-brand-700"
                   onClick={() => setStep(2)}
                 >
                   Bỏ qua, điền tay →
                 </button>
               </div>
               {parseError && (
-                <p className="flex items-start gap-2 text-sm text-rose-600">
+                <p className="flex items-start gap-2 text-[13px] text-rose-600">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   {parseError}
                 </p>
@@ -308,7 +309,7 @@ export function JdTechnicalCreateFlow({
           {step === 2 && (
             <div className="space-y-4">
               {parseNote && (
-                <p className="rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-brand-900">
+                <p className="rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-[13px] text-brand-900">
                   {parseNote}
                   {uncertainKeys.length > 0
                     ? ` ${uncertainKeys.length} mục cần xác nhận.`
@@ -349,7 +350,7 @@ export function JdTechnicalCreateFlow({
                   </span>
                 )}
               </div>
-              <p className="mt-3 text-sm font-semibold text-brand-700">
+              <p className="mt-3 text-[13px] font-semibold text-brand-700">
                 {formatSalary(
                   form.salaryMin ? Number(form.salaryMin) : null,
                   form.salaryMax ? Number(form.salaryMax) : null,
@@ -377,7 +378,7 @@ export function JdTechnicalCreateFlow({
           )}
 
           {saveMutation.isError && (
-            <p className="mt-4 text-sm text-rose-600">
+            <p className="mt-4 text-[13px] text-rose-600">
               {saveMutation.error instanceof ApiError
                 ? saveMutation.error.message
                 : 'Không lưu được tin tuyển dụng'}
@@ -400,9 +401,9 @@ export function JdTechnicalCreateFlow({
             </div>
             <div className="flex items-center gap-3">
               {step === 3 && !form.jobLevel && (
-                <span className="text-sm text-amber-700">Chọn Cấp bậc ở bước 2 để đăng tin.</span>
+                <span className="text-[13px] text-amber-700">Chọn Cấp bậc ở bước 2 để đăng tin.</span>
               )}
-              <span className="text-sm text-slate-400">Bước {step}/3</span>
+              <span className="text-[13px] text-slate-400">Bước {step}/3</span>
               {step < 3 ? (
                 <Button type="button" disabled={busy} onClick={() => setStep(step + 1)}>
                   Tiếp tục
@@ -434,7 +435,7 @@ export function JdTechnicalCreateFlow({
               suggestion: '',
             }))}
           />
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[13px] text-slate-600 shadow-sm">
             <p className="font-semibold text-slate-900">Gợi ý cho HR</p>
             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed">
               <li>AI không tự thêm thiết bị / môi trường / công việc kỹ thuật nếu JD không nêu.</li>
@@ -449,12 +450,21 @@ export function JdTechnicalCreateFlow({
 }
 
 function PreviewBlock({ title, body }: { title: string; body: string }) {
+  const trimmed = body?.trim() ?? '';
   return (
     <div className="mt-5 border-t border-slate-200/80 pt-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{title}</p>
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-        {body.trim() || '— Chưa nhập —'}
-      </p>
+      {trimmed ? (
+        looksLikeHtml(trimmed) ? (
+          <SafeHtml html={trimmed} className="mt-1" />
+        ) : (
+          <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">
+            {trimmed}
+          </p>
+        )
+      ) : (
+        <p className="mt-1 text-[13px] italic text-slate-400">— Chưa nhập —</p>
+      )}
     </div>
   );
 }

@@ -26,13 +26,18 @@ import {
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
+import { JdRichEditor } from '@/components/jd-rich-editor';
 import { LocationPicker } from '@/components/location-picker';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
-import { Input, MoneyInput, Select, Textarea } from '@/components/ui';
+import { Input, MoneyInput, Select } from '@/components/ui';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL } from '@/lib/format';
 import type { JdSalesFormState } from '@/lib/jd-sales-form';
 import { formHasJobFit } from '@/lib/jd-sales-form';
+import { useCallback, useState } from 'react';
+
+type GroupKey = 'A' | 'B' | 'C' | 'D';
+const ACCORDION_GROUP = 'jd-sales';
 
 function suggestProducts(query: string) {
   const q = query.trim().toLowerCase();
@@ -44,7 +49,7 @@ function suggestProducts(query: string) {
 function UncertainBadge({ show }: { show: boolean }) {
   if (!show) return null;
   return (
-    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700">
       Cần xác nhận
     </span>
   );
@@ -76,7 +81,7 @@ function MultiCheck({
           <label
             key={opt}
             className={clsx(
-              'flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-1 text-[12px] leading-tight transition',
+              'flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[13px] leading-tight transition',
               checked
                 ? 'border-brand-300 bg-brand-50 text-brand-900'
                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
@@ -116,7 +121,7 @@ function PillGroup<T extends string>({
           type="button"
           onClick={() => onChange(opt.value)}
           className={clsx(
-            'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+            'rounded-lg border px-3.5 py-1.5 text-[13px] font-medium transition',
             value === opt.value
               ? 'border-brand-600 bg-brand-600 text-white'
               : 'border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50',
@@ -146,9 +151,23 @@ export function JdSalesForm({
   const selectedDealLabels = form.dealTypes.map((v) => DEAL_TYPE_LABEL[v as keyof typeof DEAL_TYPE_LABEL] ?? v);
   const allStages = form.sellingStages.length === SELLING_STAGES.length;
 
+  // Accordion A/B/C/D — chỉ mở 1 nhóm tại 1 thời điểm; mặc định mở A.
+  // Khi AI đã điền đủ C thì mặc định mở C.
+  const [openGroup, setOpenGroup] = useState<GroupKey>(openJobFit ? 'C' : 'A');
+  const toggleGroup = useCallback(
+    (key: GroupKey) => setOpenGroup((prev) => (prev === key ? null : key)),
+    [],
+  );
+
   return (
     <fieldset disabled={disabled} className="min-w-0 space-y-4">
-      <MatrixSection title={JD_SALES_GROUPS.A.title} subtitle={JD_SALES_GROUPS.A.subtitle} defaultOpen>
+      <MatrixSection
+        title={JD_SALES_GROUPS.A.title}
+        subtitle={JD_SALES_GROUPS.A.subtitle}
+        accordionGroup={ACCORDION_GROUP}
+        controlledOpen={openGroup === 'A'}
+        onToggle={() => toggleGroup('A')}
+      >
         <div>
           <NumberedFieldLabel
             title="1. Vị trí tuyển dụng"
@@ -171,7 +190,7 @@ export function JdSalesForm({
                   })
                 }
                 className={clsx(
-                  'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
+                  'rounded-full border px-3 py-1 text-xs font-medium transition',
                   form.title === opt
                     ? 'border-brand-400 bg-brand-50 text-brand-800'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200',
@@ -196,7 +215,7 @@ export function JdSalesForm({
               </option>
             ))}
           </Select>
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             Dùng cho bộ lọc Cấp bậc ở trang chủ / Việc làm. Không tính vào điểm matching.
           </p>
         </div>
@@ -212,7 +231,7 @@ export function JdSalesForm({
             onChange={(industries) => onChange({ industries })}
             columns={2}
           />
-          <p className="mt-2 text-[11px] text-slate-500">Lọc cứng ngành (mặc định không lọc; khi bật: gần = cùng cụm ≥ 85%)</p>
+          <p className="mt-2 text-xs text-slate-500">Lọc cứng ngành (mặc định không lọc; khi bật: gần = cùng cụm ≥ 85%)</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {(
               [
@@ -226,7 +245,7 @@ export function JdSalesForm({
                 type="button"
                 onClick={() => onChange({ industryHardMode: value })}
                 className={clsx(
-                  'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
+                  'rounded-full border px-3 py-1 text-xs font-medium transition',
                   form.industryHardMode === value
                     ? 'border-brand-400 bg-brand-50 text-brand-800'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200',
@@ -330,7 +349,13 @@ export function JdSalesForm({
         </div>
       </MatrixSection>
 
-      <MatrixSection title={JD_SALES_GROUPS.B.title} subtitle={JD_SALES_GROUPS.B.subtitle} defaultOpen>
+      <MatrixSection
+        title={JD_SALES_GROUPS.B.title}
+        subtitle={JD_SALES_GROUPS.B.subtitle}
+        accordionGroup={ACCORDION_GROUP}
+        controlledOpen={openGroup === 'B'}
+        onToggle={() => toggleGroup('B')}
+      >
         <div>
           <NumberedFieldLabel
             title="9. Sản phẩm / thiết bị"
@@ -417,7 +442,9 @@ export function JdSalesForm({
       <MatrixSection
         title={JD_SALES_GROUPS.C.title}
         subtitle={JD_SALES_GROUPS.C.subtitle}
-        defaultOpen={openJobFit}
+        accordionGroup={ACCORDION_GROUP}
+        controlledOpen={openGroup === 'C'}
+        onToggle={() => toggleGroup('C')}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -498,17 +525,24 @@ export function JdSalesForm({
         </div>
       </MatrixSection>
 
-      <MatrixSection title={JD_SALES_GROUPS.D.title} subtitle={JD_SALES_GROUPS.D.subtitle} defaultOpen>
+      <MatrixSection
+        title={JD_SALES_GROUPS.D.title}
+        subtitle={JD_SALES_GROUPS.D.subtitle}
+        accordionGroup={ACCORDION_GROUP}
+        controlledOpen={openGroup === 'D'}
+        onToggle={() => toggleGroup('D')}
+      >
         <div>
           <NumberedFieldLabel
             title="19. Mô tả công việc"
             extra={<UncertainBadge show={uncertain.has('description')} />}
           />
-          <Textarea
-            rows={6}
+          <JdRichEditor
             value={form.description}
-            onChange={(e) => onChange({ description: e.target.value })}
-            placeholder="Giữ nguyên nội dung JD hoặc biên tập ngắn gọn"
+            onChange={(description) => onChange({ description })}
+            placeholder="Mô tả chi tiết công việc — bôi đen để in đậm, dùng danh sách, tiêu đề…"
+            minRows={6}
+            disabled={disabled}
           />
         </div>
         <div>
@@ -516,10 +550,12 @@ export function JdSalesForm({
             title="20. Yêu cầu công việc"
             extra={<UncertainBadge show={uncertain.has('requirements')} />}
           />
-          <Textarea
-            rows={5}
+          <JdRichEditor
             value={form.requirements}
-            onChange={(e) => onChange({ requirements: e.target.value })}
+            onChange={(requirements) => onChange({ requirements })}
+            placeholder="Yêu cầu ứng viên — dùng danh sách cho từng tiêu chí"
+            minRows={5}
+            disabled={disabled}
           />
         </div>
         <div>
@@ -538,10 +574,12 @@ export function JdSalesForm({
             title="22. Quyền lợi"
             extra={<UncertainBadge show={uncertain.has('benefits')} />}
           />
-          <Textarea
-            rows={4}
+          <JdRichEditor
             value={form.benefits}
-            onChange={(e) => onChange({ benefits: e.target.value })}
+            onChange={(benefits) => onChange({ benefits })}
+            placeholder="Quyền lợi, phúc lợi, cơ hội phát triển…"
+            minRows={4}
+            disabled={disabled}
           />
         </div>
       </MatrixSection>

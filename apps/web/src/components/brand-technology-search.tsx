@@ -114,7 +114,7 @@ export function BrandTechnologySearch({
             if (e.key === 'Escape') setOpen(false);
           }}
           placeholder={placeholder}
-          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none ring-brand-500/30 focus:ring-2"
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13px] outline-none ring-brand-500/30 focus:ring-2"
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
@@ -136,7 +136,7 @@ export function BrandTechnologySearch({
                   type="button"
                   role="option"
                   aria-selected={false}
-                  className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-brand-50"
+                  className="flex w-full items-start gap-2 px-3 py-2 text-left text-[13px] hover:bg-brand-50"
                   onClick={() => add(item.name)}
                 >
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] font-bold text-slate-500">
@@ -167,7 +167,7 @@ export function BrandTechnologySearch({
                 <button
                   type="button"
                   className={clsx(
-                    'w-full px-3 py-2.5 text-left text-sm font-semibold text-brand-700 hover:bg-brand-50',
+                    'w-full px-3 py-2.5 text-left text-[13px] font-semibold text-brand-700 hover:bg-brand-50',
                   )}
                   onClick={() => add(query)}
                 >
@@ -178,7 +178,7 @@ export function BrandTechnologySearch({
           </ul>
         )}
       </div>
-      {hint ? <p className="text-[11px] text-slate-400">{hint}</p> : null}
+      {hint ? <p className="text-xs text-slate-400">{hint}</p> : null}
     </div>
   );
 }

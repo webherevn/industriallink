@@ -29,6 +29,7 @@ import {
   shouldUseTechnicalMatchEngine,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { ApiError, tokenStore } from '@/lib/api';
 import { getMyCandidate } from '@/lib/candidate';
 import {
@@ -573,7 +574,9 @@ export function JobDetailClient({
           {/* Main content */}
           <div className="order-2 min-w-0 space-y-4 sm:space-y-5 lg:order-1">
             <ContentSection title="Mô tả công việc" icon={<Briefcase className="h-4 w-4" />}>
-              {useDescBullets ? (
+              {job.description && looksLikeHtml(job.description) ? (
+                <SafeHtml html={job.description} className="text-slate-700" />
+              ) : useDescBullets ? (
                 <ul className="space-y-2">
                   {descLines.map((line) => (
                     <li
@@ -594,7 +597,9 @@ export function JobDetailClient({
 
             {(reqLines.length > 0 || job.requirements) && (
               <ContentSection title="Yêu cầu ứng viên" icon={<CheckCircle2 className="h-4 w-4" />}>
-                {reqLines.length > 1 ? (
+                {job.requirements && looksLikeHtml(job.requirements) ? (
+                  <SafeHtml html={job.requirements} className="text-slate-700" />
+                ) : reqLines.length > 1 ? (
                   <ul className="space-y-2">
                     {reqLines.map((line) => (
                       <li
@@ -616,7 +621,9 @@ export function JobDetailClient({
 
             {(benefitLines.length > 0 || job.benefits) && (
               <ContentSection title="Quyền lợi & phúc lợi" icon={<Wallet className="h-4 w-4" />}>
-                {benefitLines.length > 1 ? (
+                {job.benefits && looksLikeHtml(job.benefits) ? (
+                  <SafeHtml html={job.benefits} className="text-slate-700" />
+                ) : benefitLines.length > 1 ? (
                   <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {benefitLines.map((line) => (
                       <li

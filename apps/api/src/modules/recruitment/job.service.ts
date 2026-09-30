@@ -62,6 +62,7 @@ import type { CreateJobDto } from './dto/create-job.dto';
 import type { EstimateSalaryDto } from './dto/estimate-salary.dto';
 import type { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
 import { ExtractTextError, extractResumeText } from '../candidate/resume/extract-text.util';
+import { stripHtml } from './html.util';
 
 const JOB_COMPANY_SELECT = {
   id: true,
@@ -208,8 +209,8 @@ export function buildJobText(
     tech?.technicalWorkTypes.length ? `Công việc KT: ${tech.technicalWorkTypes.join(', ')}` : '',
     tech?.autonomyLevel != null ? `Tự chủ mức ${tech.autonomyLevel}` : '',
     `Kỹ năng: ${skillNames.join(', ')}`,
-    job.requirements,
-    job.description,
+    stripHtml(job.requirements),
+    stripHtml(job.description),
   ]
     .filter(Boolean)
     .join('. ');

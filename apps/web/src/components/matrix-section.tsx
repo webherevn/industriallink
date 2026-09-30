@@ -5,7 +5,15 @@ import { ChevronDown, Layers } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { NumberedTitle } from '@/components/numbered-field-label';
 
-/** Khối A/B/C/D — cùng họ màu với nhóm khuyến khích, nhẹ hơn; bấm tiêu đề để mở/gộp. */
+/**
+ * Khối A/B/C/D — cùng họ màu với nhóm khuyến khích, nhẹ hơn; bấm tiêu đề để mở/gộp.
+ *
+ * Hai chế độ mở/đóng:
+ *  - **Độc lập** (mặc định): mỗi section có state `open` riêng (CV form, profile…).
+ *  - **Accordion** (`accordionGroup` + `controlledOpen` + `onToggle`):
+ *    chỉ 1 section trong cùng group được mở. Click section đang đóng sẽ mở nó
+ *    và đóng các section khác trong cùng group; click section đang mở thì đóng nó.
+ */
 export function MatrixSection({
   title,
   subtitle,
@@ -13,6 +21,9 @@ export function MatrixSection({
   children,
   className,
   defaultOpen = true,
+  accordionGroup,
+  controlledOpen,
+  onToggle,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -20,8 +31,24 @@ export function MatrixSection({
   children: ReactNode;
   className?: string;
   defaultOpen?: boolean;
+  /** Đặt cùng 1 chuỗi (VD: 'jd-tech') cho các section muốn khóa chéo. */
+  accordionGroup?: string;
+  /** Bắt buộc nếu dùng accordionGroup: trạng thái mở/đóng từ component cha. */
+  controlledOpen?: boolean;
+  /** Bắt buộc nếu dùng accordionGroup: handler bấm tiêu đề. */
+  onToggle?: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const isAccordion = Boolean(accordionGroup) && controlledOpen !== undefined && Boolean(onToggle);
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  const open = isAccordion ? Boolean(controlledOpen) : localOpen;
+
+  function handleClick() {
+    if (isAccordion) {
+      onToggle?.();
+      return;
+    }
+    setLocalOpen((v) => !v);
+  }
 
   return (
     <div
@@ -33,7 +60,7 @@ export function MatrixSection({
       <div className="flex items-start gap-1 bg-gradient-to-r from-amber-200/25 via-orange-100/20 to-amber-100/10">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={handleClick}
           aria-expanded={open}
           className="flex min-w-0 flex-1 items-start gap-2.5 px-3.5 py-2.5 text-left sm:px-4"
         >

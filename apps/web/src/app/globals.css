@@ -517,6 +517,158 @@ body {
   }
 }
 
+/* —— JD rich-text render (mô tả / yêu cầu / quyền lợi) —— */
+.jd-rich-text {
+  color: #334155;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.jd-rich-text > *:first-child { margin-top: 0; }
+.jd-rich-text > *:last-child { margin-bottom: 0; }
+.jd-rich-text p { margin: 0.5rem 0; }
+.jd-rich-text h2,
+.jd-rich-text h3,
+.jd-rich-text h4 {
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0.85rem 0 0.4rem;
+  line-height: 1.3;
+}
+.jd-rich-text h2 { font-size: 1.1rem; }
+.jd-rich-text h3 { font-size: 1rem; }
+.jd-rich-text h4 { font-size: 0.95rem; }
+.jd-rich-text strong { font-weight: 700; color: #0f172a; }
+.jd-rich-text em { font-style: italic; }
+.jd-rich-text ul,
+.jd-rich-text ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+.jd-rich-text ul { list-style: disc; }
+.jd-rich-text ol { list-style: decimal; }
+.jd-rich-text li { margin: 0.2rem 0; }
+.jd-rich-text blockquote {
+  margin: 0.6rem 0;
+  padding: 0.4rem 0.8rem;
+  border-left: 3px solid #cbd5e1;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+.jd-rich-text a {
+  color: #0f3d6e;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.jd-rich-text a:hover { color: #072348; }
+.jd-rich-text hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 0.85rem 0;
+}
+
+/* —— JD rich-text editor (JdRichEditor) —— */
+.jd-editor-shell {
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+.jd-editor-toolbar {
+  background: #f8fafc;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+}
+.jd-tb-btn {
+  display: inline-flex;
+  height: 30px;
+  min-width: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: #475569;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.jd-tb-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.jd-tb-btn[data-active='true'] {
+  background: #e0e9f5;
+  color: #0f3d6e;
+}
+.jd-tb-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.jd-tb-select {
+  height: 30px;
+  border-radius: 0.375rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0 0.4rem;
+  font-size: 0.75rem;
+  color: #334155;
+  outline: none;
+}
+.jd-tb-select:focus {
+  border-color: #0f3d6e;
+  box-shadow: 0 0 0 2px rgba(15, 61, 110, 0.18);
+}
+.jd-tiptap-host .ProseMirror {
+  padding: 0.65rem 0.85rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #1e293b;
+  outline: none;
+  min-height: 120px;
+}
+.jd-tiptap-host .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #94a3b8;
+  pointer-events: none;
+  height: 0;
+}
+.jd-tiptap-host .ProseMirror h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0.6rem 0 0.3rem;
+}
+.jd-tiptap-host .ProseMirror h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0.6rem 0 0.3rem;
+}
+.jd-tiptap-host .ProseMirror p { margin: 0.35rem 0; }
+.jd-tiptap-host .ProseMirror ul,
+.jd-tiptap-host .ProseMirror ol { padding-left: 1.4rem; margin: 0.4rem 0; }
+.jd-tiptap-host .ProseMirror blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding: 0.25rem 0.6rem;
+  margin: 0.5rem 0;
+  color: #64748b;
+  background: #f8fafc;
+}
+.jd-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
 /* —— Public blog / cẩm nang article body —— */
 .cms-prose {
   color: #334155;
