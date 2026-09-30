@@ -153,7 +153,7 @@ export function JdSalesForm({
 
   // Accordion A/B/C/D — chỉ mở 1 nhóm tại 1 thời điểm; mặc định mở A.
   // Khi AI đã điền đủ C thì mặc định mở C.
-  const [openGroup, setOpenGroup] = useState<GroupKey>(openJobFit ? 'C' : 'A');
+  const [openGroup, setOpenGroup] = useState<GroupKey | null>(openJobFit ? 'C' : 'A');
   const toggleGroup = useCallback(
     (key: GroupKey) => setOpenGroup((prev) => (prev === key ? null : key)),
     [],
