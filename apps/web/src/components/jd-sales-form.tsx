@@ -30,7 +30,6 @@ import { JdRichEditor } from '@/components/jd-rich-editor';
 import { LocationPicker } from '@/components/location-picker';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
-import { SkillChipInput } from '@/components/skill-chip-input';
 import { Input, MoneyInput, Select } from '@/components/ui';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL } from '@/lib/format';
 import type { JdSalesFormState } from '@/lib/jd-sales-form';
@@ -154,7 +153,7 @@ export function JdSalesForm({
 
   // Accordion A/B/C/D — chỉ mở 1 nhóm tại 1 thời điểm; mặc định mở A.
   // Khi AI đã điền đủ C thì mặc định mở C.
-  const [openGroup, setOpenGroup] = useState<GroupKey | null>('A');
+  const [openGroup, setOpenGroup] = useState<GroupKey | null>(openJobFit ? 'C' : 'A');
   const toggleGroup = useCallback(
     (key: GroupKey) => setOpenGroup((prev) => (prev === key ? null : key)),
     [],
@@ -564,11 +563,10 @@ export function JdSalesForm({
             title="21. Kỹ năng"
             extra={<UncertainBadge show={uncertain.has('skills')} />}
           />
-          <SkillChipInput
+          <Input
             value={form.skills}
-            onChange={(skills) => onChange({ skills })}
-            placeholder="Gõ kỹ năng, nhấn Enter hoặc dấu phẩy để thêm"
-            disabled={disabled}
+            onChange={(e) => onChange({ skills: e.target.value })}
+            placeholder="Cách nhau bởi dấu phẩy"
           />
         </div>
         <div>
