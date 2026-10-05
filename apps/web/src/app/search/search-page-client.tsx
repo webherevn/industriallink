@@ -274,7 +274,7 @@ function ScoreRing({ score }: { score: number }) {
           className="transition-[stroke-dashoffset] duration-700 ease-soft"
         />
       </svg>
-      <span className={clsx('text-xs font-bold tabular-nums', textTone)}>{pct}</span>
+      <span className="text-xs font-bold tabular-nums" style={{ color: ringColor }}>{pct}</span>
     </div>
   );
 }
