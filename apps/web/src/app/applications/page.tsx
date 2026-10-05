@@ -42,6 +42,7 @@ import { fetchMe, logout } from '@/lib/auth';
 import { getApplicationDetail, myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
 import { APPLICATION_STATUS_LABEL, formatSalary } from '@/lib/format';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 import { useRouter } from 'next/navigation';
 
 type FilterTab = 'all' | 'processing' | 'interview' | 'offer' | 'rejected' | 'hired';
@@ -802,8 +803,8 @@ function ApplicationRecordCard({
                     <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
                       Phù hợp AI
                     </p>
-                    <p className={clsx('text-lg font-bold tabular-nums', matchTone(app.matchScore))}>
-                      {app.matchScore}%
+                    <p className={clsx('text-lg font-bold tabular-nums', matchBadgeTone(app.matchScore))}>
+                      {formatMatchPct(app.matchScore)}%
                     </p>
                   </div>
                 ) : (

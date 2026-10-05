@@ -17,6 +17,7 @@ import { updateApplicationStatus } from '@/lib/applications';
 import { APPLICATION_STATUS_LABEL } from '@/lib/format';
 import { getJob, listApplicants } from '@/lib/jobs';
 import { candidatesForJob } from '@/lib/matching';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
 type Tab = 'pipeline' | 'suggested';
 
@@ -221,7 +222,9 @@ export default function ApplicantsPage() {
                       · {c.industry ?? 'Chưa cập nhật'}
                     </p>
                   </div>
-                  <Badge tone="brand">Phù hợp {c.match.score}%</Badge>
+                  <span className={clsx('rounded px-2 py-0.5 text-[11px] font-semibold ring-1', matchBadgeTone(c.match.score))}>
+                    Phù hợp {formatMatchPct(c.match.score)}%
+                  </span>
                 </div>
                 <p className="mt-3 text-sm text-slate-600">{c.match.reason}</p>
                 {c.match.matchedSkills.length > 0 && (

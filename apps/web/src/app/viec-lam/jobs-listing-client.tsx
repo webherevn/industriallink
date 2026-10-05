@@ -52,6 +52,7 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
 type TabId = 'all' | 'saved' | 'applied';
 
@@ -764,7 +765,7 @@ function JobsPageInner({
                       className="block rounded-lg bg-slate-50 px-3 py-2 transition hover:bg-amber-50/80"
                     >
                       <p className="line-clamp-1 text-sm font-medium text-slate-800">{m.title}</p>
-                      <p className="text-xs font-medium text-amber-600">Phù hợp {m.match.score}%</p>
+                      <p className="text-xs font-medium text-amber-600">Phù hợp {formatMatchPct(m.match.score)}%</p>
                     </Link>
                   </li>
                 ))}
@@ -1048,8 +1049,8 @@ function JobCard({
                     </span>
                   )}
                   {match && (
-                    <span className="rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                      Phù hợp {match.match.score}%
+                    <span className={clsx('rounded px-2 py-0.5 text-[11px] font-medium ring-1', matchBadgeTone(match.match.score))}>
+                      Phù hợp {formatMatchPct(match.match.score)}%
                     </span>
                   )}
                 </div>

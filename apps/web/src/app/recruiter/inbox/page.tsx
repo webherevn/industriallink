@@ -23,6 +23,7 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { Badge, Button, Input } from '@/components/ui';
 import { APPLICATION_STATUS_LABEL, statusTone } from '@/lib/format';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 import { listInbox } from '@/lib/recruiter';
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
@@ -242,15 +243,11 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
             {a.matchScore != null && (
               <span
                 className={clsx(
-                  'absolute -bottom-1 -right-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white shadow',
-                  a.matchScore >= 60
-                    ? 'bg-emerald-500'
-                    : a.matchScore >= 35
-                      ? 'bg-brand-600'
-                      : 'bg-slate-500',
+                  'absolute -bottom-1 -right-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white shadow ring-1',
+                  matchBadgeTone(a.matchScore),
                 )}
               >
-                {a.matchScore}%
+                {formatMatchPct(a.matchScore)}%
               </span>
             )}
           </div>

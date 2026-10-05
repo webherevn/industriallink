@@ -48,6 +48,7 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 import { useRouter } from 'next/navigation';
 
 type FilterTab = 'all' | 'high' | 'medium' | 'new';
@@ -871,11 +872,7 @@ function MatchJobCard({
                     r="26"
                     fill="none"
                     stroke={
-                      job.match.score >= HIGH_MATCH
-                        ? '#f59e0b'
-                        : job.match.score >= MEDIUM_MATCH
-                          ? '#fbbf24'
-                          : '#d97706'
+                      matchRingColor(job.match.score)
                     }
                     strokeWidth="6"
                     strokeLinecap="round"
@@ -883,14 +880,14 @@ function MatchJobCard({
                   />
                 </svg>
                 <span className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[15px] font-extrabold leading-none tracking-tight text-amber-600">
-                    {job.match.score}
+                  <span className="text-[15px] font-extrabold leading-none tracking-tight" style={{ color: matchRingColor(job.match.score) }}>
+                    {formatMatchPct(job.match.score)}
                     <span className="text-[10px] font-bold">%</span>
                   </span>
                 </span>
               </div>
             </div>
-            <p className="mt-1.5 text-center text-[10px] font-semibold text-amber-700">
+            <p className="mt-1.5 text-center text-[10px] font-semibold" style={{ color: matchRingColor(job.match.score) }}>
               {matchRingLabel(job.match.score)}
             </p>
           </div>

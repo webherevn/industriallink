@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ApplicationStatus, type ApplicantView, formatJobTitle } from '@industriallink/contracts';
 import { Badge } from '@/components/ui';
 import { APPLICATION_STATUS_LABEL, PIPELINE_STEPS, statusTone } from '@/lib/format';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
 /** Các cột hiển thị trên bảng: các bước pipeline + cột Từ chối. */
 const BOARD_COLUMNS: ApplicationStatus[] = [...PIPELINE_STEPS, ApplicationStatus.Rejected];
@@ -81,8 +82,8 @@ export function KanbanBoard({
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-slate-900">{a.displayName}</p>
                     {a.matchScore != null && (
-                      <span className="shrink-0 text-xs font-semibold text-brand-600">
-                        {a.matchScore}%
+                      <span className={clsx('shrink-0 text-xs font-semibold ring-1 rounded px-1.5 py-0.5', matchBadgeTone(a.matchScore))}>
+                        {formatMatchPct(a.matchScore)}%
                       </span>
                     )}
                   </div>

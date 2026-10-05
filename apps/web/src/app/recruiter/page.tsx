@@ -39,6 +39,7 @@ import { askCopilot } from '@/lib/copilot';
 import { getInterviewStats, listInterviews } from '@/lib/interviews';
 import { listMyJobs } from '@/lib/jobs';
 import { getWorkspaceSummary, listInbox } from '@/lib/recruiter';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
 type PipelineKey =
   | 'applied'
@@ -244,7 +245,7 @@ export default function RecruiterDashboardPage() {
       {
         icon: 'check' as const,
         title: top
-          ? `${top.displayName} khớp ${top.matchScore}% với tin «${top.jobTitle}»`
+          ? `${top.displayName} khớp ${formatMatchPct(top.matchScore)}% với tin «${top.jobTitle}»`
           : 'Kỹ sư PLC đạt độ khớp cao — dùng AI xếp hạng để ưu tiên hồ sơ',
         cta: 'Xem hồ sơ',
         href: top ? `/candidates/${top.candidateId}` : '/search',
@@ -655,8 +656,8 @@ export default function RecruiterDashboardPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     {a.matchScore != null && (
-                      <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-semibold text-[#059669]">
-                        Phù hợp {a.matchScore}%
+                      <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1', matchBadgeTone(a.matchScore))}>
+                        Phù hợp {formatMatchPct(a.matchScore)}%
                       </span>
                     )}
                     <span className="text-[12px] font-semibold text-[#2563EB]">Xem hồ sơ</span>

@@ -53,6 +53,7 @@ import { AppShell } from '@/components/app-shell';
 import { ApiError } from '@/lib/api';
 import { listMyJobs } from '@/lib/jobs';
 import { candidatesForJob } from '@/lib/matching';
+import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
 import { searchCandidates, type CandidateSearchFilters } from '@/lib/search';
 
 type FilterState = {
@@ -254,7 +255,7 @@ function ScoreRing({ score }: { score: number }) {
   const r = 18;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(1, Math.max(0, score)));
-  const tone = pct >= 75 ? 'text-amber-600' : pct >= 50 ? 'text-amber-500' : 'text-slate-500';
+  const ringColor = matchRingColor(score);
   return (
     <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
@@ -264,12 +265,12 @@ function ScoreRing({ score }: { score: number }) {
           cy="22"
           r={r}
           fill="none"
-          stroke="currentColor"
+          stroke={ringColor}
           strokeWidth="3.5"
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={offset}
-          className={clsx(tone, 'transition-[stroke-dashoffset] duration-700 ease-soft')}
+          className="transition-[stroke-dashoffset] duration-700 ease-soft"
         />
       </svg>
       <span className={clsx('text-xs font-bold tabular-nums', tone)}>{pct}</span>
@@ -331,8 +332,8 @@ function ResultCard({
                 ) : null}
               </p>
             </div>
-            <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 ring-1 ring-amber-100">
-              Phù hợp {Math.round(result.score * 100)}%
+            <span className={clsx('rounded-lg px-2.5 py-1 text-[11px] font-bold ring-1', matchBadgeTone(result.score))}>
+              Phù hợp {formatMatchPct(result.score)}%
             </span>
           </div>
 
