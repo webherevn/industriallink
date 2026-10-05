@@ -871,12 +871,11 @@ function MatchJobCard({
                     cy="32"
                     r="26"
                     fill="none"
-                    stroke={
-                      matchRingColor(job.match.score)
-                    }
+                    stroke={matchRingColor(job.match.score)}
                     strokeWidth="6"
                     strokeLinecap="round"
-                    strokeDasharray={`${(job.match.score / 100) * (2 * Math.PI * 26)} ${2 * Math.PI * 26}`}
+                    strokeDasharray={2 * Math.PI * 26}
+                    strokeDashoffset={2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, job.match.score / 100)))}
                   />
                 </svg>
                 <span className="absolute inset-0 flex flex-col items-center justify-center">

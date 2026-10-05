@@ -331,9 +331,8 @@ export default function DashboardPage() {
                   text={
                     readinessLabel
                       ? String(readinessLabel)
-                      : candidate?.aiProfile?.aiScore != null
-                        ? `Điểm AI ${candidate.aiProfile.aiScore}/100`
-                        : 'Chưa cập nhật sẵn sàng'
+                      : // TODO: replace with match.score / matchScore from matching engine when available in this context
+                        'Chưa cập nhật sẵn sàng'
                   }
                 />
                 <Meta

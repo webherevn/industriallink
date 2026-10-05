@@ -257,6 +257,11 @@ export default function CandidateDetailPage() {
                               sales.jobReadiness}
                           </span>
                         )}
+                        {/*
+                          TODO: replace with match.score / matchScore from matching engine when
+                          the "Hỏi AI ứng viên" feature uses Application data with matchScore field.
+                          Currently data.aiProfile.aiScore is a profile-analysis score, not a job-match score.
+                        */}
                         {data.aiProfile?.aiScore != null && (
                           <span className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
                             <Sparkles className="h-3 w-3" />
