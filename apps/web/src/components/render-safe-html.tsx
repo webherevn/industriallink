@@ -1,8 +1,7 @@
 'use client';
 
-import DOMPurify from 'dompurify';
 import clsx from 'clsx';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 /**
  * Trả về `true` khi chuỗi có vẻ là HTML (chứa thẻ) thay vì plain text.
@@ -39,6 +38,30 @@ export function stripHtml(input: string | null | undefined): string {
     .trim();
 }
 
+const ALLOWED_TAGS = [
+  'p',
+  'br',
+  'strong',
+  'b',
+  'em',
+  'i',
+  'u',
+  's',
+  'strike',
+  'a',
+  'ul',
+  'ol',
+  'li',
+  'blockquote',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'hr',
+  'span',
+];
+const ALLOWED_ATTR = ['href', 'rel', 'target', 'class', 'style'];
+
 /**
  * Render HTML an toàn từ string. Sanitize qua DOMPurify (chỉ chạy ở client).
  * Nếu `fallback` không phải HTML thì render như text.
@@ -50,34 +73,22 @@ export function SafeHtml({
   html: string | null | undefined;
   className?: string;
 }) {
-  const safe = useMemo(() => {
-    if (!html) return '';
-    if (!looksLikeHtml(html)) return '';
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: [
-        'p',
-        'br',
-        'strong',
-        'b',
-        'em',
-        'i',
-        'u',
-        's',
-        'strike',
-        'a',
-        'ul',
-        'ol',
-        'li',
-        'blockquote',
-        'h1',
-        'h2',
-        'h3',
-        'h4',
-        'hr',
-        'span',
-      ],
-      ALLOWED_ATTR: ['href', 'rel', 'target', 'class', 'style'],
-      ALLOW_DATA_ATTR: false,
+  const [safe, setSafe] = useState('');
+
+  useEffect(() => {
+    if (!html || !looksLikeHtml(html)) {
+      setSafe('');
+      return;
+    }
+    // Lazy-load dompurify only on the client where window is available
+    import('dompurify').then(({ default: DOMPurify }) => {
+      setSafe(
+        DOMPurify.sanitize(html, {
+          ALLOWED_TAGS,
+          ALLOWED_ATTR,
+          ALLOW_DATA_ATTR: false,
+        }),
+      );
     });
   }, [html]);
 
