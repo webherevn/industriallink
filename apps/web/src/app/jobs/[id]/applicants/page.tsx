@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
+import clsx from 'clsx';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';

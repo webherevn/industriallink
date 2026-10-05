@@ -48,7 +48,7 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
-import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
+import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
 import { useRouter } from 'next/navigation';
 
 type FilterTab = 'all' | 'high' | 'medium' | 'new';

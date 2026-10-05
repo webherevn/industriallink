@@ -27,6 +27,7 @@ import {
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { AppShell } from '@/components/app-shell';
+import { JdRichEditor } from '@/components/jd-rich-editor';
 import { IndustrySubFields } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { ProgressRing } from '@/components/progress-ring';
