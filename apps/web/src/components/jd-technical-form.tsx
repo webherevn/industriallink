@@ -156,7 +156,7 @@ export function JdTechnicalForm({
 
   // Accordion A/B/C/D — chỉ mở 1 nhóm tại 1 thời điểm; mặc định mở A.
   // Khi nhóm A hợp lệ và AI đã điền xong (formHasTechnicalJobFit = true) thì tự mở C.
-  const [openGroup, setOpenGroup] = useState<GroupKey | null>(openJobFit ? 'C' : 'A');
+  const [openGroup, setOpenGroup] = useState<GroupKey | null>('A');
   const toggleGroup = useCallback(
     (key: GroupKey) => setOpenGroup((prev) => (prev === key ? null : key)),
     [],
