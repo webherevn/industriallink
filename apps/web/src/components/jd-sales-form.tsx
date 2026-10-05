@@ -30,6 +30,7 @@ import { JdRichEditor } from '@/components/jd-rich-editor';
 import { LocationPicker } from '@/components/location-picker';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { SkillChipInput } from '@/components/skill-chip-input';
 import { Input, MoneyInput, Select } from '@/components/ui';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL } from '@/lib/format';
 import type { JdSalesFormState } from '@/lib/jd-sales-form';
@@ -563,10 +564,10 @@ export function JdSalesForm({
             title="21. Kỹ năng"
             extra={<UncertainBadge show={uncertain.has('skills')} />}
           />
-          <JdRichEditor
+          <SkillChipInput
             value={form.skills}
-            onChange={(v) => onChange({ skills: v })}
-            placeholder="Cách nhau bởi dấu phẩy hoặc mỗi kỹ năng một dòng"
+            onChange={(skills) => onChange({ skills })}
+            placeholder="Gõ kỹ năng, nhấn Enter hoặc dấu phẩy để thêm"
             disabled={disabled}
           />
         </div>

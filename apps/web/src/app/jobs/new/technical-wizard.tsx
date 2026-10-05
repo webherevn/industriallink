@@ -38,6 +38,8 @@ import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL, formatJobLevel, formatSalary } from
 import { applyJobDepartmentChange, applyJobTrackChange } from '@/lib/job-org-fields';
 import { createJob, generateJobDraft } from '@/lib/jobs';
 import { JobTrackToggle } from '@/components/job-track-toggle';
+import { SkillChipInput } from '@/components/skill-chip-input';
+
 const STEPS = [
   { id: 1, label: 'Thông tin cơ bản' },
   { id: 2, label: 'Mô tả công việc' },
@@ -744,10 +746,10 @@ export function NewJobTechnicalWizard({
                 />
               </Field>
               <Field label="Kỹ năng">
-                <JdRichEditor
+                <SkillChipInput
                   value={form.skills}
-                  onChange={(v) => patch({ skills: v })}
-                  placeholder="Cách nhau bởi dấu phẩy hoặc mỗi kỹ năng một dòng"
+                  onChange={(skills) => patch({ skills })}
+                  placeholder="PLC, SCADA, Siemens, AutoCAD..."
                   disabled={busy}
                 />
               </Field>
