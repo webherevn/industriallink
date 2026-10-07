@@ -198,6 +198,7 @@ export function JdTechnicalForm({
           <Select
             value={form.jobLevel}
             onChange={(e) => onChange({ jobLevel: e.target.value as JobLevelCode | '' })}
+            size="sm"
           >
             <option value="">— Chọn cấp bậc —</option>
             {allowedTechnicalLevelsForPosition(form.position).map((code) => (
@@ -217,6 +218,7 @@ export function JdTechnicalForm({
             value={form.title}
             onChange={(e) => onChange({ title: e.target.value })}
             placeholder="VD: Tuyển Kỹ sư tự động hóa PLC Siemens – KCN VSIP"
+            size="sm"
           />
           <p className="mt-1 text-xs text-slate-500">
             Tên tin hiển thị cho ứng viên, có thể ghi tự do.
@@ -275,11 +277,13 @@ export function JdTechnicalForm({
               value={form.salaryMin}
               onChange={(salaryMin) => onChange({ salaryMin })}
               placeholder="Tối thiểu (VND)"
+              size="sm"
             />
             <MoneyInput
               value={form.salaryMax}
               onChange={(salaryMax) => onChange({ salaryMax })}
               placeholder="Kỳ vọng (VND)"
+              size="sm"
             />
           </div>
         </div>
@@ -296,6 +300,7 @@ export function JdTechnicalForm({
               value={form.headcount}
               onChange={(e) => onChange({ headcount: e.target.value })}
               placeholder="VD: 2"
+              size="sm"
             />
           </div>
           <div>
@@ -307,6 +312,7 @@ export function JdTechnicalForm({
               type="date"
               value={form.deadline}
               onChange={(e) => onChange({ deadline: e.target.value })}
+              size="sm"
             />
           </div>
         </div>
@@ -405,6 +411,7 @@ export function JdTechnicalForm({
             <Select
               value={form.educationLevel}
               onChange={(e) => onChange({ educationLevel: e.target.value })}
+              size="sm"
             >
               <option value="">Không yêu cầu / không nêu</option>
               {EDUCATION_LEVELS.map((l) => (
@@ -423,6 +430,7 @@ export function JdTechnicalForm({
               value={form.educationMajor}
               onChange={(e) => onChange({ educationMajor: e.target.value })}
               placeholder="Chỉ điền khi JD nêu"
+              size="sm"
             />
           </div>
         </div>
@@ -551,6 +559,7 @@ export function JdTechnicalForm({
             placeholder="Mô tả chi tiết công việc — bôi đen để in đậm, dùng danh sách, tiêu đề…"
             minRows={6}
             disabled={disabled}
+            compact
           />
         </div>
         <div>
@@ -564,6 +573,7 @@ export function JdTechnicalForm({
             placeholder="Yêu cầu ứng viên — dùng danh sách cho từng tiêu chí"
             minRows={5}
             disabled={disabled}
+            compact
           />
         </div>
         <div>
@@ -577,6 +587,7 @@ export function JdTechnicalForm({
             placeholder="Quyền lợi, phúc lợi, cơ hội phát triển…"
             minRows={4}
             disabled={disabled}
+            compact
           />
         </div>
       </MatrixSection>

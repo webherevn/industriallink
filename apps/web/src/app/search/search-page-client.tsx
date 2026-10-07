@@ -254,13 +254,20 @@ function ScoreRing({ score }: { score: number }) {
   const pct = formatMatchPct(score);
   const r = 18;
   const c = 2 * Math.PI * r;
-  const offset = c * (1 - Math.min(1, Math.max(0, score)));
+  const safe = Math.min(1, Math.max(0, score));
+  const offset = c * (1 - safe);
   const ringColor = matchRingColor(score);
-  const textTone = matchBadgeTone(score);
   return (
-    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
+    <div className="relative h-12 w-12 shrink-0">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="#fde68a" strokeWidth="3.5" />
+        <circle
+          cx="22"
+          cy="22"
+          r={r}
+          fill="none"
+          stroke="#fde68a"
+          strokeWidth="3.5"
+        />
         <circle
           cx="22"
           cy="22"
@@ -274,7 +281,15 @@ function ScoreRing({ score }: { score: number }) {
           className="transition-[stroke-dashoffset] duration-700 ease-soft"
         />
       </svg>
-      <span className={clsx('text-xs font-bold tabular-nums', textTone)}>{pct}</span>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className="text-[12px] font-extrabold leading-none tracking-tight"
+          style={{ color: ringColor }}
+        >
+          {pct}
+          <span className="text-[9px] font-bold opacity-80">%</span>
+        </span>
+      </div>
     </div>
   );
 }

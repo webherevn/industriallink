@@ -35,6 +35,8 @@ type Props = {
   /** Số dòng tối thiểu — ảnh hưởng tới chiều cao editor. */
   minRows?: number;
   disabled?: boolean;
+  /** Bỏ các nút toolbar thừa (font, cỡ chữ, heading, align, link) — chỉ giữ undo/redo, in đậm/nghiêng/gạch, danh sách, trích dẫn. */
+  compact?: boolean;
 };
 
 const FONT_FAMILIES = [
@@ -197,6 +199,7 @@ export function JdRichEditor({
   placeholder,
   minRows = 6,
   disabled = false,
+  compact = false,
 }: Props) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkDraft, setLinkDraft] = useState({ url: 'https://', text: '' });
@@ -301,45 +304,49 @@ export function JdRichEditor({
   return (
     <div className="jd-editor-shell">
       <div className="jd-editor-toolbar flex flex-wrap items-center gap-0.5">
-        <FormatSelect editor={editor} />
-        <select
-          aria-label="Font chữ"
-          className="jd-tb-select w-[120px] sm:w-[150px]"
-          title="Font chữ — bôi đen trước khi chọn"
-          value={textStyle.fontFamily || ''}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (!v) editor.chain().focus().unsetFontFamily().run();
-            else editor.chain().focus().setFontFamily(v).run();
-          }}
-        >
-          {FONT_FAMILIES.map((f) => (
-            <option
-              key={f.label}
-              value={f.value}
-              style={f.value ? { fontFamily: f.value } : undefined}
-            >
-              {f.label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Cỡ chữ"
-          className="jd-tb-select w-[72px]"
-          title="Cỡ chữ — bôi đen trước khi chọn"
-          value={textStyle.fontSize || ''}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (!v) editor.chain().focus().unsetFontSize().run();
-            else editor.chain().focus().setFontSize(v).run();
-          }}
-        >
-          {FONT_SIZES.map((f) => (
-            <option key={f.label} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
+        {!compact && <FormatSelect editor={editor} />}
+        {!compact && (
+          <select
+            aria-label="Font chữ"
+            className="jd-tb-select w-[120px] sm:w-[150px]"
+            title="Font chữ — bôi đen trước khi chọn"
+            value={textStyle.fontFamily || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetFontFamily().run();
+              else editor.chain().focus().setFontFamily(v).run();
+            }}
+          >
+            {FONT_FAMILIES.map((f) => (
+              <option
+                key={f.label}
+                value={f.value}
+                style={f.value ? { fontFamily: f.value } : undefined}
+              >
+                {f.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {!compact && (
+          <select
+            aria-label="Cỡ chữ"
+            className="jd-tb-select w-[72px]"
+            title="Cỡ chữ — bôi đen trước khi chọn"
+            value={textStyle.fontSize || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetFontSize().run();
+              else editor.chain().focus().setFontSize(v).run();
+            }}
+          >
+            {FONT_SIZES.map((f) => (
+              <option key={f.label} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        )}
         <Sep />
         <Btn
           title="Hoàn tác (Ctrl+Z)"
@@ -406,50 +413,54 @@ export function JdRichEditor({
         >
           <Quote className="h-4 w-4" />
         </Btn>
-        <Sep />
-        <Btn
-          title="Căn trái"
-          active={editor.isActive({ textAlign: 'left' })}
-          onClick={() => editor.chain().focus().setTextAlign('left').run()}
-        >
-          <AlignLeft className="h-4 w-4" />
-        </Btn>
-        <Btn
-          title="Căn giữa"
-          active={editor.isActive({ textAlign: 'center' })}
-          onClick={() => editor.chain().focus().setTextAlign('center').run()}
-        >
-          <AlignCenter className="h-4 w-4" />
-        </Btn>
-        <Btn
-          title="Căn phải"
-          active={editor.isActive({ textAlign: 'right' })}
-          onClick={() => editor.chain().focus().setTextAlign('right').run()}
-        >
-          <AlignRight className="h-4 w-4" />
-        </Btn>
-        <Btn
-          title="Căn đều"
-          active={editor.isActive({ textAlign: 'justify' })}
-          onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-        >
-          <AlignJustify className="h-4 w-4" />
-        </Btn>
-        <Sep />
-        <Btn
-          title="Chèn / sửa liên kết"
-          active={editor.isActive('link')}
-          onClick={openLinkDialog}
-        >
-          <Link2 className="h-4 w-4" />
-        </Btn>
-        <Btn
-          title="Gỡ liên kết"
-          disabled={!editor.isActive('link')}
-          onClick={() => editor.chain().focus().unsetLink().run()}
-        >
-          <Unlink className="h-4 w-4" />
-        </Btn>
+        {!compact && <Sep />}
+        {!compact && (
+          <>
+            <Btn
+              title="Căn trái"
+              active={editor.isActive({ textAlign: 'left' })}
+              onClick={() => editor.chain().focus().setTextAlign('left').run()}
+            >
+              <AlignLeft className="h-4 w-4" />
+            </Btn>
+            <Btn
+              title="Căn giữa"
+              active={editor.isActive({ textAlign: 'center' })}
+              onClick={() => editor.chain().focus().setTextAlign('center').run()}
+            >
+              <AlignCenter className="h-4 w-4" />
+            </Btn>
+            <Btn
+              title="Căn phải"
+              active={editor.isActive({ textAlign: 'right' })}
+              onClick={() => editor.chain().focus().setTextAlign('right').run()}
+            >
+              <AlignRight className="h-4 w-4" />
+            </Btn>
+            <Btn
+              title="Căn đều"
+              active={editor.isActive({ textAlign: 'justify' })}
+              onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+            >
+              <AlignJustify className="h-4 w-4" />
+            </Btn>
+            <Sep />
+            <Btn
+              title="Chèn / sửa liên kết"
+              active={editor.isActive('link')}
+              onClick={openLinkDialog}
+            >
+              <Link2 className="h-4 w-4" />
+            </Btn>
+            <Btn
+              title="Gỡ liên kết"
+              disabled={!editor.isActive('link')}
+              onClick={() => editor.chain().focus().unsetLink().run()}
+            >
+              <Unlink className="h-4 w-4" />
+            </Btn>
+          </>
+        )}
       </div>
 
       <EditorContent editor={editor} style={{ minHeight }} className="jd-tiptap-host" />

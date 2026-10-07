@@ -35,26 +35,48 @@ export function Button({
   );
 }
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function Input({ className, ...props }, ref) {
-  return (
-    <input
-      ref={ref}
-      className={clsx(
-        'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
-        className,
-      )}
-      {...props}
-    />
+type FieldSize = 'sm' | 'md';
+
+const sizeClassName: Record<FieldSize, string> = {
+  sm: 'h-9 px-3 py-1.5 text-[13px]',
+  md: 'px-3.5 py-2.5 text-[13px]',
+};
+
+const selectSizeClassName: Record<FieldSize, string> = {
+  sm: 'h-9 px-3 py-1.5 pr-8 text-[13px] leading-normal',
+  md: 'h-10 px-3.5 py-2.5 pr-10 text-[13px] leading-normal',
+};
+
+const textareaSizeClassName: Record<FieldSize, string> = {
+  sm: 'h-9 px-3 py-1.5 text-[13px]',
+  md: 'px-3.5 py-2.5 text-[13px]',
+};
+
+function inputClasses(size: FieldSize = 'md', extra?: string) {
+  const key: FieldSize = size === 'sm' ? 'sm' : 'md';
+  return clsx(
+    'w-full rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
+    sizeClassName[key],
+    extra,
   );
-},
+}
+
+export const Input = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & { size?: FieldSize }>(
+  function Input({ className, size = 'md', ...props }, ref) {
+    return (
+      <input
+        ref={ref}
+        className={inputClasses(size, className)}
+        {...props}
+      />
+    );
+  },
 );
 
-const inputClassName =
-  'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
-
-const selectClassName =
-  'h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-8 text-[13px] leading-normal outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+const selectClassName = clsx(
+  'w-full appearance-none rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
+  selectSizeClassName.md,
+);
 
 /** ISO YYYY-MM-DD → hiển thị DD/MM/YYYY. */
 export function isoToDisplayDate(iso: string): string {
@@ -102,12 +124,14 @@ export function BirthDateInput({
   disabled,
   className,
   placeholder = 'DD/MM/YYYY',
+  size = 'md',
 }: {
   value: string;
   onChange: (isoYmd: string) => void;
   disabled?: boolean;
   className?: string;
   placeholder?: string;
+  size?: FieldSize;
 }) {
   const pickerRef = useRef<HTMLInputElement>(null);
   const textId = useId();
@@ -139,7 +163,7 @@ export function BirthDateInput({
         autoComplete="bday"
         disabled={disabled}
         placeholder={placeholder}
-        className={clsx(inputClassName, 'pr-11 tabular-nums')}
+        className={clsx(inputClasses(size), 'pr-11 tabular-nums')}
         value={text}
         onFocus={() => setFocused(true)}
         onChange={(e) => {
@@ -206,6 +230,7 @@ export function YearInput({
   placeholder = 'VD: 1995',
   minYear = 1950,
   maxYear = new Date().getFullYear(),
+  size = 'md',
 }: {
   value: string;
   onChange: (year: string) => void;
@@ -214,6 +239,7 @@ export function YearInput({
   placeholder?: string;
   minYear?: number;
   maxYear?: number;
+  size?: FieldSize;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -243,7 +269,7 @@ export function YearInput({
         disabled={disabled}
         placeholder={placeholder}
         maxLength={4}
-        className={clsx(inputClassName, 'pr-11 tabular-nums')}
+        className={clsx(inputClasses(size), 'pr-11 tabular-nums')}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
       />
@@ -297,6 +323,7 @@ export function MoneyInput({
   hint,
   className,
   disabled,
+  size = 'md',
 }: {
   value: string;
   onChange: (digits: string) => void;
@@ -305,6 +332,7 @@ export function MoneyInput({
   hint?: string | null;
   className?: string;
   disabled?: boolean;
+  size?: FieldSize;
 }) {
   const digits = value.replace(/\D/g, '');
   const display = digits ? Number(digits).toLocaleString('en-US') : '';
@@ -317,7 +345,7 @@ export function MoneyInput({
         autoComplete="off"
         disabled={disabled}
         placeholder={placeholder ?? 'VD: 1,000,000'}
-        className={clsx(inputClassName, 'tabular-nums', className)}
+        className={clsx(inputClasses(size), 'tabular-nums', className)}
         value={display}
         onChange={(e) => {
           const next = e.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
@@ -466,13 +494,14 @@ export function MonthYearRangeFields({
   );
 }
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  function Textarea({ className, ...props }, ref) {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement> & { size?: FieldSize }>(
+  function Textarea({ className, size = 'md', ...props }, ref) {
     return (
       <textarea
         ref={ref}
         className={clsx(
-          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+          'w-full rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+          textareaSizeClassName[size as FieldSize],
           className,
         )}
         {...props}
@@ -481,13 +510,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   },
 );
 
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
-  function Select({ className, ...props }, ref) {
+export const Select = forwardRef<HTMLSelectElement, Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { size?: FieldSize }>(
+  function Select({ className, size = 'md', ...props }, ref) {
     return (
       <select
         ref={ref}
         className={clsx(
-          'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-[13px] outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+          'w-full appearance-none rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
+          selectSizeClassName[size as FieldSize],
           className,
         )}
         {...props}

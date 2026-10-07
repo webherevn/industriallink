@@ -177,6 +177,7 @@ export function JdSalesForm({
             value={form.title}
             onChange={(e) => onChange({ title: e.target.value })}
             placeholder="VD: Nhân viên kinh doanh thiết bị công nghiệp"
+            size="sm"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {JD_SALES_TITLE_OPTIONS.map((opt) => (
@@ -207,6 +208,7 @@ export function JdSalesForm({
           <Select
             value={form.jobLevel}
             onChange={(e) => onChange({ jobLevel: e.target.value as JobLevelCode | '' })}
+            size="sm"
           >
             <option value="">— Chọn cấp bậc —</option>
             {SALES_JOB_LEVELS.map((code) => (
@@ -312,11 +314,13 @@ export function JdSalesForm({
               value={form.salaryMin}
               onChange={(salaryMin) => onChange({ salaryMin })}
               placeholder="Tối thiểu (VND)"
+              size="sm"
             />
             <MoneyInput
               value={form.salaryMax}
               onChange={(salaryMax) => onChange({ salaryMax })}
               placeholder="Kỳ vọng (VND)"
+              size="sm"
             />
           </div>
         </div>
@@ -333,6 +337,7 @@ export function JdSalesForm({
               value={form.headcount}
               onChange={(e) => onChange({ headcount: e.target.value })}
               placeholder="VD: 2"
+              size="sm"
             />
           </div>
           <div>
@@ -344,6 +349,7 @@ export function JdSalesForm({
               type="date"
               value={form.deadline}
               onChange={(e) => onChange({ deadline: e.target.value })}
+              size="sm"
             />
           </div>
         </div>
@@ -455,6 +461,7 @@ export function JdSalesForm({
             <Select
               value={form.educationLevel}
               onChange={(e) => onChange({ educationLevel: e.target.value })}
+              size="sm"
             >
               <option value="">Không yêu cầu / không nêu</option>
               {EDUCATION_LEVELS.map((l) => (
@@ -473,6 +480,7 @@ export function JdSalesForm({
               value={form.educationMajor}
               onChange={(e) => onChange({ educationMajor: e.target.value })}
               placeholder="Chỉ điền khi JD nêu"
+              size="sm"
             />
           </div>
         </div>
@@ -543,6 +551,7 @@ export function JdSalesForm({
             placeholder="Mô tả chi tiết công việc — bôi đen để in đậm, dùng danh sách, tiêu đề…"
             minRows={6}
             disabled={disabled}
+            compact
           />
         </div>
         <div>
@@ -556,6 +565,7 @@ export function JdSalesForm({
             placeholder="Yêu cầu ứng viên — dùng danh sách cho từng tiêu chí"
             minRows={5}
             disabled={disabled}
+            compact
           />
         </div>
         <div>
@@ -563,10 +573,13 @@ export function JdSalesForm({
             title="21. Kỹ năng"
             extra={<UncertainBadge show={uncertain.has('skills')} />}
           />
-          <Input
+          <JdRichEditor
             value={form.skills}
-            onChange={(e) => onChange({ skills: e.target.value })}
-            placeholder="Cách nhau bởi dấu phẩy"
+            onChange={(skills) => onChange({ skills })}
+            placeholder="Cách nhau bởi dấu phẩy hoặc dùng danh sách"
+            minRows={3}
+            disabled={disabled}
+            compact
           />
         </div>
         <div>
@@ -580,6 +593,7 @@ export function JdSalesForm({
             placeholder="Quyền lợi, phúc lợi, cơ hội phát triển…"
             minRows={4}
             disabled={disabled}
+            compact
           />
         </div>
       </MatrixSection>
