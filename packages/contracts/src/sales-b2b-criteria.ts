@@ -782,12 +782,12 @@ export const LEGACY_CAREER_ORIENTATION_MAP: Record<string, CareerOrientation> = 
 
 /** STT 13. Vị trí ứng tuyển — 7 bậc cố định (5 chính + 2 thực tập), chọn nhiều (tối đa 3). */
 export const DESIRED_POSITIONS = [
-  'Nhân viên kinh doanh',
   'Thực tập sinh kinh doanh',
+  'Chăm sóc khách hàng',
+  'Nhân viên kinh doanh',
   'Trưởng nhóm kinh doanh',
   'Trưởng phòng kinh doanh',
   'Giám đốc kinh doanh',
-  'Chăm sóc khách hàng',
 ] as const;
 
 export type DesiredPosition = (typeof DESIRED_POSITIONS)[number];

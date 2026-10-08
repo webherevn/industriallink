@@ -33,6 +33,7 @@ export const EQUIPMENT_SYSTEM_QUESTION =
 
 /** STT 13. Vị trí ứng tuyển — kỹ thuật (chọn tối đa 3, có "Khác" tự nhập). */
 export const TECHNICAL_DESIRED_POSITIONS = [
+  'Thực tập sinh kỹ thuật',
   'Kỹ thuật viên',
   'Kỹ sư dịch vụ / Bảo trì – sửa chữa',
   'Kỹ sư cơ khí',
@@ -43,7 +44,6 @@ export const TECHNICAL_DESIRED_POSITIONS = [
   'Kỹ sư sản xuất / Quy trình',
   'Kỹ sư chất lượng QA/QC',
   'Kỹ sư R&D',
-  'Thực tập sinh kỹ thuật',
   'Quản lý kỹ thuật',
   'Quản lý dự án',
   'Quản lý / vận hành nhà máy',
