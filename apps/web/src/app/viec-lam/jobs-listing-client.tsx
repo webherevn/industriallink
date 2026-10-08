@@ -545,14 +545,14 @@ function JobsPageInner({
               className="mb-4 h-10 py-2 text-sm"
             >
               <option value="">Chọn vị trí</option>
-              <optgroup label="Khoán Kinh doanh">
+              <optgroup label="Khối Kinh doanh">
                 {DESIRED_POSITIONS.map((pos) => (
                   <option key={pos} value={pos}>
                     {pos}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="Khoán Kỹ thuật">
+              <optgroup label="Khối Kỹ thuật">
                 {TECHNICAL_DESIRED_POSITIONS.map((pos) => (
                   <option key={pos} value={pos}>
                     {pos}
