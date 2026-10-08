@@ -49,9 +49,10 @@ describe('A5 trọng số 19 trường Kỹ thuật', () => {
   });
 });
 
-describe('13 vị trí kỹ thuật', () => {
-  it('catalog đúng 13 vị trí + Khác không nằm trong desired', () => {
-    expect(TECHNICAL_DESIRED_POSITIONS).toHaveLength(13);
+describe('14 vị trí kỹ thuật', () => {
+  it('catalog đúng 14 vị trí + Khác không nằm trong desired', () => {
+    expect(TECHNICAL_DESIRED_POSITIONS).toHaveLength(14);
+    expect([...TECHNICAL_DESIRED_POSITIONS]).toEqual(expect.arrayContaining(['Thực tập sinh kỹ thuật']));
   });
 });
 

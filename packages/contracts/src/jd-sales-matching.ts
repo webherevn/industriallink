@@ -146,9 +146,11 @@ export const SALES_JOB_LEVELS: readonly JobLevelCode[] = [
 /** Gợi ý cấp bậc khi HR chọn chip vị trí catalog (1:1 với 4 chức danh). */
 const LEVEL_BY_CATALOG_TITLE: Record<(typeof DESIRED_POSITIONS)[number], JobLevelCode> = {
   'Nhân viên kinh doanh': JobLevelCode.SalesStaff,
+  'Thực tập sinh kinh doanh': JobLevelCode.SalesStaff,
   'Trưởng nhóm kinh doanh': JobLevelCode.SalesTeamLead,
   'Trưởng phòng kinh doanh': JobLevelCode.SalesDeptHead,
   'Giám đốc kinh doanh': JobLevelCode.SalesDirector,
+  'Chăm sóc khách hàng': JobLevelCode.SalesStaff,
 };
 
 export function defaultSalesLevelForTitle(

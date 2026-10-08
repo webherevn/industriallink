@@ -172,6 +172,7 @@ export const TECH_DOC_SIMILARITY_MATRIX: readonly (readonly number[])[] = [
 export const TECH_TOOL_CATALOG = ["AutoCAD","SolidWorks","Inventor","Revit","PLC / HMI","ERP / SAP","Word / Excel","Khác"] as const;
 
 export const TECH_TITLE_RANKS: Record<string, number> = {
+  "Thực tập sinh kỹ thuật": 1,
   "Kỹ thuật viên": 1,
   "Kỹ sư dịch vụ / Bảo trì – sửa chữa": 2,
   "Kỹ sư cơ khí": 2,

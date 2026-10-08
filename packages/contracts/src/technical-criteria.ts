@@ -43,6 +43,7 @@ export const TECHNICAL_DESIRED_POSITIONS = [
   'Kỹ sư sản xuất / Quy trình',
   'Kỹ sư chất lượng QA/QC',
   'Kỹ sư R&D',
+  'Thực tập sinh kỹ thuật',
   'Quản lý kỹ thuật',
   'Quản lý dự án',
   'Quản lý / vận hành nhà máy',
@@ -278,7 +279,7 @@ function uniquePreserveOrder(items: readonly string[]): string[] {
 /**
  * Danh sách vị trí ứng tuyển theo lĩnh vực (STT 13).
  * Kinh doanh: đúng 5 vị trí theo ma trận hoàn thành 32 mục.
- * Kỹ thuật: đúng 13 vị trí theo ma trận hoàn thành 28 mục, "Khác" tự nhập ở UI.
+ * Kỹ thuật: đúng 14 vị trí theo ma trận hoàn thành 28 mục, "Khác" tự nhập ở UI.
  */
 export function desiredPositionOptionsForTrack(
   track: JobTrack | 'sales' | 'technical' | null | undefined,

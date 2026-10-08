@@ -67,14 +67,17 @@ describe('A5 trọng số 16 trường', () => {
   });
 });
 
-describe('4 vị trí chức danh Sales', () => {
-  it('catalog đúng 4 bậc, không có vị trí thêm', () => {
-    expect([...DESIRED_POSITIONS]).toEqual([
+describe('6 vị trí chức danh Sales', () => {
+  it('catalog đúng 6 bậc, bao gồm 2 vị trí mới', () => {
+    expect(DESIRED_POSITIONS).toHaveLength(6);
+    expect([...DESIRED_POSITIONS]).toEqual(expect.arrayContaining([
       'Nhân viên kinh doanh',
+      'Thực tập sinh kinh doanh',
       'Trưởng nhóm kinh doanh',
       'Trưởng phòng kinh doanh',
       'Giám đốc kinh doanh',
-    ]);
+      'Chăm sóc khách hàng',
+    ]));
   });
 });
 
@@ -352,23 +355,8 @@ describe('G · nhiều công ty', () => {
   });
 
   it('G3 đang làm → 1; nghỉ 9 năm → 0,65', () => {
-    expect(recencyFactorG3({ ten: 'A', industries: [], productsSold: [], customerSegments: [], dealTypes: [], sellingStages: [], marketsCovered: [], isCurrent: true }, 2026)).toBe(1);
-    expect(
-      recencyFactorG3(
-        {
-          ten: 'B',
-          industries: [],
-          productsSold: [],
-          customerSegments: [],
-          dealTypes: [],
-          sellingStages: [],
-          marketsCovered: [],
-          endYear: 2017,
-          isCurrent: false,
-        },
-        2026,
-      ),
-    ).toBe(0.65);
+    expect(recencyFactorG3({ isCurrent: true }, 2026)).toBe(1);
+    expect(recencyFactorG3({ endYear: 2017, isCurrent: false }, 2026)).toBe(0.65);
   });
 
   it('H4 một công ty → B=0; G7 không giảm điểm khi thêm công ty lệch', () => {

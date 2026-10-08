@@ -714,14 +714,16 @@ export function sellingStageScoreE4(cvList: string[], jdList: string[]): number 
   return (coreW * core + (1 - coreW) * support) * 100;
 }
 
-/** 4 bậc chức danh v1.1: Nhân viên · Trưởng nhóm · Trưởng phòng · Giám đốc. */
-export type SalesTitleRank = 0 | 1 | 2 | 3;
+/** 5 bậc chức danh v1.1: Intern · Nhân viên · Trưởng nhóm · Trưởng phòng · Giám đốc. */
+export type SalesTitleRank = 0 | 1 | 2 | 3 | 4;
 
 const TITLE_RANK_BY_CATALOG: Record<(typeof DESIRED_POSITIONS)[number], SalesTitleRank> = {
-  'Nhân viên kinh doanh': 0,
-  'Trưởng nhóm kinh doanh': 1,
-  'Trưởng phòng kinh doanh': 2,
-  'Giám đốc kinh doanh': 3,
+  'Thực tập sinh kinh doanh': 0,
+  'Nhân viên kinh doanh': 1,
+  'Trưởng nhóm kinh doanh': 2,
+  'Trưởng phòng kinh doanh': 3,
+  'Giám đốc kinh doanh': 4,
+  'Chăm sóc khách hàng': 1,
 };
 
 export function salesTitleRankOf(raw: string): SalesTitleRank | null {
