@@ -18,6 +18,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   CAREER_LADDERS,
+  DESIRED_POSITIONS,
   ExperienceBand,
   JOB_LEVEL_LABEL,
   JOB_TRACK_LABEL,
@@ -26,6 +27,7 @@ import {
   POPULAR_JOB_KEYWORDS,
   SALARY_BANDS_VND,
   SALARY_PRESETS,
+  TECHNICAL_DESIRED_POSITIONS,
   type ApplicationView,
   type JobListItem,
   type JobMatchView,
@@ -161,6 +163,7 @@ function JobsPageInner({
   const industry = forcedIndustry || searchParams.get('industry') || '';
   const subIndustry = searchParams.get('subIndustry') ?? '';
   const roleFilter = searchParams.get('role') ?? '';
+  const desiredPosition = searchParams.get('desiredPosition') ?? '';
   const locations = useMemo(() => {
     const multi = parseList(searchParams.get('locations'));
     if (multi.length) return multi;
@@ -187,6 +190,8 @@ function JobsPageInner({
       q.salaryMin = Number(salaryPresetObj.min);
       q.salaryMax = Number(salaryPresetObj.max);
     }
+    // desiredPosition → dùng lại param 'role' để backend filter CONTAINS trên title
+    if (desiredPosition) q.role = desiredPosition;
     return q;
   }, [
     keyword,
@@ -197,6 +202,7 @@ function JobsPageInner({
     jobLevels,
     experienceBands,
     salaryPresetObj,
+    desiredPosition,
   ]);
 
   const setParams = useCallback(
@@ -221,6 +227,7 @@ function JobsPageInner({
       industry: null,
       subIndustry: null,
       role: null,
+      desiredPosition: null,
       location: null,
       locations: null,
       jobLevel: null,
@@ -243,6 +250,7 @@ function JobsPageInner({
       industry ||
       subIndustry ||
       roleFilter ||
+      desiredPosition ||
       locations.length ||
       jobLevels.length ||
       experienceBands.length ||
@@ -528,18 +536,29 @@ function JobsPageInner({
               </div>
             )}
 
-            <FieldLabel>Vị trí công việc</FieldLabel>
+            <FieldLabel>Vị trí ứng tuyển</FieldLabel>
             <Select
-              value={jobLevels.length === 1 ? jobLevels[0] : ''}
-              onChange={(e) => setFilterParams({ jobLevel: e.target.value || null, tab: 'all' })}
+              value={desiredPosition}
+              onChange={(e) =>
+                setFilterParams({ desiredPosition: e.target.value || null, tab: 'all' })
+              }
               className="mb-4 h-10 py-2 text-sm"
             >
               <option value="">Chọn vị trí</option>
-              {Object.values(JobLevelCode).map((code) => (
-                <option key={code} value={code}>
-                  {JOB_LEVEL_LABEL[code]}
-                </option>
-              ))}
+              <optgroup label="Khoán Kinh doanh">
+                {DESIRED_POSITIONS.map((pos) => (
+                  <option key={pos} value={pos}>
+                    {pos}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Khoán Kỹ thuật">
+                {TECHNICAL_DESIRED_POSITIONS.map((pos) => (
+                  <option key={pos} value={pos}>
+                    {pos}
+                  </option>
+                ))}
+              </optgroup>
             </Select>
 
             <SectionTitle>Khối / cấp bậc</SectionTitle>
