@@ -472,49 +472,76 @@ function HowItWorksSection({ page }: { page: BillingPageContentView }) {
 // ============================================================================
 // COMPARE TABLE
 // ============================================================================
+type CompareCell = { kind: 'text'; text: string } | { kind: 'flag'; yes: boolean };
+type CompareRow = { label: string; cells: CompareCell[] };
+
 function formatQuota(value: number | null, unlimited = 'Không giới hạn'): string {
   return value == null ? unlimited : String(value);
 }
 
-function formatActionCost(plan: BillingPlatformPlanView, action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number]): string {
+function formatActionCost(
+  plan: BillingPlatformPlanView,
+  action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number],
+): string {
   const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
   if (!row) return '—';
   return row.cost === 0 ? 'Miễn phí' : `${row.cost} Credit`;
 }
 
-function buildCompareRows(plans: BillingPlatformPlanView[]): { label: string; values: string[] }[] {
-  const rows: { label: string; values: string[] }[] = [
+/** Hành động dùng được trên gói: bật trong cài đặt và (miễn phí hoặc gói có Credit). */
+function planHasAction(
+  plan: BillingPlatformPlanView,
+  action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number],
+): boolean {
+  const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
+  if (!row) return false;
+  if (row.cost === 0) return true;
+  return plan.creditQuota == null || plan.creditQuota > 0;
+}
+
+function buildCompareRows(plans: BillingPlatformPlanView[]): CompareRow[] {
+  return [
     {
       label: 'Thời hạn',
-      values: plans.map((p) => (p.durationDays == null ? 'Không giới hạn' : `${p.durationDays} ngày`)),
+      cells: plans.map((p) => ({
+        kind: 'text' as const,
+        text: p.durationDays == null ? 'Không giới hạn' : `${p.durationDays} ngày`,
+      })),
     },
     {
       label: 'Số JD',
-      values: plans.map((p) => formatQuota(p.jobPostQuota)),
+      cells: plans.map((p) => ({ kind: 'text' as const, text: formatQuota(p.jobPostQuota) })),
+    },
+    {
+      label: 'Nhiều JD cùng lúc',
+      cells: plans.map((p) => ({
+        kind: 'flag' as const,
+        yes: p.jobPostQuota == null || p.jobPostQuota > 1,
+      })),
     },
     {
       label: 'Credit tặng kèm',
-      values: plans.map((p) => (p.creditQuota == null ? 'Theo HĐ' : String(p.creditQuota))),
+      cells: plans.map((p) => ({
+        kind: 'text' as const,
+        text: p.creditQuota == null ? 'Theo HĐ' : String(p.creditQuota),
+      })),
     },
     ...BILLING_PLAN_BILLABLE_ACTIONS.map((action) => ({
       label: BILLING_PLAN_ACTION_LABELS[action],
-      values: plans.map((p) => formatActionCost(p, action)),
+      cells: plans.map((p) => ({ kind: 'flag' as const, yes: planHasAction(p, action) })),
     })),
   ];
+}
 
-  const featureSet = new Set<string>();
-  for (const p of plans) {
-    for (const f of p.features ?? []) {
-      if (f.trim()) featureSet.add(f.trim());
-    }
+function CompareCellView({ cell }: { cell: CompareCell }) {
+  if (cell.kind === 'flag') {
+    return cell.yes ? (
+      <Check className="mx-auto h-4 w-4 text-emerald-500" aria-label="Có" />
+    ) : (
+      <X className="mx-auto h-4 w-4 text-slate-300" aria-label="Không" />
+    );
   }
-  for (const feature of featureSet) {
-    rows.push({
-      label: feature,
-      values: plans.map((p) => ((p.features ?? []).includes(feature) ? 'yes' : 'no')),
-    });
-  }
-  return rows;
+  return <span className="text-xs font-medium text-slate-600">{cell.text}</span>;
 }
 
 function CompareTable({
@@ -574,7 +601,7 @@ function CompareTable({
                     )}
                   >
                     <td className="px-4 py-3 font-medium text-slate-700">{row.label}</td>
-                    {row.values.map((val, ci) => (
+                    {row.cells.map((cell, ci) => (
                       <td
                         key={visible[ci]?.id ?? ci}
                         className={clsx(
@@ -582,13 +609,7 @@ function CompareTable({
                           visible[ci]?.isFeatured ? 'bg-amber-50/50' : ''
                         )}
                       >
-                        {val === 'yes' ? (
-                          <Check className="mx-auto h-4 w-4 text-emerald-500" />
-                        ) : val === 'no' ? (
-                          <X className="mx-auto h-4 w-4 text-slate-300" />
-                        ) : (
-                          <span className="text-xs font-medium text-slate-600">{val}</span>
-                        )}
+                        <CompareCellView cell={cell} />
                       </td>
                     ))}
                   </tr>
@@ -612,18 +633,21 @@ function CompareTable({
             >
               <h3 className="text-base font-bold text-[#072348]">{p.name}</h3>
               <div className="mt-3 space-y-1.5">
-                {compareRows.slice(0, 6).map((row) => {
+                {compareRows.map((row) => {
                   const idx = visible.indexOf(p);
-                  const val = row.values[idx];
+                  const cell = row.cells[idx];
+                  if (!cell) return null;
                   return (
                     <div key={row.label} className="flex items-center justify-between text-xs">
                       <span className="text-slate-500">{row.label}</span>
-                      {val === 'yes' ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-500" />
-                      ) : val === 'no' ? (
-                        <X className="h-3.5 w-3.5 text-slate-300" />
+                      {cell.kind === 'flag' ? (
+                        cell.yes ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-500" aria-label="Có" />
+                        ) : (
+                          <X className="h-3.5 w-3.5 text-slate-300" aria-label="Không" />
+                        )
                       ) : (
-                        <span className="font-medium text-slate-700">{val}</span>
+                        <span className="font-medium text-slate-700">{cell.text}</span>
                       )}
                     </div>
                   );
