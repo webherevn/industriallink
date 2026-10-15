@@ -10,15 +10,20 @@ import {
   Calendar,
   ChevronDown,
   Coins,
+  Crown,
   FileText,
   Gift,
   HelpCircle,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Menu,
   MessageSquare,
+  Package,
   Search,
   Shield,
+  Sparkles,
+  Star,
   Target,
   UserPlus,
   Users,
@@ -39,6 +44,7 @@ import {
   fetchMyCompanyLogoObjectUrl,
   getMyCompany,
 } from '@/lib/company';
+import { fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 type NavItem = {
   href: string;
@@ -88,6 +94,46 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
 ];
+
+const PLAN_VISUAL: Record<
+  string,
+  { icon: React.ComponentType<{ className?: string }>; tone: string }
+> = {
+  KHAM_PHA: { icon: Sparkles, tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
+  TIN_DANG: { icon: Megaphone, tone: 'bg-amber-50 text-amber-900 ring-amber-200' },
+  TIN_DANG_PLUS: { icon: Star, tone: 'bg-orange-50 text-orange-900 ring-orange-200' },
+  DOANH_NGHIEP: { icon: Building2, tone: 'bg-indigo-50 text-indigo-800 ring-indigo-200' },
+  ENTERPRISE: { icon: Crown, tone: 'bg-violet-50 text-violet-900 ring-violet-200' },
+};
+
+function PlanChip({
+  code,
+  name,
+  compact = false,
+}: {
+  code: string | null | undefined;
+  name: string | null | undefined;
+  compact?: boolean;
+}) {
+  const visual = (code && PLAN_VISUAL[code]) || {
+    icon: Package,
+    tone: 'bg-slate-100 text-slate-600 ring-slate-200',
+  };
+  const Icon = visual.icon;
+  return (
+    <span
+      className={clsx(
+        'inline-flex max-w-full items-center gap-1 rounded-full font-bold ring-1',
+        compact ? 'px-1.5 py-0.5 text-[10px] leading-none' : 'px-2 py-0.5 text-[11px]',
+        visual.tone,
+      )}
+      title={name ?? 'Chưa gán gói'}
+    >
+      <Icon className={compact ? 'h-3 w-3 shrink-0' : 'h-3.5 w-3.5 shrink-0'} />
+      <span className="truncate">{name ?? 'Chưa gán gói'}</span>
+    </span>
+  );
+}
 
 function CompanyAvatar({
   logoUrl,
@@ -177,6 +223,16 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
     enabled: Boolean(company?.hasLogo),
     staleTime: 5 * 60_000,
   });
+
+  const { data: entitlements } = useQuery({
+    queryKey: ['recruiter-billing-entitlements'],
+    queryFn: fetchRecruiterEntitlements,
+    enabled: hasToken && Boolean(user?.id),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const planCode = entitlements?.planCode ?? entitlements?.plan?.planCode ?? null;
+  const planName = entitlements?.planName ?? entitlements?.plan?.planName ?? null;
 
   const meRateLimited =
     isError && meError instanceof ApiError && meError.status === 429;
@@ -349,9 +405,9 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
             <p className="truncate text-sm font-semibold text-slate-900">
               {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
             </p>
-            <p className="truncate text-xs text-slate-500">
-              {user?.displayName ?? 'Tài khoản NTD'}
-            </p>
+            <div className="mt-1">
+              <PlanChip code={planCode} name={planName} compact />
+            </div>
           </div>
           <button
             type="button"
@@ -442,14 +498,22 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => setAccountOpen((v) => !v)}
-                  className="flex items-center gap-1.5 rounded-full p-0.5 transition hover:bg-slate-100"
+                  className="flex max-w-[220px] items-center gap-2 rounded-full py-0.5 pl-0.5 pr-2 transition hover:bg-slate-100"
                   aria-expanded={accountOpen}
                   aria-haspopup="menu"
                 >
                   <CompanyAvatar logoUrl={logoUrl} name={displayName} />
+                  <span className="hidden min-w-0 text-left sm:block">
+                    <span className="block truncate text-sm font-semibold leading-tight text-slate-900">
+                      {company?.name ?? 'Công ty'}
+                    </span>
+                    <span className="mt-0.5 block">
+                      <PlanChip code={planCode} name={planName} compact />
+                    </span>
+                  </span>
                   <ChevronDown
                     className={clsx(
-                      'hidden h-4 w-4 text-slate-400 transition sm:block',
+                      'hidden h-4 w-4 shrink-0 text-slate-400 transition sm:block',
                       accountOpen && 'rotate-180',
                     )}
                   />
@@ -467,7 +531,19 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                       <p className="truncate text-xs text-slate-500">
                         {user?.email ?? user?.displayName}
                       </p>
+                      <div className="mt-2">
+                        <PlanChip code={planCode} name={planName} />
+                      </div>
                     </div>
+                    <Link
+                      href="/recruiter/billing"
+                      role="menuitem"
+                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => setAccountOpen(false)}
+                    >
+                      <Wallet className="h-4 w-4 text-slate-400" />
+                      Gói & Credit
+                    </Link>
                     <Link
                       href="/company"
                       role="menuitem"
