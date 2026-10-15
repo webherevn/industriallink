@@ -10,6 +10,7 @@ import type {
   BillingOrderView,
   PaymentCheckoutResponse,
   RecruiterCreateCheckoutRequest,
+  RecruiterCreatePlanCheckoutRequest,
   RecruiterOrderListResponse,
   RecruiterBillingEntitlements,
 } from '@industriallink/contracts';
@@ -47,6 +48,13 @@ export async function fetchRecruiterCreditSummary(): Promise<RecruiterCreditSumm
 // =========================================================================
 // TOP-UP PAYMENT (Bước 7)
 // =========================================================================
+
+export async function activateRecruiterPlan(planCode: string): Promise<BillingCompanyPlanView> {
+  return apiRequest<BillingCompanyPlanView>('/billing/plan/activate', {
+    method: 'POST',
+    body: { planCode } as RecruiterCreatePlanCheckoutRequest,
+  });
+}
 
 export async function createTopupCheckout(
   topupId: string,

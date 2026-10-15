@@ -312,7 +312,7 @@ function PlanRow({
         {plan.description ? <p className="mt-0.5 text-xs text-slate-500">{plan.description}</p> : null}
         <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-slate-500">
           <span>
-            Thời hạn: <strong>{plan.durationDays ?? '∞'}</strong> ngày
+            Tin hiển thị: <strong>{plan.durationDays ?? '∞'}</strong> ngày
           </span>
           <span>
             JD: <strong>{plan.jobPostQuota ?? '∞'}</strong>
@@ -431,7 +431,10 @@ function EditModal({
               <option value="per_month">Theo tháng</option>
             </Select>
           </Field>
-          <Field label="Thời hạn (ngày)" description="Để trống = không giới hạn">
+          <Field
+            label="Số ngày hiển thị tin"
+            description="Tin đăng hết hạn sau N ngày. Gói Khám phá: chu kỳ gói luôn 30 ngày — số này chỉ là hạn hiển thị tin, không phải hạn gói."
+          >
             <Input
               type="number"
               value={form.durationDays ?? ''}

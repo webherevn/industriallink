@@ -75,9 +75,14 @@ export function RecruiterBillingHub() {
               <>
                 <p className="mt-2 text-2xl font-bold text-[#072348]">{plan.planName}</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Hiệu lực {fmtDate(plan.startsAt)} → {fmtDate(plan.endsAt)}
+                  Chu kỳ gói {fmtDate(plan.startsAt)} → {fmtDate(plan.endsAt)}
                   {!plan.isActive ? ' · đã tắt' : ''}
                 </p>
+                {entitlements?.jobDisplayDays != null ? (
+                  <p className="mt-1 text-sm text-slate-500">
+                    Tin đăng hiển thị <strong>{entitlements.jobDisplayDays} ngày</strong>
+                  </p>
+                ) : null}
                 <p className="mt-3 text-sm text-slate-600">
                   Đăng tin:{' '}
                   <strong>
@@ -92,9 +97,9 @@ export function RecruiterBillingHub() {
               </>
             ) : (
               <>
-                <p className="mt-2 text-lg font-semibold text-slate-800">Chưa gán gói</p>
+                <p className="mt-2 text-lg font-semibold text-slate-800">Đang gán gói Khám phá</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Tạo công ty để nhận gói Khám phá. Gói trả phí do SuperAdmin kích hoạt.
+                  Tài khoản NTD mới mặc định nhận gói Khám phá. Tải lại trang nếu chưa thấy.
                 </p>
               </>
             )}
@@ -175,9 +180,17 @@ function RequestedPlanBanner({
         </p>
         <p className="mt-1 text-xs opacity-80">
           {isCurrent
-            ? 'Credit tặng của gói đã được cộng khi SuperAdmin gán (hoặc gán lại) gói này.'
-            : 'Gói nền tảng do SuperAdmin kích hoạt. Sau khi gán, hệ thống tự tặng Credit theo hạn mức gói.'}
+            ? 'Bạn đang dùng gói này. Credit tặng đã được cộng khi kích hoạt.'
+            : 'Xác nhận thanh toán để chuyển sang gói này. Số ngày SuperAdmin là hạn hiển thị tin.'}
         </p>
+        {!isCurrent ? (
+          <Link
+            href={`/recruiter/billing/upgrade?plan=${encodeURIComponent(plan.code)}`}
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline"
+          >
+            Đi tới thanh toán <ArrowRight className="h-3 w-3" />
+          </Link>
+        ) : null}
       </div>
     </Card>
   );

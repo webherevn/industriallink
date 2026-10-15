@@ -195,7 +195,11 @@ export interface AdminCreditAdjustRequest {
   reason: string;
 }
 
-/** Recruiter tạo đơn mua Top-up Credit. */
+/** Recruiter thanh toán / kích hoạt gói nền tảng. */
+export interface RecruiterCreatePlanCheckoutRequest {
+  planCode: string;
+}
+
 export interface RecruiterCreateCheckoutRequest {
   topupId: string;
 }

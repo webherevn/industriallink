@@ -70,6 +70,14 @@ export class ApplicationService {
     if (job.status !== JobStatus.Published) {
       throw new BadRequestException('Tin tuyển dụng chưa mở nhận hồ sơ');
     }
+    if (job.deadline) {
+      const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(
+        new Date(),
+      );
+      if (job.deadline.toISOString().slice(0, 10) < todayVn) {
+        throw new BadRequestException('Tin tuyển dụng đã hết hạn hiển thị');
+      }
+    }
 
     const existing = await this.prisma.application.findUnique({
       where: { jobId_candidateId: { jobId, candidateId: candidate.id } },

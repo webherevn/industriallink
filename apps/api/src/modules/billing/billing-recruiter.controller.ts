@@ -41,7 +41,7 @@ export class BillingRecruiterController {
   async getCompanyPlan(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<BillingCompanyPlanView | null> {
-    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.billing.ensureCompanyPlan(companyId);
   }
 
@@ -50,14 +50,14 @@ export class BillingRecruiterController {
   async getEntitlements(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<RecruiterBillingEntitlements> {
-    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.billing.getEntitlements(companyId);
   }
 
   @Get('credits/balance')
   @ApiOperation({ summary: 'Số dư Credit của công ty user' })
   async getBalance(@CurrentUser() user: AuthenticatedUser): Promise<RecruiterCreditBalanceResponse> {
-    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
     const account = await this.credit.getAccountView(companyId);
     return {
       balance: account?.balance ?? 0,
@@ -74,7 +74,7 @@ export class BillingRecruiterController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<BillingCreditLedgerListResponse> {
-    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.credit.listForCompany(companyId, {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
@@ -86,7 +86,7 @@ export class BillingRecruiterController {
   async getSummary(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<RecruiterCreditSummaryResponse> {
-    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
     const now = new Date();
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

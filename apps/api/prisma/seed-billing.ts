@@ -28,10 +28,10 @@ const PLATFORM_PLANS = [
   {
     code: 'KHAM_PHA',
     name: 'Khám phá',
-    description: 'Trải nghiệm miễn phí AI Matching cho 1 JD trong 7–14 ngày.',
+    description: 'Trải nghiệm miễn phí AI Matching: 1 JD hiển thị 14 ngày, chu kỳ gói 30 ngày.',
     priceVnd: 0n,
     billingUnit: 'per_jd',
-    durationDays: 14,
+    durationDays: 30,
     jobPostQuota: 1,
     creditQuota: 0,
     sortOrder: 1,

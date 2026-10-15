@@ -271,6 +271,8 @@ export interface RecruiterBillingEntitlements {
   jobsUsed: number;
   /** null = không giới hạn. */
   jobsRemaining: number | null;
+  /** Số ngày tin được hiển thị (durationDays SuperAdmin). */
+  jobDisplayDays: number | null;
   actionCosts: BillingPlanActionCostView[];
   enforcement: 'log' | 'enforce';
 }

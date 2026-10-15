@@ -41,11 +41,21 @@ import {
   BILLING_PLAN_ACTION_LABELS,
   BILLING_PLAN_BILLABLE_ACTIONS,
   DEFAULT_BILLING_PAGE_CONTENT,
+  UserRole,
 } from '@industriallink/contracts';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
+import { tokenStore } from '@/lib/api';
+import { fetchMe } from '@/lib/auth';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
 import { BrandMark } from './brand-logo';
 import { CompareSection } from './pricing-compare';
+
+const NTD_ROLES = new Set<string>([
+  UserRole.Recruiter,
+  UserRole.HiringManager,
+  UserRole.CompanyAdmin,
+  UserRole.SuperAdmin,
+]);
 
 const SCOPE_LABEL: Record<SourcingServiceScope, string> = {
   ai_match: 'AI tìm / Matching',
@@ -118,8 +128,10 @@ const TRUST_ICONS = [Shield, Banknote, Sparkles];
 // ============================================================================
 // TOP NAV (PUBLIC)
 // ============================================================================
-function TopNav() {
+function TopNav({ checkoutReady }: { checkoutReady: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const startHref = checkoutReady ? '/recruiter/billing' : '/register';
+  const startLabel = checkoutReady ? 'Gói của tôi' : 'Đăng ký miễn phí';
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
@@ -148,27 +160,29 @@ function TopNav() {
 
         {/* Desktop CTA */}
         <div className="hidden items-center gap-2 lg:flex">
+          {checkoutReady ? null : (
           <Link
             href="/login"
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
           >
             Đăng nhập
           </Link>
+          )}
           <Link
-            href="/register"
+            href={startHref}
             className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400"
           >
-            Đăng ký miễn phí
+            {startLabel}
           </Link>
         </div>
 
         {/* Mobile CTA + hamburger */}
         <div className="flex items-center gap-2 lg:hidden">
           <Link
-            href="/register"
+            href={startHref}
             className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#072348] transition-colors hover:bg-amber-400"
           >
-            Đăng ký
+            {checkoutReady ? 'Gói của tôi' : 'Đăng ký'}
           </Link>
           <button
             type="button"
@@ -202,6 +216,7 @@ function TopNav() {
               </a>
             ))}
             <hr className="my-2 border-slate-200" />
+            {checkoutReady ? null : (
             <Link
               href="/login"
               onClick={() => setMenuOpen(false)}
@@ -209,12 +224,13 @@ function TopNav() {
             >
               Đăng nhập
             </Link>
+            )}
             <Link
-              href="/register"
+              href={startHref}
               onClick={() => setMenuOpen(false)}
               className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400"
             >
-              Đăng ký miễn phí
+              {startLabel}
             </Link>
           </nav>
         </div>
@@ -229,9 +245,11 @@ function TopNav() {
 function HeroPublic({
   stats,
   page,
+  checkoutReady,
 }: {
   stats: ReturnType<typeof computeStats> | null;
   page: BillingPageContentView;
+  checkoutReady: boolean;
 }) {
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#072348] via-[#0a2d5e] to-[#0d3b80] py-14 text-white sm:py-20">
@@ -272,10 +290,10 @@ function HeroPublic({
           {/* CTA */}
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/register"
+              href={checkoutReady ? '/recruiter/billing' : '/register'}
               className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/30 transition-colors hover:bg-amber-400"
             >
-              {page.heroCtaPrimary} <ArrowRight className="h-4 w-4" />
+              {checkoutReady ? 'Gói của tôi' : page.heroCtaPrimary} <ArrowRight className="h-4 w-4" />
             </Link>
             <a
               href="#how"
@@ -683,6 +701,7 @@ function PlatformPlansView({
   onSourcing,
   onTopup,
   isRecruiter,
+  checkoutReady,
   planCtaHref,
   freeCtaHref,
   enterpriseCtaHref,
@@ -694,6 +713,7 @@ function PlatformPlansView({
   onSourcing: () => void;
   onTopup: () => void;
   isRecruiter: boolean;
+  checkoutReady: boolean;
   planCtaHref: (code: string) => string;
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
@@ -719,6 +739,7 @@ function PlatformPlansView({
             plan={p}
             currency={currency}
             isRecruiter={isRecruiter}
+            checkoutReady={checkoutReady}
             planCtaHref={planCtaHref}
             freeCtaHref={freeCtaHref}
             enterpriseCtaHref={enterpriseCtaHref}
@@ -765,6 +786,7 @@ function PlatformPlanCard({
   plan,
   currency,
   isRecruiter,
+  checkoutReady,
   planCtaHref,
   freeCtaHref,
   enterpriseCtaHref,
@@ -772,6 +794,7 @@ function PlatformPlanCard({
   plan: BillingPlatformPlanView;
   currency: BillingCurrencyDisplay;
   isRecruiter: boolean;
+  checkoutReady: boolean;
   planCtaHref: (code: string) => string;
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
@@ -813,9 +836,9 @@ function PlatformPlanCard({
             ? 'Theo hợp đồng'
             : isFree
               ? plan.durationDays
-                ? `${plan.durationDays} ngày trải nghiệm`
-                : 'Không giới hạn thời gian trải nghiệm'
-              : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}`}
+                ? `Tin hiển thị ${plan.durationDays} ngày · chu kỳ 30 ngày`
+                : 'Chu kỳ gói 30 ngày'
+              : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · tin ${plan.durationDays} ngày` : ''}`}
         </PlanPriceMeta>
         <p className="min-h-[16px] text-[10px] leading-4 text-slate-400">
           {!isEnterprise && !isFree && currency.showReferenceUsd
@@ -836,7 +859,11 @@ function PlatformPlanCard({
             <span className="mt-0.5 h-3.5 w-3.5 shrink-0 text-center text-[10px] font-bold text-slate-400">
               ⏱
             </span>
-            <span>Thời hạn {plan.durationDays} ngày</span>
+            <span>
+              {isFree
+                ? `Tin hiển thị ${plan.durationDays} ngày · tạo JD mới sau 30 ngày`
+                : `Tin hiển thị ${plan.durationDays} ngày`}
+            </span>
           </li>
         ) : null}
         {plan.creditQuota != null && plan.creditQuota > 0 ? (
@@ -885,15 +912,15 @@ function PlatformPlanCard({
         )}
       >
         {isEnterprise
-          ? isRecruiter
+          ? checkoutReady || isRecruiter
             ? 'Yêu cầu tư vấn'
             : 'Liên hệ sales'
           : isFree
-            ? isRecruiter
-              ? 'Dùng thử miễn phí'
+            ? checkoutReady || isRecruiter
+              ? 'Vào gói của tôi'
               : 'Đăng ký miễn phí'
-            : isRecruiter
-              ? 'Kích hoạt gói'
+            : checkoutReady || isRecruiter
+              ? 'Thanh toán'
               : 'Chọn gói'}{' '}
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
@@ -1040,7 +1067,8 @@ function SourcingPlanCard({
             : 'bg-[#072348] text-white hover:bg-[#0d3b80]'
         )}
       >
-        Đăng ký Săn <ArrowRight className="h-3.5 w-3.5" />
+        {planCtaHref(plan.code).startsWith('/recruiter') ? 'Liên hệ tư vấn' : 'Đăng ký Săn'}{' '}
+        <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>
   );
@@ -1243,7 +1271,7 @@ function FAQSection({ page }: { page: BillingPageContentView }) {
 // ============================================================================
 // FINAL CTA
 // ============================================================================
-function FinalCTA({ page }: { page: BillingPageContentView }) {
+function FinalCTA({ page, checkoutReady }: { page: BillingPageContentView; checkoutReady: boolean }) {
   return (
     <section className="bg-gradient-to-br from-[#072348] to-[#0d3b80] py-12 text-white">
       <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
@@ -1251,10 +1279,10 @@ function FinalCTA({ page }: { page: BillingPageContentView }) {
         <p className="mt-2 text-sm text-slate-300">{page.finalCtaSubtitle}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/register"
+            href={checkoutReady ? '/recruiter/billing' : '/register'}
             className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/30 transition-colors hover:bg-amber-400"
           >
-            Đăng ký miễn phí <ArrowRight className="h-4 w-4" />
+            {checkoutReady ? 'Gói của tôi' : 'Đăng ký miễn phí'} <ArrowRight className="h-4 w-4" />
           </Link>
           <a
             href={`mailto:${page.contactEmail}`}
@@ -1371,6 +1399,20 @@ export function PricingClient({
   context?: 'recruiter' | 'public';
 }) {
   const isRecruiter = context === 'recruiter';
+  const [hasToken, setHasToken] = useState(false);
+
+  useEffect(() => {
+    setHasToken(Boolean(tokenStore.get()));
+  }, []);
+
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchMe,
+    enabled: hasToken,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const checkoutReady = isRecruiter || Boolean(me && NTD_ROLES.has(me.role));
 
   const { data: fetched, isLoading, refetch } = useQuery({
     queryKey: ['billing-public-config'],
@@ -1381,18 +1423,20 @@ export function PricingClient({
   });
   const resolved = config ?? fetched ?? null;
 
-  /** Href CTA cho gói */
+  /** NTD đã login → trang thanh toán / billing. Khách → đăng ký. */
   const planCtaHref = (code: string) =>
-    isRecruiter
-      ? `/recruiter/billing?plan=${encodeURIComponent(code)}`
+    checkoutReady
+      ? `/recruiter/billing/upgrade?plan=${encodeURIComponent(code)}`
       : `/register?plan=${encodeURIComponent(code)}`;
-  const freeCtaHref = () => (isRecruiter ? '/recruiter?action=try-free' : '/register');
+  const freeCtaHref = () => (checkoutReady ? '/recruiter/billing' : '/register');
   const page = resolved?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
   const enterpriseCtaHref = () =>
-    isRecruiter ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
+    checkoutReady ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
   /** Top-up: dùng id vì view không có code. */
   const topupCtaHref = (id: string) =>
-    isRecruiter ? `/recruiter/billing/topup?topup=${encodeURIComponent(id)}` : '/register';
+    checkoutReady ? `/recruiter/billing/topup?topup=${encodeURIComponent(id)}` : '/register';
+  const sourcingCtaHref = (code: string) =>
+    checkoutReady ? '/recruiter/billing' : `/register?plan=${encodeURIComponent(code)}`;
 
   // Tab state — hooks must come before any conditional returns
   const [tab, setTab] = useState<PricingTab>('platform');
@@ -1425,10 +1469,10 @@ export function PricingClient({
   return (
     <>
       {/* TOP NAV (public only) */}
-      {!isRecruiter && <TopNav />}
+      {!isRecruiter && <TopNav checkoutReady={checkoutReady} />}
 
       {/* HERO */}
-      {isRecruiter ? <HeroRecruiter page={page} /> : <HeroPublic stats={stats} page={page} />}
+      {isRecruiter ? <HeroRecruiter page={page} /> : <HeroPublic stats={stats} page={page} checkoutReady={checkoutReady} />}
 
       {/* SECTION NAV */}
       <SectionNav isRecruiter={isRecruiter} tab={tab} onTabChange={switchTab} page={page} />
@@ -1444,6 +1488,7 @@ export function PricingClient({
               onSourcing={() => setTab('sourcing')}
               onTopup={() => setTab('credit')}
               isRecruiter={isRecruiter}
+              checkoutReady={checkoutReady}
               planCtaHref={planCtaHref}
               freeCtaHref={freeCtaHref}
               enterpriseCtaHref={enterpriseCtaHref}
@@ -1455,7 +1500,7 @@ export function PricingClient({
               currency={cur}
               onTopup={() => setTab('credit')}
               isRecruiter={isRecruiter}
-              planCtaHref={planCtaHref}
+              planCtaHref={sourcingCtaHref}
               page={page}
             />
           ) : (
@@ -1496,7 +1541,7 @@ export function PricingClient({
       {!isRecruiter && <ContactCTASection page={page} />}
 
       {/* FINAL CTA */}
-      <FinalCTA page={page} />
+      <FinalCTA page={page} checkoutReady={checkoutReady} />
 
       {/* FOOTER MINI (public only) */}
       {!isRecruiter && <FooterMini page={page} />}

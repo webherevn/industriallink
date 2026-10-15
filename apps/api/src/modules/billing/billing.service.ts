@@ -116,6 +116,16 @@ const PAGE_STRING_KEYS = [
 
 const PAGE_NULLABLE_KEYS = ['focusKeyword', 'ogTitle', 'ogDescription', 'ogImageUrl'] as const;
 
+/** Gói mặc định khi tạo NTD. Chu kỳ gói cố định 30 ngày — durationDays SuperAdmin là hạn tin. */
+const STARTER_PLAN_CODE = 'KHAM_PHA';
+const STARTER_CYCLE_DAYS = 30;
+
+function addUtcDays(from: Date, days: number): Date {
+  const end = new Date(from);
+  end.setUTCDate(end.getUTCDate() + days);
+  return end;
+}
+
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
@@ -313,9 +323,7 @@ export class BillingService {
     const startsAt = input.startsAt ? new Date(input.startsAt) : new Date();
     const endsAt =
       input.endsAt === undefined
-        ? plan.durationDays
-          ? new Date(startsAt.getTime() + plan.durationDays * 24 * 60 * 60 * 1000)
-          : null
+        ? this.planCycleEndsAt(plan, startsAt)
         : input.endsAt
           ? new Date(input.endsAt)
           : null;
@@ -444,13 +452,13 @@ export class BillingService {
     if (!before) return true;
     if (before.planId !== after.planId) return true;
     if (!before.isActive && after.isActive) return true;
+    if (before.endsAt && before.endsAt < new Date()) return true;
     return false;
   }
 
   /**
-   * Công ty mới / chưa gán gói → gói miễn phí SuperAdmin đang bán (sortOrder thấp nhất).
-   * Quota/Credit lấy từ gói đó trên bảng giá, không hardcode.
-   * Gói đã gán mà chưa từng được tặng Credit → cộng đúng creditQuota hiện tại của gói.
+   * Công ty mới / chưa gán gói → Khám phá. Chu kỳ gói luôn 30 ngày.
+   * durationDays SuperAdmin = hạn hiển thị tin, không phải hạn gói.
    */
   async ensureCompanyPlan(companyId: string): Promise<BillingCompanyPlanView | null> {
     const existing = await this.prisma.billingCompanyPlan.findUnique({
@@ -460,18 +468,47 @@ export class BillingService {
     if (!existing) {
       return this.provisionStarterPlan(companyId);
     }
-    if (existing.isActive) {
-      await this.backfillPlanGrant(companyId, existing);
+    const now = new Date();
+    if (existing.plan.code === STARTER_PLAN_CODE && existing.isActive) {
+      const cycleEnd = addUtcDays(existing.startsAt, STARTER_CYCLE_DAYS);
+      if (now >= cycleEnd) {
+        return this.provisionStarterPlan(companyId, { renew: true });
+      }
+      if (!existing.endsAt || existing.endsAt < cycleEnd) {
+        const fixed = await this.prisma.billingCompanyPlan.update({
+          where: { companyId },
+          data: { endsAt: cycleEnd },
+          include: { plan: true },
+        });
+        await this.backfillPlanGrant(companyId, fixed);
+        return this.mapCompanyPlan(fixed);
+      }
     }
+    const expired = Boolean(existing.endsAt && existing.endsAt < now);
+    if (expired || !existing.isActive) {
+      return this.provisionStarterPlan(companyId, { renew: true });
+    }
+    await this.backfillPlanGrant(companyId, existing);
     return this.mapCompanyPlan(existing);
   }
 
-  async provisionStarterPlan(companyId: string): Promise<BillingCompanyPlanView | null> {
+  async provisionStarterPlan(
+    companyId: string,
+    opts: { renew?: boolean } = {},
+  ): Promise<BillingCompanyPlanView | null> {
     const already = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
       include: { plan: true },
     });
-    if (already) return this.mapCompanyPlan(already);
+    const now = new Date();
+    const stillValid =
+      already &&
+      already.isActive &&
+      already.startsAt <= now &&
+      (already.endsAt == null || already.endsAt >= now);
+    if (already && stillValid && !opts.renew) {
+      return this.mapCompanyPlan(already);
+    }
 
     const starter = await this.resolveStarterPlan();
     if (!starter) {
@@ -485,11 +522,18 @@ export class BillingService {
     });
     if (!company) return null;
 
+    const startsAt = new Date();
+    const endsAt = addUtcDays(startsAt, STARTER_CYCLE_DAYS);
+
     try {
       return await this.assignCompanyPlan(this.systemActor(company), {
         companyId,
         planId: starter.id,
-        note: 'Gói mặc định khi tạo tài khoản nhà tuyển dụng',
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        note: opts.renew
+          ? 'Gia hạn / về gói Khám phá khi hết hạn'
+          : 'Gói Khám phá mặc định khi tạo tài khoản nhà tuyển dụng',
       });
     } catch (err) {
       this.logger.warn(`Provision gói ${starter.code} thất bại cho ${companyId}: ${String(err)}`);
@@ -556,9 +600,32 @@ export class BillingService {
       },
       jobsUsed,
       jobsRemaining,
+      jobDisplayDays: assignment?.plan.durationDays ?? null,
       actionCosts,
       enforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
     };
+  }
+
+  /** Số ngày tin được phép hiển thị — lấy durationDays SuperAdmin của gói đang gán. */
+  async getJobDisplayDays(companyId: string): Promise<number | null> {
+    await this.ensureCompanyPlan(companyId);
+    const row = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: { select: { durationDays: true } } },
+    });
+    const days = row?.plan.durationDays;
+    return days != null && days > 0 ? days : null;
+  }
+
+  /** Hạn gói: Khám phá luôn 30 ngày; gói trả phí lấy durationDays SuperAdmin. */
+  private planCycleEndsAt(plan: BillingPlatformPlan, startsAt: Date): Date | null {
+    if (plan.code === STARTER_PLAN_CODE) {
+      return addUtcDays(startsAt, STARTER_CYCLE_DAYS);
+    }
+    if (plan.durationDays != null && plan.durationDays > 0) {
+      return addUtcDays(startsAt, plan.durationDays);
+    }
+    return null;
   }
 
   async assertJobQuota(companyId: string): Promise<void> {
@@ -567,7 +634,10 @@ export class BillingService {
     if (e.jobsRemaining > 0) return;
     throw new ForbiddenException({
       code: 'JOB_QUOTA_EXCEEDED',
-      message: `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
+      message:
+        e.planCode === STARTER_PLAN_CODE
+          ? `Gói Khám phá chỉ được đăng ${e.jobPostQuota} tin trong chu kỳ 30 ngày. Đợi hết hạn gói hoặc nâng cấp để tạo JD mới.`
+          : `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
       used: e.jobsUsed,
       quota: e.jobPostQuota,
     });
@@ -631,16 +701,43 @@ export class BillingService {
   }
 
   /**
-   * Gói mặc định cho công ty mới: gói active giá 0đ (SuperAdmin set),
-   * không thì gói active sortOrder thấp nhất. Quota/Credit lấy từ row đó.
+   * Gói mặc định: ưu tiên code Khám phá (KHAM_PHA) SuperAdmin đang bật.
+   * Quota / số ngày lấy từ row đó, không hardcode.
    */
   private async resolveStarterPlan(): Promise<BillingPlatformPlan | null> {
+    const khamPha = await this.prisma.billingPlatformPlan.findFirst({
+      where: { code: STARTER_PLAN_CODE, isActive: true },
+    });
+    if (khamPha) return khamPha;
     const plans = await this.prisma.billingPlatformPlan.findMany({
       where: { isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
     if (plans.length === 0) return null;
     return plans.find((p) => p.priceVnd === 0n) ?? plans[0];
+  }
+
+  /**
+   * NTD thanh toán / SuperAdmin duyệt → gán gói, hạn = durationDays trên bảng giá.
+   */
+  async activatePurchasedPlan(
+    actor: AuthenticatedUser,
+    companyId: string,
+    planCode: string,
+  ): Promise<BillingCompanyPlanView> {
+    const plan = await this.prisma.billingPlatformPlan.findFirst({
+      where: { code: planCode, isActive: true },
+    });
+    if (!plan) throw new NotFoundException('Không tìm thấy gói hoặc gói đã tắt');
+    if (plan.code === 'ENTERPRISE') {
+      throw new BadRequestException('Gói Enterprise liên hệ sales — không tự thanh toán');
+    }
+    return this.assignCompanyPlan(actor, {
+      companyId,
+      planId: plan.id,
+      isActive: true,
+      note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt`,
+    });
   }
 
   private systemActor(company: { tenantId: string; createdBy: string | null }): AuthenticatedUser {

@@ -16,6 +16,7 @@ describe('JobService', () => {
   };
   const billing = {
     assertJobQuota: jest.fn().mockResolvedValue(undefined),
+    getJobDisplayDays: jest.fn().mockResolvedValue(14),
   };
   const ai = {
     embed: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
@@ -33,6 +34,8 @@ describe('JobService', () => {
     skills.resolveSkillId.mockClear();
     companies.requireUserCompany.mockClear();
     billing.assertJobQuota.mockClear();
+    billing.getJobDisplayDays.mockClear();
+    billing.getJobDisplayDays.mockResolvedValue(14);
     ai.embed.mockClear();
     ai.generateJobDraft.mockClear();
     ai.parseJobDescription.mockClear();

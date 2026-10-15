@@ -11,6 +11,7 @@ import {
   CompanyStatus,
   DomainEvents,
   JobStatus,
+  UserRole,
   type CompanyBrandProfile,
   type CompanyJobCard,
   type CompanyMemberView,
@@ -121,6 +122,88 @@ export class CompanyService {
 
     this.logger.log(`Đã tạo Company ${code} cho user ${user.id}`);
     return this.toView(company, 1, CompanyRole.Owner);
+  }
+
+  /**
+   * NTD đăng ký / vào billing mà chưa có công ty → tạo công ty mặc định
+   * (CompanyCreated → gán gói Khám phá).
+   */
+  async provisionForRecruiter(input: {
+    userId: string;
+    displayName: string;
+    tenantId: string;
+    correlationId: string;
+  }): Promise<{ companyId: string; companyName: string }> {
+    const existing = await this.prisma.companyMember.findFirst({
+      where: { userId: input.userId },
+      include: { company: { select: { id: true, name: true } } },
+    });
+    if (existing) {
+      return { companyId: existing.companyId, companyName: existing.company.name };
+    }
+
+    const name = input.displayName.trim() || 'Công ty của tôi';
+    const code = await this.codeGen.next('COM');
+    const slug = await allocateUniqueCompanySlug(this.prisma, name);
+    const company = await this.prisma.company.create({
+      data: {
+        code,
+        slug,
+        tenantId: input.tenantId,
+        name,
+        createdBy: input.userId,
+        members: {
+          create: { userId: input.userId, roleInCompany: CompanyRole.Owner },
+        },
+      },
+    });
+
+    await this.audit.record({
+      tenantId: input.tenantId,
+      actorId: input.userId,
+      action: 'company.create',
+      entityType: 'company',
+      entityId: company.id,
+      after: { code: company.code, name: company.name, source: 'recruiter-provision' },
+      correlationId: input.correlationId,
+    });
+
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.CompanyCreated,
+        tenantId: input.tenantId,
+        correlationId: input.correlationId,
+        payload: { companyId: company.id, code: company.code, name: company.name },
+      }),
+    );
+
+    this.logger.log(`Đã tạo Company ${code} (provision) cho NTD ${input.userId}`);
+    return { companyId: company.id, companyName: company.name };
+  }
+
+  async requireOrProvisionCompany(user: AuthenticatedUser): Promise<{
+    companyId: string;
+    companyName: string;
+  }> {
+    const existing = await this.prisma.companyMember.findFirst({
+      where: { userId: user.id },
+      include: { company: { select: { id: true, name: true } } },
+    });
+    if (existing) {
+      return { companyId: existing.companyId, companyName: existing.company.name };
+    }
+    const canProvision = (
+      [UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin] as string[]
+    ).includes(user.role);
+    if (!canProvision) {
+      throw new ForbiddenException('Bạn cần tạo/tham gia một công ty trước');
+    }
+    return this.provisionForRecruiter({
+      userId: user.id,
+      displayName: user.displayName,
+      tenantId: user.tenantId,
+      correlationId: `provision-${user.id}`,
+    });
   }
 
   async getMyCompany(user: AuthenticatedUser): Promise<CompanyView> {

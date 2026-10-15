@@ -88,10 +88,35 @@ type JobWithRelations = Job & {
   };
 };
 
-function defaultJobDeadline(from = new Date()): Date {
+function addUtcDays(from: Date, days: number): Date {
   const end = new Date(from);
-  end.setUTCDate(end.getUTCDate() + 30);
+  end.setUTCDate(end.getUTCDate() + days);
   return end;
+}
+
+/** Hạn tin: không vượt durationDays SuperAdmin của gói đang gán. */
+function clampJobDeadline(
+  requested: Date | null,
+  displayDays: number | null,
+  from = new Date(),
+): Date | null {
+  const cap = displayDays != null && displayDays > 0 ? addUtcDays(from, displayDays) : null;
+  if (!requested) return cap;
+  if (!cap) return requested;
+  return requested.getTime() <= cap.getTime() ? requested : cap;
+}
+
+function publicDeadlineWhere(now = new Date()): Prisma.JobWhereInput {
+  const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
+  return {
+    OR: [{ deadline: null }, { deadline: { gte: new Date(`${todayVn}T00:00:00.000Z`) } }],
+  };
+}
+
+function jobDeadlineStillOpen(deadline: Date | null, now = new Date()): boolean {
+  if (!deadline) return true;
+  const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
+  return deadline.toISOString().slice(0, 10) >= todayVn;
 }
 
 const JD_UPLOAD_MIME = new Set([
@@ -235,6 +260,15 @@ export class JobService {
     private readonly moderationQueue: Queue<JobModerationJobData>,
   ) {}
 
+  private async resolveJobDeadline(
+    companyId: string,
+    requested: Date | null,
+    from = new Date(),
+  ): Promise<Date | null> {
+    const displayDays = await this.billing.getJobDisplayDays(companyId);
+    return clampJobDeadline(requested, displayDays, from);
+  }
+
   /** Đưa tin vào hàng đợi kiểm duyệt (Lớp 2). SuperAdmin requeue cũng gọi hàm này. */
   async enqueueModeration(
     jobId: string,
@@ -262,6 +296,15 @@ export class JobService {
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
     });
     if (!job) return;
+    const publishedAt = job.publishedAt ?? new Date();
+    const deadline = await this.resolveJobDeadline(job.companyId, job.deadline, publishedAt);
+    if (deadline && (!job.deadline || job.deadline.getTime() !== deadline.getTime())) {
+      await this.prisma.job.update({
+        where: { id: job.id },
+        data: { deadline },
+      });
+      job.deadline = deadline;
+    }
     await this.embedAndPublish(job, correlationId);
     void this.indexing.notifyJob(job, 'URL_UPDATED');
   }
@@ -475,11 +518,11 @@ export class JobService {
         employmentType: dto.employmentType ?? null,
         location: dto.location ?? null,
         headcount: dto.headcount ?? 1,
-        deadline: dto.deadline
-          ? new Date(dto.deadline)
-          : willPublish
-            ? defaultJobDeadline()
-            : null,
+        deadline: await this.resolveJobDeadline(
+          company.companyId,
+          dto.deadline ? new Date(dto.deadline) : null,
+          new Date(),
+        ),
         experienceBand: dto.experienceBand ?? null,
         salaryMin: dto.salaryMin ?? null,
         salaryMax: dto.salaryMax ?? null,
@@ -617,7 +660,11 @@ export class JobService {
         employmentType: dto.employmentType ?? null,
         location: dto.location ?? null,
         headcount: dto.headcount ?? 1,
-        deadline: dto.deadline ? new Date(dto.deadline) : null,
+        deadline: await this.resolveJobDeadline(
+          owned.companyId,
+          dto.deadline ? new Date(dto.deadline) : owned.deadline,
+          owned.publishedAt ?? new Date(),
+        ),
         experienceBand: dto.experienceBand ?? null,
         salaryMin: dto.salaryMin ?? null,
         salaryMax: dto.salaryMax ?? null,
@@ -793,7 +840,12 @@ export class JobService {
       },
     });
     const visible = rows
-      .filter((r) => !r.job.isDeleted && r.job.status === JobStatus.Published)
+      .filter(
+        (r) =>
+          !r.job.isDeleted &&
+          r.job.status === JobStatus.Published &&
+          jobDeadlineStillOpen(r.job.deadline),
+      )
       .map((r) => r.job);
     await backfillMissingJobSlugs(this.prisma, visible);
     await backfillMissingCompanySlugs(
@@ -805,7 +857,7 @@ export class JobService {
 
   async addBookmark(user: AuthenticatedUser, jobRef: string): Promise<{ ok: true }> {
     const job = await this.findJobByRef(jobRef);
-    if (job.status !== JobStatus.Published) {
+    if (job.status !== JobStatus.Published || !jobDeadlineStillOpen(job.deadline)) {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
     await this.prisma.jobBookmark.upsert({
@@ -908,6 +960,7 @@ export class JobService {
         status: JobStatus.Published,
         isDeleted: false,
         company: { isDeleted: false, status: CompanyStatus.Active },
+        ...publicDeadlineWhere(),
         ...(experienceBands.length === 1
           ? { experienceBand: experienceBands[0] }
           : experienceBands.length > 1
@@ -963,6 +1016,7 @@ export class JobService {
         status: JobStatus.Published,
         isDeleted: false,
         company: { isDeleted: false, status: CompanyStatus.Active },
+        ...publicDeadlineWhere(),
       },
       select: { title: true, industry: true },
     });
