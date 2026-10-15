@@ -6,7 +6,6 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { json, urlencoded } from 'express';
 import { Logger } from 'nestjs-pino';
 import type { AppConfig } from './config/configuration';
 import { AppModule } from './app.module';
@@ -15,8 +14,15 @@ import { startOtel } from './observability/otel';
 async function bootstrap(): Promise<void> {
   await startOtel();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  // rawBody: Nest gắn req.rawBody cho Stripe webhook — không require('express')
+  // (pnpm không hoist express → API crash MODULE_NOT_FOUND trên VPS).
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
   app.useLogger(app.get(Logger));
+  app.useBodyParser('json', { limit: '5mb' });
+  app.useBodyParser('urlencoded', { limit: '5mb', extended: true });
 
   const config = app.get(ConfigService<AppConfig, true>);
 
@@ -27,17 +33,6 @@ async function bootstrap(): Promise<void> {
   // cross-origin: web (localhost:3000) cần fetch binary (avatar) từ API.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cookieParser());
-
-  // Stripe webhook cần raw body để verify signature — lưu raw bytes lên req.rawBody.
-  app.use(
-    json({
-      limit: '5mb',
-      verify: (req, _res, buf) => {
-        (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
-      },
-    }),
-  );
-  app.use(urlencoded({ extended: true, limit: '5mb' }));
   const webOrigins = config.get('webOrigins', { infer: true });
   app.enableCors({
     origin: (origin, callback) => {
