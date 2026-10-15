@@ -45,6 +45,7 @@ import {
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
 import { BrandMark } from './brand-logo';
+import { CompareSection } from './pricing-compare';
 
 const SCOPE_LABEL: Record<SourcingServiceScope, string> = {
   ai_match: 'AI tìm / Matching',
@@ -469,16 +470,6 @@ function HowItWorksSection({ page }: { page: BillingPageContentView }) {
   );
 }
 
-// ============================================================================
-// COMPARE TABLE
-// ============================================================================
-type CompareCell = { kind: 'text'; text: string } | { kind: 'flag'; yes: boolean };
-type CompareRow = { label: string; cells: CompareCell[] };
-
-function formatQuota(value: number | null, unlimited = 'Không giới hạn'): string {
-  return value == null ? unlimited : String(value);
-}
-
 function formatActionCost(
   plan: BillingPlatformPlanView,
   action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number],
@@ -486,179 +477,6 @@ function formatActionCost(
   const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
   if (!row) return '—';
   return row.cost === 0 ? 'Miễn phí' : `${row.cost} Credit`;
-}
-
-/** Hành động dùng được trên gói: bật trong cài đặt và (miễn phí hoặc gói có Credit). */
-function planHasAction(
-  plan: BillingPlatformPlanView,
-  action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number],
-): boolean {
-  const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
-  if (!row) return false;
-  if (row.cost === 0) return true;
-  return plan.creditQuota == null || plan.creditQuota > 0;
-}
-
-function buildCompareRows(plans: BillingPlatformPlanView[]): CompareRow[] {
-  return [
-    {
-      label: 'Thời hạn',
-      cells: plans.map((p) => ({
-        kind: 'text' as const,
-        text: p.durationDays == null ? 'Không giới hạn' : `${p.durationDays} ngày`,
-      })),
-    },
-    {
-      label: 'Số JD',
-      cells: plans.map((p) => ({ kind: 'text' as const, text: formatQuota(p.jobPostQuota) })),
-    },
-    {
-      label: 'Nhiều JD cùng lúc',
-      cells: plans.map((p) => ({
-        kind: 'flag' as const,
-        yes: p.jobPostQuota == null || p.jobPostQuota > 1,
-      })),
-    },
-    {
-      label: 'Credit tặng kèm',
-      cells: plans.map((p) => ({
-        kind: 'text' as const,
-        text: p.creditQuota == null ? 'Theo HĐ' : String(p.creditQuota),
-      })),
-    },
-    ...BILLING_PLAN_BILLABLE_ACTIONS.map((action) => ({
-      label: BILLING_PLAN_ACTION_LABELS[action],
-      cells: plans.map((p) => ({ kind: 'flag' as const, yes: planHasAction(p, action) })),
-    })),
-  ];
-}
-
-function CompareCellView({ cell }: { cell: CompareCell }) {
-  if (cell.kind === 'flag') {
-    return cell.yes ? (
-      <Check className="mx-auto h-4 w-4 text-emerald-500" aria-label="Có" />
-    ) : (
-      <X className="mx-auto h-4 w-4 text-slate-300" aria-label="Không" />
-    );
-  }
-  return <span className="text-xs font-medium text-slate-600">{cell.text}</span>;
-}
-
-function CompareTable({
-  plans,
-  page,
-}: {
-  plans: BillingPlatformPlanView[];
-  page: BillingPageContentView;
-}) {
-  const visible = plans.filter((p) => p.isActive);
-  const compareRows = buildCompareRows(visible);
-
-  return (
-    <section id="compare" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.compareTitle}</h2>
-          <p className="mt-2 text-sm text-slate-500">{page.compareSubtitle}</p>
-        </div>
-
-        {/* Desktop table */}
-        <div className="hidden lg:block">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600" scope="col">
-                    Tính năng
-                  </th>
-                  {visible.map((p) => (
-                    <th
-                      key={p.id}
-                      scope="col"
-                      className={clsx(
-                        'px-4 py-3 text-center',
-                        p.isFeatured
-                          ? 'bg-amber-50 text-[#072348]'
-                          : 'text-slate-600'
-                      )}
-                    >
-                      {p.code === 'ENTERPRISE' ? (
-                        <span className="font-bold">Enterprise</span>
-                      ) : (
-                        <span className="font-bold">{p.name}</span>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {compareRows.map((row, ri) => (
-                  <tr
-                    key={`${row.label}-${ri}`}
-                    className={clsx(
-                      'border-b border-slate-100',
-                      ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
-                    )}
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-700">{row.label}</td>
-                    {row.cells.map((cell, ci) => (
-                      <td
-                        key={visible[ci]?.id ?? ci}
-                        className={clsx(
-                          'px-4 py-3 text-center',
-                          visible[ci]?.isFeatured ? 'bg-amber-50/50' : ''
-                        )}
-                      >
-                        <CompareCellView cell={cell} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Mobile: card list */}
-        <div className="flex flex-col gap-4 lg:hidden">
-          {visible.map((p) => (
-            <div
-              key={p.id}
-              className={clsx(
-                'rounded-2xl border p-5',
-                p.isFeatured
-                  ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-400'
-                  : 'border-slate-200 bg-white'
-              )}
-            >
-              <h3 className="text-base font-bold text-[#072348]">{p.name}</h3>
-              <div className="mt-3 space-y-1.5">
-                {compareRows.map((row) => {
-                  const idx = visible.indexOf(p);
-                  const cell = row.cells[idx];
-                  if (!cell) return null;
-                  return (
-                    <div key={row.label} className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">{row.label}</span>
-                      {cell.kind === 'flag' ? (
-                        cell.yes ? (
-                          <Check className="h-3.5 w-3.5 text-emerald-500" aria-label="Có" />
-                        ) : (
-                          <X className="h-3.5 w-3.5 text-slate-300" aria-label="Không" />
-                        )
-                      ) : (
-                        <span className="font-medium text-slate-700">{cell.text}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
 }
 
 // ============================================================================
@@ -1653,7 +1471,15 @@ export function PricingClient({
       {!isRecruiter && <FeaturesSection page={page} />}
 
       {/* COMPARE (public only) */}
-      {!isRecruiter && <CompareTable plans={resolved.platformPlans} page={page} />}
+      {!isRecruiter && (
+        <CompareSection
+          platformPlans={resolved.platformPlans}
+          sourcingPlans={resolved.sourcingPlans}
+          topups={resolved.creditTopups}
+          currency={cur}
+          page={page}
+        />
+      )}
 
       {/* HOW IT WORKS (public only) */}
       {!isRecruiter && <HowItWorksSection page={page} />}
