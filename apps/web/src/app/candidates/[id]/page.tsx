@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   B2B_EXPERIENCE_BAND_LABEL,
   B2bExperienceBand,
@@ -38,6 +38,7 @@ import {
   formatJobTitle,
 } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
+import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
 import { ApiError } from '@/lib/api';
 import {
   addCandidateShortlist,
@@ -113,6 +114,12 @@ export default function CandidateDetailPage() {
     enabled: Boolean(id),
     retry: false,
   });
+
+  // Bước 8: bắt INSUFFICIENT_CREDIT và show toast
+  const { showAlert: showCreditAlert } = useCreditAlert();
+  useEffect(() => {
+    handleCreditError(error, showCreditAlert);
+  }, [error, showCreditAlert]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['candidate', id] });
 

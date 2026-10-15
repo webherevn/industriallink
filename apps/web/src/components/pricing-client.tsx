@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import {
   ArrowRight,
@@ -13,14 +13,12 @@ import {
   CreditCard,
   ExternalLink,
   FileText,
-  Grip,
   Mail,
   Menu,
   MessageCircle,
   Package,
   Phone,
   Play,
-  Plus,
   Shield,
   Sparkles,
   Star,
@@ -35,7 +33,13 @@ import type {
   BillingSourcingPlanView,
   BillingCreditTopupView,
   BillingCurrencyDisplay,
+  BillingPageContentView,
   SourcingServiceScope,
+} from '@industriallink/contracts';
+import {
+  BILLING_PLAN_ACTION_LABELS,
+  BILLING_PLAN_BILLABLE_ACTIONS,
+  DEFAULT_BILLING_PAGE_CONTENT,
 } from '@industriallink/contracts';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
 import { BrandMark } from './brand-logo';
@@ -67,35 +71,46 @@ const UNIT_LABEL: Record<'per_jd' | 'per_month', string> = {
   per_month: '/ tháng',
 };
 
-// TODO: cập nhật số thực tế khi có data
-const COMPANY_COUNT = '50+';
+/** Cùng cỡ cho Miễn phí / số tiền / Báo giá — nhỏ vừa ở lưới 5 cột, lớn hơn khi card rộng. */
+const PRICE_TEXT =
+  'font-bold leading-none tracking-tight text-[#072348] text-lg sm:text-xl lg:text-lg xl:text-xl';
 
-const FAQ = [
-  {
-    q: 'Giá đã bao gồm VAT chưa?',
-    a: 'Giá hiển thị chưa bao gồm VAT 10%. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.',
-  },
-  {
-    q: 'Tôi có thể đổi từ Tin đăng sang Tin đăng Plus không?',
-    a: 'Có. Vào trang quản lý gói, chọn "Nâng cấp" và phần chênh lệch sẽ được tính theo tỉ lệ thời gian còn lại.',
-  },
-  {
-    q: 'Credit mua thêm có hết hạn không?',
-    a: 'Theo chính sách hiện tại, Credit không hết hạn khi tài khoản còn hoạt động. Chúng tôi sẽ thông báo trước 30 ngày nếu có thay đổi.',
-  },
-  {
-    q: 'Phí Săn nhân sự có bao gồm Credit không?',
-    a: 'Không. Phí Săn (Cơ bản/Tiêu chuẩn/Chuyên sâu) là phí dịch vụ iLink thực hiện. Credit mua riêng theo nhu cầu mở hồ sơ tiềm năng.',
-  },
-  {
-    q: 'iLink có auto-charge Credit khi hết không?',
-    a: 'Không. Theo nguyên tắc V1, hệ thống không tự động mua Credit. Bạn chủ động mua khi cần.',
-  },
-  {
-    q: 'Có hỗ trợ thanh toán qua chuyển khoản ngân hàng không?',
-    a: 'Có. Doanh nghiệp và Enterprise hỗ trợ chuyển khoản, xuất hoá đơn VAT. Liên hệ sales@inlink.vn để được hỗ trợ.',
-  },
-];
+function PlanPrice({
+  value,
+  currency,
+}: {
+  value: string;
+  currency: BillingCurrencyDisplay;
+}) {
+  const formatted = formatPriceVnd(value, currency);
+  const symbol = currency.displaySymbol;
+  const symbolBefore = currency.symbolBefore && formatted.startsWith(symbol);
+  const symbolAfter = !currency.symbolBefore && formatted.endsWith(symbol);
+  const amount = symbolBefore
+    ? formatted.slice(symbol.length)
+    : symbolAfter
+      ? formatted.slice(0, -symbol.length)
+      : formatted;
+
+  return (
+    <p className={clsx('flex min-w-0 max-w-full flex-nowrap items-baseline gap-0.5', PRICE_TEXT)}>
+      {symbolBefore ? <span className="shrink-0 text-[0.72em]">{symbol}</span> : null}
+      <span className="min-w-0 tabular-nums">{amount}</span>
+      {symbolAfter ? <span className="shrink-0 text-[0.72em]">{symbol}</span> : null}
+    </p>
+  );
+}
+
+function PlanPriceLabel({ children }: { children: string }) {
+  return <p className={PRICE_TEXT}>{children}</p>;
+}
+
+function PlanPriceMeta({ children }: { children?: ReactNode }) {
+  return <p className="mt-1 min-h-[16px] text-[11px] leading-4 text-slate-500">{children ?? '\u00a0'}</p>;
+}
+
+const FEATURE_ICONS = [Sparkles, FileText, UserCheck, Users, BarChart3, Coins];
+const TRUST_ICONS = [Shield, Banknote, Sparkles];
 
 // ============================================================================
 // TOP NAV (PUBLIC)
@@ -208,9 +223,13 @@ function TopNav() {
 // ============================================================================
 // HERO (PUBLIC)
 // ============================================================================
-function HeroPublic({ stats }: { stats: ReturnType<typeof computeStats> | null }) {
-  const savingPct = stats?.savingPct ?? 20;
-
+function HeroPublic({
+  stats,
+  page,
+}: {
+  stats: ReturnType<typeof computeStats> | null;
+  page: BillingPageContentView;
+}) {
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#072348] via-[#0a2d5e] to-[#0d3b80] py-14 text-white sm:py-20">
       {/* Decorative blobs */}
@@ -233,22 +252,19 @@ function HeroPublic({ stats }: { stats: ReturnType<typeof computeStats> | null }
         <div className="mx-auto max-w-3xl text-center">
           {/* Badge */}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
-            <Sparkles className="h-3 w-3" /> Bảng giá 2026
+            <Sparkles className="h-3 w-3" /> {page.heroBadge}
           </span>
 
           {/* Headline */}
           <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-            <span className="block">Tuyển dụng công nghiệp</span>
+            <span className="block">{page.heroHeading}</span>
             <span className="bg-gradient-to-r from-amber-300 to-amber-200 bg-clip-text text-transparent">
-              minh bạch, không phát sinh
+              {page.heroHeadingAccent}
             </span>
           </h1>
 
           {/* Sub */}
-          <p className="mt-5 text-base text-slate-300 sm:text-lg">
-            iLink giúp nhà tuyển dụng đăng tin, matching AI, mở hồ sơ tiềm năng chỉ với vài cú
-            click. Không auto-charge, không phí ẩn.
-          </p>
+          <p className="mt-5 text-base text-slate-300 sm:text-lg">{page.heroSubtitle}</p>
 
           {/* CTA */}
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -256,20 +272,18 @@ function HeroPublic({ stats }: { stats: ReturnType<typeof computeStats> | null }
               href="/register"
               className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/30 transition-colors hover:bg-amber-400"
             >
-              Bắt đầu miễn phí <ArrowRight className="h-4 w-4" />
+              {page.heroCtaPrimary} <ArrowRight className="h-4 w-4" />
             </Link>
             <a
               href="#how"
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
             >
-              <Play className="h-4 w-4" /> Xem cách tính phí
+              <Play className="h-4 w-4" /> {page.heroCtaSecondary}
             </a>
           </div>
 
           {/* Social proof */}
-          <p className="mt-6 text-sm text-slate-400">
-            Được {COMPANY_COUNT} doanh nghiệp FDI tin dùng
-          </p>
+          <p className="mt-6 text-sm text-slate-400">{page.heroSocialProof}</p>
 
           {/* Stats */}
           {stats && (
@@ -305,19 +319,17 @@ function HeroPublic({ stats }: { stats: ReturnType<typeof computeStats> | null }
 // ============================================================================
 // HERO (RECRUITER)
 // ============================================================================
-function HeroRecruiter() {
+function HeroRecruiter({ page }: { page: BillingPageContentView }) {
   return (
     <section className="border-b border-slate-200 bg-white py-6 sm:py-8">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-600">
-          Tài khoản / Bảng giá
+          {page.recruiterKicker}
         </p>
         <h1 className="mt-1 text-2xl font-bold leading-tight tracking-tight text-slate-900 sm:text-3xl">
-          Chọn gói phù hợp, nâng cấp bất kỳ lúc nào
+          {page.recruiterHeading}
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Tất cả gói dùng được ngay sau khi thanh toán. Hoá đơn VAT cho doanh nghiệp.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">{page.recruiterSubtitle}</p>
       </div>
     </section>
   );
@@ -326,7 +338,19 @@ function HeroRecruiter() {
 // ============================================================================
 // SECTION NAV (STICKY TABS)
 // ============================================================================
-function SectionNav({ isRecruiter }: { isRecruiter: boolean }) {
+type PricingTab = 'platform' | 'sourcing' | 'credit';
+
+function SectionNav({
+  isRecruiter,
+  tab,
+  onTabChange,
+  page,
+}: {
+  isRecruiter: boolean;
+  tab: PricingTab;
+  onTabChange: (tab: PricingTab) => void;
+  page: BillingPageContentView;
+}) {
   if (isRecruiter) return null;
   return (
     <nav
@@ -337,19 +361,22 @@ function SectionNav({ isRecruiter }: { isRecruiter: boolean }) {
         <div className="flex rounded-xl bg-slate-100 p-1">
           {(
             [
-              ['platform', 'Gói nền tảng', Package],
-              ['sourcing', 'Săn nhân sự', Shield],
-              ['credit', 'Top-up Credit', Coins],
+              ['platform', page.platformTitle, Package],
+              ['sourcing', page.sourcingTitle, Shield],
+              ['credit', page.creditTitle, Coins],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
               key={id}
               type="button"
-              onClick={() => {
-                const el = document.getElementById(id === 'platform' ? 'pricing' : id);
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+              aria-pressed={tab === id}
+              onClick={() => onTabChange(id)}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition',
+                tab === id
+                  ? 'bg-white text-[#072348] shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              )}
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
@@ -360,8 +387,7 @@ function SectionNav({ isRecruiter }: { isRecruiter: boolean }) {
           href="#contact"
           className="hidden items-center gap-1 text-[12px] font-semibold text-slate-500 transition-colors hover:text-slate-900 sm:flex"
         >
-          Cần tư vấn? Gọi 1900 6868
-          {/* TODO: cập nhật số hotline thực tế */}
+          {page.consultNavText}
         </a>
       </div>
     </nav>
@@ -371,62 +397,30 @@ function SectionNav({ isRecruiter }: { isRecruiter: boolean }) {
 // ============================================================================
 // FEATURES SECTION
 // ============================================================================
-const FEATURES = [
-  {
-    icon: Sparkles,
-    title: 'AI Matching thông minh',
-    desc: 'Thuật toán AI phân tích JD, tìm ứng viên phù hợp. Matching chính xác, tiết kiệm 70% thời gian sàng lọc.',
-  },
-  {
-    icon: FileText,
-    title: 'Tạo JD từ template',
-    desc: 'Template chuẩn công nghiệp, điền thông tin và nhận JD hoàn chỉnh chỉ trong 3 phút.',
-  },
-  {
-    icon: UserCheck,
-    title: 'Mở hồ sơ tiềm năng',
-    desc: 'Dùng Credit để mở hồ sơ ứng viên tiềm năng. Không auto-charge, chủ động kiểm soát chi phí.',
-  },
-  {
-    icon: Users,
-    title: 'Nhiều user cùng dùng',
-    desc: 'Gói Doanh nghiệp & Enterprise hỗ trợ nhiều tài khoản nhà tuyển dụng cùng lúc.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Báo cáo hiệu quả',
-    desc: 'Dashboard thống kê views, ứng tuyển, matching rate. Theo dõi ROI tuyển dụng dễ dàng.',
-  },
-  {
-    icon: Coins,
-    title: 'Top-up Credit linh hoạt',
-    desc: 'Mua Credit theo nhu cầu thực tế. Đơn giá giảm khi mua nhiều. Không hết hạn khi tài khoản còn hoạt động.',
-  },
-];
-
-function FeaturesSection() {
+function FeaturesSection({ page }: { page: BillingPageContentView }) {
   return (
     <section id="features" className="bg-white py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">Tính năng nổi bật</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Tất cả công cụ bạn cần để tuyển dụng công nghiệp hiệu quả.
-          </p>
+          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.featuresTitle}</h2>
+          <p className="mt-2 text-sm text-slate-500">{page.featuresSubtitle}</p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                <f.icon className="h-5 w-5" />
+          {page.features.map((f, i) => {
+            const Icon = FEATURE_ICONS[i % FEATURE_ICONS.length] ?? Sparkles;
+            return (
+              <div
+                key={`${f.title}-${i}`}
+                className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-base font-bold text-[#072348]">{f.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">{f.desc}</p>
               </div>
-              <h3 className="text-base font-bold text-[#072348]">{f.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">{f.desc}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -436,25 +430,7 @@ function FeaturesSection() {
 // ============================================================================
 // HOW IT WORKS
 // ============================================================================
-function HowItWorksSection() {
-  const steps = [
-    {
-      num: '01',
-      title: 'Chọn gói phù hợp',
-      desc: 'Từ gói miễn phí Khám phá đến Enterprise — chọn gói phù hợp quy mô và nhu cầu tuyển dụng của bạn.',
-    },
-    {
-      num: '02',
-      title: 'Đăng JD & Matching AI',
-      desc: 'Tạo JD bằng template hoặc paste nội dung. AI sẽ tự động phân tích và matching ứng viên phù hợp.',
-    },
-    {
-      num: '03',
-      title: 'Mua thêm Credit khi cần',
-      desc: 'Mở hồ sơ ứng viên tiềm năng bằng Credit. Mua thêm bất kỳ lúc nào, đơn giá giảm theo số lượng.',
-    },
-  ];
-
+function HowItWorksSection({ page }: { page: BillingPageContentView }) {
   return (
     <section
       id="how"
@@ -464,23 +440,20 @@ function HowItWorksSection() {
       <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" aria-hidden="true" />
       <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold sm:text-3xl">Chỉ trả cho những gì bạn dùng</h2>
-          <p className="mt-2 text-sm text-slate-300">
-            Quy trình đơn giản, không phí ẩn, không auto-charge.
-          </p>
+          <h2 className="text-2xl font-bold sm:text-3xl">{page.howTitle}</h2>
+          <p className="mt-2 text-sm text-slate-300">{page.howSubtitle}</p>
         </div>
 
-        {/* Steps */}
         <div className="grid gap-6 lg:grid-cols-3">
-          {steps.map((step, i) => (
-            <div key={step.num} className="relative">
-              {i < steps.length - 1 && (
+          {page.howSteps.map((step, i) => (
+            <div key={`${step.title}-${i}`} className="relative">
+              {i < page.howSteps.length - 1 && (
                 <div className="absolute -right-3 top-6 hidden text-slate-600 lg:block" aria-hidden="true">
                   <ArrowRight className="h-5 w-5" />
                 </div>
               )}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-                <span className="text-4xl font-bold text-amber-400">{step.num}</span>
+                <span className="text-4xl font-bold text-amber-400">{String(i + 1).padStart(2, '0')}</span>
                 <h3 className="mt-3 text-base font-bold">{step.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.desc}</p>
               </div>
@@ -488,9 +461,7 @@ function HowItWorksSection() {
           ))}
         </div>
 
-        <p className="mt-8 text-center text-sm text-slate-300">
-          🎁 <strong>Tặng Credit khi mua gói</strong> — không auto-charge, không phí ẩn.
-        </p>
+        <p className="mt-8 text-center text-sm text-slate-300">{page.howFooter}</p>
       </div>
     </section>
   );
@@ -499,33 +470,67 @@ function HowItWorksSection() {
 // ============================================================================
 // COMPARE TABLE
 // ============================================================================
-const COMPARE_FEATURES = [
-  { label: 'Số JD', keys: ['jobPostQuota', 'unlimited', 'unlimited', 'unlimited', 'unlimited'] },
-  { label: 'Credit tặng kèm', keys: ['creditQuota', 0, 10, 30, 'Tùy gói', 'Tùy gói'] },
-  { label: 'Mở hồ sơ ứng viên', keys: ['profileAccess', false, true, true, true, true] },
-  { label: 'AI Matching', keys: ['aiMatch', false, true, true, true, true] },
-  { label: 'Số user', keys: ['userCount', 1, 1, 3, 10, 'Không giới hạn'] },
-  { label: 'Báo cáo', keys: ['reporting', false, true, true, true, true] },
-  { label: 'Đăng tuyển đa nền tảng', keys: ['multiPost', false, false, true, true, true] },
-  { label: 'Dịch vụ Săn nhân sự', keys: ['sourcing', false, false, false, true, true] },
-  { label: 'Hỗ trợ', keys: ['support', 'Tự phục vụ', 'Email', 'Email', 'Priority', 'Dedicated'] },
-  { label: 'VAT', keys: ['vat', false, false, false, true, true] },
-];
+function formatQuota(value: number | null, unlimited = 'Không giới hạn'): string {
+  return value == null ? unlimited : String(value);
+}
 
-function CompareTable({ plans }: { plans: BillingPlatformPlanView[] }) {
+function formatActionCost(plan: BillingPlatformPlanView, action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number]): string {
+  const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
+  if (!row) return '—';
+  return row.cost === 0 ? 'Miễn phí' : `${row.cost} Credit`;
+}
+
+function buildCompareRows(plans: BillingPlatformPlanView[]): { label: string; values: string[] }[] {
+  const rows: { label: string; values: string[] }[] = [
+    {
+      label: 'Thời hạn',
+      values: plans.map((p) => (p.durationDays == null ? 'Không giới hạn' : `${p.durationDays} ngày`)),
+    },
+    {
+      label: 'Số JD',
+      values: plans.map((p) => formatQuota(p.jobPostQuota)),
+    },
+    {
+      label: 'Credit tặng kèm',
+      values: plans.map((p) => (p.creditQuota == null ? 'Theo HĐ' : String(p.creditQuota))),
+    },
+    ...BILLING_PLAN_BILLABLE_ACTIONS.map((action) => ({
+      label: BILLING_PLAN_ACTION_LABELS[action],
+      values: plans.map((p) => formatActionCost(p, action)),
+    })),
+  ];
+
+  const featureSet = new Set<string>();
+  for (const p of plans) {
+    for (const f of p.features ?? []) {
+      if (f.trim()) featureSet.add(f.trim());
+    }
+  }
+  for (const feature of featureSet) {
+    rows.push({
+      label: feature,
+      values: plans.map((p) => ((p.features ?? []).includes(feature) ? 'yes' : 'no')),
+    });
+  }
+  return rows;
+}
+
+function CompareTable({
+  plans,
+  page,
+}: {
+  plans: BillingPlatformPlanView[];
+  page: BillingPageContentView;
+}) {
   const visible = plans.filter((p) => p.isActive);
-  // Map plan index to cell value key pattern
-  const planCodes = visible.map((p) => p.code);
-  const featuredIdx = visible.findIndex((p) => p.isFeatured);
+  const compareRows = buildCompareRows(visible);
 
   return (
     <section id="compare" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">So sánh gói</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Chọn gói phù hợp với nhu cầu tuyển dụng của bạn.
-          </p>
+          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.compareTitle}</h2>
+          <p className="mt-2 text-sm text-slate-500">{page.compareSubtitle}</p>
         </div>
 
         {/* Desktop table */}
@@ -558,35 +563,32 @@ function CompareTable({ plans }: { plans: BillingPlatformPlanView[] }) {
                 </tr>
               </thead>
               <tbody>
-                {COMPARE_FEATURES.map((row, ri) => (
+                {compareRows.map((row, ri) => (
                   <tr
-                    key={row.label}
+                    key={`${row.label}-${ri}`}
                     className={clsx(
                       'border-b border-slate-100',
                       ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
                     )}
                   >
                     <td className="px-4 py-3 font-medium text-slate-700">{row.label}</td>
-                    {row.keys.map((val, ci) => {
-                      const cell = typeof val === 'string' ? val : '';
-                      return (
-                        <td
-                          key={ci}
-                          className={clsx(
-                            'px-4 py-3 text-center',
-                            visible[ci]?.isFeatured ? 'bg-amber-50/50' : ''
-                          )}
-                        >
-                          {val === true ? (
-                            <Check className="mx-auto h-4 w-4 text-emerald-500" />
-                          ) : val === false ? (
-                            <X className="mx-auto h-4 w-4 text-slate-300" />
-                          ) : (
-                            <span className="text-xs font-medium text-slate-600">{cell}</span>
-                          )}
-                        </td>
-                      );
-                    })}
+                    {row.values.map((val, ci) => (
+                      <td
+                        key={visible[ci]?.id ?? ci}
+                        className={clsx(
+                          'px-4 py-3 text-center',
+                          visible[ci]?.isFeatured ? 'bg-amber-50/50' : ''
+                        )}
+                      >
+                        {val === 'yes' ? (
+                          <Check className="mx-auto h-4 w-4 text-emerald-500" />
+                        ) : val === 'no' ? (
+                          <X className="mx-auto h-4 w-4 text-slate-300" />
+                        ) : (
+                          <span className="text-xs font-medium text-slate-600">{val}</span>
+                        )}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -608,20 +610,18 @@ function CompareTable({ plans }: { plans: BillingPlatformPlanView[] }) {
             >
               <h3 className="text-base font-bold text-[#072348]">{p.name}</h3>
               <div className="mt-3 space-y-1.5">
-                {COMPARE_FEATURES.slice(0, 6).map((row) => {
+                {compareRows.slice(0, 6).map((row) => {
                   const idx = visible.indexOf(p);
-                  const val = row.keys[idx];
+                  const val = row.values[idx];
                   return (
                     <div key={row.label} className="flex items-center justify-between text-xs">
                       <span className="text-slate-500">{row.label}</span>
-                      {val === true ? (
+                      {val === 'yes' ? (
                         <Check className="h-3.5 w-3.5 text-emerald-500" />
-                      ) : val === false ? (
+                      ) : val === 'no' ? (
                         <X className="h-3.5 w-3.5 text-slate-300" />
                       ) : (
-                        <span className="font-medium text-slate-700">
-                          {typeof val === 'string' ? val : ''}
-                        </span>
+                        <span className="font-medium text-slate-700">{val}</span>
                       )}
                     </div>
                   );
@@ -638,30 +638,28 @@ function CompareTable({ plans }: { plans: BillingPlatformPlanView[] }) {
 // ============================================================================
 // CONTACT CTA
 // ============================================================================
-function ContactCTASection() {
+function ContactCTASection({ page }: { page: BillingPageContentView }) {
   const channels = [
     {
       icon: Mail,
       label: 'Email',
-      value: 'sales@inlink.vn',
-      href: 'mailto:sales@inlink.vn',
-      desc: 'Phản hồi trong 24h',
+      value: page.contactEmail,
+      href: `mailto:${page.contactEmail}`,
+      desc: page.contactEmailDesc,
     },
     {
       icon: Phone,
       label: 'Hotline',
-      value: '1900 6868',
-      href: 'tel:19006868',
-      desc: 'T2–T6, 8h–17h',
-      isTodo: true,
+      value: page.contactHotline,
+      href: page.contactHotlineHref,
+      desc: page.contactHotlineDesc,
     },
     {
       icon: MessageCircle,
       label: 'Zalo OA',
-      value: 'inlink.vn',
-      href: 'https://zalo.me/inlink',
-      desc: 'Nhắn tin nhanh',
-      isTodo: true,
+      value: page.contactZaloLabel,
+      href: page.contactZaloHref,
+      desc: page.contactZaloDesc,
     },
   ];
 
@@ -671,12 +669,8 @@ function ContactCTASection() {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#072348] to-[#0d3b80] p-8 text-white sm:p-12">
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />
           <div className="relative mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-bold sm:text-3xl">
-              Cần tư vấn gói riêng cho doanh nghiệp?
-            </h2>
-            <p className="mt-3 text-sm text-slate-300">
-              Đội ngũ iLink sẵn sàng hỗ trợ bạn chọn gói phù hợp nhất.
-            </p>
+            <h2 className="text-2xl font-bold sm:text-3xl">{page.contactTitle}</h2>
+            <p className="mt-3 text-sm text-slate-300">{page.contactSubtitle}</p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               {channels.map((ch) => (
@@ -689,14 +683,7 @@ function ContactCTASection() {
                     <ch.icon className="h-5 w-5" />
                   </div>
                   <p className="text-xs text-slate-400">{ch.label}</p>
-                  <p className="mt-1 text-sm font-bold text-white">
-                    {ch.value}
-                    {ch.isTodo && (
-                      <span className="ml-1 text-[10px] font-normal italic text-amber-300">
-                        (TODO)
-                      </span>
-                    )}
-                  </p>
+                  <p className="mt-1 text-sm font-bold text-white">{ch.value}</p>
                   <p className="mt-0.5 text-[10px] text-slate-400">{ch.desc}</p>
                 </a>
               ))}
@@ -711,7 +698,7 @@ function ContactCTASection() {
 // ============================================================================
 // FOOTER MINI
 // ============================================================================
-function FooterMini() {
+function FooterMini({ page }: { page: BillingPageContentView }) {
   const cols = [
     {
       title: 'Sản phẩm',
@@ -747,7 +734,7 @@ function FooterMini() {
         <div className="flex flex-col items-start gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-2">
             <BrandMark size={28} />
-            <p className="text-xs text-slate-500">Kết nối nhân tài – Dẫn lối công nghiệp</p>
+            <p className="text-xs text-slate-500">{page.footerTagline}</p>
           </div>
           <div className="grid gap-6 sm:grid-cols-3">
             {cols.map((col) => (
@@ -784,7 +771,7 @@ function FooterMini() {
 // ============================================================================
 // MOBILE BOTTOM BAR
 // ============================================================================
-function MobileBottomBar() {
+function MobileBottomBar({ page }: { page: BillingPageContentView }) {
   return (
     <div
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden"
@@ -792,18 +779,16 @@ function MobileBottomBar() {
     >
       <div className="flex items-center gap-2">
         <a
-          href="tel:19006868"
+          href={page.contactHotlineHref}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#072348] py-3 text-xs font-bold text-white transition-colors hover:bg-[#0d3b80]"
         >
-          {/* TODO: cập nhật hotline thực tế */}
           <Phone className="h-3.5 w-3.5" />
           Gọi ngay
         </a>
         <a
-          href="https://zalo.me/inlink"
+          href={page.contactZaloHref}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-500 py-3 text-xs font-bold text-white transition-colors hover:bg-blue-400"
         >
-          {/* TODO: cập nhật link Zalo thực tế */}
           <MessageCircle className="h-3.5 w-3.5" />
           Zalo
         </a>
@@ -822,16 +807,15 @@ function MobileBottomBar() {
 // ============================================================================
 // ZALO FAB
 // ============================================================================
-function ZaloFAB() {
+function ZaloFAB({ page }: { page: BillingPageContentView }) {
   return (
     <a
-      href="https://zalo.me/inlink"
+      href={page.contactZaloHref}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Liên hệ Zalo"
       className="fixed bottom-20 right-5 z-40 hidden lg:flex"
     >
-      {/* TODO: cập nhật link Zalo thực tế */}
       <div className="group relative">
         <div className="absolute -inset-2 animate-ping rounded-full bg-blue-400/30 opacity-75" />
         <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 shadow-lg transition-transform hover:scale-110">
@@ -858,6 +842,7 @@ function PlatformPlansView({
   planCtaHref,
   freeCtaHref,
   enterpriseCtaHref,
+  page,
 }: {
   plans: BillingPlatformPlanView[];
   currency: BillingCurrencyDisplay;
@@ -868,6 +853,7 @@ function PlatformPlansView({
   planCtaHref: (code: string) => string;
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
+  page: BillingPageContentView;
 }) {
   const visible = plans.filter((p) => p.isActive);
 
@@ -876,15 +862,13 @@ function PlatformPlansView({
       {/* Section header */}
       <div className="mb-8 text-center">
         <h2 id="pricing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
-          Gói nền tảng
+          {page.platformTitle}
         </h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Tự tuyển dụng với AI Matching. Quản lý JD, ứng viên, mở hồ sơ tiềm năng.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{page.platformSubtitle}</p>
       </div>
 
       {/* Cards grid */}
-      <div className="grid gap-4 lg:grid-cols-5 md:grid-cols-3 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {visible.map((p) => (
           <PlatformPlanCard
             key={p.id}
@@ -955,7 +939,7 @@ function PlatformPlanCard({
   return (
     <div
       className={clsx(
-        'relative flex flex-col rounded-2xl bg-white p-5 ring-1 transition',
+        'relative flex min-w-0 flex-col rounded-2xl bg-white p-4 ring-1 transition sm:p-5',
         featured
           ? 'ring-2 ring-amber-400 shadow-xl shadow-amber-500/10'
           : 'ring-slate-200 hover:shadow-md hover:ring-slate-300'
@@ -972,30 +956,28 @@ function PlatformPlanCard({
         <p className="mt-1 text-[12px] leading-relaxed text-slate-500">{plan.description}</p>
       ) : null}
 
-      <div className="mt-4">
+      <div className="mt-4 min-w-0">
         {isEnterprise ? (
-          <p className="text-2xl font-bold text-[#072348]">Báo giá</p>
+          <PlanPriceLabel>Báo giá</PlanPriceLabel>
         ) : isFree ? (
-          <>
-            <p className="text-3xl font-bold text-[#072348]">Miễn phí</p>
-            <p className="text-[11px] text-slate-400">Không giới hạn thời gian trải nghiệm</p>
-          </>
+          <PlanPriceLabel>Miễn phí</PlanPriceLabel>
         ) : (
-          <>
-            <p className="text-3xl font-bold tabular-nums text-[#072348]">
-              {formatPriceVnd(plan.priceVnd, currency)}
-            </p>
-            <p className="text-[11px] text-slate-500">
-              {UNIT_LABEL[plan.billingUnit]}
-              {plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}
-            </p>
-            {currency.showReferenceUsd ? (
-              <p className="mt-0.5 text-[10px] text-slate-400">
-                {formatReferenceUsd(plan.priceVnd, currency)}
-              </p>
-            ) : null}
-          </>
+          <PlanPrice value={plan.priceVnd} currency={currency} />
         )}
+        <PlanPriceMeta>
+          {isEnterprise
+            ? 'Theo hợp đồng'
+            : isFree
+              ? plan.durationDays
+                ? `${plan.durationDays} ngày trải nghiệm`
+                : 'Không giới hạn thời gian trải nghiệm'
+              : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}`}
+        </PlanPriceMeta>
+        <p className="min-h-[16px] text-[10px] leading-4 text-slate-400">
+          {!isEnterprise && !isFree && currency.showReferenceUsd
+            ? formatReferenceUsd(plan.priceVnd, currency)
+            : '\u00a0'}
+        </p>
       </div>
 
       <ul className="mt-4 flex-1 space-y-1.5">
@@ -1005,6 +987,14 @@ function PlatformPlanCard({
             <span>{f}</span>
           </li>
         ))}
+        {plan.durationDays != null ? (
+          <li className="flex items-start gap-1.5 text-[12px] text-slate-600">
+            <span className="mt-0.5 h-3.5 w-3.5 shrink-0 text-center text-[10px] font-bold text-slate-400">
+              ⏱
+            </span>
+            <span>Thời hạn {plan.durationDays} ngày</span>
+          </li>
+        ) : null}
         {plan.creditQuota != null && plan.creditQuota > 0 ? (
           <li className="flex items-start gap-1.5 text-[12px] font-semibold text-amber-700">
             <Coins className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -1022,6 +1012,21 @@ function PlatformPlanCard({
             <span>JD không giới hạn</span>
           </li>
         ) : null}
+        {BILLING_PLAN_BILLABLE_ACTIONS.filter((action) => {
+          const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
+          return row != null && row.cost > 0;
+        }).map((action) => {
+          const label = BILLING_PLAN_ACTION_LABELS[action];
+          const text = formatActionCost(plan, action);
+          return (
+            <li key={action} className="flex items-start gap-1.5 text-[12px] text-slate-600">
+              <Coins className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span>
+                {label}: {text}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       <Link
@@ -1061,22 +1066,22 @@ function SourcingPlansView({
   onTopup,
   isRecruiter,
   planCtaHref,
+  page,
 }: {
   plans: BillingSourcingPlanView[];
   currency: BillingCurrencyDisplay;
   onTopup: () => void;
   isRecruiter: boolean;
   planCtaHref: (code: string) => string;
+  page: BillingPageContentView;
 }) {
   return (
     <div>
       <div className="mb-8 text-center">
         <h2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
-          Gói Săn nhân sự
+          {page.sourcingTitle}
         </h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Đội ngũ iLink trực tiếp tìm kiếm, sàng lọc và đánh giá ứng viên theo JD của bạn.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{page.sourcingSubtitle}</p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3 md:grid-cols-2">
@@ -1112,7 +1117,7 @@ function SourcingPlanCard({
   return (
     <div
       className={clsx(
-        'relative flex flex-col rounded-2xl bg-white p-6 ring-1 transition',
+        'relative flex min-w-0 flex-col rounded-2xl bg-white p-6 ring-1 transition',
         featured
           ? 'ring-2 ring-amber-400 shadow-xl shadow-amber-500/10'
           : 'ring-slate-200 hover:shadow-md hover:ring-slate-300'
@@ -1136,11 +1141,9 @@ function SourcingPlanCard({
         </div>
       </div>
 
-      <div className="mt-4">
-        <p className="text-3xl font-bold tabular-nums text-[#072348]">
-          {formatPriceVnd(plan.feeVnd, currency)}
-        </p>
-        <p className="text-[11px] text-slate-500">Phí dịch vụ / vị trí</p>
+      <div className="mt-4 min-w-0">
+        <PlanPrice value={plan.feeVnd} currency={currency} />
+        <p className="mt-1 text-[11px] text-slate-500">Phí dịch vụ / vị trí</p>
         {currency.showReferenceUsd ? (
           <p className="mt-0.5 text-[10px] text-slate-400">
             {formatReferenceUsd(plan.feeVnd, currency)}
@@ -1217,20 +1220,20 @@ function CreditTopupView({
   topups,
   currency,
   topupCtaHref,
+  page,
 }: {
   topups: BillingCreditTopupView[];
   currency: BillingCurrencyDisplay;
   topupCtaHref: (id: string) => string;
+  page: BillingPageContentView;
 }) {
   return (
     <div>
       <div className="mb-8 text-center">
         <h2 id="credit" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
-          Top-up Credit
+          {page.creditTitle}
         </h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Mua thêm lượt mở hồ sơ tiềm năng. Đơn giá giảm khi mua nhiều.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{page.creditSubtitle}</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 md:grid-cols-2">
@@ -1262,7 +1265,7 @@ function CreditTopupCard({
   return (
     <div
       className={clsx(
-        'relative flex flex-col rounded-2xl bg-white p-6 ring-1 transition',
+        'relative flex min-w-0 flex-col rounded-2xl bg-white p-6 ring-1 transition',
         featured
           ? 'ring-2 ring-amber-400 shadow-xl shadow-amber-500/10'
           : 'ring-slate-200 hover:shadow-md hover:ring-slate-300'
@@ -1280,10 +1283,8 @@ function CreditTopupCard({
       </div>
       <p className="mt-1 text-xs text-slate-500">{topup.creditCount} lượt mở hồ sơ</p>
 
-      <div className="mt-4">
-        <p className="text-3xl font-bold tabular-nums text-[#072348]">
-          {formatPriceVnd(topup.priceVnd, currency)}
-        </p>
+      <div className="mt-4 min-w-0">
+        <PlanPrice value={topup.priceVnd} currency={currency} />
         {currency.showReferenceUsd ? (
           <p className="text-[10px] text-slate-400">{formatReferenceUsd(topup.priceVnd, currency)}</p>
         ) : null}
@@ -1314,26 +1315,15 @@ function CreditTopupCard({
 // ============================================================================
 // TRUST ITEMS
 // ============================================================================
-function TrustItems() {
+function TrustItems({ page }: { page: BillingPageContentView }) {
   return (
     <section className="bg-white py-10 sm:py-12">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-3">
-          <TrustItem
-            icon={Shield}
-            title="Không auto-charge"
-            desc="Hệ thống không tự động mua Credit. Bạn chủ động quyết định."
-          />
-          <TrustItem
-            icon={Banknote}
-            title="Hoá đơn VAT"
-            desc="Xuất VAT đầy đủ cho doanh nghiệp. Hỗ trợ chuyển khoản."
-          />
-          <TrustItem
-            icon={Sparkles}
-            title="Hỗ trợ 1-1"
-            desc="Đội ngũ iLink đồng hành setup, training và tối ưu JD."
-          />
+          {page.trustItems.map((item, i) => {
+            const Icon = TRUST_ICONS[i % TRUST_ICONS.length] ?? Shield;
+            return <TrustItem key={`${item.title}-${i}`} icon={Icon} title={item.title} desc={item.desc} />;
+          })}
         </div>
       </div>
     </section>
@@ -1363,18 +1353,18 @@ function TrustItem({
 // ============================================================================
 // FAQ
 // ============================================================================
-function FAQSection() {
+function FAQSection({ page }: { page: BillingPageContentView }) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
     <section id="faq" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">Câu hỏi thường gặp</h2>
-          <p className="mt-2 text-sm text-slate-500">Mọi thắc mắc về giá, gói và Credit.</p>
+          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.faqTitle}</h2>
+          <p className="mt-2 text-sm text-slate-500">{page.faqSubtitle}</p>
         </div>
         <div className="space-y-2">
-          {FAQ.map((item, i) => {
+          {page.faqItems.map((item, i) => {
             const open = openFaq === i;
             return (
               <div key={i} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1409,14 +1399,12 @@ function FAQSection() {
 // ============================================================================
 // FINAL CTA
 // ============================================================================
-function FinalCTA({ isRecruiter }: { isRecruiter: boolean }) {
+function FinalCTA({ page }: { page: BillingPageContentView }) {
   return (
     <section className="bg-gradient-to-br from-[#072348] to-[#0d3b80] py-12 text-white">
       <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="text-2xl font-bold sm:text-3xl">Sẵn sàng tuyển hiệu quả hơn?</h2>
-        <p className="mt-2 text-sm text-slate-300">
-          Đăng ký miễn phí hoặc liên hệ sales để được tư vấn gói phù hợp.
-        </p>
+        <h2 className="text-2xl font-bold sm:text-3xl">{page.finalCtaTitle}</h2>
+        <p className="mt-2 text-sm text-slate-300">{page.finalCtaSubtitle}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/register"
@@ -1425,7 +1413,7 @@ function FinalCTA({ isRecruiter }: { isRecruiter: boolean }) {
             Đăng ký miễn phí <ArrowRight className="h-4 w-4" />
           </Link>
           <a
-            href="mailto:sales@inlink.vn"
+            href={`mailto:${page.contactEmail}`}
             className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
           >
             Liên hệ sales <ExternalLink className="h-3.5 w-3.5" />
@@ -1492,11 +1480,15 @@ function PricingSkeleton() {
 // ============================================================================
 function computeStats(config: BillingPublicConfig) {
   const platformActive = config.platformPlans.filter((p) => p.isActive && p.code !== 'ENTERPRISE');
-  const cheapestTopup = [...config.creditTopups]
-    .filter((p) => p.isActive)
-    .sort((a, b) => Number(BigInt(a.priceVnd) - BigInt(b.priceVnd)))[0];
-  // Tính saving: giả định unitPrice 20l=62.5k, 100l=50k → 20% saving
-  const savingPct = cheapestTopup ? 20 : undefined;
+  const activeTopups = config.creditTopups.filter((p) => p.isActive);
+  const cheapestTopup = [...activeTopups].sort((a, b) =>
+    Number(BigInt(a.priceVnd) - BigInt(b.priceVnd)),
+  )[0];
+  const unitPrices = activeTopups.map((t) => Number(BigInt(t.unitPriceVnd)));
+  const maxUnit = unitPrices.length ? Math.max(...unitPrices) : 0;
+  const minUnit = unitPrices.length ? Math.min(...unitPrices) : 0;
+  const savingPct =
+    maxUnit > 0 && minUnit < maxUnit ? Math.round(((maxUnit - minUnit) / maxUnit) * 100) : undefined;
   return {
     planCount: config.platformPlans.length,
     sourcingCount: config.sourcingPlans.length,
@@ -1522,14 +1514,29 @@ export function PricingClient({
   const planCtaHref = (code: string) =>
     isRecruiter ? `/recruiter/billing?plan=${encodeURIComponent(code)}` : '/register';
   const freeCtaHref = () => (isRecruiter ? '/recruiter?action=try-free' : '/register');
+  const page = config?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
   const enterpriseCtaHref = () =>
-    isRecruiter ? '/recruiter/billing?plan=ENTERPRISE' : 'mailto:sales@inlink.vn';
+    isRecruiter ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
   /** Top-up: dùng id vì view không có code. */
   const topupCtaHref = (id: string) =>
     isRecruiter ? `/recruiter/billing/credit?topup=${encodeURIComponent(id)}` : '/register';
 
   // Tab state — hooks must come before any conditional returns
-  const [tab, setTab] = useState<'platform' | 'sourcing' | 'credit'>('platform');
+  const [tab, setTab] = useState<PricingTab>('platform');
+  const skipTabScroll = useRef(true);
+
+  const switchTab = (next: PricingTab) => {
+    setTab(next);
+  };
+
+  useEffect(() => {
+    if (skipTabScroll.current) {
+      skipTabScroll.current = false;
+      return;
+    }
+    const id = tab === 'platform' ? 'pricing' : tab;
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [tab]);
 
   // Compute stats after hooks, then early-return if no config
   const stats = config ? computeStats(config) : null;
@@ -1541,17 +1548,14 @@ export function PricingClient({
 
   return (
     <>
-      {/* HTML scroll behavior */}
-      <style>{`html { scroll-behavior: smooth; }`}</style>
-
       {/* TOP NAV (public only) */}
       {!isRecruiter && <TopNav />}
 
       {/* HERO */}
-      {isRecruiter ? <HeroRecruiter /> : <HeroPublic stats={stats} />}
+      {isRecruiter ? <HeroRecruiter page={page} /> : <HeroPublic stats={stats} page={page} />}
 
       {/* SECTION NAV */}
-      <SectionNav isRecruiter={isRecruiter} />
+      <SectionNav isRecruiter={isRecruiter} tab={tab} onTabChange={switchTab} page={page} />
 
       {/* CONTENT */}
       <section className="bg-slate-50 py-12 sm:py-16">
@@ -1567,6 +1571,7 @@ export function PricingClient({
               planCtaHref={planCtaHref}
               freeCtaHref={freeCtaHref}
               enterpriseCtaHref={enterpriseCtaHref}
+              page={page}
             />
           ) : tab === 'sourcing' ? (
             <SourcingPlansView
@@ -1575,42 +1580,48 @@ export function PricingClient({
               onTopup={() => setTab('credit')}
               isRecruiter={isRecruiter}
               planCtaHref={planCtaHref}
+              page={page}
             />
           ) : (
-            <CreditTopupView topups={config.creditTopups} currency={cur} topupCtaHref={topupCtaHref} />
+            <CreditTopupView
+              topups={config.creditTopups}
+              currency={cur}
+              topupCtaHref={topupCtaHref}
+              page={page}
+            />
           )}
         </div>
       </section>
 
       {/* FEATURES (public only) */}
-      {!isRecruiter && <FeaturesSection />}
+      {!isRecruiter && <FeaturesSection page={page} />}
 
       {/* COMPARE (public only) */}
-      {!isRecruiter && <CompareTable plans={config.platformPlans} />}
+      {!isRecruiter && <CompareTable plans={config.platformPlans} page={page} />}
 
       {/* HOW IT WORKS (public only) */}
-      {!isRecruiter && <HowItWorksSection />}
+      {!isRecruiter && <HowItWorksSection page={page} />}
 
       {/* TRUST */}
-      <TrustItems />
+      <TrustItems page={page} />
 
       {/* FAQ (public only) */}
-      {!isRecruiter && <FAQSection />}
+      {!isRecruiter && <FAQSection page={page} />}
 
       {/* CONTACT CTA (public only) */}
-      {!isRecruiter && <ContactCTASection />}
+      {!isRecruiter && <ContactCTASection page={page} />}
 
       {/* FINAL CTA */}
-      <FinalCTA isRecruiter={isRecruiter} />
+      <FinalCTA page={page} />
 
       {/* FOOTER MINI (public only) */}
-      {!isRecruiter && <FooterMini />}
+      {!isRecruiter && <FooterMini page={page} />}
 
       {/* FLOATING ZALO FAB (public only) */}
-      {!isRecruiter && <ZaloFAB />}
+      {!isRecruiter && <ZaloFAB page={page} />}
 
       {/* MOBILE BOTTOM BAR (public only) */}
-      {!isRecruiter && <MobileBottomBar />}
+      {!isRecruiter && <MobileBottomBar page={page} />}
 
       {/* Bottom padding for mobile nav */}
       {!isRecruiter && <div className="h-16 lg:hidden" aria-hidden="true" />}

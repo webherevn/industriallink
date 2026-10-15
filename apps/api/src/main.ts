@@ -6,6 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 import { Logger } from 'nestjs-pino';
 import type { AppConfig } from './config/configuration';
 import { AppModule } from './app.module';
@@ -26,6 +27,17 @@ async function bootstrap(): Promise<void> {
   // cross-origin: web (localhost:3000) cần fetch binary (avatar) từ API.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cookieParser());
+
+  // Stripe webhook cần raw body để verify signature — lưu raw bytes lên req.rawBody.
+  app.use(
+    json({
+      limit: '5mb',
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
+  app.use(urlencoded({ extended: true, limit: '5mb' }));
   const webOrigins = config.get('webOrigins', { infer: true });
   app.enableCors({
     origin: (origin, callback) => {

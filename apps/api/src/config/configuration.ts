@@ -90,6 +90,15 @@ export interface AppConfig {
     siteUrl: string;
     indexingCredentialsJson?: string;
   };
+  billing: {
+    /**
+     * Chế độ enforcement credit:
+     * - 'log' (mặc định): chỉ ghi ledger, không trừ balance thật.
+     * - 'enforce': trừ balance thật, throw 402 nếu không đủ.
+     * - 'log' cũng tôn trọng flag `allowBudgetOverspend=true` để tạm cho qua.
+     */
+    enforcement: 'log' | 'enforce';
+  };
 }
 
 function required(name: string, value: string | undefined): string {
@@ -171,5 +180,11 @@ export default (): AppConfig => ({
   seo: {
     siteUrl: process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000',
     indexingCredentialsJson: process.env.GOOGLE_INDEXING_CREDENTIALS_JSON || undefined,
+  },
+  billing: {
+    enforcement:
+      (process.env.BILLING_ENFORCEMENT as 'log' | 'enforce') === 'enforce'
+        ? 'enforce'
+        : 'log',
   },
 });

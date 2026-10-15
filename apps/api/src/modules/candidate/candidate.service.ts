@@ -7,6 +7,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   CandidateStatus,
   ConnectionStatus,
@@ -49,8 +50,9 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
-import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CompanyService } from '../company/company.service';
+import { CreditService } from '../billing/credit.service';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
 import { mergeCvDraftViews, profileSourceToCvDraft } from './merge-cv-draft';
@@ -95,6 +97,8 @@ export class CandidateService {
     private readonly ai: AiGatewayService,
     private readonly companies: CompanyService,
     private readonly notifications: NotificationService,
+    private readonly credit: CreditService,
+    private readonly config: ConfigService,
     @Inject(RESUME_PARSE_QUEUE_TOKEN) private readonly queue: Queue<ResumeParseJobData>,
   ) {}
 
@@ -549,6 +553,48 @@ export class CandidateService {
 
     if (!unlocked && view.profile) {
       view.profile = { ...view.profile, phone: null };
+    }
+
+    // Log/Enforce credit transaction: view_profile
+    // Mode = 'enforce' nếu BILLING_ENFORCEMENT=enforce (sẽ throw 402 INSUFFICIENT_CREDIT nếu thiếu)
+    // Mode = 'log' nếu đang ở chế độ log-only (mặc định)
+    const policy = await this.credit.getPolicySnapshot(user.tenantId).catch(() => null);
+    const resolved = await this.credit.resolveActionCost(companyId, 'view_profile').catch(() => null);
+    const costPerProfile = resolved?.cost ?? policy?.costPerProfile ?? 1;
+    const enforcementMode =
+      (this.config.get('billing') as { enforcement?: 'log' | 'enforce' } | undefined)?.enforcement ??
+      'log';
+    if (costPerProfile > 0) {
+      try {
+        await this.credit.recordTransaction({
+          tenantId: user.tenantId,
+          companyId,
+          type: 'deduct',
+          action: 'view_profile',
+          costPerUnit: costPerProfile,
+          quantity: 1,
+          candidateId,
+          actorUserId: user.id,
+          actorEmail: user.email ?? undefined,
+          policySnapshot: {
+            ...(policy as unknown as Record<string, unknown> | undefined),
+            resolvedSource: resolved?.source,
+            resolvedPlanId: resolved?.planId,
+            resolvedPlanCode: resolved?.planCode,
+          },
+          mode: enforcementMode,
+        });
+      } catch (err) {
+        // Re-throw lỗi INSUFFICIENT_CREDIT để controller trả 402
+        if (
+          err instanceof BadRequestException &&
+          typeof err.getResponse() === 'object' &&
+          (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
+        ) {
+          throw err;
+        }
+        this.logger.warn(`Failed to record credit ledger for view_profile: ${String(err)}`);
+      }
     }
 
     return {

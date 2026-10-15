@@ -4,10 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   BarChart3,
+  Banknote,
   Briefcase,
   Building2,
   Calendar,
   ChevronDown,
+  Coins,
   FileText,
   Gift,
   HelpCircle,
@@ -27,6 +29,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
+import { CreditBalanceBadge } from '@/components/credit-balance-badge';
 import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore, ApiError } from '@/lib/api';
 import { clearAuthQueryCache, fetchMe, logout } from '@/lib/auth';
@@ -77,7 +80,11 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: 'Tài khoản',
-    items: [{ href: '/account', label: 'Bảo mật / MFA', icon: Shield }],
+    items: [
+      { href: '/bang-gia', label: 'Bảng giá & Credit', icon: Banknote },
+      { href: '/recruiter/billing/credits', label: 'Lịch sử Credit', icon: Coins },
+      { href: '/account', label: 'Bảo mật / MFA', icon: Shield },
+    ],
   },
 ];
 
@@ -411,6 +418,7 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
             </Link>
 
             <div className="flex items-center gap-0.5 sm:gap-1">
+              <CreditBalanceBadge />
               <NotificationBell />
               <Link
                 href="/recruiter/inbox"

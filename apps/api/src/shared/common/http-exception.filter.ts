@@ -25,9 +25,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     let message: unknown = 'Đã xảy ra lỗi hệ thống';
+    let extra: Record<string, unknown> | null = null;
     if (exception instanceof HttpException) {
       const res = exception.getResponse();
-      message = typeof res === 'string' ? res : (res as { message?: unknown }).message ?? res;
+      if (typeof res === 'string') {
+        message = res;
+      } else if (res && typeof res === 'object') {
+        const r = res as { message?: unknown; code?: string };
+        message = r.message ?? res;
+        // Nếu response có field `code` (vd INSUFFICIENT_CREDIT), truyền nguyên object
+        if (r.code) {
+          extra = { ...(r as Record<string, unknown>) };
+        }
+      } else {
+        message = res;
+      }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       // Trả message rõ hơn cho lỗi DB (thiếu cột, unique, FK…)
       if (exception.code === 'P2002') {
@@ -54,6 +66,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.status(status).json({
       statusCode: status,
       message,
+      ...(extra || {}),
       path: request.url,
       correlationId: request.correlationId,
       timestamp: new Date().toISOString(),

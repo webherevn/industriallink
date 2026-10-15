@@ -9,6 +9,9 @@ export function isRecruiterAppPath(pathname: string): boolean {
   if (path === '/company' || path.startsWith('/company/')) return true;
   if (path === '/search' || path.startsWith('/search/')) return true;
   if (path === '/candidates' || path.startsWith('/candidates/')) return true;
+  // Bảng giá là tài nguyên chung, nhưng chỉ NTD mới truy cập — middleware sẽ bounce
+  // NTD từ inlink.vn sang tuyendung.inlink.vn khi vào /bang-gia.
+  if (path === '/bang-gia' || path.startsWith('/bang-gia/')) return true;
   return false;
 }
 

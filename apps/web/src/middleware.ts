@@ -47,6 +47,13 @@ export function middleware(req: NextRequest) {
     return applyNoStore(NextResponse.redirect(dest, 301));
   }
 
+  // SEO: redirect /pricing → /bang-gia (giữ backlink cũ, tránh 404).
+  if (pathname === '/pricing' || pathname === '/pricing/') {
+    const dest = req.nextUrl.clone();
+    dest.pathname = '/bang-gia';
+    return applyNoStore(NextResponse.redirect(dest, 301));
+  }
+
   // SEO: gộp /cam-nang?v=* về URL sạch /cam-nang (bỏ cache-bust query tạm thời).
   if (
     (pathname === '/cam-nang' || pathname === '/cam-nang/') &&
@@ -112,5 +119,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [],
+  matcher: [
+    // Tất cả routes trừ _next/static, _next/image, favicon, và file tĩnh
+    '/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)',
+  ],
 };

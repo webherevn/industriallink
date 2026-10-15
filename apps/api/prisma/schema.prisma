@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment", "cms"]
+  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment", "cms", "billing"]
 }
 
 // =========================================================================
@@ -1253,5 +1253,510 @@ model CmsSiteCodeSettings {
 
   @@map("cms_site_code_settings")
   @@schema("cms")
+}
+
+// =========================================================================
+// BILLING
+// =========================================================================
+// Cấu hình giá & quota cho nền tảng tuyển dụng + dịch vụ Săn nhân sự.
+// Mọi giá trị (giá, quota, top-up, phí dịch vụ) đều lưu DB và chỉnh được
+// từ /admin/billing (SuperAdmin) — KHÔNG hardcode trong code.
+
+/// Cấu hình gói nền tảng (Tầng 1).
+/// 5 gói: KHAM_PHA (0đ) | TIN_DANG | TIN_DANG_PLUS | DOANH_NGHIEP | ENTERPRISE.
+model BillingPlatformPlan {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  /// Mã gói nội bộ (enum-like, unique, snake_case).
+  code        String  @unique
+  /// Tên hiển thị tiếng Việt.
+  name        String
+  /// Mô tả ngắn hiển thị trên UI bảng giá.
+  description String?
+
+  /// Giá gói tính bằng VND (integer). KHAM_PHA = 0.
+  priceVnd    BigInt  @map("price_vnd")
+  /// Đơn vị thời hạn: "per_jd" (giá theo JD) | "per_month" (đăng ký tháng).
+  billingUnit String  @map("billing_unit")
+  /// Số ngày hiệu lực (null = không giới hạn cho gói tháng). Tài liệu V1: 7-30 ngày.
+  durationDays Int?  @map("duration_days")
+  /// Số JD được đăng (null = unlimited cho DOANH_NGHIEP/ENTERPRISE).
+  jobPostQuota Int?  @map("job_post_quota")
+  /// Số lượt mở hồ sơ (Credit quota). 0 = không cấp, null = quota riêng theo hợp đồng.
+  creditQuota Int?  @map("credit_quota")
+
+  /// Thứ tự hiển thị trên trang bảng giá (1 = đầu).
+  sortOrder   Int     @default(0) @map("sort_order")
+  /// Có đang bán hay tạm ẩn.
+  isActive    Boolean @default(true) @map("is_active")
+  /// Đánh dấu gói nổi bật (highlight trên UI).
+  isFeatured  Boolean @default(false) @map("is_featured")
+
+  /// JSON danh sách quyền kèm theo (vd: ["view_applicant","download_cv","export_report"]).
+  features    Json    @default("[]")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  actionCosts     BillingPlanActionCost[]
+  companyPlans    BillingCompanyPlan[]
+
+  @@map("billing_platform_plan")
+  @@schema("billing")
+}
+
+/// Cost-per-action riêng từng gói nền tảng.
+/// SuperAdmin chỉnh từ UI; khi công ty được gán gói này thì trừ Credit theo bảng này.
+/// Action không có row → fallback BillingCreditPolicy (global).
+model BillingPlanActionCost {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId    String   @map("plan_id") @db.Uuid
+  /// 'view_profile' | 'reopen_profile' | 'view_applicant' | 'contact_potential' | 'contact_applicant' | 'view_match_summary'
+  action    String
+  cost      Int      @default(1)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  plan BillingPlatformPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, action])
+  @@index([planId, isActive])
+  @@map("billing_plan_action_cost")
+  @@schema("billing")
+}
+
+/// Gói nền tảng đang gán cho công ty (1 công ty = 1 gói active).
+/// Dùng để resolve cost-per-action khi trừ Credit; chưa có gán → fallback policy global.
+model BillingCompanyPlan {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @unique @map("company_id") @db.Uuid
+  planId    String    @map("plan_id") @db.Uuid
+  startsAt  DateTime  @default(now()) @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  isActive  Boolean   @default(true) @map("is_active")
+  note      String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.Uuid
+
+  plan BillingPlatformPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([planId, isActive])
+  @@map("billing_company_plan")
+  @@schema("billing")
+}
+
+/// Cấu hình gói dịch vụ Săn nhân sự (Tầng 2).
+/// 3 gói: SAN_CO_BAN | SAN_TIEU_CHUAN | SAN_CHUYEN_SAU.
+model BillingSourcingPlan {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  code        String  @unique
+  name        String
+  description String?
+
+  /// Phí dịch vụ Săn (VND integer). KHÔNG bao gồm Credit — Credit tính riêng theo nguyên tắc V1.
+  feeVnd      BigInt  @map("fee_vnd")
+  /// Số vị trí được Săn tối đa trong 1 gói (1 cho SAN_CO_BAN theo tài liệu V1).
+  positionQuota Int? @map("position_quota")
+  /// Số đợt tìm kiếm tối đa.
+  searchRoundQuota Int? @map("search_round_quota")
+  /// Số shortlist tối đa (null = tùy báo giá).
+  shortlistQuota Int? @map("shortlist_quota")
+  /// Số lần điều chỉnh tối đa (SAN_CO_BAN: 1 theo V1).
+  revisionQuota Int? @map("revision_quota")
+
+  /// Phạm vi dịch vụ dạng JSON (vd: ["ai_match","filter","shortlist","strengths_gaps","priority","outreach","follow_up","replacement"]).
+  /// Mapping đến 8 hàng trong bảng XI tài liệu.
+  serviceScope Json  @default("[]") @map("service_scope")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  isFeatured Boolean @default(false) @map("is_featured")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("billing_sourcing_plan")
+  @@schema("billing")
+}
+
+/// Cấu hình gói Top-up Credit.
+/// Theo V1: 3 mức (20/50/100 lượt), giảm đơn giá theo số lượng.
+model BillingCreditTopup {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  /// Tên gói top-up hiển thị (vd: "20 lượt", "50 lượt", "100 lượt").
+  name        String
+  /// Số Credit trong gói.
+  creditCount Int     @map("credit_count")
+  /// Giá bán gói (VND integer).
+  priceVnd    BigInt  @map("price_vnd")
+  /// Đơn giá 1 lượt = priceVnd / creditCount. Lưu sẵn để UI hiển thị & sort nhanh.
+  unitPriceVnd BigInt @map("unit_price_vnd")
+
+  /// Mô tả/badge (vd: "Tiết kiệm 12%", "Phổ biến nhất").
+  badge       String?
+  sortOrder   Int     @default(0) @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+  isFeatured  Boolean @default(false) @map("is_featured")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("billing_credit_topup")
+  @@schema("billing")
+}
+
+/// Cấu hình quy tắc trừ Credit (V1).
+/// Bảng single-row, scope="default" — dễ chỉnh từ UI không cần đụng code.
+model BillingCreditPolicy {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope       String  @unique @default("default")
+
+  /// 1 hồ sơ tiềm năng = ? Credit (V1 = 1).
+  costPerProfile Int @default(1) @map("cost_per_profile")
+  /// Mở lại hồ sơ đã mở trong cùng tài khoản = ? Credit (V1 = 0).
+  costPerReopen Int @default(0) @map("cost_per_reopen")
+  /// Xem ứng viên đã ứng tuyển (chủ động) = ? Credit (V1 = 0).
+  costPerApplicant Int @default(0) @map("cost_per_applicant")
+  /// Liên hệ ứng viên tiềm năng = ? Credit thêm (V1 = 0, đã tính khi mở hồ sơ).
+  costPerContactPotential Int @default(0) @map("cost_per_contact_potential")
+  /// Liên hệ ứng viên đã ứng tuyển = ? Credit (V1 = 0).
+  costPerContactApplicant Int @default(0) @map("cost_per_contact_applicant")
+
+  /// Xem tổng số Matching / phân bố % = ? Credit (V1 = 0, luôn miễn phí theo nguyên tắc #4).
+  costPerMatchSummary Int @default(0) @map("cost_per_match_summary")
+
+  /// Có cho phép mua Credit tự động (auto-charge) hay không (V1 = false theo nguyên tắc #8).
+  allowAutoPurchase Boolean @default(false) @map("allow_auto_purchase")
+  /// Ngân sách tối đa mặc định cho mỗi tài khoản (VND, null = không giới hạn).
+  defaultBudgetVnd BigInt? @map("default_budget_vnd")
+  /// Có cảnh báo khi quota dưới % ngưỡng (vd: 20%).
+  warnWhenBelowPercent Int  @default(20) @map("warn_when_below_percent")
+  /// Có cho phép vượt ngân sách khi mua thêm hay không (V1 = false).
+  allowBudgetOverspend Boolean @default(false) @map("allow_budget_overspend")
+  /// Credit có hết hạn khi tài khoản hết hoạt động không (V1 = false, đề xuất pháp lý).
+  expireWhenInactive Boolean @default(false) @map("expire_when_inactive")
+  /// Số ngày không hoạt động trước khi coi là "inactive" (chỉ dùng nếu expireWhenInactive = true).
+  inactiveDays Int? @map("inactive_days")
+
+  /// Có cho phép hoàn Credit (V1 = false, chỉ hoàn khi lỗi hệ thống).
+  allowRefund Boolean @default(false) @map("allow_refund")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("billing_credit_policy")
+  @@schema("billing")
+}
+
+/// Cấu hình hiển thị tiền tệ & hệ số quy đổi.
+/// Theo yêu cầu: set giá bằng VND, hiển thị "VNĐ" sau số — không phụ thuộc tỉ giá.
+model BillingCurrencyConfig {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope       String  @unique @default("default")
+
+  /// Mã tiền tệ lưu DB: luôn "VND" theo yêu cầu thị trường VN.
+  currencyCode String @default("VND") @map("currency_code")
+  /// Ký hiệu hiển thị trên UI (mặc định "VNĐ"; SuperAdmin có thể đổi "đ", "₫", "$"…).
+  displaySymbol String @default("VNĐ") @map("display_symbol")
+  /// Ký hiệu đặt TRƯỚC số (true) hay SAU số (false). true = $49, false = 1,225,000VNĐ.
+  symbolBefore Boolean @default(false) @map("symbol_before")
+  /// Có dùng dấu phân cách hàng nghìn (vd: 1,200,000).
+  useThousandsSeparator Boolean @default(true) @map("use_thousands_separator")
+  /// Ký tự phân cách hàng nghìn.
+  thousandsSeparator String @default(",") @map("thousands_separator")
+  /// Số chữ số thập phân (VND = 0).
+  decimalDigits Int @default(0) @map("decimal_digits")
+
+  /// Bật/tắt hiển thị giá gốc USD tham chiếu (chỉ để so sánh, không dùng thanh toán).
+  showReferenceUsd Boolean @default(false) @map("show_reference_usd")
+  /// Tỉ giá tham chiếu USD↔VND cố định do SuperAdmin đặt (chỉ hiển thị, KHÔNG tự cập nhật).
+  referenceUsdRate BigInt? @map("reference_usd_rate")
+  /// Hệ số nhân 1 USD = ? VND. Ví dụ 25000 = $1 = 25.000đ.
+  /// Lưu BigInt (VND × 100) để tránh sai số. Ví dụ 25,000.00 VND = 2_500_000.
+  usdToVndRateHundredths BigInt? @map("usd_to_vnd_rate_hundredths")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("billing_currency_config")
+  @@schema("billing")
+}
+
+/// Nội dung marketing / SEO trang /bang-gia (không gồm giá-quota — đó là các bảng plan).
+/// Single-row scope="default". SuperAdmin chỉnh từ /admin/billing/page.
+model BillingPageContent {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope String @unique @default("default")
+
+  /// SEO
+  seoTitle                 String  @default("Bảng giá dịch vụ — inlink") @map("seo_title")
+  seoDescription           String  @default("Bảng giá minh bạch cho nhà tuyển dụng: gói Tin đăng, Săn nhân sự và Top-up Credit. Không auto-charge, không phát sinh.") @map("seo_description")
+  seoTitleRecruiter        String  @default("Bảng giá dành cho nhà tuyển dụng — inlink Recruiter") @map("seo_title_recruiter")
+  seoDescriptionRecruiter  String  @default("Gói Tin đăng, Tin đăng Plus, Doanh nghiệp, Enterprise. Dịch vụ Săn nhân sự. Top-up Credit. Minh bạch, không auto-charge.") @map("seo_description_recruiter")
+  focusKeyword             String? @map("focus_keyword")
+  ogTitle                  String? @map("og_title")
+  ogDescription            String? @map("og_description")
+  ogImageUrl               String? @map("og_image_url")
+  ogImageAlt               String  @default("Bảng giá inlink") @map("og_image_alt")
+  robotsIndex              Boolean @default(true) @map("robots_index")
+  robotsFollow             Boolean @default(true) @map("robots_follow")
+
+  /// Hero (public)
+  heroBadge          String  @default("Bảng giá 2026") @map("hero_badge")
+  heroHeading        String  @default("Tuyển dụng công nghiệp") @map("hero_heading")
+  heroHeadingAccent  String  @default("minh bạch, không phát sinh") @map("hero_heading_accent")
+  heroSubtitle       String  @default("iLink giúp nhà tuyển dụng đăng tin, matching AI, mở hồ sơ tiềm năng chỉ với vài cú click. Không auto-charge, không phí ẩn.") @map("hero_subtitle")
+  heroSocialProof    String  @default("Được 50+ doanh nghiệp FDI tin dùng") @map("hero_social_proof")
+  heroCtaPrimary     String  @default("Bắt đầu miễn phí") @map("hero_cta_primary")
+  heroCtaSecondary   String  @default("Xem cách tính phí") @map("hero_cta_secondary")
+
+  /// Hero (recruiter)
+  recruiterKicker   String @default("Tài khoản / Bảng giá") @map("recruiter_kicker")
+  recruiterHeading  String @default("Chọn gói phù hợp, nâng cấp bất kỳ lúc nào") @map("recruiter_heading")
+  recruiterSubtitle String @default("Tất cả gói dùng được ngay sau khi thanh toán. Hoá đơn VAT cho doanh nghiệp.") @map("recruiter_subtitle")
+
+  /// Tiêu đề các section
+  platformTitle    String @default("Gói nền tảng") @map("platform_title")
+  platformSubtitle String @default("Tự tuyển dụng với AI Matching. Quản lý JD, ứng viên, mở hồ sơ tiềm năng.") @map("platform_subtitle")
+  sourcingTitle    String @default("Gói Săn nhân sự") @map("sourcing_title")
+  sourcingSubtitle String @default("Đội ngũ iLink trực tiếp tìm kiếm, sàng lọc và đánh giá ứng viên theo JD của bạn.") @map("sourcing_subtitle")
+  creditTitle      String @default("Top-up Credit") @map("credit_title")
+  creditSubtitle   String @default("Mua thêm lượt mở hồ sơ tiềm năng. Đơn giá giảm khi mua nhiều.") @map("credit_subtitle")
+  featuresTitle    String @default("Tính năng nổi bật") @map("features_title")
+  featuresSubtitle String @default("Tất cả công cụ bạn cần để tuyển dụng công nghiệp hiệu quả.") @map("features_subtitle")
+  compareTitle     String @default("So sánh gói") @map("compare_title")
+  compareSubtitle  String @default("Chọn gói phù hợp với nhu cầu tuyển dụng của bạn.") @map("compare_subtitle")
+  howTitle         String @default("Chỉ trả cho những gì bạn dùng") @map("how_title")
+  howSubtitle      String @default("Quy trình đơn giản, không phí ẩn, không auto-charge.") @map("how_subtitle")
+  howFooter        String @default("Tặng Credit khi mua gói — không auto-charge, không phí ẩn.") @map("how_footer")
+  faqTitle         String @default("Câu hỏi thường gặp") @map("faq_title")
+  faqSubtitle      String @default("Mọi thắc mắc về giá, gói và Credit.") @map("faq_subtitle")
+  contactTitle     String @default("Cần tư vấn gói riêng cho doanh nghiệp?") @map("contact_title")
+  contactSubtitle  String @default("Đội ngũ iLink sẵn sàng hỗ trợ bạn chọn gói phù hợp nhất.") @map("contact_subtitle")
+  finalCtaTitle    String @default("Sẵn sàng tuyển hiệu quả hơn?") @map("final_cta_title")
+  finalCtaSubtitle String @default("Đăng ký miễn phí hoặc liên hệ sales để được tư vấn gói phù hợp.") @map("final_cta_subtitle")
+  footerTagline    String @default("Kết nối nhân tài – Dẫn lối công nghiệp") @map("footer_tagline")
+  consultNavText   String @default("Cần tư vấn? Gọi 1900 6868") @map("consult_nav_text")
+
+  /// Liên hệ
+  contactEmail      String @default("sales@inlink.vn") @map("contact_email")
+  contactEmailDesc  String @default("Phản hồi trong 24h") @map("contact_email_desc")
+  contactHotline    String @default("1900 6868") @map("contact_hotline")
+  contactHotlineHref String @default("tel:19006868") @map("contact_hotline_href")
+  contactHotlineDesc String @default("T2–T6, 8h–17h") @map("contact_hotline_desc")
+  contactZaloLabel  String @default("inlink.vn") @map("contact_zalo_label")
+  contactZaloHref   String @default("https://zalo.me/inlink") @map("contact_zalo_href")
+  contactZaloDesc   String @default("Nhắn tin nhanh") @map("contact_zalo_desc")
+
+  /// JSON lists
+  /// [{title, desc}]
+  features   Json @default("[]")
+  /// [{title, desc}]
+  howSteps   Json @default("[]") @map("how_steps")
+  /// [{q, a}]
+  faqItems   Json @default("[]") @map("faq_items")
+  /// [{title, desc}]
+  trustItems Json @default("[]") @map("trust_items")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("billing_page_content")
+  @@schema("billing")
+}
+
+/// Audit log cho mọi thay đổi cấu hình billing (compliance + debug).
+model BillingAuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Loại entity bị thay đổi: "platform_plan" | "sourcing_plan" | "credit_topup" | "credit_policy" | "currency_config".
+  entity    String
+  /// Mã entity (vd: "TIN_DANG" hoặc "default").
+  entityKey String   @map("entity_key")
+  /// Hành động: "create" | "update" | "delete" | "activate" | "deactivate".
+  action    String
+  /// Diff JSON: { before: {...}, after: {...} } — chỉ lưu field thay đổi.
+  diff      Json
+  actorId   String?  @map("actor_id") @db.Uuid
+  actorEmail String? @map("actor_email")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entity, entityKey])
+  @@index([createdAt])
+  @@map("billing_audit_log")
+  @@schema("billing")
+}
+
+/// Tài khoản Credit của mỗi công ty.
+model BillingCreditAccount {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id")
+  companyId          String    @unique @map("company_id") @db.Uuid
+  balance            Int       @default(0)
+  lifetimeGranted    Int       @default(0) @map("lifetime_granted")
+  lifetimeConsumed   Int       @default(0) @map("lifetime_consumed")
+  lifetimeRefunded   Int       @default(0) @map("lifetime_refunded")
+  lastActivityAt     DateTime? @map("last_activity_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@map("billing_credit_account")
+  @@schema("billing")
+}
+
+/// Nhật ký mọi thao tác liên quan đến Credit (chỉ ghi log, chưa trừ thật ở bước này).
+model BillingCreditTransaction {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id")
+  companyId    String   @map("company_id") @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
+  /// Loại giao dịch: deduct | grant | topup | refund | adjustment
+  type         String
+  /// Hành động: view_profile | reopen_profile | view_applicant | contact_potential | contact_applicant | view_match_summary | manual_grant | manual_adjust
+  action       String
+  /// Số credit thay đổi (âm cho trừ, dương cho cộng). Ở bước LOG-ONLY: luôn = -costPerXxx hoặc +delta.
+  creditDelta  Int      @map("credit_delta")
+  /// Số dư sau giao dịch. Ở bước LOG-ONLY: balance hiện tại (chưa trừ).
+  balanceAfter Int      @map("balance_after")
+  /// Cost per unit tại thời điểm giao dịch (từ policy snapshot).
+  costPerUnit  Int      @map("cost_per_unit")
+  quantity     Int      @default(1)
+  candidateId  String?  @map("candidate_id") @db.Uuid
+  jobId        String?  @map("job_id") @db.Uuid
+  connectionId String?  @map("connection_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  actorEmail   String?  @map("actor_email")
+  /// Snapshot quy tắc trừ tại thời điểm giao dịch.
+  policySnapshot Json?  @map("policy_snapshot")
+  note         String?
+  /// Metadata bổ sung (JSON).
+  metadata     Json?    @default("{}")
+  /// enforced=false ở bước LOG-ONLY. Sau này bật: true = thực sự trừ balance.
+  enforced     Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, createdAt])
+  @@index([type, action])
+  @@index([candidateId])
+  @@index([createdAt])
+  @@map("billing_credit_transaction")
+  @@schema("billing")
+}
+
+/// Cấu hình thanh toán Top-up (Bước 7). Single-row scope="default".
+/// Mode 'mock' = giả lập, 'live' = Stripe thật (sandbox hoặc production).
+/// Stripe keys được mã hoá AES-256-GCM trước khi lưu (giống AiSetting).
+model BillingPaymentSetting {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope                 String   @unique @default("default")
+
+  /// 'mock' | 'live'
+  mode                  String   @default("mock")
+
+  /// Stripe publishable key (pk_test_xxx / pk_live_xxx) — encrypted.
+  stripePublishableKeyEnc String? @map("stripe_publishable_key_enc")
+  /// Stripe secret key (sk_test_xxx / sk_live_xxx) — encrypted. KHÔNG trả ra API.
+  stripeSecretKeyEnc    String?  @map("stripe_secret_key_enc")
+  /// Stripe webhook signing secret (whsec_xxx) — encrypted.
+  stripeWebhookSecretEnc String? @map("stripe_webhook_secret_enc")
+
+  /// URL trả về sau khi thanh toán. {CHECKOUT_SESSION_ID} sẽ được replace.
+  successUrl            String   @default("/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}") @map("success_url")
+  cancelUrl             String   @default("/recruiter/billing/topup/cancel") @map("cancel_url")
+
+  createdAt             DateTime @default(now()) @map("created_at")
+  createdBy             String?  @map("created_by") @db.Uuid
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  updatedBy             String?  @map("updated_by") @db.Uuid
+
+  @@map("billing_payment_setting")
+  @@schema("billing")
+}
+
+/// Đơn mua Top-up Credit (Bước 7). Lifecycle: pending → paid | failed → refunded.
+model BillingOrder {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String   @map("tenant_id")
+  companyId                String   @map("company_id") @db.Uuid
+
+  /// Snapshot từ billing_credit_topup tại thời điểm mua (không thay đổi sau).
+  topupId                  String   @map("topup_id") @db.Uuid
+  creditCountSnapshot      Int      @map("credit_count_snapshot")
+  priceVndSnapshot         BigInt   @map("price_vnd_snapshot")
+
+  /// 'pending' | 'paid' | 'failed' | 'refunded'
+  status                   String   @default("pending")
+
+  /// 'stripe' | 'stripe-mock'
+  provider                 String   @default("stripe")
+  providerSessionId        String?  @map("provider_session_id")
+  providerPaymentIntent    String?  @map("provider_payment_intent")
+
+  createdByUserId          String   @map("created_by_user_id") @db.Uuid
+  createdByEmail           String?  @map("created_by_email")
+
+  createdAt                DateTime @default(now()) @map("created_at")
+  paidAt                   DateTime? @map("paid_at")
+  failedAt                 DateTime? @map("failed_at")
+  refundedAt               DateTime? @map("refunded_at")
+
+  note                     String?
+  metadata                 Json     @default("{}")
+
+  payments                 BillingPayment[]
+
+  @@index([companyId, createdAt])
+  @@index([status])
+  @@index([provider, providerSessionId])
+  @@map("billing_order")
+  @@schema("billing")
+}
+
+/// Log mỗi webhook event từ payment provider (Bước 7). Audit + debug.
+model BillingPayment {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId           String   @map("order_id") @db.Uuid
+
+  /// Stripe event ID (evt_xxx). Unique để idempotent xử lý.
+  providerEventId   String?  @unique @map("provider_event_id")
+
+  /// 'checkout.session.completed' | 'payment_intent.succeeded' | 'payment_intent.payment_failed' | v.v.
+  eventType         String   @map("event_type")
+
+  /// 'received' | 'processed' | 'failed' | 'ignored'
+  status            String   @default("received")
+
+  /// Số tiền VND (snapshot từ event) — null nếu event không kèm amount.
+  amountVnd         BigInt?  @map("amount_vnd")
+
+  /// Toàn bộ payload từ provider.
+  rawPayload        Json     @default("{}") @map("raw_payload")
+
+  errorMessage      String?  @map("error_message")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  order             BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([eventType])
+  @@map("billing_payment")
+  @@schema("billing")
 }
 

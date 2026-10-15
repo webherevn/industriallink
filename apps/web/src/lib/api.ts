@@ -27,11 +27,21 @@ export const tokenStore = {
 };
 
 export class ApiError extends Error {
+  /** Mã lỗi nghiệp vụ do backend trả về (vd: 'INSUFFICIENT_CREDIT'). */
+  readonly code?: string;
+  /** Payload bổ sung từ backend (vd: required, balance, missing, action). */
+  readonly details?: Record<string, unknown>;
+  /** Path request gây lỗi. */
+  readonly path?: string;
   constructor(
     public readonly status: number,
     message: string,
+    opts?: { code?: string; details?: Record<string, unknown>; path?: string },
   ) {
     super(message);
+    this.code = opts?.code;
+    this.details = opts?.details;
+    this.path = opts?.path;
   }
 }
 
@@ -110,13 +120,18 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const payload = isJson ? await res.json() : await res.text();
 
   if (!res.ok) {
+    const obj = typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : null;
     const message =
-      typeof payload === 'object' && payload !== null && 'message' in payload
-        ? Array.isArray((payload as { message: unknown }).message)
-          ? ((payload as { message: string[] }).message.join(', '))
-          : String((payload as { message: unknown }).message)
+      obj && 'message' in obj
+        ? Array.isArray(obj.message)
+          ? ((obj as { message: string[] }).message.join(', '))
+          : String(obj.message)
         : `Lỗi ${res.status}`;
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, {
+      code: obj && typeof obj.code === 'string' ? obj.code : undefined,
+      details: obj ?? undefined,
+      path: obj && typeof obj.path === 'string' ? obj.path : undefined,
+    });
   }
 
   if (!isJson) {
