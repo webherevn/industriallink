@@ -1,14 +1,17 @@
+import { apiPublicBase } from './public-paths';
+
 /**
  * Dev: NEXT_PUBLIC_API_URL (vd. http://localhost:3001).
- * Production (aaPanel proxy /api → Nest): same-origin /api/v1.
+ * Browser production: same-origin /api/v1 (nginx → Nest).
+ * SSR: URL tuyệt đối — Node không fetch được path tương đối `/api/v1`.
  */
 export function getApiBase(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (fromEnv) return `${fromEnv}/api/v1`;
   if (typeof window !== 'undefined') {
+    const fromEnv = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+    if (fromEnv) return `${fromEnv}/api/v1`;
     return `${window.location.origin}/api/v1`;
   }
-  return '/api/v1';
+  return apiPublicBase();
 }
 
 const TOKEN_KEY = 'il_access_token';

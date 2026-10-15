@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   ArrowRight,
@@ -41,6 +42,7 @@ import {
   BILLING_PLAN_BILLABLE_ACTIONS,
   DEFAULT_BILLING_PAGE_CONTENT,
 } from '@industriallink/contracts';
+import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
 import { BrandMark } from './brand-logo';
 
@@ -1475,6 +1477,24 @@ function PricingSkeleton() {
   );
 }
 
+function PricingLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section className="bg-gradient-to-br from-[#072348] to-[#0d3b80] px-4 py-20 text-center text-white">
+      <p className="text-lg font-semibold">Không tải được bảng giá</p>
+      <p className="mx-auto mt-2 max-w-md text-sm text-white/70">
+        Máy chủ chưa trả cấu hình gói. Thử lại hoặc kiểm tra API billing.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-6 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[#072348]"
+      >
+        Thử lại
+      </button>
+    </section>
+  );
+}
+
 // ============================================================================
 // STATS HELPER (plain function — not a hook, safe to call conditionally)
 // ============================================================================
@@ -1510,11 +1530,20 @@ export function PricingClient({
 }) {
   const isRecruiter = context === 'recruiter';
 
+  const { data: fetched, isLoading, refetch } = useQuery({
+    queryKey: ['billing-public-config'],
+    queryFn: fetchPublicBillingConfig,
+    enabled: !config,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const resolved = config ?? fetched ?? null;
+
   /** Href CTA cho gói */
   const planCtaHref = (code: string) =>
     isRecruiter ? `/recruiter/billing?plan=${encodeURIComponent(code)}` : '/register';
   const freeCtaHref = () => (isRecruiter ? '/recruiter?action=try-free' : '/register');
-  const page = config?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
+  const page = resolved?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
   const enterpriseCtaHref = () =>
     isRecruiter ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
   /** Top-up: dùng id vì view không có code. */
@@ -1539,12 +1568,15 @@ export function PricingClient({
   }, [tab]);
 
   // Compute stats after hooks, then early-return if no config
-  const stats = config ? computeStats(config) : null;
+  const stats = resolved ? computeStats(resolved) : null;
 
-  if (!config) return <PricingSkeleton />;
+  if (!resolved) {
+    if (isLoading) return <PricingSkeleton />;
+    return <PricingLoadError onRetry={() => void refetch()} />;
+  }
 
-  const cur = config.currency;
-  const enterprise = config.platformPlans.find((p) => p.code === 'ENTERPRISE' && p.isActive);
+  const cur = resolved.currency;
+  const enterprise = resolved.platformPlans.find((p) => p.code === 'ENTERPRISE' && p.isActive);
 
   return (
     <>
@@ -1562,7 +1594,7 @@ export function PricingClient({
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           {tab === 'platform' ? (
             <PlatformPlansView
-              plans={config.platformPlans}
+              plans={resolved.platformPlans}
               currency={cur}
               enterprise={enterprise}
               onSourcing={() => setTab('sourcing')}
@@ -1575,7 +1607,7 @@ export function PricingClient({
             />
           ) : tab === 'sourcing' ? (
             <SourcingPlansView
-              plans={config.sourcingPlans}
+              plans={resolved.sourcingPlans}
               currency={cur}
               onTopup={() => setTab('credit')}
               isRecruiter={isRecruiter}
@@ -1584,7 +1616,7 @@ export function PricingClient({
             />
           ) : (
             <CreditTopupView
-              topups={config.creditTopups}
+              topups={resolved.creditTopups}
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
@@ -1597,7 +1629,7 @@ export function PricingClient({
       {!isRecruiter && <FeaturesSection page={page} />}
 
       {/* COMPARE (public only) */}
-      {!isRecruiter && <CompareTable plans={config.platformPlans} page={page} />}
+      {!isRecruiter && <CompareTable plans={resolved.platformPlans} page={page} />}
 
       {/* HOW IT WORKS (public only) */}
       {!isRecruiter && <HowItWorksSection page={page} />}
