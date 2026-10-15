@@ -1,13 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   CandidateStatus,
   ConnectionStatus,
@@ -38,6 +38,7 @@ import {
   type UpdateCandidateProfileRequest,
   type UpdateCandidateProfileResponse,
   type UploadAvatarResponse,
+  type CreditAction,
 } from '@industriallink/contracts';
 import { Queue } from 'bullmq';
 import { Prisma } from '@prisma/client';
@@ -98,7 +99,6 @@ export class CandidateService {
     private readonly companies: CompanyService,
     private readonly notifications: NotificationService,
     private readonly credit: CreditService,
-    private readonly config: ConfigService,
     @Inject(RESUME_PARSE_QUEUE_TOKEN) private readonly queue: Queue<ResumeParseJobData>,
   ) {}
 
@@ -555,47 +555,16 @@ export class CandidateService {
       view.profile = { ...view.profile, phone: null };
     }
 
-    // Log/Enforce credit transaction: view_profile
-    // Mode = 'enforce' nếu BILLING_ENFORCEMENT=enforce (sẽ throw 402 INSUFFICIENT_CREDIT nếu thiếu)
-    // Mode = 'log' nếu đang ở chế độ log-only (mặc định)
-    const policy = await this.credit.getPolicySnapshot(user.tenantId).catch(() => null);
-    const resolved = await this.credit.resolveActionCost(companyId, 'view_profile').catch(() => null);
-    const costPerProfile = resolved?.cost ?? policy?.costPerProfile ?? 1;
-    const enforcementMode =
-      (this.config.get('billing') as { enforcement?: 'log' | 'enforce' } | undefined)?.enforcement ??
-      'log';
-    if (costPerProfile > 0) {
-      try {
-        await this.credit.recordTransaction({
-          tenantId: user.tenantId,
-          companyId,
-          type: 'deduct',
-          action: 'view_profile',
-          costPerUnit: costPerProfile,
-          quantity: 1,
-          candidateId,
-          actorUserId: user.id,
-          actorEmail: user.email ?? undefined,
-          policySnapshot: {
-            ...(policy as unknown as Record<string, unknown> | undefined),
-            resolvedSource: resolved?.source,
-            resolvedPlanId: resolved?.planId,
-            resolvedPlanCode: resolved?.planCode,
-          },
-          mode: enforcementMode,
-        });
-      } catch (err) {
-        // Re-throw lỗi INSUFFICIENT_CREDIT để controller trả 402
-        if (
-          err instanceof BadRequestException &&
-          typeof err.getResponse() === 'object' &&
-          (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
-        ) {
-          throw err;
-        }
-        this.logger.warn(`Failed to record credit ledger for view_profile: ${String(err)}`);
-      }
-    }
+    const applied = await this.hasAppliedToCompany(companyId, candidateId);
+    await this.chargeCredit({
+      tenantId: user.tenantId,
+      companyId,
+      action: applied ? 'view_applicant' : 'view_profile',
+      candidateId,
+      actorUserId: user.id,
+      actorEmail: user.email ?? undefined,
+      oncePerCandidate: true,
+    });
 
     return {
       ...view,
@@ -632,6 +601,17 @@ export class CandidateService {
     if (existing?.status === ConnectionStatus.Accepted) {
       throw new ConflictException('Đã kết nối với ứng viên này');
     }
+
+    const applied = await this.hasAppliedToCompany(companyId, candidateId);
+    await this.chargeCredit({
+      tenantId: user.tenantId,
+      companyId,
+      action: applied ? 'contact_applicant' : 'contact_potential',
+      candidateId,
+      actorUserId: user.id,
+      actorEmail: user.email ?? undefined,
+      oncePerCandidate: true,
+    });
 
     const row = existing
       ? await this.prisma.candidateConnection.update({
@@ -1654,6 +1634,42 @@ export class CandidateService {
       strengths: candidate.aiProfile?.strengths ?? [],
       weaknesses: candidate.aiProfile?.weaknesses ?? [],
     });
+  }
+
+  private async hasAppliedToCompany(companyId: string, candidateId: string): Promise<boolean> {
+    const row = await this.prisma.application.findFirst({
+      where: {
+        candidateId,
+        isDeleted: false,
+        job: { companyId, isDeleted: false },
+      },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
+  private async chargeCredit(input: {
+    tenantId: string;
+    companyId: string;
+    action: CreditAction;
+    candidateId: string;
+    actorUserId: string;
+    actorEmail?: string;
+    oncePerCandidate?: boolean;
+  }): Promise<void> {
+    try {
+      await this.credit.consumeAction(input);
+    } catch (err) {
+      if (err instanceof ForbiddenException) throw err;
+      if (
+        err instanceof BadRequestException &&
+        typeof err.getResponse() === 'object' &&
+        (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
+      ) {
+        throw err;
+      }
+      this.logger.warn(`Failed to record credit ledger for ${input.action}: ${String(err)}`);
+    }
   }
 
   private async getCandidateByUser(userId: string) {

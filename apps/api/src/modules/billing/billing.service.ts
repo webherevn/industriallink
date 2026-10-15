@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -44,6 +45,7 @@ import type {
   BillingPageContentView,
   BillingPageTextItem,
   BillingPageFaqItem,
+  RecruiterBillingEntitlements,
 } from '@industriallink/contracts';
 import {
   BILLING_PLAN_BILLABLE_ACTIONS,
@@ -51,6 +53,7 @@ import {
   DEFAULT_BILLING_PAGE_HOW_STEPS,
   DEFAULT_BILLING_PAGE_FAQ,
   DEFAULT_BILLING_PAGE_TRUST,
+  UserRole,
 } from '@industriallink/contracts';
 import {
   defaultActionCostRows,
@@ -301,6 +304,12 @@ export class BillingService {
     const plan = await this.prisma.billingPlatformPlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new NotFoundException('Không tìm thấy gói');
 
+    const company = await this.prisma.company.findUnique({
+      where: { id: input.companyId },
+      select: { id: true, tenantId: true },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+
     const startsAt = input.startsAt ? new Date(input.startsAt) : new Date();
     const endsAt =
       input.endsAt === undefined
@@ -311,29 +320,99 @@ export class BillingService {
           ? new Date(input.endsAt)
           : null;
 
-    const before = await this.prisma.billingCompanyPlan.findUnique({ where: { companyId: input.companyId } });
-    const row = await this.prisma.billingCompanyPlan.upsert({
+    const before = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId: input.companyId },
-      create: {
-        companyId: input.companyId,
-        planId: input.planId,
-        startsAt,
-        endsAt,
-        isActive: input.isActive ?? true,
-        note: input.note ?? null,
-        createdBy: actor.id,
-        updatedBy: actor.id,
-      },
-      update: {
-        planId: input.planId,
-        startsAt,
-        endsAt,
-        isActive: input.isActive ?? true,
-        note: input.note === undefined ? undefined : input.note,
-        updatedBy: actor.id,
-      },
-      include: { plan: true },
     });
+    const shouldGrant = this.shouldGrantPlanQuota(before, {
+      planId: input.planId,
+      isActive: input.isActive ?? true,
+    });
+    const quota = plan.creditQuota ?? 0;
+
+    const row = await this.prisma.$transaction(async (tx) => {
+      const assigned = await tx.billingCompanyPlan.upsert({
+        where: { companyId: input.companyId },
+        create: {
+          companyId: input.companyId,
+          planId: input.planId,
+          startsAt,
+          endsAt,
+          isActive: input.isActive ?? true,
+          note: input.note ?? null,
+          createdBy: actor.id,
+          updatedBy: actor.id,
+        },
+        update: {
+          planId: input.planId,
+          startsAt,
+          endsAt,
+          isActive: input.isActive ?? true,
+          note: input.note === undefined ? undefined : input.note,
+          updatedBy: actor.id,
+        },
+        include: { plan: true },
+      });
+
+      if (shouldGrant && quota > 0 && assigned.isActive) {
+        const account = await tx.billingCreditAccount.upsert({
+          where: { companyId: company.id },
+          create: { companyId: company.id, tenantId: company.tenantId },
+          update: {},
+        });
+        const updatedAccount = await tx.billingCreditAccount.update({
+          where: { id: account.id },
+          data: {
+            balance: { increment: quota },
+            lifetimeGranted: { increment: quota },
+            lastActivityAt: new Date(),
+          },
+        });
+        await tx.billingCreditTransaction.create({
+          data: {
+            tenantId: company.tenantId,
+            companyId: company.id,
+            accountId: account.id,
+            type: 'grant',
+            action: 'plan_grant',
+            creditDelta: quota,
+            balanceAfter: updatedAccount.balance,
+            costPerUnit: 0,
+            quantity: 1,
+            actorUserId: actor.id,
+            actorEmail: actor.email ?? null,
+            note: `Tặng ${quota} Credit khi gán gói ${plan.name}`,
+            metadata: {
+              source: 'plan_assign',
+              planId: plan.id,
+              planCode: plan.code,
+              assignmentId: assigned.id,
+            },
+            enforced: true,
+          },
+        });
+        await tx.billingAuditLog.create({
+          data: {
+            entity: 'credit_ledger',
+            entityKey: company.id,
+            action: 'plan_grant',
+            diff: {
+              reason: `Gán gói ${plan.code}`,
+              creditDelta: quota,
+              planId: plan.id,
+              planCode: plan.code,
+              assignmentId: assigned.id,
+              before: { balance: account.balance, lifetimeGranted: account.lifetimeGranted },
+              after: { balance: updatedAccount.balance, lifetimeGranted: updatedAccount.lifetimeGranted },
+            },
+            actorId: actor.id,
+            actorEmail: actor.email ?? null,
+          },
+        });
+      }
+
+      return assigned;
+    });
+
     await this.writeAudit(
       actor,
       'company_plan',
@@ -342,9 +421,237 @@ export class BillingService {
       before
         ? { planId: before.planId, isActive: before.isActive, endsAt: before.endsAt?.toISOString() ?? null }
         : null,
-      { planId: row.planId, planCode: plan.code, isActive: row.isActive, endsAt: row.endsAt?.toISOString() ?? null },
+      {
+        planId: row.planId,
+        planCode: plan.code,
+        isActive: row.isActive,
+        endsAt: row.endsAt?.toISOString() ?? null,
+        creditGranted: shouldGrant && quota > 0 && row.isActive ? quota : 0,
+      },
     );
     return this.mapCompanyPlan(row);
+  }
+
+  /**
+   * Tặng creditQuota khi: gán lần đầu, đổi gói, hoặc bật lại gói đã tắt.
+   * Sửa note / gia hạn cùng gói đang active → không cộng thêm (tránh farm).
+   */
+  private shouldGrantPlanQuota(
+    before: BillingCompanyPlan | null,
+    after: { planId: string; isActive: boolean },
+  ): boolean {
+    if (!after.isActive) return false;
+    if (!before) return true;
+    if (before.planId !== after.planId) return true;
+    if (!before.isActive && after.isActive) return true;
+    return false;
+  }
+
+  /**
+   * Công ty mới / chưa gán gói → gói miễn phí SuperAdmin đang bán (sortOrder thấp nhất).
+   * Quota/Credit lấy từ gói đó trên bảng giá, không hardcode.
+   * Gói đã gán mà chưa từng được tặng Credit → cộng đúng creditQuota hiện tại của gói.
+   */
+  async ensureCompanyPlan(companyId: string): Promise<BillingCompanyPlanView | null> {
+    const existing = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (!existing) {
+      return this.provisionStarterPlan(companyId);
+    }
+    if (existing.isActive) {
+      await this.backfillPlanGrant(companyId, existing);
+    }
+    return this.mapCompanyPlan(existing);
+  }
+
+  async provisionStarterPlan(companyId: string): Promise<BillingCompanyPlanView | null> {
+    const already = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (already) return this.mapCompanyPlan(already);
+
+    const starter = await this.resolveStarterPlan();
+    if (!starter) {
+      this.logger.warn('Không có gói nền tảng active để gán mặc định — bỏ qua provision');
+      return null;
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, tenantId: true, createdBy: true },
+    });
+    if (!company) return null;
+
+    try {
+      return await this.assignCompanyPlan(this.systemActor(company), {
+        companyId,
+        planId: starter.id,
+        note: 'Gói mặc định khi tạo tài khoản nhà tuyển dụng',
+      });
+    } catch (err) {
+      this.logger.warn(`Provision gói ${starter.code} thất bại cho ${companyId}: ${String(err)}`);
+      return null;
+    }
+  }
+
+  async getEntitlements(companyId: string): Promise<RecruiterBillingEntitlements> {
+    const planView = await this.ensureCompanyPlan(companyId);
+    const assignment = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: { include: { actionCosts: true } } },
+    });
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { tenantId: true },
+    });
+    const tenantId = company?.tenantId ?? 'default';
+    const account = await this.prisma.billingCreditAccount.upsert({
+      where: { companyId },
+      create: { companyId, tenantId },
+      update: {},
+    });
+
+    const quota = assignment?.plan.jobPostQuota ?? null;
+    const jobsUsed = assignment
+      ? await this.prisma.job.count({
+          where: {
+            companyId,
+            isDeleted: false,
+            createdAt: {
+              gte: assignment.startsAt,
+              ...(assignment.endsAt ? { lte: assignment.endsAt } : {}),
+            },
+          },
+        })
+      : 0;
+    const jobsRemaining = quota == null ? null : Math.max(0, quota - jobsUsed);
+
+    const policy = await this.ensureCreditPolicy();
+    const actionCosts = assignment
+      ? defaultActionCostRows(this.mapCreditPolicy(policy)).map((fallback) => {
+          const row = assignment.plan.actionCosts.find((c) => c.action === fallback.action);
+          if (!row) return fallback;
+          return {
+            action: row.action as BillingPlanBillableAction,
+            cost: row.cost,
+            isActive: row.isActive,
+          };
+        })
+      : defaultActionCostRows(this.mapCreditPolicy(policy));
+
+    return {
+      plan: planView,
+      planCode: assignment?.plan.code ?? null,
+      planName: assignment?.plan.name ?? null,
+      creditQuota: assignment?.plan.creditQuota ?? null,
+      jobPostQuota: quota,
+      credits: {
+        balance: account.balance,
+        lifetimeGranted: account.lifetimeGranted,
+        lifetimeConsumed: account.lifetimeConsumed,
+        lifetimeRefunded: account.lifetimeRefunded,
+      },
+      jobsUsed,
+      jobsRemaining,
+      actionCosts,
+      enforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
+    };
+  }
+
+  async assertJobQuota(companyId: string): Promise<void> {
+    const e = await this.getEntitlements(companyId);
+    if (e.jobsRemaining == null) return;
+    if (e.jobsRemaining > 0) return;
+    throw new ForbiddenException({
+      code: 'JOB_QUOTA_EXCEEDED',
+      message: `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
+      used: e.jobsUsed,
+      quota: e.jobPostQuota,
+    });
+  }
+
+  private async backfillPlanGrant(
+    companyId: string,
+    assignment: BillingCompanyPlan & { plan: BillingPlatformPlan },
+  ): Promise<void> {
+    const quota = assignment.plan.creditQuota ?? 0;
+    if (quota <= 0) return;
+    const granted = await this.prisma.billingCreditTransaction.findFirst({
+      where: { companyId, action: 'plan_grant' },
+      select: { id: true },
+    });
+    if (granted) return;
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, tenantId: true, createdBy: true },
+    });
+    if (!company) return;
+
+    const account = await this.prisma.billingCreditAccount.upsert({
+      where: { companyId },
+      create: { companyId, tenantId: company.tenantId },
+      update: {},
+    });
+    if (account.lifetimeGranted >= quota) return;
+    const updated = await this.prisma.billingCreditAccount.update({
+      where: { id: account.id },
+      data: {
+        balance: { increment: quota },
+        lifetimeGranted: { increment: quota },
+        lastActivityAt: new Date(),
+      },
+    });
+    await this.prisma.billingCreditTransaction.create({
+      data: {
+        tenantId: company.tenantId,
+        companyId,
+        accountId: account.id,
+        type: 'grant',
+        action: 'plan_grant',
+        creditDelta: quota,
+        balanceAfter: updated.balance,
+        costPerUnit: 0,
+        quantity: 1,
+        actorEmail: 'system:plan-backfill',
+        note: `Tặng ${quota} Credit (bổ sung) theo gói ${assignment.plan.name}`,
+        metadata: {
+          source: 'plan_backfill',
+          planId: assignment.planId,
+          planCode: assignment.plan.code,
+          assignmentId: assignment.id,
+        },
+        enforced: true,
+      },
+    });
+    this.logger.log(`Backfill ${quota} Credit gói ${assignment.plan.code} cho công ty ${companyId}`);
+  }
+
+  /**
+   * Gói mặc định cho công ty mới: gói active giá 0đ (SuperAdmin set),
+   * không thì gói active sortOrder thấp nhất. Quota/Credit lấy từ row đó.
+   */
+  private async resolveStarterPlan(): Promise<BillingPlatformPlan | null> {
+    const plans = await this.prisma.billingPlatformPlan.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    if (plans.length === 0) return null;
+    return plans.find((p) => p.priceVnd === 0n) ?? plans[0];
+  }
+
+  private systemActor(company: { tenantId: string; createdBy: string | null }): AuthenticatedUser {
+    return {
+      id: company.createdBy ?? '00000000-0000-0000-0000-000000000001',
+      email: 'system:billing-provision',
+      role: UserRole.SuperAdmin,
+      tenantId: company.tenantId,
+      displayName: 'Hệ thống Billing',
+      status: 'active',
+    };
   }
 
   async unassignCompanyPlan(actor: AuthenticatedUser, companyId: string): Promise<void> {
@@ -363,11 +670,17 @@ export class BillingService {
   async resolveActionCost(
     companyId: string,
     action: string,
-  ): Promise<{ cost: number; source: 'plan' | 'policy'; planId: string | null; planCode: string | null }> {
+  ): Promise<{
+    cost: number;
+    allowed: boolean;
+    source: 'plan' | 'policy';
+    planId: string | null;
+    planCode: string | null;
+  }> {
     const policy = await this.ensureCreditPolicy();
     const fallback = policyCostForAction(this.mapCreditPolicy(policy), action);
     if (!isBillableAction(action)) {
-      return { cost: fallback, source: 'policy', planId: null, planCode: null };
+      return { cost: fallback, allowed: true, source: 'policy', planId: null, planCode: null };
     }
 
     const assignment = await this.prisma.billingCompanyPlan.findUnique({
@@ -384,14 +697,35 @@ export class BillingService {
       (assignment.endsAt == null || assignment.endsAt >= now);
 
     if (!active || !assignment) {
-      return { cost: fallback, source: 'policy', planId: null, planCode: null };
+      return { cost: fallback, allowed: true, source: 'policy', planId: null, planCode: null };
     }
 
-    const row = assignment.plan.actionCosts.find((c) => c.action === action && c.isActive);
-    if (!row) {
-      return { cost: fallback, source: 'policy', planId: assignment.planId, planCode: assignment.plan.code };
+    const row = assignment.plan.actionCosts.find((c) => c.action === action);
+    if (row && !row.isActive) {
+      return {
+        cost: row.cost,
+        allowed: false,
+        source: 'plan',
+        planId: assignment.planId,
+        planCode: assignment.plan.code,
+      };
     }
-    return { cost: row.cost, source: 'plan', planId: assignment.planId, planCode: assignment.plan.code };
+    if (!row) {
+      return {
+        cost: fallback,
+        allowed: true,
+        source: 'policy',
+        planId: assignment.planId,
+        planCode: assignment.plan.code,
+      };
+    }
+    return {
+      cost: row.cost,
+      allowed: true,
+      source: 'plan',
+      planId: assignment.planId,
+      planCode: assignment.plan.code,
+    };
   }
 
   // =========================================================================

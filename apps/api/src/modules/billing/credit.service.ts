@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma, type BillingCreditAccount, type BillingCreditTransaction } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import type { AppConfig } from '../../config/configuration';
 import type {
   BillingCreditAccountView,
   BillingCreditTransactionView,
@@ -11,6 +13,7 @@ import type {
   CreditAction,
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
+import { policyCostForAction } from './billing-action-cost';
 
 const POLICY_SCOPE = 'default';
 
@@ -34,6 +37,27 @@ export interface RecordTransactionInput {
    * Nếu 'check': chỉ check đủ không, không ghi ledger (dry-run).
    */
   mode?: 'log' | 'enforce' | 'check';
+  /**
+   * Một công ty chỉ bị trừ 1 lần cho cùng action + candidateId
+   * (F5 / mở lại hồ sơ không ghi ledger, không trừ thêm).
+   */
+  oncePerCandidate?: boolean;
+  /** Một công ty chỉ bị trừ 1 lần cho cùng action + jobId (vd. xem matching). */
+  oncePerJob?: boolean;
+}
+
+export interface ConsumeActionInput {
+  tenantId: string;
+  companyId: string;
+  action: CreditAction;
+  candidateId?: string;
+  jobId?: string;
+  connectionId?: string;
+  actorUserId?: string;
+  actorEmail?: string;
+  note?: string;
+  oncePerCandidate?: boolean;
+  oncePerJob?: boolean;
 }
 
 @Injectable()
@@ -43,7 +67,58 @@ export class CreditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
+
+  enforcementMode(): 'log' | 'enforce' {
+    return this.config.get('billing', { infer: true })?.enforcement ?? 'log';
+  }
+
+  /**
+   * Resolve cost + ghi ledger (log/enforce). Cost = 0 → không ghi.
+   * Throw 402 INSUFFICIENT_CREDIT khi enforce mà thiếu số dư.
+   */
+  async consumeAction(input: ConsumeActionInput): Promise<BillingCreditTransaction | null> {
+    await this.billing.ensureCompanyPlan(input.companyId).catch((err) => {
+      this.logger.warn(`ensureCompanyPlan ${input.companyId}: ${String(err)}`);
+    });
+    const resolved = await this.resolveActionCost(input.companyId, input.action).catch(() => null);
+    const policy = await this.getPolicySnapshot(input.tenantId).catch(() => null);
+    if (resolved && resolved.allowed === false) {
+      throw new ForbiddenException({
+        code: 'PLAN_ACTION_FORBIDDEN',
+        message: `Gói ${resolved.planCode ?? 'hiện tại'} không bao gồm thao tác này. Hãy nâng cấp gói.`,
+        action: input.action,
+        planCode: resolved.planCode,
+      });
+    }
+    const costPerUnit = resolved?.cost ?? policyCostForAction(policy, input.action);
+    if (costPerUnit <= 0) return null;
+
+    return this.recordTransaction({
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      type: 'deduct',
+      action: input.action,
+      costPerUnit,
+      quantity: 1,
+      candidateId: input.candidateId,
+      jobId: input.jobId,
+      connectionId: input.connectionId,
+      actorUserId: input.actorUserId,
+      actorEmail: input.actorEmail,
+      note: input.note,
+      policySnapshot: {
+        ...(policy as unknown as Record<string, unknown> | undefined),
+        resolvedSource: resolved?.source,
+        resolvedPlanId: resolved?.planId,
+        resolvedPlanCode: resolved?.planCode,
+      },
+      mode: 'enforce',
+      oncePerCandidate: input.oncePerCandidate,
+      oncePerJob: input.oncePerJob,
+    });
+  }
 
   /**
    * Cost của action cho công ty: gói đang gán (còn hạn) → fallback policy global.
@@ -175,8 +250,44 @@ export class CreditService {
           create: { companyId: input.companyId, tenantId: input.tenantId },
           update: {},
         });
+        // Khoá account để 2 request cùng lúc không trừ trùng 1 hồ sơ.
+        await tx.$queryRaw`SELECT id FROM billing.billing_credit_account WHERE id = ${account.id}::uuid FOR UPDATE`;
 
         const now = new Date();
+
+        if (input.oncePerCandidate && input.candidateId) {
+          const existing = await tx.billingCreditTransaction.findFirst({
+            where: {
+              companyId: input.companyId,
+              action: input.action,
+              candidateId: input.candidateId,
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (existing) {
+            this.logger.debug(
+              `Skip duplicate ${input.action} company=${input.companyId} candidate=${input.candidateId}`,
+            );
+            return existing;
+          }
+        }
+
+        if (input.oncePerJob && input.jobId) {
+          const existing = await tx.billingCreditTransaction.findFirst({
+            where: {
+              companyId: input.companyId,
+              action: input.action,
+              jobId: input.jobId,
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (existing) {
+            this.logger.debug(
+              `Skip duplicate ${input.action} company=${input.companyId} job=${input.jobId}`,
+            );
+            return existing;
+          }
+        }
 
         // Mode 'check' → dry-run
         if (mode === 'check') {

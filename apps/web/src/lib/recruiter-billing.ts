@@ -6,12 +6,22 @@ import type {
   RecruiterCreditBalanceResponse,
   RecruiterCreditSummaryResponse,
   BillingCreditLedgerListResponse,
+  BillingCompanyPlanView,
   BillingOrderView,
   PaymentCheckoutResponse,
   RecruiterCreateCheckoutRequest,
   RecruiterOrderListResponse,
+  RecruiterBillingEntitlements,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
+
+export async function fetchRecruiterCompanyPlan(): Promise<BillingCompanyPlanView | null> {
+  return apiRequest<BillingCompanyPlanView | null>('/billing/company-plan');
+}
+
+export async function fetchRecruiterEntitlements(): Promise<RecruiterBillingEntitlements> {
+  return apiRequest<RecruiterBillingEntitlements>('/billing/entitlements');
+}
 
 export async function fetchRecruiterCreditBalance(): Promise<RecruiterCreditBalanceResponse> {
   return apiRequest<RecruiterCreditBalanceResponse>('/billing/credits/balance');

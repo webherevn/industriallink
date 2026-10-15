@@ -53,6 +53,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { SkillService } from '../knowledge/skill.service';
+import { BillingService } from '../billing/billing.service';
 import { CompanyService } from '../company/company.service';
 import {
   JOB_MODERATION_QUEUE_TOKEN,
@@ -227,6 +228,7 @@ export class JobService {
     private readonly audit: AuditService,
     private readonly skills: SkillService,
     private readonly companies: CompanyService,
+    private readonly billing: BillingService,
     private readonly ai: AiGatewayService,
     private readonly indexing: GoogleIndexingService,
     @Inject(JOB_MODERATION_QUEUE_TOKEN)
@@ -424,6 +426,7 @@ export class JobService {
     if (willPublish) {
       await this.companies.assertCompanyCanPost(company.companyId);
     }
+    await this.billing.assertJobQuota(company.companyId);
     const code = await this.codeGen.next('JOB');
 
     const skillInputs = dto.skills ?? [];

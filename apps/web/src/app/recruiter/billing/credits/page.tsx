@@ -21,6 +21,7 @@ const ACTION_LABEL: Record<string, string> = {
   view_match_summary: 'Xem matching',
   manual_grant: 'Cấp thêm',
   manual_adjust: 'Điều chỉnh',
+  plan_grant: 'Tặng gói',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -32,6 +33,7 @@ const ACTION_COLOR: Record<string, string> = {
   view_match_summary: 'bg-cyan-100 text-cyan-700',
   manual_grant: 'bg-emerald-100 text-emerald-700',
   manual_adjust: 'bg-teal-100 text-teal-700',
+  plan_grant: 'bg-lime-100 text-lime-700',
 };
 
 function fmt(iso: string) {

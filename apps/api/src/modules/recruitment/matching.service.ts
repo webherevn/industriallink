@@ -1,9 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type {
   CandidateMatchView,
   JobMatchView,
   MatchExplanation,
 } from '@industriallink/contracts';
+import { CreditService } from '../billing/credit.service';
+import { CompanyService } from '../company/company.service';
 import { shouldUseSalesMatchEngine, shouldUseTechnicalMatchEngine } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import {
@@ -54,6 +56,8 @@ export class MatchingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiGatewayService,
+    private readonly credit: CreditService,
+    private readonly companies: CompanyService,
   ) {}
 
   /** Văn bản đại diện hồ sơ ứng viên để so khớp ngữ nghĩa. */
@@ -140,6 +144,31 @@ export class MatchingService {
       include: { skills: true },
     });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    if (job.companyId !== companyId) {
+      throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+    }
+    try {
+      await this.credit.consumeAction({
+        tenantId: user.tenantId,
+        companyId,
+        action: 'view_match_summary',
+        jobId: job.id,
+        actorUserId: user.id,
+        actorEmail: user.email ?? undefined,
+        oncePerJob: true,
+      });
+    } catch (err) {
+      if (err instanceof ForbiddenException) throw err;
+      if (
+        err instanceof BadRequestException &&
+        typeof err.getResponse() === 'object' &&
+        (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
+      ) {
+        throw err;
+      }
+      this.logger.warn(`Failed to record credit ledger for view_match_summary: ${String(err)}`);
+    }
     const jobTrack = jobMatchTrack(job);
 
     const poolIds = new Set<string>();

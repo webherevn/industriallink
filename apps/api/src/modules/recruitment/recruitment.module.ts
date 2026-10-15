@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module';
+import { BillingModule } from '../billing/billing.module';
 import { CompanyModule } from '../company/company.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { ApplicationController } from './application.controller';
@@ -25,7 +26,7 @@ import { JobModerationWorker } from './moderation/job-moderation.worker';
 import { jobModerationQueueProvider } from './moderation/job-moderation.queue';
 
 @Module({
-  imports: [AiModule, KnowledgeModule, CompanyModule],
+  imports: [AiModule, KnowledgeModule, CompanyModule, BillingModule],
   controllers: [
     JobController,
     AdminJobsController,

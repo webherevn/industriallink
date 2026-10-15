@@ -13,7 +13,7 @@ import {
   Lock,
   Sparkles,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import type { BillingCreditTopupView, BillingOrderView, PaymentMode } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
@@ -26,7 +26,8 @@ import { createTopupCheckout, fetchRecruiterCreditBalance, fetchRecruiterCreditS
 export function RecruiterTopup() {
   const qc = useQueryClient();
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('topup'));
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   const { data: pub, isLoading: pubLoading } = useQuery({

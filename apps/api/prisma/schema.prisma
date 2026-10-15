@@ -1628,7 +1628,7 @@ model BillingCreditTransaction {
   accountId    String   @map("account_id") @db.Uuid
   /// Loại giao dịch: deduct | grant | topup | refund | adjustment
   type         String
-  /// Hành động: view_profile | reopen_profile | view_applicant | contact_potential | contact_applicant | view_match_summary | manual_grant | manual_adjust
+  /// Hành động: view_profile | reopen_profile | view_applicant | contact_potential | contact_applicant | view_match_summary | manual_grant | manual_adjust | plan_grant
   action       String
   /// Số credit thay đổi (âm cho trừ, dương cho cộng). Ở bước LOG-ONLY: luôn = -costPerXxx hoặc +delta.
   creditDelta  Int      @map("credit_delta")

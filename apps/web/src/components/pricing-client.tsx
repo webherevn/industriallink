@@ -1383,14 +1383,16 @@ export function PricingClient({
 
   /** Href CTA cho gói */
   const planCtaHref = (code: string) =>
-    isRecruiter ? `/recruiter/billing?plan=${encodeURIComponent(code)}` : '/register';
+    isRecruiter
+      ? `/recruiter/billing?plan=${encodeURIComponent(code)}`
+      : `/register?plan=${encodeURIComponent(code)}`;
   const freeCtaHref = () => (isRecruiter ? '/recruiter?action=try-free' : '/register');
   const page = resolved?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
   const enterpriseCtaHref = () =>
     isRecruiter ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
   /** Top-up: dùng id vì view không có code. */
   const topupCtaHref = (id: string) =>
-    isRecruiter ? `/recruiter/billing/credit?topup=${encodeURIComponent(id)}` : '/register';
+    isRecruiter ? `/recruiter/billing/topup?topup=${encodeURIComponent(id)}` : '/register';
 
   // Tab state — hooks must come before any conditional returns
   const [tab, setTab] = useState<PricingTab>('platform');

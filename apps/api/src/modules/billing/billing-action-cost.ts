@@ -9,9 +9,9 @@ export function isBillableAction(action: string): action is BillingPlanBillableA
   return (BILLING_PLAN_BILLABLE_ACTIONS as readonly string[]).includes(action);
 }
 
-/** Cost mặc định V1 khi chưa có policy row. */
-export function defaultCostForAction(action: string): number {
-  return action === 'view_profile' ? 1 : 0;
+/** Fallback khi chưa có policy SuperAdmin — không tự bịa cost. */
+export function defaultCostForAction(_action: string): number {
+  return 0;
 }
 
 export function policyCostForAction(

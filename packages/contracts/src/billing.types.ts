@@ -167,7 +167,8 @@ export type CreditAction =
   | 'contact_applicant'
   | 'view_match_summary'
   | 'manual_grant'
-  | 'manual_adjust';
+  | 'manual_adjust'
+  | 'plan_grant';
 
 /** View model: BillingCreditAccount. */
 export interface BillingCreditAccountView {
@@ -257,6 +258,21 @@ export interface RecruiterCreditSummaryResponse {
   totalConsumed30d: number;
   byAction: { action: string; total: number }[];
   dailySeries: { date: string; total: number }[];
+}
+
+/** Hạn mức gói + số dư thực tế của công ty NTD. */
+export interface RecruiterBillingEntitlements {
+  plan: BillingCompanyPlanView | null;
+  planCode: string | null;
+  planName: string | null;
+  creditQuota: number | null;
+  jobPostQuota: number | null;
+  credits: RecruiterCreditBalanceResponse;
+  jobsUsed: number;
+  /** null = không giới hạn. */
+  jobsRemaining: number | null;
+  actionCosts: BillingPlanActionCostView[];
+  enforcement: 'log' | 'enforce';
 }
 
 // =========================================================================

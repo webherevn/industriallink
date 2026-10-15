@@ -10,20 +10,49 @@ import type {
   RecruiterCreditBalanceResponse,
   RecruiterCreditSummaryResponse,
   BillingCreditLedgerListResponse,
+  BillingCompanyPlanView,
+  RecruiterBillingEntitlements,
 } from '@industriallink/contracts';
+import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
 import { CompanyService } from '../company/company.service';
+
+const RECRUITER_BILLING_ROLES = [
+  UserRole.Recruiter,
+  UserRole.HiringManager,
+  UserRole.CompanyAdmin,
+  UserRole.SuperAdmin,
+];
 
 @ApiTags('Recruiter Billing')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.Recruiter, UserRole.SuperAdmin)
+@Roles(...RECRUITER_BILLING_ROLES)
 @Controller('billing')
 export class BillingRecruiterController {
   constructor(
     private readonly credit: CreditService,
+    private readonly billing: BillingService,
     private readonly companies: CompanyService,
   ) {}
+
+  @Get('company-plan')
+  @ApiOperation({ summary: 'Gói nền tảng đang gán cho công ty user' })
+  async getCompanyPlan(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<BillingCompanyPlanView | null> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    return this.billing.ensureCompanyPlan(companyId);
+  }
+
+  @Get('entitlements')
+  @ApiOperation({ summary: 'Hạn mức gói + số dư Credit + lượt đăng tin còn lại' })
+  async getEntitlements(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RecruiterBillingEntitlements> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    return this.billing.getEntitlements(companyId);
+  }
 
   @Get('credits/balance')
   @ApiOperation({ summary: 'Số dư Credit của công ty user' })

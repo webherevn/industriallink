@@ -140,7 +140,8 @@ export function useCreditAlert(): CreditAlertContextValue {
  * Dùng trong catch block của các call site tiêu credit.
  */
 export function handleCreditError(err: unknown, showAlert: (s: Omit<CreditAlertState, 'visible'>) => void): void {
-  if (err instanceof ApiError && err.code === 'INSUFFICIENT_CREDIT') {
+  if (!(err instanceof ApiError)) return;
+  if (err.code === 'INSUFFICIENT_CREDIT' || err.code === 'PLAN_ACTION_FORBIDDEN') {
     const d = err.details ?? {};
     showAlert({
       message: typeof d.message === 'string' ? d.message : err.message,

@@ -45,7 +45,7 @@ function costsFromPolicy(policy?: BillingCreditPolicyView | null): AdminPlanActi
     action,
     cost:
       action === 'view_profile'
-        ? (policy?.costPerProfile ?? 1)
+        ? (policy?.costPerProfile ?? 0)
         : action === 'reopen_profile'
           ? (policy?.costPerReopen ?? 0)
           : action === 'view_applicant'
@@ -67,8 +67,8 @@ function emptyForm(policy?: BillingCreditPolicyView | null): FormState {
     priceVnd: '0',
     billingUnit: 'per_jd',
     durationDays: 30,
-    jobPostQuota: 1,
-    creditQuota: 10,
+    jobPostQuota: null,
+    creditQuota: null,
     sortOrder: 0,
     isActive: true,
     isFeatured: false,

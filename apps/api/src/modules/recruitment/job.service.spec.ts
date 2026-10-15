@@ -14,6 +14,9 @@ describe('JobService', () => {
       .mockResolvedValue({ companyId: 'co-1', companyName: 'Công ty ABC' }),
     assertCompanyCanPost: jest.fn().mockResolvedValue(undefined),
   };
+  const billing = {
+    assertJobQuota: jest.fn().mockResolvedValue(undefined),
+  };
   const ai = {
     embed: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
     generateJobDraft: jest.fn(),
@@ -29,6 +32,7 @@ describe('JobService', () => {
     codeGen.next.mockClear();
     skills.resolveSkillId.mockClear();
     companies.requireUserCompany.mockClear();
+    billing.assertJobQuota.mockClear();
     ai.embed.mockClear();
     ai.generateJobDraft.mockClear();
     ai.parseJobDescription.mockClear();
@@ -42,6 +46,7 @@ describe('JobService', () => {
       audit as never,
       skills as never,
       companies as never,
+      billing as never,
       ai as never,
       indexing as never,
       moderationQueue as never,

@@ -29,10 +29,9 @@ function planHasAction(
   plan: BillingPlatformPlanView,
   action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number],
 ): boolean {
-  const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
-  if (!row) return false;
-  if (row.cost === 0) return true;
-  return plan.creditQuota == null || plan.creditQuota > 0;
+  const row = plan.actionCosts?.find((c) => c.action === action);
+  if (!row) return true;
+  return row.isActive;
 }
 
 function isEnterprisePlan(plan: BillingPlatformPlanView): boolean {
@@ -71,23 +70,22 @@ function platformHook(plan: BillingPlatformPlanView): string {
   }
   const credit =
     plan.creditQuota == null ? 'Credit theo HĐ' : `tặng ${plan.creditQuota} Credit`;
-  if (plan.jobPostQuota == null || plan.jobPostQuota > 1) {
+  if (plan.jobPostQuota == null) {
     return `Không giới hạn JD · ${credit}`;
   }
   const days = plan.durationDays ? ` · ${plan.durationDays} ngày` : '';
-  return `1 JD${days} · ${credit}`;
+  return `${plan.jobPostQuota} JD${days} · ${credit}`;
 }
 
 function platformFit(plan: BillingPlatformPlanView): string {
   if (isEnterprisePlan(plan)) return 'Tập đoàn cần SLA, tích hợp, onboarding riêng';
   if (!hasGiftCredit(plan)) return 'Muốn xem matching trước, chưa cần mở CV';
-  if (plan.jobPostQuota == null || plan.jobPostQuota > 1) {
+  if (plan.jobPostQuota == null) {
     return 'Tuyển nhiều vị trí, nhiều user cùng tài khoản';
   }
-  if (plan.creditQuota != null && plan.creditQuota >= 25) {
-    return 'JD cần sàng lọc sâu, mở nhiều hồ sơ';
-  }
-  return 'Tự tuyển 1 JD, chủ động mở hồ sơ tiềm năng';
+  const credits =
+    plan.creditQuota == null ? 'Credit theo HĐ' : `${plan.creditQuota} Credit`;
+  return `Tự tuyển ${plan.jobPostQuota} JD, ${credits} mở hồ sơ`;
 }
 
 function sourcingHook(plan: BillingSourcingPlanView): string {

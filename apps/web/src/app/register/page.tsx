@@ -29,6 +29,15 @@ export default function RegisterPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setNextPath(safeInternalPath(params.get('next')));
+    const plan = params.get('plan');
+    if (plan) {
+      setRole(UserRole.Recruiter);
+      try {
+        window.sessionStorage.setItem('il_requested_plan', plan);
+      } catch {
+        /* ignore */
+      }
+    }
   }, []);
 
   async function onSubmitForm(e: React.FormEvent) {
