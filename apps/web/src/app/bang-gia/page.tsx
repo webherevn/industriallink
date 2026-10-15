@@ -1,10 +1,6 @@
 /**
- * Trang bảng giá — CHỈ dành cho NTD trên tuyendung.inlink.vn.
- *
- * SEO strategy:
- * - Trên tuyendung.inlink.vn → robots theo SuperAdmin (mặc định index)
- * - Trên trang chủ inlink.vn (chỉ trong dev/local) → noindex, follow
- * - Middleware chặn NTD từ trang chủ vào /bang-gia → bounce về subdomain.
+ * Trang bảng giá marketing (đủ section như local).
+ * Host tuyendung.inlink.vn chỉ đổi canonical/SEO — không rút gọn layout.
  *
  * Dữ liệu: /api/v1/billing/public-config (public, ISR 5 phút).
  */
@@ -141,7 +137,7 @@ export default async function PricingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <PricingClient config={config} context={onRecruiter ? 'recruiter' : 'public'} />
+      <PricingClient config={config} context="public" />
     </>
   );
 }
