@@ -401,6 +401,19 @@ export interface CrmPaidInvoiceLedgerView {
   orders: CrmPaidOrderInvoiceView[];
 }
 
+/** active = gói còn hạn. lapsed = từng có gói hoặc đã trả nhưng hết. prospect = chưa mua. */
+export type CrmCustomerStanding = 'active' | 'lapsed' | 'prospect';
+
+export interface CrmCustomerView {
+  companyId: string;
+  companyName: string;
+  taxCode: string | null;
+  standing: CrmCustomerStanding;
+  platformPlanName: string | null;
+  sourcingPlanName: string | null;
+  ownerName: string | null;
+}
+
 export interface CrmCompanyOption {
   id: string;
   name: string;
@@ -423,13 +436,53 @@ export interface CrmFunnelBucket {
   label: string;
   leads: number;
   paidOrders: number;
+  /** Tổng đơn đã trả trong tháng. Chưa VAT. */
   paidAmountVnd: string;
+  platformPaidVnd: string;
+  sourcingPaidVnd: string;
 }
 
 export interface CrmFunnelReport {
+  /** YYYY-MM giờ Việt Nam. */
+  periodMonth: string;
   byOwner: CrmFunnelBucket[];
   bySource: CrmFunnelBucket[];
   byPartner: CrmFunnelBucket[];
+}
+
+export interface CreateCrmQuoteRequest {
+  companyName: string;
+  taxCode?: string | null;
+  contactName: string;
+  leadId?: string | null;
+  companyId?: string | null;
+  option1Kind: CrmPlanKind;
+  option1Code: string;
+  option2Kind?: CrmPlanKind | null;
+  option2Code?: string | null;
+  note?: string | null;
+}
+
+/** Tờ chào giá. Giá là niêm yết chưa VAT. Không phải đơn thanh toán. */
+export interface CrmQuoteView {
+  id: string;
+  quoteCode: string;
+  companyName: string;
+  taxCode: string | null;
+  contactName: string;
+  companyId: string | null;
+  ownerName: string;
+  option1Kind: CrmPlanKind;
+  option1Code: string;
+  option1Name: string;
+  option1PriceVnd: string;
+  option2Kind: CrmPlanKind | null;
+  option2Code: string | null;
+  option2Name: string | null;
+  option2PriceVnd: string | null;
+  note: string | null;
+  vatPercent: number | null;
+  createdAt: string;
 }
 
 /** Kết quả khi nhà tuyển dụng bấm tư vấn Enterprise. Không bật gói. */

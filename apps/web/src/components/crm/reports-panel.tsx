@@ -1,26 +1,37 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import type { CrmFunnelBucket } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
+import { CrmMonthField } from '@/components/crm/fields';
 import { formatVnd } from '@/components/crm/format';
 import { fetchCrmFunnelReport } from '@/lib/crm';
 
+function currentVietnamMonth(): string {
+  const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 export function CrmReportsPanel() {
-  const report = useQuery({ queryKey: ['crm-funnel-report'], queryFn: fetchCrmFunnelReport });
+  const [month, setMonth] = useState(currentVietnamMonth());
+  const report = useQuery({ queryKey: ['crm-funnel-report', month], queryFn: () => fetchCrmFunnelReport(month) });
   const data = report.data;
   const empty = data && data.byOwner.length === 0 && data.bySource.length === 0 && data.byPartner.length === 0;
 
   return (
     <CrmFrame
       kicker="Đơn đã trả trên inlink"
-      title="Báo cáo phễu"
-      description="Đếm lead và đơn gói đã thanh toán theo người phụ trách, nguồn và cộng tác viên. Bước Đã chốt không được tính là tiền."
-      footnote="Tiền là số khách đã trả, chưa VAT. Đơn gắn với lead sớm nhất của công ty. Hoa hồng cộng tác viên lấy từ khoản đã ghi sau khi khách trả."
+      title="Doanh số"
+      description="Doanh số một tháng theo người phụ trách và nguồn. Tiền tách gói tin với gói Săn. Bước Đã chốt không được tính."
+      footnote="Tiền là đơn khách đã trả trong tháng, chưa VAT. Lead là lead tạo trong tháng đó. Đơn gắn với lead sớm nhất của công ty."
     >
+      <div className="mx-auto w-full max-w-xs">
+        <CrmMonthField value={month} onChange={setMonth} max={currentVietnamMonth()} />
+      </div>
       {report.isLoading ? <CrmEmpty>Đang tải báo cáo…</CrmEmpty> : null}
       {report.isError ? <CrmEmpty>Không tải được báo cáo.</CrmEmpty> : null}
-      {empty ? <CrmEmpty>Chưa có lead hoặc đơn đã trả trong phạm vi bạn xem.</CrmEmpty> : null}
+      {empty ? <CrmEmpty>Chưa có lead hoặc đơn đã trả trong tháng này.</CrmEmpty> : null}
       {data && !empty ? (
         <div className="space-y-4">
           <BucketTable title="Theo người phụ trách" rows={data.byOwner} leadLabel="Lead" />
@@ -47,7 +58,9 @@ function BucketTable({ title, rows, leadLabel }: { title: string; rows: CrmFunne
                 <th className="px-4 py-3">Nhóm</th>
                 <th className="px-4 py-3">{leadLabel}</th>
                 <th className="px-4 py-3">Đơn đã trả</th>
-                <th className="px-4 py-3">Khách đã trả</th>
+                <th className="px-4 py-3">Gói tin</th>
+                <th className="px-4 py-3">Gói Săn</th>
+                <th className="px-4 py-3">Tổng</th>
               </tr>
             </thead>
             <tbody>
@@ -56,6 +69,8 @@ function BucketTable({ title, rows, leadLabel }: { title: string; rows: CrmFunne
                   <td className="px-4 py-3 font-medium text-slate-900">{row.label}</td>
                   <td className="px-4 py-3 text-slate-700">{row.leads}</td>
                   <td className="px-4 py-3 text-slate-700">{row.paidOrders}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatVnd(row.platformPaidVnd)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatVnd(row.sourcingPaidVnd)}</td>
                   <td className="px-4 py-3 font-semibold text-[#4c3ec9]">{formatVnd(row.paidAmountVnd)}</td>
                 </tr>
               ))}

@@ -9,6 +9,8 @@ import {
   CalendarClock,
   CalendarDays,
   CirclePercent,
+  Contact,
+  FileText,
   Inbox,
   Kanban,
   PieChart,
@@ -43,14 +45,19 @@ const NAV = [
     title: 'Kinh doanh',
     items: [
       { href: '/crm/leads', label: 'Lead', icon: Building2 },
-      { href: '/crm/inbox', label: 'Khách tự mua', icon: Inbox },
+      { href: '/crm/quotes', label: 'Báo giá', icon: FileText },
       { href: '/crm/pipeline', label: 'Phễu bán gói', icon: Kanban },
+      { href: '/crm/customers', label: 'Khách hàng', icon: Contact },
+      { href: '/crm/inbox', label: 'Khách tự mua', icon: Inbox },
       { href: '/crm/reports', label: 'Báo cáo', icon: PieChart },
     ],
   },
   {
     title: 'Chăm sóc',
-    items: [{ href: '/crm/activities', label: 'Nhật ký', icon: NotebookPen }],
+    items: [
+      { href: '/crm/activities', label: 'Nhật ký', icon: NotebookPen },
+      { href: '/crm/renewals', label: 'Gia hạn', icon: CalendarClock },
+    ],
   },
   {
     title: 'Tài chính',
@@ -64,7 +71,6 @@ const NAV = [
   {
     title: 'Tăng trưởng',
     items: [
-      { href: '/crm/renewals', label: 'Gia hạn', icon: CalendarClock },
       { href: '/crm/partners', label: 'Cộng tác viên', icon: Users },
       { href: '/crm/signups', label: 'Đăng ký chưa trả', icon: UserPlus },
     ],
@@ -200,9 +206,9 @@ export function CrmShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[var(--admin-bg)]">
-      <div className="sticky top-0 z-40 hidden h-screen shrink-0 lg:block">{sidebar}</div>
+      <div className="sticky top-0 z-40 hidden h-screen shrink-0 print:hidden lg:block">{sidebar}</div>
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-50 flex print:hidden lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/40"
@@ -213,7 +219,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col bg-[#f4f2fb]">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/70 bg-[#f4f2fb]/90 px-4 py-3 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/70 bg-[#f4f2fb]/90 px-4 py-3 backdrop-blur print:hidden sm:px-6">
           <button
             type="button"
             className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"

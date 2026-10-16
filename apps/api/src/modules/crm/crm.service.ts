@@ -28,6 +28,8 @@ import {
   type CrmActivityView,
   type CrmBoard,
   type CrmCompanyOption,
+  type CrmCustomerView,
+  type CrmCustomerStanding,
   type CrmTaxSuggestion,
   type CrmCompanyProfileView,
   type CrmUnclaimedCustomerView,
@@ -45,6 +47,8 @@ import {
   type CrmRenewalView,
   type CrmFunnelReport,
   type CrmFunnelBucket,
+  type CreateCrmQuoteRequest,
+  type CrmQuoteView,
   type CrmEnterpriseRequestView,
   type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
@@ -54,7 +58,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { commissionVnd } from './commission-amount';
-import { groupCommissionClose, previousVietnamPeriodMonth, vietnamMonthBounds, vietnamMonthHasEnded } from './commission-period';
+import { groupCommissionClose, previousVietnamPeriodMonth, vietnamMonthBounds, vietnamMonthHasEnded, vietnamPeriodMonth } from './commission-period';
 import {
   commissionClosedNotice,
   payoutDayReminderNotice,
@@ -283,6 +287,191 @@ export class CrmService {
       if (registry) rows.unshift(registry);
     }
     return rows;
+  }
+
+  async quotes(actor: AuthenticatedUser): Promise<CrmQuoteView[]> {
+    const rows = await this.prisma.crmQuote.findMany({
+      where: this.ownScope(actor),
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const names = await this.ownerNames(rows.map((row) => row.ownerUserId));
+    return rows.map((row) => this.mapQuote(row, names));
+  }
+
+  async quote(actor: AuthenticatedUser, id: string): Promise<CrmQuoteView> {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new NotFoundException('Không tìm thấy báo giá');
+    const row = await this.prisma.crmQuote.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Không tìm thấy báo giá');
+    this.assertOwner(actor, row.ownerUserId);
+    return this.mapQuote(row, await this.ownerNames([row.ownerUserId]));
+  }
+
+  /** Lập tờ chào giá. Giá lấy từ gói SuperAdmin, chưa VAT. Không tạo đơn. */
+  async createQuote(actor: AuthenticatedUser, input: CreateCrmQuoteRequest): Promise<CrmQuoteView> {
+    const companyName = input.companyName?.trim();
+    const contactName = input.contactName?.trim();
+    if (!companyName || companyName.length < 2 || !contactName || contactName.length < 2) {
+      throw new BadRequestException('Cần tên công ty và người nhận báo giá');
+    }
+    const taxCode = this.readTax(input.taxCode);
+    let companyId = input.companyId ?? null;
+    if (input.leadId) {
+      if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) throw new NotFoundException('Không tìm thấy lead');
+      const lead = await this.prisma.crmLead.findUnique({ where: { id: input.leadId } });
+      if (!lead || lead.status === 'unqualified') throw new NotFoundException('Không tìm thấy lead');
+      this.assertOwner(actor, lead.ownerUserId);
+      companyId = companyId ?? lead.companyId;
+    }
+    if (companyId) {
+      if (!/^[0-9a-f-]{36}$/i.test(companyId)) throw new NotFoundException('Không tìm thấy công ty');
+      await this.assertCompany(companyId);
+    } else if (taxCode) {
+      const company = await this.prisma.company.findFirst({
+        where: { taxCode, isDeleted: false },
+        select: { id: true },
+      });
+      companyId = company?.id ?? null;
+    }
+    const option1 = await this.snapshotPlan(input.option1Kind, input.option1Code);
+    if (!option1) throw new BadRequestException('Chọn phương án 1');
+    const option2Kind = input.option2Kind ?? null;
+    const option2Code = input.option2Code?.trim() ?? '';
+    const option2 = option2Kind || option2Code ? await this.snapshotPlan(option2Kind, option2Code || null) : null;
+    if ((option2Kind || option2Code) && !option2) throw new BadRequestException('Phương án 2 chưa đủ gói');
+    if (option2 && option2.kind === option1.kind && option2.code === option1.code) {
+      throw new BadRequestException('Hai phương án đang trùng một gói');
+    }
+    const vat = await this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } });
+    const note = input.note?.trim().slice(0, 500) || null;
+    const row = await this.prisma.crmQuote.create({
+      data: {
+        quoteCode: await this.nextCode('BG'),
+        companyName: companyName.slice(0, 160),
+        taxCode,
+        contactName: contactName.slice(0, 160),
+        leadId: input.leadId ?? null,
+        companyId,
+        ownerUserId: actor.id,
+        option1Kind: option1.kind,
+        option1Code: option1.code,
+        option1Name: option1.name,
+        option1PriceVnd: option1.priceVnd,
+        option2Kind: option2?.kind ?? null,
+        option2Code: option2?.code ?? null,
+        option2Name: option2?.name ?? null,
+        option2PriceVnd: option2?.priceVnd ?? null,
+        vatPercent: vat?.percent ?? null,
+        note,
+      },
+    });
+    return this.mapQuote(row, await this.ownerNames([actor.id]));
+  }
+
+  /** Sổ khách. Sale chỉ thấy công ty mình phụ trách. Không gán gói. */
+  async customers(actor: AuthenticatedUser, rawQuery: string): Promise<CrmCustomerView[]> {
+    const q = rawQuery.trim().slice(0, 80);
+    const scopedIds = this.seesAll(actor) ? null : await this.invoiceCompanyIds(actor);
+    if (scopedIds && scopedIds.length === 0) return [];
+    const [leadRows, paidCompanyRows, platformHolders, sourcingHolders] = await Promise.all([
+      this.prisma.crmLead.findMany({
+        where: {
+          status: { not: 'unqualified' },
+          companyId: scopedIds ? { in: scopedIds } : { not: null },
+        },
+        select: { companyId: true, ownerUserId: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.seesAll(actor)
+        ? this.prisma.billingOrder.findMany({
+            where: this.paidPlanOrderWhere(),
+            distinct: ['companyId'],
+            select: { companyId: true },
+          })
+        : Promise.resolve([] as { companyId: string }[]),
+      this.seesAll(actor)
+        ? this.prisma.billingCompanyPlan.findMany({ select: { companyId: true } })
+        : Promise.resolve([] as { companyId: string }[]),
+      this.seesAll(actor)
+        ? this.prisma.billingCompanySourcingPlan.findMany({ select: { companyId: true } })
+        : Promise.resolve([] as { companyId: string }[]),
+    ]);
+    const ids = [
+      ...new Set([
+        ...leadRows.flatMap((lead) => (lead.companyId ? [lead.companyId] : [])),
+        ...paidCompanyRows.map((row) => row.companyId),
+        ...platformHolders.map((row) => row.companyId),
+        ...sourcingHolders.map((row) => row.companyId),
+      ]),
+    ];
+    if (ids.length === 0) return [];
+    const companies = await this.prisma.company.findMany({
+      where: {
+        id: { in: ids },
+        isDeleted: false,
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { taxCode: { contains: q.replace(/\s+/g, '') } },
+              ],
+            }
+          : {}),
+      },
+      select: { id: true, name: true, taxCode: true },
+      orderBy: { name: 'asc' },
+      take: 200,
+    });
+    if (companies.length === 0) return [];
+    const companyIds = companies.map((company) => company.id);
+    const now = new Date();
+    const [platformPlans, sourcingPlans, paidForPage] = await Promise.all([
+      this.prisma.billingCompanyPlan.findMany({
+        where: { companyId: { in: companyIds } },
+        include: { plan: { select: { name: true } } },
+      }),
+      this.prisma.billingCompanySourcingPlan.findMany({
+        where: { companyId: { in: companyIds } },
+        include: { plan: { select: { name: true } } },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: { ...this.paidPlanOrderWhere(), companyId: { in: companyIds } },
+        distinct: ['companyId'],
+        select: { companyId: true },
+      }),
+    ]);
+    const platformByCompany = new Map(platformPlans.map((row) => [row.companyId, row]));
+    const sourcingByCompany = new Map(sourcingPlans.map((row) => [row.companyId, row]));
+    const paidIds = new Set(paidForPage.map((row) => row.companyId));
+    const pageIds = new Set(companyIds);
+    const ownerByCompany = new Map<string, { id: string; open: boolean }>();
+    for (const lead of leadRows) {
+      if (!lead.companyId || !pageIds.has(lead.companyId)) continue;
+      const open = lead.status === 'open';
+      const current = ownerByCompany.get(lead.companyId);
+      if (!current || (!current.open && open)) ownerByCompany.set(lead.companyId, { id: lead.ownerUserId, open });
+    }
+    const names = await this.ownerNames([...ownerByCompany.values()].map((row) => row.id));
+    const planLive = (row: { isActive: boolean; endsAt: Date | null } | undefined) =>
+      Boolean(row && row.isActive && (!row.endsAt || row.endsAt > now));
+    return companies.map((company) => {
+      const platform = platformByCompany.get(company.id);
+      const sourcing = sourcingByCompany.get(company.id);
+      const standing: CrmCustomerStanding = planLive(platform) || planLive(sourcing)
+        ? 'active'
+        : paidIds.has(company.id) || platform || sourcing
+          ? 'lapsed'
+          : 'prospect';
+      return {
+        companyId: company.id,
+        companyName: company.name,
+        taxCode: company.taxCode,
+        standing,
+        platformPlanName: planLive(platform) ? platform?.plan.name ?? null : null,
+        sourcingPlanName: planLive(sourcing) ? sourcing?.plan.name ?? null : null,
+        ownerName: names.get(ownerByCompany.get(company.id)?.id ?? '') ?? null,
+      };
+    });
   }
 
   async searchCompanies(query: string): Promise<CrmCompanyOption[]> {
@@ -1614,11 +1803,15 @@ export class CrmService {
     return this.mapDeal(updated, await this.ownerNames([deal.ownerUserId]), paid.get(updated.id));
   }
 
-  /** Lead và đơn gói đã trả, theo người phụ trách, nguồn và cộng tác viên. */
-  async funnelReport(actor: AuthenticatedUser): Promise<CrmFunnelReport> {
+  /** Doanh số một tháng: lead mới và đơn gói đã trả, tách gói tin với gói Săn. */
+  async funnelReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmFunnelReport> {
+    const periodMonth = rawMonth.trim() || vietnamPeriodMonth(new Date());
+    const bounds = vietnamMonthBounds(periodMonth);
+    if (!bounds) throw new BadRequestException('Chọn tháng dạng YYYY-MM');
+    const paidAt = { gte: bounds.start, lt: bounds.end };
     const leads = await this.prisma.crmLead.findMany({
       where: { status: { not: 'unqualified' }, ...this.ownScope(actor) },
-      select: { companyId: true, source: true, partnerId: true, ownerUserId: true },
+      select: { companyId: true, source: true, partnerId: true, ownerUserId: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
     const companyIds = [...new Set(leads.flatMap((lead) => (lead.companyId ? [lead.companyId] : [])))];
@@ -1627,9 +1820,10 @@ export class CrmService {
       : await this.prisma.billingOrder.findMany({
           where: {
             ...this.paidPlanOrderWhere(),
+            paidAt,
             ...(this.seesAll(actor) ? {} : { companyId: { in: companyIds } }),
           },
-          select: { companyId: true, priceVndSnapshot: true },
+          select: { companyId: true, kind: true, priceVndSnapshot: true },
         });
     const firstLead = new Map<string, (typeof leads)[number]>();
     for (const lead of leads) {
@@ -1639,38 +1833,34 @@ export class CrmService {
     const sources = new Map<string, FunnelTally>();
     const partners = new Map<string, FunnelTally>();
     for (const lead of leads) {
+      if (lead.createdAt < bounds.start || lead.createdAt >= bounds.end) continue;
       tally(owners, lead.ownerUserId).leads += 1;
       tally(sources, lead.source).leads += 1;
       if (lead.partnerId) tally(partners, lead.partnerId).leads += 1;
     }
     for (const order of orders) {
+      const kind = order.kind === 'sourcing' ? 'sourcing' : 'platform';
       const lead = firstLead.get(order.companyId);
       if (!lead) {
         if (!this.seesAll(actor)) continue;
-        const owner = tally(owners, 'unassigned');
-        owner.paidOrders += 1;
-        owner.paidAmountVnd += order.priceVndSnapshot;
-        const source = tally(sources, 'none');
-        source.paidOrders += 1;
-        source.paidAmountVnd += order.priceVndSnapshot;
+        addPaid(tally(owners, 'unassigned'), kind, order.priceVndSnapshot);
+        addPaid(tally(sources, 'none'), kind, order.priceVndSnapshot);
         continue;
       }
-      const owner = tally(owners, lead.ownerUserId);
-      owner.paidOrders += 1;
-      owner.paidAmountVnd += order.priceVndSnapshot;
-      const source = tally(sources, lead.source);
-      source.paidOrders += 1;
-      source.paidAmountVnd += order.priceVndSnapshot;
+      addPaid(tally(owners, lead.ownerUserId), kind, order.priceVndSnapshot);
+      addPaid(tally(sources, lead.source), kind, order.priceVndSnapshot);
     }
     if (this.seesAll(actor) || companyIds.length > 0) {
       const entries = await this.prisma.crmCommissionEntry.findMany({
-        where: this.seesAll(actor) ? {} : { companyId: { in: companyIds } },
-        select: { partnerId: true, paidAmountVnd: true },
+        where: {
+          paidAt,
+          ...(this.seesAll(actor) ? {} : { companyId: { in: companyIds } }),
+        },
+        select: { partnerId: true, orderKind: true, paidAmountVnd: true },
       });
       for (const entry of entries) {
-        const row = tally(partners, entry.partnerId);
-        row.paidOrders += 1;
-        row.paidAmountVnd += entry.paidAmountVnd;
+        const kind = entry.orderKind === 'sourcing' ? 'sourcing' : 'platform';
+        addPaid(tally(partners, entry.partnerId), kind, entry.paidAmountVnd);
       }
     }
     const ownerNames = await this.ownerNames([...owners.keys()].filter((id) => id !== 'unassigned'));
@@ -1683,6 +1873,7 @@ export class CrmService {
         });
     const partnerName = new Map(partnerRows.map((row) => [row.id, `${row.name} · ${row.code}`]));
     return {
+      periodMonth,
       byOwner: funnelBuckets(owners, (key) => (key === 'unassigned' ? 'Chưa có người phụ trách' : ownerNames.get(key) ?? 'Người phụ trách')),
       bySource: funnelBuckets(sources, funnelSourceLabel),
       byPartner: funnelBuckets(partners, (key) => partnerName.get(key) ?? 'Cộng tác viên'),
@@ -1973,13 +2164,13 @@ export class CrmService {
       if (plan.code === 'ENTERPRISE') {
         throw new BadRequestException('Gói Enterprise không đưa vào phễu tự phục vụ');
       }
-      return { kind, code: plan.code, priceVnd: plan.priceVnd };
+      return { kind, code: plan.code, name: plan.name, priceVnd: plan.priceVnd };
     }
     const plan = await this.prisma.billingSourcingPlan.findFirst({
       where: { code: planCode, isActive: true },
     });
     if (!plan) throw new NotFoundException('Không tìm thấy gói Săn');
-    return { kind, code: plan.code, priceVnd: plan.feeVnd };
+    return { kind, code: plan.code, name: plan.name, priceVnd: plan.feeVnd };
   }
 
   private async assertCompany(companyId: string) {
@@ -2623,9 +2814,57 @@ export class CrmService {
     throw new BadRequestException('Chưa tạo được mã giới thiệu, thử lại');
   }
 
-  private async nextCode(prefix: 'LD' | 'DL'): Promise<string> {
+  private async nextCode(prefix: 'LD' | 'DL' | 'BG'): Promise<string> {
     const stamp = new Date().toISOString().slice(0, 7).replace('-', '');
     return `${prefix}-${stamp}-${randomBytes(2).toString('hex').toUpperCase()}`;
+  }
+
+  private mapQuote(
+    row: {
+      id: string;
+      quoteCode: string;
+      companyName: string;
+      taxCode: string | null;
+      contactName: string;
+      companyId: string | null;
+      ownerUserId: string;
+      option1Kind: string;
+      option1Code: string;
+      option1Name: string;
+      option1PriceVnd: bigint;
+      option2Kind: string | null;
+      option2Code: string | null;
+      option2Name: string | null;
+      option2PriceVnd: bigint | null;
+      note: string | null;
+      vatPercent: number | null;
+      createdAt: Date;
+    },
+    names: Map<string, string>,
+  ): CrmQuoteView {
+    const kind = (value: string | null): CrmPlanKind | null =>
+      value === 'sourcing' ? 'sourcing' : value === 'platform' ? 'platform' : null;
+    const option1Kind = kind(row.option1Kind) ?? 'platform';
+    return {
+      id: row.id,
+      quoteCode: row.quoteCode,
+      companyName: row.companyName,
+      taxCode: row.taxCode,
+      contactName: row.contactName,
+      companyId: row.companyId,
+      ownerName: names.get(row.ownerUserId) ?? 'Người phụ trách',
+      option1Kind,
+      option1Code: row.option1Code,
+      option1Name: row.option1Name,
+      option1PriceVnd: row.option1PriceVnd.toString(),
+      option2Kind: kind(row.option2Kind),
+      option2Code: row.option2Code,
+      option2Name: row.option2Name,
+      option2PriceVnd: row.option2PriceVnd == null ? null : row.option2PriceVnd.toString(),
+      note: row.note,
+      vatPercent: row.vatPercent,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   private mapLead(lead: {
@@ -2789,12 +3028,31 @@ function claimTax(raw: string | null | undefined): string | null {
   return /^\d{10}(\d{3})?$/.test(value) ? value : null;
 }
 
-type FunnelTally = { leads: number; paidOrders: number; paidAmountVnd: bigint };
+type FunnelTally = {
+  leads: number;
+  paidOrders: number;
+  paidAmountVnd: bigint;
+  platformPaidVnd: bigint;
+  sourcingPaidVnd: bigint;
+};
 
 function tally(map: Map<string, FunnelTally>, key: string): FunnelTally {
-  const row = map.get(key) ?? { leads: 0, paidOrders: 0, paidAmountVnd: 0n };
+  const row = map.get(key) ?? {
+    leads: 0,
+    paidOrders: 0,
+    paidAmountVnd: 0n,
+    platformPaidVnd: 0n,
+    sourcingPaidVnd: 0n,
+  };
   map.set(key, row);
   return row;
+}
+
+function addPaid(row: FunnelTally, kind: 'platform' | 'sourcing', amount: bigint) {
+  row.paidOrders += 1;
+  row.paidAmountVnd += amount;
+  if (kind === 'sourcing') row.sourcingPaidVnd += amount;
+  else row.platformPaidVnd += amount;
 }
 
 function funnelSourceLabel(key: string): string {
@@ -2814,6 +3072,8 @@ function funnelBuckets(map: Map<string, FunnelTally>, labelOf: (key: string) => 
       leads: row.leads,
       paidOrders: row.paidOrders,
       paidAmountVnd: row.paidAmountVnd.toString(),
+      platformPaidVnd: row.platformPaidVnd.toString(),
+      sourcingPaidVnd: row.sourcingPaidVnd.toString(),
     }))
     .sort((a, b) => {
       const amount = BigInt(b.paidAmountVnd) - BigInt(a.paidAmountVnd);

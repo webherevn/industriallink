@@ -2,7 +2,9 @@
 
 import {
   Building2,
+  Contact,
   CalendarCheck,
+  FileText,
   Inbox,
   CalendarClock,
   Kanban,
@@ -59,15 +61,17 @@ export function CrmHomePanel() {
       chips={
         <>
           <CrmChip href="/crm/leads" icon={<Building2 className="h-4 w-4" />} label="Lead" />
-          <CrmChip href="/crm/inbox" icon={<Inbox className="h-4 w-4" />} label="Khách tự mua" />
+          <CrmChip href="/crm/quotes" icon={<FileText className="h-4 w-4" />} label="Báo giá" />
           <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Phễu bán gói" />
+          <CrmChip href="/crm/customers" icon={<Contact className="h-4 w-4" />} label="Khách hàng" />
+          <CrmChip href="/crm/inbox" icon={<Inbox className="h-4 w-4" />} label="Khách tự mua" />
           <CrmChip href="/crm/reports" icon={<PieChart className="h-4 w-4" />} label="Báo cáo" />
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
+          <CrmChip href="/crm/renewals" icon={<CalendarClock className="h-4 w-4" />} label="Gia hạn" />
           <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />
           <CrmChip href="/crm/finance/reconciliation" icon={<Scale className="h-4 w-4" />} label="Đối soát" />
           <CrmChip href="/crm/finance/periods" icon={<CalendarCheck className="h-4 w-4" />} label="Kỳ chốt" />
           <CrmChip href="/crm/finance/accounting" icon={<Landmark className="h-4 w-4" />} label="Kế toán" />
-          <CrmChip href="/crm/renewals" icon={<CalendarClock className="h-4 w-4" />} label="Gia hạn" />
           <CrmChip href="/crm/partners" icon={<Users className="h-4 w-4" />} label="Cộng tác viên" />
           <CrmChip href="/crm/signups" icon={<UserPlus className="h-4 w-4" />} label="Đăng ký chưa trả" />
           <CrmChip href="/crm/settings/commission" icon={<Percent className="h-4 w-4" />} label="Hoa hồng" />

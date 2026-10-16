@@ -2129,6 +2129,34 @@ model CrmLead {
   @@schema("crm")
 }
 
+/// Tờ chào giá hai phương án. Giá niêm yết chưa VAT. Không tạo đơn và không bật gói.
+model CrmQuote {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteCode       String   @unique @map("quote_code")
+  companyName     String   @map("company_name")
+  taxCode         String?  @map("tax_code")
+  contactName     String   @map("contact_name")
+  leadId          String?  @map("lead_id") @db.Uuid
+  companyId       String?  @map("company_id") @db.Uuid
+  ownerUserId     String   @map("owner_user_id") @db.Uuid
+  option1Kind     String   @map("option1_kind")
+  option1Code     String   @map("option1_code")
+  option1Name     String   @map("option1_name")
+  option1PriceVnd BigInt   @map("option1_price_vnd")
+  option2Kind     String?  @map("option2_kind")
+  option2Code     String?  @map("option2_code")
+  option2Name     String?  @map("option2_name")
+  option2PriceVnd BigInt?  @map("option2_price_vnd")
+  /// Mức VAT lúc lập tờ. Null khi chưa đặt. Không cộng vào giá.
+  vatPercent      Int?     @map("vat_percent")
+  note            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([ownerUserId, createdAt])
+  @@map("crm_quote")
+  @@schema("crm")
+}
+
 model CrmDeal {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   dealCode    String  @unique @map("deal_code")

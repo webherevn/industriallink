@@ -10,6 +10,7 @@ import {
   type CrmActivityView,
   type CrmBoard,
   type CrmCompanyOption,
+  type CrmCustomerView,
   type CrmTaxSuggestion,
   type CrmCompanyProfileView,
   type CrmUnclaimedCustomerView,
@@ -33,6 +34,8 @@ import {
   type CrmPlanOption,
   type CrmRenewalView,
   type CrmFunnelReport,
+  type CreateCrmQuoteRequest,
+  type CrmQuoteView,
   type CrmPaidInvoiceLedgerView,
   type CrmPaidOrderInvoiceView,
   type IssueCrmInvoiceRequest,
@@ -61,8 +64,29 @@ export class CrmController {
 
   @Get('reports/funnel')
   @ApiOperation({ summary: 'Báo cáo lead và đơn đã trả theo sale, nguồn, cộng tác viên. Không đổi gói.' })
-  funnelReport(@CurrentUser() user: AuthenticatedUser): Promise<CrmFunnelReport> {
-    return this.crm.funnelReport(user);
+  funnelReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmFunnelReport> {
+    return this.crm.funnelReport(user, month);
+  }
+
+  @Get('quotes')
+  @ApiOperation({ summary: 'Danh sách báo giá. Không tạo đơn.' })
+  quotes(@CurrentUser() user: AuthenticatedUser): Promise<CrmQuoteView[]> {
+    return this.crm.quotes(user);
+  }
+
+  @Post('quotes')
+  @ApiOperation({ summary: 'Lập báo giá hai phương án từ giá niêm yết. Không tạo đơn và không bật gói.' })
+  createQuote(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateCrmQuoteRequest,
+  ): Promise<CrmQuoteView> {
+    return this.crm.createQuote(user, body);
+  }
+
+  @Get('quotes/:id')
+  @ApiOperation({ summary: 'Một tờ báo giá. Giá chưa VAT.' })
+  quote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<CrmQuoteView> {
+    return this.crm.quote(user, id);
   }
 
   @Get('renewals')
@@ -75,6 +99,12 @@ export class CrmController {
   @ApiOperation({ summary: 'Gợi ý tên công ty theo mã số thuế. Không tạo lead.' })
   taxSuggestions(@Query('q') q = ''): Promise<CrmTaxSuggestion[]> {
     return this.crm.taxSuggestions(q);
+  }
+
+  @Get('customers')
+  @ApiOperation({ summary: 'Sổ khách hàng. Sale chỉ thấy công ty mình phụ trách. Không gán gói.' })
+  customers(@CurrentUser() user: AuthenticatedUser, @Query('q') q = ''): Promise<CrmCustomerView[]> {
+    return this.crm.customers(user, q);
   }
 
   @Get('companies')

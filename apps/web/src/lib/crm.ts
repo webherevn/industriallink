@@ -21,6 +21,7 @@ import type {
   CrmActivityView,
   CrmBoard,
   CrmCompanyOption,
+  CrmCustomerView,
   CrmTaxSuggestion,
   CrmCompanyProfileView,
   CrmUnclaimedCustomerView,
@@ -34,6 +35,8 @@ import type {
   CrmPlanOption,
   CrmRenewalView,
   CrmFunnelReport,
+  CrmQuoteView,
+  CreateCrmQuoteRequest,
   CrmEnterpriseRequestView,
   IssueCrmInvoiceRequest,
   MoveCrmDealRequest,
@@ -96,12 +99,29 @@ export function fetchCrmRenewals(): Promise<CrmRenewalView[]> {
   return apiRequest<CrmRenewalView[]>('/crm/renewals');
 }
 
-export function fetchCrmFunnelReport(): Promise<CrmFunnelReport> {
-  return apiRequest<CrmFunnelReport>('/crm/reports/funnel');
+export function fetchCrmFunnelReport(month: string): Promise<CrmFunnelReport> {
+  return apiRequest<CrmFunnelReport>(`/crm/reports/funnel?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmQuotes(): Promise<CrmQuoteView[]> {
+  return apiRequest<CrmQuoteView[]>('/crm/quotes');
+}
+
+export function fetchCrmQuote(id: string): Promise<CrmQuoteView> {
+  return apiRequest<CrmQuoteView>(`/crm/quotes/${id}`);
+}
+
+export function createCrmQuote(body: CreateCrmQuoteRequest): Promise<CrmQuoteView> {
+  return apiRequest<CrmQuoteView>('/crm/quotes', { method: 'POST', body });
 }
 
 export function requestEnterpriseConsult(): Promise<CrmEnterpriseRequestView> {
   return apiRequest<CrmEnterpriseRequestView>('/recruiter/enterprise-requests', { method: 'POST' });
+}
+
+export function fetchCrmCustomers(query: string): Promise<CrmCustomerView[]> {
+  const q = query.trim();
+  return apiRequest<CrmCustomerView[]>(`/crm/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 }
 
 export function fetchCrmCompanies(query: string): Promise<CrmCompanyOption[]> {
