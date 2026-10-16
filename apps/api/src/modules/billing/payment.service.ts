@@ -23,6 +23,12 @@ import { decryptSecret, encryptSecret, keyPreview } from '../ai/ai-settings.ciph
 import { BillingService } from './billing.service';
 import { SourcingService } from './sourcing.service';
 import { CrmService } from '../crm/crm.service';
+import {
+  mergeReferralMetadata,
+  referralForPayingAccount,
+  referralFromMetadata,
+  type ReferralStamp,
+} from '../crm/referral-cookie';
 
 const SCOPE = 'default';
 type Row = Prisma.BillingPaymentSettingGetPayload<Record<string, never>>;
@@ -247,6 +253,7 @@ export class PaymentService {
     kind: 'platform' | 'sourcing',
     planCode: string,
     webOrigin: string,
+    referralCookie?: string | null,
   ): Promise<PaymentCheckoutResponse> {
     const platform =
       kind === 'platform'
@@ -281,6 +288,7 @@ export class PaymentService {
       kind,
       planCode: plan.code,
       planName: plan.name,
+      referral: await this.referralStampForPayer(user, referralCookie),
     });
 
     if (priceVnd <= 0n) {
@@ -362,6 +370,7 @@ export class PaymentService {
     kind?: 'topup' | 'platform' | 'sourcing';
     planCode?: string | null;
     planName?: string | null;
+    referral?: ReferralStamp | null;
   }) {
     return this.prisma.billingOrder.create({
       data: {
@@ -378,8 +387,40 @@ export class PaymentService {
         providerSessionId: args.sessionId,
         createdByUserId: args.user.id,
         createdByEmail: args.user.email ?? null,
+        ...(args.referral
+          ? {
+              metadata: mergeReferralMetadata(
+                {},
+                args.referral.code,
+                args.referral.capturedAt,
+              ) as Prisma.InputJsonValue,
+            }
+          : {}),
       },
     });
+  }
+
+  /** Cookie chỉ gắn vào đơn khi đúng nhà tuyển dụng đăng ký sau lần bấm link. */
+  private async referralStampForPayer(
+    user: AuthenticatedUser,
+    raw: string | null | undefined,
+  ): Promise<ReferralStamp | null> {
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true, createdAt: true },
+    });
+    if (!account) return null;
+    const stamp = referralForPayingAccount({
+      cookie: raw,
+      role: account.role,
+      userCreatedAt: account.createdAt,
+    });
+    if (!stamp) return null;
+    const partner = await this.prisma.crmPartner.findUnique({
+      where: { code: stamp.code },
+      select: { id: true },
+    });
+    return partner ? stamp : null;
   }
 
   // =====================================================================
@@ -387,11 +428,24 @@ export class PaymentService {
   // =====================================================================
 
   /** Xử lý khi user bấm "Thanh toán thành công" trên mock page. */
-  async handleMockSuccess(orderId: string): Promise<BillingOrderView> {
+  async handleMockSuccess(
+    orderId: string,
+    user: AuthenticatedUser,
+    referralCookie?: string | null,
+  ): Promise<BillingOrderView> {
     const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order không tồn tại');
     if (order.status !== 'pending') {
       throw new BadRequestException(`Order đã ở trạng thái ${order.status}, không thể thay đổi.`);
+    }
+    const stamp = await this.referralStampForPayer(user, referralCookie);
+    if (stamp && (order.kind === 'platform' || order.kind === 'sourcing')) {
+      await this.prisma.billingOrder.update({
+        where: { id: order.id },
+        data: {
+          metadata: mergeReferralMetadata(order.metadata, stamp.code, stamp.capturedAt) as Prisma.InputJsonValue,
+        },
+      });
     }
     return this.markPaidAndGrant(order, 'evt_mock_success_' + randomBytes(8).toString('hex'), {
       mock: true,
@@ -652,6 +706,7 @@ export class PaymentService {
           planName: updated.planName,
           priceVndSnapshot: updated.priceVndSnapshot,
           paidAt: updated.paidAt ?? new Date(),
+          referralCode: referralFromMetadata(updated.metadata),
         });
       } catch (err) {
         this.logger.error(`Không ghi được hoa hồng cho đơn ${updated.id}: ${String(err)}`);

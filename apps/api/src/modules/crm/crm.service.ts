@@ -34,6 +34,7 @@ import {
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { commissionVnd } from './commission-amount';
+import { normalizeReferralCode } from './referral-cookie';
 
 const PIPELINE_CODE = 'ban_goi';
 const CLAIM_LIMIT = 30;
@@ -276,9 +277,16 @@ export class CrmService {
     return { percent, canEdit: true };
   }
 
+  async referralCodeForCookie(raw: string | null | undefined): Promise<string | null> {
+    const code = normalizeReferralCode(raw);
+    if (!code) return null;
+    const partner = await this.prisma.crmPartner.findUnique({ where: { code }, select: { id: true } });
+    return partner ? code : null;
+  }
+
   /**
    * Ghi một dòng khi đơn gói đã thanh toán. Không gọi từ bước Đã chốt.
-   * Không ghi nạp Credit, đơn 0 đồng, hoặc khi chưa có cộng tác viên của công ty.
+   * Mã cookie trên đơn được ưu tiên. Không ghi nạp Credit hoặc đơn 0 đồng.
    */
   async recordPaidOrderCommission(
     tx: Prisma.TransactionClient,
@@ -290,6 +298,7 @@ export class CrmService {
       planName: string | null;
       priceVndSnapshot: bigint;
       paidAt: Date;
+      referralCode?: string | null;
     },
   ): Promise<void> {
     if (order.kind !== 'platform' && order.kind !== 'sourcing') return;
@@ -307,7 +316,7 @@ export class CrmService {
     });
     if (already) return;
 
-    const partner = await this.partnerForPaidCompany(tx, order.companyId);
+    const partner = await this.partnerForPaidCompany(tx, order.companyId, order.referralCode);
     if (!partner) return;
     const company = await tx.company.findUnique({
       where: { id: order.companyId },
@@ -851,7 +860,16 @@ export class CrmService {
     return row?.percent ?? null;
   }
 
-  private async partnerForPaidCompany(tx: Prisma.TransactionClient, companyId: string) {
+  private async partnerForPaidCompany(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    referralCode?: string | null,
+  ) {
+    const code = normalizeReferralCode(referralCode);
+    if (code) {
+      const fromCookie = await tx.crmPartner.findUnique({ where: { code } });
+      if (fromCookie) return fromCookie;
+    }
     const company = await tx.company.findUnique({
       where: { id: companyId },
       select: { taxCode: true },

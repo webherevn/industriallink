@@ -42,7 +42,7 @@ export function CrmPartnersPanel() {
     <CrmFrame
       kicker="Người giới thiệu khách"
       title="Cộng tác viên và mã giới thiệu"
-      description="Mỗi người có một mã và một link bảng giá. Khóa mã số thuế để nhà máy đó không về cộng tác viên khác."
+      description="Mỗi người có một mã và một link bảng giá. Link ghi cookie 14 ngày. Hoa hồng tính khi nhà tuyển dụng đăng ký và thanh toán gói trong hạn đó."
       placeholder="Tìm tên, số điện thoại hoặc mã"
       search={{ value: query, onChange: setQuery }}
       footnote="Một mã số thuế chỉ thuộc một cộng tác viên."

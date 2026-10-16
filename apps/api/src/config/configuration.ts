@@ -5,6 +5,7 @@
 function parseWebOrigins(): string[] {
   const items = [
     process.env.WEB_ORIGIN ?? 'http://localhost:3000',
+    process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:3000',
     process.env.RECRUITER_WEB_ORIGIN,
     process.env.ADMIN_WEB_ORIGIN,
     process.env.CRM_WEB_ORIGIN,

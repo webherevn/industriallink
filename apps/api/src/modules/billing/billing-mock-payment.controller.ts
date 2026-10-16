@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { UserRole, type BillingOrderView } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
@@ -7,6 +8,7 @@ import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CompanyService } from '../company/company.service';
+import { REFERRAL_COOKIE } from '../crm/referral-cookie';
 import { PaymentService } from './payment.service';
 
 /**
@@ -31,6 +33,7 @@ export class BillingMockPaymentController {
   async mockSuccess(
     @CurrentUser() user: AuthenticatedUser,
     @Param('orderId') orderId: string,
+    @Req() req: Request,
   ): Promise<BillingOrderView> {
     // Đảm bảo user chỉ success order của chính công ty mình
     const { companyId } = await this.companies.requireUserCompany(user.id);
@@ -38,7 +41,8 @@ export class BillingMockPaymentController {
     if (order && order.companyId !== companyId) {
       throw new BadRequestException('Order không thuộc công ty của bạn');
     }
-    return this.payment.handleMockSuccess(orderId);
+    const raw = req.cookies?.[REFERRAL_COOKIE];
+    return this.payment.handleMockSuccess(orderId, user, typeof raw === 'string' ? raw : null);
   }
 
   @Post(':orderId/fail')

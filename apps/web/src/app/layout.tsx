@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { headers } from 'next/headers';
 import { Suspense, type ReactNode } from 'react';
 import { AnalyticsBeacon } from '@/components/analytics-beacon';
+import { ReferralCookie } from '@/components/referral-cookie';
 import { renderCmsHtmlSnippet } from '@/components/cms-html-snippet';
 import { Providers } from '@/components/providers';
 import { WebVitalsBeacon } from '@/components/web-vitals-beacon';
@@ -59,6 +60,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <Providers>{children}</Providers>
         <Suspense fallback={null}>
           <AnalyticsBeacon />
+          <ReferralCookie />
         </Suspense>
         {skipInject ? null : <WebVitalsBeacon />}
         {renderCmsHtmlSnippet(footerHtml)}

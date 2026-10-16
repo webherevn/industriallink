@@ -48,7 +48,7 @@ export function RecruiterPartnerPanel() {
             <h1 className="text-xl font-bold text-slate-900">Cộng tác viên</h1>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            Mỗi tài khoản một mã. Đăng ký xong có link bảng giá riêng.
+            Mỗi tài khoản một mã. Link ghi cookie 14 ngày. Khách đăng ký và thanh toán gói trong hạn đó thì hoa hồng về mã này.
           </p>
         </div>
 
@@ -98,7 +98,7 @@ export function RecruiterPartnerPanel() {
               </Button>
             </div>
             <p className="mt-3 text-sm text-slate-500">
-              Khách mở link, xem bảng giá và có thể để lại thông tin.{' '}
+              Khách mở link rồi đăng ký nhà tuyển dụng. Trong 14 ngày, thanh toán gói thành công thì hoa hồng về mã này.{' '}
               {mine.data?.commissionPercent == null
                 ? 'Chưa đặt tỷ lệ hoa hồng.'
                 : `Hoa hồng hiện tại ${mine.data.commissionPercent}%. Khoản chỉ ghi sau khi khách thanh toán, và đang chờ đối soát.`}

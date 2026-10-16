@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   UserRole,
@@ -14,10 +14,12 @@ import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import type { PaymentCheckoutResponse, RecruiterOrderListResponse } from '@industriallink/contracts';
+import type { Request } from 'express';
 import { CompanyService } from '../company/company.service';
 import { BillingService } from './billing.service';
 import { PaymentService } from './payment.service';
 import { SourcingService } from './sourcing.service';
+import { REFERRAL_COOKIE } from '../crm/referral-cookie';
 
 @ApiTags('Billing Payment (Recruiter)')
 @ApiBearerAuth()
@@ -48,10 +50,18 @@ export class BillingRecruiterPaymentController {
   async checkoutPlan(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecruiterCreatePlanCheckoutRequest,
+    @Req() req: Request,
   ): Promise<PaymentCheckoutResponse> {
     const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
-    return this.payment.createCatalogCheckout(user, companyId, 'platform', dto.planCode, webOrigin);
+    return this.payment.createCatalogCheckout(
+      user,
+      companyId,
+      'platform',
+      dto.planCode,
+      webOrigin,
+      referralCookieFrom(req),
+    );
   }
 
   @Post('sourcing/checkout')
@@ -59,10 +69,18 @@ export class BillingRecruiterPaymentController {
   async checkoutSourcing(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecruiterCreateSourcingCheckoutRequest,
+    @Req() req: Request,
   ): Promise<PaymentCheckoutResponse> {
     const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
-    return this.payment.createCatalogCheckout(user, companyId, 'sourcing', dto.planCode, webOrigin);
+    return this.payment.createCatalogCheckout(
+      user,
+      companyId,
+      'sourcing',
+      dto.planCode,
+      webOrigin,
+      referralCookieFrom(req),
+    );
   }
 
   @Post('plan/activate')
@@ -95,4 +113,9 @@ export class BillingRecruiterPaymentController {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.payment.listOrdersForCompany(companyId);
   }
+}
+
+function referralCookieFrom(req: Request): string | null {
+  const raw = req.cookies?.[REFERRAL_COOKIE];
+  return typeof raw === 'string' ? raw : null;
 }

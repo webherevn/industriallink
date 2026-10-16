@@ -1,6 +1,4 @@
 import type {
-  CaptureCrmReferralRequest,
-  CaptureCrmReferralResponse,
   CreateCrmActivityRequest,
   CreateCrmDealRequest,
   CreateCrmLeadRequest,
@@ -95,8 +93,4 @@ export function createCrmPartnerClaim(id: string, body: CreateCrmPartnerClaimReq
 
 export function createMyPartnerClaim(body: CreateCrmPartnerClaimRequest): Promise<CrmPartnerClaimView> {
   return apiRequest<CrmPartnerClaimView>('/recruiter/partner/claims', { method: 'POST', body });
-}
-
-export function captureCrmReferral(body: CaptureCrmReferralRequest): Promise<CaptureCrmReferralResponse> {
-  return apiRequest<CaptureCrmReferralResponse>('/crm/referrals/leads', { method: 'POST', body });
 }
