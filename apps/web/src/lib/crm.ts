@@ -21,6 +21,11 @@ import type {
   CrmActivityView,
   CrmBoard,
   CrmCompanyOption,
+  CrmTaxSuggestion,
+  CrmCompanyProfileView,
+  CrmUnclaimedCustomerView,
+  CrmOwnerOption,
+  UpdateCrmLeadRequest,
   CrmDealView,
   CrmLeadView,
   CrmPartnerView,
@@ -39,6 +44,30 @@ export function fetchCrmBoard(): Promise<CrmBoard> {
 
 export function createCrmLead(body: CreateCrmLeadRequest): Promise<CrmLeadView> {
   return apiRequest<CrmLeadView>('/crm/leads', { method: 'POST', body });
+}
+
+export function updateCrmLead(id: string, body: UpdateCrmLeadRequest): Promise<CrmLeadView> {
+  return apiRequest<CrmLeadView>(`/crm/leads/${id}`, { method: 'PATCH', body });
+}
+
+export function fetchCrmUnclaimed(): Promise<CrmUnclaimedCustomerView[]> {
+  return apiRequest<CrmUnclaimedCustomerView[]>('/crm/unclaimed-customers');
+}
+
+export function claimCrmCustomer(companyId: string): Promise<CrmLeadView> {
+  return apiRequest<CrmLeadView>(`/crm/companies/${companyId}/claim`, { method: 'POST' });
+}
+
+export function fetchCrmCompany(id: string): Promise<CrmCompanyProfileView> {
+  return apiRequest<CrmCompanyProfileView>(`/crm/companies/${id}`);
+}
+
+export function fetchCrmFollowUps(): Promise<CrmLeadView[]> {
+  return apiRequest<CrmLeadView[]>('/crm/follow-ups');
+}
+
+export function fetchCrmOwners(): Promise<CrmOwnerOption[]> {
+  return apiRequest<CrmOwnerOption[]>('/crm/owners');
 }
 
 export function createCrmDeal(body: CreateCrmDealRequest): Promise<CrmDealView> {
@@ -67,6 +96,10 @@ export function fetchCrmRenewals(): Promise<CrmRenewalView[]> {
 
 export function fetchCrmCompanies(query: string): Promise<CrmCompanyOption[]> {
   return apiRequest<CrmCompanyOption[]>(`/crm/companies?q=${encodeURIComponent(query)}`);
+}
+
+export function fetchCrmTaxSuggestions(query: string): Promise<CrmTaxSuggestion[]> {
+  return apiRequest<CrmTaxSuggestion[]>(`/crm/tax-suggestions?q=${encodeURIComponent(query)}`);
 }
 
 export function fetchCrmPlans(): Promise<CrmPlanOption[]> {

@@ -2095,6 +2095,8 @@ model CrmLead {
   leadCode     String   @unique @map("lead_code")
   companyName  String   @map("company_name")
   taxCode      String?  @map("tax_code")
+  /// Địa chỉ trên sổ thuế hoặc địa chỉ công ty đã có. Sale sửa được.
+  address      String?
   contactName  String   @map("contact_name")
   contactPhone String   @map("contact_phone")
   contactEmail String?  @map("contact_email")
@@ -2108,6 +2110,8 @@ model CrmLead {
   /// Cộng tác viên giới thiệu, chỉ khi source = partner.
   partnerId    String?  @map("partner_id") @db.Uuid
   ownerUserId  String   @map("owner_user_id") @db.Uuid
+  /// Ngày hẹn gọi lại. Null khi chưa hẹn.
+  nextFollowUpAt DateTime? @map("next_follow_up_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

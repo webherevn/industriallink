@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { errorText, formatWhen, matchesQuery, renewalLabel } from '@/components/crm/format';
@@ -65,6 +66,9 @@ export function CrmRenewalsPanel() {
                   text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. ${row.cyclePaidAt ? `Đã thanh toán kỳ này ${formatWhen(row.cyclePaidAt)}.` : 'Kỳ này chưa thấy đơn gói đã thanh toán.'} ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
                   meta={row.planCode}
                 />
+                <Link href={`/crm/companies/${row.companyId}`} className="text-sm font-semibold text-[#4c3ec9]">
+                  Hồ sơ công ty
+                </Link>
                 {row.leadId ? (
                   <button
                     type="button"

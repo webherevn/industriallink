@@ -10,6 +10,11 @@ import {
   type CrmActivityView,
   type CrmBoard,
   type CrmCompanyOption,
+  type CrmTaxSuggestion,
+  type CrmCompanyProfileView,
+  type CrmUnclaimedCustomerView,
+  type CrmOwnerOption,
+  type UpdateCrmLeadRequest,
   type CrmDealView,
   type CrmLeadView,
   type CrmCommissionView,
@@ -59,10 +64,63 @@ export class CrmController {
     return this.crm.renewals(user);
   }
 
+  @Get('tax-suggestions')
+  @ApiOperation({ summary: 'Gợi ý tên công ty theo mã số thuế. Không tạo lead.' })
+  taxSuggestions(@Query('q') q = ''): Promise<CrmTaxSuggestion[]> {
+    return this.crm.taxSuggestions(q);
+  }
+
   @Get('companies')
   @ApiOperation({ summary: 'Tìm công ty đã có trên inlink để gắn lead' })
   companies(@Query('q') q = ''): Promise<CrmCompanyOption[]> {
     return this.crm.searchCompanies(q);
+  }
+
+  @Get('companies/:id')
+  @ApiOperation({ summary: 'Hồ sơ một công ty: gói, credit, đơn đã trả, lead. Không gán gói.' })
+  companyProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<CrmCompanyProfileView> {
+    return this.crm.companyProfile(user, id);
+  }
+
+  @Get('unclaimed-customers')
+  @ApiOperation({ summary: 'Công ty đã thanh toán gói và chưa có lead.' })
+  unclaimedCustomers(): Promise<CrmUnclaimedCustomerView[]> {
+    return this.crm.unclaimedCustomers();
+  }
+
+  @Post('companies/:id/claim')
+  @ApiOperation({ summary: 'Nhận khách tự mua. Tạo lead cho người bấm. Không gán gói.' })
+  claimCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<CrmLeadView> {
+    return this.crm.claimCustomer(user, id);
+  }
+
+  @Get('follow-ups')
+  @ApiOperation({ summary: 'Lead đã hẹn gọi lại. Không đổi gói.' })
+  followUps(@CurrentUser() user: AuthenticatedUser): Promise<CrmLeadView[]> {
+    return this.crm.followUps(user);
+  }
+
+  @Get('owners')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Sale và SuperAdmin đang hoạt động, để chuyển lead.' })
+  owners(@CurrentUser() user: AuthenticatedUser): Promise<CrmOwnerOption[]> {
+    return this.crm.owners(user);
+  }
+
+  @Patch('leads/:id')
+  @ApiOperation({ summary: 'Sửa lead. Chỉ SuperAdmin chuyển người phụ trách. Không gán gói.' })
+  updateLead(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: UpdateCrmLeadRequest,
+  ): Promise<CrmLeadView> {
+    return this.crm.updateLead(user, id, body);
   }
 
   @Get('plans')

@@ -28,6 +28,7 @@ export function CrmPipelinePanel() {
   const [title, setTitle] = useState('');
   const [planKey, setPlanKey] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [lostDraft, setLostDraft] = useState<{ id: string; reason: string } | null>(null);
 
   const plans = useQuery({
     queryKey: ['crm-plan-options'],
@@ -55,9 +56,11 @@ export function CrmPipelinePanel() {
   });
 
   const move = useMutation({
-    mutationFn: (input: { id: string; stageCode: string }) => moveCrmDeal(input.id, { stageCode: input.stageCode }),
+    mutationFn: (input: { id: string; stageCode: string; lostReason?: string }) =>
+      moveCrmDeal(input.id, { stageCode: input.stageCode, lostReason: input.lostReason }),
     onSuccess: () => {
       setError(null);
+      setLostDraft(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
     },
     onError: (err) => setError(errorText(err, 'Không chuyển được bước')),
@@ -156,14 +159,47 @@ export function CrmPipelinePanel() {
                       {stage.code === 'won' ? (
                         <p className="mt-1 text-[11px] text-slate-400">Cột này không bật gói và không ghi hoa hồng</p>
                       ) : null}
+                      {deal.lostReason ? <p className="mt-1 text-[11px] text-rose-600">Lý do mất: {deal.lostReason}</p> : null}
+                      {deal.companyId ? (
+                        <Link href={`/crm/companies/${deal.companyId}`} className="mt-1 block text-[11px] font-medium text-[#4c3ec9]">
+                          Hồ sơ công ty
+                        </Link>
+                      ) : null}
                       <div className="mt-3">
                         <CrmSelect
                           compact
-                          value={deal.stageCode}
+                          value={lostDraft?.id === deal.id ? 'lost' : deal.stageCode}
                           disabled={move.isPending}
                           options={stages.map((option) => ({ value: option.code, label: option.name }))}
-                          onChange={(stageCode) => move.mutate({ id: deal.id, stageCode })}
+                          onChange={(stageCode) => {
+                            if (stageCode === 'lost') {
+                              setLostDraft({ id: deal.id, reason: deal.lostReason ?? '' });
+                              return;
+                            }
+                            setLostDraft(null);
+                            move.mutate({ id: deal.id, stageCode });
+                          }}
                         />
+                        {lostDraft?.id === deal.id ? (
+                          <form
+                            className="mt-2 grid gap-2"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              move.mutate({ id: deal.id, stageCode: 'lost', lostReason: lostDraft.reason });
+                            }}
+                          >
+                            <input
+                              className={crmFieldClass}
+                              placeholder="Lý do mất"
+                              value={lostDraft.reason}
+                              onChange={(event) => setLostDraft({ id: deal.id, reason: event.target.value })}
+                              required
+                            />
+                            <button type="submit" className={crmButtonClass} disabled={move.isPending || lostDraft.reason.trim().length < 2}>
+                              Ghi mất
+                            </button>
+                          </form>
+                        ) : null}
                       </div>
                     </article>
                   ))}

@@ -12,6 +12,7 @@ export interface CrmLeadView {
   leadCode: string;
   companyName: string;
   taxCode: string | null;
+  address: string | null;
   contactName: string;
   contactPhone: string;
   contactEmail: string | null;
@@ -24,6 +25,8 @@ export interface CrmLeadView {
   partnerCode: string | null;
   ownerUserId: string;
   ownerName: string;
+  /** Ngày hẹn gọi lại. Null khi chưa hẹn. */
+  nextFollowUpAt: string | null;
   createdAt: string;
 }
 
@@ -64,6 +67,7 @@ export interface CrmDealView {
   ownerName: string;
   wonAt: string | null;
   lostAt: string | null;
+  lostReason: string | null;
   createdAt: string;
 }
 
@@ -108,6 +112,7 @@ export interface CrmBoard {
 export interface CreateCrmLeadRequest {
   companyName: string;
   taxCode?: string | null;
+  address?: string | null;
   contactName: string;
   contactPhone: string;
   contactEmail?: string | null;
@@ -116,6 +121,62 @@ export interface CreateCrmLeadRequest {
   source: Exclude<CrmLeadSource, 'unknown'>;
   /** Bắt buộc khi source là partner. */
   partnerId?: string | null;
+}
+
+export interface UpdateCrmLeadRequest {
+  companyName: string;
+  taxCode?: string | null;
+  address?: string | null;
+  contactName: string;
+  contactPhone: string;
+  contactEmail?: string | null;
+  industry?: string | null;
+  source: Exclude<CrmLeadSource, 'unknown'>;
+  partnerId?: string | null;
+  /** Chỉ SuperAdmin đổi. Sale gửi khác chủ hiện tại thì bị từ chối. */
+  ownerUserId?: string | null;
+  /** Null để bỏ hẹn. Bỏ qua field này thì giữ ngày cũ. */
+  nextFollowUpAt?: string | null;
+}
+
+export interface CrmOwnerOption {
+  id: string;
+  name: string;
+}
+
+/** Công ty đã thanh toán gói trên web và chưa có lead. */
+export interface CrmUnclaimedCustomerView {
+  companyId: string;
+  companyName: string;
+  taxCode: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  lastPaidAt: string;
+  lastPlanName: string | null;
+  lastPaidAmountVnd: string;
+}
+
+export interface CrmCompanyPlanSnapshot {
+  kind: CrmPlanKind;
+  code: string;
+  name: string;
+  endsAt: string | null;
+  active: boolean;
+}
+
+export interface CrmCompanyProfileView {
+  id: string;
+  name: string;
+  taxCode: string | null;
+  industry: string | null;
+  platformPlan: CrmCompanyPlanSnapshot | null;
+  sourcingPlan: CrmCompanyPlanSnapshot | null;
+  creditBalance: number;
+  openJobCount: number;
+  partnerName: string | null;
+  partnerCode: string | null;
+  orders: CrmPaidOrderInvoiceView[];
+  leads: CrmLeadView[];
 }
 
 export interface CrmPartnerView {
@@ -338,6 +399,16 @@ export interface CrmCompanyOption {
   id: string;
   name: string;
   taxCode: string | null;
+  address: string | null;
+}
+
+/** Gợi ý khi nhập mã số thuế. inlink là công ty đã có. registry là sổ thuế, chưa tạo lead. */
+export interface CrmTaxSuggestion {
+  taxCode: string;
+  companyName: string;
+  address: string | null;
+  companyId: string | null;
+  source: 'inlink' | 'registry';
 }
 
 export interface CrmPlanOption {
@@ -352,4 +423,6 @@ export interface CreateCrmActivityRequest {
   dealId?: string | null;
   activityType: Exclude<CrmActivityType, 'stage'>;
   summary: string;
+  /** YYYY-MM-DD. Null để bỏ hẹn. Không gửi thì giữ ngày cũ. */
+  nextFollowUpAt?: string | null;
 }

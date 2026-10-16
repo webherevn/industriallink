@@ -16,6 +16,33 @@ export function formatWhen(iso: string): string {
   });
 }
 
+export function contactPhoneLabel(phone: string): string {
+  return phone.replace(/\D/g, '').length >= 9 ? phone : 'Chưa có số';
+}
+
+export function vietnamDay(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+}
+
+export function followUpLabel(iso: string): string {
+  const day = vietnamDay(iso);
+  const today = vietnamDay(new Date().toISOString());
+  const shown = new Date(iso).toLocaleDateString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  if (day < today) return `Quá hạn ${shown}`;
+  if (day === today) return `Hôm nay ${shown}`;
+  return `Hẹn ${shown}`;
+}
+
 export function isFresh(iso: string): boolean {
   return Date.now() - new Date(iso).getTime() < 86_400_000;
 }

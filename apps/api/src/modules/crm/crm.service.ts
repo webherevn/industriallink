@@ -28,6 +28,11 @@ import {
   type CrmActivityView,
   type CrmBoard,
   type CrmCompanyOption,
+  type CrmTaxSuggestion,
+  type CrmCompanyProfileView,
+  type CrmUnclaimedCustomerView,
+  type CrmOwnerOption,
+  type UpdateCrmLeadRequest,
   type CrmDealView,
   type CrmLeadSource,
   type CrmLeadView,
@@ -233,6 +238,35 @@ export class CrmService {
     return visible.sort((a, b) => a.daysLeft - b.daysLeft);
   }
 
+  /** Gợi ý theo mã số thuế. Công ty trên inlink trước, đủ 10 hoặc 13 số thì hỏi thêm sổ thuế. Không tạo lead. */
+  async taxSuggestions(raw: string): Promise<CrmTaxSuggestion[]> {
+    const digits = raw.replace(/\D/g, '').slice(0, 13);
+    if (digits.length < 2) return [];
+    const companies = await this.prisma.company.findMany({
+      where: { isDeleted: false, taxCode: { contains: digits } },
+      select: { id: true, name: true, taxCode: true, address: true },
+      orderBy: { name: 'asc' },
+      take: 8,
+    });
+    const rows: CrmTaxSuggestion[] = companies.flatMap((company) => {
+      const taxCode = claimTax(company.taxCode);
+      if (!taxCode) return [];
+      return [{
+        taxCode,
+        companyName: company.name,
+        address: company.address,
+        companyId: company.id,
+        source: 'inlink' as const,
+      }];
+    });
+    const complete = digits.length === 10 || digits.length === 13;
+    if (complete && !rows.some((row) => row.taxCode === digits)) {
+      const registry = await this.lookupTaxRegistry(digits);
+      if (registry) rows.unshift(registry);
+    }
+    return rows;
+  }
+
   async searchCompanies(query: string): Promise<CrmCompanyOption[]> {
     const q = query.trim();
     if (q.length < 2) return [];
@@ -244,7 +278,7 @@ export class CrmService {
           { taxCode: { contains: q } },
         ],
       },
-      select: { id: true, name: true, taxCode: true },
+      select: { id: true, name: true, taxCode: true, address: true },
       orderBy: { name: 'asc' },
       take: 8,
     });
@@ -952,15 +986,15 @@ export class CrmService {
     const companyName = input.companyName?.trim();
     const contactName = input.contactName?.trim();
     const phone = normalizePhone(input.contactPhone ?? '');
-    const taxCode = normalizeTax(input.taxCode);
+    const taxCode = this.readTax(input.taxCode);
     const source = leadSource(input.source);
     if (!companyName || !contactName || phone.length < 9) {
       throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
     }
     if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
     const partner = source === 'partner' ? await this.requirePartner(input.partnerId) : null;
-    await this.assertNoDuplicate(taxCode, phone);
     const companyId = await this.resolveCompanyId(input.companyId, taxCode);
+    await this.assertNoDuplicate(taxCode, phone, undefined, companyId);
 
     const lead = await this.prisma.crmLead.create({
       data: {
@@ -971,6 +1005,7 @@ export class CrmService {
         contactPhone: phone,
         contactEmail: input.contactEmail?.trim() || null,
         industry: input.industry?.trim() || null,
+        address: clip(input.address, 300) || null,
         companyId,
         source,
         partnerId: partner?.id ?? null,
@@ -989,6 +1024,303 @@ export class CrmService {
       },
     });
     return this.mapLead(lead, await this.ownerNames([actor.id]));
+  }
+
+  /** Công ty đã trả gói trên web và chưa có lead. Không gán gói. */
+  async unclaimedCustomers(): Promise<CrmUnclaimedCustomerView[]> {
+    const orders = await this.prisma.billingOrder.findMany({
+      where: this.paidPlanOrderWhere(),
+      orderBy: { paidAt: 'desc' },
+      select: { companyId: true, paidAt: true, priceVndSnapshot: true, planName: true },
+    });
+    const latest = new Map<string, (typeof orders)[number]>();
+    for (const order of orders) {
+      if (order.paidAt && !latest.has(order.companyId)) latest.set(order.companyId, order);
+    }
+    const companyIds = [...latest.keys()];
+    if (companyIds.length === 0) return [];
+    const [leads, companies, members] = await Promise.all([
+      this.prisma.crmLead.findMany({
+        where: { companyId: { in: companyIds }, status: { not: 'unqualified' } },
+        select: { companyId: true },
+      }),
+      this.prisma.company.findMany({
+        where: { id: { in: companyIds }, isDeleted: false },
+        select: { id: true, name: true, taxCode: true },
+      }),
+      this.prisma.companyMember.findMany({
+        where: { companyId: { in: companyIds } },
+        select: {
+          companyId: true,
+          roleInCompany: true,
+          user: { select: { displayName: true, email: true, isDeleted: true } },
+        },
+      }),
+    ]);
+    const owned = new Set(leads.map((lead) => lead.companyId));
+    const companyById = new Map(companies.map((company) => [company.id, company]));
+    const contactByCompany = new Map<string, { name: string; email: string }>();
+    for (const member of members) {
+      if (member.user.isDeleted) continue;
+      const current = contactByCompany.get(member.companyId);
+      if (!current || member.roleInCompany === 'owner') {
+        contactByCompany.set(member.companyId, { name: member.user.displayName, email: member.user.email });
+      }
+    }
+    return companyIds
+      .filter((id) => !owned.has(id) && companyById.has(id))
+      .slice(0, 100)
+      .map((id) => {
+        const company = companyById.get(id)!;
+        const order = latest.get(id)!;
+        const contact = contactByCompany.get(id);
+        return {
+          companyId: id,
+          companyName: company.name,
+          taxCode: company.taxCode,
+          contactName: contact?.name ?? null,
+          contactEmail: contact?.email ?? null,
+          lastPaidAt: order.paidAt!.toISOString(),
+          lastPlanName: order.planName,
+          lastPaidAmountVnd: order.priceVndSnapshot.toString(),
+        };
+      });
+  }
+
+  /** Sale hoặc SuperAdmin nhận khách. Tạo lead, không tạo đơn và không bật gói. */
+  async claimCustomer(actor: AuthenticatedUser, companyId: string): Promise<CrmLeadView> {
+    if (!/^[0-9a-f-]{36}$/i.test(companyId)) throw new NotFoundException('Không tìm thấy công ty');
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company || company.isDeleted) throw new NotFoundException('Không tìm thấy công ty');
+    const taxCode = claimTax(company.taxCode);
+    const members = await this.prisma.companyMember.findMany({
+      where: { companyId },
+      select: {
+        roleInCompany: true,
+        user: { select: { displayName: true, email: true, isDeleted: true } },
+      },
+    });
+    const contact = members.find((member) => !member.user.isDeleted && member.roleInCompany === 'owner')
+      ?? members.find((member) => !member.user.isDeleted);
+
+    const lead = await this.prisma.$transaction(async (tx) => {
+      const owned = await tx.crmLead.findFirst({
+        where: { companyId, status: { not: 'unqualified' } },
+        select: { leadCode: true },
+      });
+      if (owned) throw new BadRequestException('Công ty này đã có người phụ trách');
+      if (taxCode) {
+        const byTax = await tx.crmLead.findFirst({
+          where: { taxCode, status: { not: 'unqualified' } },
+          include: { partner: { select: { id: true, name: true, code: true } } },
+        });
+        if (byTax) {
+          if (byTax.companyId && byTax.companyId !== companyId) {
+            throw new BadRequestException(`Lead đã có: ${byTax.leadCode}`);
+          }
+          if (byTax.ownerUserId !== actor.id && !this.seesAll(actor)) {
+            throw new BadRequestException(`Lead đã có: ${byTax.leadCode}`);
+          }
+          const linked = await tx.crmLead.update({
+            where: { id: byTax.id },
+            data: { companyId, ...(byTax.address ? {} : { address: clip(company.address, 300) || null }) },
+            include: { partner: { select: { id: true, name: true, code: true } } },
+          });
+          await tx.crmActivity.create({
+            data: {
+              leadId: linked.id,
+              activityType: 'note',
+              summary: `Gắn ${linked.leadCode} với công ty đã thanh toán trên inlink. Không gán gói.`,
+              createdByUserId: actor.id,
+            },
+          });
+          return linked;
+        }
+      }
+      const created = await tx.crmLead.create({
+        data: {
+          leadCode: await this.nextCode('LD'),
+          companyName: company.name,
+          taxCode,
+          contactName: contact?.user.displayName?.trim() || company.name,
+          contactPhone: '',
+          contactEmail: contact?.user.email ?? null,
+          industry: company.industry,
+          address: clip(company.address, 300) || null,
+          companyId,
+          source: 'web',
+          ownerUserId: actor.id,
+        },
+        include: { partner: { select: { id: true, name: true, code: true } } },
+      });
+      await tx.crmActivity.create({
+        data: {
+          leadId: created.id,
+          activityType: 'note',
+          summary: `Nhận khách tự mua ${company.name}. Không gán gói.`,
+          createdByUserId: actor.id,
+        },
+      });
+      return created;
+    });
+    return this.mapLead(lead, await this.ownerNames([lead.ownerUserId]));
+  }
+
+  async companyProfile(actor: AuthenticatedUser, companyId: string): Promise<CrmCompanyProfileView> {
+    if (!/^[0-9a-f-]{36}$/i.test(companyId)) throw new NotFoundException('Không tìm thấy công ty');
+    await this.assertCompanyVisible(actor, companyId);
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company || company.isDeleted) throw new NotFoundException('Không tìm thấy công ty');
+    const now = new Date();
+    const [platform, sourcing, credit, openJobCount, orders, leads, commission] = await Promise.all([
+      this.prisma.billingCompanyPlan.findUnique({
+        where: { companyId },
+        include: { plan: { select: { code: true, name: true } } },
+      }),
+      this.prisma.billingCompanySourcingPlan.findUnique({
+        where: { companyId },
+        include: { plan: { select: { code: true, name: true } } },
+      }),
+      this.prisma.billingCreditAccount.findUnique({ where: { companyId }, select: { balance: true } }),
+      this.prisma.job.count({ where: { companyId, isDeleted: false, status: 'published' } }),
+      this.prisma.billingOrder.findMany({
+        where: { ...this.paidPlanOrderWhere(), companyId },
+        include: { orderInvoice: true },
+        orderBy: { paidAt: 'desc' },
+        take: 20,
+      }),
+      this.prisma.crmLead.findMany({
+        where: {
+          companyId,
+          status: { not: 'unqualified' },
+          ...(this.seesAll(actor) ? {} : { ownerUserId: actor.id }),
+        },
+        include: { partner: { select: { id: true, name: true, code: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.crmCommissionEntry.findFirst({
+        where: { companyId },
+        orderBy: { paidAt: 'desc' },
+        include: { partner: { select: { name: true, code: true } } },
+      }),
+    ]);
+    const partnerLead = leads.find((lead) => lead.partner);
+    const names = await this.ownerNames(leads.map((lead) => lead.ownerUserId));
+    const planSnapshot = (
+      kind: 'platform' | 'sourcing',
+      row: { isActive: boolean; endsAt: Date | null; plan: { code: string; name: string } } | null,
+    ) =>
+      row
+        ? {
+            kind,
+            code: row.plan.code,
+            name: row.plan.name,
+            endsAt: row.endsAt?.toISOString() ?? null,
+            active: row.isActive && (!row.endsAt || row.endsAt > now),
+          }
+        : null;
+    return {
+      id: company.id,
+      name: company.name,
+      taxCode: company.taxCode,
+      industry: company.industry,
+      platformPlan: planSnapshot('platform', platform),
+      sourcingPlan: planSnapshot('sourcing', sourcing),
+      creditBalance: credit?.balance ?? 0,
+      openJobCount,
+      partnerName: partnerLead?.partner?.name ?? commission?.partner.name ?? null,
+      partnerCode: partnerLead?.partner?.code ?? commission?.partner.code ?? null,
+      orders: orders.map((order) =>
+        this.mapPaidInvoice(order, company.name),
+      ),
+      leads: leads.map((lead) => this.mapLead(lead, names)),
+    };
+  }
+
+  async followUps(actor: AuthenticatedUser): Promise<CrmLeadView[]> {
+    const rows = await this.prisma.crmLead.findMany({
+      where: { ...this.ownScope(actor), nextFollowUpAt: { not: null } },
+      orderBy: { nextFollowUpAt: 'asc' },
+      take: 100,
+      include: { partner: { select: { id: true, name: true, code: true } } },
+    });
+    const names = await this.ownerNames(rows.map((lead) => lead.ownerUserId));
+    return rows.map((lead) => this.mapLead(lead, names));
+  }
+
+  async owners(actor: AuthenticatedUser): Promise<CrmOwnerOption[]> {
+    if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ SuperAdmin chuyển lead');
+    const users = await this.prisma.user.findMany({
+      where: { isDeleted: false, status: 'active', role: { in: [UserRole.Sales, UserRole.SuperAdmin] } },
+      select: { id: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+    });
+    return users.map((user) => ({ id: user.id, name: user.displayName }));
+  }
+
+  async updateLead(actor: AuthenticatedUser, leadId: string, input: UpdateCrmLeadRequest): Promise<CrmLeadView> {
+    if (!/^[0-9a-f-]{36}$/i.test(leadId)) throw new NotFoundException('Không tìm thấy lead');
+    const current = await this.prisma.crmLead.findUnique({ where: { id: leadId } });
+    if (!current) throw new NotFoundException('Không tìm thấy lead');
+    this.assertOwner(actor, current.ownerUserId);
+    const companyName = input.companyName?.trim();
+    const contactName = input.contactName?.trim();
+    const phone = normalizePhone(input.contactPhone ?? '');
+    const taxCode = this.readTax(input.taxCode);
+    const source = leadSource(input.source);
+    if (!companyName || !contactName || phone.length < 9) {
+      throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
+    }
+    if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
+    const partner = source === 'partner' ? await this.requirePartner(input.partnerId) : null;
+    await this.assertNoDuplicate(taxCode, phone, current.id, current.companyId);
+    let ownerUserId = current.ownerUserId;
+    let ownerNameForLog: string | null = null;
+    if (input.ownerUserId && input.ownerUserId !== current.ownerUserId) {
+      if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ SuperAdmin chuyển lead');
+      const nextOwner = await this.prisma.user.findFirst({
+        where: {
+          id: input.ownerUserId,
+          isDeleted: false,
+          status: 'active',
+          role: { in: [UserRole.Sales, UserRole.SuperAdmin] },
+        },
+        select: { id: true, displayName: true },
+      });
+      if (!nextOwner) throw new BadRequestException('Chọn sale hoặc SuperAdmin đang hoạt động');
+      ownerUserId = nextOwner.id;
+      ownerNameForLog = nextOwner.displayName;
+    }
+    const followUp = parseFollowUp(input.nextFollowUpAt);
+    const lead = await this.prisma.crmLead.update({
+      where: { id: current.id },
+      data: {
+        companyName,
+        taxCode,
+        contactName,
+        contactPhone: phone,
+        contactEmail: input.contactEmail?.trim() || null,
+        industry: input.industry?.trim() || null,
+        address: clip(input.address, 300) || null,
+        source,
+        partnerId: partner?.id ?? null,
+        ownerUserId,
+        ...(followUp !== undefined ? { nextFollowUpAt: followUp } : {}),
+      },
+      include: { partner: { select: { id: true, name: true, code: true } } },
+    });
+    if (ownerUserId !== current.ownerUserId) {
+      await this.prisma.crmDeal.updateMany({ where: { leadId: lead.id }, data: { ownerUserId } });
+      await this.prisma.crmActivity.create({
+        data: {
+          leadId: lead.id,
+          activityType: 'note',
+          summary: `Chuyển ${lead.leadCode} sang ${ownerNameForLog}. Không đổi gói.`,
+          createdByUserId: actor.id,
+        },
+      });
+    }
+    return this.mapLead(lead, await this.ownerNames([lead.ownerUserId, actor.id]));
   }
 
   async createActivity(actor: AuthenticatedUser, input: CreateCrmActivityRequest): Promise<CrmActivityView> {
@@ -1011,6 +1343,10 @@ export class CrmService {
       this.assertOwner(actor, lead.ownerUserId);
     } else {
       throw new BadRequestException('Cần chọn lead hoặc deal');
+    }
+    const followUp = parseFollowUp(input.nextFollowUpAt);
+    if (followUp !== undefined && leadId) {
+      await this.prisma.crmLead.update({ where: { id: leadId }, data: { nextFollowUpAt: followUp } });
     }
     const row = await this.prisma.crmActivity.create({
       data: {
@@ -1096,6 +1432,10 @@ export class CrmService {
       where: { pipelineId: deal.pipelineId, code: input.stageCode },
     });
     if (!stage) throw new BadRequestException('Bước phễu không hợp lệ');
+    const lostReason = input.lostReason?.trim() ?? '';
+    if (stage.code === 'lost' && lostReason.length < 2) {
+      throw new BadRequestException('Nhập lý do mất, ít nhất 2 ký tự');
+    }
 
     const updated = await this.prisma.crmDeal.update({
       where: { id: deal.id },
@@ -1103,7 +1443,7 @@ export class CrmService {
         stageId: stage.id,
         wonAt: stage.code === 'won' ? new Date() : null,
         lostAt: stage.code === 'lost' ? new Date() : null,
-        lostReason: stage.code === 'lost' ? input.lostReason?.trim() || null : null,
+        lostReason: stage.code === 'lost' ? lostReason : null,
         provisionState: 'not_provisioned',
       },
       include: { stage: true, lead: true },
@@ -1113,7 +1453,9 @@ export class CrmService {
         ? `Chuyển ${deal.dealCode} sang Đã chốt. CRM không bật gói và không ghi hoa hồng.`
         : stage.code === 'awaiting_payment'
           ? `Chuyển ${deal.dealCode} sang Chờ thanh toán. Khách tự thanh toán trên inlink.`
-          : `Chuyển ${deal.dealCode} sang ${stage.name}`;
+          : stage.code === 'lost'
+            ? `Chuyển ${deal.dealCode} sang ${stage.name}. Lý do: ${lostReason}`
+            : `Chuyển ${deal.dealCode} sang ${stage.name}`;
     await this.prisma.crmActivity.create({
       data: {
         leadId: deal.leadId,
@@ -1422,19 +1764,97 @@ export class CrmService {
     if (!company || company.isDeleted) throw new NotFoundException('Không tìm thấy công ty');
   }
 
-  private async assertNoDuplicate(taxCode: string | null, phone: string) {
+  private async assertNoDuplicate(
+    taxCode: string | null,
+    phone: string,
+    excludeId?: string,
+    companyId?: string | null,
+  ) {
+    const or = [
+      ...(taxCode ? [{ taxCode }] : []),
+      ...(phone.length >= 9 ? [{ contactPhone: phone }] : []),
+      ...(companyId ? [{ companyId }] : []),
+    ];
+    if (or.length === 0) return;
     const existing = await this.prisma.crmLead.findFirst({
       where: {
         status: { not: 'unqualified' },
-        OR: [
-          ...(taxCode ? [{ taxCode }] : []),
-          { contactPhone: phone },
-        ],
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+        OR: or,
       },
     });
     if (existing) {
       throw new BadRequestException(`Lead đã có: ${existing.leadCode}`);
     }
+  }
+
+  private async lookupTaxRegistry(taxCode: string): Promise<CrmTaxSuggestion | null> {
+    if (!/^\d{10}(\d{3})?$/.test(taxCode)) return null;
+    try {
+      const response = await fetch(`https://api.vietqr.io/v2/business/${taxCode}`, {
+        signal: AbortSignal.timeout(4000),
+        headers: { accept: 'application/json' },
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as {
+        code?: string;
+        data?: { id?: string; name?: string; address?: string };
+      };
+      const name = body.data?.name?.trim();
+      if (body.code !== '00' || !name) return null;
+      return {
+        taxCode: claimTax(body.data?.id) ?? taxCode,
+        companyName: name,
+        address: body.data?.address?.trim() || null,
+        companyId: null,
+        source: 'registry',
+      };
+    } catch (err) {
+      this.logger.warn(`Không tra được sổ thuế: ${err instanceof Error ? err.message : 'lỗi mạng'}`);
+      return null;
+    }
+  }
+
+  private readTax(raw: string | null | undefined): string | null {
+    const trimmed = raw?.trim() ?? '';
+    if (!trimmed) return null;
+    const taxCode = claimTax(raw);
+    if (!taxCode) throw new BadRequestException('Mã số thuế gồm 10 hoặc 13 số');
+    return taxCode;
+  }
+
+  private paidPlanOrderWhere() {
+    return {
+      status: 'paid' as const,
+      paidAt: { not: null },
+      priceVndSnapshot: { gt: 0 },
+      kind: { in: ['platform', 'sourcing'] as string[] },
+    };
+  }
+
+  private async assertCompanyVisible(actor: AuthenticatedUser, companyId: string) {
+    if (this.seesAll(actor)) return;
+    const [lead, deal, paid] = await Promise.all([
+      this.prisma.crmLead.findFirst({
+        where: { companyId, ownerUserId: actor.id, status: { not: 'unqualified' } },
+        select: { id: true },
+      }),
+      this.prisma.crmDeal.findFirst({
+        where: { companyId, ownerUserId: actor.id },
+        select: { id: true },
+      }),
+      this.prisma.billingOrder.findFirst({
+        where: { ...this.paidPlanOrderWhere(), companyId },
+        select: { id: true },
+      }),
+    ]);
+    if (lead || deal) return;
+    if (!paid) throw new NotFoundException('Không tìm thấy công ty');
+    const owner = await this.prisma.crmLead.findFirst({
+      where: { companyId, status: { not: 'unqualified' } },
+      select: { id: true },
+    });
+    if (owner) throw new NotFoundException('Không tìm thấy công ty');
   }
 
   private async creditCommissionWallet(
@@ -1994,12 +2414,14 @@ export class CrmService {
     contactPhone: string;
     contactEmail: string | null;
     industry: string | null;
+    address: string | null;
     companyId: string | null;
     status: string;
     source: string;
     partnerId: string | null;
     partner: { name: string; code: string } | null;
     ownerUserId: string;
+    nextFollowUpAt: Date | null;
     createdAt: Date;
   }, names: Map<string, string>): CrmLeadView {
     const status = lead.status === 'converted' || lead.status === 'unqualified' ? lead.status : 'open';
@@ -2012,6 +2434,7 @@ export class CrmService {
       contactPhone: lead.contactPhone,
       contactEmail: lead.contactEmail,
       industry: lead.industry,
+      address: lead.address,
       companyId: lead.companyId,
       status,
       source: leadSource(lead.source) ?? 'unknown',
@@ -2020,6 +2443,7 @@ export class CrmService {
       partnerCode: lead.partner?.code ?? null,
       ownerUserId: lead.ownerUserId,
       ownerName: names.get(lead.ownerUserId) || 'SuperAdmin',
+      nextFollowUpAt: lead.nextFollowUpAt?.toISOString() ?? null,
       createdAt: lead.createdAt.toISOString(),
     };
   }
@@ -2042,6 +2466,7 @@ export class CrmService {
     ownerUserId: string;
     wonAt: Date | null;
     lostAt: Date | null;
+    lostReason: string | null;
     createdAt: Date;
     stage: { code: string };
     lead: { companyName: string };
@@ -2072,6 +2497,7 @@ export class CrmService {
       ownerName: names.get(deal.ownerUserId) || 'SuperAdmin',
       wonAt: deal.wonAt?.toISOString() ?? null,
       lostAt: deal.lostAt?.toISOString() ?? null,
+      lostReason: deal.lostReason,
       createdAt: deal.createdAt.toISOString(),
     };
   }
@@ -2154,6 +2580,16 @@ function sourceLabel(source: Exclude<CrmLeadSource, 'unknown'>): string {
   if (source === 'zalo') return 'Zalo';
   if (source === 'event') return 'sự kiện';
   return 'cộng tác viên';
+}
+
+function parseFollowUp(raw: string | null | undefined): Date | null | undefined {
+  if (raw === undefined) return undefined;
+  const value = raw?.trim() ?? '';
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException('Ngày hẹn là ngày tháng năm');
+  const date = new Date(`${value}T02:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) throw new BadRequestException('Ngày hẹn không hợp lệ');
+  return date;
 }
 
 function normalizePhone(raw: string): string {

@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CalendarDays,
   CirclePercent,
+  Inbox,
   Kanban,
   Landmark,
   LayoutDashboard,
@@ -41,6 +42,7 @@ const NAV = [
     title: 'Kinh doanh',
     items: [
       { href: '/crm/leads', label: 'Lead', icon: Building2 },
+      { href: '/crm/inbox', label: 'Khách tự mua', icon: Inbox },
       { href: '/crm/pipeline', label: 'Phễu bán gói', icon: Kanban },
     ],
   },

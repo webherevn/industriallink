@@ -3,6 +3,7 @@
 import {
   Building2,
   CalendarCheck,
+  Inbox,
   CalendarClock,
   Kanban,
   Landmark,
@@ -18,15 +19,17 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/crm-frame';
-import { formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
+import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
-import { fetchCrmInvoices, fetchCrmPartners } from '@/lib/crm';
+import { fetchCrmFollowUps, fetchCrmInvoices, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
   const renewals = useCrmRenewals();
   const invoices = useQuery({ queryKey: ['crm-invoices'], queryFn: fetchCrmInvoices });
   const partners = useQuery({ queryKey: ['crm-partners'], queryFn: fetchCrmPartners });
+  const unclaimed = useQuery({ queryKey: ['crm-unclaimed'], queryFn: fetchCrmUnclaimed });
+  const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
   const missingInvoices = (invoices.data?.orders ?? []).filter((order) => !order.invoiceNumber).length;
   const unpaidSignups = (partners.data ?? []).reduce((sum, partner) => sum + partner.signups.length, 0);
   const [query, setQuery] = useState('');
@@ -55,6 +58,7 @@ export function CrmHomePanel() {
       chips={
         <>
           <CrmChip href="/crm/leads" icon={<Building2 className="h-4 w-4" />} label="Lead" />
+          <CrmChip href="/crm/inbox" icon={<Inbox className="h-4 w-4" />} label="Khách tự mua" />
           <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Phễu bán gói" />
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
           <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />
@@ -74,6 +78,22 @@ export function CrmHomePanel() {
         <CrmCardGrid>
           <Link href="/crm/leads" className="block h-full">
             <CrmCard tone="sky" icon={<Building2 className="h-5 w-5" />} title={`${openLeads} lead đang mở`} text="Nhà máy chưa chuyển thành deal." />
+          </Link>
+          <Link href="/crm/inbox" className="block h-full">
+            <CrmCard
+              tone="indigo"
+              icon={<Inbox className="h-5 w-5" />}
+              title={`${unclaimed.isLoading ? '…' : (unclaimed.data?.length ?? 0)} khách tự mua`}
+              text="Đã thanh toán gói trên web và chưa có lead."
+            />
+          </Link>
+          <Link href="/crm/activities" className="block h-full">
+            <CrmCard
+              tone="violet"
+              icon={<NotebookPen className="h-5 w-5" />}
+              title={`${followUps.isLoading ? '…' : (followUps.data?.length ?? 0)} lịch hẹn`}
+              text={followUps.data?.[0]?.nextFollowUpAt ? followUpLabel(followUps.data[0].nextFollowUpAt) : 'Chưa có ngày gọi lại.'}
+            />
           </Link>
           <Link href="/crm/pipeline" className="block h-full">
             <CrmCard tone="violet" icon={<Kanban className="h-5 w-5" />} title={`${running} deal đang chạy`} text="Gói tin và gói Săn còn trong phễu." />

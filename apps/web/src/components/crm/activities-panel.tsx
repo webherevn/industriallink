@@ -1,15 +1,15 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapPin, MessageCircle, NotebookPen, Phone, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmActivityType } from '@industriallink/contracts';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { CrmSelect } from '@/components/crm/fields';
-import { activityLabel, errorText, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
+import { activityLabel, errorText, followUpLabel, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
-import { createCrmActivity } from '@/lib/crm';
+import { createCrmActivity, fetchCrmFollowUps } from '@/lib/crm';
 
 const TYPES = [
   { value: 'call', label: 'Gọi điện' },
@@ -25,14 +25,18 @@ export function CrmActivitiesPanel() {
   const [leadId, setLeadId] = useState('');
   const [activityType, setActivityType] = useState<(typeof TYPES)[number]['value']>('call');
   const [summary, setSummary] = useState('');
+  const [followUp, setFollowUp] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
 
   const add = useMutation({
-    mutationFn: () => createCrmActivity({ leadId, activityType, summary }),
+    mutationFn: () => createCrmActivity({ leadId, activityType, summary, nextFollowUpAt: followUp || undefined }),
     onSuccess: () => {
       setSummary('');
+      setFollowUp('');
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
+      void qc.invalidateQueries({ queryKey: ['crm-follow-ups'] });
     },
     onError: (err) => setError(errorText(err, 'Không ghi được nhật ký')),
   });
@@ -51,12 +55,12 @@ export function CrmActivitiesPanel() {
     <CrmFrame
       kicker="Cuộc gọi, Zalo và buổi gặp"
       title="Nhật ký gắn với từng lead"
-      description="Mỗi dòng ghi lại việc đã chăm khách. Không đổi gói và không thu tiền."
+      description="Ghi việc đã chăm khách và đặt ngày gọi lại. Không đổi gói và không thu tiền."
       placeholder="Tìm theo nhà máy hoặc nội dung trao đổi"
       search={{ value: query, onChange: setQuery }}
       footnote="Nhật ký lưu cùng lead. CRM không gán gói."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-4">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-5">
         <CrmSelect
           value={leadId}
           required
@@ -70,11 +74,26 @@ export function CrmActivitiesPanel() {
           onChange={(next) => setActivityType(next as (typeof TYPES)[number]['value'])}
         />
         <input className={crmFieldClass} placeholder="Nội dung trao đổi" value={summary} onChange={(event) => setSummary(event.target.value)} required />
+        <input className={crmFieldClass} type="date" value={followUp} onChange={(event) => setFollowUp(event.target.value)} aria-label="Ngày hẹn gọi lại" />
         <button type="submit" className={crmButtonClass} disabled={add.isPending || leads.length === 0}>
           {add.isPending ? 'Đang lưu…' : 'Ghi nhật ký'}
         </button>
       </form>
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
+      {followUps.data && followUps.data.length > 0 ? (
+        <div className="grid gap-2">
+          {followUps.data.map((lead) => (
+            <Link
+              key={lead.id}
+              href={lead.companyId ? `/crm/companies/${lead.companyId}` : '/crm/leads'}
+              className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(91,76,219,0.07)]"
+            >
+              <span className="font-semibold text-slate-900">{lead.companyName}</span>
+              {lead.nextFollowUpAt ? ` · ${followUpLabel(lead.nextFollowUpAt)}` : ''} · {lead.ownerName}
+            </Link>
+          ))}
+        </div>
+      ) : null}
       {board.isLoading ? <CrmEmpty>Đang tải nhật ký…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được nhật ký.</CrmEmpty> : null}
       {board.data && (board.data.activities ?? []).length === 0 ? <CrmEmpty>Chưa có nhật ký.</CrmEmpty> : null}
