@@ -2,11 +2,14 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   UserRole,
+  type CreateCrmActivityRequest,
   type CreateCrmDealRequest,
   type CreateCrmLeadRequest,
+  type CrmActivityView,
   type CrmBoard,
   type CrmDealView,
   type CrmLeadView,
+  type CrmRenewalView,
   type MoveCrmDealRequest,
 } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -30,6 +33,12 @@ export class CrmController {
     return this.crm.board();
   }
 
+  @Get('renewals')
+  @ApiOperation({ summary: 'Khách sắp hết gói. Không đổi gói và không tạo đơn.' })
+  renewals(): Promise<CrmRenewalView[]> {
+    return this.crm.renewals();
+  }
+
   @Post('leads')
   @ApiOperation({ summary: 'Tạo lead. Không tạo công ty và không gán gói.' })
   createLead(
@@ -46,6 +55,15 @@ export class CrmController {
     @Body() body: CreateCrmDealRequest,
   ): Promise<CrmDealView> {
     return this.crm.createDeal(user, body);
+  }
+
+  @Post('activities')
+  @ApiOperation({ summary: 'Ghi nhật ký chăm sóc cho lead hoặc deal' })
+  createActivity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateCrmActivityRequest,
+  ): Promise<CrmActivityView> {
+    return this.crm.createActivity(user, body);
   }
 
   @Patch('deals/:id/stage')

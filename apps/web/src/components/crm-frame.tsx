@@ -9,6 +9,8 @@ export function CrmFrame({
   description,
   placeholder,
   chips,
+  search,
+  footnote,
   children,
 }: {
   kicker: string;
@@ -16,6 +18,8 @@ export function CrmFrame({
   description: string;
   placeholder: string;
   chips?: ReactNode;
+  search?: { value: string; onChange: (value: string) => void };
+  footnote?: string;
   children: ReactNode;
 }) {
   return (
@@ -30,7 +34,16 @@ export function CrmFrame({
 
       <div className="mx-auto flex max-w-2xl items-center gap-2.5 rounded-full bg-white px-4 py-3 shadow-[0_8px_24px_rgba(91,76,219,0.08)]">
         <Search className="h-4 w-4 shrink-0 text-slate-400" />
-        <span className="truncate text-sm text-slate-400">{placeholder}</span>
+        {search ? (
+          <input
+            value={search.value}
+            onChange={(event) => search.onChange(event.target.value)}
+            placeholder={placeholder}
+            className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+          />
+        ) : (
+          <span className="truncate text-sm text-slate-400">{placeholder}</span>
+        )}
       </div>
 
       {chips ? (
@@ -41,7 +54,7 @@ export function CrmFrame({
 
       {children}
 
-      <p className="text-center text-[11px] text-slate-400">Số liệu trên màn là mẫu, chưa ghi vào hệ thống</p>
+      {footnote ? <p className="text-center text-[11px] text-slate-400">{footnote}</p> : null}
     </div>
   );
 }
@@ -51,11 +64,13 @@ export function CrmChip({
   label,
   href,
   active,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   href?: string;
   active?: boolean;
+  onClick?: () => void;
 }) {
   const className = clsx(
     'inline-flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-[13px] font-medium shadow-sm ring-1',
@@ -76,8 +91,21 @@ export function CrmChip({
       </Link>
     );
   }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {body}
+      </button>
+    );
+  }
   return <span className={className}>{body}</span>;
 }
+
+export const crmFieldClass =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#c4b5fd]';
+
+export const crmButtonClass =
+  'rounded-xl bg-[#072348] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
 
 const TONE = {
   sky: 'bg-sky-50 text-sky-600',
@@ -115,6 +143,14 @@ export function CrmCard({
       <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{text}</p>
       {meta ? <p className="mt-auto pt-3 text-xs font-medium text-slate-400">{meta}</p> : null}
     </article>
+  );
+}
+
+export function CrmEmpty({ children }: { children: ReactNode }) {
+  return (
+    <p className="rounded-[22px] bg-white px-5 py-8 text-center text-sm text-slate-500 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+      {children}
+    </p>
   );
 }
 

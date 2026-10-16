@@ -12,6 +12,7 @@ export default function CrmPartnersPage() {
       title="Khu cộng tác viên, hoa hồng để sau"
       description="Phần trăm hoa hồng sẽ cấu hình tại đây sau. Chưa trừ thuế và chưa khóa lead theo mã số thuế."
       placeholder="Tìm cộng tác viên hoặc mã giới thiệu"
+      footnote="Hoa hồng chưa mở. Màn này chưa ghi dữ liệu."
     >
       <CrmCardGrid columns={3}>
         <CrmCard
@@ -22,7 +23,6 @@ export default function CrmPartnersPage() {
         />
         <CrmCard
           tone="sky"
-          badge="Mới"
           icon={<Factory className="h-5 w-5" />}
           title="Khai báo nhà máy"
           text="Nhập tên công ty, mã số thuế và số điện thoại HR để giữ quyền giới thiệu."

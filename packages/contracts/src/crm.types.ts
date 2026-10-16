@@ -16,6 +16,7 @@ export interface CrmLeadView {
   companyId: string | null;
   status: CrmLeadStatus;
   ownerUserId: string;
+  ownerName: string;
   createdAt: string;
 }
 
@@ -43,9 +44,35 @@ export interface CrmDealView {
   billingOrderId: string | null;
   provisionState: CrmProvisionState;
   ownerUserId: string;
+  ownerName: string;
   wonAt: string | null;
   lostAt: string | null;
   createdAt: string;
+}
+
+export type CrmActivityType = 'note' | 'call' | 'zalo' | 'visit' | 'stage';
+
+export interface CrmActivityView {
+  id: string;
+  leadId: string | null;
+  dealId: string | null;
+  companyName: string | null;
+  activityType: CrmActivityType;
+  summary: string;
+  createdByName: string;
+  createdAt: string;
+}
+
+export interface CrmRenewalView {
+  companyId: string;
+  companyName: string;
+  kind: CrmPlanKind;
+  planCode: string;
+  planName: string;
+  endsAt: string;
+  daysLeft: number;
+  /** Lead đang mở của công ty, nếu có. Dùng để tạo deal gia hạn, không gán gói. */
+  leadId: string | null;
 }
 
 export interface CrmBoard {
@@ -54,6 +81,7 @@ export interface CrmBoard {
   stages: CrmStageView[];
   leads: CrmLeadView[];
   deals: CrmDealView[];
+  activities: CrmActivityView[];
 }
 
 export interface CreateCrmLeadRequest {
@@ -76,4 +104,11 @@ export interface CreateCrmDealRequest {
 export interface MoveCrmDealRequest {
   stageCode: string;
   lostReason?: string | null;
+}
+
+export interface CreateCrmActivityRequest {
+  leadId?: string | null;
+  dealId?: string | null;
+  activityType: Exclude<CrmActivityType, 'stage'>;
+  summary: string;
 }

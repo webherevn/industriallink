@@ -4,6 +4,7 @@ import type {
   JobView,
   ListPublishedJobsQuery,
 } from '@industriallink/contracts';
+import { fetchPublic } from './public-fetch';
 import { apiPublicBase } from './public-paths';
 
 export async function fetchPublishedJobs(
@@ -18,11 +19,11 @@ export async function fetchPublishedJobs(
   if (params.jobLevel) qs.set('jobLevel', params.jobLevel);
   if (params.jobTrack) qs.set('jobTrack', params.jobTrack);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  const res = await fetch(`${apiPublicBase()}/jobs${suffix}`, {
+  const res = await fetchPublic(`${apiPublicBase()}/jobs${suffix}`, {
     next: { revalidate: 60 },
     headers: { Accept: 'application/json' },
   });
-  if (!res.ok) return [];
+  if (!res) return [];
   return (await res.json()) as JobListItem[];
 }
 

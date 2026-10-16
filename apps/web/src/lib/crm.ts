@@ -1,9 +1,12 @@
 import type {
+  CreateCrmActivityRequest,
   CreateCrmDealRequest,
   CreateCrmLeadRequest,
+  CrmActivityView,
   CrmBoard,
   CrmDealView,
   CrmLeadView,
+  CrmRenewalView,
   MoveCrmDealRequest,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
@@ -22,4 +25,12 @@ export function createCrmDeal(body: CreateCrmDealRequest): Promise<CrmDealView> 
 
 export function moveCrmDeal(id: string, body: MoveCrmDealRequest): Promise<CrmDealView> {
   return apiRequest<CrmDealView>(`/crm/deals/${id}/stage`, { method: 'PATCH', body });
+}
+
+export function createCrmActivity(body: CreateCrmActivityRequest): Promise<CrmActivityView> {
+  return apiRequest<CrmActivityView>('/crm/activities', { method: 'POST', body });
+}
+
+export function fetchCrmRenewals(): Promise<CrmRenewalView[]> {
+  return apiRequest<CrmRenewalView[]>('/crm/renewals');
 }

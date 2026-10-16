@@ -10,6 +10,7 @@ import type {
   CmsRedirectView,
 } from '@industriallink/contracts';
 import { CmsContentType as CmsType } from '@industriallink/contracts';
+import { fetchPublic } from './public-fetch';
 import { apiPublicBase } from './public-paths';
 
 export async function fetchPublicCmsCategories(): Promise<CmsCategoryView[]> {
@@ -133,23 +134,23 @@ export async function fetchPublicCmsFooter(): Promise<CmsFooterSettingsView | nu
 }
 
 export async function fetchPublicCmsHomepage(): Promise<CmsHomepageSettingsView | null> {
-  const res = await fetch(`${apiPublicBase()}/cms/homepage`, {
+  const res = await fetchPublic(`${apiPublicBase()}/cms/homepage`, {
     next: { revalidate: 60 },
     headers: { Accept: 'application/json' },
   });
-  if (!res.ok) return null;
+  if (!res) return null;
   return (await res.json()) as CmsHomepageSettingsView;
 }
 
 export async function fetchPublicCmsSiteCode(): Promise<
   import('@industriallink/contracts').CmsSiteCodeSettingsView | null
 > {
-  const res = await fetch(`${apiPublicBase()}/cms/site-code`, {
+  const res = await fetchPublic(`${apiPublicBase()}/cms/site-code`, {
     next: { revalidate: 0 },
     cache: 'no-store',
     headers: { Accept: 'application/json' },
   });
-  if (!res.ok) return null;
+  if (!res) return null;
   return (await res.json()) as import('@industriallink/contracts').CmsSiteCodeSettingsView;
 }
 
