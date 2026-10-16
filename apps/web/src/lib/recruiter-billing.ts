@@ -91,6 +91,20 @@ export async function createTopupCheckout(
   });
 }
 
+export async function createPlanCheckout(planCode: string): Promise<PaymentCheckoutResponse> {
+  return apiRequest<PaymentCheckoutResponse>('/billing/plan/checkout', {
+    method: 'POST',
+    body: { planCode } as RecruiterCreatePlanCheckoutRequest,
+  });
+}
+
+export async function createSourcingCheckout(planCode: string): Promise<PaymentCheckoutResponse> {
+  return apiRequest<PaymentCheckoutResponse>('/billing/sourcing/checkout', {
+    method: 'POST',
+    body: { planCode } as RecruiterCreateSourcingCheckoutRequest,
+  });
+}
+
 export async function fetchRecruiterOrders(): Promise<RecruiterOrderListResponse> {
   return apiRequest<RecruiterOrderListResponse>('/billing/orders');
 }

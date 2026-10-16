@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import type { BillingSourcingPlanView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
@@ -21,14 +21,13 @@ import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd } from '@/lib/format-billing';
-import { activateRecruiterSourcingPlan, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
+import { createSourcingCheckout, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 function fmtQuota(n: number | null) {
   return n == null ? 'Không giới hạn' : String(n);
 }
 
 export function RecruiterSourcingActivate() {
-  const router = useRouter();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const planCode = searchParams.get('plan') ?? '';
@@ -50,15 +49,13 @@ export function RecruiterSourcingActivate() {
   const currency = pub?.currency;
 
   const activate = useMutation({
-    mutationFn: () => activateRecruiterSourcingPlan(planCode),
-    onSuccess: (assigned) => {
-      setBanner({ tone: 'ok', text: `Đã kích hoạt gói ${assigned.planName}.` });
-      void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
-      void qc.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
-      setTimeout(() => router.push('/recruiter/sourcing'), 900);
+    mutationFn: () => createSourcingCheckout(planCode),
+    onSuccess: (checkout) => {
+      void qc.invalidateQueries({ queryKey: ['recruiter-orders'] });
+      window.location.href = checkout.url;
     },
     onError: (err) =>
-      setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Không kích hoạt được gói Săn' }),
+      setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Không tạo được đơn thanh toán' }),
   });
 
   return (
@@ -154,7 +151,7 @@ export function RecruiterSourcingActivate() {
                   ) : (
                     <CreditCard className="h-4 w-4" />
                   )}
-                  Xác nhận thanh toán
+                  Thanh toán gói Săn
                 </Button>
               )}
             </Card>
@@ -185,7 +182,7 @@ function CurrentSourcingCard({
           {currentName !== requested.name ? (
             <p className="mt-4 flex items-start gap-2 text-xs text-slate-600">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-600" />
-              Sau khi duyệt, hạn mức sẽ lấy từ <strong>{requested.name}</strong> và đếm lại từ đầu.
+              Sau khi thanh toán, hạn mức sẽ lấy từ <strong>{requested.name}</strong> và đếm lại từ đầu.
             </p>
           ) : null}
         </>

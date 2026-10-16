@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import type { BillingPlatformPlanView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
@@ -22,7 +22,7 @@ import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd } from '@/lib/format-billing';
-import { activateRecruiterPlan, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
+import { createPlanCheckout, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 function fmtDate(iso: string | null) {
   if (!iso) return 'Không giới hạn';
@@ -30,7 +30,6 @@ function fmtDate(iso: string | null) {
 }
 
 export function RecruiterPlanUpgrade() {
-  const router = useRouter();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const planCode = searchParams.get('plan') ?? '';
@@ -54,18 +53,13 @@ export function RecruiterPlanUpgrade() {
   const currency = pub?.currency;
 
   const activate = useMutation({
-    mutationFn: () => activateRecruiterPlan(planCode),
-    onSuccess: (assigned) => {
-      setBanner({
-        tone: 'ok',
-        text: `Đã kích hoạt gói ${assigned.planName}. Hạn đến ${fmtDate(assigned.endsAt)}.`,
-      });
-      void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
-      void qc.invalidateQueries({ queryKey: ['recruiter-credit-balance'] });
-      setTimeout(() => router.push('/recruiter/billing'), 900);
+    mutationFn: () => createPlanCheckout(planCode),
+    onSuccess: (checkout) => {
+      void qc.invalidateQueries({ queryKey: ['recruiter-orders'] });
+      window.location.href = checkout.url;
     },
     onError: (err) =>
-      setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Không kích hoạt được gói' }),
+      setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Không tạo được đơn thanh toán' }),
   });
 
   return (
@@ -81,7 +75,7 @@ export function RecruiterPlanUpgrade() {
           <h1 className="cms-page-title mt-2">Thanh toán gói</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle mt-2">
-            Xác nhận gói. Số ngày trên bảng giá là hạn hiển thị tin đăng.
+            Tạo đơn thanh toán. Gói được gán sau khi thanh toán thành công. Số ngày trên bảng giá là hạn hiển thị tin đăng.
           </p>
         </div>
 
@@ -178,7 +172,7 @@ export function RecruiterPlanUpgrade() {
                   ) : (
                     <CreditCard className="h-4 w-4" />
                   )}
-                  {isFree ? 'Kích hoạt gói Khám phá' : 'Xác nhận thanh toán'}
+                  {isFree ? 'Kích hoạt gói Khám phá' : 'Thanh toán gói'}
                 </Button>
               )}
             </Card>
@@ -213,7 +207,7 @@ function CurrentPlanCard({
           {plan.planCode !== requested.code ? (
             <p className="mt-4 flex items-start gap-2 text-xs text-slate-600">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-600" />
-              Sau khi duyệt, gói hiển thị sẽ là <strong>{requested.name}</strong>
+              Sau khi thanh toán, gói hiển thị sẽ là <strong>{requested.name}</strong>
               {requested.code === 'KHAM_PHA'
                 ? ', chu kỳ 30 ngày'
                 : requested.durationDays != null

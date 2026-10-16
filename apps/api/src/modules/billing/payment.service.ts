@@ -18,8 +18,10 @@ import type { Prisma } from '@prisma/client';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { UserRole } from '@industriallink/contracts';
 import { decryptSecret, encryptSecret, keyPreview } from '../ai/ai-settings.cipher';
-import { CreditService } from './credit.service';
+import { BillingService } from './billing.service';
+import { SourcingService } from './sourcing.service';
 
 const SCOPE = 'default';
 type Row = Prisma.BillingPaymentSettingGetPayload<Record<string, never>>;
@@ -31,7 +33,8 @@ export class PaymentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppConfig, true>,
-    private readonly credit: CreditService,
+    private readonly billing: BillingService,
+    private readonly sourcing: SourcingService,
   ) {}
 
   private encryptionSecret(): string {
@@ -232,22 +235,142 @@ export class PaymentService {
     return { orderId: order.id, sessionId, url, mode: 'mock' };
   }
 
+  /**
+   * Đơn mua gói tin hoặc gói Săn. Gán gói chỉ khi thanh toán thành công.
+   * Giá 0đ thì ghi nhận đã thanh toán và gán ngay.
+   */
+  async createCatalogCheckout(
+    user: AuthenticatedUser,
+    companyId: string,
+    kind: 'platform' | 'sourcing',
+    planCode: string,
+    webOrigin: string,
+  ): Promise<PaymentCheckoutResponse> {
+    const platform =
+      kind === 'platform'
+        ? await this.prisma.billingPlatformPlan.findFirst({
+            where: { code: planCode, isActive: true },
+          })
+        : null;
+    const sourcing =
+      kind === 'sourcing'
+        ? await this.prisma.billingSourcingPlan.findFirst({
+            where: { code: planCode, isActive: true },
+          })
+        : null;
+    const plan = platform ?? sourcing;
+    if (!plan) throw new NotFoundException('Không tìm thấy gói hoặc gói đã tắt');
+    if (platform?.code === 'ENTERPRISE') {
+      throw new BadRequestException('Gói Enterprise liên hệ sales — không tự thanh toán');
+    }
+
+    const priceVnd = platform ? platform.priceVnd : sourcing!.feeVnd;
+    const settings = await this.row();
+    const mode = (settings?.mode as PaymentMode) ?? 'mock';
+    const sessionId = `cs_${mode === 'live' ? 'test' : 'mock'}_${randomBytes(12).toString('hex')}`;
+    const order = await this.createOrder({
+      user,
+      companyId,
+      topupId: null,
+      creditCount: 0,
+      priceVnd,
+      provider: mode === 'live' && priceVnd > 0n ? 'stripe' : 'stripe-mock',
+      sessionId,
+      kind,
+      planCode: plan.code,
+      planName: plan.name,
+    });
+
+    if (priceVnd <= 0n) {
+      await this.markPaidAndGrant(order, `evt_free_${randomBytes(6).toString('hex')}`, {
+        mock: true,
+        outcome: 'free',
+      });
+      const url = new URL(
+        kind === 'sourcing' ? '/recruiter/sourcing' : '/recruiter/billing',
+        webOrigin,
+      ).toString();
+      return { orderId: order.id, sessionId, url, mode };
+    }
+
+    if (mode === 'live') {
+      const secretKey = this.decrypt(settings?.stripeSecretKeyEnc);
+      if (!secretKey) {
+        throw new BadRequestException(
+          'Chưa cấu hình Stripe Secret Key. Vào /admin/billing/payment để thêm hoặc chuyển sang Mock.',
+        );
+      }
+      const successUrl = (settings?.successUrl ?? '/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}').replace(
+        '{CHECKOUT_SESSION_ID}',
+        sessionId,
+      );
+      const form = new URLSearchParams();
+      form.set('mode', 'payment');
+      form.set('success_url', new URL(successUrl, webOrigin).toString());
+      form.set('cancel_url', new URL(settings?.cancelUrl ?? '/recruiter/billing/topup/cancel', webOrigin).toString());
+      form.set('client_reference_id', order.id);
+      form.set('line_items[0][price_data][currency]', 'vnd');
+      form.set('line_items[0][price_data][product_data][name]', plan.name);
+      form.set('line_items[0][price_data][unit_amount]', String(Number(priceVnd)));
+      form.set('line_items[0][quantity]', '1');
+      form.set('metadata[orderId]', order.id);
+      form.set('metadata[companyId]', companyId);
+      form.set('metadata[kind]', kind);
+      form.set('metadata[planCode]', plan.code);
+      const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: form,
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.error(`Stripe create session failed: ${res.status} ${errText}`);
+        await this.prisma.billingOrder.update({
+          where: { id: order.id },
+          data: { status: 'failed', failedAt: new Date(), note: `Stripe API ${res.status}` },
+        });
+        throw new BadRequestException('Stripe từ chối tạo session. Kiểm tra Secret Key.');
+      }
+      const data = (await res.json()) as { id: string; url: string };
+      await this.prisma.billingOrder.update({
+        where: { id: order.id },
+        data: { providerSessionId: data.id },
+      });
+      return { orderId: order.id, sessionId: data.id, url: data.url, mode: 'live' };
+    }
+
+    const url = new URL(
+      `/recruiter/billing/topup/mock-checkout?session=${sessionId}&order=${order.id}`,
+      webOrigin,
+    ).toString();
+    return { orderId: order.id, sessionId, url, mode: 'mock' };
+  }
+
   private async createOrder(args: {
     user: AuthenticatedUser;
     companyId: string;
-    topupId: string;
+    topupId: string | null;
     creditCount: number;
     priceVnd: bigint;
     provider: 'stripe' | 'stripe-mock';
     sessionId: string;
+    kind?: 'topup' | 'platform' | 'sourcing';
+    planCode?: string | null;
+    planName?: string | null;
   }) {
     return this.prisma.billingOrder.create({
       data: {
         tenantId: args.user.tenantId,
         companyId: args.companyId,
+        kind: args.kind ?? 'topup',
         topupId: args.topupId,
         creditCountSnapshot: args.creditCount,
         priceVndSnapshot: args.priceVnd,
+        planCode: args.planCode ?? null,
+        planName: args.planName ?? null,
         status: 'pending',
         provider: args.provider,
         providerSessionId: args.sessionId,
@@ -399,15 +522,40 @@ export class PaymentService {
   }
 
   /**
-   * Cập nhật order = paid + cấp credit + ghi audit log trong 1 transaction.
+   * Gán gói (nếu là đơn gói) rồi đánh dấu đã thanh toán.
+   * Chỉ đơn Top-up mới cộng credit. Gán trước khi đổi trạng thái để lần bấm lại vẫn chạy được nếu gán lỗi.
    */
   private async markPaidAndGrant(
-    order: { id: string; tenantId: string; companyId: string; creditCountSnapshot: number; priceVndSnapshot: bigint },
+    order: {
+      id: string;
+      tenantId: string;
+      companyId: string;
+      kind?: string;
+      planCode?: string | null;
+      creditCountSnapshot: number;
+      priceVndSnapshot: bigint;
+      createdByUserId: string;
+      createdByEmail: string | null;
+    },
     eventId: string,
     extra: { mock: boolean; paymentIntent?: string | null; outcome?: string },
   ): Promise<BillingOrderView> {
+    const fresh = await this.prisma.billingOrder.findUnique({ where: { id: order.id } });
+    if (!fresh) throw new NotFoundException('Order không tồn tại');
+    if (fresh.status !== 'pending') return this.mapOrder(fresh);
+
+    const kind = fresh.kind === 'platform' || fresh.kind === 'sourcing' ? fresh.kind : 'topup';
+    const planCode = fresh.planCode;
+    if ((kind === 'platform' || kind === 'sourcing') && planCode) {
+      const actor = this.actorFromOrder(fresh);
+      if (kind === 'platform') {
+        await this.billing.activatePurchasedPlan(actor, fresh.companyId, planCode);
+      } else {
+        await this.sourcing.activatePurchasedPlan(actor, fresh.companyId, planCode);
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // 1) Cập nhật order
       const updated = await tx.billingOrder.update({
         where: { id: order.id },
         data: {
@@ -417,68 +565,99 @@ export class PaymentService {
         },
       });
 
-      // 2) Upsert account + cộng credit
-      const account = await tx.billingCreditAccount.upsert({
-        where: { companyId: order.companyId },
-        create: { companyId: order.companyId, tenantId: order.tenantId, balance: 0 },
-        update: {},
-      });
-      const updatedAccount = await tx.billingCreditAccount.update({
-        where: { id: account.id },
-        data: {
-          balance: { increment: order.creditCountSnapshot },
-          lifetimeGranted: { increment: order.creditCountSnapshot },
-          lastActivityAt: new Date(),
-        },
-      });
-
-      // 3) Ghi transaction
-      await tx.billingCreditTransaction.create({
-        data: {
-          tenantId: order.tenantId,
-          companyId: order.companyId,
-          accountId: account.id,
-          type: 'topup',
-          action: 'manual_grant',
-          creditDelta: order.creditCountSnapshot,
-          balanceAfter: updatedAccount.balance,
-          costPerUnit: 0,
-          quantity: 1,
-          actorUserId: null,
-          actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
-          note: `Top-up ${order.creditCountSnapshot} credit qua ${extra.mock ? 'Stripe Mock' : 'Stripe'} (order ${order.id})`,
-          metadata: {
-            orderId: order.id,
-            eventId,
-            priceVnd: order.priceVndSnapshot.toString(),
-            paymentIntent: extra.paymentIntent ?? null,
+      if (kind === 'topup' && order.creditCountSnapshot > 0) {
+        const account = await tx.billingCreditAccount.upsert({
+          where: { companyId: order.companyId },
+          create: { companyId: order.companyId, tenantId: order.tenantId, balance: 0 },
+          update: {},
+        });
+        const updatedAccount = await tx.billingCreditAccount.update({
+          where: { id: account.id },
+          data: {
+            balance: { increment: order.creditCountSnapshot },
+            lifetimeGranted: { increment: order.creditCountSnapshot },
+            lastActivityAt: new Date(),
           },
-          enforced: true,
-        },
-      });
+        });
 
-      // 4) Audit log
-      await tx.billingAuditLog.create({
-        data: {
-          entity: 'credit_ledger',
-          entityKey: order.companyId,
-          action: 'topup',
-          diff: {
-            source: extra.mock ? 'stripe-mock' : 'stripe',
-            orderId: order.id,
-            eventId,
+        await tx.billingCreditTransaction.create({
+          data: {
+            tenantId: order.tenantId,
+            companyId: order.companyId,
+            accountId: account.id,
+            type: 'topup',
+            action: 'manual_grant',
             creditDelta: order.creditCountSnapshot,
-            priceVnd: order.priceVndSnapshot.toString(),
-            before: { balance: account.balance, lifetimeGranted: account.lifetimeGranted },
-            after: { balance: updatedAccount.balance, lifetimeGranted: updatedAccount.lifetimeGranted },
+            balanceAfter: updatedAccount.balance,
+            costPerUnit: 0,
+            quantity: 1,
+            actorUserId: null,
+            actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
+            note: `Top-up ${order.creditCountSnapshot} credit qua ${extra.mock ? 'Stripe Mock' : 'Stripe'} (order ${order.id})`,
+            metadata: {
+              orderId: order.id,
+              eventId,
+              priceVnd: order.priceVndSnapshot.toString(),
+              paymentIntent: extra.paymentIntent ?? null,
+            },
+            enforced: true,
           },
-          actorId: null,
-          actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
-        },
-      });
+        });
+
+        await tx.billingAuditLog.create({
+          data: {
+            entity: 'credit_ledger',
+            entityKey: order.companyId,
+            action: 'topup',
+            diff: {
+              source: extra.mock ? 'stripe-mock' : 'stripe',
+              orderId: order.id,
+              eventId,
+              creditDelta: order.creditCountSnapshot,
+              priceVnd: order.priceVndSnapshot.toString(),
+              before: { balance: account.balance, lifetimeGranted: account.lifetimeGranted },
+              after: { balance: updatedAccount.balance, lifetimeGranted: updatedAccount.lifetimeGranted },
+            },
+            actorId: null,
+            actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
+          },
+        });
+      } else {
+        await tx.billingAuditLog.create({
+          data: {
+            entity: 'billing_order',
+            entityKey: order.id,
+            action: 'paid',
+            diff: {
+              source: extra.mock ? 'stripe-mock' : 'stripe',
+              kind,
+              planCode,
+              eventId,
+              priceVnd: order.priceVndSnapshot.toString(),
+            },
+            actorId: null,
+            actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
+          },
+        });
+      }
 
       return this.mapOrder(updated);
     });
+  }
+
+  private actorFromOrder(order: {
+    createdByUserId: string;
+    createdByEmail: string | null;
+    tenantId: string;
+  }): AuthenticatedUser {
+    return {
+      id: order.createdByUserId,
+      email: order.createdByEmail ?? 'system:payment',
+      role: UserRole.Recruiter,
+      tenantId: order.tenantId,
+      displayName: 'Thanh toán',
+      status: 'active',
+    };
   }
 
   // =====================================================================
@@ -518,7 +697,10 @@ export class PaymentService {
   private mapOrder(o: {
     id: string;
     companyId: string;
-    topupId: string;
+    kind: string;
+    topupId: string | null;
+    planCode: string | null;
+    planName: string | null;
     creditCountSnapshot: number;
     priceVndSnapshot: bigint;
     status: string;
@@ -531,10 +713,14 @@ export class PaymentService {
     failedAt: Date | null;
     note: string | null;
   }): BillingOrderView {
+    const kind = o.kind === 'platform' || o.kind === 'sourcing' ? o.kind : 'topup';
     return {
       id: o.id,
       companyId: o.companyId,
+      kind,
       topupId: o.topupId,
+      planCode: o.planCode,
+      planName: o.planName,
       creditCountSnapshot: o.creditCountSnapshot,
       priceVndSnapshot: o.priceVndSnapshot.toString(),
       status: o.status as BillingOrderView['status'],

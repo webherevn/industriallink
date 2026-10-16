@@ -393,7 +393,11 @@ export interface PaymentCheckoutResponse {
 export interface BillingOrderView {
   id: string;
   companyId: string;
-  topupId: string;
+  /** 'topup' | 'platform' | 'sourcing' */
+  kind: 'topup' | 'platform' | 'sourcing';
+  topupId: string | null;
+  planCode: string | null;
+  planName: string | null;
   creditCountSnapshot: number;
   /** BigInt → string để JSON an toàn. */
   priceVndSnapshot: string;

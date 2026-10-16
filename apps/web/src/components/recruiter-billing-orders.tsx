@@ -31,10 +31,10 @@ export function RecruiterOrders() {
           >
             <ArrowLeft className="h-3 w-3" /> Quay lại Top-up
           </Link>
-          <h1 className="cms-page-title mt-2">Lịch sử đơn mua Credit</h1>
+          <h1 className="cms-page-title mt-2">Lịch sử đơn thanh toán</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle mt-2">
-            Tất cả đơn Top-up và trạng thái thanh toán. Đơn &quot;Đã thanh toán&quot; đã được cấp credit tự động.
+            Đơn Top-up, gói tin và gói Săn. Gói chỉ được gán khi đơn ở trạng thái đã thanh toán.
           </p>
         </div>
 
@@ -43,7 +43,7 @@ export function RecruiterOrders() {
         ) : !data || data.items.length === 0 ? (
           <Card className="p-8 text-center text-sm text-slate-500">
             <CreditCard className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-3">Chưa có đơn mua Credit nào.</p>
+            <p className="mt-3">Chưa có đơn thanh toán nào.</p>
             <Link href="/recruiter/billing/topup" className="mt-3 inline-block">
               <Button>Mua ngay</Button>
             </Link>
@@ -55,7 +55,7 @@ export function RecruiterOrders() {
                 <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Mã đơn</th>
-                    <th className="px-4 py-3">Credit</th>
+                    <th className="px-4 py-3">Nội dung</th>
                     <th className="px-4 py-3">Số tiền</th>
                     <th className="px-4 py-3">Trạng thái</th>
                     <th className="px-4 py-3">Ngày tạo</th>
@@ -69,9 +69,16 @@ export function RecruiterOrders() {
                       <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50/50">
                         <td className="px-4 py-3 font-mono text-[11px] text-slate-700">{o.id.slice(0, 8)}…</td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1 font-semibold text-slate-900">
-                            <Coins className="h-3.5 w-3.5 text-accent-600" /> +{o.creditCountSnapshot}
-                          </span>
+                          {o.kind === 'topup' ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-slate-900">
+                              <Coins className="h-3.5 w-3.5 text-accent-600" /> +{o.creditCountSnapshot} credit
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-slate-900">
+                              {o.kind === 'sourcing' ? 'Săn · ' : 'Gói tin · '}
+                              {o.planName || o.planCode || 'Gói'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-semibold">
                           {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(o.priceVndSnapshot))}

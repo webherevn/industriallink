@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { mockTopupFailure, mockTopupSuccess } from '@/lib/recruiter-billing';
+import { fetchRecruiterOrders, mockTopupFailure, mockTopupSuccess } from '@/lib/recruiter-billing';
 
 /**
  * Trang thanh toán giả lập — chỉ hiển thị khi billing.payment_setting.mode = 'mock'.
@@ -34,25 +34,24 @@ export function RecruiterMockCheckout() {
   const orderId = searchParams.get('order') ?? '';
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [orderInfo, setOrderInfo] = useState<{
+    kind: 'topup' | 'platform' | 'sourcing';
+    planName: string | null;
     creditCount: number;
     priceVnd: string;
     status: string;
   } | null>(null);
 
-  // Auto-load order info
   useEffect(() => {
     if (!orderId) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/v1/billing/orders`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('ilink.access') ?? ''}` },
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { items: { id: string; creditCountSnapshot: number; priceVndSnapshot: string; status: string }[] };
+        const data = await fetchRecruiterOrders();
         const found = data.items.find((o) => o.id === orderId);
         if (found && !cancelled) {
           setOrderInfo({
+            kind: found.kind,
+            planName: found.planName,
             creditCount: found.creditCountSnapshot,
             priceVnd: found.priceVndSnapshot,
             status: found.status,
@@ -69,11 +68,20 @@ export function RecruiterMockCheckout() {
 
   const success = useMutation({
     mutationFn: () => mockTopupSuccess(orderId),
-    onSuccess: () => {
+    onSuccess: (paid) => {
       setBanner({ tone: 'ok', text: 'Thanh toán thành công! Đang chuyển hướng…' });
       qc.invalidateQueries({ queryKey: ['recruiter-credit-summary'] });
+      qc.invalidateQueries({ queryKey: ['recruiter-credit-balance'] });
       qc.invalidateQueries({ queryKey: ['recruiter-orders'] });
-      setTimeout(() => router.push(`/recruiter/billing/topup/success?session=${sessionId}&order=${orderId}`), 800);
+      qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+      qc.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
+      const next =
+        paid.kind === 'sourcing'
+          ? '/recruiter/sourcing'
+          : paid.kind === 'platform'
+            ? '/recruiter/billing'
+            : `/recruiter/billing/topup/success?session=${sessionId}&order=${orderId}`;
+      setTimeout(() => router.push(next), 800);
     },
     onError: (err) =>
       setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Thanh toán thất bại' }),
@@ -125,10 +133,16 @@ export function RecruiterMockCheckout() {
 
           <div className="space-y-4 p-5">
             <div className="rounded-lg bg-slate-50 p-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Số credit</span>
-                <span className="font-bold text-slate-900">
-                  {orderInfo ? orderInfo.creditCount.toLocaleString('vi-VN') : '…'} credit
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">
+                  {orderInfo?.kind === 'topup' || !orderInfo ? 'Số credit' : 'Gói'}
+                </span>
+                <span className="text-right font-bold text-slate-900">
+                  {!orderInfo
+                    ? '…'
+                    : orderInfo.kind === 'topup'
+                      ? `${orderInfo.creditCount.toLocaleString('vi-VN')} credit`
+                      : orderInfo.planName || 'Gói dịch vụ'}
                 </span>
               </div>
               <div className="mt-1.5 flex items-center justify-between">

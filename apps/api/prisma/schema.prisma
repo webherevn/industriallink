@@ -1771,10 +1771,15 @@ model BillingOrder {
   tenantId                 String   @map("tenant_id")
   companyId                String   @map("company_id") @db.Uuid
 
+  /// 'topup' | 'platform' | 'sourcing'
+  kind                     String   @default("topup")
   /// Snapshot từ billing_credit_topup tại thời điểm mua (không thay đổi sau).
-  topupId                  String   @map("topup_id") @db.Uuid
-  creditCountSnapshot      Int      @map("credit_count_snapshot")
+  topupId                  String?  @map("topup_id") @db.Uuid
+  creditCountSnapshot      Int      @default(0) @map("credit_count_snapshot")
   priceVndSnapshot         BigInt   @map("price_vnd_snapshot")
+  /// Snapshot mã/tên gói tin hoặc gói Săn.
+  planCode                 String?  @map("plan_code")
+  planName                 String?  @map("plan_name")
 
   /// 'pending' | 'paid' | 'failed' | 'refunded'
   status                   String   @default("pending")

@@ -43,8 +43,31 @@ export class BillingRecruiterPaymentController {
     return this.payment.createCheckout(user, companyId, dto.topupId, webOrigin);
   }
 
+  @Post('plan/checkout')
+  @ApiOperation({ summary: 'Tạo đơn mua gói tin. Gán gói khi thanh toán thành công.' })
+  async checkoutPlan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RecruiterCreatePlanCheckoutRequest,
+  ): Promise<PaymentCheckoutResponse> {
+    const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.payment.createCatalogCheckout(user, companyId, 'platform', dto.planCode, webOrigin);
+  }
+
+  @Post('sourcing/checkout')
+  @ApiOperation({ summary: 'Tạo đơn mua gói Săn. Gán gói khi thanh toán thành công.' })
+  async checkoutSourcing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RecruiterCreateSourcingCheckoutRequest,
+  ): Promise<PaymentCheckoutResponse> {
+    const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.payment.createCatalogCheckout(user, companyId, 'sourcing', dto.planCode, webOrigin);
+  }
+
   @Post('plan/activate')
-  @ApiOperation({ summary: 'Kích hoạt gói nền tảng sau thanh toán / duyệt (mock hoặc SuperAdmin)' })
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin kích hoạt gói nền tảng không qua đơn thanh toán' })
   async activatePlan(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecruiterCreatePlanCheckoutRequest,
@@ -54,7 +77,8 @@ export class BillingRecruiterPaymentController {
   }
 
   @Post('sourcing/activate')
-  @ApiOperation({ summary: 'Kích hoạt gói Săn sau thanh toán / duyệt (mock hoặc SuperAdmin)' })
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin kích hoạt gói Săn không qua đơn thanh toán' })
   async activateSourcing(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecruiterCreateSourcingCheckoutRequest,
