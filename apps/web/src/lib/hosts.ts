@@ -3,12 +3,14 @@ import { handoffHashForToken, tokenStore } from './api';
 import {
   BRAND_ADMIN_HOST,
   BRAND_ADMIN_SITE_URL,
+  BRAND_CRM_HOST,
+  BRAND_CRM_SITE_URL,
   BRAND_RECRUITER_HOST,
   BRAND_RECRUITER_SITE_URL,
   BRAND_SITE_HOST,
   BRAND_SITE_URL,
 } from './brand';
-import { isAdminAppPath, isRecruiterAppPath } from './hosts-paths';
+import { isAdminAppPath, isCrmAppPath, isRecruiterAppPath } from './hosts-paths';
 
 export { isAdminAppPath, isCandidatePublicPath, isRecruiterAppPath } from './hosts-paths';
 
@@ -54,6 +56,14 @@ export function isAdminHostname(hostname = currentHostname()): boolean {
   return hostname === BRAND_ADMIN_HOST || hostname.startsWith('admin.');
 }
 
+export function isCrmHostname(hostname = currentHostname()): boolean {
+  return hostname === BRAND_CRM_HOST || hostname.startsWith('crm.');
+}
+
+export function crmSiteUrl(): string {
+  return (process.env.NEXT_PUBLIC_CRM_SITE_URL || BRAND_CRM_SITE_URL).replace(/\/$/, '');
+}
+
 export function isPublicHostname(hostname = currentHostname()): boolean {
   return hostname === BRAND_SITE_HOST || hostname === `www.${BRAND_SITE_HOST}`;
 }
@@ -90,12 +100,21 @@ export function goToAdminApp(path = '/admin'): void {
   navigateToOrigin(adminSiteUrl(), path);
 }
 
+export function goToCrmApp(path = '/crm'): void {
+  navigateToOrigin(crmSiteUrl(), path);
+}
+
 export function goToPublicApp(path = '/'): void {
   navigateToOrigin(publicSiteUrl(), path);
 }
 
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
   if (isCmsAdminRole(role)) {
+    if (isCrmHostname()) {
+      const dest = nextPath && isCrmAppPath(nextPath) ? nextPath : '/crm';
+      window.location.assign(dest);
+      return;
+    }
     const dest = nextPath && isAdminAppPath(nextPath) ? nextPath : '/admin';
     // Đã ở admin.inlink.vn → ở lại origin hiện tại (tránh nhảy nhầm host)
     if (isAdminHostname()) {
@@ -128,6 +147,9 @@ export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boole
   if (!shouldUseSplitHosts()) return false;
 
   if (isCmsAdminRole(role)) {
+    if (isCrmHostname() && isCrmAppPath(pathWithSearch.split('?')[0] ?? pathWithSearch)) {
+      return false;
+    }
     if (!isAdminHostname()) {
       const dest = isAdminAppPath(pathWithSearch) ? pathWithSearch : '/admin';
       goToAdminApp(dest);

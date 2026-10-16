@@ -22,6 +22,7 @@ import { SearchModule } from './modules/search/search.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { CrmModule } from './modules/crm/crm.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { BillingModule } from './modules/billing/billing.module';
     CmsModule,
     AnalyticsModule,
     BillingModule,
+    CrmModule,
     HealthModule,
   ],
   providers: [

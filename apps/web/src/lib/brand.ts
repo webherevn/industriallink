@@ -7,4 +7,6 @@ export const BRAND_RECRUITER_HOST = 'tuyendung.inlink.vn';
 export const BRAND_RECRUITER_SITE_URL = `https://${BRAND_RECRUITER_HOST}`;
 export const BRAND_ADMIN_HOST = 'admin.inlink.vn';
 export const BRAND_ADMIN_SITE_URL = `https://${BRAND_ADMIN_HOST}`;
+export const BRAND_CRM_HOST = 'crm.inlink.vn';
+export const BRAND_CRM_SITE_URL = `https://${BRAND_CRM_HOST}`;
 export const BRAND_SUPPORT_EMAIL = `support@${BRAND_SITE_HOST}`;

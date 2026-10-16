@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment", "cms", "billing"]
+  schemas  = ["identity", "candidate", "knowledge", "shared", "company", "recruitment", "cms", "billing", "crm"]
 }
 
 // =========================================================================
@@ -1839,5 +1839,120 @@ model BillingPayment {
   @@index([eventType])
   @@map("billing_payment")
   @@schema("billing")
+}
+
+// =========================================================================
+// CRM — lead và phễu bán gói. Không gán gói, không cộng Credit.
+// Gán gói chỉ đi từ đơn billing đã thanh toán hoặc SuperAdmin.
+// =========================================================================
+
+model CrmPipeline {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  stages CrmStage[]
+  deals  CrmDeal[]
+
+  @@map("crm_pipeline")
+  @@schema("crm")
+}
+
+model CrmStage {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pipelineId     String @map("pipeline_id") @db.Uuid
+  code           String
+  name           String
+  sortOrder      Int    @default(1) @map("sort_order")
+  winProbability Int    @default(10) @map("win_probability")
+
+  pipeline CrmPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    CrmDeal[]
+
+  @@unique([pipelineId, code])
+  @@map("crm_stage")
+  @@schema("crm")
+}
+
+model CrmLead {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadCode     String   @unique @map("lead_code")
+  companyName  String   @map("company_name")
+  taxCode      String?  @map("tax_code")
+  contactName  String   @map("contact_name")
+  contactPhone String   @map("contact_phone")
+  contactEmail String?  @map("contact_email")
+  industry     String?
+  /// Công ty đã có trên inlink, nếu lead đã khớp.
+  companyId    String?  @map("company_id") @db.Uuid
+  /// open | converted | unqualified
+  status       String   @default("open")
+  ownerUserId  String   @map("owner_user_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  deals      CrmDeal[]
+  activities CrmActivity[]
+
+  @@index([taxCode])
+  @@index([contactPhone])
+  @@index([ownerUserId, status])
+  @@map("crm_lead")
+  @@schema("crm")
+}
+
+model CrmDeal {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dealCode    String  @unique @map("deal_code")
+  title       String
+  leadId      String  @map("lead_id") @db.Uuid
+  companyId   String? @map("company_id") @db.Uuid
+  pipelineId  String  @map("pipeline_id") @db.Uuid
+  stageId     String  @map("stage_id") @db.Uuid
+  /// platform | sourcing. Trỏ SKU SuperAdmin, không tự kích hoạt.
+  planKind    String? @map("plan_kind")
+  planCode    String? @map("plan_code")
+  /// Giá niêm yết chưa VAT, snapshot lúc tạo. Không dùng để cộng Credit.
+  listPriceVnd BigInt? @map("list_price_vnd")
+  /// Đơn billing khi có thanh toán. Đợt này luôn null.
+  billingOrderId String? @map("billing_order_id") @db.Uuid
+  /// Luôn not_provisioned cho đến khi đơn paid hoặc SuperAdmin gán.
+  provisionState String @default("not_provisioned") @map("provision_state")
+  ownerUserId String   @map("owner_user_id") @db.Uuid
+  wonAt       DateTime? @map("won_at")
+  lostAt      DateTime? @map("lost_at")
+  lostReason  String?   @map("lost_reason")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  lead     CrmLead     @relation(fields: [leadId], references: [id])
+  pipeline CrmPipeline @relation(fields: [pipelineId], references: [id])
+  stage    CrmStage    @relation(fields: [stageId], references: [id])
+  activities CrmActivity[]
+
+  @@index([ownerUserId, stageId])
+  @@index([companyId])
+  @@map("crm_deal")
+  @@schema("crm")
+}
+
+model CrmActivity {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId          String?  @map("lead_id") @db.Uuid
+  dealId          String?  @map("deal_id") @db.Uuid
+  activityType    String   @map("activity_type")
+  summary         String
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  lead CrmLead? @relation(fields: [leadId], references: [id])
+  deal CrmDeal? @relation(fields: [dealId], references: [id])
+
+  @@index([leadId, createdAt])
+  @@map("crm_activity")
+  @@schema("crm")
 }
 

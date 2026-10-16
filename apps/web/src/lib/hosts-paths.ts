@@ -15,6 +15,11 @@ export function isRecruiterAppPath(pathname: string): boolean {
   return false;
 }
 
+export function isCrmAppPath(pathname: string): boolean {
+  const path = pathname.split('?')[0] ?? pathname;
+  return path === '/crm' || path.startsWith('/crm/');
+}
+
 export function isAdminAppPath(pathname: string): boolean {
   const path = pathname.split('?')[0] ?? pathname;
   return path === '/admin' || path.startsWith('/admin/');

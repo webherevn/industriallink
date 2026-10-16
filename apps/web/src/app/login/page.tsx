@@ -8,7 +8,7 @@ import { BrandLogo } from '@/components/brand-logo';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError, tokenStore } from '@/lib/api';
 import { clearAuthQueryCache, login, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
-import { isAdminHostname, navigateAfterLogin } from '@/lib/hosts';
+import { isAdminHostname, isCrmHostname, navigateAfterLogin } from '@/lib/hosts';
 import { registerHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function LoginPage() {
@@ -38,6 +38,15 @@ export default function LoginPage() {
   function goHome(role: UserRole) {
     clearAuthQueryCache(queryClient);
     // admin.inlink.vn: luôn ở lại origin hiện tại, không gọi goToAdminApp/goToRecruiterApp
+    if (typeof window !== 'undefined' && isCrmHostname()) {
+      if (!isCmsAdminRole(role)) {
+        tokenStore.clear();
+        setError('Tài khoản này không có quyền vào CRM.');
+        return;
+      }
+      window.location.assign(nextPath && nextPath.startsWith('/crm') ? nextPath : '/crm');
+      return;
+    }
     if (typeof window !== 'undefined' && isAdminHostname()) {
       if (!isCmsAdminRole(role)) {
         tokenStore.clear();
