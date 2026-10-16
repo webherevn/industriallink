@@ -87,9 +87,10 @@ export class AdminCompaniesService {
     const publishedMap = new Map(publishedByCompany.map((g) => [g.companyId, g._count._all]));
     const countOf = (s: CompanyStatus) =>
       grouped.find((g) => g.status === s)?._count._all ?? 0;
+    const plans = await this.loadPlanLabels(rows.map((r) => r.id));
 
     return {
-      items: rows.map((r) => this.toListItem(r, publishedMap.get(r.id) ?? 0)),
+      items: rows.map((r) => this.toListItem(r, publishedMap.get(r.id) ?? 0, plans.get(r.id))),
       total,
       page,
       limit,
@@ -135,8 +136,9 @@ export class AdminCompaniesService {
       }),
     ]);
 
+    const plans = await this.loadPlanLabels([id]);
     return {
-      ...this.toListItem(company, publishedJobCount),
+      ...this.toListItem(company, publishedJobCount, plans.get(id)),
       website: company.website,
       address: company.address,
       description: company.description,
@@ -365,9 +367,59 @@ export class AdminCompaniesService {
     return base;
   }
 
+  private async loadPlanLabels(companyIds: string[]) {
+    const map = new Map<
+      string,
+      {
+        platformPlanCode: string | null;
+        platformPlanName: string | null;
+        sourcingPlanCode: string | null;
+        sourcingPlanName: string | null;
+      }
+    >();
+    if (companyIds.length === 0) return map;
+    const [platforms, sourcings] = await Promise.all([
+      this.prisma.billingCompanyPlan.findMany({
+        where: { companyId: { in: companyIds }, isActive: true },
+        include: { plan: { select: { code: true, name: true } } },
+      }),
+      this.prisma.billingCompanySourcingPlan.findMany({
+        where: { companyId: { in: companyIds }, isActive: true },
+        include: { plan: { select: { code: true, name: true } } },
+      }),
+    ]);
+    for (const id of companyIds) {
+      map.set(id, {
+        platformPlanCode: null,
+        platformPlanName: null,
+        sourcingPlanCode: null,
+        sourcingPlanName: null,
+      });
+    }
+    for (const row of platforms) {
+      const current = map.get(row.companyId);
+      if (!current || !row.plan) continue;
+      current.platformPlanCode = row.plan.code;
+      current.platformPlanName = row.plan.name;
+    }
+    for (const row of sourcings) {
+      const current = map.get(row.companyId);
+      if (!current || !row.plan) continue;
+      current.sourcingPlanCode = row.plan.code;
+      current.sourcingPlanName = row.plan.name;
+    }
+    return map;
+  }
+
   private toListItem(
     row: Prisma.CompanyGetPayload<{ select: typeof LIST_SELECT }>,
     publishedJobCount: number,
+    plans?: {
+      platformPlanCode: string | null;
+      platformPlanName: string | null;
+      sourcingPlanCode: string | null;
+      sourcingPlanName: string | null;
+    },
   ): AdminCompanyListItem {
     const brand =
       row.profile && typeof row.profile === 'object' && !Array.isArray(row.profile)
@@ -388,6 +440,10 @@ export class AdminCompaniesService {
       jobCount: row._count.jobs,
       publishedJobCount,
       createdAt: row.createdAt.toISOString(),
+      platformPlanCode: plans?.platformPlanCode ?? null,
+      platformPlanName: plans?.platformPlanName ?? null,
+      sourcingPlanCode: plans?.sourcingPlanCode ?? null,
+      sourcingPlanName: plans?.sourcingPlanName ?? null,
     };
   }
 }

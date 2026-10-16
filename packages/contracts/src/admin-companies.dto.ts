@@ -15,6 +15,12 @@ export interface AdminCompanyListItem {
   jobCount: number;
   publishedJobCount: number;
   createdAt: string;
+  /** Gói nền tảng đang bật. null = chưa gán. */
+  platformPlanCode: string | null;
+  platformPlanName: string | null;
+  /** Gói Săn đang bật. null = chưa gán. */
+  sourcingPlanCode: string | null;
+  sourcingPlanName: string | null;
 }
 
 export interface AdminCompanyCounts {

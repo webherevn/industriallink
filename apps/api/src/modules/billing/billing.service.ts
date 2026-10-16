@@ -54,6 +54,7 @@ import {
   DEFAULT_BILLING_PAGE_FAQ,
   DEFAULT_BILLING_PAGE_TRUST,
   UserRole,
+  looksLikeUuid,
 } from '@industriallink/contracts';
 import {
   defaultActionCostRows,
@@ -330,6 +331,7 @@ export class BillingService {
           ? new Date(input.endsAt)
           : null;
 
+    const actorId = looksLikeUuid(actor.id) ? actor.id : null;
     const before = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId: input.companyId },
     });
@@ -349,8 +351,8 @@ export class BillingService {
           endsAt,
           isActive: input.isActive ?? true,
           note: input.note ?? null,
-          createdBy: actor.id,
-          updatedBy: actor.id,
+          createdBy: actorId,
+          updatedBy: actorId,
         },
         update: {
           planId: input.planId,
@@ -358,7 +360,7 @@ export class BillingService {
           endsAt,
           isActive: input.isActive ?? true,
           note: input.note === undefined ? undefined : input.note,
-          updatedBy: actor.id,
+          updatedBy: actorId,
         },
         include: { plan: true },
       });
@@ -388,7 +390,7 @@ export class BillingService {
             balanceAfter: updatedAccount.balance,
             costPerUnit: 0,
             quantity: 1,
-            actorUserId: actor.id,
+            actorUserId: actorId,
             actorEmail: actor.email ?? null,
             note: `Tặng ${quota} Credit khi gán gói ${plan.name}`,
             metadata: {
@@ -414,7 +416,7 @@ export class BillingService {
               before: { balance: account.balance, lifetimeGranted: account.lifetimeGranted },
               after: { balance: updatedAccount.balance, lifetimeGranted: updatedAccount.lifetimeGranted },
             },
-            actorId: actor.id,
+            actorId,
             actorEmail: actor.email ?? null,
           },
         });
@@ -1390,7 +1392,7 @@ export class BillingService {
         entityKey,
         action,
         diff: diff as Prisma.JsonObject,
-        actorId: actor.id,
+        actorId: looksLikeUuid(actor.id) ? actor.id : null,
         actorEmail: actor.email ?? null,
       },
     });

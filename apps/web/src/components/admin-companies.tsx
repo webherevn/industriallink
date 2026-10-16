@@ -2,12 +2,19 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { CompanyStatus, type AdminCompanyListItem } from '@industriallink/contracts';
 import { AdminShell } from '@/components/admin-shell';
 import { Button, Card, Input } from '@/components/ui';
+import {
+  assignAdminCompanyPlan,
+  assignAdminCompanySourcingPlan,
+  fetchAdminPlatformPlans,
+  fetchAdminSourcingPlans,
+  unassignAdminCompanySourcingPlan,
+} from '@/lib/admin-billing';
 import { ApiError } from '@/lib/api';
 import { fetchAdminCompanies, updateAdminCompany } from '@/lib/admin-companies';
 
@@ -50,6 +57,7 @@ export function AdminCompaniesPage() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState<AdminCompanyListItem | null>(null);
 
   const query = useMemo(
     () => ({ status: status || undefined, q: q || undefined, page, limit: 50 }),
@@ -180,6 +188,7 @@ export function AdminCompaniesPage() {
                 <th className="px-3 py-2.5">Trạng thái</th>
                 <th className="px-3 py-2.5">Huy hiệu</th>
                 <th className="px-3 py-2.5">TV / Tin</th>
+                <th className="px-3 py-2.5">Gói đăng ký</th>
                 <th className="px-3 py-2.5 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -229,6 +238,19 @@ export function AdminCompaniesPage() {
                     </td>
                     <td className="px-3 py-3 text-slate-600">
                       {item.memberCount} TV · {item.publishedJobCount}/{item.jobCount} đăng
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex max-w-[220px] flex-col items-start gap-1">
+                        <PlanTag label={item.platformPlanName} empty="Chưa gán gói tin" />
+                        <PlanTag label={item.sourcingPlanName} empty="Chưa gán gói Săn" muted />
+                        <button
+                          type="button"
+                          className="text-[11px] font-semibold text-[#E8872A] hover:underline"
+                          onClick={() => setPicking(item)}
+                        >
+                          Chọn gói
+                        </button>
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap justify-end gap-1.5">
@@ -295,7 +317,185 @@ export function AdminCompaniesPage() {
           </div>
         </div>
       ) : null}
+
+      {picking ? (
+        <PlanPicker
+          company={picking}
+          onClose={() => setPicking(null)}
+          onSaved={async () => {
+            setPicking(null);
+            setError(null);
+            await qc.invalidateQueries({ queryKey: ['admin-companies'] });
+          }}
+          onError={(message) => setError(message)}
+        />
+      ) : null}
     </AdminShell>
+  );
+}
+
+function PlanTag({ label, empty, muted = false }: { label: string | null; empty: string; muted?: boolean }) {
+  if (!label) {
+    return <span className="text-[11px] text-slate-400">{empty}</span>;
+  }
+  return (
+    <span
+      className={clsx(
+        'inline-flex max-w-full truncate rounded-md px-1.5 py-0.5 text-[11px] font-semibold ring-1',
+        muted
+          ? 'bg-violet-50 text-violet-800 ring-violet-100'
+          : 'bg-sky-50 text-sky-800 ring-sky-100',
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function PlanPicker({
+  company,
+  onClose,
+  onSaved,
+  onError,
+}: {
+  company: AdminCompanyListItem;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const { data: platforms, isLoading: loadingPlatforms } = useQuery({
+    queryKey: ['admin-billing-platform-plans', 'active'],
+    queryFn: () => fetchAdminPlatformPlans(false),
+  });
+  const { data: sourcings, isLoading: loadingSourcing } = useQuery({
+    queryKey: ['admin-billing-sourcing-plans', 'active'],
+    queryFn: () => fetchAdminSourcingPlans(false),
+  });
+  const activePlatforms = (platforms ?? []).filter((p) => p.isActive);
+  const activeSourcing = (sourcings ?? []).filter((p) => p.isActive);
+  const [platformId, setPlatformId] = useState<string | null>(null);
+  const [sourcingId, setSourcingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const selectedPlatform =
+    platformId ??
+    activePlatforms.find((p) => p.code === company.platformPlanCode)?.id ??
+    activePlatforms.find((p) => p.code === 'KHAM_PHA')?.id ??
+    activePlatforms[0]?.id ??
+    '';
+  const selectedSourcing =
+    sourcingId ??
+    (company.sourcingPlanCode
+      ? (activeSourcing.find((p) => p.code === company.sourcingPlanCode)?.id ?? '')
+      : '');
+
+  async function save() {
+    if (!selectedPlatform) {
+      onError('Chưa có gói nền tảng đang bật để gán.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await assignAdminCompanyPlan({
+        companyId: company.id,
+        planId: selectedPlatform,
+        isActive: true,
+        note: 'SuperAdmin gán từ danh sách công ty',
+      });
+      if (selectedSourcing) {
+        await assignAdminCompanySourcingPlan({
+          companyId: company.id,
+          planId: selectedSourcing,
+          isActive: true,
+          note: 'SuperAdmin gán từ danh sách công ty',
+        });
+      } else if (company.sourcingPlanCode) {
+        await unassignAdminCompanySourcingPlan(company.id);
+      }
+      await onSaved();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : 'Gán gói thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#E8872A]">Gói đăng ký</p>
+            <h2 className="mt-1 text-lg font-bold text-[#072348]">{company.name}</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Tick một gói tin và, nếu cần, một gói Săn. Lưu là gán ngay cho NTD.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {loadingPlatforms || loadingSourcing ? (
+          <div className="admin-dash-skel mt-4 h-24" />
+        ) : (
+          <>
+            <fieldset className="mt-4">
+              <legend className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gói tin đăng</legend>
+              <div className="mt-2 space-y-1.5">
+                {activePlatforms.map((plan) => (
+                  <label key={plan.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                    <input
+                      type="radio"
+                      name="platform-plan"
+                      checked={selectedPlatform === plan.id}
+                      onChange={() => setPlatformId(plan.id)}
+                    />
+                    <span className="text-sm font-medium text-slate-800">{plan.name}</span>
+                    <span className="text-[11px] text-slate-400">{plan.code}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="mt-4">
+              <legend className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gói Săn</legend>
+              <div className="mt-2 space-y-1.5">
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                  <input
+                    type="radio"
+                    name="sourcing-plan"
+                    checked={selectedSourcing === ''}
+                    onChange={() => setSourcingId('')}
+                  />
+                  <span className="text-sm text-slate-700">Không gán gói Săn</span>
+                </label>
+                {activeSourcing.map((plan) => (
+                  <label key={plan.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                    <input
+                      type="radio"
+                      name="sourcing-plan"
+                      checked={selectedSourcing === plan.id}
+                      onChange={() => setSourcingId(plan.id)}
+                    />
+                    <span className="text-sm font-medium text-slate-800">{plan.name}</span>
+                    <span className="text-[11px] text-slate-400">{plan.code}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+            Huỷ
+          </Button>
+          <Button type="button" onClick={() => void save()} disabled={saving || !selectedPlatform}>
+            {saving ? 'Đang gán…' : 'Gán gói'}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
