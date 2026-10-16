@@ -36,6 +36,8 @@ import {
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { commissionVnd } from './commission-amount';
+import { assignPaidOrders, pickDealForPayment } from './deal-payment';
+import { paidActivitySummary } from './paid-activity';
 import { normalizeReferralCode } from './referral-cookie';
 
 const PIPELINE_CODE = 'ban_goi';
@@ -87,6 +89,7 @@ export class CrmService {
       ...deals.map((deal) => deal.ownerUserId),
       ...activities.map((row) => row.createdByUserId),
     ]);
+    const paid = await this.paymentsForDeals(deals);
     return {
       pipelineCode: pipeline.code,
       pipelineName: pipeline.name,
@@ -98,7 +101,7 @@ export class CrmService {
         winProbability: stage.winProbability,
       })),
       leads: leads.map((lead) => this.mapLead(lead, names)),
-      deals: deals.map((deal) => this.mapDeal(deal, names)),
+      deals: deals.map((deal) => this.mapDeal(deal, names, paid.get(deal.id))),
       activities: activities.map((row) => this.mapActivity(row, names)),
     };
   }
@@ -349,16 +352,75 @@ export class CrmService {
     }
   }
 
+  /**
+   * Ghi một dòng nhật ký cho deal cùng công ty, cùng gói.
+   * Không đổi bước, không bật gói và không tạo hoa hồng.
+   */
+  async recordPaidOrderActivity(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      companyId: string;
+      kind: string;
+      planCode: string | null;
+      planName: string | null;
+      priceVndSnapshot: bigint;
+      paidAt: Date;
+    },
+  ): Promise<void> {
+    if ((order.kind !== 'platform' && order.kind !== 'sourcing') || !order.planCode || order.priceVndSnapshot <= 0n) return;
+    const existing = await tx.crmActivity.findUnique({
+      where: { billingOrderId: order.id },
+      select: { id: true },
+    });
+    if (existing) return;
+    const deals = await tx.crmDeal.findMany({
+      where: { companyId: order.companyId, planKind: order.kind, planCode: order.planCode },
+      include: { stage: { select: { code: true } } },
+    });
+    const picked = pickDealForPayment(
+      deals
+        .filter((row) => row.createdAt.getTime() <= order.paidAt.getTime())
+        .map((row) => ({
+          id: row.id,
+          updatedAt: row.updatedAt,
+          stageCode: row.stage.code,
+        })),
+    );
+    const deal = picked ? deals.find((row) => row.id === picked.id) : undefined;
+    if (!deal) return;
+    try {
+      await tx.crmActivity.create({
+        data: {
+          leadId: deal.leadId,
+          dealId: deal.id,
+          activityType: 'payment',
+          summary: paidActivitySummary(order),
+          createdByUserId: deal.ownerUserId,
+          billingOrderId: order.id,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
+  }
+
   async commissionLedger(actor: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
     const rows = await this.prisma.crmCommissionEntry.findMany({
       orderBy: { paidAt: 'desc' },
       take: 200,
-      include: { partner: { select: { id: true, name: true, code: true, createdByUserId: true } } },
+      include: {
+        partner: { select: { id: true, name: true, code: true, createdByUserId: true } },
+        billingOrder: { select: { orderInvoice: { select: { invoiceNumber: true } } } },
+      },
     });
     const visible = await this.visibleCommissionRows(actor, rows);
     const pendingTotalVnd = visible.reduce((sum, row) => sum + row.commissionVnd, 0n);
     return {
-      entries: visible.map((row) => this.mapCommissionEntry(row, row.partner.name, row.partner.code)),
+      entries: visible.map((row) =>
+        this.mapCommissionEntry(row, row.partner.name, row.partner.code, row.billingOrder.orderInvoice?.invoiceNumber ?? null),
+      ),
       pendingTotalVnd: pendingTotalVnd.toString(),
     };
   }
@@ -591,11 +653,14 @@ export class CrmService {
         leadId: lead.id,
         dealId: deal.id,
         activityType: 'note',
-        summary: `Tạo deal ${deal.dealCode}. Chưa gán gói.`,
+        summary: plan
+          ? `Tạo deal ${deal.dealCode} cho ${plan.kind === 'sourcing' ? 'gói Săn' : 'gói tin'} ${plan.code}. CRM không bật gói.`
+          : `Tạo deal ${deal.dealCode}. Chưa chọn gói.`,
         createdByUserId: actor.id,
       },
     });
-    return this.mapDeal(deal, await this.ownerNames([actor.id]));
+    const paid = await this.paymentsForDeals([deal]);
+    return this.mapDeal(deal, await this.ownerNames([actor.id]), paid.get(deal.id));
   }
 
   async moveDeal(
@@ -640,7 +705,8 @@ export class CrmService {
         createdByUserId: actor.id,
       },
     });
-    return this.mapDeal(updated, await this.ownerNames([deal.ownerUserId]));
+    const paid = await this.paymentsForDeals([updated]);
+    return this.mapDeal(updated, await this.ownerNames([deal.ownerUserId]), paid.get(updated.id));
   }
 
   /** Đơn gói đã thanh toán. Sale chỉ thấy công ty mình phụ trách. */
@@ -771,6 +837,110 @@ export class CrmService {
       invoiceNumber: order.orderInvoice?.invoiceNumber ?? null,
       invoiceIssuedAt: order.orderInvoice?.issuedAt.toISOString() ?? null,
     };
+  }
+
+  /**
+   * Đơn đã trả của từng deal. Deal tạo sau lần thanh toán không nhận đơn cũ.
+   * Không tạo đơn và không đổi bước.
+   */
+  private async paymentsForDeals(
+    deals: {
+      id: string;
+      companyId: string | null;
+      planKind: string | null;
+      planCode: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      stage: { code: string };
+    }[],
+  ): Promise<Map<string, { amount: bigint; paidAt: Date; invoiceNumber: string | null; companyName: string | null }>> {
+    const keys = new Map<string, { companyId: string; kind: 'platform' | 'sourcing'; planCode: string }>();
+    for (const deal of deals) {
+      if (!deal.companyId || (deal.planKind !== 'platform' && deal.planKind !== 'sourcing') || !deal.planCode) continue;
+      keys.set(`${deal.companyId}:${deal.planKind}:${deal.planCode}`, {
+        companyId: deal.companyId,
+        kind: deal.planKind,
+        planCode: deal.planCode,
+      });
+    }
+    const list = [...keys.values()];
+    const paid = new Map<string, { amount: bigint; paidAt: Date; invoiceNumber: string | null; companyName: string | null }>();
+    if (list.length === 0) return paid;
+    const match = list.map((item) => ({ companyId: item.companyId, planKind: item.kind, planCode: item.planCode }));
+    const [siblings, orders] = await Promise.all([
+      this.prisma.crmDeal.findMany({
+        where: { OR: match },
+        select: {
+          id: true,
+          companyId: true,
+          planKind: true,
+          planCode: true,
+          createdAt: true,
+          updatedAt: true,
+          stage: { select: { code: true } },
+        },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: {
+          status: 'paid',
+          priceVndSnapshot: { gt: 0 },
+          paidAt: { not: null },
+          OR: list.map((item) => ({ companyId: item.companyId, kind: item.kind, planCode: item.planCode })),
+        },
+        select: {
+          id: true,
+          companyId: true,
+          kind: true,
+          planCode: true,
+          priceVndSnapshot: true,
+          paidAt: true,
+          orderInvoice: { select: { invoiceNumber: true } },
+        },
+      }),
+    ]);
+    const ready = orders.flatMap((order) =>
+      order.paidAt && order.planCode
+        ? [{ ...order, planCode: order.planCode, paidAt: order.paidAt }]
+        : [],
+    );
+    const links = ready.length
+      ? await this.prisma.crmActivity.findMany({
+          where: { billingOrderId: { in: ready.map((order) => order.id) } },
+          select: { billingOrderId: true, dealId: true },
+        })
+      : [];
+    const assigned = assignPaidOrders({
+      deals: siblings.map((deal) => ({
+        id: deal.id,
+        companyId: deal.companyId,
+        planKind: deal.planKind,
+        planCode: deal.planCode,
+        createdAt: deal.createdAt,
+        updatedAt: deal.updatedAt,
+        stageCode: deal.stage.code,
+      })),
+      orders: ready,
+      linkedDealIdByOrderId: new Map(
+        links.flatMap((row) => (row.billingOrderId && row.dealId ? [[row.billingOrderId, row.dealId] as const] : [])),
+      ),
+    });
+    const companyIds = [...new Set([...assigned.values()].map((order) => order.companyId))];
+    const companies = companyIds.length
+      ? await this.prisma.company.findMany({
+          where: { id: { in: companyIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const names = new Map(companies.map((company) => [company.id, company.name]));
+    for (const [dealId, order] of assigned) {
+      paid.set(dealId, {
+        amount: order.priceVndSnapshot,
+        paidAt: order.paidAt,
+        invoiceNumber: order.orderInvoice?.invoiceNumber ?? null,
+        companyName: names.get(order.companyId) ?? null,
+      });
+    }
+    return paid;
   }
 
   private seesAll(actor: AuthenticatedUser): boolean {
@@ -963,8 +1133,7 @@ export class CrmService {
   ) {
     const code = normalizeReferralCode(referralCode);
     if (code) {
-      const fromCookie = await tx.crmPartner.findUnique({ where: { code } });
-      if (fromCookie) return fromCookie;
+      return tx.crmPartner.findUnique({ where: { code } });
     }
     const company = await tx.company.findUnique({
       where: { id: companyId },
@@ -995,8 +1164,11 @@ export class CrmService {
       where: { partnerId },
       orderBy: { paidAt: 'desc' },
       take: 50,
+      include: { billingOrder: { select: { orderInvoice: { select: { invoiceNumber: true } } } } },
     });
-    return rows.map((row) => this.mapCommissionEntry(row, partnerName, partnerCode));
+    return rows.map((row) =>
+      this.mapCommissionEntry(row, partnerName, partnerCode, row.billingOrder.orderInvoice?.invoiceNumber ?? null),
+    );
   }
 
   private async visibleCommissionRows<T extends { id: string; partnerId: string; companyId: string; partner: { createdByUserId: string } }>(
@@ -1047,6 +1219,7 @@ export class CrmService {
     },
     partnerName: string,
     partnerCode: string,
+    invoiceNumber: string | null,
   ): CrmCommissionEntryView {
     return {
       id: row.id,
@@ -1064,6 +1237,7 @@ export class CrmService {
       commissionVnd: row.commissionVnd.toString(),
       status: 'pending_reconcile',
       paidAt: row.paidAt.toISOString(),
+      invoiceNumber,
     };
   }
 
@@ -1173,7 +1347,7 @@ export class CrmService {
     createdAt: Date;
     stage: { code: string };
     lead: { companyName: string };
-  }, names: Map<string, string>): CrmDealView {
+  }, names: Map<string, string>, payment?: { amount: bigint; paidAt: Date; invoiceNumber: string | null; companyName: string | null }): CrmDealView {
     const planKind = deal.planKind === 'platform' || deal.planKind === 'sourcing' ? deal.planKind : null;
     return {
       id: deal.id,
@@ -1187,6 +1361,10 @@ export class CrmService {
       planKind,
       planCode: deal.planCode,
       listPriceVnd: deal.listPriceVnd == null ? null : deal.listPriceVnd.toString(),
+      paidAmountVnd: payment ? payment.amount.toString() : null,
+      paidAt: payment ? payment.paidAt.toISOString() : null,
+      paidInvoiceNumber: payment?.invoiceNumber ?? null,
+      paidCompanyName: payment?.companyName ?? null,
       billingOrderId: deal.billingOrderId,
       invoiceStatus: deal.invoiceStatus === 'issued' ? 'issued' : 'none',
       invoiceNumber: deal.invoiceNumber,
@@ -1209,12 +1387,13 @@ export class CrmService {
       summary: string;
       createdByUserId: string;
       createdAt: Date;
+      billingOrderId?: string | null;
       lead: { companyName: string } | null;
       deal: { lead: { companyName: string } } | null;
     },
     names: Map<string, string>,
   ): CrmActivityView {
-    const known: CrmActivityType[] = ['note', 'call', 'zalo', 'visit', 'stage'];
+    const known: CrmActivityType[] = ['note', 'call', 'zalo', 'visit', 'stage', 'payment'];
     const activityType = known.includes(row.activityType as CrmActivityType)
       ? (row.activityType as CrmActivityType)
       : 'note';
@@ -1225,7 +1404,7 @@ export class CrmService {
       companyName: row.lead?.companyName ?? row.deal?.lead.companyName ?? null,
       activityType,
       summary: row.summary,
-      createdByName: names.get(row.createdByUserId) || 'SuperAdmin',
+      createdByName: row.billingOrderId ? 'inlink' : names.get(row.createdByUserId) || 'SuperAdmin',
       createdAt: row.createdAt.toISOString(),
     };
   }

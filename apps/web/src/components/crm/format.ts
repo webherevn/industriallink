@@ -39,6 +39,7 @@ export function activityLabel(type: string): string {
   if (type === 'zalo') return 'Zalo';
   if (type === 'visit') return 'Gặp mặt';
   if (type === 'stage') return 'Đổi bước';
+  if (type === 'payment') return 'Thanh toán';
   return 'Ghi chú';
 }
 

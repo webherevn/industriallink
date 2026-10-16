@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type { CrmCommissionEntryView } from '@industriallink/contracts';
+import Link from 'next/link';
 import { useState } from 'react';
 import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
@@ -17,6 +18,7 @@ export function CrmReconciliationPanel() {
       entry.partnerCode,
       entry.planName,
       entry.planCode,
+      entry.invoiceNumber,
     ]),
   );
 
@@ -31,8 +33,11 @@ export function CrmReconciliationPanel() {
     >
       {ledger.isLoading ? <CrmEmpty>Đang tải khoản hoa hồng…</CrmEmpty> : null}
       {ledger.isError ? <CrmEmpty>Không tải được danh sách đối soát.</CrmEmpty> : null}
-      {ledger.data && entries.length === 0 ? (
+      {ledger.data && ledger.data.entries.length === 0 ? (
         <CrmEmpty>Chưa có khoản nào. Hoa hồng xuất hiện sau khi khách thanh toán gói trên inlink.</CrmEmpty>
+      ) : null}
+      {ledger.data && ledger.data.entries.length > 0 && entries.length === 0 ? (
+        <CrmEmpty>Không có khoản khớp từ khóa.</CrmEmpty>
       ) : null}
       {ledger.data && entries.length > 0 ? (
         <div className="space-y-4">
@@ -92,6 +97,12 @@ function EntryCard({ entry }: { entry: CrmCommissionEntryView }) {
         </div>
       </dl>
       <p className="mt-4 text-xs text-slate-400">Thanh toán {formatWhen(entry.paidAt)}</p>
+      <Link
+        href={`/crm/finance?q=${encodeURIComponent(entry.invoiceNumber ?? entry.companyName)}`}
+        className={`mt-1 block text-xs font-medium underline ${entry.invoiceNumber ? 'text-emerald-700' : 'text-amber-700'}`}
+      >
+        {entry.invoiceNumber ? `Hóa đơn ${entry.invoiceNumber}` : 'Chưa ghi số hóa đơn'}
+      </Link>
     </article>
   );
 }

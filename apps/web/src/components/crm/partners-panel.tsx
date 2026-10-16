@@ -57,7 +57,10 @@ export function CrmPartnersPanel() {
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {partners.isLoading ? <CrmEmpty>Đang tải cộng tác viên…</CrmEmpty> : null}
       {partners.isError ? <CrmEmpty>Không tải được danh sách cộng tác viên.</CrmEmpty> : null}
-      {partners.data && rows.length === 0 ? <CrmEmpty>Chưa có cộng tác viên khớp bộ lọc.</CrmEmpty> : null}
+      {partners.data && partners.data.length === 0 ? <CrmEmpty>Chưa có cộng tác viên.</CrmEmpty> : null}
+      {partners.data && partners.data.length > 0 && rows.length === 0 ? (
+        <CrmEmpty>Không có cộng tác viên khớp bộ lọc.</CrmEmpty>
+      ) : null}
       {rows.length > 0 ? (
         <CrmCardGrid columns={3}>
           {rows.map((partner) => {

@@ -84,7 +84,7 @@ export function CrmHomePanel() {
                 badge={isFresh(deal.createdAt) ? 'Mới' : undefined}
                 icon={<Receipt className="h-5 w-5" />}
                 title={deal.companyName}
-                text={`${deal.title} · ${formatVnd(deal.listPriceVnd)} · ${stageName(board.data?.stages ?? [], deal.stageCode)}`}
+                text={`${deal.title} · ${formatVnd(deal.listPriceVnd)} · ${stageName(board.data?.stages ?? [], deal.stageCode)}${deal.paidAt ? ` · Đã thanh toán ${formatVnd(deal.paidAmountVnd)} · ${deal.paidInvoiceNumber ? `Hóa đơn ${deal.paidInvoiceNumber}` : 'Chưa ghi số hóa đơn'}` : ''}`}
                 meta={formatWhen(deal.createdAt)}
               />
             </Link>

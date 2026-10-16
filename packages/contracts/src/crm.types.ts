@@ -48,6 +48,13 @@ export interface CrmDealView {
   planCode: string | null;
   /** Giá niêm yết chưa VAT. Không dùng để gán gói. */
   listPriceVnd: string | null;
+  /** Đơn đã thanh toán của deal này. Deal tạo sau lần trả không nhận đơn cũ. Không đổi bước phễu. */
+  paidAmountVnd: string | null;
+  paidAt: string | null;
+  /** Số đã ghi cho đơn thanh toán đó. Null khi đã trả tiền nhưng chưa ghi số. */
+  paidInvoiceNumber: string | null;
+  /** Tên công ty trên đơn, để mở đúng sổ hóa đơn. */
+  paidCompanyName: string | null;
   billingOrderId: string | null;
   invoiceStatus: CrmInvoiceStatus;
   invoiceNumber: string | null;
@@ -60,7 +67,7 @@ export interface CrmDealView {
   createdAt: string;
 }
 
-export type CrmActivityType = 'note' | 'call' | 'zalo' | 'visit' | 'stage';
+export type CrmActivityType = 'note' | 'call' | 'zalo' | 'visit' | 'stage' | 'payment';
 
 export interface CrmActivityView {
   id: string;
@@ -170,6 +177,8 @@ export interface CrmCommissionEntryView {
   commissionVnd: string;
   status: CrmCommissionEntryStatus;
   paidAt: string;
+  /** Số hóa đơn của đơn đã thanh toán. Null khi chưa ghi. Không phải lệnh chi. */
+  invoiceNumber: string | null;
 }
 
 export interface CrmCommissionLedgerView {

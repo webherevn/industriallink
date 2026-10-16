@@ -712,6 +712,20 @@ export class PaymentService {
         this.logger.error(`Không ghi được hoa hồng cho đơn ${updated.id}: ${String(err)}`);
       }
 
+      try {
+        await this.crm.recordPaidOrderActivity(tx, {
+          id: updated.id,
+          companyId: updated.companyId,
+          kind,
+          planCode: updated.planCode,
+          planName: updated.planName,
+          priceVndSnapshot: updated.priceVndSnapshot,
+          paidAt: updated.paidAt ?? new Date(),
+        });
+      } catch (err) {
+        this.logger.error(`Không ghi được nhật ký thanh toán cho đơn ${updated.id}: ${String(err)}`);
+      }
+
       return this.mapOrder(updated);
     });
   }

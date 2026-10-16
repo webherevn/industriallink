@@ -2,10 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2 } from 'lucide-react';
+import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmPlanKind } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { errorText, formatVnd, isFresh, matchesQuery } from '@/components/crm/format';
+import { errorText, formatVnd, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
 
@@ -76,7 +77,7 @@ export function CrmPipelinePanel() {
       description="Chọn gói để lưu giá niêm yết. Các cột chỉ là bước bán. Khách thanh toán trên inlink. CRM không tạo đơn, không bật gói và không ghi hoa hồng."
       placeholder="Tìm deal theo tên nhà máy hoặc tên gói"
       search={{ value: query, onChange: setQuery }}
-      footnote="Giá trên thẻ là giá chưa VAT. CRM không gán gói."
+      footnote="Giá niêm yết chưa VAT. Dòng đã thanh toán là đơn của deal này và không đổi cột."
     >
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-4">
         <select
@@ -142,6 +143,21 @@ export function CrmPipelinePanel() {
                         {deal.planCode ? `${planLabel(deal.planKind)} ${deal.planCode}` : deal.title}
                       </p>
                       <p className="mt-2 text-sm font-semibold text-[#4c3ec9]">{formatVnd(deal.listPriceVnd)}</p>
+                      {deal.paidAt ? (
+                        <>
+                          <p className="mt-1 text-[11px] font-medium leading-relaxed text-emerald-700">
+                            Đã thanh toán {formatVnd(deal.paidAmountVnd)} · {formatWhen(deal.paidAt)}
+                          </p>
+                          <Link
+                            href={`/crm/finance?q=${encodeURIComponent(deal.paidInvoiceNumber ?? deal.paidCompanyName ?? deal.companyName)}`}
+                            className={`mt-1 block text-[11px] font-medium leading-relaxed underline ${
+                              deal.paidInvoiceNumber ? 'text-emerald-700' : 'text-amber-700'
+                            }`}
+                          >
+                            {deal.paidInvoiceNumber ? `Hóa đơn ${deal.paidInvoiceNumber}` : 'Chưa ghi số hóa đơn'}
+                          </Link>
+                        </>
+                      ) : null}
                       {stage.code === 'won' ? (
                         <p className="mt-1 text-[11px] text-slate-400">Cột này không bật gói và không ghi hoa hồng</p>
                       ) : null}

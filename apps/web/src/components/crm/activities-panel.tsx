@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MapPin, MessageCircle, NotebookPen, Phone } from 'lucide-react';
+import { MapPin, MessageCircle, NotebookPen, Phone, Receipt } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import type { CrmActivityType } from '@industriallink/contracts';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
@@ -82,7 +82,10 @@ export function CrmActivitiesPanel() {
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {board.isLoading ? <CrmEmpty>Đang tải nhật ký…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được nhật ký.</CrmEmpty> : null}
-      {board.data && rows.length === 0 ? <CrmEmpty>Chưa có nhật ký khớp tìm kiếm.</CrmEmpty> : null}
+      {board.data && (board.data.activities ?? []).length === 0 ? <CrmEmpty>Chưa có nhật ký.</CrmEmpty> : null}
+      {board.data && (board.data.activities ?? []).length > 0 && rows.length === 0 ? (
+        <CrmEmpty>Không có nhật ký khớp từ khóa.</CrmEmpty>
+      ) : null}
       {rows.length > 0 ? (
         <CrmCardGrid columns={3}>
           {rows.map((row) => (
@@ -107,6 +110,7 @@ function toneOf(type: CrmActivityType): 'green' | 'sky' | 'orange' | 'violet' | 
   if (type === 'zalo') return 'sky';
   if (type === 'visit') return 'orange';
   if (type === 'stage') return 'violet';
+  if (type === 'payment') return 'green';
   return 'indigo';
 }
 
@@ -114,5 +118,6 @@ function iconOf(type: CrmActivityType) {
   if (type === 'call') return <Phone className="h-5 w-5" />;
   if (type === 'zalo') return <MessageCircle className="h-5 w-5" />;
   if (type === 'visit') return <MapPin className="h-5 w-5" />;
+  if (type === 'payment') return <Receipt className="h-5 w-5" />;
   return <NotebookPen className="h-5 w-5" />;
 }

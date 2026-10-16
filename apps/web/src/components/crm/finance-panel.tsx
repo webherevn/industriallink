@@ -7,9 +7,9 @@ import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/
 import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { fetchCrmInvoices, issueCrmOrderInvoice } from '@/lib/crm';
 
-export function CrmFinancePanel() {
+export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }) {
   const ledger = useQuery({ queryKey: ['crm-invoices'], queryFn: fetchCrmInvoices });
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const orders = (ledger.data?.orders ?? []).filter((order) =>
     matchesQuery(query, [order.companyName, order.planName, order.planCode, order.invoiceNumber]),
   );

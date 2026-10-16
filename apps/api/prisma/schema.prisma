@@ -1803,6 +1803,7 @@ model BillingOrder {
   payments                 BillingPayment[]
   commissionEntry          CrmCommissionEntry?
   orderInvoice             CrmOrderInvoice?
+  paidActivity             CrmActivity?
 
   @@index([companyId, createdAt])
   @@index([status])
@@ -2057,9 +2058,12 @@ model CrmActivity {
   summary         String
   createdByUserId String   @map("created_by_user_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
+  /// Có giá trị khi dòng này do đơn đã thanh toán ghi. Mỗi đơn một dòng.
+  billingOrderId  String?  @unique @map("billing_order_id") @db.Uuid
 
-  lead CrmLead? @relation(fields: [leadId], references: [id])
-  deal CrmDeal? @relation(fields: [dealId], references: [id])
+  lead         CrmLead?      @relation(fields: [leadId], references: [id])
+  deal         CrmDeal?      @relation(fields: [dealId], references: [id])
+  billingOrder BillingOrder? @relation(fields: [billingOrderId], references: [id])
 
   @@index([leadId, createdAt])
   @@map("crm_activity")

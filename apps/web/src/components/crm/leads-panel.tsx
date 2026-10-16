@@ -205,7 +205,8 @@ export function CrmLeadsPanel() {
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {board.isLoading ? <CrmEmpty>Đang tải lead…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được danh sách lead.</CrmEmpty> : null}
-      {board.data && leads.length === 0 ? <CrmEmpty>Chưa có lead khớp bộ lọc.</CrmEmpty> : null}
+      {board.data && all.length === 0 ? <CrmEmpty>Chưa có lead.</CrmEmpty> : null}
+      {board.data && all.length > 0 && leads.length === 0 ? <CrmEmpty>Không có lead khớp bộ lọc.</CrmEmpty> : null}
       {leads.length > 0 ? (
         <CrmCardGrid columns={3}>
           {leads.map((lead) => (

@@ -46,7 +46,12 @@ export function CrmRenewalsPanel() {
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {renewals.isLoading ? <CrmEmpty>Đang tải khách sắp hết hạn…</CrmEmpty> : null}
       {renewals.isError ? <CrmEmpty>Không tải được danh sách gia hạn.</CrmEmpty> : null}
-      {renewals.data && rows.length === 0 ? <CrmEmpty>Không có khách hết hạn trong cửa sổ này.</CrmEmpty> : null}
+      {renewals.data && renewals.data.length === 0 ? (
+        <CrmEmpty>Không có khách hết hạn trong cửa sổ này.</CrmEmpty>
+      ) : null}
+      {renewals.data && renewals.data.length > 0 && rows.length === 0 ? (
+        <CrmEmpty>Không có khách khớp từ khóa.</CrmEmpty>
+      ) : null}
       {rows.length > 0 ? (
         <CrmCardGrid columns={3}>
           {rows.map((row) => {
