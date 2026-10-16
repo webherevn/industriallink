@@ -1,4 +1,4 @@
-/** CRM: lead, phễu, nhật ký, hóa đơn đã xuất. Không gán gói, không công nợ, không hoa hồng. */
+/** CRM: lead, phễu, nhật ký, hóa đơn đã xuất, hoa hồng chờ đối soát. Không gán gói, không công nợ, không lệnh chi. */
 
 export type CrmLeadStatus = 'open' | 'converted' | 'unqualified';
 /** unknown chỉ còn trên lead tạo trước khi ghi nguồn. */
@@ -117,10 +117,64 @@ export interface CrmPartnerView {
   /** true khi nhà tuyển dụng tự đăng ký. false khi CRM tạo hộ. */
   fromAccount: boolean;
   createdAt: string;
+  claims: CrmPartnerClaimView[];
+}
+
+export interface CrmPartnerClaimView {
+  id: string;
+  partnerId: string;
+  companyName: string;
+  taxCode: string;
+  contactPhone: string;
+  createdAt: string;
+}
+
+export interface CreateCrmPartnerClaimRequest {
+  companyName: string;
+  taxCode: string;
+  contactPhone: string;
 }
 
 export interface CrmPartnerSelfView {
   partner: CrmPartnerView | null;
+  /** Null khi SuperAdmin chưa đặt. Chưa phải số tiền phải chi. */
+  commissionPercent: number | null;
+  /** Khoản đã ghi sau thanh toán online. Chỉ chờ đối soát. */
+  commissions: CrmCommissionEntryView[];
+}
+
+export interface CrmCommissionView {
+  percent: number | null;
+  canEdit: boolean;
+}
+
+export interface UpdateCrmCommissionRequest {
+  percent: number;
+}
+
+export type CrmCommissionEntryStatus = 'pending_reconcile';
+
+export interface CrmCommissionEntryView {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerCode: string;
+  companyId: string;
+  companyName: string;
+  billingOrderId: string;
+  orderKind: CrmPlanKind;
+  planCode: string | null;
+  planName: string | null;
+  paidAmountVnd: string;
+  percent: number;
+  commissionVnd: string;
+  status: CrmCommissionEntryStatus;
+  paidAt: string;
+}
+
+export interface CrmCommissionLedgerView {
+  entries: CrmCommissionEntryView[];
+  pendingTotalVnd: string;
 }
 
 export interface CreateCrmPartnerRequest {

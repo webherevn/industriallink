@@ -16,7 +16,7 @@ export function CrmFrame({
   kicker: string;
   title: string;
   description: string;
-  placeholder: string;
+  placeholder?: string;
   chips?: ReactNode;
   search?: { value: string; onChange: (value: string) => void };
   footnote?: string;
@@ -32,19 +32,17 @@ export function CrmFrame({
         <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-slate-500">{description}</p>
       </div>
 
-      <div className="mx-auto flex max-w-2xl items-center gap-2.5 rounded-full bg-white px-4 py-3 shadow-[0_8px_24px_rgba(91,76,219,0.08)]">
-        <Search className="h-4 w-4 shrink-0 text-slate-400" />
-        {search ? (
+      {search ? (
+        <div className="mx-auto flex max-w-2xl items-center gap-2.5 rounded-full bg-white px-4 py-3 shadow-[0_8px_24px_rgba(91,76,219,0.08)]">
+          <Search className="h-4 w-4 shrink-0 text-slate-400" />
           <input
             value={search.value}
             onChange={(event) => search.onChange(event.target.value)}
             placeholder={placeholder}
             className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
           />
-        ) : (
-          <span className="truncate text-sm text-slate-400">{placeholder}</span>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {chips ? (
         <div className="flex flex-wrap items-center justify-center gap-2 rounded-[28px] bg-white/75 p-3 shadow-[0_8px_24px_rgba(91,76,219,0.05)]">

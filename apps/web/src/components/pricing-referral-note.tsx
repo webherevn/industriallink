@@ -16,6 +16,7 @@ function ReferralForm({ code }: { code: string }) {
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [taxCode, setTaxCode] = useState('');
   const [website, setWebsite] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -33,6 +34,7 @@ function ReferralForm({ code }: { code: string }) {
         companyName,
         contactName,
         contactPhone,
+        taxCode: taxCode || null,
         website,
       });
       setDone(true);
@@ -65,6 +67,13 @@ function ReferralForm({ code }: { code: string }) {
             maxLength={80}
             onChange={(event) => setContactName(event.target.value)}
             required
+          />
+          <input
+            className="rounded-xl border border-[#ddd6fe] bg-white px-3 py-2 text-sm text-slate-800 sm:col-span-2"
+            placeholder="Mã số thuế, nếu có"
+            value={taxCode}
+            inputMode="numeric"
+            onChange={(event) => setTaxCode(event.target.value)}
           />
           <input
             className="rounded-xl border border-[#ddd6fe] bg-white px-3 py-2 text-sm text-slate-800 sm:col-span-2"

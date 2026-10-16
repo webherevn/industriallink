@@ -22,6 +22,7 @@ import { UserRole } from '@industriallink/contracts';
 import { decryptSecret, encryptSecret, keyPreview } from '../ai/ai-settings.cipher';
 import { BillingService } from './billing.service';
 import { SourcingService } from './sourcing.service';
+import { CrmService } from '../crm/crm.service';
 
 const SCOPE = 'default';
 type Row = Prisma.BillingPaymentSettingGetPayload<Record<string, never>>;
@@ -35,6 +36,7 @@ export class PaymentService {
     private readonly config: ConfigService<AppConfig, true>,
     private readonly billing: BillingService,
     private readonly sourcing: SourcingService,
+    private readonly crm: CrmService,
   ) {}
 
   private encryptionSecret(): string {
@@ -639,6 +641,20 @@ export class PaymentService {
             actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
           },
         });
+      }
+
+      try {
+        await this.crm.recordPaidOrderCommission(tx, {
+          id: updated.id,
+          companyId: updated.companyId,
+          kind,
+          planCode: updated.planCode,
+          planName: updated.planName,
+          priceVndSnapshot: updated.priceVndSnapshot,
+          paidAt: updated.paidAt ?? new Date(),
+        });
+      } catch (err) {
+        this.logger.error(`Không ghi được hoa hồng cho đơn ${updated.id}: ${String(err)}`);
       }
 
       return this.mapOrder(updated);

@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   UserRole,
+  type CreateCrmPartnerClaimRequest,
+  type CrmPartnerClaimView,
   type CrmPartnerSelfView,
   type CrmPartnerView,
   type RegisterCrmPartnerRequest,
@@ -34,5 +37,15 @@ export class CrmPartnerSelfController {
     @Body() body: RegisterCrmPartnerRequest,
   ): Promise<CrmPartnerView> {
     return this.crm.registerPartner(user, body);
+  }
+
+  @Post('claims')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Cộng tác viên khóa mã số thuế nhà máy của mình.' })
+  claim(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateCrmPartnerClaimRequest,
+  ): Promise<CrmPartnerClaimView> {
+    return this.crm.addMyClaim(user, body);
   }
 }

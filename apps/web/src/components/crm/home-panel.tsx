@@ -5,7 +5,9 @@ import {
   CalendarClock,
   Kanban,
   NotebookPen,
+  Percent,
   Receipt,
+  Scale,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -47,8 +49,10 @@ export function CrmHomePanel() {
           <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Phễu bán gói" />
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
           <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />
+          <CrmChip href="/crm/finance/reconciliation" icon={<Scale className="h-4 w-4" />} label="Đối soát" />
           <CrmChip href="/crm/renewals" icon={<CalendarClock className="h-4 w-4" />} label="Gia hạn" />
           <CrmChip href="/crm/partners" icon={<Users className="h-4 w-4" />} label="Cộng tác viên" />
+          <CrmChip href="/crm/settings/commission" icon={<Percent className="h-4 w-4" />} label="Hoa hồng" />
         </>
       }
     >

@@ -11,10 +11,11 @@ import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
 import { PaymentService } from './payment.service';
 import { SourcingService } from './sourcing.service';
+import { CrmModule } from '../crm/crm.module';
 import { CompanyModule } from '../company/company.module';
 
 @Module({
-  imports: [CompanyModule],
+  imports: [CompanyModule, CrmModule],
   controllers: [
     BillingPublicController,
     BillingAdminController,

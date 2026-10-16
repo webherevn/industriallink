@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import {
   UserRole,
@@ -7,8 +8,14 @@ import {
   type CreateCrmLeadRequest,
   type CaptureCrmReferralRequest,
   type CaptureCrmReferralResponse,
+  type CreateCrmPartnerClaimRequest,
   type CreateCrmPartnerRequest,
+  type CrmCommissionView,
+  type CrmCommissionEntryView,
+  type CrmCommissionLedgerView,
+  type CrmPartnerClaimView,
   type CrmPartnerSelfView,
+  type UpdateCrmCommissionRequest,
   type RegisterCrmPartnerRequest,
   type CrmActivityType,
   type CrmActivityView,
@@ -26,12 +33,15 @@ import {
 } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { commissionVnd } from './commission-amount';
 
 const PIPELINE_CODE = 'ban_goi';
+const CLAIM_LIMIT = 30;
+const partnerClaims = { orderBy: { createdAt: 'desc' as const }, take: CLAIM_LIMIT };
 
 /**
- * CRM ghi lead, deal và số hóa đơn đã xuất.
- * Không tạo đơn thanh toán, không gán gói, không cộng Credit.
+ * CRM ghi lead, deal, số hóa đơn đã xuất và khoản hoa hồng chờ đối soát.
+ * Không tạo đơn thanh toán, không gán gói, không cộng Credit, không lệnh chi.
  */
 @Injectable()
 export class CrmService {
@@ -207,6 +217,7 @@ export class CrmService {
     const rows = await this.prisma.crmPartner.findMany({
       orderBy: { createdAt: 'desc' },
       take: 200,
+      include: { claims: partnerClaims },
     });
     return rows.map((row) => this.mapPartner(row));
   }
@@ -231,8 +242,114 @@ export class CrmService {
   }
 
   async myPartner(actor: AuthenticatedUser): Promise<CrmPartnerSelfView> {
-    const row = await this.prisma.crmPartner.findUnique({ where: { userId: actor.id } });
-    return { partner: row ? this.mapPartner(row) : null };
+    const [row, commissionPercent] = await Promise.all([
+      this.prisma.crmPartner.findUnique({
+        where: { userId: actor.id },
+        include: { claims: partnerClaims },
+      }),
+      this.commissionPercent(),
+    ]);
+    const commissions = row ? await this.entriesForPartner(row.id, row.name, row.code) : [];
+    return { partner: row ? this.mapPartner(row) : null, commissionPercent, commissions };
+  }
+
+  async commission(actor: AuthenticatedUser): Promise<CrmCommissionView> {
+    return {
+      percent: await this.commissionPercent(),
+      canEdit: actor.role === UserRole.SuperAdmin,
+    };
+  }
+
+  async setCommission(actor: AuthenticatedUser, input: UpdateCrmCommissionRequest): Promise<CrmCommissionView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin đặt tỷ lệ hoa hồng');
+    }
+    const percent = input.percent;
+    if (!Number.isInteger(percent) || percent < 0 || percent > 30) {
+      throw new BadRequestException('Tỷ lệ hoa hồng là số nguyên từ 0 đến 30');
+    }
+    await this.prisma.crmCommissionSetting.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', percent, updatedByUserId: actor.id },
+      update: { percent, updatedByUserId: actor.id },
+    });
+    return { percent, canEdit: true };
+  }
+
+  /**
+   * Ghi một dòng khi đơn gói đã thanh toán. Không gọi từ bước Đã chốt.
+   * Không ghi nạp Credit, đơn 0 đồng, hoặc khi chưa có cộng tác viên của công ty.
+   */
+  async recordPaidOrderCommission(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      companyId: string;
+      kind: string;
+      planCode: string | null;
+      planName: string | null;
+      priceVndSnapshot: bigint;
+      paidAt: Date;
+    },
+  ): Promise<void> {
+    if (order.kind !== 'platform' && order.kind !== 'sourcing') return;
+    const setting = await tx.crmCommissionSetting.findUnique({
+      where: { id: 'default' },
+      select: { percent: true },
+    });
+    if (!setting) return;
+    const amount = commissionVnd(order.priceVndSnapshot, setting.percent);
+    if (amount <= 0n) return;
+
+    const already = await tx.crmCommissionEntry.findUnique({
+      where: { billingOrderId: order.id },
+      select: { id: true },
+    });
+    if (already) return;
+
+    const partner = await this.partnerForPaidCompany(tx, order.companyId);
+    if (!partner) return;
+    const company = await tx.company.findUnique({
+      where: { id: order.companyId },
+      select: { name: true },
+    });
+    if (!company) return;
+
+    try {
+      await tx.crmCommissionEntry.create({
+        data: {
+          partnerId: partner.id,
+          companyId: order.companyId,
+          companyName: company.name,
+          billingOrderId: order.id,
+          orderKind: order.kind,
+          planCode: order.planCode,
+          planName: order.planName,
+          paidAmountVnd: order.priceVndSnapshot,
+          percent: setting.percent,
+          commissionVnd: amount,
+          status: 'pending_reconcile',
+          paidAt: order.paidAt,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
+  }
+
+  async commissionLedger(actor: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
+    const rows = await this.prisma.crmCommissionEntry.findMany({
+      orderBy: { paidAt: 'desc' },
+      take: 200,
+      include: { partner: { select: { id: true, name: true, code: true, createdByUserId: true } } },
+    });
+    const visible = await this.visibleCommissionRows(actor, rows);
+    const pendingTotalVnd = visible.reduce((sum, row) => sum + row.commissionVnd, 0n);
+    return {
+      entries: visible.map((row) => this.mapCommissionEntry(row, row.partner.name, row.partner.code)),
+      pendingTotalVnd: pendingTotalVnd.toString(),
+    };
   }
 
   async registerPartner(actor: AuthenticatedUser, input: RegisterCrmPartnerRequest): Promise<CrmPartnerView> {
@@ -272,11 +389,17 @@ export class CrmService {
     const companyName = clip(input.companyName, 160);
     const contactName = clip(input.contactName, 80);
     const phone = normalizePhone(input.contactPhone ?? '');
-    const taxCode = normalizeTax(input.taxCode);
+    const taxCode = claimTax(input.taxCode);
+    if ((input.taxCode?.trim() ?? '') !== '' && !taxCode) {
+      throw new BadRequestException('Mã số thuế không hợp lệ');
+    }
     if (companyName.length < 2 || contactName.length < 2 || phone.length < 9 || phone.length > 15) {
       throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
     }
-    if (taxCode && taxCode.length > 20) throw new BadRequestException('Mã số thuế không hợp lệ');
+    if (taxCode) {
+      const claim = await this.prisma.crmPartnerClaim.findUnique({ where: { taxCode }, select: { partnerId: true } });
+      if (claim && claim.partnerId !== partner.id) return { ok: true };
+    }
 
     const duplicate = await this.prisma.crmLead.findFirst({
       where: {
@@ -310,7 +433,28 @@ export class CrmService {
         createdByUserId: ownerUserId,
       },
     });
+    if (taxCode) await this.lockTaxCode(partner.id, companyName, taxCode, phone);
     return { ok: true };
+  }
+
+  async addPartnerClaim(
+    actor: AuthenticatedUser,
+    partnerId: string,
+    input: CreateCrmPartnerClaimRequest,
+  ): Promise<CrmPartnerClaimView> {
+    const partner = await this.prisma.crmPartner.findUnique({ where: { id: partnerId } });
+    if (!partner) throw new NotFoundException('Không tìm thấy cộng tác viên');
+    this.assertClaimWriter(actor, partner);
+    return this.insertClaim(partner.id, input);
+  }
+
+  async addMyClaim(
+    actor: AuthenticatedUser,
+    input: CreateCrmPartnerClaimRequest,
+  ): Promise<CrmPartnerClaimView> {
+    const partner = await this.prisma.crmPartner.findUnique({ where: { userId: actor.id } });
+    if (!partner) throw new BadRequestException('Đăng ký cộng tác viên trước khi khóa mã số thuế');
+    return this.insertClaim(partner.id, input);
   }
 
   async createLead(actor: AuthenticatedUser, input: CreateCrmLeadRequest): Promise<CrmLeadView> {
@@ -472,7 +616,7 @@ export class CrmService {
     });
     const summary =
       stage.code === 'won'
-        ? `Chuyển ${deal.dealCode} sang Đã chốt. CRM không bật gói.`
+        ? `Chuyển ${deal.dealCode} sang Đã chốt. CRM không bật gói và không ghi hoa hồng.`
         : stage.code === 'awaiting_payment'
           ? `Chuyển ${deal.dealCode} sang Chờ thanh toán. Khách tự thanh toán trên inlink.`
           : `Chuyển ${deal.dealCode} sang ${stage.name}`;
@@ -607,6 +751,14 @@ export class CrmService {
     code: string;
     userId: string | null;
     createdAt: Date;
+    claims?: Array<{
+      id: string;
+      partnerId: string;
+      companyName: string;
+      taxCode: string;
+      contactPhone: string;
+      createdAt: Date;
+    }>;
   }): CrmPartnerView {
     const origin = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
     return {
@@ -617,6 +769,187 @@ export class CrmService {
       referralUrl: `${origin}/bang-gia?ref=${encodeURIComponent(row.code)}`,
       fromAccount: Boolean(row.userId),
       createdAt: row.createdAt.toISOString(),
+      claims: (row.claims ?? []).map((claim) => ({
+        id: claim.id,
+        partnerId: claim.partnerId,
+        companyName: claim.companyName,
+        taxCode: claim.taxCode,
+        contactPhone: claim.contactPhone,
+        createdAt: claim.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  private assertClaimWriter(
+    actor: AuthenticatedUser,
+    partner: { userId: string | null; createdByUserId: string },
+  ) {
+    if (actor.role === UserRole.SuperAdmin) return;
+    if (actor.role === UserRole.Sales && partner.createdByUserId === actor.id) return;
+    if (partner.userId === actor.id) return;
+    throw new ForbiddenException('Không khóa mã số thuế cho cộng tác viên này');
+  }
+
+  private async insertClaim(partnerId: string, input: CreateCrmPartnerClaimRequest): Promise<CrmPartnerClaimView> {
+    const companyName = clip(input.companyName, 160);
+    const taxCode = claimTax(input.taxCode);
+    const phone = normalizePhone(input.contactPhone ?? '');
+    if (companyName.length < 2 || !taxCode || phone.length < 9 || phone.length > 15) {
+      throw new BadRequestException('Cần tên nhà máy, mã số thuế 10 hoặc 13 số và số điện thoại');
+    }
+    const count = await this.prisma.crmPartnerClaim.count({ where: { partnerId } });
+    if (count >= CLAIM_LIMIT) throw new BadRequestException('Mỗi cộng tác viên khóa tối đa 30 mã số thuế');
+    const taken = await this.prisma.crmPartnerClaim.findUnique({ where: { taxCode }, select: { partnerId: true } });
+    if (taken) throw new BadRequestException('Mã số thuế này đã có người giới thiệu');
+    const lead = await this.prisma.crmLead.findFirst({
+      where: {
+        taxCode,
+        status: { not: 'unqualified' },
+        OR: [{ partnerId: null }, { partnerId: { not: partnerId } }],
+      },
+      select: { id: true },
+    });
+    if (lead) throw new BadRequestException('Mã số thuế này đã có trong CRM');
+    try {
+      const row = await this.prisma.crmPartnerClaim.create({
+        data: { partnerId, companyName, taxCode, contactPhone: phone },
+      });
+      return {
+        id: row.id,
+        partnerId: row.partnerId,
+        companyName: row.companyName,
+        taxCode: row.taxCode,
+        contactPhone: row.contactPhone,
+        createdAt: row.createdAt.toISOString(),
+      };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new BadRequestException('Mã số thuế này đã có người giới thiệu');
+      }
+      throw err;
+    }
+  }
+
+  private async lockTaxCode(partnerId: string, companyName: string, taxCode: string, phone: string) {
+    const count = await this.prisma.crmPartnerClaim.count({ where: { partnerId } });
+    if (count >= CLAIM_LIMIT) return;
+    try {
+      await this.prisma.crmPartnerClaim.create({
+        data: { partnerId, companyName, taxCode, contactPhone: phone },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
+  }
+
+  private async commissionPercent(): Promise<number | null> {
+    const row = await this.prisma.crmCommissionSetting.findUnique({
+      where: { id: 'default' },
+      select: { percent: true },
+    });
+    return row?.percent ?? null;
+  }
+
+  private async partnerForPaidCompany(tx: Prisma.TransactionClient, companyId: string) {
+    const company = await tx.company.findUnique({
+      where: { id: companyId },
+      select: { taxCode: true },
+    });
+    const taxCode = claimTax(company?.taxCode);
+    if (taxCode) {
+      const claim = await tx.crmPartnerClaim.findUnique({
+        where: { taxCode },
+        include: { partner: true },
+      });
+      if (claim) return claim.partner;
+    }
+    const lead = await tx.crmLead.findFirst({
+      where: {
+        partnerId: { not: null },
+        status: { not: 'unqualified' },
+        OR: [{ companyId }, { deals: { some: { companyId } } }],
+      },
+      orderBy: { createdAt: 'asc' },
+      include: { partner: true },
+    });
+    return lead?.partner ?? null;
+  }
+
+  private async entriesForPartner(partnerId: string, partnerName: string, partnerCode: string) {
+    const rows = await this.prisma.crmCommissionEntry.findMany({
+      where: { partnerId },
+      orderBy: { paidAt: 'desc' },
+      take: 50,
+    });
+    return rows.map((row) => this.mapCommissionEntry(row, partnerName, partnerCode));
+  }
+
+  private async visibleCommissionRows<T extends { id: string; partnerId: string; companyId: string; partner: { createdByUserId: string } }>(
+    actor: AuthenticatedUser,
+    rows: T[],
+  ): Promise<T[]> {
+    if (this.seesAll(actor)) return rows;
+    if (actor.role !== UserRole.Sales) return [];
+    const leads = await this.prisma.crmLead.findMany({
+      where: {
+        ownerUserId: actor.id,
+        status: { not: 'unqualified' },
+        partnerId: { in: [...new Set(rows.map((row) => row.partnerId))] },
+      },
+      select: {
+        partnerId: true,
+        companyId: true,
+        deals: { select: { companyId: true } },
+      },
+    });
+    const owned = new Set<string>();
+    for (const lead of leads) {
+      if (!lead.partnerId) continue;
+      if (lead.companyId) owned.add(`${lead.partnerId}:${lead.companyId}`);
+      for (const deal of lead.deals) {
+        if (deal.companyId) owned.add(`${lead.partnerId}:${deal.companyId}`);
+      }
+    }
+    return rows.filter(
+      (row) => row.partner.createdByUserId === actor.id || owned.has(`${row.partnerId}:${row.companyId}`),
+    );
+  }
+
+  private mapCommissionEntry(
+    row: {
+      id: string;
+      partnerId: string;
+      companyId: string;
+      companyName: string;
+      billingOrderId: string;
+      orderKind: string;
+      planCode: string | null;
+      planName: string | null;
+      paidAmountVnd: bigint;
+      percent: number;
+      commissionVnd: bigint;
+      paidAt: Date;
+    },
+    partnerName: string,
+    partnerCode: string,
+  ): CrmCommissionEntryView {
+    return {
+      id: row.id,
+      partnerId: row.partnerId,
+      partnerName,
+      partnerCode,
+      companyId: row.companyId,
+      companyName: row.companyName,
+      billingOrderId: row.billingOrderId,
+      orderKind: row.orderKind === 'sourcing' ? 'sourcing' : 'platform',
+      planCode: row.planCode,
+      planName: row.planName,
+      paidAmountVnd: row.paidAmountVnd.toString(),
+      percent: row.percent,
+      commissionVnd: row.commissionVnd.toString(),
+      status: 'pending_reconcile',
+      paidAt: row.paidAt.toISOString(),
     };
   }
 
@@ -786,6 +1119,12 @@ export class CrmService {
 
 function daysUntil(endsAt: Date, now: Date): number {
   return Math.ceil((endsAt.getTime() - now.getTime()) / 86_400_000);
+}
+
+function claimTax(raw: string | null | undefined): string | null {
+  const value = (raw ?? '').replace(/[\s-]/g, '');
+  if (!value) return null;
+  return /^\d{10}(\d{3})?$/.test(value) ? value : null;
 }
 
 function clip(value: string | null | undefined, max: number): string {

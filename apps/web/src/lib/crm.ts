@@ -4,9 +4,14 @@ import type {
   CreateCrmActivityRequest,
   CreateCrmDealRequest,
   CreateCrmLeadRequest,
+  CreateCrmPartnerClaimRequest,
   CreateCrmPartnerRequest,
+  CrmCommissionLedgerView,
+  CrmCommissionView,
+  CrmPartnerClaimView,
   CrmPartnerSelfView,
   RegisterCrmPartnerRequest,
+  UpdateCrmCommissionRequest,
   CrmActivityView,
   CrmBoard,
   CrmCompanyOption,
@@ -56,6 +61,18 @@ export function fetchCrmPlans(): Promise<CrmPlanOption[]> {
   return apiRequest<CrmPlanOption[]>('/crm/plans');
 }
 
+export function fetchCrmCommission(): Promise<CrmCommissionView> {
+  return apiRequest<CrmCommissionView>('/crm/commission');
+}
+
+export function updateCrmCommission(body: UpdateCrmCommissionRequest): Promise<CrmCommissionView> {
+  return apiRequest<CrmCommissionView>('/crm/commission', { method: 'PATCH', body });
+}
+
+export function fetchCrmCommissionLedger(): Promise<CrmCommissionLedgerView> {
+  return apiRequest<CrmCommissionLedgerView>('/crm/commissions');
+}
+
 export function fetchCrmPartners(): Promise<CrmPartnerView[]> {
   return apiRequest<CrmPartnerView[]>('/crm/partners');
 }
@@ -70,6 +87,14 @@ export function fetchMyPartner(): Promise<CrmPartnerSelfView> {
 
 export function registerMyPartner(body: RegisterCrmPartnerRequest): Promise<CrmPartnerView> {
   return apiRequest<CrmPartnerView>('/recruiter/partner', { method: 'POST', body });
+}
+
+export function createCrmPartnerClaim(id: string, body: CreateCrmPartnerClaimRequest): Promise<CrmPartnerClaimView> {
+  return apiRequest<CrmPartnerClaimView>(`/crm/partners/${id}/claims`, { method: 'POST', body });
+}
+
+export function createMyPartnerClaim(body: CreateCrmPartnerClaimRequest): Promise<CrmPartnerClaimView> {
+  return apiRequest<CrmPartnerClaimView>('/recruiter/partner/claims', { method: 'POST', body });
 }
 
 export function captureCrmReferral(body: CaptureCrmReferralRequest): Promise<CaptureCrmReferralResponse> {

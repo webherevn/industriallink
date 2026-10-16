@@ -11,8 +11,10 @@ import {
   LogOut,
   Menu,
   NotebookPen,
-  Receipt,
-  Users,
+  Percent,
+      Receipt,
+      Scale,
+      Users,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -42,7 +44,10 @@ const NAV = [
   },
   {
     title: 'Tài chính',
-    items: [{ href: '/crm/finance', label: 'Hóa đơn', icon: Receipt }],
+    items: [
+      { href: '/crm/finance', label: 'Hóa đơn', icon: Receipt },
+      { href: '/crm/finance/reconciliation', label: 'Đối soát', icon: Scale },
+    ],
   },
   {
     title: 'Tăng trưởng',
@@ -50,6 +55,10 @@ const NAV = [
       { href: '/crm/renewals', label: 'Gia hạn', icon: CalendarClock },
       { href: '/crm/partners', label: 'Cộng tác viên', icon: Users },
     ],
+  },
+  {
+    title: 'Cài đặt',
+    items: [{ href: '/crm/settings/commission', label: 'Hoa hồng', icon: Percent }],
   },
 ] as const;
 
@@ -94,7 +103,17 @@ export function CrmShell({ children }: { children: ReactNode }) {
 
   function isActive(href: string) {
     if (href === '/crm') return pathname === '/crm';
-    return pathname === href || pathname.startsWith(`${href}/`);
+    const matches = pathname === href || pathname.startsWith(`${href}/`);
+    if (!matches) return false;
+    const coveredByChild = NAV.some((section) =>
+      section.items.some(
+        (item) =>
+          item.href !== href &&
+          item.href.startsWith(`${href}/`) &&
+          (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+      ),
+    );
+    return !coveredByChild;
   }
 
   if (!sessionReady || isLoading || (hasToken && !user && !isError)) {
@@ -188,7 +207,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
           </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-brand-600">inlink CRM</p>
-            <p className="truncate text-xs text-slate-500">Kinh doanh · công nợ · gia hạn</p>
+            <p className="truncate text-xs text-slate-500">Kinh doanh · hóa đơn · cộng tác viên</p>
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">{children}</main>

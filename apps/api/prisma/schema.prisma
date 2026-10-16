@@ -1801,6 +1801,7 @@ model BillingOrder {
   metadata                 Json     @default("{}")
 
   payments                 BillingPayment[]
+  commissionEntry          CrmCommissionEntry?
 
   @@index([companyId, createdAt])
   @@index([status])
@@ -1888,9 +1889,66 @@ model CrmPartner {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  leads CrmLead[]
+  leads       CrmLead[]
+  claims      CrmPartnerClaim[]
+  commissions CrmCommissionEntry[]
 
   @@map("crm_partner")
+  @@schema("crm")
+}
+
+/// Khóa mã số thuế cho một cộng tác viên. Không gán gói, không tính hoa hồng.
+model CrmPartnerClaim {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId    String   @map("partner_id") @db.Uuid
+  companyName  String   @map("company_name")
+  taxCode      String   @unique @map("tax_code")
+  contactPhone String   @map("contact_phone")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  partner CrmPartner @relation(fields: [partnerId], references: [id])
+
+  @@index([partnerId])
+  @@map("crm_partner_claim")
+  @@schema("crm")
+}
+
+/// Một tỷ lệ cho toàn bộ cộng tác viên. Không tạo ví và không có lệnh chi.
+model CrmCommissionSetting {
+  id              String   @id @default("default")
+  percent         Int
+  updatedByUserId String   @map("updated_by_user_id") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("crm_commission_setting")
+  @@schema("crm")
+}
+
+/// Ghi khi đơn gói đã thanh toán online. Không tạo từ bước Đã chốt. Chưa chi.
+model CrmCommissionEntry {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId       String   @map("partner_id") @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  companyName     String   @map("company_name")
+  billingOrderId  String   @unique @map("billing_order_id") @db.Uuid
+  /// platform | sourcing. Không gồm nạp Credit.
+  orderKind       String   @map("order_kind")
+  planCode        String?  @map("plan_code")
+  planName        String?  @map("plan_name")
+  paidAmountVnd   BigInt   @map("paid_amount_vnd")
+  percent         Int
+  commissionVnd   BigInt   @map("commission_vnd")
+  /// Chỉ chờ đối soát. Không có trạng thái đã chi.
+  status          String   @default("pending_reconcile")
+  paidAt          DateTime @map("paid_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  partner      CrmPartner   @relation(fields: [partnerId], references: [id])
+  billingOrder BillingOrder @relation(fields: [billingOrderId], references: [id])
+
+  @@index([partnerId, paidAt])
+  @@index([companyId])
+  @@map("crm_commission_entry")
   @@schema("crm")
 }
 

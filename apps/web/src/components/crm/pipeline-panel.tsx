@@ -73,7 +73,7 @@ export function CrmPipelinePanel() {
     <CrmFrame
       kicker="Một phễu cho gói tin và gói Săn"
       title="Theo deal từ lúc chào đến lúc thu tiền"
-      description="Chọn gói để lưu giá niêm yết. Các cột chỉ là bước bán. Khách thanh toán trên inlink, CRM không tạo đơn và không bật gói."
+      description="Chọn gói để lưu giá niêm yết. Các cột chỉ là bước bán. Khách thanh toán trên inlink. CRM không tạo đơn, không bật gói và không ghi hoa hồng."
       placeholder="Tìm deal theo tên nhà máy hoặc tên gói"
       search={{ value: query, onChange: setQuery }}
       footnote="Giá trên thẻ là giá chưa VAT. CRM không gán gói."
@@ -143,7 +143,7 @@ export function CrmPipelinePanel() {
                       </p>
                       <p className="mt-2 text-sm font-semibold text-[#4c3ec9]">{formatVnd(deal.listPriceVnd)}</p>
                       {stage.code === 'won' ? (
-                        <p className="mt-1 text-[11px] text-slate-400">Cột này không bật gói</p>
+                        <p className="mt-1 text-[11px] text-slate-400">Cột này không bật gói và không ghi hoa hồng</p>
                       ) : null}
                       <select
                         className="mt-3 w-full rounded-xl border border-slate-200 px-2 py-1.5 text-xs text-slate-700"

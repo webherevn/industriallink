@@ -5,13 +5,18 @@ import {
   type CreateCrmActivityRequest,
   type CreateCrmDealRequest,
   type CreateCrmLeadRequest,
+  type CreateCrmPartnerClaimRequest,
   type CreateCrmPartnerRequest,
   type CrmActivityView,
   type CrmBoard,
   type CrmCompanyOption,
   type CrmDealView,
   type CrmLeadView,
+  type CrmCommissionView,
+  type CrmCommissionLedgerView,
+  type CrmPartnerClaimView,
   type CrmPartnerView,
+  type UpdateCrmCommissionRequest,
   type CrmPlanOption,
   type CrmRenewalView,
   type IssueCrmInvoiceRequest,
@@ -56,6 +61,28 @@ export class CrmController {
     return this.crm.plans();
   }
 
+  @Get('commission')
+  @ApiOperation({ summary: 'Tỷ lệ hoa hồng hiện tại. Chưa tạo số tiền phải chi.' })
+  commission(@CurrentUser() user: AuthenticatedUser): Promise<CrmCommissionView> {
+    return this.crm.commission(user);
+  }
+
+  @Patch('commission')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin đặt tỷ lệ hoa hồng 0–30%. Không chi tiền.' })
+  setCommission(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmCommissionRequest,
+  ): Promise<CrmCommissionView> {
+    return this.crm.setCommission(user, body);
+  }
+
+  @Get('commissions')
+  @ApiOperation({ summary: 'Khoản hoa hồng chờ đối soát. Không chi và không rút.' })
+  commissions(@CurrentUser() user: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
+    return this.crm.commissionLedger(user);
+  }
+
   @Get('partners')
   @ApiOperation({ summary: 'Danh sách cộng tác viên. Chưa tính hoa hồng.' })
   partners(): Promise<CrmPartnerView[]> {
@@ -69,6 +96,16 @@ export class CrmController {
     @Body() body: CreateCrmPartnerRequest,
   ): Promise<CrmPartnerView> {
     return this.crm.createPartner(user, body);
+  }
+
+  @Post('partners/:id/claims')
+  @ApiOperation({ summary: 'Khóa mã số thuế cho cộng tác viên. Không gán gói.' })
+  addClaim(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: CreateCrmPartnerClaimRequest,
+  ): Promise<CrmPartnerClaimView> {
+    return this.crm.addPartnerClaim(user, id, body);
   }
 
   @Post('leads')

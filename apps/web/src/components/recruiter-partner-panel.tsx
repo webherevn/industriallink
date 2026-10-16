@@ -3,10 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Link2 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
+import type { CrmCommissionEntryView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Card } from '@/components/ui';
-import { errorText } from '@/components/crm/format';
-import { fetchMyPartner, registerMyPartner } from '@/lib/crm';
+import { errorText, formatVnd, formatWhen } from '@/components/crm/format';
+import { createMyPartnerClaim, fetchMyPartner, registerMyPartner } from '@/lib/crm';
 
 export function RecruiterPartnerPanel() {
   const qc = useQueryClient();
@@ -47,7 +48,7 @@ export function RecruiterPartnerPanel() {
             <h1 className="text-xl font-bold text-slate-900">Cộng tác viên</h1>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            Mỗi tài khoản một mã. Đăng ký xong có link bảng giá riêng. Hoa hồng chưa mở.
+            Mỗi tài khoản một mã. Đăng ký xong có link bảng giá riêng.
           </p>
         </div>
 
@@ -97,11 +98,100 @@ export function RecruiterPartnerPanel() {
               </Button>
             </div>
             <p className="mt-3 text-sm text-slate-500">
-              Khách mở link, xem bảng giá và có thể để lại tên với số điện thoại. Thông tin đó thành lead trong CRM. Hoa hồng chưa tính.
+              Khách mở link, xem bảng giá và có thể để lại thông tin.{' '}
+              {mine.data?.commissionPercent == null
+                ? 'Chưa đặt tỷ lệ hoa hồng.'
+                : `Hoa hồng hiện tại ${mine.data.commissionPercent}%. Khoản chỉ ghi sau khi khách thanh toán, và đang chờ đối soát.`}
             </p>
           </Card>
         ) : null}
+        {partner && mine.data ? <CommissionLines entries={mine.data.commissions} /> : null}
+        {partner ? <FactoryClaim claims={partner.claims} /> : null}
       </div>
     </RecruiterShell>
+  );
+}
+
+function CommissionLines({ entries }: { entries: CrmCommissionEntryView[] }) {
+  return (
+    <Card className="p-5">
+      <h2 className="text-base font-semibold text-slate-900">Chờ đối soát</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Các khoản dưới đây ghi sau khi khách thanh toán gói. Chưa chi và không rút tại đây.
+      </p>
+      {entries.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">Chưa có khoản nào.</p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {entries.map((entry) => (
+            <li key={entry.id} className="rounded-xl border border-slate-100 px-3 py-3">
+              <p className="text-sm font-medium text-slate-900">{entry.companyName}</p>
+              <p className="mt-1 text-sm text-slate-600">
+                {entry.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin'}
+                {entry.planName ? ` · ${entry.planName}` : ''} · {entry.percent}% · {formatVnd(entry.commissionVnd)}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">Thanh toán {formatWhen(entry.paidAt)} · Chờ đối soát</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function FactoryClaim({
+  claims,
+}: {
+  claims: Array<{ id: string; companyName: string; taxCode: string }>;
+}) {
+  const qc = useQueryClient();
+  const [companyName, setCompanyName] = useState('');
+  const [taxCode, setTaxCode] = useState('');
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const add = useMutation({
+    mutationFn: () => createMyPartnerClaim({ companyName, taxCode, contactPhone: phone }),
+    onSuccess: () => {
+      setCompanyName('');
+      setTaxCode('');
+      setPhone('');
+      setError(null);
+      void qc.invalidateQueries({ queryKey: ['recruiter-partner'] });
+    },
+    onError: (err) => setError(errorText(err, 'Không khóa được mã số thuế')),
+  });
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    add.mutate();
+  }
+
+  return (
+    <Card className="p-5">
+      <h2 className="text-base font-semibold text-slate-900">Nhà máy đã khóa</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Mã số thuế 10 hoặc 13 số. Nhà máy này không về cộng tác viên khác. Tối đa 30 mã.
+      </p>
+      {claims.length > 0 ? (
+        <ul className="mt-3 space-y-1 text-sm text-slate-700">
+          {claims.map((claim) => (
+            <li key={claim.id}>
+              {claim.companyName} · MST {claim.taxCode}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-slate-400">Chưa khóa mã số thuế nào.</p>
+      )}
+      <form onSubmit={onSubmit} className="mt-4 grid gap-3">
+        <input className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Tên nhà máy" value={companyName} maxLength={160} onChange={(event) => setCompanyName(event.target.value)} required />
+        <input className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} required />
+        <input className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Số điện thoại HR" value={phone} onChange={(event) => setPhone(event.target.value)} required />
+        <Button type="submit" disabled={add.isPending}>
+          {add.isPending ? 'Đang khóa…' : 'Khóa mã số thuế'}
+        </Button>
+      </form>
+      {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+    </Card>
   );
 }
