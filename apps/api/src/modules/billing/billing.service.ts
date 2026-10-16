@@ -465,11 +465,11 @@ export class BillingService {
       where: { companyId },
       include: { plan: true },
     });
-    if (!existing) {
+    if (!existing || !existing.plan) {
       return this.provisionStarterPlan(companyId);
     }
     const now = new Date();
-    if (existing.plan?.code === STARTER_PLAN_CODE && existing.isActive) {
+    if (existing.plan.code === STARTER_PLAN_CODE && existing.isActive) {
       const cycleEnd = addUtcDays(existing.startsAt, STARTER_CYCLE_DAYS);
       if (now >= cycleEnd) {
         return this.provisionStarterPlan(companyId, { renew: true });
@@ -480,7 +480,7 @@ export class BillingService {
           data: { endsAt: cycleEnd },
           include: { plan: true },
         });
-        await this.backfillPlanGrant(companyId, fixed);
+        await this.safeBackfillPlanGrant(companyId, fixed);
         return this.mapCompanyPlan(fixed);
       }
     }
@@ -488,7 +488,7 @@ export class BillingService {
     if (expired || !existing.isActive) {
       return this.provisionStarterPlan(companyId, { renew: true });
     }
-    await this.backfillPlanGrant(companyId, existing);
+    await this.safeBackfillPlanGrant(companyId, existing);
     return this.mapCompanyPlan(existing);
   }
 
@@ -545,7 +545,15 @@ export class BillingService {
   }
 
   async getEntitlements(companyId: string): Promise<RecruiterBillingEntitlements> {
-    const planView = await this.ensureCompanyPlan(companyId);
+    let planView: BillingCompanyPlanView | null = null;
+    try {
+      planView = await this.ensureCompanyPlan(companyId);
+    } catch (err) {
+      this.logger.error(
+        `ensureCompanyPlan thất bại cho ${companyId}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
     const assignment = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
       include: { plan: { include: { actionCosts: true } } },
@@ -555,11 +563,24 @@ export class BillingService {
       select: { tenantId: true },
     });
     const tenantId = company?.tenantId ?? 'default';
-    const account = await this.prisma.billingCreditAccount.upsert({
-      where: { companyId },
-      create: { companyId, tenantId },
-      update: {},
-    });
+    let account = {
+      balance: 0,
+      lifetimeGranted: 0,
+      lifetimeConsumed: 0,
+      lifetimeRefunded: 0,
+    };
+    try {
+      account = await this.prisma.billingCreditAccount.upsert({
+        where: { companyId },
+        create: { companyId, tenantId },
+        update: {},
+      });
+    } catch (err) {
+      this.logger.error(
+        `Đọc credit account thất bại cho ${companyId}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
 
     const quota = assignment?.plan?.jobPostQuota ?? null;
     const jobsUsed = assignment
@@ -579,7 +600,7 @@ export class BillingService {
     const policy = await this.ensureCreditPolicy();
     const actionCosts = assignment?.plan
       ? defaultActionCostRows(this.mapCreditPolicy(policy)).map((fallback) => {
-          const row = assignment.plan.actionCosts.find((c) => c.action === fallback.action);
+          const row = assignment.plan.actionCosts?.find((c) => c.action === fallback.action);
           if (!row) return fallback;
           return {
             action: row.action as BillingPlanBillableAction,
@@ -616,7 +637,7 @@ export class BillingService {
       where: { companyId },
       include: { plan: { select: { durationDays: true } } },
     });
-    const days = row?.plan.durationDays;
+    const days = row?.plan?.durationDays;
     return days != null && days > 0 ? days : null;
   }
 
@@ -644,6 +665,20 @@ export class BillingService {
       used: e.jobsUsed,
       quota: e.jobPostQuota,
     });
+  }
+
+  private async safeBackfillPlanGrant(
+    companyId: string,
+    assignment: BillingCompanyPlan & { plan: BillingPlatformPlan },
+  ): Promise<void> {
+    try {
+      await this.backfillPlanGrant(companyId, assignment);
+    } catch (err) {
+      this.logger.error(
+        `Backfill credit gói thất bại cho ${companyId}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
   }
 
   private async backfillPlanGrant(
@@ -800,7 +835,7 @@ export class BillingService {
       return { cost: fallback, allowed: true, source: 'policy', planId: null, planCode: null };
     }
 
-    const row = assignment.plan.actionCosts.find((c) => c.action === action);
+    const row = assignment.plan.actionCosts?.find((c) => c.action === action);
     if (row && !row.isActive) {
       return {
         cost: row.cost,

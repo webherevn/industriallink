@@ -17,6 +17,7 @@ import type { BillingPlatformPlanView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Card } from '@/components/ui';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
+import { ApiError } from '@/lib/api';
 import { fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 function fmtDate(iso: string | null) {
@@ -32,7 +33,7 @@ export function RecruiterBillingHub() {
   const searchParams = useSearchParams();
   const requestedCode = searchParams.get('plan');
 
-  const { data: entitlements, isLoading, isError, refetch } = useQuery({
+  const { data: entitlements, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['recruiter-billing-entitlements'],
     queryFn: fetchRecruiterEntitlements,
     retry: 1,
@@ -77,7 +78,9 @@ export function RecruiterBillingHub() {
               <>
                 <p className="mt-2 text-lg font-semibold text-slate-800">Không tải được gói</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Tải lại trang hoặc bấm thử lại. Nếu đã có công ty, hệ thống sẽ gán gói Khám phá.
+                  {error instanceof ApiError
+                    ? error.message
+                    : 'Tải lại trang hoặc bấm thử lại. Nếu đã có công ty, hệ thống sẽ gán gói Khám phá.'}
                 </p>
                 <button
                   type="button"

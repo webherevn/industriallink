@@ -516,54 +516,58 @@ export class CompanyService {
    * Chu kỳ gói 30 ngày. Thiếu KHAM_PHA thì lấy gói active giá 0đ / sort thấp nhất.
    */
   private async assignStarterPlan(companyId: string, actorId: string): Promise<void> {
-    const already = await this.prisma.billingCompanyPlan.findUnique({
-      where: { companyId },
-      select: { isActive: true },
-    });
-    if (already?.isActive) return;
+    try {
+      const already = await this.prisma.billingCompanyPlan.findUnique({
+        where: { companyId },
+        select: { isActive: true },
+      });
+      if (already?.isActive) return;
 
-    const starter =
-      (await this.prisma.billingPlatformPlan.findFirst({
-        where: { code: 'KHAM_PHA', isActive: true },
-      })) ??
-      (await this.prisma.billingPlatformPlan.findFirst({
-        where: { isActive: true, priceVnd: 0n },
-        orderBy: { sortOrder: 'asc' },
-      })) ??
-      (await this.prisma.billingPlatformPlan.findFirst({
-        where: { isActive: true },
-        orderBy: { sortOrder: 'asc' },
-      }));
-    if (!starter) {
-      this.logger.warn(`Không có gói nền tảng active để gán cho công ty ${companyId}`);
-      return;
+      const starter =
+        (await this.prisma.billingPlatformPlan.findFirst({
+          where: { code: 'KHAM_PHA', isActive: true },
+        })) ??
+        (await this.prisma.billingPlatformPlan.findFirst({
+          where: { isActive: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        }));
+      if (!starter) {
+        this.logger.warn(`Không có gói nền tảng active để gán cho công ty ${companyId}`);
+        return;
+      }
+
+      const startsAt = new Date();
+      const endsAt = new Date(startsAt);
+      endsAt.setUTCDate(endsAt.getUTCDate() + 30);
+      const actor = looksLikeUuid(actorId) ? actorId : null;
+      await this.prisma.billingCompanyPlan.upsert({
+        where: { companyId },
+        create: {
+          companyId,
+          planId: starter.id,
+          startsAt,
+          endsAt,
+          isActive: true,
+          note: 'Gói Khám phá mặc định khi tạo công ty',
+          createdBy: actor,
+          updatedBy: actor,
+        },
+        update: {
+          planId: starter.id,
+          startsAt,
+          endsAt,
+          isActive: true,
+          note: 'Gói Khám phá mặc định khi tạo công ty',
+          updatedBy: actor,
+        },
+      });
+      this.logger.log(`Đã gán gói ${starter.code} cho công ty ${companyId}`);
+    } catch (err) {
+      this.logger.error(
+        `Gán gói mặc định thất bại cho ${companyId}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
     }
-
-    const startsAt = new Date();
-    const endsAt = new Date(startsAt);
-    endsAt.setUTCDate(endsAt.getUTCDate() + 30);
-    await this.prisma.billingCompanyPlan.upsert({
-      where: { companyId },
-      create: {
-        companyId,
-        planId: starter.id,
-        startsAt,
-        endsAt,
-        isActive: true,
-        note: 'Gói Khám phá mặc định khi tạo công ty',
-        createdBy: actorId,
-        updatedBy: actorId,
-      },
-      update: {
-        planId: starter.id,
-        startsAt,
-        endsAt,
-        isActive: true,
-        note: 'Gói Khám phá mặc định khi tạo công ty',
-        updatedBy: actorId,
-      },
-    });
-    this.logger.log(`Đã gán gói ${starter.code} cho công ty ${companyId}`);
   }
 
   async requireUserCompany(userId: string): Promise<{ companyId: string; companyName: string }> {
