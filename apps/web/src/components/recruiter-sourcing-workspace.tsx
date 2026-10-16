@@ -133,7 +133,7 @@ export function RecruiterSourcingWorkspace() {
               lấy đúng số SuperAdmin.
             </p>
             <Link
-              href="/bang-gia"
+              href="/recruiter/pricing"
               className="mt-4 inline-flex text-sm font-semibold text-accent-700 hover:underline"
             >
               Xem gói Săn nhân sự

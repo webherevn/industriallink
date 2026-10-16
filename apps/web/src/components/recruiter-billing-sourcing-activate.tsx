@@ -102,7 +102,7 @@ export function RecruiterSourcingActivate() {
           <Card className="p-8 text-center text-sm text-slate-500">
             Không tìm thấy gói Săn{planCode ? ` “${planCode}”` : ''}. Chọn lại từ bảng giá.
             <div className="mt-4">
-              <Link href="/bang-gia" className="font-semibold text-accent-700 hover:underline">
+              <Link href="/recruiter/pricing" className="font-semibold text-accent-700 hover:underline">
                 Xem bảng giá
               </Link>
             </div>

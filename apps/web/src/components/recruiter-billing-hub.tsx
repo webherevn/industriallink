@@ -135,7 +135,7 @@ export function RecruiterBillingHub() {
               </>
             )}
             <Link
-              href="/bang-gia"
+              href="/recruiter/pricing"
               className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline"
             >
               Xem bảng giá <ArrowRight className="h-3.5 w-3.5" />
@@ -185,7 +185,7 @@ export function RecruiterBillingHub() {
                 Chọn gói trên bảng giá. Hạn mức lấy đúng số SuperAdmin — không gồm Credit.
               </p>
               <Link
-                href="/bang-gia"
+                href="/recruiter/pricing"
                 className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline"
               >
                 Xem gói Săn <ArrowRight className="h-3.5 w-3.5" />

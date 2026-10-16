@@ -366,16 +366,21 @@ function SectionNav({
   tab,
   onTabChange,
   page,
+  embedded = false,
 }: {
   isRecruiter: boolean;
   tab: PricingTab;
   onTabChange: (tab: PricingTab) => void;
   page: BillingPageContentView;
+  embedded?: boolean;
 }) {
-  if (isRecruiter) return null;
+  if (isRecruiter && !embedded) return null;
   return (
     <nav
-      className="sticky top-[57px] z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md"
+      className={clsx(
+        'z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md',
+        embedded ? 'rounded-2xl' : 'sticky top-[57px]',
+      )}
       aria-label="Chuyển tab bảng giá"
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
@@ -404,12 +409,14 @@ function SectionNav({
             </button>
           ))}
         </div>
-        <a
-          href="#contact"
-          className="hidden items-center gap-1 text-[12px] font-semibold text-slate-500 transition-colors hover:text-slate-900 sm:flex"
-        >
-          {page.consultNavText}
-        </a>
+        {!embedded ? (
+          <a
+            href="#contact"
+            className="hidden items-center gap-1 text-[12px] font-semibold text-slate-500 transition-colors hover:text-slate-900 sm:flex"
+          >
+            {page.consultNavText}
+          </a>
+        ) : null}
       </div>
     </nav>
   );
@@ -1394,11 +1401,14 @@ function computeStats(config: BillingPublicConfig) {
 export function PricingClient({
   config,
   context = 'public',
+  embedded = false,
 }: {
   config: BillingPublicConfig | null;
   context?: 'recruiter' | 'public';
+  /** Trong app NTD: chỉ bảng giá + so sánh, không hero/SEO. */
+  embedded?: boolean;
 }) {
-  const isRecruiter = context === 'recruiter';
+  const isRecruiter = context === 'recruiter' || embedded;
   const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
@@ -1412,16 +1422,18 @@ export function PricingClient({
     retry: false,
     staleTime: 60_000,
   });
-  const checkoutReady = isRecruiter || Boolean(me && NTD_ROLES.has(me.role));
+  const checkoutReady = embedded || isRecruiter || Boolean(me && NTD_ROLES.has(me.role));
 
   const { data: fetched, isLoading, refetch } = useQuery({
     queryKey: ['billing-public-config'],
     queryFn: fetchPublicBillingConfig,
-    enabled: !config,
-    staleTime: 60_000,
+    enabled: embedded || !config,
+    staleTime: embedded ? 0 : 60_000,
+    refetchOnWindowFocus: embedded,
+    refetchOnMount: embedded ? 'always' : true,
     retry: 1,
   });
-  const resolved = config ?? fetched ?? null;
+  const resolved = embedded ? (fetched ?? null) : (config ?? fetched ?? null);
 
   /** NTD đã login → trang thanh toán / billing. Khách → đăng ký. */
   const planCtaHref = (code: string) =>
@@ -1449,13 +1461,14 @@ export function PricingClient({
   };
 
   useEffect(() => {
+    if (embedded) return;
     if (skipTabScroll.current) {
       skipTabScroll.current = false;
       return;
     }
     const id = tab === 'platform' ? 'pricing' : tab;
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [tab]);
+  }, [tab, embedded]);
 
   // Compute stats after hooks, then early-return if no config
   const stats = resolved ? computeStats(resolved) : null;
@@ -1467,6 +1480,60 @@ export function PricingClient({
 
   const cur = resolved.currency;
   const enterprise = resolved.platformPlans.find((p) => p.code === 'ENTERPRISE' && p.isActive);
+
+  if (embedded) {
+    return (
+      <div className="space-y-8">
+        <SectionNav
+          isRecruiter={false}
+          embedded
+          tab={tab}
+          onTabChange={switchTab}
+          page={page}
+        />
+        <section>
+          {tab === 'platform' ? (
+            <PlatformPlansView
+              plans={resolved.platformPlans}
+              currency={cur}
+              enterprise={enterprise}
+              onSourcing={() => setTab('sourcing')}
+              onTopup={() => setTab('credit')}
+              isRecruiter
+              checkoutReady
+              planCtaHref={planCtaHref}
+              freeCtaHref={freeCtaHref}
+              enterpriseCtaHref={enterpriseCtaHref}
+              page={page}
+            />
+          ) : tab === 'sourcing' ? (
+            <SourcingPlansView
+              plans={resolved.sourcingPlans}
+              currency={cur}
+              onTopup={() => setTab('credit')}
+              isRecruiter
+              planCtaHref={sourcingCtaHref}
+              page={page}
+            />
+          ) : (
+            <CreditTopupView
+              topups={resolved.creditTopups}
+              currency={cur}
+              topupCtaHref={topupCtaHref}
+              page={page}
+            />
+          )}
+        </section>
+        <CompareSection
+          platformPlans={resolved.platformPlans}
+          sourcingPlans={resolved.sourcingPlans}
+          topups={resolved.creditTopups}
+          currency={cur}
+          page={page}
+        />
+      </div>
+    );
+  }
 
   return (
     <>

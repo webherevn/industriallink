@@ -88,7 +88,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Tài khoản',
     items: [
-      { href: '/bang-gia', label: 'Bảng giá & Credit', icon: Banknote },
+      { href: '/recruiter/pricing', label: 'Bảng giá & Credit', icon: Banknote },
       { href: '/recruiter/billing', label: 'Gói & Credit', icon: Wallet },
       { href: '/recruiter/billing/credits', label: 'Lịch sử Credit', icon: Coins },
       { href: '/account', label: 'Bảo mật / MFA', icon: Shield },
