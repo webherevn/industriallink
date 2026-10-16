@@ -14,6 +14,10 @@ import {
   type CrmLeadView,
   type CrmCommissionView,
   type CrmCommissionLedgerView,
+  type CrmCommissionPeriodListView,
+  type CrmCommissionPeriodView,
+  type CloseCrmCommissionMonthRequest,
+  type CloseCrmCommissionMonthResult,
   type CrmPartnerClaimView,
   type CrmPartnerView,
   type UpdateCrmCommissionRequest,
@@ -83,6 +87,32 @@ export class CrmController {
   @ApiOperation({ summary: 'Khoản hoa hồng chờ đối soát. Không chi và không rút.' })
   commissions(@CurrentUser() user: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
     return this.crm.commissionLedger(user);
+  }
+
+  @Get('commission-periods')
+  @ApiOperation({ summary: 'Kỳ hoa hồng đã chốt. Chưa duyệt chi và chưa vào ví.' })
+  commissionPeriods(@CurrentUser() user: AuthenticatedUser): Promise<CrmCommissionPeriodListView> {
+    return this.crm.commissionPeriods(user);
+  }
+
+  @Post('commission-periods')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Chốt hoa hồng của một tháng đã kết thúc. Không duyệt chi.' })
+  closeCommissionMonth(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CloseCrmCommissionMonthRequest,
+  ): Promise<CloseCrmCommissionMonthResult> {
+    return this.crm.closeCommissionMonth(user, body?.periodMonth ?? '');
+  }
+
+  @Post('commission-periods/:id/approve')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Cho phép chi một kỳ đã chốt và chuyển kế toán. Không trừ ví.' })
+  allowCommissionPayout(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<CrmCommissionPeriodView> {
+    return this.crm.allowCommissionPayout(user, id);
   }
 
   @Get('partners')

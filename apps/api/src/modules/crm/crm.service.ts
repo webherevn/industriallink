@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import {
@@ -13,6 +13,8 @@ import {
   type CrmCommissionView,
   type CrmCommissionEntryView,
   type CrmCommissionLedgerView,
+  type CrmCommissionPeriodListView,
+  type CloseCrmCommissionMonthResult,
   type CrmPartnerClaimView,
   type CrmPartnerSelfView,
   type UpdateCrmCommissionRequest,
@@ -26,6 +28,7 @@ import {
   type CrmLeadView,
   type CrmPlanKind,
   type CrmPartnerView,
+  type CrmReferralSignupView,
   type CrmPlanOption,
   type CrmPaidInvoiceLedgerView,
   type CrmPaidOrderInvoiceView,
@@ -33,12 +36,16 @@ import {
   type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
 } from '@industriallink/contracts';
+import { DEFAULT_TENANT_ID } from '../../shared/common/constants';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { commissionVnd } from './commission-amount';
+import { groupCommissionClose, vietnamMonthBounds } from './commission-period';
 import { assignPaidOrders, pickDealForPayment } from './deal-payment';
 import { paidActivitySummary } from './paid-activity';
-import { normalizeReferralCode } from './referral-cookie';
+import { normalizeReferralCode, referralForPayingAccount } from './referral-cookie';
+import { referralSignupNotices } from './referral-signup-notice';
 
 const PIPELINE_CODE = 'ban_goi';
 const CLAIM_LIMIT = 30;
@@ -50,7 +57,12 @@ const partnerClaims = { orderBy: { createdAt: 'desc' as const }, take: CLAIM_LIM
  */
 @Injectable()
 export class CrmService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CrmService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   async board(actor: AuthenticatedUser): Promise<CrmBoard> {
     const pipeline = await this.prisma.crmPipeline.findUnique({
@@ -239,8 +251,14 @@ export class CrmService {
       take: 200,
       include: { claims: partnerClaims },
     });
-    const pending = await this.pendingByPartner(actor, rows.map((row) => row.id));
-    return rows.map((row) => this.mapPartner(row, pending.get(row.id)));
+    const ids = rows.map((row) => row.id);
+    await this.ensureWalletCredits(ids);
+    const [pending, signups, wallets] = await Promise.all([
+      this.pendingByPartner(actor, ids),
+      this.unpaidSignups(ids),
+      this.walletBalances(ids),
+    ]);
+    return rows.map((row) => this.mapPartner(row, pending.get(row.id), signups.get(row.id) ?? [], wallets.get(row.id) ?? 0n));
   }
 
   async createPartner(actor: AuthenticatedUser, input: CreateCrmPartnerRequest): Promise<CrmPartnerView> {
@@ -271,11 +289,15 @@ export class CrmService {
       this.commissionPercent(),
     ]);
     const commissions = row ? await this.entriesForPartner(row.id, row.name, row.code) : [];
+    const pendingLines = commissions.filter((entry) => entry.periodMonth == null);
     const pending = {
-      count: commissions.length,
-      amount: commissions.reduce((sum, entry) => sum + BigInt(entry.commissionVnd), 0n),
+      count: pendingLines.length,
+      amount: pendingLines.reduce((sum, entry) => sum + BigInt(entry.commissionVnd), 0n),
     };
-    return { partner: row ? this.mapPartner(row, pending) : null, commissionPercent, commissions };
+    if (row) await this.ensureWalletCredits([row.id]);
+    const signups = row ? (await this.unpaidSignups([row.id])).get(row.id) ?? [] : [];
+    const walletBalance = row ? (await this.walletBalances([row.id])).get(row.id) ?? 0n : 0n;
+    return { partner: row ? this.mapPartner(row, pending, signups, walletBalance) : null, commissionPercent, commissions };
   }
 
   async commission(actor: AuthenticatedUser): Promise<CrmCommissionView> {
@@ -299,6 +321,82 @@ export class CrmService {
       update: { percent, updatedByUserId: actor.id },
     });
     return { percent, canEdit: true };
+  }
+
+  /**
+   * Ghi một dòng khi nhà tuyển dụng đăng ký trong hạn cookie.
+   * Không tạo hoa hồng, không tạo đơn và không bật gói.
+   */
+  async recordReferralSignup(input: {
+    cookie: string | null | undefined;
+    userId: string;
+    role: string;
+    displayName: string;
+    registeredAt: Date;
+  }): Promise<void> {
+    const stamp = referralForPayingAccount({
+      cookie: input.cookie,
+      role: input.role,
+      userCreatedAt: input.registeredAt,
+    });
+    if (!stamp) return;
+    const partner = await this.prisma.crmPartner.findUnique({
+      where: { code: stamp.code },
+      select: { id: true, code: true, userId: true, createdByUserId: true },
+    });
+    if (!partner) return;
+    const displayName = input.displayName.trim().slice(0, 160);
+    if (displayName.length < 1) return;
+    try {
+      await this.prisma.crmReferralSignup.create({
+        data: {
+          partnerId: partner.id,
+          userId: input.userId,
+          displayName,
+          capturedAt: stamp.capturedAt,
+          registeredAt: input.registeredAt,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
+    await this.notifyReferralSignup(partner, displayName);
+  }
+
+  private async notifyReferralSignup(
+    partner: { id: string; code: string; userId: string | null; createdByUserId: string },
+    displayName: string,
+  ): Promise<void> {
+    const owner = await this.prisma.user.findUnique({
+      where: { id: partner.createdByUserId },
+      select: { role: true },
+    });
+    const notices = referralSignupNotices({
+      partnerCode: partner.code,
+      partnerUserId: partner.userId,
+      createdByUserId: partner.createdByUserId,
+      createdByRole: owner?.role ?? null,
+      displayName,
+    });
+    await Promise.all(
+      notices.map(async (notice) => {
+        try {
+          await this.notifications.createInApp({
+            tenantId: DEFAULT_TENANT_ID,
+            userId: notice.userId,
+            type: 'crm.referral_signup',
+            title: notice.title,
+            body: notice.body,
+            link: notice.link,
+            entityType: 'crm.partner',
+            entityId: partner.id,
+          });
+        } catch (err) {
+          this.logger.error(`Không gửi được thông báo đăng ký giới thiệu: ${String(err)}`);
+        }
+      }),
+    );
   }
 
   async referralCodeForCookie(raw: string | null | undefined): Promise<string | null> {
@@ -349,7 +447,7 @@ export class CrmService {
     if (!company) return;
 
     try {
-      await tx.crmCommissionEntry.create({
+      const entry = await tx.crmCommissionEntry.create({
         data: {
           partnerId: partner.id,
           companyId: order.companyId,
@@ -364,6 +462,12 @@ export class CrmService {
           status: 'pending_reconcile',
           paidAt: order.paidAt,
         },
+        select: { id: true },
+      });
+      await this.creditCommissionWallet(tx, {
+        partnerId: partner.id,
+        commissionEntryId: entry.id,
+        amountVnd: amount,
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
@@ -427,6 +531,7 @@ export class CrmService {
 
   async commissionLedger(actor: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
     const rows = await this.prisma.crmCommissionEntry.findMany({
+      where: { periodId: null },
       orderBy: { paidAt: 'desc' },
       take: 200,
       include: {
@@ -438,10 +543,113 @@ export class CrmService {
     const pendingTotalVnd = visible.reduce((sum, row) => sum + row.commissionVnd, 0n);
     return {
       entries: visible.map((row) =>
-        this.mapCommissionEntry(row, row.partner.name, row.partner.code, row.billingOrder.orderInvoice?.invoiceNumber ?? null),
+        this.mapCommissionEntry(row, row.partner.name, row.partner.code, row.billingOrder.orderInvoice?.invoiceNumber ?? null, null),
       ),
       pendingTotalVnd: pendingTotalVnd.toString(),
     };
+  }
+
+  async commissionPeriods(actor: AuthenticatedUser): Promise<CrmCommissionPeriodListView> {
+    const rows = await this.prisma.crmCommissionPeriod.findMany({
+      orderBy: [{ periodMonth: 'desc' }, { closedAt: 'desc' }],
+      take: 200,
+      include: { partner: { select: { name: true, code: true, createdByUserId: true } } },
+    });
+    const visible = await this.visiblePeriods(actor, rows);
+    return {
+      periods: visible.map((row) => this.mapCommissionPeriod(row)),
+      canClose: actor.role === UserRole.SuperAdmin,
+    };
+  }
+
+  async closeCommissionMonth(actor: AuthenticatedUser, periodMonth: string): Promise<CloseCrmCommissionMonthResult> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin chốt kỳ hoa hồng');
+    }
+    const bounds = vietnamMonthBounds(periodMonth ?? '');
+    if (!bounds) throw new BadRequestException('Tháng không hợp lệ');
+    if (bounds.end.getTime() > Date.now()) {
+      throw new BadRequestException('Chỉ chốt tháng đã kết thúc');
+    }
+    const entries = await this.prisma.crmCommissionEntry.findMany({
+      where: {
+        status: 'pending_reconcile',
+        periodId: null,
+        paidAt: { gte: bounds.start, lt: bounds.end },
+      },
+      select: { id: true, partnerId: true, paidAmountVnd: true, commissionVnd: true },
+    });
+    const existing = await this.prisma.crmCommissionPeriod.findMany({
+      where: { periodMonth },
+      select: { partnerId: true },
+    });
+    const taken = new Set(existing.map((row) => row.partnerId));
+    const groups = groupCommissionClose(entries).filter((group) => !taken.has(group.partnerId));
+    if (groups.length === 0) {
+      throw new BadRequestException(entries.length === 0 ? 'Tháng này không có khoản chờ chốt' : 'Tháng này đã chốt');
+    }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const group of groups) {
+          const period = await tx.crmCommissionPeriod.create({
+            data: {
+              partnerId: group.partnerId,
+              periodMonth,
+              paidAmountVnd: group.paidAmountVnd,
+              commissionVnd: group.commissionVnd,
+              entryCount: group.entryCount,
+              status: 'closed',
+              closedByUserId: actor.id,
+            },
+          });
+          const linked = await tx.crmCommissionEntry.updateMany({
+            where: { id: { in: group.ids }, periodId: null },
+            data: { periodId: period.id },
+          });
+          if (linked.count !== group.ids.length) {
+            throw new BadRequestException('Kỳ đang được chốt');
+          }
+        }
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new BadRequestException('Tháng này đã chốt');
+      }
+      throw err;
+    }
+    const list = await this.commissionPeriods(actor);
+    return { ...list, closedCount: groups.length };
+  }
+
+  /** Mở quyền chi cho một kỳ đã chốt. Không trừ ví. */
+  async allowCommissionPayout(actor: AuthenticatedUser, periodId: string): Promise<CrmCommissionPeriodListView['periods'][number]> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin cho phép chi hoa hồng');
+    }
+    try {
+      const updated = await this.prisma.crmCommissionPeriod.updateMany({
+        where: { id: periodId, status: 'closed' },
+        data: { status: 'payable', approvedAt: new Date(), approvedByUserId: actor.id },
+      });
+      if (updated.count === 0) {
+        const existing = await this.prisma.crmCommissionPeriod.findUnique({
+          where: { id: periodId },
+          select: { id: true },
+        });
+        if (!existing) throw new NotFoundException('Không tìm thấy kỳ chốt');
+        throw new BadRequestException('Kỳ này đã chuyển kế toán');
+      }
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2023' || err.code === 'P2025')) {
+        throw new NotFoundException('Không tìm thấy kỳ chốt');
+      }
+      throw err;
+    }
+    const row = await this.prisma.crmCommissionPeriod.findUniqueOrThrow({
+      where: { id: periodId },
+      include: { partner: { select: { name: true, code: true, createdByUserId: true } } },
+    });
+    return this.mapCommissionPeriod(row);
   }
 
   async registerPartner(actor: AuthenticatedUser, input: RegisterCrmPartnerRequest): Promise<CrmPartnerView> {
@@ -1038,6 +1246,64 @@ export class CrmService {
     }
   }
 
+  private async creditCommissionWallet(
+    tx: Prisma.TransactionClient,
+    input: { partnerId: string; commissionEntryId: string; amountVnd: bigint },
+  ): Promise<void> {
+    const wallet = await tx.crmCommissionWallet.upsert({
+      where: { partnerId: input.partnerId },
+      create: { partnerId: input.partnerId },
+      update: {},
+      select: { id: true },
+    });
+    await tx.crmCommissionWalletTxn.create({
+      data: {
+        walletId: wallet.id,
+        partnerId: input.partnerId,
+        commissionEntryId: input.commissionEntryId,
+        amountVnd: input.amountVnd,
+        kind: 'credit',
+      },
+    });
+  }
+
+  /** Khoản ghi trước khi có ví vẫn được cộng một lần. */
+  private async ensureWalletCredits(partnerIds: string[]): Promise<void> {
+    if (partnerIds.length === 0) return;
+    const missing = await this.prisma.crmCommissionEntry.findMany({
+      where: { partnerId: { in: partnerIds }, walletTxn: { is: null } },
+      select: { id: true, partnerId: true, commissionVnd: true },
+    });
+    for (const entry of missing) {
+      try {
+        await this.prisma.$transaction((tx) =>
+          this.creditCommissionWallet(tx, {
+            partnerId: entry.partnerId,
+            commissionEntryId: entry.id,
+            amountVnd: entry.commissionVnd,
+          }),
+        );
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') continue;
+        this.logger.error(`Không cộng được số dư ví hoa hồng: ${String(err)}`);
+      }
+    }
+  }
+
+  private async walletBalances(partnerIds: string[]): Promise<Map<string, bigint>> {
+    const totals = new Map<string, bigint>();
+    if (partnerIds.length === 0) return totals;
+    const rows = await this.prisma.crmCommissionWalletTxn.groupBy({
+      by: ['partnerId'],
+      where: { partnerId: { in: partnerIds } },
+      _sum: { amountVnd: true },
+    });
+    for (const row of rows) {
+      totals.set(row.partnerId, row._sum.amountVnd ?? 0n);
+    }
+    return totals;
+  }
+
   private mapPartner(row: {
     id: string;
     name: string;
@@ -1053,7 +1319,7 @@ export class CrmService {
       contactPhone: string;
       createdAt: Date;
     }>;
-  }, pending?: { count: number; amount: bigint }): CrmPartnerView {
+  }, pending?: { count: number; amount: bigint }, signups: CrmReferralSignupView[] = [], walletBalanceVnd = 0n): CrmPartnerView {
     const origin = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
     return {
       id: row.id,
@@ -1065,6 +1331,8 @@ export class CrmService {
       createdAt: row.createdAt.toISOString(),
       pendingCommissionVnd: (pending?.amount ?? 0n).toString(),
       pendingCount: pending?.count ?? 0,
+      walletBalanceVnd: walletBalanceVnd.toString(),
+      signups,
       claims: (row.claims ?? []).map((claim) => ({
         id: claim.id,
         partnerId: claim.partnerId,
@@ -1146,7 +1414,7 @@ export class CrmService {
     const totals = new Map<string, { count: number; amount: bigint }>();
     if (partnerIds.length === 0) return totals;
     const entries = await this.prisma.crmCommissionEntry.findMany({
-      where: { partnerId: { in: partnerIds } },
+      where: { partnerId: { in: partnerIds }, periodId: null },
       select: {
         id: true,
         partnerId: true,
@@ -1163,6 +1431,60 @@ export class CrmService {
       totals.set(entry.partnerId, current);
     }
     return totals;
+  }
+
+  /** Đăng ký qua mã mà tài khoản đó chưa trả đơn gói có giá. */
+  private async unpaidSignups(partnerIds: string[]): Promise<Map<string, CrmReferralSignupView[]>> {
+    const grouped = new Map<string, CrmReferralSignupView[]>();
+    if (partnerIds.length === 0) return grouped;
+    const rows = await this.prisma.crmReferralSignup.findMany({
+      where: { partnerId: { in: partnerIds } },
+      orderBy: { registeredAt: 'desc' },
+      take: 300,
+    });
+    if (rows.length === 0) return grouped;
+    const userIds = rows.map((row) => row.userId);
+    const [members, paidOrders] = await Promise.all([
+      this.prisma.companyMember.findMany({
+        where: { userId: { in: userIds } },
+        select: {
+          userId: true,
+          roleInCompany: true,
+          company: { select: { name: true, isDeleted: true } },
+        },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: {
+          createdByUserId: { in: userIds },
+          status: 'paid',
+          priceVndSnapshot: { gt: 0 },
+          kind: { in: ['platform', 'sourcing'] },
+        },
+        select: { createdByUserId: true },
+      }),
+    ]);
+    const paidUsers = new Set(paidOrders.map((order) => order.createdByUserId));
+    const companyName = new Map<string, string>();
+    for (const member of members) {
+      if (member.company.isDeleted) continue;
+      const current = companyName.get(member.userId);
+      if (!current || member.roleInCompany === 'owner') {
+        companyName.set(member.userId, member.company.name);
+      }
+    }
+    for (const row of rows) {
+      if (paidUsers.has(row.userId)) continue;
+      const list = grouped.get(row.partnerId) ?? [];
+      if (list.length >= 30) continue;
+      list.push({
+        id: row.id,
+        partnerId: row.partnerId,
+        companyName: companyName.get(row.userId) ?? row.displayName,
+        registeredAt: row.registeredAt.toISOString(),
+      });
+      grouped.set(row.partnerId, list);
+    }
+    return grouped;
   }
 
   private async commissionPercent(): Promise<number | null> {
@@ -1211,10 +1533,19 @@ export class CrmService {
       where: { partnerId },
       orderBy: { paidAt: 'desc' },
       take: 50,
-      include: { billingOrder: { select: { orderInvoice: { select: { invoiceNumber: true } } } } },
+      include: {
+        billingOrder: { select: { orderInvoice: { select: { invoiceNumber: true } } } },
+        period: { select: { periodMonth: true } },
+      },
     });
     return rows.map((row) =>
-      this.mapCommissionEntry(row, partnerName, partnerCode, row.billingOrder.orderInvoice?.invoiceNumber ?? null),
+      this.mapCommissionEntry(
+        row,
+        partnerName,
+        partnerCode,
+        row.billingOrder.orderInvoice?.invoiceNumber ?? null,
+        row.period?.periodMonth ?? null,
+      ),
     );
   }
 
@@ -1266,7 +1597,8 @@ export class CrmService {
     },
     partnerName: string,
     partnerCode: string,
-    invoiceNumber: string | null,
+      invoiceNumber: string | null,
+      periodMonth: string | null,
   ): CrmCommissionEntryView {
     return {
       id: row.id,
@@ -1285,6 +1617,57 @@ export class CrmService {
       status: 'pending_reconcile',
       paidAt: row.paidAt.toISOString(),
       invoiceNumber,
+      periodMonth,
+    };
+  }
+
+  private async visiblePeriods<T extends { partnerId: string; partner: { createdByUserId: string } }>(
+    actor: AuthenticatedUser,
+    rows: T[],
+  ): Promise<T[]> {
+    if (rows.length === 0 || this.seesAll(actor)) return rows;
+    if (actor.role !== UserRole.Sales) return [];
+    const ownedPartners = new Set(
+      (
+        await this.prisma.crmLead.findMany({
+          where: {
+            ownerUserId: actor.id,
+            status: { not: 'unqualified' },
+            partnerId: { in: rows.map((row) => row.partnerId) },
+          },
+          select: { partnerId: true },
+        })
+      )
+        .map((lead) => lead.partnerId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    return rows.filter((row) => row.partner.createdByUserId === actor.id || ownedPartners.has(row.partnerId));
+  }
+
+  private mapCommissionPeriod(row: {
+    id: string;
+    partnerId: string;
+    periodMonth: string;
+    paidAmountVnd: bigint;
+    commissionVnd: bigint;
+    entryCount: number;
+    status: string;
+    closedAt: Date;
+    approvedAt: Date | null;
+    partner: { name: string; code: string };
+  }): CrmCommissionPeriodListView['periods'][number] {
+    return {
+      id: row.id,
+      partnerId: row.partnerId,
+      partnerName: row.partner.name,
+      partnerCode: row.partner.code,
+      periodMonth: row.periodMonth,
+      paidAmountVnd: row.paidAmountVnd.toString(),
+      commissionVnd: row.commissionVnd.toString(),
+      entryCount: row.entryCount,
+      status: row.status === 'payable' ? 'payable' : 'closed',
+      closedAt: row.closedAt.toISOString(),
+      approvedAt: row.approvedAt?.toISOString() ?? null,
     };
   }
 

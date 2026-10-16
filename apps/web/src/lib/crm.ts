@@ -5,7 +5,11 @@ import type {
   CreateCrmPartnerClaimRequest,
   CreateCrmPartnerRequest,
   CrmCommissionLedgerView,
+  CrmCommissionPeriodListView,
+  CrmCommissionPeriodView,
   CrmCommissionView,
+  CloseCrmCommissionMonthRequest,
+  CloseCrmCommissionMonthResult,
   CrmPartnerClaimView,
   CrmPartnerSelfView,
   RegisterCrmPartnerRequest,
@@ -75,6 +79,18 @@ export function updateCrmCommission(body: UpdateCrmCommissionRequest): Promise<C
 
 export function fetchCrmCommissionLedger(): Promise<CrmCommissionLedgerView> {
   return apiRequest<CrmCommissionLedgerView>('/crm/commissions');
+}
+
+export function fetchCrmCommissionPeriods(): Promise<CrmCommissionPeriodListView> {
+  return apiRequest<CrmCommissionPeriodListView>('/crm/commission-periods');
+}
+
+export function closeCrmCommissionMonth(body: CloseCrmCommissionMonthRequest): Promise<CloseCrmCommissionMonthResult> {
+  return apiRequest<CloseCrmCommissionMonthResult>('/crm/commission-periods', { method: 'POST', body });
+}
+
+export function allowCrmCommissionPayout(periodId: string): Promise<CrmCommissionPeriodView> {
+  return apiRequest<CrmCommissionPeriodView>(`/crm/commission-periods/${periodId}/approve`, { method: 'POST' });
 }
 
 export function fetchCrmPartners(): Promise<CrmPartnerView[]> {

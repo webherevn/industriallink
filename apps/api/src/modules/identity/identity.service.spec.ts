@@ -49,6 +49,7 @@ describe('IdentityService', () => {
       codeGen as never,
       events as never,
       audit as never,
+      { recordReferralSignup: jest.fn().mockResolvedValue(undefined) } as never,
     );
   }
 

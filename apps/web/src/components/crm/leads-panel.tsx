@@ -12,6 +12,7 @@ import {
   crmButtonClass,
   crmFieldClass,
 } from '@/components/crm-frame';
+import { CrmSelect } from '@/components/crm/fields';
 import { errorText, isFresh, leadSourceLabel, leadStatusLabel, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmLead, fetchCrmCompanies, fetchCrmPartners } from '@/lib/crm';
@@ -171,32 +172,24 @@ export function CrmLeadsPanel() {
         <input className={crmFieldClass} placeholder="Người liên hệ" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Số điện thoại" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} />
-        <select
-          className={crmFieldClass}
+        <CrmSelect
           value={source}
           required
-          onChange={(event) => {
-            const next = event.target.value as typeof source;
-            setSource(next);
+          placeholder="Nguồn khách"
+          options={SOURCES.map((item) => ({ value: item, label: leadSourceLabel(item) }))}
+          onChange={(next) => {
+            setSource(next as Exclude<SourceFilter, 'all' | 'unknown'>);
             if (next !== 'partner') setPartnerId('');
           }}
-        >
-          <option value="">Nguồn khách</option>
-          {SOURCES.map((item) => (
-            <option key={item} value={item}>
-              {leadSourceLabel(item)}
-            </option>
-          ))}
-        </select>
+        />
         {source === 'partner' ? (
-          <select className={crmFieldClass} value={partnerId} required onChange={(event) => setPartnerId(event.target.value)}>
-            <option value="">{partners.isLoading ? 'Đang tải cộng tác viên…' : 'Chọn cộng tác viên'}</option>
-            {partners.data?.map((partner) => (
-              <option key={partner.id} value={partner.id}>
-                {partner.name} · {partner.code}
-              </option>
-            ))}
-          </select>
+          <CrmSelect
+            value={partnerId}
+            required
+            placeholder={partners.isLoading ? 'Đang tải cộng tác viên…' : 'Chọn cộng tác viên'}
+            options={(partners.data ?? []).map((partner) => ({ value: partner.id, label: `${partner.name} · ${partner.code}` }))}
+            onChange={setPartnerId}
+          />
         ) : null}
         <button type="submit" className={crmButtonClass} disabled={addLead.isPending || !source || (source === 'partner' && !partnerId)}>
           {addLead.isPending ? 'Đang lưu…' : 'Thêm lead'}

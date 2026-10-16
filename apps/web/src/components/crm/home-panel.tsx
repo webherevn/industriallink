@@ -2,12 +2,15 @@
 
 import {
   Building2,
+  CalendarCheck,
   CalendarClock,
   Kanban,
+  Landmark,
   NotebookPen,
   Percent,
   Receipt,
   Scale,
+  UserPlus,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -17,13 +20,15 @@ import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
-import { fetchCrmInvoices } from '@/lib/crm';
+import { fetchCrmInvoices, fetchCrmPartners } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
   const renewals = useCrmRenewals();
   const invoices = useQuery({ queryKey: ['crm-invoices'], queryFn: fetchCrmInvoices });
+  const partners = useQuery({ queryKey: ['crm-partners'], queryFn: fetchCrmPartners });
   const missingInvoices = (invoices.data?.orders ?? []).filter((order) => !order.invoiceNumber).length;
+  const unpaidSignups = (partners.data ?? []).reduce((sum, partner) => sum + partner.signups.length, 0);
   const [query, setQuery] = useState('');
   const leads = board.data?.leads ?? [];
   const deals = board.data?.deals ?? [];
@@ -54,8 +59,11 @@ export function CrmHomePanel() {
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
           <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />
           <CrmChip href="/crm/finance/reconciliation" icon={<Scale className="h-4 w-4" />} label="Đối soát" />
+          <CrmChip href="/crm/finance/periods" icon={<CalendarCheck className="h-4 w-4" />} label="Kỳ chốt" />
+          <CrmChip href="/crm/finance/accounting" icon={<Landmark className="h-4 w-4" />} label="Kế toán" />
           <CrmChip href="/crm/renewals" icon={<CalendarClock className="h-4 w-4" />} label="Gia hạn" />
           <CrmChip href="/crm/partners" icon={<Users className="h-4 w-4" />} label="Cộng tác viên" />
+          <CrmChip href="/crm/signups" icon={<UserPlus className="h-4 w-4" />} label="Đăng ký chưa trả" />
           <CrmChip href="/crm/settings/commission" icon={<Percent className="h-4 w-4" />} label="Hoa hồng" />
         </>
       }
@@ -72,6 +80,14 @@ export function CrmHomePanel() {
           </Link>
           <Link href="/crm/pipeline" className="block h-full">
             <CrmCard tone="orange" icon={<Wallet className="h-5 w-5" />} title={`${waiting} chờ thanh toán`} text="Khách tự thanh toán trên inlink. CRM không tạo đơn." />
+          </Link>
+          <Link href="/crm/signups" className="block h-full">
+            <CrmCard
+              tone="indigo"
+              icon={<UserPlus className="h-5 w-5" />}
+              title={`${partners.isLoading ? '…' : unpaidSignups} đã đăng ký, chưa thanh toán`}
+              text="Nhà tuyển dụng mở link cộng tác viên và tạo tài khoản. Hoa hồng chỉ ghi khi họ thanh toán gói có giá."
+            />
           </Link>
           <Link href="/crm/finance" className="block h-full">
             <CrmCard

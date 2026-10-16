@@ -6,15 +6,15 @@ import { Users } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { errorText, formatVnd, matchesQuery } from '@/components/crm/format';
+import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmPartner, createCrmPartnerClaim, fetchCrmPartners } from '@/lib/crm';
 
-export function CrmPartnersPanel() {
+export function CrmPartnersPanel({ initialQuery = '' }: { initialQuery?: string }) {
   const qc = useQueryClient();
   const board = useCrmBoard();
   const partners = useQuery({ queryKey: ['crm-partners'], queryFn: fetchCrmPartners });
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -72,15 +72,33 @@ export function CrmPartnersPanel() {
                 tone="indigo"
                 icon={<Users className="h-5 w-5" />}
                 title={partner.name}
-                text={`${partner.phone}. ${leadCount} lead. ${formatVnd(partner.pendingCommissionVnd)} chờ đối soát (${partner.pendingCount} khoản). ${partner.fromAccount ? 'Tài khoản NTD tự đăng ký.' : 'CRM tạo hộ.'}`}
+                text={`${partner.phone}. ${leadCount} lead. ${partner.signups.length} đã đăng ký, chưa thanh toán. Ví ${formatVnd(partner.walletBalanceVnd)}. ${formatVnd(partner.pendingCommissionVnd)} chờ đối soát (${partner.pendingCount} khoản). ${partner.fromAccount ? 'Tài khoản NTD tự đăng ký.' : 'CRM tạo hộ.'}`}
                 meta={partner.code}
               >
-                <Link
-                  href={`/crm/finance/reconciliation?q=${encodeURIComponent(partner.code)}`}
-                  className="mt-3 text-xs font-medium text-[#4c3ec9] underline"
-                >
-                  Xem đối soát
-                </Link>
+                {partner.signups.length > 0 ? (
+                  <ul className="mt-3 space-y-1 text-xs text-slate-600">
+                    {partner.signups.slice(0, 4).map((signup) => (
+                      <li key={signup.id}>
+                        {signup.companyName} · đăng ký {formatWhen(signup.registeredAt)}
+                      </li>
+                    ))}
+                    {partner.signups.length > 4 ? <li>và {partner.signups.length - 4} tài khoản nữa</li> : null}
+                  </ul>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                  <Link
+                    href={`/crm/signups?q=${encodeURIComponent(partner.code)}`}
+                    className="text-xs font-medium text-[#4c3ec9] underline"
+                  >
+                    Đăng ký chưa trả
+                  </Link>
+                  <Link
+                    href={`/crm/finance/reconciliation?q=${encodeURIComponent(partner.code)}`}
+                    className="text-xs font-medium text-[#4c3ec9] underline"
+                  >
+                    Xem đối soát
+                  </Link>
+                </div>
                 <ClaimForm partner={partner} />
               </CrmCard>
             );

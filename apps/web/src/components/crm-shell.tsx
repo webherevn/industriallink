@@ -5,16 +5,19 @@ import clsx from 'clsx';
 import {
   BadgePercent,
   Building2,
+  CalendarCheck,
   CalendarClock,
   Kanban,
+  Landmark,
   LayoutDashboard,
   LogOut,
   Menu,
   NotebookPen,
   Percent,
-      Receipt,
-      Scale,
-      Users,
+  Receipt,
+  Scale,
+  UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -22,6 +25,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { isCrmRole } from '@industriallink/contracts';
 import { BrandSidebarLockup } from '@/components/brand-logo';
+import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
 import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
@@ -47,6 +51,8 @@ const NAV = [
     items: [
       { href: '/crm/finance', label: 'Hóa đơn', icon: Receipt },
       { href: '/crm/finance/reconciliation', label: 'Đối soát', icon: Scale },
+      { href: '/crm/finance/periods', label: 'Kỳ chốt', icon: CalendarCheck },
+      { href: '/crm/finance/accounting', label: 'Kế toán', icon: Landmark },
     ],
   },
   {
@@ -54,6 +60,7 @@ const NAV = [
     items: [
       { href: '/crm/renewals', label: 'Gia hạn', icon: CalendarClock },
       { href: '/crm/partners', label: 'Cộng tác viên', icon: Users },
+      { href: '/crm/signups', label: 'Đăng ký chưa trả', icon: UserPlus },
     ],
   },
   {
@@ -208,6 +215,9 @@ export function CrmShell({ children }: { children: ReactNode }) {
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-brand-600">inlink CRM</p>
             <p className="truncate text-xs text-slate-500">Kinh doanh · hóa đơn · cộng tác viên</p>
+          </div>
+          <div className="ml-auto">
+            <NotificationBell allHref="/crm/notifications" />
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">{children}</main>

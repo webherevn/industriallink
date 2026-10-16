@@ -127,11 +127,22 @@ export interface CrmPartnerView {
   referralUrl: string;
   /** true khi nhà tuyển dụng tự đăng ký. false khi CRM tạo hộ. */
   fromAccount: boolean;
-  /** Tổng chờ đối soát người xem được thấy. Không phải số được rút. */
+  /** Tổng chờ đối soát người xem được thấy. Chưa gồm kỳ đã chốt. */
   pendingCommissionVnd: string;
   pendingCount: number;
+  /** Số dư ví hoa hồng trên inlink. Kỳ đã chốt vẫn nằm ở đây. */
+  walletBalanceVnd: string;
   createdAt: string;
+  /** Đăng ký qua mã, chưa thanh toán gói. Không gồm email. */
+  signups: CrmReferralSignupView[];
   claims: CrmPartnerClaimView[];
+}
+
+export interface CrmReferralSignupView {
+  id: string;
+  partnerId: string;
+  companyName: string;
+  registeredAt: string;
 }
 
 export interface CrmPartnerClaimView {
@@ -186,11 +197,44 @@ export interface CrmCommissionEntryView {
   paidAt: string;
   /** Số hóa đơn của đơn đã thanh toán. Null khi chưa ghi. Không phải lệnh chi. */
   invoiceNumber: string | null;
+  /** YYYY-MM khi khoản đã vào kỳ chốt. Null khi còn chờ đối soát. */
+  periodMonth: string | null;
 }
 
 export interface CrmCommissionLedgerView {
   entries: CrmCommissionEntryView[];
   pendingTotalVnd: string;
+}
+
+export type CrmCommissionPeriodStatus = 'closed' | 'payable';
+
+export interface CrmCommissionPeriodView {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerCode: string;
+  /** YYYY-MM, giờ Việt Nam. */
+  periodMonth: string;
+  paidAmountVnd: string;
+  commissionVnd: string;
+  entryCount: number;
+  status: CrmCommissionPeriodStatus;
+  closedAt: string;
+  /** Có khi kỳ đã được phép chi và chuyển kế toán. */
+  approvedAt: string | null;
+}
+
+export interface CrmCommissionPeriodListView {
+  periods: CrmCommissionPeriodView[];
+  canClose: boolean;
+}
+
+export interface CloseCrmCommissionMonthRequest {
+  periodMonth: string;
+}
+
+export interface CloseCrmCommissionMonthResult extends CrmCommissionPeriodListView {
+  closedCount: number;
 }
 
 export interface CreateCrmPartnerRequest {

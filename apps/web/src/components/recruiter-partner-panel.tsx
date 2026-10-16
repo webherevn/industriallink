@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Check, Copy, Link2 } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
-import type { CrmCommissionEntryView } from '@industriallink/contracts';
+import type { CrmCommissionEntryView, CrmReferralSignupView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Card } from '@/components/ui';
 import { errorText, formatVnd, matchesQuery } from '@/components/crm/format';
@@ -43,7 +43,6 @@ export function RecruiterPartnerPanel() {
   const partner = mine.data?.partner ?? null;
   const entries = mine.data?.commissions ?? [];
   const monthEntries = entries.filter((entry) => inThisMonth(entry.paidAt));
-  const pendingTotal = sumVnd(entries);
   const monthTotal = sumVnd(monthEntries);
 
   return (
@@ -89,21 +88,21 @@ export function RecruiterPartnerPanel() {
             <Card className="bg-gradient-to-br from-[#072348] to-[#1a4a7a] p-6 text-white">
               <div className="flex flex-wrap items-end justify-between gap-6">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">Hoa hồng chờ đối soát</p>
-                  <p className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{formatVnd(pendingTotal)}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">Số dư ví hoa hồng</p>
+                  <p className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{formatVnd(partner.walletBalanceVnd)}</p>
                   <p className="mt-2 text-sm text-white/75">
                     Mã {partner.code} · {partner.name}
                   </p>
                 </div>
                 <p className="max-w-xs text-sm leading-relaxed text-white/70">
-                  Số này là các khoản đã ghi sau khi khách thanh toán gói. Chưa chi và không rút trên trang này.
+                  Số dư trên inlink, tự cộng khi khách thanh toán gói. Kỳ đã chốt vẫn nằm trong ví cho đến khi được phép chi.
                 </p>
               </div>
             </Card>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Stat label="Số khoản" value={String(entries.length)} hint="Mỗi đơn đã thanh toán một dòng" />
-              <Stat label="Tháng này" value={formatVnd(monthTotal)} hint={`${monthEntries.length} khoản trong tháng`} />
+              <Stat label="Tháng này" value={formatVnd(monthTotal)} hint={`${monthEntries.length} khoản đã cộng vào ví`} />
               <Stat
                 label="Tỷ lệ đang áp dụng"
                 value={mine.data.commissionPercent == null ? 'Chưa đặt' : `${mine.data.commissionPercent}%`}
@@ -145,6 +144,7 @@ export function RecruiterPartnerPanel() {
               </Card>
             </div>
 
+            <Signups rows={partner.signups} />
             <History entries={entries} />
             <TaxLock claims={partner.claims} />
           </>
@@ -160,6 +160,31 @@ function Stat({ label, value, hint }: { label: string; value: string; hint: stri
       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
       <p className="mt-2 text-xl font-bold text-slate-900">{value}</p>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">{hint}</p>
+    </Card>
+  );
+}
+
+function Signups({ rows }: { rows: CrmReferralSignupView[] }) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-slate-100 px-4 py-4">
+        <h2 className="text-base font-semibold text-slate-900">Đã đăng ký, chưa thanh toán</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {rows.length} nhà tuyển dụng mở link và tạo tài khoản. Hoa hồng chỉ ghi sau khi họ thanh toán gói có giá.
+        </p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-6 text-sm text-slate-500">Chưa có tài khoản nào trong hạn cookie mà chưa thanh toán.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="min-w-0 truncate text-sm font-medium text-slate-900">{row.companyName}</span>
+              <span className="shrink-0 text-xs text-slate-500">{formatPaidAt(row.registeredAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -251,7 +276,13 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
                   <td className="px-4 py-3 font-semibold text-[#072348]">{formatVnd(entry.commissionVnd)}</td>
                   <td className="px-4 py-3 text-slate-700">{entry.invoiceNumber ?? 'Chưa ghi số'}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ đối soát</span>
+                    {entry.periodMonth ? (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        Đã chốt kỳ {formatPeriodMonth(entry.periodMonth)}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ đối soát</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{formatPaidAt(entry.paidAt)}</td>
                 </tr>
@@ -338,6 +369,11 @@ function inThisMonth(iso: string): boolean {
     month: '2-digit',
   }).format(new Date());
   return stamp === now;
+}
+
+function formatPeriodMonth(periodMonth: string): string {
+  const [year, month] = periodMonth.split('-');
+  return `${Number(month)}/${year}`;
 }
 
 function formatPaidAt(iso: string): string {

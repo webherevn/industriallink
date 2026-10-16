@@ -29,7 +29,7 @@ export function CrmReconciliationPanel({ initialQuery = '' }: { initialQuery?: s
       description="Mỗi đơn gói đã thanh toán ghi một khoản cho cộng tác viên của nhà máy đó. Chốt deal không tạo khoản này."
       placeholder="Tìm nhà máy, cộng tác viên hoặc gói"
       search={{ value: query, onChange: setQuery }}
-      footnote="Chỉ trạng thái chờ đối soát. Không rút và không có lệnh chi."
+      footnote="Khoản đã vào kỳ chốt không còn ở danh sách này. Chốt kỳ chưa phải lệnh chi."
     >
       {ledger.isLoading ? <CrmEmpty>Đang tải khoản hoa hồng…</CrmEmpty> : null}
       {ledger.isError ? <CrmEmpty>Không tải được danh sách đối soát.</CrmEmpty> : null}

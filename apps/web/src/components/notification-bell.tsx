@@ -20,8 +20,8 @@ function formatTime(iso: string): string {
   }
 }
 
-/** Chuông thông báo in-app trên AppShell (poll ~30s). */
-export function NotificationBell() {
+/** Chuông thông báo in-app (poll ~30s). `allHref` là trang danh sách của đúng host. */
+export function NotificationBell({ allHref = '/notifications' }: { allHref?: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -92,7 +92,7 @@ export function NotificationBell() {
                 </button>
               )}
               <Link
-                href="/notifications"
+                href={allHref}
                 className="text-xs font-medium text-slate-500 hover:text-slate-700"
                 onClick={() => setOpen(false)}
               >

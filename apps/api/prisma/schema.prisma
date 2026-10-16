@@ -1894,8 +1894,28 @@ model CrmPartner {
   leads       CrmLead[]
   claims      CrmPartnerClaim[]
   commissions CrmCommissionEntry[]
+  signups     CrmReferralSignup[]
+  periods     CrmCommissionPeriod[]
+  wallet      CrmCommissionWallet?
 
   @@map("crm_partner")
+  @@schema("crm")
+}
+
+/// Nhà tuyển dụng đăng ký khi cookie giới thiệu còn hạn. Chưa phải hoa hồng.
+model CrmReferralSignup {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId    String   @map("partner_id") @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  displayName  String   @map("display_name")
+  capturedAt   DateTime @map("captured_at")
+  registeredAt DateTime @map("registered_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  partner CrmPartner @relation(fields: [partnerId], references: [id])
+
+  @@index([partnerId, registeredAt])
+  @@map("crm_referral_signup")
   @@schema("crm")
 }
 
@@ -1940,17 +1960,78 @@ model CrmCommissionEntry {
   paidAmountVnd   BigInt   @map("paid_amount_vnd")
   percent         Int
   commissionVnd   BigInt   @map("commission_vnd")
-  /// Chỉ chờ đối soát. Không có trạng thái đã chi.
+  /// Chờ đối soát cho đến khi gắn vào một kỳ chốt. Chưa phải lệnh chi.
   status          String   @default("pending_reconcile")
   paidAt          DateTime @map("paid_at")
   createdAt       DateTime @default(now()) @map("created_at")
+  periodId        String?  @map("period_id") @db.Uuid
 
-  partner      CrmPartner   @relation(fields: [partnerId], references: [id])
-  billingOrder BillingOrder @relation(fields: [billingOrderId], references: [id])
+  partner      CrmPartner              @relation(fields: [partnerId], references: [id])
+  billingOrder BillingOrder            @relation(fields: [billingOrderId], references: [id])
+  period       CrmCommissionPeriod?    @relation(fields: [periodId], references: [id])
+  walletTxn    CrmCommissionWalletTxn?
 
   @@index([partnerId, paidAt])
   @@index([companyId])
+  @@index([periodId])
   @@map("crm_commission_entry")
+  @@schema("crm")
+}
+
+/// Một kỳ một cộng tác viên một tháng. Chờ SuperAdmin cho phép chi. Số đã nằm trong ví.
+model CrmCommissionPeriod {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId      String   @map("partner_id") @db.Uuid
+  /// Tháng dương lịch giờ Việt Nam, dạng YYYY-MM.
+  periodMonth    String   @map("period_month")
+  paidAmountVnd  BigInt   @map("paid_amount_vnd")
+  commissionVnd  BigInt   @map("commission_vnd")
+  entryCount     Int      @map("entry_count")
+  /// closed = chờ cho phép chi. payable = đã chuyển kế toán.
+  status            String    @default("closed")
+  closedByUserId    String    @map("closed_by_user_id") @db.Uuid
+  closedAt          DateTime  @default(now()) @map("closed_at")
+  approvedByUserId  String?   @map("approved_by_user_id") @db.Uuid
+  approvedAt        DateTime? @map("approved_at")
+
+  partner CrmPartner           @relation(fields: [partnerId], references: [id])
+  entries CrmCommissionEntry[]
+
+  @@unique([partnerId, periodMonth])
+  @@index([periodMonth])
+  @@map("crm_commission_period")
+  @@schema("crm")
+}
+
+/// Số dư hoa hồng trên inlink. Tách khỏi Credit của nhà tuyển dụng.
+model CrmCommissionWallet {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId String   @unique @map("partner_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  partner CrmPartner                @relation(fields: [partnerId], references: [id])
+  txns    CrmCommissionWalletTxn[]
+
+  @@map("crm_commission_wallet")
+  @@schema("crm")
+}
+
+/// Một dòng cộng cho một khoản hoa hồng. Chưa có dòng trừ.
+model CrmCommissionWalletTxn {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId          String   @map("wallet_id") @db.Uuid
+  partnerId         String   @map("partner_id") @db.Uuid
+  commissionEntryId String   @unique @map("commission_entry_id") @db.Uuid
+  amountVnd         BigInt   @map("amount_vnd")
+  kind              String   @default("credit")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  wallet CrmCommissionWallet @relation(fields: [walletId], references: [id])
+  entry  CrmCommissionEntry  @relation(fields: [commissionEntryId], references: [id])
+
+  @@index([partnerId])
+  @@map("crm_commission_wallet_txn")
   @@schema("crm")
 }
 

@@ -31,6 +31,7 @@ import { UpdateMfaDto } from './dto/update-mfa.dto';
 import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { VerifyTotpDto } from './dto/verify-totp.dto';
+import { REFERRAL_COOKIE } from '../crm/referral-cookie';
 import { IdentityService } from './identity.service';
 
 const REFRESH_COOKIE = 'il_refresh';
@@ -46,10 +47,12 @@ export class AuthController {
   @Post('register')
   @ApiOperation({ summary: 'Đăng ký tài khoản (ứng viên hoặc nhà tuyển dụng)' })
   register(@Body() dto: RegisterDto, @Req() req: Request, @CorrelationId() correlationId: string) {
+    const raw = req.cookies?.[REFERRAL_COOKIE];
     return this.identity.register(dto, {
       correlationId,
       ip: req.ip,
       userAgent: req.headers['user-agent'],
+      referralCookie: typeof raw === 'string' ? raw : null,
     });
   }
 

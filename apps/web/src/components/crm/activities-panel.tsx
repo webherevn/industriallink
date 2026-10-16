@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmActivityType } from '@industriallink/contracts';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
+import { CrmSelect } from '@/components/crm/fields';
 import { activityLabel, errorText, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmActivity } from '@/lib/crm';
@@ -56,25 +57,18 @@ export function CrmActivitiesPanel() {
       footnote="Nhật ký lưu cùng lead. CRM không gán gói."
     >
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-4">
-        <select className={crmFieldClass} value={leadId} required onChange={(event) => setLeadId(event.target.value)}>
-          <option value="">Chọn lead</option>
-          {leads.map((lead) => (
-            <option key={lead.id} value={lead.id}>
-              {lead.companyName}
-            </option>
-          ))}
-        </select>
-        <select
-          className={crmFieldClass}
+        <CrmSelect
+          value={leadId}
+          required
+          placeholder="Chọn lead"
+          options={leads.map((lead) => ({ value: lead.id, label: lead.companyName }))}
+          onChange={setLeadId}
+        />
+        <CrmSelect
           value={activityType}
-          onChange={(event) => setActivityType(event.target.value as (typeof TYPES)[number]['value'])}
-        >
-          {TYPES.map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
+          options={TYPES.map((type) => ({ value: type.value, label: type.label }))}
+          onChange={(next) => setActivityType(next as (typeof TYPES)[number]['value'])}
+        />
         <input className={crmFieldClass} placeholder="Nội dung trao đổi" value={summary} onChange={(event) => setSummary(event.target.value)} required />
         <button type="submit" className={crmButtonClass} disabled={add.isPending || leads.length === 0}>
           {add.isPending ? 'Đang lưu…' : 'Ghi nhật ký'}

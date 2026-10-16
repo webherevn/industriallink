@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmPlanKind } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
+import { CrmSelect } from '@/components/crm/fields';
 import { errorText, formatVnd, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
@@ -80,33 +81,27 @@ export function CrmPipelinePanel() {
       footnote="Giá niêm yết chưa VAT. Dòng đã thanh toán là đơn của deal này và không đổi cột."
     >
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-4">
-        <select
-          className={crmFieldClass}
+        <CrmSelect
           value={leadId}
           required
-          onChange={(event) => {
-            const next = event.target.value;
+          placeholder="Chọn lead"
+          options={leads.map((lead) => ({ value: lead.id, label: lead.companyName }))}
+          onChange={(next) => {
             setLeadId(next);
             const lead = leads.find((item) => item.id === next);
             if (lead) setTitle(`Bán gói — ${lead.companyName}`);
           }}
-        >
-          <option value="">Chọn lead</option>
-          {leads.map((lead) => (
-            <option key={lead.id} value={lead.id}>
-              {lead.companyName}
-            </option>
-          ))}
-        </select>
+        />
         <input className={crmFieldClass} placeholder="Tiêu đề deal" value={title} onChange={(event) => setTitle(event.target.value)} required />
-        <select className={crmFieldClass} value={planKey} onChange={(event) => setPlanKey(event.target.value)}>
-          <option value="">Chưa chọn gói</option>
-          {plans.data?.map((plan) => (
-            <option key={`${plan.kind}:${plan.code}`} value={`${plan.kind}:${plan.code}`}>
-              {plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · {plan.name} · {formatVnd(plan.priceVnd)}
-            </option>
-          ))}
-        </select>
+        <CrmSelect
+          value={planKey}
+          placeholder="Chưa chọn gói"
+          options={(plans.data ?? []).map((plan) => ({
+            value: `${plan.kind}:${plan.code}`,
+            label: `${plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · ${plan.name} · ${formatVnd(plan.priceVnd)}`,
+          }))}
+          onChange={setPlanKey}
+        />
         <button type="submit" className={crmButtonClass} disabled={addDeal.isPending || leads.length === 0}>
           {addDeal.isPending ? 'Đang lưu…' : 'Tạo deal'}
         </button>
@@ -161,18 +156,15 @@ export function CrmPipelinePanel() {
                       {stage.code === 'won' ? (
                         <p className="mt-1 text-[11px] text-slate-400">Cột này không bật gói và không ghi hoa hồng</p>
                       ) : null}
-                      <select
-                        className="mt-3 w-full rounded-xl border border-slate-200 px-2 py-1.5 text-xs text-slate-700"
-                        value={deal.stageCode}
-                        disabled={move.isPending}
-                        onChange={(event) => move.mutate({ id: deal.id, stageCode: event.target.value })}
-                      >
-                        {stages.map((option) => (
-                          <option key={option.id} value={option.code}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="mt-3">
+                        <CrmSelect
+                          compact
+                          value={deal.stageCode}
+                          disabled={move.isPending}
+                          options={stages.map((option) => ({ value: option.code, label: option.name }))}
+                          onChange={(stageCode) => move.mutate({ id: deal.id, stageCode })}
+                        />
+                      </div>
                     </article>
                   ))}
                 </div>

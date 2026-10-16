@@ -28,12 +28,14 @@ import { AuditService } from '../../shared/infrastructure/audit.service';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { PasswordService } from '../../shared/security/password.service';
+import { CrmService } from '../crm/crm.service';
 import type { AuthenticatedUser, JwtPayload } from '../../shared/security/security.types';
 
 interface RequestMeta {
   correlationId: string;
   ip?: string;
   userAgent?: string;
+  referralCookie?: string | null;
 }
 
 type LoginResult =
@@ -61,6 +63,7 @@ export class IdentityService {
     private readonly codeGen: CodeGeneratorService,
     private readonly events: AppEventBus,
     private readonly audit: AuditService,
+    private readonly crm: CrmService,
   ) {}
 
   async register(
@@ -87,6 +90,20 @@ export class IdentityService {
         status: UserStatus.Created,
       },
     });
+
+    if (input.role === UserRole.Recruiter) {
+      try {
+        await this.crm.recordReferralSignup({
+          cookie: meta.referralCookie,
+          userId: user.id,
+          role: user.role,
+          displayName: user.displayName,
+          registeredAt: user.createdAt,
+        });
+      } catch (err) {
+        this.logger.error(`Không ghi được đăng ký giới thiệu cho ${user.id}: ${String(err)}`);
+      }
+    }
 
     await this.audit.record({
       tenantId: user.tenantId,
