@@ -1890,6 +1890,8 @@ model CrmLead {
   companyId    String?  @map("company_id") @db.Uuid
   /// open | converted | unqualified
   status       String   @default("open")
+  /// web | zalo | event | partner | unknown. unknown chỉ cho lead tạo trước khi có nguồn.
+  source       String   @default("unknown")
   ownerUserId  String   @map("owner_user_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

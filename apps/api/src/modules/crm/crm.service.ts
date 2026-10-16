@@ -10,6 +10,7 @@ import {
   type CrmBoard,
   type CrmCompanyOption,
   type CrmDealView,
+  type CrmLeadSource,
   type CrmLeadView,
   type CrmPlanKind,
   type CrmPlanOption,
@@ -200,9 +201,11 @@ export class CrmService {
     const contactName = input.contactName?.trim();
     const phone = normalizePhone(input.contactPhone ?? '');
     const taxCode = normalizeTax(input.taxCode);
+    const source = leadSource(input.source);
     if (!companyName || !contactName || phone.length < 9) {
       throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
     }
+    if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
     await this.assertNoDuplicate(taxCode, phone);
     const companyId = await this.resolveCompanyId(input.companyId, taxCode);
 
@@ -216,6 +219,7 @@ export class CrmService {
         contactEmail: input.contactEmail?.trim() || null,
         industry: input.industry?.trim() || null,
         companyId,
+        source,
         ownerUserId: actor.id,
       },
     });
@@ -223,7 +227,7 @@ export class CrmService {
       data: {
         leadId: lead.id,
         activityType: 'note',
-        summary: `Tạo lead ${lead.leadCode}`,
+        summary: `Tạo lead ${lead.leadCode} từ ${sourceLabel(source)}`,
         createdByUserId: actor.id,
       },
     });
@@ -490,6 +494,7 @@ export class CrmService {
     industry: string | null;
     companyId: string | null;
     status: string;
+    source: string;
     ownerUserId: string;
     createdAt: Date;
   }, names: Map<string, string>): CrmLeadView {
@@ -505,6 +510,7 @@ export class CrmService {
       industry: lead.industry,
       companyId: lead.companyId,
       status,
+      source: leadSource(lead.source) ?? 'unknown',
       ownerUserId: lead.ownerUserId,
       ownerName: names.get(lead.ownerUserId) || 'SuperAdmin',
       createdAt: lead.createdAt.toISOString(),
@@ -592,6 +598,18 @@ export class CrmService {
 
 function daysUntil(endsAt: Date, now: Date): number {
   return Math.ceil((endsAt.getTime() - now.getTime()) / 86_400_000);
+}
+
+function leadSource(value: string | null | undefined): Exclude<CrmLeadSource, 'unknown'> | null {
+  if (value === 'web' || value === 'zalo' || value === 'event' || value === 'partner') return value;
+  return null;
+}
+
+function sourceLabel(source: Exclude<CrmLeadSource, 'unknown'>): string {
+  if (source === 'web') return 'Web';
+  if (source === 'zalo') return 'Zalo';
+  if (source === 'event') return 'sự kiện';
+  return 'cộng tác viên';
 }
 
 function normalizePhone(raw: string): string {

@@ -1,6 +1,8 @@
 /** CRM: lead, phễu, nhật ký, hóa đơn đã xuất. Không gán gói, không công nợ, không hoa hồng. */
 
 export type CrmLeadStatus = 'open' | 'converted' | 'unqualified';
+/** unknown chỉ còn trên lead tạo trước khi ghi nguồn. */
+export type CrmLeadSource = 'web' | 'zalo' | 'event' | 'partner' | 'unknown';
 export type CrmInvoiceStatus = 'none' | 'issued';
 export type CrmPlanKind = 'platform' | 'sourcing';
 export type CrmProvisionState = 'not_provisioned';
@@ -16,6 +18,7 @@ export interface CrmLeadView {
   industry: string | null;
   companyId: string | null;
   status: CrmLeadStatus;
+  source: CrmLeadSource;
   ownerUserId: string;
   ownerName: string;
   createdAt: string;
@@ -96,6 +99,7 @@ export interface CreateCrmLeadRequest {
   contactEmail?: string | null;
   industry?: string | null;
   companyId?: string | null;
+  source: Exclude<CrmLeadSource, 'unknown'>;
 }
 
 export interface CreateCrmDealRequest {

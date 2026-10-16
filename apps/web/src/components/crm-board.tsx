@@ -19,6 +19,7 @@ export function CrmBoardPage() {
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [taxCode, setTaxCode] = useState('');
+  const [source, setSource] = useState<'web' | 'zalo' | 'event' | 'partner' | ''>('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,18 +53,24 @@ export function CrmBoardPage() {
   });
 
   const addLead = useMutation({
-    mutationFn: () =>
-      createCrmLead({
+    mutationFn: () => {
+      if (source !== 'web' && source !== 'zalo' && source !== 'event' && source !== 'partner') {
+        return Promise.reject(new Error('Chọn nguồn khách'));
+      }
+      return createCrmLead({
         companyName,
         contactName,
         contactPhone,
         taxCode: taxCode || null,
-      }),
+        source,
+      });
+    },
     onSuccess: () => {
       setCompanyName('');
       setContactName('');
       setContactPhone('');
       setTaxCode('');
+      setSource('');
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
     },
@@ -110,7 +117,7 @@ export function CrmBoardPage() {
         {error ? <p className="text-sm text-rose-700">{error}</p> : null}
 
         <Card className="p-4">
-          <form className="grid gap-3 md:grid-cols-5" onSubmit={onCreateLead}>
+          <form className="grid gap-3 md:grid-cols-6" onSubmit={onCreateLead}>
             <input
               className="rounded border border-slate-200 px-3 py-2 text-sm"
               placeholder="Tên công ty"
@@ -138,7 +145,19 @@ export function CrmBoardPage() {
               value={taxCode}
               onChange={(event) => setTaxCode(event.target.value)}
             />
-            <Button type="submit" disabled={addLead.isPending}>
+            <select
+              className="rounded border border-slate-200 px-3 py-2 text-sm"
+              value={source}
+              required
+              onChange={(event) => setSource(event.target.value as typeof source)}
+            >
+              <option value="">Nguồn khách</option>
+              <option value="web">Web</option>
+              <option value="zalo">Zalo</option>
+              <option value="event">Sự kiện</option>
+              <option value="partner">Cộng tác viên</option>
+            </select>
+            <Button type="submit" disabled={addLead.isPending || !source}>
               Thêm lead
             </Button>
           </form>

@@ -12,7 +12,7 @@ import {
 import Link from 'next/link';
 import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/crm-frame';
-import { formatVnd, formatWhen, isFresh, matchesQuery, renewalLabel } from '@/components/crm/format';
+import { formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
 
 export function CrmHomePanel() {
@@ -27,7 +27,7 @@ export function CrmHomePanel() {
   const due = renewals.data?.length ?? 0;
   const needle = query.trim();
   const matchedLeads = leads.filter((lead) =>
-    matchesQuery(query, [lead.companyName, lead.contactName, lead.contactPhone, lead.taxCode, lead.leadCode]),
+    matchesQuery(query, [lead.companyName, lead.contactName, lead.contactPhone, lead.taxCode, lead.leadCode, leadSourceLabel(lead.source)]),
   );
   const matchedDeals = deals.filter((deal) =>
     matchesQuery(query, [deal.companyName, deal.title, deal.planCode, deal.dealCode]),
@@ -98,7 +98,7 @@ export function CrmHomePanel() {
                   tone="sky"
                   icon={<Building2 className="h-5 w-5" />}
                   title={lead.companyName}
-                  text={`${lead.contactName} · ${lead.contactPhone}`}
+                  text={`${lead.contactName} · ${lead.contactPhone} · ${leadSourceLabel(lead.source)}`}
                   meta={lead.leadCode}
                 />
               </Link>
