@@ -78,6 +78,8 @@ export interface CrmActivityView {
   summary: string;
   createdByName: string;
   createdAt: string;
+  /** Số hóa đơn của đơn gắn với dòng thanh toán. Null khi chưa ghi hoặc không phải dòng thanh toán. */
+  invoiceNumber: string | null;
 }
 
 export interface CrmRenewalView {
@@ -90,6 +92,8 @@ export interface CrmRenewalView {
   daysLeft: number;
   /** Lead đang mở của công ty, nếu có. Dùng để tạo deal gia hạn, không gán gói. */
   leadId: string | null;
+  /** Đơn gói đã trả trong kỳ đang chạy. Null khi kỳ này chưa thấy đơn. Không đổi hạn gói. */
+  cyclePaidAt: string | null;
 }
 
 export interface CrmBoard {
@@ -123,6 +127,9 @@ export interface CrmPartnerView {
   referralUrl: string;
   /** true khi nhà tuyển dụng tự đăng ký. false khi CRM tạo hộ. */
   fromAccount: boolean;
+  /** Tổng chờ đối soát người xem được thấy. Không phải số được rút. */
+  pendingCommissionVnd: string;
+  pendingCount: number;
   createdAt: string;
   claims: CrmPartnerClaimView[];
 }

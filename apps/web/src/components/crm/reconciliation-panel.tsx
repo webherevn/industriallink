@@ -8,9 +8,9 @@ import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { fetchCrmCommissionLedger } from '@/lib/crm';
 
-export function CrmReconciliationPanel() {
+export function CrmReconciliationPanel({ initialQuery = '' }: { initialQuery?: string }) {
   const ledger = useQuery({ queryKey: ['crm-commissions'], queryFn: fetchCrmCommissionLedger });
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const entries = (ledger.data?.entries ?? []).filter((entry) =>
     matchesQuery(query, [
       entry.companyName,

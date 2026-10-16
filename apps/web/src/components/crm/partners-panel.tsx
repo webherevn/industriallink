@@ -3,9 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmPartnerView } from '@industriallink/contracts';
 import { Users } from 'lucide-react';
+import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { errorText, matchesQuery } from '@/components/crm/format';
+import { errorText, formatVnd, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmPartner, createCrmPartnerClaim, fetchCrmPartners } from '@/lib/crm';
 
@@ -42,7 +43,7 @@ export function CrmPartnersPanel() {
     <CrmFrame
       kicker="Người giới thiệu khách"
       title="Cộng tác viên và mã giới thiệu"
-      description="Mỗi người có một mã và một link bảng giá. Link ghi cookie 14 ngày. Hoa hồng tính khi nhà tuyển dụng đăng ký và thanh toán gói trong hạn đó."
+      description="Mỗi người có một mã và một link bảng giá. Số trên thẻ là hoa hồng chờ đối soát mà bạn được xem, cùng sổ với trang của cộng tác viên."
       placeholder="Tìm tên, số điện thoại hoặc mã"
       search={{ value: query, onChange: setQuery }}
       footnote="Một mã số thuế chỉ thuộc một cộng tác viên."
@@ -71,9 +72,15 @@ export function CrmPartnersPanel() {
                 tone="indigo"
                 icon={<Users className="h-5 w-5" />}
                 title={partner.name}
-                text={`${partner.phone}. ${leadCount} lead gắn mã này. ${partner.fromAccount ? 'Tài khoản NTD tự đăng ký.' : 'CRM tạo hộ.'}`}
+                text={`${partner.phone}. ${leadCount} lead. ${formatVnd(partner.pendingCommissionVnd)} chờ đối soát (${partner.pendingCount} khoản). ${partner.fromAccount ? 'Tài khoản NTD tự đăng ký.' : 'CRM tạo hộ.'}`}
                 meta={partner.code}
               >
+                <Link
+                  href={`/crm/finance/reconciliation?q=${encodeURIComponent(partner.code)}`}
+                  className="mt-3 text-xs font-medium text-[#4c3ec9] underline"
+                >
+                  Xem đối soát
+                </Link>
                 <ClaimForm partner={partner} />
               </CrmCard>
             );

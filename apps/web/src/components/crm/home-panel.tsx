@@ -12,14 +12,18 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
+import { fetchCrmInvoices } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
   const renewals = useCrmRenewals();
+  const invoices = useQuery({ queryKey: ['crm-invoices'], queryFn: fetchCrmInvoices });
+  const missingInvoices = (invoices.data?.orders ?? []).filter((order) => !order.invoiceNumber).length;
   const [query, setQuery] = useState('');
   const leads = board.data?.leads ?? [];
   const deals = board.data?.deals ?? [];
@@ -68,6 +72,14 @@ export function CrmHomePanel() {
           </Link>
           <Link href="/crm/pipeline" className="block h-full">
             <CrmCard tone="orange" icon={<Wallet className="h-5 w-5" />} title={`${waiting} chờ thanh toán`} text="Khách tự thanh toán trên inlink. CRM không tạo đơn." />
+          </Link>
+          <Link href="/crm/finance" className="block h-full">
+            <CrmCard
+              tone="rose"
+              icon={<Receipt className="h-5 w-5" />}
+              title={`${invoices.isLoading ? '…' : missingInvoices} chưa ghi số hóa đơn`}
+              text="Đơn gói đã thanh toán trên inlink. Ghi số không thu thêm và không bật gói."
+            />
           </Link>
           <Link href="/crm/renewals" className="block h-full">
             <CrmCard

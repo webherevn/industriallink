@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock } from 'lucide-react';
 import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame } from '@/components/crm-frame';
-import { errorText, matchesQuery, renewalLabel } from '@/components/crm/format';
+import { errorText, formatWhen, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { useCrmRenewals } from '@/components/crm/use-crm-board';
 import { createCrmDeal } from '@/lib/crm';
 
@@ -62,7 +62,7 @@ export function CrmRenewalsPanel() {
                   tone={row.daysLeft < 7 ? 'rose' : 'orange'}
                   icon={<CalendarClock className="h-5 w-5" />}
                   title={`${row.companyName} · ${row.planName}`}
-                  text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
+                  text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. ${row.cyclePaidAt ? `Đã thanh toán kỳ này ${formatWhen(row.cyclePaidAt)}.` : 'Kỳ này chưa thấy đơn gói đã thanh toán.'} ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
                   meta={row.planCode}
                 />
                 {row.leadId ? (

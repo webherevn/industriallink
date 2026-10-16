@@ -81,6 +81,7 @@ export class CrmService {
         include: {
           lead: { select: { companyName: true } },
           deal: { select: { lead: { select: { companyName: true } } } },
+          billingOrder: { select: { orderInvoice: { select: { invoiceNumber: true } } } },
         },
       }),
     ]);
@@ -123,7 +124,7 @@ export class CrmService {
     ]);
     const companyIds = [...new Set([...platform, ...sourcing].map((row) => row.companyId))];
     if (companyIds.length === 0) return [];
-    const [companies, leads] = await Promise.all([
+    const [companies, leads, orders] = await Promise.all([
       this.prisma.company.findMany({
         where: { id: { in: companyIds }, isDeleted: false },
         select: { id: true, name: true },
@@ -132,6 +133,17 @@ export class CrmService {
         where: { companyId: { in: companyIds }, status: { not: 'unqualified' } },
         orderBy: { createdAt: 'desc' },
         select: { id: true, companyId: true, status: true, ownerUserId: true },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: {
+          companyId: { in: companyIds },
+          status: 'paid',
+          priceVndSnapshot: { gt: 0 },
+          paidAt: { not: null },
+          kind: { in: ['platform', 'sourcing'] },
+        },
+        orderBy: { paidAt: 'desc' },
+        select: { companyId: true, kind: true, planCode: true, paidAt: true },
       }),
     ]);
     const companyName = new Map(companies.map((company) => [company.id, company.name]));
@@ -156,6 +168,7 @@ export class CrmService {
         endsAt: row.endsAt.toISOString(),
         daysLeft: daysUntil(row.endsAt, now),
         leadId: leadByCompany.get(row.companyId) ?? null,
+        cyclePaidAt: paidAtInCycle(orders, row.companyId, 'platform', row.plan.code, row.startsAt, row.endsAt),
       });
     }
     for (const row of sourcing) {
@@ -169,6 +182,7 @@ export class CrmService {
         endsAt: row.endsAt.toISOString(),
         daysLeft: daysUntil(row.endsAt, now),
         leadId: leadByCompany.get(row.companyId) ?? null,
+        cyclePaidAt: paidAtInCycle(orders, row.companyId, 'sourcing', row.plan.code, row.startsAt, row.endsAt),
       });
     }
     const visible = this.seesAll(actor) ? rows : rows.filter((row) => row.leadId);
@@ -219,13 +233,14 @@ export class CrmService {
     ];
   }
 
-  async partners(): Promise<CrmPartnerView[]> {
+  async partners(actor: AuthenticatedUser): Promise<CrmPartnerView[]> {
     const rows = await this.prisma.crmPartner.findMany({
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { claims: partnerClaims },
     });
-    return rows.map((row) => this.mapPartner(row));
+    const pending = await this.pendingByPartner(actor, rows.map((row) => row.id));
+    return rows.map((row) => this.mapPartner(row, pending.get(row.id)));
   }
 
   async createPartner(actor: AuthenticatedUser, input: CreateCrmPartnerRequest): Promise<CrmPartnerView> {
@@ -256,7 +271,11 @@ export class CrmService {
       this.commissionPercent(),
     ]);
     const commissions = row ? await this.entriesForPartner(row.id, row.name, row.code) : [];
-    return { partner: row ? this.mapPartner(row) : null, commissionPercent, commissions };
+    const pending = {
+      count: commissions.length,
+      amount: commissions.reduce((sum, entry) => sum + BigInt(entry.commissionVnd), 0n),
+    };
+    return { partner: row ? this.mapPartner(row, pending) : null, commissionPercent, commissions };
   }
 
   async commission(actor: AuthenticatedUser): Promise<CrmCommissionView> {
@@ -1034,7 +1053,7 @@ export class CrmService {
       contactPhone: string;
       createdAt: Date;
     }>;
-  }): CrmPartnerView {
+  }, pending?: { count: number; amount: bigint }): CrmPartnerView {
     const origin = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
     return {
       id: row.id,
@@ -1044,6 +1063,8 @@ export class CrmService {
       referralUrl: `${origin}/bang-gia?ref=${encodeURIComponent(row.code)}`,
       fromAccount: Boolean(row.userId),
       createdAt: row.createdAt.toISOString(),
+      pendingCommissionVnd: (pending?.amount ?? 0n).toString(),
+      pendingCount: pending?.count ?? 0,
       claims: (row.claims ?? []).map((claim) => ({
         id: claim.id,
         partnerId: claim.partnerId,
@@ -1116,6 +1137,32 @@ export class CrmService {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
       throw err;
     }
+  }
+
+  private async pendingByPartner(
+    actor: AuthenticatedUser,
+    partnerIds: string[],
+  ): Promise<Map<string, { count: number; amount: bigint }>> {
+    const totals = new Map<string, { count: number; amount: bigint }>();
+    if (partnerIds.length === 0) return totals;
+    const entries = await this.prisma.crmCommissionEntry.findMany({
+      where: { partnerId: { in: partnerIds } },
+      select: {
+        id: true,
+        partnerId: true,
+        companyId: true,
+        commissionVnd: true,
+        partner: { select: { createdByUserId: true } },
+      },
+    });
+    const visible = await this.visibleCommissionRows(actor, entries);
+    for (const entry of visible) {
+      const current = totals.get(entry.partnerId) ?? { count: 0, amount: 0n };
+      current.count += 1;
+      current.amount += entry.commissionVnd;
+      totals.set(entry.partnerId, current);
+    }
+    return totals;
   }
 
   private async commissionPercent(): Promise<number | null> {
@@ -1388,6 +1435,7 @@ export class CrmService {
       createdByUserId: string;
       createdAt: Date;
       billingOrderId?: string | null;
+      billingOrder?: { orderInvoice: { invoiceNumber: string } | null } | null;
       lead: { companyName: string } | null;
       deal: { lead: { companyName: string } } | null;
     },
@@ -1406,8 +1454,29 @@ export class CrmService {
       summary: row.summary,
       createdByName: row.billingOrderId ? 'inlink' : names.get(row.createdByUserId) || 'SuperAdmin',
       createdAt: row.createdAt.toISOString(),
+      invoiceNumber: row.billingOrder?.orderInvoice?.invoiceNumber ?? null,
     };
   }
+}
+
+function paidAtInCycle(
+  orders: Array<{ companyId: string; kind: string; planCode: string | null; paidAt: Date | null }>,
+  companyId: string,
+  kind: string,
+  planCode: string,
+  startsAt: Date,
+  endsAt: Date,
+): string | null {
+  const paid = orders.find(
+    (order) =>
+      order.companyId === companyId &&
+      order.kind === kind &&
+      order.planCode === planCode &&
+      order.paidAt &&
+      order.paidAt >= startsAt &&
+      order.paidAt <= endsAt,
+  );
+  return paid?.paidAt?.toISOString() ?? null;
 }
 
 function daysUntil(endsAt: Date, now: Date): number {

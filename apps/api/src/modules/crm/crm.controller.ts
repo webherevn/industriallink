@@ -86,9 +86,9 @@ export class CrmController {
   }
 
   @Get('partners')
-  @ApiOperation({ summary: 'Danh sách cộng tác viên. Chưa tính hoa hồng.' })
-  partners(): Promise<CrmPartnerView[]> {
-    return this.crm.partners();
+  @ApiOperation({ summary: 'Danh sách cộng tác viên và số chờ đối soát người xem được thấy.' })
+  partners(@CurrentUser() user: AuthenticatedUser): Promise<CrmPartnerView[]> {
+    return this.crm.partners(user);
   }
 
   @Post('partners')

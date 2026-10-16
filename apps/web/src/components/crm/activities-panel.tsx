@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MapPin, MessageCircle, NotebookPen, Phone, Receipt } from 'lucide-react';
+import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmActivityType } from '@industriallink/contracts';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
@@ -42,7 +43,7 @@ export function CrmActivitiesPanel() {
 
   const leads = board.data?.leads ?? [];
   const rows = (board.data?.activities ?? []).filter((row) =>
-    matchesQuery(query, [row.companyName, row.summary, activityLabel(row.activityType), row.createdByName]),
+    matchesQuery(query, [row.companyName, row.summary, activityLabel(row.activityType), row.createdByName, row.invoiceNumber]),
   );
 
   return (
@@ -97,7 +98,16 @@ export function CrmActivitiesPanel() {
               title={`${activityLabel(row.activityType)} · ${row.companyName ?? 'Khách'}`}
               text={row.summary}
               meta={`${formatWhen(row.createdAt)} · ${row.createdByName}`}
-            />
+            >
+              {row.activityType === 'payment' ? (
+                <Link
+                  href={`/crm/finance?q=${encodeURIComponent(row.invoiceNumber ?? row.companyName ?? '')}`}
+                  className={`mt-3 text-xs font-medium underline ${row.invoiceNumber ? 'text-emerald-700' : 'text-amber-700'}`}
+                >
+                  {row.invoiceNumber ? `Hóa đơn ${row.invoiceNumber}` : 'Chưa ghi số hóa đơn'}
+                </Link>
+              ) : null}
+            </CrmCard>
           ))}
         </CrmCardGrid>
       ) : null}
