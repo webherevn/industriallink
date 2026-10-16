@@ -1436,7 +1436,9 @@ export function PricingClient({
   const topupCtaHref = (id: string) =>
     checkoutReady ? `/recruiter/billing/topup?topup=${encodeURIComponent(id)}` : '/register';
   const sourcingCtaHref = (code: string) =>
-    checkoutReady ? '/recruiter/billing' : `/register?plan=${encodeURIComponent(code)}`;
+    checkoutReady
+      ? `/recruiter/billing/sourcing?plan=${encodeURIComponent(code)}`
+      : `/register?plan=${encodeURIComponent(code)}`;
 
   // Tab state — hooks must come before any conditional returns
   const [tab, setTab] = useState<PricingTab>('platform');

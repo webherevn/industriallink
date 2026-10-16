@@ -66,6 +66,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/jobs/new', label: 'AI viết JD', icon: FileText },
       { href: '/recruiter/inbox', label: 'Hộp thư ứng viên', icon: Users },
       { href: '/search', label: 'Tìm ứng viên AI', icon: Target },
+      { href: '/recruiter/sourcing', label: 'Săn nhân sự', icon: Search },
       { href: '/company', label: 'Công ty', icon: Building2 },
     ],
   },

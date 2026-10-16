@@ -1383,7 +1383,83 @@ model BillingSourcingPlan {
   updatedAt DateTime @updatedAt @map("updated_at")
   updatedBy String?  @map("updated_by") @db.Uuid
 
+  companyAssignments BillingCompanySourcingPlan[]
+
   @@map("billing_sourcing_plan")
+  @@schema("billing")
+}
+
+/// Gói Săn đang gán cho công ty (1 công ty = 1 gói Săn).
+/// Quota đọc live từ BillingSourcingPlan SuperAdmin; used* đếm lượt đã dùng.
+model BillingCompanySourcingPlan {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @unique @map("company_id") @db.Uuid
+  planId    String    @map("plan_id") @db.Uuid
+  startsAt  DateTime  @default(now()) @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  isActive  Boolean   @default(true) @map("is_active")
+  note      String?
+
+  positionsUsed    Int @default(0) @map("positions_used")
+  searchRoundsUsed Int @default(0) @map("search_rounds_used")
+  shortlistsUsed   Int @default(0) @map("shortlists_used")
+  revisionsUsed    Int @default(0) @map("revisions_used")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  plan         BillingSourcingPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  engagements  BillingSourcingEngagement[]
+  usages       BillingSourcingUsage[]
+
+  @@index([planId, isActive])
+  @@map("billing_company_sourcing_plan")
+  @@schema("billing")
+}
+
+/// Một vị trí Săn đã mở trong gói đang gán (trừ 1 positionQuota).
+model BillingSourcingEngagement {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  assignmentId String   @map("assignment_id") @db.Uuid
+  jobId        String?  @map("job_id") @db.Uuid
+  title        String
+  /// 'open' | 'in_progress' | 'shortlisted' | 'closed'
+  status       String   @default("open")
+  createdAt    DateTime @default(now()) @map("created_at")
+  createdBy    String?  @map("created_by") @db.Uuid
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  usages     BillingSourcingUsage[]
+
+  @@index([companyId, createdAt])
+  @@index([assignmentId])
+  @@map("billing_sourcing_engagement")
+  @@schema("billing")
+}
+
+/// Ledger trừ hạn mức Săn (vị trí / đợt tìm / shortlist / điều chỉnh).
+model BillingSourcingUsage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  assignmentId String   @map("assignment_id") @db.Uuid
+  engagementId String?  @map("engagement_id") @db.Uuid
+  /// 'position' | 'search_round' | 'shortlist' | 'revision'
+  kind         String
+  jobId        String?  @map("job_id") @db.Uuid
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  createdBy    String?  @map("created_by") @db.Uuid
+
+  assignment BillingCompanySourcingPlan  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  engagement BillingSourcingEngagement?  @relation(fields: [engagementId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([assignmentId, kind])
+  @@map("billing_sourcing_usage")
   @@schema("billing")
 }
 

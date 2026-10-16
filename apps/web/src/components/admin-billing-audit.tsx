@@ -11,6 +11,7 @@ import { fetchAdminBillingAudit } from '@/lib/admin-billing';
 const ENTITY_LABEL: Record<string, string> = {
   platform_plan: 'Gói nền tảng',
   sourcing_plan: 'Gói Săn',
+  company_sourcing_plan: 'Gán gói Săn',
   credit_topup: 'Top-up Credit',
   credit_policy: 'Policy',
   currency_config: 'Tiền tệ',
@@ -98,6 +99,7 @@ export function AdminBillingAudit() {
               ['', 'Tất cả'],
               ['platform_plan', 'Gói nền tảng'],
               ['sourcing_plan', 'Gói Săn'],
+              ['company_sourcing_plan', 'Gán gói Săn'],
               ['credit_topup', 'Top-up'],
               ['credit_policy', 'Policy'],
               ['currency_config', 'Tiền tệ'],

@@ -29,14 +29,17 @@ import type {
   UpdatePaymentSettingsRequest,
   AdminUpdatePlanActionCostsRequest,
   AdminAssignCompanyPlanRequest,
+  AdminAssignCompanySourcingPlanRequest,
   BillingPlanActionCostView,
   BillingCompanyPlanView,
+  BillingCompanySourcingPlanView,
   AdminUpdatePageContentRequest,
   BillingPageContentView,
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
 import { PaymentService } from './payment.service';
+import { SourcingService } from './sourcing.service';
 
 @ApiTags('Admin Billing')
 @ApiBearerAuth()
@@ -48,6 +51,7 @@ export class BillingAdminController {
     private readonly billing: BillingService,
     private readonly credit: CreditService,
     private readonly payment: PaymentService,
+    private readonly sourcing: SourcingService,
   ) {}
 
   // =========================================================================
@@ -126,6 +130,33 @@ export class BillingAdminController {
     @Param('companyId') companyId: string,
   ): Promise<{ ok: true }> {
     await this.billing.unassignCompanyPlan(user, companyId);
+    return { ok: true };
+  }
+
+  @Get('company-sourcing-plans/:companyId')
+  @ApiOperation({ summary: 'Gói Săn đang gán cho công ty' })
+  getCompanySourcingPlan(
+    @Param('companyId') companyId: string,
+  ): Promise<BillingCompanySourcingPlanView | null> {
+    return this.sourcing.getCompanyAssignment(companyId);
+  }
+
+  @Put('company-sourcing-plans')
+  @ApiOperation({ summary: 'Gán / đổi gói Săn cho công ty' })
+  assignCompanySourcingPlan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AdminAssignCompanySourcingPlanRequest,
+  ): Promise<BillingCompanySourcingPlanView> {
+    return this.sourcing.assignCompanyPlan(user, dto);
+  }
+
+  @Delete('company-sourcing-plans/:companyId')
+  @ApiOperation({ summary: 'Gỡ gói Săn khỏi công ty' })
+  async unassignCompanySourcingPlan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+  ): Promise<{ ok: true }> {
+    await this.sourcing.unassignCompanyPlan(user, companyId);
     return { ok: true };
   }
 

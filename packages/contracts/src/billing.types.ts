@@ -261,6 +261,81 @@ export interface RecruiterCreditSummaryResponse {
 }
 
 /** Hạn mức gói + số dư thực tế của công ty NTD. */
+export type SourcingQuotaKind = 'position' | 'search_round' | 'shortlist' | 'revision';
+
+export const SOURCING_QUOTA_KINDS: readonly SourcingQuotaKind[] = [
+  'position',
+  'search_round',
+  'shortlist',
+  'revision',
+] as const;
+
+export const SOURCING_QUOTA_LABELS: Record<SourcingQuotaKind, string> = {
+  position: 'Vị trí Săn',
+  search_round: 'Đợt tìm',
+  shortlist: 'Shortlist',
+  revision: 'Điều chỉnh',
+};
+
+export interface BillingCompanySourcingPlanView {
+  id: string;
+  companyId: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  startsAt: string;
+  endsAt: string | null;
+  isActive: boolean;
+  note: string | null;
+  updatedAt: string;
+}
+
+export interface RecruiterSourcingEntitlements {
+  assignment: BillingCompanySourcingPlanView | null;
+  planCode: string | null;
+  planName: string | null;
+  feeVnd: string | null;
+  serviceScope: string[];
+  positionQuota: number | null;
+  searchRoundQuota: number | null;
+  shortlistQuota: number | null;
+  revisionQuota: number | null;
+  positionsUsed: number;
+  searchRoundsUsed: number;
+  shortlistsUsed: number;
+  revisionsUsed: number;
+  /** null = không giới hạn (khi đã có gói). */
+  positionsRemaining: number | null;
+  searchRoundsRemaining: number | null;
+  shortlistsRemaining: number | null;
+  revisionsRemaining: number | null;
+}
+
+export interface RecruiterSourcingEngagementView {
+  id: string;
+  companyId: string;
+  assignmentId: string;
+  jobId: string | null;
+  title: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface RecruiterSourcingUsageView {
+  id: string;
+  kind: SourcingQuotaKind;
+  engagementId: string | null;
+  jobId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface RecruiterSourcingWorkspace {
+  entitlements: RecruiterSourcingEntitlements;
+  engagements: RecruiterSourcingEngagementView[];
+  usages: RecruiterSourcingUsageView[];
+}
+
 export interface RecruiterBillingEntitlements {
   plan: BillingCompanyPlanView | null;
   planCode: string | null;
@@ -275,6 +350,7 @@ export interface RecruiterBillingEntitlements {
   jobDisplayDays: number | null;
   actionCosts: BillingPlanActionCostView[];
   enforcement: 'log' | 'enforce';
+  sourcing: RecruiterSourcingEntitlements;
 }
 
 // =========================================================================

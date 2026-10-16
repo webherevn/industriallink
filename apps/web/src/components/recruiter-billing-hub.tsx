@@ -47,7 +47,11 @@ export function RecruiterBillingHub() {
   const plan = entitlements?.plan ?? null;
   const planName = plan?.planName ?? entitlements?.planName ?? null;
   const credits = entitlements?.credits;
+  const sourcing = entitlements?.sourcing ?? null;
   const requested = pub?.platformPlans.find((p) => p.code === requestedCode) ?? null;
+  const requestedSourcing = requested
+    ? null
+    : (pub?.sourcingPlans.find((p) => p.code === requestedCode) ?? null);
 
   return (
     <RecruiterShell>
@@ -65,6 +69,12 @@ export function RecruiterBillingHub() {
 
         {requested ? (
           <RequestedPlanBanner plan={requested} isCurrent={plan?.planCode === requested.code} />
+        ) : requestedSourcing ? (
+          <RequestedSourcingBanner
+            planName={requestedSourcing.name}
+            planCode={requestedSourcing.code}
+            isCurrent={sourcing?.planCode === requestedSourcing.code && Boolean(sourcing.assignment?.isActive)}
+          />
         ) : null}
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -149,6 +159,41 @@ export function RecruiterBillingHub() {
           </Card>
         </div>
 
+        <Card className="p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Gói Săn nhân sự
+          </p>
+          {sourcing?.planName ? (
+            <>
+              <p className="mt-2 text-xl font-bold text-[#072348]">{sourcing.planName}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Vị trí {sourcing.positionsUsed}/{sourcing.positionQuota ?? '∞'} · Đợt tìm{' '}
+                {sourcing.searchRoundsUsed}/{sourcing.searchRoundQuota ?? '∞'} · Shortlist{' '}
+                {sourcing.shortlistsUsed}/{sourcing.shortlistQuota ?? '∞'}
+              </p>
+              <Link
+                href="/recruiter/sourcing"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline"
+              >
+                Dùng hạn mức Săn <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-lg font-semibold text-slate-800">Chưa gán gói Săn</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Chọn gói trên bảng giá. Hạn mức lấy đúng số SuperAdmin — không gồm Credit.
+              </p>
+              <Link
+                href="/bang-gia"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:underline"
+              >
+                Xem gói Săn <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </>
+          )}
+        </Card>
+
         <div className="grid gap-3 sm:grid-cols-3">
           <HubLink
             href="/recruiter/billing/topup"
@@ -212,6 +257,49 @@ function RequestedPlanBanner({
             Đi tới thanh toán <ArrowRight className="h-3 w-3" />
           </Link>
         ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function RequestedSourcingBanner({
+  planName,
+  planCode,
+  isCurrent,
+}: {
+  planName: string;
+  planCode: string;
+  isCurrent: boolean;
+}) {
+  return (
+    <Card
+      className={clsx(
+        'flex items-start gap-3 p-4 text-sm',
+        isCurrent
+          ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
+          : 'border-amber-200 bg-amber-50/70 text-amber-950',
+      )}
+    >
+      <Banknote className="mt-0.5 h-4 w-4 shrink-0" />
+      <div>
+        <p className="font-semibold">
+          {isCurrent ? `Bạn đang dùng gói Săn ${planName}` : `Bạn chọn gói Săn ${planName}`}
+        </p>
+        {!isCurrent ? (
+          <Link
+            href={`/recruiter/billing/sourcing?plan=${encodeURIComponent(planCode)}`}
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline"
+          >
+            Đi tới thanh toán <ArrowRight className="h-3 w-3" />
+          </Link>
+        ) : (
+          <Link
+            href="/recruiter/sourcing"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+          >
+            Mở workspace Săn <ArrowRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
     </Card>
   );

@@ -26,6 +26,8 @@ import type {
   UpdatePaymentSettingsRequest,
   AdminUpdatePlanActionCostsRequest,
   AdminAssignCompanyPlanRequest,
+  AdminAssignCompanySourcingPlanRequest,
+  BillingCompanySourcingPlanView,
   BillingPlanActionCostView,
   BillingCompanyPlanView,
   AdminUpdatePageContentRequest,
@@ -95,6 +97,29 @@ export async function assignAdminCompanyPlan(
 
 export async function unassignAdminCompanyPlan(companyId: string): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>(`/admin/billing/company-plans/${companyId}`, { method: 'DELETE' });
+}
+
+export async function fetchAdminCompanySourcingPlan(
+  companyId: string,
+): Promise<BillingCompanySourcingPlanView | null> {
+  return apiRequest<BillingCompanySourcingPlanView | null>(
+    `/admin/billing/company-sourcing-plans/${companyId}`,
+  );
+}
+
+export async function assignAdminCompanySourcingPlan(
+  body: AdminAssignCompanySourcingPlanRequest,
+): Promise<BillingCompanySourcingPlanView> {
+  return apiRequest<BillingCompanySourcingPlanView>('/admin/billing/company-sourcing-plans', {
+    method: 'PUT',
+    body,
+  });
+}
+
+export async function unassignAdminCompanySourcingPlan(companyId: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/admin/billing/company-sourcing-plans/${companyId}`, {
+    method: 'DELETE',
+  });
 }
 
 // =========================================================================

@@ -13,6 +13,10 @@ import type {
   RecruiterCreatePlanCheckoutRequest,
   RecruiterOrderListResponse,
   RecruiterBillingEntitlements,
+  RecruiterCreateSourcingCheckoutRequest,
+  RecruiterConsumeSourcingRequest,
+  RecruiterSourcingWorkspace,
+  BillingCompanySourcingPlanView,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
 
@@ -53,6 +57,28 @@ export async function activateRecruiterPlan(planCode: string): Promise<BillingCo
   return apiRequest<BillingCompanyPlanView>('/billing/plan/activate', {
     method: 'POST',
     body: { planCode } as RecruiterCreatePlanCheckoutRequest,
+  });
+}
+
+export async function activateRecruiterSourcingPlan(
+  planCode: string,
+): Promise<BillingCompanySourcingPlanView> {
+  return apiRequest<BillingCompanySourcingPlanView>('/billing/sourcing/activate', {
+    method: 'POST',
+    body: { planCode } as RecruiterCreateSourcingCheckoutRequest,
+  });
+}
+
+export async function fetchRecruiterSourcing(): Promise<RecruiterSourcingWorkspace> {
+  return apiRequest<RecruiterSourcingWorkspace>('/billing/sourcing');
+}
+
+export async function consumeRecruiterSourcing(
+  body: RecruiterConsumeSourcingRequest,
+): Promise<RecruiterSourcingWorkspace> {
+  return apiRequest<RecruiterSourcingWorkspace>('/billing/sourcing/consume', {
+    method: 'POST',
+    body,
   });
 }
 

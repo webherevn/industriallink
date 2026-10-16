@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -12,9 +12,12 @@ import type {
   BillingCreditLedgerListResponse,
   BillingCompanyPlanView,
   RecruiterBillingEntitlements,
+  RecruiterConsumeSourcingRequest,
+  RecruiterSourcingWorkspace,
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
+import { SourcingService } from './sourcing.service';
 import { CompanyService } from '../company/company.service';
 
 const RECRUITER_BILLING_ROLES = [
@@ -33,6 +36,7 @@ export class BillingRecruiterController {
   constructor(
     private readonly credit: CreditService,
     private readonly billing: BillingService,
+    private readonly sourcing: SourcingService,
     private readonly companies: CompanyService,
   ) {}
 
@@ -52,6 +56,25 @@ export class BillingRecruiterController {
   ): Promise<RecruiterBillingEntitlements> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.billing.getEntitlements(companyId);
+  }
+
+  @Get('sourcing')
+  @ApiOperation({ summary: 'Gói Săn đang gán + hạn mức SuperAdmin còn lại + lịch sử dùng' })
+  async getSourcingWorkspace(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RecruiterSourcingWorkspace> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.sourcing.getWorkspace(companyId);
+  }
+
+  @Post('sourcing/consume')
+  @ApiOperation({ summary: 'Trừ 1 lượt hạn mức Săn (vị trí / đợt tìm / shortlist / điều chỉnh)' })
+  async consumeSourcing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RecruiterConsumeSourcingRequest,
+  ): Promise<RecruiterSourcingWorkspace> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.sourcing.consume(user, companyId, dto);
   }
 
   @Get('credits/balance')

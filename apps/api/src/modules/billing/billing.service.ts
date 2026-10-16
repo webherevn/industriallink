@@ -60,6 +60,7 @@ import {
   isBillableAction,
   policyCostForAction,
 } from './billing-action-cost';
+import { SourcingService } from './sourcing.service';
 
 type PlatformPlanWithCosts = BillingPlatformPlan & { actionCosts?: BillingPlanActionCost[] };
 
@@ -133,6 +134,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly sourcing: SourcingService,
   ) {}
 
   // =========================================================================
@@ -627,6 +629,13 @@ export class BillingService {
       jobDisplayDays: assignment?.plan?.durationDays ?? null,
       actionCosts,
       enforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
+      sourcing: await this.sourcing.getEntitlements(companyId).catch((err) => {
+        this.logger.error(
+          `Đọc entitlements Săn thất bại cho ${companyId}: ${String(err)}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+        return this.sourcing.emptyEntitlements();
+      }),
     };
   }
 

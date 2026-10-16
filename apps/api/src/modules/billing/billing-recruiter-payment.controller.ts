@@ -5,6 +5,8 @@ import {
   type BillingCompanyPlanView,
   type RecruiterCreateCheckoutRequest,
   type RecruiterCreatePlanCheckoutRequest,
+  type RecruiterCreateSourcingCheckoutRequest,
+  type BillingCompanySourcingPlanView,
 } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
@@ -15,6 +17,7 @@ import type { PaymentCheckoutResponse, RecruiterOrderListResponse } from '@indus
 import { CompanyService } from '../company/company.service';
 import { BillingService } from './billing.service';
 import { PaymentService } from './payment.service';
+import { SourcingService } from './sourcing.service';
 
 @ApiTags('Billing Payment (Recruiter)')
 @ApiBearerAuth()
@@ -25,6 +28,7 @@ export class BillingRecruiterPaymentController {
   constructor(
     private readonly payment: PaymentService,
     private readonly billing: BillingService,
+    private readonly sourcing: SourcingService,
     private readonly companies: CompanyService,
   ) {}
 
@@ -47,6 +51,16 @@ export class BillingRecruiterPaymentController {
   ): Promise<BillingCompanyPlanView> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.billing.activatePurchasedPlan(user, companyId, dto.planCode);
+  }
+
+  @Post('sourcing/activate')
+  @ApiOperation({ summary: 'Kích hoạt gói Săn sau thanh toán / duyệt (mock hoặc SuperAdmin)' })
+  async activateSourcing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RecruiterCreateSourcingCheckoutRequest,
+  ): Promise<BillingCompanySourcingPlanView> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.sourcing.activatePurchasedPlan(user, companyId, dto.planCode);
   }
 
   @Get('orders')

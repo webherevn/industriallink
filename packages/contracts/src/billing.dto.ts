@@ -17,7 +17,10 @@ import type {
   BillingCreditTransactionView,
   BillingPlanActionCostView,
   BillingCompanyPlanView,
+  BillingCompanySourcingPlanView,
   BillingPlanBillableAction,
+  RecruiterSourcingWorkspace,
+  SourcingQuotaKind,
   BillingPageContentView,
   BillingPageTextItem,
   BillingPageFaqItem,
@@ -200,6 +203,29 @@ export interface RecruiterCreatePlanCheckoutRequest {
   planCode: string;
 }
 
+/** Recruiter thanh toán / kích hoạt gói Săn nhân sự. */
+export interface RecruiterCreateSourcingCheckoutRequest {
+  planCode: string;
+}
+
+export interface AdminAssignCompanySourcingPlanRequest {
+  companyId: string;
+  planId: string;
+  startsAt?: string;
+  endsAt?: string | null;
+  isActive?: boolean;
+  note?: string | null;
+}
+
+export interface RecruiterConsumeSourcingRequest {
+  kind: SourcingQuotaKind;
+  /** Bắt buộc với search_round / shortlist / revision. Mở vị trí có thể tạo engagement mới. */
+  engagementId?: string;
+  jobId?: string;
+  title?: string;
+  note?: string;
+}
+
 export interface RecruiterCreateCheckoutRequest {
   topupId: string;
 }
@@ -223,6 +249,8 @@ export type BillingCreditAccountViewDTO = BillingCreditAccountView;
 export type BillingCreditTransactionViewDTO = BillingCreditTransactionView;
 export type PlanActionCostView = BillingPlanActionCostView;
 export type CompanyPlanView = BillingCompanyPlanView;
+export type CompanySourcingPlanView = BillingCompanySourcingPlanView;
+export type SourcingWorkspaceView = RecruiterSourcingWorkspace;
 export type PageContentView = BillingPageContentView;
 
 /** Bundle gộp cho UI bảng giá public (một request duy nhất). */

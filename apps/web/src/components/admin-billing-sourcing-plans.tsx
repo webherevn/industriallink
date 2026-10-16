@@ -130,7 +130,8 @@ export function AdminBillingSourcingPlans() {
             <h1 className="cms-page-title mt-1.5">Gói Săn nhân sự</h1>
             <div className="brand-accent-bar mt-2" />
             <p className="cms-page-subtitle mt-2">
-              3 gói: Cơ bản, Tiêu chuẩn, Chuyên sâu. Phí dịch vụ riêng; Credit mua theo nhu cầu.
+              Số vị trí / đợt tìm / shortlist / điều chỉnh ở đây là hạn mức thật khi NTD kích hoạt gói.
+              Phí dịch vụ riêng — không tặng Credit.
             </p>
           </div>
           <div className="flex gap-2">
