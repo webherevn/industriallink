@@ -47,6 +47,7 @@ import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { tokenStore } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
+import { EnterpriseConsultButton } from './enterprise-consult-button';
 import { BrandMark } from './brand-logo';
 import { CompareSection } from './pricing-compare';
 
@@ -712,6 +713,7 @@ function PlatformPlansView({
   planCtaHref,
   freeCtaHref,
   enterpriseCtaHref,
+  canRequestEnterprise,
   page,
   vatPercent = null,
 }: {
@@ -725,6 +727,7 @@ function PlatformPlansView({
   planCtaHref: (code: string) => string;
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
+  canRequestEnterprise: boolean;
   page: BillingPageContentView;
   vatPercent?: number | null;
 }) {
@@ -753,6 +756,7 @@ function PlatformPlansView({
             planCtaHref={planCtaHref}
             freeCtaHref={freeCtaHref}
             enterpriseCtaHref={enterpriseCtaHref}
+            canRequestEnterprise={canRequestEnterprise}
           />
         ))}
       </div>
@@ -768,13 +772,22 @@ function PlatformPlansView({
               <p className="mt-1 text-base font-semibold">Cho tập đoàn & đội ngũ lớn</p>
               <p className="mt-0.5 text-sm text-slate-300">{enterprise.description}</p>
             </div>
-            <a
-              href={enterpriseCtaHref()}
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-amber-500 px-4 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400"
-            >
-              {isRecruiter ? 'Yêu cầu tư vấn' : 'Liên hệ tư vấn'}{' '}
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            {canRequestEnterprise ? (
+              <EnterpriseConsultButton
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-amber-500 px-4 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400 disabled:opacity-60"
+                label={isRecruiter ? 'Yêu cầu tư vấn' : 'Liên hệ tư vấn'}
+                noteClassName="mt-2 max-w-xs text-xs text-amber-100"
+                errorClassName="mt-2 max-w-xs text-xs text-rose-200"
+              />
+            ) : (
+              <a
+                href={enterpriseCtaHref()}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-amber-500 px-4 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400"
+              >
+                {isRecruiter ? 'Yêu cầu tư vấn' : 'Liên hệ tư vấn'}{' '}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
           </div>
         </div>
       ) : null}
@@ -800,6 +813,7 @@ function PlatformPlanCard({
   planCtaHref,
   freeCtaHref,
   enterpriseCtaHref,
+  canRequestEnterprise,
 }: {
   plan: BillingPlatformPlanView;
   currency: BillingCurrencyDisplay;
@@ -808,6 +822,7 @@ function PlatformPlanCard({
   planCtaHref: (code: string) => string;
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
+  canRequestEnterprise: boolean;
 }) {
   const isFree = plan.code === 'KHAM_PHA';
   const isEnterprise = plan.code === 'ENTERPRISE';
@@ -910,30 +925,42 @@ function PlatformPlanCard({
         })}
       </ul>
 
-      <Link
-        href={isEnterprise ? enterpriseCtaHref() : isFree ? freeCtaHref() : planCtaHref(plan.code)}
-        className={clsx(
-          'mt-5 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
-          featured
-            ? 'bg-amber-500 text-[#072348] hover:bg-amber-400'
-            : isFree
-              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              : 'bg-[#072348] text-white hover:bg-[#0d3b80]'
-        )}
-      >
-        {isEnterprise
-          ? checkoutReady || isRecruiter
-            ? 'Yêu cầu tư vấn'
-            : 'Liên hệ sales'
-          : isFree
+      {isEnterprise && canRequestEnterprise ? (
+        <EnterpriseConsultButton
+          className={clsx(
+            'mt-5 inline-flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold transition disabled:opacity-60',
+            featured ? 'bg-amber-500 text-[#072348] hover:bg-amber-400' : 'bg-[#072348] text-white hover:bg-[#0d3b80]',
+          )}
+          label="Yêu cầu tư vấn"
+          noteClassName="mt-2 text-xs text-slate-500"
+          errorClassName="mt-2 text-xs text-rose-600"
+        />
+      ) : (
+        <Link
+          href={isEnterprise ? enterpriseCtaHref() : isFree ? freeCtaHref() : planCtaHref(plan.code)}
+          className={clsx(
+            'mt-5 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
+            featured
+              ? 'bg-amber-500 text-[#072348] hover:bg-amber-400'
+              : isFree
+                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                : 'bg-[#072348] text-white hover:bg-[#0d3b80]',
+          )}
+        >
+          {isEnterprise
             ? checkoutReady || isRecruiter
-              ? 'Vào gói của tôi'
-              : 'Đăng ký miễn phí'
-            : checkoutReady || isRecruiter
-              ? 'Thanh toán'
-              : 'Chọn gói'}{' '}
-        <ArrowRight className="h-3.5 w-3.5" />
-      </Link>
+              ? 'Yêu cầu tư vấn'
+              : 'Liên hệ sales'
+            : isFree
+              ? checkoutReady || isRecruiter
+                ? 'Vào gói của tôi'
+                : 'Đăng ký miễn phí'
+              : checkoutReady || isRecruiter
+                ? 'Thanh toán'
+                : 'Chọn gói'}{' '}
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      )}
     </div>
   );
 }
@@ -1470,6 +1497,10 @@ export function PricingClient({
   const vatPercent = resolved?.vatPercent ?? null;
   const enterpriseCtaHref = () =>
     checkoutReady ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
+  const canRequestEnterprise = Boolean(
+    me &&
+      (me.role === UserRole.Recruiter || me.role === UserRole.HiringManager || me.role === UserRole.CompanyAdmin),
+  );
   /** Top-up: dùng id vì view không có code. */
   const topupCtaHref = (id: string) =>
     checkoutReady ? `/recruiter/billing/topup?topup=${encodeURIComponent(id)}` : '/register';
@@ -1530,6 +1561,7 @@ export function PricingClient({
               planCtaHref={planCtaHref}
               freeCtaHref={freeCtaHref}
               enterpriseCtaHref={enterpriseCtaHref}
+              canRequestEnterprise={canRequestEnterprise}
               page={page}
               vatPercent={vatPercent}
             />
@@ -1590,6 +1622,7 @@ export function PricingClient({
               planCtaHref={planCtaHref}
               freeCtaHref={freeCtaHref}
               enterpriseCtaHref={enterpriseCtaHref}
+              canRequestEnterprise={canRequestEnterprise}
               page={page}
               vatPercent={vatPercent}
             />

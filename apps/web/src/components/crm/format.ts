@@ -70,6 +70,22 @@ export function activityLabel(type: string): string {
   return 'Ghi chú';
 }
 
+export function downloadCsv(filename: string, rows: string[][]): void {
+  const text = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([`\uFEFF${text}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value: string): string {
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
 export function renewalLabel(days: number): string {
   if (days > 1) return `Còn ${days} ngày`;
   if (days === 1) return 'Còn 1 ngày';

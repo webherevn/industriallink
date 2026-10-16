@@ -32,6 +32,7 @@ import {
   type UpdateCrmCommissionRequest,
   type CrmPlanOption,
   type CrmRenewalView,
+  type CrmFunnelReport,
   type CrmPaidInvoiceLedgerView,
   type CrmPaidOrderInvoiceView,
   type IssueCrmInvoiceRequest,
@@ -56,6 +57,12 @@ export class CrmController {
   @ApiOperation({ summary: 'Phễu bán gói và danh sách lead' })
   board(@CurrentUser() user: AuthenticatedUser): Promise<CrmBoard> {
     return this.crm.board(user);
+  }
+
+  @Get('reports/funnel')
+  @ApiOperation({ summary: 'Báo cáo lead và đơn đã trả theo sale, nguồn, cộng tác viên. Không đổi gói.' })
+  funnelReport(@CurrentUser() user: AuthenticatedUser): Promise<CrmFunnelReport> {
+    return this.crm.funnelReport(user);
   }
 
   @Get('renewals')

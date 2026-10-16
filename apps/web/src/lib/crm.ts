@@ -33,6 +33,8 @@ import type {
   CrmPaidOrderInvoiceView,
   CrmPlanOption,
   CrmRenewalView,
+  CrmFunnelReport,
+  CrmEnterpriseRequestView,
   IssueCrmInvoiceRequest,
   MoveCrmDealRequest,
 } from '@industriallink/contracts';
@@ -92,6 +94,14 @@ export function createCrmActivity(body: CreateCrmActivityRequest): Promise<CrmAc
 
 export function fetchCrmRenewals(): Promise<CrmRenewalView[]> {
   return apiRequest<CrmRenewalView[]>('/crm/renewals');
+}
+
+export function fetchCrmFunnelReport(): Promise<CrmFunnelReport> {
+  return apiRequest<CrmFunnelReport>('/crm/reports/funnel');
+}
+
+export function requestEnterpriseConsult(): Promise<CrmEnterpriseRequestView> {
+  return apiRequest<CrmEnterpriseRequestView>('/recruiter/enterprise-requests', { method: 'POST' });
 }
 
 export function fetchCrmCompanies(query: string): Promise<CrmCompanyOption[]> {

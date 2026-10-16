@@ -6,6 +6,7 @@ import {
   Inbox,
   CalendarClock,
   Kanban,
+  PieChart,
   Landmark,
   NotebookPen,
   Percent,
@@ -60,6 +61,7 @@ export function CrmHomePanel() {
           <CrmChip href="/crm/leads" icon={<Building2 className="h-4 w-4" />} label="Lead" />
           <CrmChip href="/crm/inbox" icon={<Inbox className="h-4 w-4" />} label="Khách tự mua" />
           <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Phễu bán gói" />
+          <CrmChip href="/crm/reports" icon={<PieChart className="h-4 w-4" />} label="Báo cáo" />
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
           <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />
           <CrmChip href="/crm/finance/reconciliation" icon={<Scale className="h-4 w-4" />} label="Đối soát" />

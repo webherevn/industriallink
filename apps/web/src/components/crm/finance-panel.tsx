@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmPaidOrderInvoiceView } from '@industriallink/contracts';
 import { FormEvent, useState } from 'react';
 import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
+import { downloadCsv, errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { fetchCrmInvoices, fetchCrmVat, issueCrmOrderInvoice } from '@/lib/crm';
 
 export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }) {
@@ -39,9 +39,16 @@ export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }
       {ledger.data && orders.length > 0 ? (
         <div className="space-y-4">
           <section className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Đơn chưa ghi số</p>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-[#4c3ec9]">{missing}</p>
-            <p className="mt-2 text-sm text-slate-500">{orders.length} đơn đang hiện. Đây là chứng từ, không phải khoản phải thu.</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Đơn chưa ghi số</p>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-[#4c3ec9]">{missing}</p>
+                <p className="mt-2 text-sm text-slate-500">{orders.length} đơn đang hiện. Đây là chứng từ, không phải khoản phải thu.</p>
+              </div>
+              <button type="button" className={crmButtonClass} onClick={() => downloadInvoiceCsv(ledger.data?.orders ?? [])}>
+                Tải sổ
+              </button>
+            </div>
           </section>
           <div className="grid gap-4 lg:grid-cols-2">
             {orders.map((order) => (
@@ -52,6 +59,22 @@ export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }
       ) : null}
     </CrmFrame>
   );
+}
+
+function downloadInvoiceCsv(orders: CrmPaidOrderInvoiceView[]) {
+  downloadCsv('so-hoa-don.csv', [
+    ['Nhà tuyển dụng', 'Loại', 'Gói', 'Đã thanh toán', 'Thanh toán lúc', 'Số hóa đơn', 'VAT lúc ghi', 'Ghi lúc'],
+    ...orders.map((order) => [
+      order.companyName,
+      order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin',
+      order.planName ?? order.planCode ?? '',
+      order.paidAmountVnd,
+      order.paidAt,
+      order.invoiceNumber ?? '',
+      order.invoiceNumber ? (order.vatPercent == null ? 'chưa đặt' : String(order.vatPercent)) : '',
+      order.invoiceIssuedAt ?? '',
+    ]),
+  ]);
 }
 
 function InvoiceCard({ order }: { order: CrmPaidOrderInvoiceView }) {
@@ -102,9 +125,11 @@ function InvoiceCard({ order }: { order: CrmPaidOrderInvoiceView }) {
       </dl>
       <form onSubmit={onSubmit} className="mt-4 space-y-2">
         {order.invoiceIssuedAt ? (
-          <p className="text-[11px] text-emerald-700">Đã ghi {formatWhen(order.invoiceIssuedAt)}</p>
+          <p className="text-[11px] text-emerald-700">
+            Đã ghi {formatWhen(order.invoiceIssuedAt)}. VAT lúc ghi: {order.vatPercent == null ? 'chưa đặt' : `${order.vatPercent}%`}. Giá chưa cộng thuế.
+          </p>
         ) : (
-          <p className="text-[11px] text-slate-400">Nhập số hóa đơn đã xuất cho đơn này</p>
+          <p className="text-[11px] text-slate-400">Nhập số hóa đơn đã xuất cho đơn này. Mức VAT được giữ tại lúc ghi.</p>
         )}
         <input
           className={crmFieldClass}

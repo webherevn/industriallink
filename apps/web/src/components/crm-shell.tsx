@@ -11,6 +11,7 @@ import {
   CirclePercent,
   Inbox,
   Kanban,
+  PieChart,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -44,6 +45,7 @@ const NAV = [
       { href: '/crm/leads', label: 'Lead', icon: Building2 },
       { href: '/crm/inbox', label: 'Khách tự mua', icon: Inbox },
       { href: '/crm/pipeline', label: 'Phễu bán gói', icon: Kanban },
+      { href: '/crm/reports', label: 'Báo cáo', icon: PieChart },
     ],
   },
   {

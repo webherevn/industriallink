@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { CrmCommissionPeriodView } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmButtonClass } from '@/components/crm-frame';
-import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
+import { downloadCsv, errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { fetchCrmCommissionPeriods, fetchCrmPayoutDay, markCrmCommissionPaid } from '@/lib/crm';
 
 export function CrmAccountingPanel() {
@@ -40,22 +40,37 @@ export function CrmAccountingPanel() {
       {periods.data && (payable.length > 0 || paid.length > 0) && waiting.length === 0 && settled.length === 0 ? (
         <CrmEmpty>Không có kỳ khớp từ khóa.</CrmEmpty>
       ) : null}
-      {rows.length > 0 ? <Register rows={rows} canPay={Boolean(periods.data?.canClose)} /> : null}
+      {rows.length > 0 ? (
+        <Register rows={rows} exportRows={[...payable, ...paid]} canPay={Boolean(periods.data?.canClose)} />
+      ) : null}
     </CrmFrame>
   );
 }
 
-function Register({ rows, canPay }: { rows: CrmCommissionPeriodView[]; canPay: boolean }) {
+function Register({
+  rows,
+  exportRows,
+  canPay,
+}: {
+  rows: CrmCommissionPeriodView[];
+  exportRows: CrmCommissionPeriodView[];
+  canPay: boolean;
+}) {
   const waitingTotal = rows
     .filter((period) => period.status === 'payable')
     .reduce((sum, period) => sum + BigInt(period.commissionVnd || '0'), 0n);
   return (
     <section className="overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
-      <div className="border-b border-slate-100 px-4 py-4">
-        <h2 className="text-base font-semibold text-slate-900">Bảng kê</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Chờ chi {formatVnd(waitingTotal.toString())}. Dùng bảng này để chuyển khoản bên ngoài. Nút Đã chi chỉ trừ ví trên inlink.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Bảng kê</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Chờ chi {formatVnd(waitingTotal.toString())}. Dùng bảng này để chuyển khoản bên ngoài. Nút Đã chi chỉ trừ ví trên inlink.
+          </p>
+        </div>
+        <button type="button" className={crmButtonClass} onClick={() => downloadRegister(exportRows)}>
+          Tải bảng kê
+        </button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] text-sm">
@@ -122,6 +137,21 @@ function RegisterRow({ period, canPay }: { period: CrmCommissionPeriodView; canP
       </td>
     </tr>
   );
+}
+
+function downloadRegister(rows: CrmCommissionPeriodView[]) {
+  downloadCsv('bang-ke-hoa-hong.csv', [
+    ['Cộng tác viên', 'Mã', 'Tháng', 'Hoa hồng', 'Khách đã trả', 'Trạng thái', 'Thời điểm'],
+    ...rows.map((period) => [
+      period.partnerName,
+      period.partnerCode,
+      period.periodMonth,
+      period.commissionVnd,
+      period.paidAmountVnd,
+      period.status === 'paid' ? 'Đã chi' : 'Chờ chi',
+      period.status === 'paid' ? (period.paidAt ?? '') : (period.approvedAt ?? ''),
+    ]),
+  ]);
 }
 
 function matches(query: string, period: CrmCommissionPeriodView): boolean {

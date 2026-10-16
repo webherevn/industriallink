@@ -98,6 +98,10 @@ export interface CrmRenewalView {
   leadId: string | null;
   /** Đơn gói đã trả trong kỳ đang chạy. Null khi kỳ này chưa thấy đơn. Không đổi hạn gói. */
   cyclePaidAt: string | null;
+  /** Credit còn của công ty. Không cộng thêm từ CRM. */
+  creditBalance: number;
+  /** Tin đang đăng. 0 nghĩa là đã trả gói nhưng chưa tuyển trên inlink. */
+  openJobCount: number;
 }
 
 export interface CrmBoard {
@@ -389,6 +393,8 @@ export interface CrmPaidOrderInvoiceView {
   paidAt: string;
   invoiceNumber: string | null;
   invoiceIssuedAt: string | null;
+  /** Mức VAT lúc ghi số. Null khi chưa ghi hoặc lúc ghi chưa đặt. Không cộng vào số đã trả. */
+  vatPercent: number | null;
 }
 
 export interface CrmPaidInvoiceLedgerView {
@@ -409,6 +415,29 @@ export interface CrmTaxSuggestion {
   address: string | null;
   companyId: string | null;
   source: 'inlink' | 'registry';
+}
+
+/** Một nhóm trên báo cáo phễu. Tiền là đơn gói đã trả, chưa VAT. */
+export interface CrmFunnelBucket {
+  key: string;
+  label: string;
+  leads: number;
+  paidOrders: number;
+  paidAmountVnd: string;
+}
+
+export interface CrmFunnelReport {
+  byOwner: CrmFunnelBucket[];
+  bySource: CrmFunnelBucket[];
+  byPartner: CrmFunnelBucket[];
+}
+
+/** Kết quả khi nhà tuyển dụng bấm tư vấn Enterprise. Không bật gói. */
+export interface CrmEnterpriseRequestView {
+  leadCode: string;
+  dealCode: string;
+  ownerName: string;
+  alreadyOpen: boolean;
 }
 
 export interface CrmPlanOption {

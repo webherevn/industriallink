@@ -39,7 +39,7 @@ export function CrmRenewalsPanel() {
     <CrmFrame
       kicker="Khách đang dùng inlink"
       title="Ai sắp hết gói tin hoặc gói Săn"
-      description="Danh sách lấy từ hạn gói đang gán. Tạo deal gia hạn không đổi gói trên tài khoản nhà tuyển dụng."
+      description="Danh sách lấy từ hạn gói đang gán. Mỗi thẻ có credit còn và số tin đang đăng. Tạo deal gia hạn không đổi gói."
       placeholder="Tìm nhà máy sắp hết hạn"
       search={{ value: query, onChange: setQuery }}
       footnote="Hết hạn trong 30 ngày, hoặc quá hạn chưa tới 14 ngày. CRM không gán gói."
@@ -63,9 +63,12 @@ export function CrmRenewalsPanel() {
                 tone={row.daysLeft < 7 ? 'rose' : 'orange'}
                 icon={<CalendarClock className="h-5 w-5" />}
                 title={`${row.companyName} · ${row.planName}`}
-                text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. ${row.cyclePaidAt ? `Đã thanh toán kỳ này ${formatWhen(row.cyclePaidAt)}.` : 'Kỳ này chưa thấy đơn gói đã thanh toán.'} ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
-                meta={row.planCode}
+                  text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. Credit còn ${row.creditBalance}. Tin đang đăng ${row.openJobCount}. ${row.cyclePaidAt ? `Đã thanh toán kỳ này ${formatWhen(row.cyclePaidAt)}.` : 'Kỳ này chưa thấy đơn gói đã thanh toán.'} ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
+                  meta={row.planCode}
               >
+                {row.openJobCount === 0 ? (
+                  <p className="mt-3 text-xs font-semibold text-rose-600">Chưa đăng tin</p>
+                ) : null}
                 <div className="mt-auto grid gap-2 pt-4">
                   <Link href={`/crm/companies/${row.companyId}`} className={`${crmActionClass} w-full`}>
                     Hồ sơ công ty

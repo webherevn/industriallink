@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import type { BillingPlatformPlanView } from '@industriallink/contracts';
+import { EnterpriseConsultButton } from '@/components/enterprise-consult-button';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -154,9 +155,17 @@ export function RecruiterPlanUpgrade() {
               </ul>
 
               {isEnterprise ? (
-                <p className="mt-6 text-sm text-slate-600">
-                  Gói Enterprise không tự thanh toán. Liên hệ sales để được tư vấn và SuperAdmin kích hoạt.
-                </p>
+                <div className="mt-6">
+                  <p className="text-sm text-slate-600">
+                    Gói Enterprise không tự thanh toán. Gửi yêu cầu để sale nhận trên CRM. SuperAdmin kích hoạt sau.
+                  </p>
+                  <EnterpriseConsultButton
+                    className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl bg-[#072348] px-4 text-sm font-bold text-white disabled:opacity-50"
+                    label="Gửi yêu cầu tư vấn"
+                    noteClassName="mt-2 text-xs text-slate-600"
+                    errorClassName="mt-2 text-xs text-rose-600"
+                  />
+                </div>
               ) : isCurrent ? (
                 <p className="mt-6 text-sm text-emerald-800">
                   Bạn đang dùng gói này đến {fmtDate(current?.endsAt ?? null)}.
