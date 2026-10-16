@@ -47,10 +47,10 @@ export function CrmPeriodsPanel() {
     <CrmFrame
       kicker="Hoa hồng theo tháng"
       title="Kỳ chốt"
-      description="Mỗi cộng tác viên một kỳ cho tháng đã kết thúc. Số lấy từ khoản chờ đối soát, theo tỷ lệ lúc khách trả."
+      description="Hệ thống tự chốt sau 00:00 ngày kế tiếp, giờ Việt Nam, nên ngày cuối tháng vẫn nằm trong kỳ. SuperAdmin chốt tay được nếu cần."
       placeholder="Tìm cộng tác viên hoặc tháng"
       search={{ value: query, onChange: setQuery }}
-      footnote="Cho phép chi không trừ ví. Kỳ được phép chi chuyển sang mục Kế toán."
+      footnote="Cho phép chi không trừ ví. Kế toán ghi đã chi mới trừ số của kỳ khỏi ví."
     >
       {periods.data?.canClose ? (
         <form onSubmit={onSubmit} className="flex flex-col gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] sm:flex-row sm:items-end">
@@ -96,6 +96,7 @@ function PeriodCard({ period, canApprove }: { period: CrmCommissionPeriodView; c
     onError: (err) => setError(errorText(err, 'Không chuyển được kỳ sang kế toán')),
   });
   const payable = period.status === 'payable';
+  const paid = period.status === 'paid';
 
   return (
     <article className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
@@ -106,8 +107,8 @@ function PeriodCard({ period, canApprove }: { period: CrmCommissionPeriodView; c
             {period.partnerCode} · {formatPeriodLabel(period.periodMonth)}
           </p>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${payable ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-          {payable ? 'Chờ kế toán' : 'Chờ cho phép chi'}
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${paid ? 'bg-[#efeaff] text-[#4c3ec9]' : payable ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+          {paid ? 'Đã chi' : payable ? 'Chờ kế toán' : 'Chờ cho phép chi'}
         </span>
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -121,15 +122,16 @@ function PeriodCard({ period, canApprove }: { period: CrmCommissionPeriodView; c
         </div>
       </dl>
       <p className="mt-4 text-xs text-slate-400">
-        {period.entryCount} khoản · chốt {formatWhen(period.closedAt)}
+        {period.entryCount} khoản · {period.autoClosed ? 'hệ thống tự chốt' : 'chốt'} {formatWhen(period.closedAt)}
         {period.approvedAt ? ` · cho phép chi ${formatWhen(period.approvedAt)}` : ''}
+        {period.paidAt ? ` · đã chi ${formatWhen(period.paidAt)}` : ''}
       </p>
-      {canApprove && !payable ? (
+      {canApprove && period.status === 'closed' ? (
         <button type="button" className={`${crmButtonClass} mt-4`} disabled={approve.isPending} onClick={() => approve.mutate()}>
           {approve.isPending ? 'Đang chuyển…' : 'Cho phép chi'}
         </button>
       ) : null}
-      {payable ? (
+      {payable || paid ? (
         <Link href="/crm/finance/accounting" className="mt-4 inline-block text-xs font-medium text-[#4c3ec9] underline">
           Xem ở kế toán
         </Link>

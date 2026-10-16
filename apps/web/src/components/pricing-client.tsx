@@ -713,6 +713,7 @@ function PlatformPlansView({
   freeCtaHref,
   enterpriseCtaHref,
   page,
+  vatPercent = null,
 }: {
   plans: BillingPlatformPlanView[];
   currency: BillingCurrencyDisplay;
@@ -725,6 +726,7 @@ function PlatformPlansView({
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
   page: BillingPageContentView;
+  vatPercent?: number | null;
 }) {
   const visible = plans.filter((p) => p.isActive);
 
@@ -736,6 +738,7 @@ function PlatformPlansView({
           {page.platformTitle}
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.platformSubtitle}</p>
+        <VatPriceNote percent={vatPercent} />
       </div>
 
       {/* Cards grid */}
@@ -945,6 +948,7 @@ function SourcingPlansView({
   isRecruiter,
   planCtaHref,
   page,
+  vatPercent = null,
 }: {
   plans: BillingSourcingPlanView[];
   currency: BillingCurrencyDisplay;
@@ -952,6 +956,7 @@ function SourcingPlansView({
   isRecruiter: boolean;
   planCtaHref: (code: string) => string;
   page: BillingPageContentView;
+  vatPercent?: number | null;
 }) {
   return (
     <div>
@@ -960,6 +965,7 @@ function SourcingPlansView({
           {page.sourcingTitle}
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.sourcingSubtitle}</p>
+        <VatPriceNote percent={vatPercent} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3 md:grid-cols-2">
@@ -1100,11 +1106,13 @@ function CreditTopupView({
   currency,
   topupCtaHref,
   page,
+  vatPercent = null,
 }: {
   topups: BillingCreditTopupView[];
   currency: BillingCurrencyDisplay;
   topupCtaHref: (id: string) => string;
   page: BillingPageContentView;
+  vatPercent?: number | null;
 }) {
   return (
     <div>
@@ -1113,6 +1121,7 @@ function CreditTopupView({
           {page.creditTitle}
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.creditSubtitle}</p>
+        <VatPriceNote percent={vatPercent} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 md:grid-cols-2">
@@ -1232,7 +1241,7 @@ function TrustItem({
 // ============================================================================
 // FAQ
 // ============================================================================
-function FAQSection({ page }: { page: BillingPageContentView }) {
+function FAQSection({ page, vatPercent = null }: { page: BillingPageContentView; vatPercent?: number | null }) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
@@ -1263,7 +1272,7 @@ function FAQSection({ page }: { page: BillingPageContentView }) {
                 </button>
                 {open ? (
                   <div className="border-t border-slate-100 px-5 py-4 text-sm text-slate-600">
-                    {item.a}
+                    {displayFaqAnswer(item.a, vatPercent)}
                   </div>
                 ) : null}
               </div>
@@ -1337,6 +1346,22 @@ function CrossSellCard({
 // ============================================================================
 // SKELETON
 // ============================================================================
+function VatPriceNote({ percent }: { percent?: number | null }) {
+  return (
+    <p className="mt-2 text-sm font-medium text-[#4c3ec9]">
+      {percent == null ? 'Giá niêm yết chưa gồm VAT. Thuế suất chưa đặt.' : `Giá niêm yết chưa gồm VAT ${percent}%.`}
+    </p>
+  );
+}
+
+function displayFaqAnswer(answer: string, percent?: number | null): string {
+  if (!/Giá hiển thị chưa bao gồm VAT/i.test(answer) && !/VAT\s*10\s*%/i.test(answer)) return answer;
+  if (percent == null) {
+    return 'Giá hiển thị chưa bao gồm VAT. Mức thuế suất chưa được đặt. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.';
+  }
+  return `Giá hiển thị chưa bao gồm VAT ${percent}%. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.`;
+}
+
 function PricingSkeleton() {
   return (
     <section className="bg-gradient-to-br from-[#072348] to-[#0d3b80] py-16 text-white">
@@ -1442,6 +1467,7 @@ export function PricingClient({
       : `/register?plan=${encodeURIComponent(code)}`;
   const freeCtaHref = () => (checkoutReady ? '/recruiter/billing' : '/register');
   const page = resolved?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
+  const vatPercent = resolved?.vatPercent ?? null;
   const enterpriseCtaHref = () =>
     checkoutReady ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
   /** Top-up: dùng id vì view không có code. */
@@ -1505,6 +1531,7 @@ export function PricingClient({
               freeCtaHref={freeCtaHref}
               enterpriseCtaHref={enterpriseCtaHref}
               page={page}
+              vatPercent={vatPercent}
             />
           ) : tab === 'sourcing' ? (
             <SourcingPlansView
@@ -1514,6 +1541,7 @@ export function PricingClient({
               isRecruiter
               planCtaHref={sourcingCtaHref}
               page={page}
+              vatPercent={vatPercent}
             />
           ) : (
             <CreditTopupView
@@ -1521,6 +1549,7 @@ export function PricingClient({
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
+              vatPercent={vatPercent}
             />
           )}
         </section>
@@ -1562,6 +1591,7 @@ export function PricingClient({
               freeCtaHref={freeCtaHref}
               enterpriseCtaHref={enterpriseCtaHref}
               page={page}
+              vatPercent={vatPercent}
             />
           ) : tab === 'sourcing' ? (
             <SourcingPlansView
@@ -1571,6 +1601,7 @@ export function PricingClient({
               isRecruiter={isRecruiter}
               planCtaHref={sourcingCtaHref}
               page={page}
+              vatPercent={vatPercent}
             />
           ) : (
             <CreditTopupView
@@ -1578,6 +1609,7 @@ export function PricingClient({
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
+              vatPercent={vatPercent}
             />
           )}
         </div>
@@ -1604,7 +1636,7 @@ export function PricingClient({
       <TrustItems page={page} />
 
       {/* FAQ (public only) */}
-      {!isRecruiter && <FAQSection page={page} />}
+      {!isRecruiter && <FAQSection page={page} vatPercent={vatPercent} />}
 
       {/* CONTACT CTA (public only) */}
       {!isRecruiter && <ContactCTASection page={page} />}

@@ -18,6 +18,7 @@ import {
   type BillingPageContent,
 } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { applyPublicVatCopy, vatPercentOrEmpty } from '../crm/commission-notices';
 import type { AppConfig } from '../../config/configuration';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import type {
@@ -142,7 +143,7 @@ export class BillingService {
   // PUBLIC
   // =========================================================================
   async getPublicConfig(): Promise<BillingPublicConfig> {
-    const [plans, sourcings, topups, policy, currency, page, paymentSetting] = await Promise.all([
+    const [plans, sourcings, topups, policy, currency, page, paymentSetting, vatSetting] = await Promise.all([
       this.prisma.billingPlatformPlan.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' },
@@ -160,7 +161,14 @@ export class BillingService {
       this.ensureCurrencyConfig(),
       this.ensurePageContent(),
       this.prisma.billingPaymentSetting.findUnique({ where: { scope: 'default' } }),
+      this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } }),
     ]);
+    const vatPercent = vatPercentOrEmpty(vatSetting?.percent);
+    const pageContent = this.mapPageContent(page);
+    pageContent.faqItems = pageContent.faqItems.map((item) => ({
+      ...item,
+      a: applyPublicVatCopy(item.a, vatPercent),
+    }));
 
     return {
       platformPlans: plans.map((p) => this.mapPlatformPlan(p, policy)),
@@ -168,7 +176,8 @@ export class BillingService {
       creditTopups: topups.map((t) => this.mapCreditTopup(t)),
       creditPolicy: this.mapCreditPolicy(policy),
       currency: this.mapCurrency(currency),
-      pageContent: this.mapPageContent(page),
+      pageContent,
+      vatPercent,
       paymentMode: (paymentSetting?.mode as 'mock' | 'live') ?? 'mock',
       creditEnforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
     };

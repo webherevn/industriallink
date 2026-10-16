@@ -8,6 +8,10 @@ import type {
   CrmCommissionPeriodListView,
   CrmCommissionPeriodView,
   CrmCommissionView,
+  CrmPayoutDayView,
+  CrmVatView,
+  UpdateCrmVatRequest,
+  UpdateCrmPayoutDayRequest,
   CloseCrmCommissionMonthRequest,
   CloseCrmCommissionMonthResult,
   CrmPartnerClaimView,
@@ -77,6 +81,22 @@ export function updateCrmCommission(body: UpdateCrmCommissionRequest): Promise<C
   return apiRequest<CrmCommissionView>('/crm/commission', { method: 'PATCH', body });
 }
 
+export function fetchCrmPayoutDay(): Promise<CrmPayoutDayView> {
+  return apiRequest<CrmPayoutDayView>('/crm/payout-day');
+}
+
+export function updateCrmPayoutDay(body: UpdateCrmPayoutDayRequest): Promise<CrmPayoutDayView> {
+  return apiRequest<CrmPayoutDayView>('/crm/payout-day', { method: 'PATCH', body });
+}
+
+export function fetchCrmVat(): Promise<CrmVatView> {
+  return apiRequest<CrmVatView>('/crm/vat');
+}
+
+export function updateCrmVat(body: UpdateCrmVatRequest): Promise<CrmVatView> {
+  return apiRequest<CrmVatView>('/crm/vat', { method: 'PATCH', body });
+}
+
 export function fetchCrmCommissionLedger(): Promise<CrmCommissionLedgerView> {
   return apiRequest<CrmCommissionLedgerView>('/crm/commissions');
 }
@@ -91,6 +111,10 @@ export function closeCrmCommissionMonth(body: CloseCrmCommissionMonthRequest): P
 
 export function allowCrmCommissionPayout(periodId: string): Promise<CrmCommissionPeriodView> {
   return apiRequest<CrmCommissionPeriodView>(`/crm/commission-periods/${periodId}/approve`, { method: 'POST' });
+}
+
+export function markCrmCommissionPaid(periodId: string): Promise<CrmCommissionPeriodView> {
+  return apiRequest<CrmCommissionPeriodView>(`/crm/commission-periods/${periodId}/pay`, { method: 'POST' });
 }
 
 export function fetchCrmPartners(): Promise<CrmPartnerView[]> {

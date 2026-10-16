@@ -164,8 +164,42 @@ export interface CrmPartnerSelfView {
   partner: CrmPartnerView | null;
   /** Null khi SuperAdmin chưa đặt. Chưa phải số tiền phải chi. */
   commissionPercent: number | null;
+  /** Ngày trong tháng kế toán ghi đã chi. Không tự trừ ví. */
+  payoutDay: number;
+  /** Sao kê ví: cộng khi khách trả, trừ khi đã chi, kèm số dư sau dòng. */
+  walletTxns: CrmWalletTxnView[];
   /** Khoản đã ghi sau thanh toán online. Chỉ chờ đối soát. */
   commissions: CrmCommissionEntryView[];
+}
+
+export type CrmWalletTxnKind = 'credit' | 'debit';
+
+export interface CrmWalletTxnView {
+  id: string;
+  kind: CrmWalletTxnKind;
+  amountVnd: string;
+  balanceAfterVnd: string;
+  createdAt: string;
+  label: string;
+}
+
+export interface CrmPayoutDayView {
+  day: number;
+  canEdit: boolean;
+}
+
+export interface UpdateCrmPayoutDayRequest {
+  day: number;
+}
+
+export interface CrmVatView {
+  /** Null khi chưa đặt. Không mặc định 8% hay 10%. */
+  percent: number | null;
+  canEdit: boolean;
+}
+
+export interface UpdateCrmVatRequest {
+  percent: number;
 }
 
 export interface CrmCommissionView {
@@ -199,6 +233,8 @@ export interface CrmCommissionEntryView {
   invoiceNumber: string | null;
   /** YYYY-MM khi khoản đã vào kỳ chốt. Null khi còn chờ đối soát. */
   periodMonth: string | null;
+  /** Trạng thái kỳ. Null khi khoản chưa chốt. paid nghĩa là ví đã trừ kỳ này. */
+  periodStatus: CrmCommissionPeriodStatus | null;
 }
 
 export interface CrmCommissionLedgerView {
@@ -206,7 +242,7 @@ export interface CrmCommissionLedgerView {
   pendingTotalVnd: string;
 }
 
-export type CrmCommissionPeriodStatus = 'closed' | 'payable';
+export type CrmCommissionPeriodStatus = 'closed' | 'payable' | 'paid';
 
 export interface CrmCommissionPeriodView {
   id: string;
@@ -220,8 +256,12 @@ export interface CrmCommissionPeriodView {
   entryCount: number;
   status: CrmCommissionPeriodStatus;
   closedAt: string;
+  /** True khi hệ thống tự chốt sau khi tháng đã kết thúc. */
+  autoClosed: boolean;
   /** Có khi kỳ đã được phép chi và chuyển kế toán. */
   approvedAt: string | null;
+  /** Có khi kế toán đã ghi chi và ví đã trừ. */
+  paidAt: string | null;
 }
 
 export interface CrmCommissionPeriodListView {

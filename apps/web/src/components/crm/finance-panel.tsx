@@ -5,10 +5,14 @@ import type { CrmPaidOrderInvoiceView } from '@industriallink/contracts';
 import { FormEvent, useState } from 'react';
 import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
-import { fetchCrmInvoices, issueCrmOrderInvoice } from '@/lib/crm';
+import { fetchCrmInvoices, fetchCrmVat, issueCrmOrderInvoice } from '@/lib/crm';
 
 export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }) {
   const ledger = useQuery({ queryKey: ['crm-invoices'], queryFn: fetchCrmInvoices });
+  const vat = useQuery({ queryKey: ['crm-vat'], queryFn: fetchCrmVat });
+  const vatNote = vat.data?.percent == null
+    ? 'Thuế suất chưa đặt. Giá trên sổ là số đã thanh toán, chưa cộng thuế. Không có công nợ.'
+    : `Thuế suất đang đặt ${vat.data.percent}%. Giá trên sổ vẫn là số đã thanh toán, chưa cộng thuế. Không có công nợ.`;
   const [query, setQuery] = useState(initialQuery);
   const orders = (ledger.data?.orders ?? []).filter((order) =>
     matchesQuery(query, [order.companyName, order.planName, order.planCode, order.invoiceNumber]),
@@ -22,7 +26,7 @@ export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }
       description="Chỉ đơn gói tin và gói Săn đã trả tiền. Giá là số đã thanh toán, chưa VAT. Ghi số không thu thêm và không bật gói."
       placeholder="Tìm nhà tuyển dụng, gói hoặc số hóa đơn"
       search={{ value: query, onChange: setQuery }}
-      footnote="Chưa tính thuế suất. Không có công nợ."
+      footnote={vatNote}
     >
       {ledger.isLoading ? <CrmEmpty>Đang tải đơn đã thanh toán…</CrmEmpty> : null}
       {ledger.isError ? <CrmEmpty>Không tải được sổ hóa đơn.</CrmEmpty> : null}

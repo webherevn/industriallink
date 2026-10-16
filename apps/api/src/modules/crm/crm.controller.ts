@@ -13,6 +13,10 @@ import {
   type CrmDealView,
   type CrmLeadView,
   type CrmCommissionView,
+  type CrmPayoutDayView,
+  type CrmVatView,
+  type UpdateCrmVatRequest,
+  type UpdateCrmPayoutDayRequest,
   type CrmCommissionLedgerView,
   type CrmCommissionPeriodListView,
   type CrmCommissionPeriodView,
@@ -83,6 +87,38 @@ export class CrmController {
     return this.crm.setCommission(user, body);
   }
 
+  @Get('payout-day')
+  @ApiOperation({ summary: 'Ngày trong tháng kế toán ghi đã chi. Không tự trừ ví.' })
+  payoutDay(@CurrentUser() user: AuthenticatedUser): Promise<CrmPayoutDayView> {
+    return this.crm.payoutDay(user);
+  }
+
+  @Patch('payout-day')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin đặt ngày chi từ 1 đến 28. Không chi tiền.' })
+  setPayoutDay(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmPayoutDayRequest,
+  ): Promise<CrmPayoutDayView> {
+    return this.crm.setPayoutDay(user, body);
+  }
+
+  @Get('vat')
+  @ApiOperation({ summary: 'Thuế suất đang đặt. Null khi chưa nhập. Không đổi giá.' })
+  vat(@CurrentUser() user: AuthenticatedUser): Promise<CrmVatView> {
+    return this.crm.vat(user);
+  }
+
+  @Patch('vat')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin đặt thuế suất 0–100. Không cộng vào đơn.' })
+  setVat(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmVatRequest,
+  ): Promise<CrmVatView> {
+    return this.crm.setVat(user, body);
+  }
+
   @Get('commissions')
   @ApiOperation({ summary: 'Khoản hoa hồng chờ đối soát. Không chi và không rút.' })
   commissions(@CurrentUser() user: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
@@ -113,6 +149,16 @@ export class CrmController {
     @Param('id') id: string,
   ): Promise<CrmCommissionPeriodView> {
     return this.crm.allowCommissionPayout(user, id);
+  }
+
+  @Post('commission-periods/:id/pay')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Ghi đã chi một kỳ kế toán đang giữ và trừ ví inlink. Không chuyển khoản.' })
+  markCommissionPaid(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<CrmCommissionPeriodView> {
+    return this.crm.markCommissionPaid(user, id);
   }
 
   @Get('partners')

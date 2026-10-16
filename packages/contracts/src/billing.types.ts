@@ -544,7 +544,7 @@ export const DEFAULT_BILLING_PAGE_HOW_STEPS: BillingPageTextItem[] = [
 export const DEFAULT_BILLING_PAGE_FAQ: BillingPageFaqItem[] = [
   {
     q: 'Giá đã bao gồm VAT chưa?',
-    a: 'Giá hiển thị chưa bao gồm VAT 10%. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.',
+    a: 'Giá hiển thị chưa bao gồm VAT. Mức thuế suất chưa được đặt. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.',
   },
   {
     q: 'Tôi có thể đổi từ Tin đăng sang Tin đăng Plus không?',

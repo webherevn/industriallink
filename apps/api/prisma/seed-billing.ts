@@ -360,7 +360,7 @@ const PAGE_CONTENT_LISTS = {
     { title: 'Mua thêm Credit khi cần', desc: 'Mở hồ sơ ứng viên tiềm năng bằng Credit. Mua thêm bất kỳ lúc nào, đơn giá giảm theo số lượng.' },
   ],
   faqItems: [
-    { q: 'Giá đã bao gồm VAT chưa?', a: 'Giá hiển thị chưa bao gồm VAT 10%. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.' },
+    { q: 'Giá đã bao gồm VAT chưa?', a: 'Giá hiển thị chưa bao gồm VAT. Mức thuế suất chưa được đặt. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.' },
     { q: 'Tôi có thể đổi từ Tin đăng sang Tin đăng Plus không?', a: 'Có. Vào trang quản lý gói, chọn "Nâng cấp" và phần chênh lệch sẽ được tính theo tỉ lệ thời gian còn lại.' },
     { q: 'Credit mua thêm có hết hạn không?', a: 'Theo chính sách hiện tại, Credit không hết hạn khi tài khoản còn hoạt động. Chúng tôi sẽ thông báo trước 30 ngày nếu có thay đổi.' },
     { q: 'Phí Săn nhân sự có bao gồm Credit không?', a: 'Không. Phí Săn (Cơ bản/Tiêu chuẩn/Chuyên sâu) là phí dịch vụ iLink thực hiện. Credit mua riêng theo nhu cầu mở hồ sơ tiềm năng.' },

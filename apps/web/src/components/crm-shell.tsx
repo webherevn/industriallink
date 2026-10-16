@@ -7,6 +7,8 @@ import {
   Building2,
   CalendarCheck,
   CalendarClock,
+  CalendarDays,
+  CirclePercent,
   Kanban,
   Landmark,
   LayoutDashboard,
@@ -65,7 +67,11 @@ const NAV = [
   },
   {
     title: 'Cài đặt',
-    items: [{ href: '/crm/settings/commission', label: 'Hoa hồng', icon: Percent }],
+    items: [
+      { href: '/crm/settings/commission', label: 'Hoa hồng', icon: Percent },
+      { href: '/crm/settings/payout-day', label: 'Ngày chi', icon: CalendarDays },
+      { href: '/crm/settings/vat', label: 'Thuế suất', icon: CirclePercent },
+    ],
   },
 ] as const;
 

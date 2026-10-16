@@ -4,10 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Check, Copy, Link2 } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
-import type { CrmCommissionEntryView, CrmReferralSignupView } from '@industriallink/contracts';
+import type { CrmCommissionEntryView, CrmReferralSignupView, CrmWalletTxnView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Card } from '@/components/ui';
-import { errorText, formatVnd, matchesQuery } from '@/components/crm/format';
+import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { createMyPartnerClaim, fetchMyPartner, registerMyPartner } from '@/lib/crm';
 
 type HistoryFilter = 'all' | 'month';
@@ -95,7 +95,7 @@ export function RecruiterPartnerPanel() {
                   </p>
                 </div>
                 <p className="max-w-xs text-sm leading-relaxed text-white/70">
-                  Số dư trên inlink, tự cộng khi khách thanh toán gói. Kỳ đã chốt vẫn nằm trong ví cho đến khi được phép chi.
+                  Số dư trên inlink, tự cộng khi khách thanh toán gói. Kỳ đã chốt vẫn nằm trong ví. Kế toán ghi đã chi vào ngày {mine.data.payoutDay ?? 10} hàng tháng.
                 </p>
               </div>
             </Card>
@@ -110,6 +110,8 @@ export function RecruiterPartnerPanel() {
               />
               <Stat label="Mã số thuế đã khóa" value={`${partner.claims.length}/30`} hint="Mỗi mã số thuế một cộng tác viên" />
             </div>
+
+            <WalletStatement rows={mine.data.walletTxns ?? []} />
 
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="p-5">
@@ -276,7 +278,11 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
                   <td className="px-4 py-3 font-semibold text-[#072348]">{formatVnd(entry.commissionVnd)}</td>
                   <td className="px-4 py-3 text-slate-700">{entry.invoiceNumber ?? 'Chưa ghi số'}</td>
                   <td className="px-4 py-3">
-                    {entry.periodMonth ? (
+                    {entry.periodStatus === 'paid' && entry.periodMonth ? (
+                      <span className="rounded-full bg-[#efeaff] px-2.5 py-1 text-xs font-semibold text-[#4c3ec9]">
+                        Đã chi kỳ {formatPeriodMonth(entry.periodMonth)}
+                      </span>
+                    ) : entry.periodMonth ? (
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                         Đã chốt kỳ {formatPeriodMonth(entry.periodMonth)}
                       </span>
@@ -285,6 +291,46 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{formatPaidAt(entry.paidAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function WalletStatement({ rows }: { rows: CrmWalletTxnView[] }) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-slate-100 px-4 py-4">
+        <h2 className="text-base font-semibold text-slate-900">Sao kê ví</h2>
+        <p className="mt-1 text-sm text-slate-500">Cộng khi khách thanh toán gói. Trừ khi kế toán ghi đã chi. Không phải ví MoMo.</p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-8 text-sm text-slate-500">Chưa có dòng nào trong ví.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Thời gian</th>
+                <th className="px-4 py-3">Nội dung</th>
+                <th className="px-4 py-3">Phát sinh</th>
+                <th className="px-4 py-3">Số dư sau dòng</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-t border-slate-100">
+                  <td className="px-4 py-3 text-xs text-slate-500">{formatWhen(row.createdAt)}</td>
+                  <td className="px-4 py-3 text-slate-800">{row.label}</td>
+                  <td className={`px-4 py-3 font-semibold ${row.kind === 'debit' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {row.kind === 'debit' ? '−' : '+'}
+                    {formatVnd(row.amountVnd)}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-slate-800">{formatVnd(row.balanceAfterVnd)}</td>
                 </tr>
               ))}
             </tbody>

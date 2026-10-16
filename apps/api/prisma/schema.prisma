@@ -1935,6 +1935,30 @@ model CrmPartnerClaim {
   @@schema("crm")
 }
 
+/// Ngày trong tháng kế toán ghi đã chi. Không tự trừ ví và không chuyển khoản.
+model CrmCommissionPayoutSetting {
+  id              String   @id @default("default")
+  payoutDay       Int      @default(10) @map("payout_day")
+  /// YYYY-MM-DD giờ Việt Nam của lần nhắc ngày chi gần nhất.
+  remindedOn      String?  @map("reminded_on")
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("crm_commission_payout_setting")
+  @@schema("crm")
+}
+
+/// Thuế suất để trống đến khi SuperAdmin nhập. Không đổi giá niêm yết.
+model CrmVatSetting {
+  id              String   @id @default("default")
+  percent         Int?
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("crm_vat_setting")
+  @@schema("crm")
+}
+
 /// Một tỷ lệ cho toàn bộ cộng tác viên. Không tạo ví và không có lệnh chi.
 model CrmCommissionSetting {
   id              String   @id @default("default")
@@ -1987,15 +2011,19 @@ model CrmCommissionPeriod {
   paidAmountVnd  BigInt   @map("paid_amount_vnd")
   commissionVnd  BigInt   @map("commission_vnd")
   entryCount     Int      @map("entry_count")
-  /// closed = chờ cho phép chi. payable = đã chuyển kế toán.
+  /// closed = chờ cho phép chi. payable = đã chuyển kế toán. paid = đã chi, ví đã trừ.
   status            String    @default("closed")
-  closedByUserId    String    @map("closed_by_user_id") @db.Uuid
+  /// Null khi hệ thống tự chốt sau ngày cuối tháng.
+  closedByUserId    String?   @map("closed_by_user_id") @db.Uuid
   closedAt          DateTime  @default(now()) @map("closed_at")
   approvedByUserId  String?   @map("approved_by_user_id") @db.Uuid
   approvedAt        DateTime? @map("approved_at")
+  paidByUserId      String?   @map("paid_by_user_id") @db.Uuid
+  paidAt            DateTime? @map("paid_at")
 
-  partner CrmPartner           @relation(fields: [partnerId], references: [id])
-  entries CrmCommissionEntry[]
+  partner  CrmPartner              @relation(fields: [partnerId], references: [id])
+  entries  CrmCommissionEntry[]
+  debitTxn CrmCommissionWalletTxn?
 
   @@unique([partnerId, periodMonth])
   @@index([periodMonth])
@@ -2017,18 +2045,21 @@ model CrmCommissionWallet {
   @@schema("crm")
 }
 
-/// Một dòng cộng cho một khoản hoa hồng. Chưa có dòng trừ.
+/// Dòng cộng theo khoản hoa hồng, hoặc dòng trừ khi kế toán ghi đã chi một kỳ.
 model CrmCommissionWalletTxn {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   walletId          String   @map("wallet_id") @db.Uuid
   partnerId         String   @map("partner_id") @db.Uuid
-  commissionEntryId String   @unique @map("commission_entry_id") @db.Uuid
+  commissionEntryId String?  @unique @map("commission_entry_id") @db.Uuid
+  periodId          String?  @unique @map("period_id") @db.Uuid
   amountVnd         BigInt   @map("amount_vnd")
+  /// credit | debit. Số tiền luôn dương.
   kind              String   @default("credit")
   createdAt         DateTime @default(now()) @map("created_at")
 
-  wallet CrmCommissionWallet @relation(fields: [walletId], references: [id])
-  entry  CrmCommissionEntry  @relation(fields: [commissionEntryId], references: [id])
+  wallet CrmCommissionWallet  @relation(fields: [walletId], references: [id])
+  entry  CrmCommissionEntry?  @relation(fields: [commissionEntryId], references: [id])
+  period CrmCommissionPeriod? @relation(fields: [periodId], references: [id])
 
   @@index([partnerId])
   @@map("crm_commission_wallet_txn")

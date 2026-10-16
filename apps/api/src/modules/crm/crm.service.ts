@@ -17,6 +17,11 @@ import {
   type CloseCrmCommissionMonthResult,
   type CrmPartnerClaimView,
   type CrmPartnerSelfView,
+  type CrmPayoutDayView,
+  type CrmVatView,
+  type CrmWalletTxnView,
+  type UpdateCrmVatRequest,
+  type UpdateCrmPayoutDayRequest,
   type UpdateCrmCommissionRequest,
   type RegisterCrmPartnerRequest,
   type CrmActivityType,
@@ -41,11 +46,38 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { commissionVnd } from './commission-amount';
-import { groupCommissionClose, vietnamMonthBounds } from './commission-period';
+import { groupCommissionClose, previousVietnamPeriodMonth, vietnamMonthBounds, vietnamMonthHasEnded } from './commission-period';
+import {
+  commissionClosedNotice,
+  payoutDayReminderNotice,
+  shouldRemindPayoutDay,
+  vatPercentOrEmpty,
+  vietnamDateIso,
+} from './commission-notices';
+import { payoutDayOrDefault } from './commission-payout-day';
+import { signedWalletBalance, walletRunningBalances } from './commission-wallet';
 import { assignPaidOrders, pickDealForPayment } from './deal-payment';
 import { paidActivitySummary } from './paid-activity';
 import { normalizeReferralCode, referralForPayingAccount } from './referral-cookie';
 import { referralSignupNotices } from './referral-signup-notice';
+
+function walletTxnLabel(row: {
+  kind: string;
+  entry: { companyName: string; planName: string | null } | null;
+  period: { periodMonth: string } | null;
+}): string {
+  if (row.kind === 'debit') {
+    const [year, month] = (row.period?.periodMonth ?? '').split('-');
+    return year && month ? `Đã chi kỳ tháng ${Number(month)}/${year}` : 'Đã chi kỳ';
+  }
+  const company = row.entry?.companyName ?? 'Khách thanh toán';
+  return row.entry?.planName ? `${company} · ${row.entry.planName}` : company;
+}
+
+function periodStatusOf(status: string | undefined): CrmCommissionEntryView['periodStatus'] {
+  if (status === 'closed' || status === 'payable' || status === 'paid') return status;
+  return null;
+}
 
 const PIPELINE_CODE = 'ban_goi';
 const CLAIM_LIMIT = 30;
@@ -281,12 +313,13 @@ export class CrmService {
   }
 
   async myPartner(actor: AuthenticatedUser): Promise<CrmPartnerSelfView> {
-    const [row, commissionPercent] = await Promise.all([
+    const [row, commissionPercent, payoutDay] = await Promise.all([
       this.prisma.crmPartner.findUnique({
         where: { userId: actor.id },
         include: { claims: partnerClaims },
       }),
       this.commissionPercent(),
+      this.storedPayoutDay(),
     ]);
     const commissions = row ? await this.entriesForPartner(row.id, row.name, row.code) : [];
     const pendingLines = commissions.filter((entry) => entry.periodMonth == null);
@@ -297,7 +330,38 @@ export class CrmService {
     if (row) await this.ensureWalletCredits([row.id]);
     const signups = row ? (await this.unpaidSignups([row.id])).get(row.id) ?? [] : [];
     const walletBalance = row ? (await this.walletBalances([row.id])).get(row.id) ?? 0n : 0n;
-    return { partner: row ? this.mapPartner(row, pending, signups, walletBalance) : null, commissionPercent, commissions };
+    const walletTxns = row ? await this.walletStatement(row.id) : [];
+    return {
+      partner: row ? this.mapPartner(row, pending, signups, walletBalance) : null,
+      commissionPercent,
+      payoutDay,
+      walletTxns,
+      commissions,
+    };
+  }
+
+  async payoutDay(actor: AuthenticatedUser): Promise<CrmPayoutDayView> {
+    return {
+      day: await this.storedPayoutDay(),
+      canEdit: actor.role === UserRole.SuperAdmin,
+    };
+  }
+
+  /** Đặt ngày kế toán ghi đã chi. Không trừ ví và không chuyển khoản. */
+  async setPayoutDay(actor: AuthenticatedUser, input: UpdateCrmPayoutDayRequest): Promise<CrmPayoutDayView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin đặt ngày chi hoa hồng');
+    }
+    const day = input.day;
+    if (!Number.isInteger(day) || day < 1 || day > 28) {
+      throw new BadRequestException('Ngày chi là số nguyên từ 1 đến 28');
+    }
+    await this.prisma.crmCommissionPayoutSetting.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', payoutDay: day, updatedByUserId: actor.id },
+      update: { payoutDay: day, updatedByUserId: actor.id },
+    });
+    return { day, canEdit: true };
   }
 
   async commission(actor: AuthenticatedUser): Promise<CrmCommissionView> {
@@ -543,7 +607,7 @@ export class CrmService {
     const pendingTotalVnd = visible.reduce((sum, row) => sum + row.commissionVnd, 0n);
     return {
       entries: visible.map((row) =>
-        this.mapCommissionEntry(row, row.partner.name, row.partner.code, row.billingOrder.orderInvoice?.invoiceNumber ?? null, null),
+        this.mapCommissionEntry(row, row.partner.name, row.partner.code, row.billingOrder.orderInvoice?.invoiceNumber ?? null, null, null),
       ),
       pendingTotalVnd: pendingTotalVnd.toString(),
     };
@@ -566,9 +630,76 @@ export class CrmService {
     if (actor.role !== UserRole.SuperAdmin) {
       throw new ForbiddenException('Chỉ SuperAdmin chốt kỳ hoa hồng');
     }
+    const closedCount = await this.writeCommissionClose(periodMonth, actor.id);
+    const list = await this.commissionPeriods(actor);
+    return { ...list, closedCount };
+  }
+
+  /** Chốt tháng đã qua hết ngày cuối. Không làm gì khi tháng đó không còn khoản mới. */
+  async autoCloseFinishedCommissionMonth(now = new Date()): Promise<number> {
+    const periodMonth = previousVietnamPeriodMonth(now);
+    try {
+      const closed = await this.writeCommissionClose(periodMonth, null);
+      if (closed > 0) await this.notifySuperAdmins(commissionClosedNotice(periodMonth, closed), 'crm.commission_closed');
+      return closed;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'Tháng này không có khoản chờ chốt' || message === 'Tháng này đã chốt') return 0;
+      this.logger.error(`Không tự chốt được kỳ ${periodMonth}: ${message}`);
+      return 0;
+    }
+  }
+
+  /** Nhắc một lần vào ngày chi nếu còn kỳ chờ ghi đã chi. Không trừ ví. */
+  async remindCommissionPayoutDay(now = new Date()): Promise<boolean> {
+    const todayIso = vietnamDateIso(now);
+    const setting = await this.prisma.crmCommissionPayoutSetting.findUnique({
+      where: { id: 'default' },
+      select: { payoutDay: true, remindedOn: true },
+    });
+    const day = payoutDayOrDefault(setting?.payoutDay);
+    const payableCount = await this.prisma.crmCommissionPeriod.count({ where: { status: 'payable' } });
+    if (!shouldRemindPayoutDay({ todayIso, payoutDay: day, remindedOn: setting?.remindedOn ?? null, payableCount })) {
+      return false;
+    }
+    const claimed = await this.prisma.crmCommissionPayoutSetting.updateMany({
+      where: {
+        id: 'default',
+        OR: [{ remindedOn: null }, { remindedOn: { not: todayIso } }],
+      },
+      data: { remindedOn: todayIso },
+    });
+    if (claimed.count !== 1) return false;
+    await this.notifySuperAdmins(payoutDayReminderNotice(day, payableCount), 'crm.payout_day');
+    return true;
+  }
+
+  async vat(actor: AuthenticatedUser): Promise<CrmVatView> {
+    return {
+      percent: await this.storedVatPercent(),
+      canEdit: actor.role === UserRole.SuperAdmin,
+    };
+  }
+
+  /** Đặt thuế suất. Không đổi giá niêm yết và không cộng vào đơn đã thanh toán. */
+  async setVat(actor: AuthenticatedUser, input: UpdateCrmVatRequest): Promise<CrmVatView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin đặt thuế suất');
+    }
+    const percent = vatPercentOrEmpty(input.percent);
+    if (percent == null) throw new BadRequestException('Thuế suất là số nguyên từ 0 đến 100');
+    await this.prisma.crmVatSetting.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', percent, updatedByUserId: actor.id },
+      update: { percent, updatedByUserId: actor.id },
+    });
+    return { percent, canEdit: true };
+  }
+
+  private async writeCommissionClose(periodMonth: string, closedByUserId: string | null): Promise<number> {
     const bounds = vietnamMonthBounds(periodMonth ?? '');
     if (!bounds) throw new BadRequestException('Tháng không hợp lệ');
-    if (bounds.end.getTime() > Date.now()) {
+    if (!vietnamMonthHasEnded(periodMonth)) {
       throw new BadRequestException('Chỉ chốt tháng đã kết thúc');
     }
     const entries = await this.prisma.crmCommissionEntry.findMany({
@@ -599,7 +730,7 @@ export class CrmService {
               commissionVnd: group.commissionVnd,
               entryCount: group.entryCount,
               status: 'closed',
-              closedByUserId: actor.id,
+              closedByUserId,
             },
           });
           const linked = await tx.crmCommissionEntry.updateMany({
@@ -617,8 +748,7 @@ export class CrmService {
       }
       throw err;
     }
-    const list = await this.commissionPeriods(actor);
-    return { ...list, closedCount: groups.length };
+    return groups.length;
   }
 
   /** Mở quyền chi cho một kỳ đã chốt. Không trừ ví. */
@@ -642,6 +772,67 @@ export class CrmService {
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2023' || err.code === 'P2025')) {
         throw new NotFoundException('Không tìm thấy kỳ chốt');
+      }
+      throw err;
+    }
+    const row = await this.prisma.crmCommissionPeriod.findUniqueOrThrow({
+      where: { id: periodId },
+      include: { partner: { select: { name: true, code: true, createdByUserId: true } } },
+    });
+    return this.mapCommissionPeriod(row);
+  }
+
+  /** Ghi đã chi một kỳ kế toán đang giữ. Trừ đúng số hoa hồng khỏi ví inlink. Không chuyển khoản. */
+  async markCommissionPaid(actor: AuthenticatedUser, periodId: string): Promise<CrmCommissionPeriodListView['periods'][number]> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin ghi đã chi hoa hồng');
+    }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const period = await tx.crmCommissionPeriod.findUnique({
+          where: { id: periodId },
+          select: { id: true, partnerId: true, status: true, commissionVnd: true },
+        });
+        if (!period) throw new NotFoundException('Không tìm thấy kỳ chốt');
+        if (period.status === 'paid') throw new BadRequestException('Kỳ này đã chi');
+        if (period.status !== 'payable') throw new BadRequestException('Kỳ này chưa được phép chi');
+
+        const locked = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "crm"."crm_commission_wallet"
+          WHERE "partner_id" = ${period.partnerId}::uuid
+          FOR UPDATE
+        `;
+        const wallet = locked[0];
+        if (!wallet) throw new BadRequestException('Chưa có ví hoa hồng');
+
+        const txns = await tx.crmCommissionWalletTxn.findMany({
+          where: { partnerId: period.partnerId },
+          select: { kind: true, amountVnd: true },
+        });
+        if (signedWalletBalance(txns) < period.commissionVnd) {
+          throw new BadRequestException('Số dư ví không đủ để chi kỳ này');
+        }
+
+        const updated = await tx.crmCommissionPeriod.updateMany({
+          where: { id: period.id, status: 'payable' },
+          data: { status: 'paid', paidAt: new Date(), paidByUserId: actor.id },
+        });
+        if (updated.count !== 1) throw new BadRequestException('Kỳ này đã chi');
+
+        await tx.crmCommissionWalletTxn.create({
+          data: {
+            walletId: wallet.id,
+            partnerId: period.partnerId,
+            periodId: period.id,
+            amountVnd: period.commissionVnd,
+            kind: 'debit',
+          },
+        });
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === 'P2023' || err.code === 'P2025') throw new NotFoundException('Không tìm thấy kỳ chốt');
+        if (err.code === 'P2002') throw new BadRequestException('Kỳ này đã chi');
       }
       throw err;
     }
@@ -1294,12 +1485,18 @@ export class CrmService {
     const totals = new Map<string, bigint>();
     if (partnerIds.length === 0) return totals;
     const rows = await this.prisma.crmCommissionWalletTxn.groupBy({
-      by: ['partnerId'],
+      by: ['partnerId', 'kind'],
       where: { partnerId: { in: partnerIds } },
       _sum: { amountVnd: true },
     });
+    const grouped = new Map<string, Array<{ kind: string; amountVnd: bigint }>>();
     for (const row of rows) {
-      totals.set(row.partnerId, row._sum.amountVnd ?? 0n);
+      const bucket = grouped.get(row.partnerId) ?? [];
+      bucket.push({ kind: row.kind, amountVnd: row._sum.amountVnd ?? 0n });
+      grouped.set(row.partnerId, bucket);
+    }
+    for (const [partnerId, txns] of grouped) {
+      totals.set(partnerId, signedWalletBalance(txns));
     }
     return totals;
   }
@@ -1487,6 +1684,70 @@ export class CrmService {
     return grouped;
   }
 
+  private async notifySuperAdmins(notice: { title: string; body: string; link: string }, type: string): Promise<void> {
+    const admins = await this.prisma.user.findMany({
+      where: { role: UserRole.SuperAdmin, isDeleted: false, status: 'active' },
+      select: { id: true },
+    });
+    await Promise.all(
+      admins.map(async (admin) => {
+        try {
+          await this.notifications.createInApp({
+            tenantId: DEFAULT_TENANT_ID,
+            userId: admin.id,
+            type,
+            title: notice.title,
+            body: notice.body,
+            link: notice.link,
+            entityType: 'crm.commission_period',
+            entityId: null,
+          });
+        } catch (err) {
+          this.logger.error(`Không gửi được thông báo hoa hồng: ${String(err)}`);
+        }
+      }),
+    );
+  }
+
+  private async walletStatement(partnerId: string): Promise<CrmWalletTxnView[]> {
+    const rows = await this.prisma.crmCommissionWalletTxn.findMany({
+      where: { partnerId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: {
+        entry: { select: { companyName: true, planName: true } },
+        period: { select: { periodMonth: true } },
+      },
+    });
+    const balances = walletRunningBalances(rows);
+    return rows
+      .map((row, index) => ({
+        id: row.id,
+        kind: row.kind === 'debit' ? ('debit' as const) : ('credit' as const),
+        amountVnd: row.amountVnd.toString(),
+        balanceAfterVnd: (balances[index] ?? 0n).toString(),
+        createdAt: row.createdAt.toISOString(),
+        label: walletTxnLabel(row),
+      }))
+      .reverse()
+      .slice(0, 80);
+  }
+
+  private async storedVatPercent(): Promise<number | null> {
+    const row = await this.prisma.crmVatSetting.findUnique({
+      where: { id: 'default' },
+      select: { percent: true },
+    });
+    return vatPercentOrEmpty(row?.percent);
+  }
+
+  private async storedPayoutDay(): Promise<number> {
+    const row = await this.prisma.crmCommissionPayoutSetting.findUnique({
+      where: { id: 'default' },
+      select: { payoutDay: true },
+    });
+    return payoutDayOrDefault(row?.payoutDay);
+  }
+
   private async commissionPercent(): Promise<number | null> {
     const row = await this.prisma.crmCommissionSetting.findUnique({
       where: { id: 'default' },
@@ -1535,7 +1796,7 @@ export class CrmService {
       take: 50,
       include: {
         billingOrder: { select: { orderInvoice: { select: { invoiceNumber: true } } } },
-        period: { select: { periodMonth: true } },
+        period: { select: { periodMonth: true, status: true } },
       },
     });
     return rows.map((row) =>
@@ -1545,6 +1806,7 @@ export class CrmService {
         partnerCode,
         row.billingOrder.orderInvoice?.invoiceNumber ?? null,
         row.period?.periodMonth ?? null,
+        periodStatusOf(row.period?.status),
       ),
     );
   }
@@ -1599,6 +1861,7 @@ export class CrmService {
     partnerCode: string,
       invoiceNumber: string | null,
       periodMonth: string | null,
+      periodStatus: CrmCommissionEntryView['periodStatus'],
   ): CrmCommissionEntryView {
     return {
       id: row.id,
@@ -1618,6 +1881,7 @@ export class CrmService {
       paidAt: row.paidAt.toISOString(),
       invoiceNumber,
       periodMonth,
+      periodStatus,
     };
   }
 
@@ -1653,7 +1917,9 @@ export class CrmService {
     entryCount: number;
     status: string;
     closedAt: Date;
+    closedByUserId: string | null;
     approvedAt: Date | null;
+    paidAt: Date | null;
     partner: { name: string; code: string };
   }): CrmCommissionPeriodListView['periods'][number] {
     return {
@@ -1665,9 +1931,11 @@ export class CrmService {
       paidAmountVnd: row.paidAmountVnd.toString(),
       commissionVnd: row.commissionVnd.toString(),
       entryCount: row.entryCount,
-      status: row.status === 'payable' ? 'payable' : 'closed',
+      status: row.status === 'paid' ? 'paid' : row.status === 'payable' ? 'payable' : 'closed',
       closedAt: row.closedAt.toISOString(),
+      autoClosed: row.closedByUserId == null,
       approvedAt: row.approvedAt?.toISOString() ?? null,
+      paidAt: row.paidAt?.toISOString() ?? null,
     };
   }
 

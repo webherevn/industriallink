@@ -35,6 +35,13 @@ export function vietnamPeriodMonth(date: Date): string {
   return `${shifted.getUTCFullYear()}-${month}`;
 }
 
+/** Tháng đã qua 00:00 ngày 1 tháng sau, giờ Việt Nam. Ngày cuối tháng vẫn nằm trong kỳ. */
+export function vietnamMonthHasEnded(periodMonth: string, now = new Date()): boolean {
+  const bounds = vietnamMonthBounds(periodMonth);
+  if (!bounds) return false;
+  return bounds.end.getTime() <= now.getTime();
+}
+
 export function previousVietnamPeriodMonth(now = new Date()): string {
   const [yearText, monthText] = vietnamPeriodMonth(now).split('-');
   const year = Number(yearText);

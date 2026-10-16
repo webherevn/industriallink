@@ -2,6 +2,7 @@ import {
   groupCommissionClose,
   previousVietnamPeriodMonth,
   vietnamMonthBounds,
+  vietnamMonthHasEnded,
   vietnamPeriodMonth,
 } from './commission-period';
 
@@ -23,6 +24,15 @@ describe('commission period month', () => {
   it('bỏ tháng không hợp lệ', () => {
     expect(vietnamMonthBounds('2026-13')).toBeNull();
     expect(vietnamMonthBounds('10-2026')).toBeNull();
+  });
+
+  it('chỉ coi tháng đã kết thúc sau đúng ngày cuối', () => {
+    expect(vietnamMonthHasEnded('2026-10', new Date('2026-10-31T16:59:59.000Z'))).toBe(false);
+    expect(vietnamMonthHasEnded('2026-10', new Date('2026-10-31T17:00:00.000Z'))).toBe(true);
+    expect(vietnamMonthHasEnded('2024-02', new Date('2024-02-29T16:59:59.000Z'))).toBe(false);
+    expect(vietnamMonthHasEnded('2024-02', new Date('2024-02-29T17:00:00.000Z'))).toBe(true);
+    expect(vietnamMonthHasEnded('2025-02', new Date('2025-02-28T17:00:00.000Z'))).toBe(true);
+    expect(vietnamMonthHasEnded('2026-13')).toBe(false);
   });
 
   it('tháng liền trước tính theo giờ Việt Nam', () => {
