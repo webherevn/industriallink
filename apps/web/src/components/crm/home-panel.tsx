@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BookOpen,
   Building2,
   Contact,
   CalendarCheck,
@@ -75,6 +76,7 @@ export function CrmHomePanel() {
           <CrmChip href="/crm/partners" icon={<Users className="h-4 w-4" />} label="Cộng tác viên" />
           <CrmChip href="/crm/signups" icon={<UserPlus className="h-4 w-4" />} label="Đăng ký chưa trả" />
           <CrmChip href="/crm/settings/commission" icon={<Percent className="h-4 w-4" />} label="Hoa hồng" />
+          <CrmChip href="/crm/docs" icon={<BookOpen className="h-4 w-4" />} label="Tài liệu" />
         </>
       }
     >

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   BadgePercent,
+  BookOpen,
   Building2,
   CalendarCheck,
   CalendarClock,
@@ -82,6 +83,10 @@ const NAV = [
       { href: '/crm/settings/payout-day', label: 'Ngày chi', icon: CalendarDays },
       { href: '/crm/settings/vat', label: 'Thuế suất', icon: CirclePercent },
     ],
+  },
+  {
+    title: 'Tài liệu',
+    items: [{ href: '/crm/docs', label: 'Documents (Tài liệu)', icon: BookOpen }],
   },
 ] as const;
 

@@ -237,7 +237,19 @@ function SectionCard({ section }: { section: DocSection }) {
   );
 }
 
-export function AdminDocs() {
+export function AdminDocs({
+  groups: source = ADMIN_DOC_GROUPS,
+  kicker = 'Documents',
+  title = 'Tài liệu quản trị inlink',
+  description = 'Giải thích từng module Superadmin: nó làm gì, chạy theo cơ chế nào, các trạng thái có ý nghĩa gì và hệ thống tự động xử lý ra sao — mô tả đúng như code đang chạy thực tế.',
+  searchPlaceholder = 'Tìm trong tài liệu: xác minh, kiểm duyệt, trạng thái, indexing…',
+}: {
+  groups?: DocGroup[];
+  kicker?: string;
+  title?: string;
+  description?: string;
+  searchPlaceholder?: string;
+} = {}) {
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
   const isSuper = me?.role === UserRole.SuperAdmin;
   const [query, setQuery] = useState('');
@@ -246,11 +258,11 @@ export function AdminDocs() {
 
   const groups: DocGroup[] = useMemo(
     () =>
-      ADMIN_DOC_GROUPS.map((g) => ({
+      source.map((g) => ({
         ...g,
         sections: g.sections.filter((s) => (isSuper || !s.superAdminOnly) && sectionMatches(s, q)),
       })).filter((g) => g.sections.length > 0),
-    [isSuper, q],
+    [source, isSuper, q],
   );
 
   const total = groups.reduce((n, g) => n + g.sections.length, 0);
@@ -277,17 +289,14 @@ export function AdminDocs() {
         <div className="relative flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-2xl">
             <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-300">
-              <BookOpen className="h-3.5 w-3.5" /> Documents
+              <BookOpen className="h-3.5 w-3.5" /> {kicker}
             </p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-[28px]">Tài liệu quản trị inlink</h1>
-            <p className="mt-2 text-sm leading-relaxed text-white/75">
-              Giải thích từng module Superadmin: nó làm gì, chạy theo cơ chế nào, các trạng thái có ý nghĩa gì và
-              hệ thống tự động xử lý ra sao — mô tả đúng như code đang chạy thực tế.
-            </p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-[28px]">{title}</h1>
+            <p className="mt-2 text-sm leading-relaxed text-white/75">{description}</p>
           </div>
           <div className="grid grid-cols-2 gap-2 text-center">
             <div className="rounded-xl bg-white/10 px-4 py-2.5 ring-1 ring-white/15">
-              <p className="text-xl font-bold tabular-nums">{ADMIN_DOC_GROUPS.length}</p>
+              <p className="text-xl font-bold tabular-nums">{source.length}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Nhóm</p>
             </div>
             <div className="rounded-xl bg-white/10 px-4 py-2.5 ring-1 ring-white/15">
@@ -301,7 +310,7 @@ export function AdminDocs() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm trong tài liệu: xác minh, kiểm duyệt, trạng thái, indexing…"
+            placeholder={searchPlaceholder}
             className="h-11 w-full rounded-xl border-0 bg-white pl-10 pr-3 text-sm text-slate-800 shadow-lg shadow-black/10 outline-none ring-2 ring-transparent placeholder:text-slate-400 focus:ring-accent-400"
           />
         </div>
