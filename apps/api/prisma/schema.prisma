@@ -1802,6 +1802,7 @@ model BillingOrder {
 
   payments                 BillingPayment[]
   commissionEntry          CrmCommissionEntry?
+  orderInvoice             CrmOrderInvoice?
 
   @@index([companyId, createdAt])
   @@index([status])
@@ -1949,6 +1950,30 @@ model CrmCommissionEntry {
   @@index([partnerId, paidAt])
   @@index([companyId])
   @@map("crm_commission_entry")
+  @@schema("crm")
+}
+
+/// Số hóa đơn đã xuất cho một đơn gói đã thanh toán. Không tính VAT và không theo dõi công nợ.
+model CrmOrderInvoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  billingOrderId String   @unique @map("billing_order_id") @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  companyName    String   @map("company_name")
+  /// platform | sourcing. Không gồm nạp Credit.
+  orderKind      String   @map("order_kind")
+  planCode       String?  @map("plan_code")
+  planName       String?  @map("plan_name")
+  paidAmountVnd  BigInt   @map("paid_amount_vnd")
+  paidAt         DateTime @map("paid_at")
+  invoiceNumber  String   @unique @map("invoice_number")
+  issuedByUserId String   @map("issued_by_user_id") @db.Uuid
+  issuedAt       DateTime @default(now()) @map("issued_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  billingOrder BillingOrder @relation(fields: [billingOrderId], references: [id])
+
+  @@index([companyId])
+  @@map("crm_order_invoice")
   @@schema("crm")
 }
 

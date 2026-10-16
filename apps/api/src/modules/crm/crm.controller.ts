@@ -19,6 +19,8 @@ import {
   type UpdateCrmCommissionRequest,
   type CrmPlanOption,
   type CrmRenewalView,
+  type CrmPaidInvoiceLedgerView,
+  type CrmPaidOrderInvoiceView,
   type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
 } from '@industriallink/contracts';
@@ -135,14 +137,20 @@ export class CrmController {
     return this.crm.createActivity(user, body);
   }
 
-  @Patch('deals/:id/invoice')
-  @ApiOperation({ summary: 'Ghi số hóa đơn đã xuất. Không tính VAT, không theo dõi công nợ, không gán gói.' })
-  issueInvoice(
+  @Get('invoices')
+  @ApiOperation({ summary: 'Đơn gói đã thanh toán và số hóa đơn đã xuất. Không tính VAT, không công nợ.' })
+  invoices(@CurrentUser() user: AuthenticatedUser): Promise<CrmPaidInvoiceLedgerView> {
+    return this.crm.paidInvoices(user);
+  }
+
+  @Patch('orders/:orderId/invoice')
+  @ApiOperation({ summary: 'Ghi số hóa đơn cho đơn đã thanh toán. Không bật gói và không thu thêm.' })
+  issueOrderInvoice(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('orderId') orderId: string,
     @Body() body: IssueCrmInvoiceRequest,
-  ): Promise<CrmDealView> {
-    return this.crm.issueInvoice(user, id, body);
+  ): Promise<CrmPaidOrderInvoiceView> {
+    return this.crm.issueOrderInvoice(user, orderId, body);
   }
 
   @Patch('deals/:id/stage')

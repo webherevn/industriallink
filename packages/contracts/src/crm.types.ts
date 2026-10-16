@@ -216,6 +216,24 @@ export interface IssueCrmInvoiceRequest {
   invoiceNumber: string;
 }
 
+/** Đơn gói đã thanh toán và số hóa đơn đã xuất, nếu có. Giá là số đã trả, chưa VAT. */
+export interface CrmPaidOrderInvoiceView {
+  billingOrderId: string;
+  companyId: string;
+  companyName: string;
+  orderKind: CrmPlanKind;
+  planCode: string | null;
+  planName: string | null;
+  paidAmountVnd: string;
+  paidAt: string;
+  invoiceNumber: string | null;
+  invoiceIssuedAt: string | null;
+}
+
+export interface CrmPaidInvoiceLedgerView {
+  orders: CrmPaidOrderInvoiceView[];
+}
+
 export interface CrmCompanyOption {
   id: string;
   name: string;

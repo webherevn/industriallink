@@ -16,6 +16,8 @@ import type {
   CrmDealView,
   CrmLeadView,
   CrmPartnerView,
+  CrmPaidInvoiceLedgerView,
+  CrmPaidOrderInvoiceView,
   CrmPlanOption,
   CrmRenewalView,
   IssueCrmInvoiceRequest,
@@ -39,8 +41,12 @@ export function moveCrmDeal(id: string, body: MoveCrmDealRequest): Promise<CrmDe
   return apiRequest<CrmDealView>(`/crm/deals/${id}/stage`, { method: 'PATCH', body });
 }
 
-export function issueCrmInvoice(id: string, body: IssueCrmInvoiceRequest): Promise<CrmDealView> {
-  return apiRequest<CrmDealView>(`/crm/deals/${id}/invoice`, { method: 'PATCH', body });
+export function fetchCrmInvoices(): Promise<CrmPaidInvoiceLedgerView> {
+  return apiRequest<CrmPaidInvoiceLedgerView>('/crm/invoices');
+}
+
+export function issueCrmOrderInvoice(orderId: string, body: IssueCrmInvoiceRequest): Promise<CrmPaidOrderInvoiceView> {
+  return apiRequest<CrmPaidOrderInvoiceView>(`/crm/orders/${orderId}/invoice`, { method: 'PATCH', body });
 }
 
 export function createCrmActivity(body: CreateCrmActivityRequest): Promise<CrmActivityView> {

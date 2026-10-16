@@ -27,6 +27,8 @@ import {
   type CrmPlanKind,
   type CrmPartnerView,
   type CrmPlanOption,
+  type CrmPaidInvoiceLedgerView,
+  type CrmPaidOrderInvoiceView,
   type CrmRenewalView,
   type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
@@ -41,7 +43,7 @@ const CLAIM_LIMIT = 30;
 const partnerClaims = { orderBy: { createdAt: 'desc' as const }, take: CLAIM_LIMIT };
 
 /**
- * CRM ghi lead, deal, số hóa đơn đã xuất và khoản hoa hồng chờ đối soát.
+ * CRM ghi lead, deal, số hóa đơn của đơn đã thanh toán và khoản hoa hồng chờ đối soát.
  * Không tạo đơn thanh toán, không gán gói, không cộng Credit, không lệnh chi.
  */
 @Injectable()
@@ -641,40 +643,134 @@ export class CrmService {
     return this.mapDeal(updated, await this.ownerNames([deal.ownerUserId]));
   }
 
-  async issueInvoice(
+  /** Đơn gói đã thanh toán. Sale chỉ thấy công ty mình phụ trách. */
+  async paidInvoices(actor: AuthenticatedUser): Promise<CrmPaidInvoiceLedgerView> {
+    const companyIds = await this.invoiceCompanyIds(actor);
+    if (companyIds && companyIds.length === 0) return { orders: [] };
+    const orders = await this.prisma.billingOrder.findMany({
+      where: {
+        status: 'paid',
+        kind: { in: ['platform', 'sourcing'] },
+        priceVndSnapshot: { gt: 0 },
+        paidAt: { not: null },
+        ...(companyIds ? { companyId: { in: companyIds } } : {}),
+      },
+      include: { orderInvoice: true },
+      orderBy: { paidAt: 'desc' },
+      take: 200,
+    });
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: [...new Set(orders.map((order) => order.companyId))] } },
+      select: { id: true, name: true },
+    });
+    const names = new Map(companies.map((company) => [company.id, company.name]));
+    return {
+      orders: orders.map((order) => this.mapPaidInvoice(order, names.get(order.companyId) ?? order.orderInvoice?.companyName ?? 'Nhà tuyển dụng')),
+    };
+  }
+
+  /** Ghi số hóa đơn cho đơn đã trả tiền. Không tính VAT, không thu thêm và không bật gói. */
+  async issueOrderInvoice(
     actor: AuthenticatedUser,
-    dealId: string,
+    orderId: string,
     input: IssueCrmInvoiceRequest,
-  ): Promise<CrmDealView> {
+  ): Promise<CrmPaidOrderInvoiceView> {
     const number = input.invoiceNumber?.trim() ?? '';
     if (number.length < 1 || number.length > 64) {
       throw new BadRequestException('Nhập số hóa đơn, tối đa 64 ký tự');
     }
-    const deal = await this.prisma.crmDeal.findUnique({
-      where: { id: dealId },
-      include: { stage: true, lead: true },
+    if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw new NotFoundException('Không tìm thấy đơn đã thanh toán');
+    const order = await this.prisma.billingOrder.findUnique({
+      where: { id: orderId },
+      include: { orderInvoice: true },
     });
-    if (!deal) throw new NotFoundException('Không tìm thấy deal');
-    this.assertOwner(actor, deal.ownerUserId);
-    const updated = await this.prisma.crmDeal.update({
-      where: { id: deal.id },
-      data: {
-        invoiceNumber: number,
-        invoiceStatus: 'issued',
-        invoiceIssuedAt: new Date(),
-      },
-      include: { stage: true, lead: true },
+    if (!order || !order.paidAt || order.status !== 'paid' || (order.kind !== 'platform' && order.kind !== 'sourcing') || order.priceVndSnapshot <= 0n) {
+      throw new NotFoundException('Không tìm thấy đơn đã thanh toán');
+    }
+    const companyIds = await this.invoiceCompanyIds(actor);
+    if (companyIds && !companyIds.includes(order.companyId)) {
+      throw new NotFoundException('Không tìm thấy đơn đã thanh toán');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: order.companyId },
+      select: { name: true },
     });
-    await this.prisma.crmActivity.create({
-      data: {
-        leadId: deal.leadId,
-        dealId: deal.id,
-        activityType: 'note',
-        summary: `Ghi hóa đơn ${number} cho ${deal.dealCode}. Chưa tính VAT, không theo dõi công nợ.`,
-        createdByUserId: actor.id,
-      },
-    });
-    return this.mapDeal(updated, await this.ownerNames([deal.ownerUserId]));
+    const companyName = company?.name ?? order.orderInvoice?.companyName ?? 'Nhà tuyển dụng';
+    try {
+      const saved = order.orderInvoice
+        ? await this.prisma.crmOrderInvoice.update({
+            where: { billingOrderId: order.id },
+            data: { invoiceNumber: number },
+          })
+        : await this.prisma.crmOrderInvoice.create({
+            data: {
+              billingOrderId: order.id,
+              companyId: order.companyId,
+              companyName,
+              orderKind: order.kind,
+              planCode: order.planCode,
+              planName: order.planName,
+              paidAmountVnd: order.priceVndSnapshot,
+              paidAt: order.paidAt,
+              invoiceNumber: number,
+              issuedByUserId: actor.id,
+            },
+          });
+      return this.mapPaidInvoice({ ...order, orderInvoice: saved }, companyName);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new BadRequestException('Số hóa đơn này đã ghi cho đơn khác');
+      }
+      throw err;
+    }
+  }
+
+  /** null = SuperAdmin thấy mọi công ty. Mảng rỗng = không thấy đơn nào. */
+  private async invoiceCompanyIds(actor: AuthenticatedUser): Promise<string[] | null> {
+    if (this.seesAll(actor)) return null;
+    if (actor.role !== UserRole.Sales) return [];
+    const [leads, deals] = await Promise.all([
+      this.prisma.crmLead.findMany({
+        where: { ownerUserId: actor.id, status: { not: 'unqualified' }, companyId: { not: null } },
+        select: { companyId: true },
+      }),
+      this.prisma.crmDeal.findMany({
+        where: { ownerUserId: actor.id, companyId: { not: null } },
+        select: { companyId: true },
+      }),
+    ]);
+    return [
+      ...new Set(
+        [...leads, ...deals].map((row) => row.companyId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+  }
+
+  private mapPaidInvoice(
+    order: {
+      id: string;
+      companyId: string;
+      kind: string;
+      planCode: string | null;
+      planName: string | null;
+      priceVndSnapshot: bigint;
+      paidAt: Date | null;
+      orderInvoice: { invoiceNumber: string; issuedAt: Date } | null;
+    },
+    companyName: string,
+  ): CrmPaidOrderInvoiceView {
+    return {
+      billingOrderId: order.id,
+      companyId: order.companyId,
+      companyName,
+      orderKind: order.kind === 'sourcing' ? 'sourcing' : 'platform',
+      planCode: order.planCode,
+      planName: order.planName,
+      paidAmountVnd: order.priceVndSnapshot.toString(),
+      paidAt: (order.paidAt ?? new Date()).toISOString(),
+      invoiceNumber: order.orderInvoice?.invoiceNumber ?? null,
+      invoiceIssuedAt: order.orderInvoice?.issuedAt.toISOString() ?? null,
+    };
   }
 
   private seesAll(actor: AuthenticatedUser): boolean {
