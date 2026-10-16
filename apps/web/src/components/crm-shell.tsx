@@ -42,7 +42,7 @@ const NAV = [
   },
   {
     title: 'Tài chính',
-    items: [{ href: '/crm/finance', label: 'Công nợ & VAT', icon: Receipt }],
+    items: [{ href: '/crm/finance', label: 'Hóa đơn', icon: Receipt }],
   },
   {
     title: 'Tăng trưởng',

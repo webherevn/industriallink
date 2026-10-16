@@ -245,7 +245,6 @@ export class PaymentService {
     kind: 'platform' | 'sourcing',
     planCode: string,
     webOrigin: string,
-    options?: { priceVnd?: bigint | null },
   ): Promise<PaymentCheckoutResponse> {
     const platform =
       kind === 'platform'
@@ -265,7 +264,7 @@ export class PaymentService {
       throw new BadRequestException('Gói Enterprise liên hệ sales — không tự thanh toán');
     }
 
-    const priceVnd = options?.priceVnd != null ? options.priceVnd : platform ? platform.priceVnd : sourcing!.feeVnd;
+    const priceVnd = platform ? platform.priceVnd : sourcing!.feeVnd;
     const settings = await this.row();
     const mode = (settings?.mode as PaymentMode) ?? 'mock';
     const sessionId = `cs_${mode === 'live' ? 'test' : 'mock'}_${randomBytes(12).toString('hex')}`;

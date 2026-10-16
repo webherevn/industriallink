@@ -12,6 +12,7 @@ import {
   type CrmLeadView,
   type CrmPlanOption,
   type CrmRenewalView,
+  type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
 } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -80,8 +81,18 @@ export class CrmController {
     return this.crm.createActivity(user, body);
   }
 
+  @Patch('deals/:id/invoice')
+  @ApiOperation({ summary: 'Ghi số hóa đơn đã xuất. Không tính VAT, không theo dõi công nợ, không gán gói.' })
+  issueInvoice(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: IssueCrmInvoiceRequest,
+  ): Promise<CrmDealView> {
+    return this.crm.issueInvoice(user, id, body);
+  }
+
   @Patch('deals/:id/stage')
-  @ApiOperation({ summary: 'Đổi bước phễu. Bước Đã chốt không gán gói.' })
+  @ApiOperation({ summary: 'Đổi bước phễu. Không tạo đơn và không gán gói.' })
   moveDeal(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

@@ -1,6 +1,7 @@
-/** Đợt 1: lead và phễu bán gói. Không gồm hoa hồng, VAT, VietQR. */
+/** CRM: lead, phễu, nhật ký, hóa đơn đã xuất. Không gán gói, không công nợ, không hoa hồng. */
 
 export type CrmLeadStatus = 'open' | 'converted' | 'unqualified';
+export type CrmInvoiceStatus = 'none' | 'issued';
 export type CrmPlanKind = 'platform' | 'sourcing';
 export type CrmProvisionState = 'not_provisioned';
 
@@ -42,10 +43,9 @@ export interface CrmDealView {
   /** Giá niêm yết chưa VAT. Không dùng để gán gói. */
   listPriceVnd: string | null;
   billingOrderId: string | null;
-  /** pending | paid | failed | refunded. null khi chưa có đơn. */
-  billingOrderStatus: 'pending' | 'paid' | 'failed' | 'refunded' | null;
-  /** Link thanh toán giả lập cho nhà tuyển dụng. null khi đơn không còn chờ. */
-  checkoutUrl: string | null;
+  invoiceStatus: CrmInvoiceStatus;
+  invoiceNumber: string | null;
+  invoiceIssuedAt: string | null;
   provisionState: CrmProvisionState;
   ownerUserId: string;
   ownerName: string;
@@ -108,6 +108,10 @@ export interface CreateCrmDealRequest {
 export interface MoveCrmDealRequest {
   stageCode: string;
   lostReason?: string | null;
+}
+
+export interface IssueCrmInvoiceRequest {
+  invoiceNumber: string;
 }
 
 export interface CrmCompanyOption {

@@ -1917,10 +1917,14 @@ model CrmDeal {
   planCode    String? @map("plan_code")
   /// Giá niêm yết chưa VAT, snapshot lúc tạo. Không dùng để cộng Credit.
   listPriceVnd BigInt? @map("list_price_vnd")
-  /// Đơn billing khi có thanh toán. Đợt này luôn null.
+  /// Không dùng. Thanh toán nằm ở cổng của nhà tuyển dụng.
   billingOrderId String? @map("billing_order_id") @db.Uuid
-  /// Luôn not_provisioned cho đến khi đơn paid hoặc SuperAdmin gán.
+  /// CRM không gán gói. Cột này luôn not_provisioned.
   provisionState String @default("not_provisioned") @map("provision_state")
+  /// none | issued. Ghi số đã xuất, không phải công nợ.
+  invoiceStatus String @default("none") @map("invoice_status")
+  invoiceNumber String? @map("invoice_number")
+  invoiceIssuedAt DateTime? @map("invoice_issued_at")
   ownerUserId String   @map("owner_user_id") @db.Uuid
   wonAt       DateTime? @map("won_at")
   lostAt      DateTime? @map("lost_at")

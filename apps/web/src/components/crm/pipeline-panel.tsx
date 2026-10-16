@@ -73,7 +73,7 @@ export function CrmPipelinePanel() {
     <CrmFrame
       kicker="Một phễu cho gói tin và gói Săn"
       title="Theo deal từ lúc chào đến lúc thu tiền"
-      description="Chọn gói để lưu giá niêm yết. Sang Chờ thanh toán thì tạo đơn cho nhà tuyển dụng. Cột Đã chốt không tự bật gói."
+      description="Chọn gói để lưu giá niêm yết. Các cột chỉ là bước bán. Khách thanh toán trên inlink, CRM không tạo đơn và không bật gói."
       placeholder="Tìm deal theo tên nhà máy hoặc tên gói"
       search={{ value: query, onChange: setQuery }}
       footnote="Giá trên thẻ là giá chưa VAT. CRM không gán gói."
@@ -142,16 +142,8 @@ export function CrmPipelinePanel() {
                         {deal.planCode ? `${planLabel(deal.planKind)} ${deal.planCode}` : deal.title}
                       </p>
                       <p className="mt-2 text-sm font-semibold text-[#4c3ec9]">{formatVnd(deal.listPriceVnd)}</p>
-                      {stage.code === 'won' && deal.billingOrderStatus !== 'paid' ? (
-                        <p className="mt-1 text-[11px] text-slate-400">Cột này không gán gói</p>
-                      ) : null}
-                      {deal.billingOrderStatus === 'paid' ? (
-                        <p className="mt-1 text-[11px] text-emerald-600">Đã thu. Gói gán theo đơn.</p>
-                      ) : null}
-                      {deal.checkoutUrl ? (
-                        <a href={deal.checkoutUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs font-semibold text-[#4c3ec9]">
-                          Link thanh toán cho nhà tuyển dụng
-                        </a>
+                      {stage.code === 'won' ? (
+                        <p className="mt-1 text-[11px] text-slate-400">Cột này không bật gói</p>
                       ) : null}
                       <select
                         className="mt-3 w-full rounded-xl border border-slate-200 px-2 py-1.5 text-xs text-slate-700"

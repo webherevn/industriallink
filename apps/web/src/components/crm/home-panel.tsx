@@ -35,7 +35,7 @@ export function CrmHomePanel() {
 
   return (
     <CrmFrame
-      kicker="Lead, deal đang chờ tiền và khách sắp hết gói"
+      kicker="Lead, deal đang chạy và khách sắp hết gói"
       title="Bàn làm việc của đội kinh doanh"
       description="Số lấy từ lead và deal đang ghi trong CRM. Chốt deal không tự bật gói nhà tuyển dụng."
       placeholder="Tìm lead, deal hoặc nhà máy"
@@ -46,7 +46,7 @@ export function CrmHomePanel() {
           <CrmChip href="/crm/leads" icon={<Building2 className="h-4 w-4" />} label="Lead" />
           <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Phễu bán gói" />
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
-          <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Công nợ & VAT" />
+          <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />
           <CrmChip href="/crm/renewals" icon={<CalendarClock className="h-4 w-4" />} label="Gia hạn" />
           <CrmChip href="/crm/partners" icon={<Users className="h-4 w-4" />} label="Cộng tác viên" />
         </>
@@ -63,7 +63,7 @@ export function CrmHomePanel() {
             <CrmCard tone="violet" icon={<Kanban className="h-5 w-5" />} title={`${running} deal đang chạy`} text="Gói tin và gói Săn còn trong phễu." />
           </Link>
           <Link href="/crm/pipeline" className="block h-full">
-            <CrmCard tone="orange" icon={<Wallet className="h-5 w-5" />} title={`${waiting} chờ thanh toán`} text="Đã tới bước chờ tiền. Chưa có đơn thanh toán từ CRM." />
+            <CrmCard tone="orange" icon={<Wallet className="h-5 w-5" />} title={`${waiting} chờ thanh toán`} text="Khách tự thanh toán trên inlink. CRM không tạo đơn." />
           </Link>
           <Link href="/crm/renewals" className="block h-full">
             <CrmCard

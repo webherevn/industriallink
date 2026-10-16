@@ -123,6 +123,7 @@ export function CrmCard({
   text,
   badge,
   meta,
+  children,
 }: {
   icon: ReactNode;
   tone: keyof typeof TONE;
@@ -130,6 +131,7 @@ export function CrmCard({
   text: string;
   badge?: string;
   meta?: string;
+  children?: ReactNode;
 }) {
   return (
     <article className="relative flex h-full flex-col rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
@@ -141,7 +143,8 @@ export function CrmCard({
       <div className={clsx('flex h-12 w-12 items-center justify-center rounded-2xl', TONE[tone])}>{icon}</div>
       <h2 className="mt-4 pr-8 text-[15px] font-semibold leading-snug text-slate-900">{title}</h2>
       <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{text}</p>
-      {meta ? <p className="mt-auto pt-3 text-xs font-medium text-slate-400">{meta}</p> : null}
+      {meta ? <p className={clsx('pt-3 text-xs font-medium text-slate-400', children ? '' : 'mt-auto')}>{meta}</p> : null}
+      {children}
     </article>
   );
 }
