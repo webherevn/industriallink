@@ -38,7 +38,7 @@ export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }
       ) : null}
       {ledger.data && orders.length > 0 ? (
         <div className="space-y-4">
-          <section className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+          <section className="rounded-[22px] bg-white p-5 crm-surface">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Đơn chưa ghi số</p>
@@ -96,7 +96,7 @@ function InvoiceCard({ order }: { order: CrmPaidOrderInvoiceView }) {
   }
 
   return (
-    <article className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+    <article className="rounded-[22px] bg-white p-5 crm-surface">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-slate-900">{order.companyName}</h2>

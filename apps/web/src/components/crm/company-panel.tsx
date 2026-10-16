@@ -36,7 +36,7 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {data ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+          <section className="rounded-[22px] bg-white p-5 crm-surface">
             <h2 className="text-sm font-semibold text-slate-900">Đang dùng</h2>
             <p className="mt-2 text-sm text-slate-600">{data.taxCode ? `MST ${data.taxCode}` : 'Chưa có mã số thuế'}{data.industry ? ` · ${data.industry}` : ''}</p>
             <PlanLine label="Gói tin" plan={data.platformPlan} />
@@ -56,7 +56,7 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
               </button>
             ) : null}
           </section>
-          <section className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+          <section className="rounded-[22px] bg-white p-5 crm-surface">
             <h2 className="text-sm font-semibold text-slate-900">Người phụ trách</h2>
             {data.leads.length === 0 ? <p className="mt-2 text-sm text-slate-500">Chưa có lead.</p> : null}
             <ul className="mt-2 space-y-2">
@@ -69,7 +69,7 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
               ))}
             </ul>
           </section>
-          <section className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:col-span-2">
+          <section className="rounded-[22px] bg-white p-5 crm-surface lg:col-span-2">
             <h2 className="text-sm font-semibold text-slate-900">Đơn đã thanh toán</h2>
             {data.orders.length === 0 ? <p className="mt-2 text-sm text-slate-500">Chưa có đơn gói đã trả.</p> : null}
             <ul className="mt-2 divide-y divide-slate-100">

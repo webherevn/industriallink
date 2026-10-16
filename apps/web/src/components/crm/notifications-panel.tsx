@@ -55,7 +55,7 @@ export function CrmNotificationsPanel() {
       {inbox.isError ? <CrmEmpty>Không tải được thông báo.</CrmEmpty> : null}
       {inbox.data && items.length === 0 ? <CrmEmpty>Chưa có thông báo.</CrmEmpty> : null}
       {items.length > 0 ? (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-[22px] bg-white crm-surface">
           {items.map((item) => {
             const row = (
               <>

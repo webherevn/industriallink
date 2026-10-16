@@ -33,7 +33,7 @@ export function CrmFrame({
       </div>
 
       {search ? (
-        <div className="mx-auto flex max-w-2xl items-center gap-2.5 rounded-full bg-white px-4 py-3 shadow-[0_8px_24px_rgba(91,76,219,0.08)]">
+        <div className="crm-surface mx-auto flex max-w-2xl items-center gap-2.5 rounded-full bg-white px-4 py-3">
           <Search className="h-4 w-4 shrink-0 text-slate-400" />
           <input
             value={search.value}
@@ -45,7 +45,7 @@ export function CrmFrame({
       ) : null}
 
       {chips ? (
-        <div className="flex flex-wrap items-center justify-center gap-2 rounded-[28px] bg-white/75 p-3 shadow-[0_8px_24px_rgba(91,76,219,0.05)]">
+        <div className="crm-surface flex flex-wrap items-center justify-center gap-2 rounded-[28px] bg-white/75 p-3">
           {chips}
         </div>
       ) : null}
@@ -71,7 +71,7 @@ export function CrmChip({
   onClick?: () => void;
 }) {
   const className = clsx(
-    'inline-flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-[13px] font-medium shadow-sm ring-1',
+    'crm-surface inline-flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-[13px] font-medium ring-1',
     active
       ? 'bg-[#efeaff] text-[#4c3ec9] ring-[#ddd6fe]'
       : 'bg-white text-slate-700 ring-slate-100',
@@ -103,11 +103,11 @@ export const crmFieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#c4b5fd]';
 
 export const crmButtonClass =
-  'rounded-xl bg-[#072348] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
+  'rounded-xl bg-[#072348] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(7,35,72,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(7,35,72,0.28)] disabled:opacity-50 disabled:hover:translate-y-0';
 
 /** Nút phụ trên thẻ: cùng bo góc và chiều cao với nút chính, nền nhạt. */
 export const crmActionClass =
-  'inline-flex min-w-0 items-center justify-center whitespace-normal rounded-xl bg-[#f6f4ff] px-3 py-2 text-center text-sm font-semibold leading-snug text-[#4c3ec9] ring-1 ring-[#e4defc] transition hover:bg-[#efeaff]';
+  'inline-flex min-w-0 items-center justify-center whitespace-normal rounded-xl bg-[#f6f4ff] px-3 py-2 text-center text-sm font-semibold leading-snug text-[#4c3ec9] ring-1 ring-[#e4defc] transition duration-200 hover:-translate-y-0.5 hover:bg-[#efeaff] hover:shadow-[0_10px_18px_rgba(76,62,201,0.16)]';
 
 const TONE = {
   sky: 'bg-sky-50 text-sky-600',
@@ -136,7 +136,7 @@ export function CrmCard({
   children?: ReactNode;
 }) {
   return (
-    <article className="relative flex h-full flex-col rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+    <article className="crm-surface relative flex h-full flex-col rounded-[22px] bg-white p-5">
       {badge ? (
         <span className="absolute right-4 top-4 rounded-full bg-[#ff4d4f] px-2 py-0.5 text-[10px] font-bold text-white">
           {badge}
@@ -153,7 +153,7 @@ export function CrmCard({
 
 export function CrmEmpty({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-[22px] bg-white px-5 py-8 text-center text-sm text-slate-500 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+    <p className="crm-surface rounded-[22px] bg-white px-5 py-8 text-center text-sm text-slate-500">
       {children}
     </p>
   );

@@ -32,7 +32,7 @@ export function CrmSignupsPanel({ initialQuery = '' }: { initialQuery?: string }
         <CrmEmpty>Không có dòng khớp từ khóa.</CrmEmpty>
       ) : null}
       {rows.length > 0 ? (
-        <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <div className="overflow-hidden rounded-[22px] bg-white crm-surface">
           <p className="border-b border-slate-100 px-4 py-3 text-sm text-slate-500">{rows.length} tài khoản đang hiện.</p>
           <ul className="divide-y divide-slate-100">
             {rows.map((row) => (

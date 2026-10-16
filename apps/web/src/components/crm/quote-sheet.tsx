@@ -27,7 +27,7 @@ export function CrmQuoteSheet({ quoteId }: { quoteId: string }) {
       {quote.isLoading ? <CrmEmpty>Đang tải báo giá…</CrmEmpty> : null}
       {quote.isError ? <CrmEmpty>Không tải được báo giá.</CrmEmpty> : null}
       {row ? (
-        <article className="rounded-[22px] bg-white p-8 text-slate-800 shadow-[0_10px_28px_rgba(91,76,219,0.07)] print:shadow-none">
+        <article className="rounded-[22px] bg-white p-8 text-slate-800 crm-surface print:shadow-none">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4c3ec9]">inlink</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">Bảng chào giá</h1>
           <p className="mt-1 text-sm text-slate-500">{row.quoteCode} · {formatWhen(row.createdAt)} · {row.ownerName}</p>

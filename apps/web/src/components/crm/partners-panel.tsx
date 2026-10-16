@@ -48,7 +48,7 @@ export function CrmPartnersPanel({ initialQuery = '' }: { initialQuery?: string 
       search={{ value: query, onChange: setQuery }}
       footnote="Một mã số thuế chỉ thuộc một cộng tác viên."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] md:grid-cols-3">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-3">
         <input className={crmFieldClass} placeholder="Tên cộng tác viên" value={name} onChange={(event) => setName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Số điện thoại" value={phone} onChange={(event) => setPhone(event.target.value)} required />
         <button type="submit" className={crmButtonClass} disabled={add.isPending}>

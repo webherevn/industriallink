@@ -53,7 +53,7 @@ export function CrmCustomersPanel() {
       {customers.data && customers.data.length === 0 ? <CrmEmpty>Chưa có công ty trong sổ.</CrmEmpty> : null}
       {customers.data && customers.data.length > 0 && rows.length === 0 ? <CrmEmpty>Không có khách khớp bộ lọc.</CrmEmpty> : null}
       {rows.length > 0 ? (
-        <section className="overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <section className="overflow-hidden rounded-[22px] bg-white crm-surface">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">

@@ -53,7 +53,7 @@ export function CrmPeriodsPanel() {
       footnote="Cho phép chi không trừ ví. Kế toán ghi đã chi mới trừ số của kỳ khỏi ví."
     >
       {periods.data?.canClose ? (
-        <form onSubmit={onSubmit} className="flex flex-col gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] sm:flex-row sm:items-end">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3 rounded-[22px] bg-white p-4 crm-surface sm:flex-row sm:items-end">
           <div className="block w-full text-sm text-slate-600 sm:w-56">
             Tháng cần chốt
             <CrmMonthField value={month} max={previousVietnamPeriodMonth()} onChange={setMonth} />
@@ -99,7 +99,7 @@ function PeriodCard({ period, canApprove }: { period: CrmCommissionPeriodView; c
   const paid = period.status === 'paid';
 
   return (
-    <article className="rounded-[22px] bg-white p-5 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+    <article className="rounded-[22px] bg-white p-5 crm-surface">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-slate-900">{period.partnerName}</h2>

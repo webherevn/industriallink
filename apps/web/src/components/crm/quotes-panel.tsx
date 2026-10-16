@@ -62,7 +62,7 @@ export function CrmQuotesPanel() {
       description="Chọn phương án 1 và, nếu cần, phương án 2. Giá lấy từ gói SuperAdmin. Xuất tờ không tạo đơn và không bật gói."
       footnote="Khách vẫn tự thanh toán trên inlink. Tờ này chỉ để gửi."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] md:grid-cols-2">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
         <input className={crmFieldClass} placeholder="Tên công ty" value={companyName} onChange={(event) => setCompanyName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Người nhận" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} />
@@ -78,7 +78,7 @@ export function CrmQuotesPanel() {
       {quotes.isError ? <CrmEmpty>Không tải được danh sách báo giá.</CrmEmpty> : null}
       {quotes.data && quotes.data.length === 0 ? <CrmEmpty>Chưa có báo giá.</CrmEmpty> : null}
       {quotes.data && quotes.data.length > 0 ? (
-        <section className="overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <section className="overflow-hidden rounded-[22px] bg-white crm-surface">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">

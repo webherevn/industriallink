@@ -51,7 +51,7 @@ export function CrmVatPanel() {
       {vat.isLoading ? <CrmEmpty>Đang tải thuế suất…</CrmEmpty> : null}
       {vat.isError ? <CrmEmpty>Không tải được thuế suất.</CrmEmpty> : null}
       {vat.data ? (
-        <section className="mx-auto w-full max-w-lg rounded-[22px] bg-white p-6 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <section className="mx-auto w-full max-w-lg rounded-[22px] bg-white p-6 crm-surface">
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Mức đang đặt</p>
           <p className="mt-2 text-4xl font-bold tracking-tight text-[#4c3ec9]">{current == null ? 'Chưa đặt' : `${current}%`}</p>
           <p className="mt-3 text-sm leading-relaxed text-slate-500">

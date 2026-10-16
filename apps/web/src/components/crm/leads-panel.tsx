@@ -196,7 +196,7 @@ export function CrmLeadsPanel() {
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] md:grid-cols-2 xl:grid-cols-6">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2 xl:grid-cols-6">
         <div className="relative md:col-span-1">
           <input
             className={crmFieldClass}

@@ -176,11 +176,12 @@ export function CrmShell({ children }: { children: ReactNode }) {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      data-active={active ? 'true' : 'false'}
                       className={clsx(
-                        'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors',
+                        'crm-nav-link flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium',
                         active
                           ? 'bg-brand-600 text-white'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                          : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-[0_8px_18px_rgba(76,62,201,0.12)]',
                       )}
                     >
                       <Icon className={clsx('h-4 w-4 shrink-0', active ? 'opacity-95' : 'opacity-80')} />
@@ -241,7 +242,11 @@ export function CrmShell({ children }: { children: ReactNode }) {
             <NotificationBell allHref="/crm/notifications" />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+          <div key={pathname} className="crm-enter">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );

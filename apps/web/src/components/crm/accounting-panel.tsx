@@ -60,7 +60,7 @@ function Register({
     .filter((period) => period.status === 'payable')
     .reduce((sum, period) => sum + BigInt(period.commissionVnd || '0'), 0n);
   return (
-    <section className="overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+    <section className="overflow-hidden rounded-[22px] bg-white crm-surface">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Bảng kê</h2>

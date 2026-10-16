@@ -83,7 +83,7 @@ export function CrmPipelinePanel() {
       search={{ value: query, onChange: setQuery }}
       footnote="Giá niêm yết chưa VAT. Dòng đã thanh toán là đơn của deal này và không đổi cột."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-4">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-4">
         <CrmSelect
           value={leadId}
           required
@@ -121,13 +121,13 @@ export function CrmPipelinePanel() {
                 matchesQuery(query, [deal.companyName, deal.title, deal.planCode, deal.dealCode]),
             );
             return (
-              <section key={stage.id} className="w-[250px] shrink-0 rounded-[22px] bg-white/70 p-3 shadow-[0_8px_24px_rgba(91,76,219,0.05)]">
+              <section key={stage.id} className="w-[250px] shrink-0 rounded-[22px] bg-white/70 p-3 crm-surface">
                 <h2 className="px-1 text-xs font-semibold text-slate-500">
                   {stage.name} · {cards.length}
                 </h2>
                 <div className="mt-3 space-y-2">
                   {cards.map((deal) => (
-                    <article key={deal.id} className="relative rounded-2xl bg-white p-3.5 shadow-sm">
+                    <article key={deal.id} className="crm-surface relative rounded-2xl bg-white p-3.5">
                       {isFresh(deal.createdAt) ? (
                         <span className="absolute right-3 top-3 rounded-full bg-[#ff4d4f] px-1.5 py-0.5 text-[10px] font-bold text-white">
                           Mới

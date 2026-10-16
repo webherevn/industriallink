@@ -51,7 +51,7 @@ export function CrmPayoutDayPanel() {
       {payout.isLoading ? <CrmEmpty>Đang tải ngày chi…</CrmEmpty> : null}
       {payout.isError ? <CrmEmpty>Không tải được ngày chi.</CrmEmpty> : null}
       {payout.data ? (
-        <section className="mx-auto w-full max-w-lg rounded-[22px] bg-white p-6 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <section className="mx-auto w-full max-w-lg rounded-[22px] bg-white p-6 crm-surface">
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Ngày đang đặt</p>
           <p className="mt-2 text-4xl font-bold tracking-tight text-[#4c3ec9]">Ngày {current}</p>
           <p className="mt-3 text-sm leading-relaxed text-slate-500">

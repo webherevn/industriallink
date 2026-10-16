@@ -51,7 +51,7 @@ export function CrmCommissionPanel() {
       {commission.isLoading ? <CrmEmpty>Đang tải tỷ lệ hoa hồng…</CrmEmpty> : null}
       {commission.isError ? <CrmEmpty>Không tải được tỷ lệ hoa hồng.</CrmEmpty> : null}
       {commission.data ? (
-        <section className="mx-auto w-full max-w-lg rounded-[22px] bg-white p-6 shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+        <section className="mx-auto w-full max-w-lg rounded-[22px] bg-white p-6 crm-surface">
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Tỷ lệ hiện tại</p>
           <p className="mt-2 text-4xl font-bold tracking-tight text-[#4c3ec9]">
             {current == null ? 'Chưa đặt' : `${current}%`}

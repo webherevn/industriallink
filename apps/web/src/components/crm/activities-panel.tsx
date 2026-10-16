@@ -60,7 +60,7 @@ export function CrmActivitiesPanel() {
       search={{ value: query, onChange: setQuery }}
       footnote="Nhật ký lưu cùng lead. CRM không gán gói."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] lg:grid-cols-5">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-5">
         <CrmSelect
           value={leadId}
           required
@@ -86,7 +86,7 @@ export function CrmActivitiesPanel() {
             <Link
               key={lead.id}
               href={lead.companyId ? `/crm/companies/${lead.companyId}` : '/crm/leads'}
-              className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(91,76,219,0.07)]"
+              className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 crm-surface"
             >
               <span className="font-semibold text-slate-900">{lead.companyName}</span>
               {lead.nextFollowUpAt ? ` · ${followUpLabel(lead.nextFollowUpAt)}` : ''} · {lead.ownerName}

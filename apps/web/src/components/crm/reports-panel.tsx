@@ -45,7 +45,7 @@ export function CrmReportsPanel() {
 
 function BucketTable({ title, rows, leadLabel }: { title: string; rows: CrmFunnelBucket[]; leadLabel: string }) {
   return (
-    <section className="overflow-hidden rounded-[22px] bg-white shadow-[0_10px_28px_rgba(91,76,219,0.07)]">
+    <section className="overflow-hidden rounded-[22px] bg-white crm-surface">
       <div className="border-b border-slate-100 px-4 py-4">
         <h2 className="text-base font-semibold text-slate-900">{title}</h2>
       </div>
