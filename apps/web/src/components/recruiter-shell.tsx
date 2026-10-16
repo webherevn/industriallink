@@ -105,6 +105,9 @@ const PLAN_VISUAL: Record<
   TIN_DANG_PLUS: { icon: Star, tone: 'bg-orange-50 text-orange-900 ring-orange-200' },
   DOANH_NGHIEP: { icon: Building2, tone: 'bg-indigo-50 text-indigo-800 ring-indigo-200' },
   ENTERPRISE: { icon: Crown, tone: 'bg-violet-50 text-violet-900 ring-violet-200' },
+  SAN_CO_BAN: { icon: Shield, tone: 'bg-violet-50 text-violet-800 ring-violet-200' },
+  SAN_TIEU_CHUAN: { icon: Shield, tone: 'bg-fuchsia-50 text-fuchsia-900 ring-fuchsia-200' },
+  SAN_CHUYEN_SAU: { icon: Shield, tone: 'bg-indigo-50 text-indigo-900 ring-indigo-200' },
 };
 
 function PlanChip({
@@ -132,6 +135,29 @@ function PlanChip({
     >
       <Icon className={compact ? 'h-3 w-3 shrink-0' : 'h-3.5 w-3.5 shrink-0'} />
       <span className="truncate">{name ?? 'Chưa gán gói'}</span>
+    </span>
+  );
+}
+
+function AccountPlanChips({
+  planCode,
+  planName,
+  sourcingCode,
+  sourcingName,
+  compact = false,
+}: {
+  planCode: string | null | undefined;
+  planName: string | null | undefined;
+  sourcingCode: string | null | undefined;
+  sourcingName: string | null | undefined;
+  compact?: boolean;
+}) {
+  return (
+    <span className="flex max-w-full flex-wrap items-center gap-1">
+      <PlanChip code={planCode} name={planName} compact={compact} />
+      {sourcingName ? (
+        <PlanChip code={sourcingCode} name={sourcingName} compact={compact} />
+      ) : null}
     </span>
   );
 }
@@ -234,6 +260,9 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   });
   const planCode = entitlements?.planCode ?? entitlements?.plan?.planCode ?? null;
   const planName = entitlements?.planName ?? entitlements?.plan?.planName ?? null;
+  const sourcing = entitlements?.sourcing;
+  const sourcingCode = sourcing?.assignment?.isActive ? sourcing.planCode : null;
+  const sourcingName = sourcing?.assignment?.isActive ? sourcing.planName : null;
 
   const meRateLimited =
     isError && meError instanceof ApiError && meError.status === 429;
@@ -407,7 +436,13 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
               {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
             </p>
             <div className="mt-1">
-              <PlanChip code={planCode} name={planName} compact />
+              <AccountPlanChips
+                planCode={planCode}
+                planName={planName}
+                sourcingCode={sourcingCode}
+                sourcingName={sourcingName}
+                compact
+              />
             </div>
           </div>
           <button
@@ -499,7 +534,7 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => setAccountOpen((v) => !v)}
-                  className="flex max-w-[220px] items-center gap-2 rounded-full py-0.5 pl-0.5 pr-2 transition hover:bg-slate-100"
+                  className="flex max-w-[280px] items-center gap-2 rounded-full py-0.5 pl-0.5 pr-2 transition hover:bg-slate-100"
                   aria-expanded={accountOpen}
                   aria-haspopup="menu"
                 >
@@ -509,7 +544,13 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                       {company?.name ?? 'Công ty'}
                     </span>
                     <span className="mt-0.5 block">
-                      <PlanChip code={planCode} name={planName} compact />
+                      <AccountPlanChips
+                        planCode={planCode}
+                        planName={planName}
+                        sourcingCode={sourcingCode}
+                        sourcingName={sourcingName}
+                        compact
+                      />
                     </span>
                   </span>
                   <ChevronDown
@@ -523,7 +564,7 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                 {accountOpen && (
                   <div
                     role="menu"
-                    className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-900/10"
+                    className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-900/10"
                   >
                     <div className="border-b border-slate-100 px-3.5 py-2.5">
                       <p className="truncate text-sm font-semibold text-slate-900">
@@ -533,7 +574,12 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                         {user?.email ?? user?.displayName}
                       </p>
                       <div className="mt-2">
-                        <PlanChip code={planCode} name={planName} />
+                        <AccountPlanChips
+                          planCode={planCode}
+                          planName={planName}
+                          sourcingCode={sourcingCode}
+                          sourcingName={sourcingName}
+                        />
                       </div>
                     </div>
                     <Link
