@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { CrmFrame } from '@/components/crm-frame';
+import { Factory, Link2, Wallet } from 'lucide-react';
+import { CrmCard, CrmCardGrid, CrmFrame } from '@/components/crm-frame';
 import { NOINDEX_ROBOTS } from '@/lib/seo-robots';
 
 export const metadata: Metadata = { robots: NOINDEX_ROBOTS, title: 'Cộng tác viên · CRM' };
@@ -7,21 +8,32 @@ export const metadata: Metadata = { robots: NOINDEX_ROBOTS, title: 'Cộng tác 
 export default function CrmPartnersPage() {
   return (
     <CrmFrame
-      title="Cộng tác viên"
-      description="Khu riêng cho người giới thiệu khách. Phần trăm hoa hồng sẽ cấu hình tại đây sau, chưa trừ thuế và chưa khóa lead."
+      kicker="Người giới thiệu khách"
+      title="Khu cộng tác viên, hoa hồng để sau"
+      description="Phần trăm hoa hồng sẽ cấu hình tại đây sau. Chưa trừ thuế và chưa khóa lead theo mã số thuế."
+      placeholder="Tìm cộng tác viên hoặc mã giới thiệu"
     >
-      <div className="grid gap-4 lg:grid-cols-3">
-        {[
-          ['Link giới thiệu', 'Mỗi CTV có một mã. Khách mở bảng giá qua link đó thì lead gắn về CTV.'],
-          ['Khai báo nhà máy', 'CTV nhập tên công ty, mã số thuế và số điện thoại HR để giữ quyền giới thiệu.'],
-          ['Ví hoa hồng', 'Hai số: đang chờ đối soát và có thể rút. Chưa có lệnh chi.'],
-        ].map(([title, text]) => (
-          <section key={title} className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-[#072348]">{title}</h2>
-            <p className="mt-2 text-sm text-slate-500">{text}</p>
-          </section>
-        ))}
-      </div>
+      <CrmCardGrid columns={3}>
+        <CrmCard
+          tone="indigo"
+          icon={<Link2 className="h-5 w-5" />}
+          title="Link giới thiệu"
+          text="Mỗi cộng tác viên có một mã. Khách mở bảng giá qua link đó thì lead gắn về người đó."
+        />
+        <CrmCard
+          tone="sky"
+          badge="Mới"
+          icon={<Factory className="h-5 w-5" />}
+          title="Khai báo nhà máy"
+          text="Nhập tên công ty, mã số thuế và số điện thoại HR để giữ quyền giới thiệu."
+        />
+        <CrmCard
+          tone="green"
+          icon={<Wallet className="h-5 w-5" />}
+          title="Ví hoa hồng"
+          text="Hai số: đang chờ đối soát và có thể rút. Chưa có lệnh chi."
+        />
+      </CrmCardGrid>
     </CrmFrame>
   );
 }

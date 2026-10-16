@@ -30,7 +30,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const headerList = await headers();
   const pathname = headerList.get('x-pathname') || '';
   const skipInject =
-    pathname.startsWith('/admin') || pathname.startsWith('/recruiter');
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/recruiter') ||
+    pathname.startsWith('/crm');
 
   const siteCode = skipInject ? null : await fetchPublicCmsSiteCode();
   const headerHtml =

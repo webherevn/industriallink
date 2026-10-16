@@ -176,8 +176,8 @@ export function CrmShell({ children }: { children: ReactNode }) {
           <div className="relative z-10 h-full">{sidebar}</div>
         </div>
       ) : null}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#f4f2fb]">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/70 bg-[#f4f2fb]/90 px-4 py-3 backdrop-blur sm:px-6">
           <button
             type="button"
             className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
