@@ -32,9 +32,10 @@ export function RecruiterBillingHub() {
   const searchParams = useSearchParams();
   const requestedCode = searchParams.get('plan');
 
-  const { data: entitlements, isLoading } = useQuery({
+  const { data: entitlements, isLoading, isError, refetch } = useQuery({
     queryKey: ['recruiter-billing-entitlements'],
     queryFn: fetchRecruiterEntitlements,
+    retry: 1,
   });
   const { data: pub } = useQuery({
     queryKey: ['public-billing-config'],
@@ -43,6 +44,7 @@ export function RecruiterBillingHub() {
   });
 
   const plan = entitlements?.plan ?? null;
+  const planName = plan?.planName ?? entitlements?.planName ?? null;
   const credits = entitlements?.credits;
   const requested = pub?.platformPlans.find((p) => p.code === requestedCode) ?? null;
 
@@ -71,13 +73,29 @@ export function RecruiterBillingHub() {
             </p>
             {isLoading ? (
               <div className="recruiter-dash-skel mt-3 h-16" />
-            ) : plan ? (
+            ) : isError ? (
               <>
-                <p className="mt-2 text-2xl font-bold text-[#072348]">{plan.planName}</p>
+                <p className="mt-2 text-lg font-semibold text-slate-800">Không tải được gói</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Tải lại trang hoặc bấm thử lại. Nếu đã có công ty, hệ thống sẽ gán gói Khám phá.
+                </p>
+                <button
+                  type="button"
+                  className="mt-3 text-sm font-semibold text-accent-700 hover:underline"
+                  onClick={() => void refetch()}
+                >
+                  Thử lại
+                </button>
+              </>
+            ) : planName ? (
+              <>
+                <p className="mt-2 text-2xl font-bold text-[#072348]">{planName}</p>
+                {plan ? (
                 <p className="mt-1 text-sm text-slate-500">
                   Chu kỳ gói {fmtDate(plan.startsAt)} → {fmtDate(plan.endsAt)}
                   {!plan.isActive ? ' · đã tắt' : ''}
                 </p>
+                ) : null}
                 {entitlements?.jobDisplayDays != null ? (
                   <p className="mt-1 text-sm text-slate-500">
                     Tin đăng hiển thị <strong>{entitlements.jobDisplayDays} ngày</strong>

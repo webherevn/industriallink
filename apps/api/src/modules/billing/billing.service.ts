@@ -469,7 +469,7 @@ export class BillingService {
       return this.provisionStarterPlan(companyId);
     }
     const now = new Date();
-    if (existing.plan.code === STARTER_PLAN_CODE && existing.isActive) {
+    if (existing.plan?.code === STARTER_PLAN_CODE && existing.isActive) {
       const cycleEnd = addUtcDays(existing.startsAt, STARTER_CYCLE_DAYS);
       if (now >= cycleEnd) {
         return this.provisionStarterPlan(companyId, { renew: true });
@@ -536,7 +536,10 @@ export class BillingService {
           : 'Gói Khám phá mặc định khi tạo tài khoản nhà tuyển dụng',
       });
     } catch (err) {
-      this.logger.warn(`Provision gói ${starter.code} thất bại cho ${companyId}: ${String(err)}`);
+      this.logger.error(
+        `Provision gói ${starter.code} thất bại cho ${companyId}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
       return null;
     }
   }
@@ -558,7 +561,7 @@ export class BillingService {
       update: {},
     });
 
-    const quota = assignment?.plan.jobPostQuota ?? null;
+    const quota = assignment?.plan?.jobPostQuota ?? null;
     const jobsUsed = assignment
       ? await this.prisma.job.count({
           where: {
@@ -574,7 +577,7 @@ export class BillingService {
     const jobsRemaining = quota == null ? null : Math.max(0, quota - jobsUsed);
 
     const policy = await this.ensureCreditPolicy();
-    const actionCosts = assignment
+    const actionCosts = assignment?.plan
       ? defaultActionCostRows(this.mapCreditPolicy(policy)).map((fallback) => {
           const row = assignment.plan.actionCosts.find((c) => c.action === fallback.action);
           if (!row) return fallback;
@@ -587,10 +590,10 @@ export class BillingService {
       : defaultActionCostRows(this.mapCreditPolicy(policy));
 
     return {
-      plan: planView,
-      planCode: assignment?.plan.code ?? null,
-      planName: assignment?.plan.name ?? null,
-      creditQuota: assignment?.plan.creditQuota ?? null,
+      plan: planView ?? (assignment?.plan ? this.mapCompanyPlan(assignment) : null),
+      planCode: assignment?.plan?.code ?? planView?.planCode ?? null,
+      planName: assignment?.plan?.name ?? planView?.planName ?? null,
+      creditQuota: assignment?.plan?.creditQuota ?? null,
       jobPostQuota: quota,
       credits: {
         balance: account.balance,
@@ -600,7 +603,7 @@ export class BillingService {
       },
       jobsUsed,
       jobsRemaining,
-      jobDisplayDays: assignment?.plan.durationDays ?? null,
+      jobDisplayDays: assignment?.plan?.durationDays ?? null,
       actionCosts,
       enforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
     };

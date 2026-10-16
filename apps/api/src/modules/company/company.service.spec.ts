@@ -57,6 +57,13 @@ describe('CompanyService', () => {
       const prisma = {
         companyMember: { findFirst: jest.fn().mockResolvedValue(null) },
         company: { create, findMany: jest.fn().mockResolvedValue([]) },
+        billingCompanyPlan: {
+          findUnique: jest.fn().mockResolvedValue(null),
+          upsert: jest.fn().mockResolvedValue({}),
+        },
+        billingPlatformPlan: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'plan-kham-pha', code: 'KHAM_PHA' }),
+        },
       };
       const service = buildService(prisma);
 

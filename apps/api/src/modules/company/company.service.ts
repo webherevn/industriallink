@@ -121,6 +121,7 @@ export class CompanyService {
     );
 
     this.logger.log(`Đã tạo Company ${code} cho user ${user.id}`);
+    await this.assignStarterPlan(company.id, user.id);
     return this.toView(company, 1, CompanyRole.Owner);
   }
 
@@ -178,6 +179,7 @@ export class CompanyService {
     );
 
     this.logger.log(`Đã tạo Company ${code} (provision) cho NTD ${input.userId}`);
+    await this.assignStarterPlan(company.id, input.userId);
     return { companyId: company.id, companyName: company.name };
   }
 
@@ -190,6 +192,7 @@ export class CompanyService {
       include: { company: { select: { id: true, name: true } } },
     });
     if (existing) {
+      await this.assignStarterPlan(existing.companyId, user.id);
       return { companyId: existing.companyId, companyName: existing.company.name };
     }
     const canProvision = (
@@ -506,6 +509,61 @@ export class CompanyService {
     });
 
     return { message: 'Đã gỡ thành viên khỏi công ty' };
+  }
+
+  /**
+   * Gán Khám phá ngay khi tạo công ty — không chờ event bus.
+   * Chu kỳ gói 30 ngày. Thiếu KHAM_PHA thì lấy gói active giá 0đ / sort thấp nhất.
+   */
+  private async assignStarterPlan(companyId: string, actorId: string): Promise<void> {
+    const already = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      select: { isActive: true },
+    });
+    if (already?.isActive) return;
+
+    const starter =
+      (await this.prisma.billingPlatformPlan.findFirst({
+        where: { code: 'KHAM_PHA', isActive: true },
+      })) ??
+      (await this.prisma.billingPlatformPlan.findFirst({
+        where: { isActive: true, priceVnd: 0n },
+        orderBy: { sortOrder: 'asc' },
+      })) ??
+      (await this.prisma.billingPlatformPlan.findFirst({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      }));
+    if (!starter) {
+      this.logger.warn(`Không có gói nền tảng active để gán cho công ty ${companyId}`);
+      return;
+    }
+
+    const startsAt = new Date();
+    const endsAt = new Date(startsAt);
+    endsAt.setUTCDate(endsAt.getUTCDate() + 30);
+    await this.prisma.billingCompanyPlan.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        planId: starter.id,
+        startsAt,
+        endsAt,
+        isActive: true,
+        note: 'Gói Khám phá mặc định khi tạo công ty',
+        createdBy: actorId,
+        updatedBy: actorId,
+      },
+      update: {
+        planId: starter.id,
+        startsAt,
+        endsAt,
+        isActive: true,
+        note: 'Gói Khám phá mặc định khi tạo công ty',
+        updatedBy: actorId,
+      },
+    });
+    this.logger.log(`Đã gán gói ${starter.code} cho công ty ${companyId}`);
   }
 
   async requireUserCompany(userId: string): Promise<{ companyId: string; companyName: string }> {
