@@ -6,8 +6,10 @@
  */
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { Suspense } from 'react';
 import { DEFAULT_BILLING_PAGE_CONTENT } from '@industriallink/contracts';
 import { PricingClient } from '@/components/pricing-client';
+import { PricingReferralNote } from '@/components/pricing-referral-note';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import {
@@ -137,6 +139,9 @@ export default async function PricingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <Suspense fallback={null}>
+        <PricingReferralNote />
+      </Suspense>
       <PricingClient config={config} context="public" />
     </>
   );

@@ -19,6 +19,9 @@ export interface CrmLeadView {
   companyId: string | null;
   status: CrmLeadStatus;
   source: CrmLeadSource;
+  partnerId: string | null;
+  partnerName: string | null;
+  partnerCode: string | null;
   ownerUserId: string;
   ownerName: string;
   createdAt: string;
@@ -100,6 +103,47 @@ export interface CreateCrmLeadRequest {
   industry?: string | null;
   companyId?: string | null;
   source: Exclude<CrmLeadSource, 'unknown'>;
+  /** Bắt buộc khi source là partner. */
+  partnerId?: string | null;
+}
+
+export interface CrmPartnerView {
+  id: string;
+  name: string;
+  phone: string;
+  code: string;
+  /** Link bảng giá gắn mã. Chưa tính hoa hồng. */
+  referralUrl: string;
+  /** true khi nhà tuyển dụng tự đăng ký. false khi CRM tạo hộ. */
+  fromAccount: boolean;
+  createdAt: string;
+}
+
+export interface CrmPartnerSelfView {
+  partner: CrmPartnerView | null;
+}
+
+export interface CreateCrmPartnerRequest {
+  name: string;
+  phone: string;
+}
+
+export interface RegisterCrmPartnerRequest {
+  phone: string;
+}
+
+export interface CaptureCrmReferralRequest {
+  code: string;
+  companyName: string;
+  contactName: string;
+  contactPhone: string;
+  taxCode?: string | null;
+  /** Bẫy bot. Người dùng để trống. */
+  website?: string | null;
+}
+
+export interface CaptureCrmReferralResponse {
+  ok: true;
 }
 
 export interface CreateCrmDealRequest {

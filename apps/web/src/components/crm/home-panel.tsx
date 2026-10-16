@@ -27,7 +27,7 @@ export function CrmHomePanel() {
   const due = renewals.data?.length ?? 0;
   const needle = query.trim();
   const matchedLeads = leads.filter((lead) =>
-    matchesQuery(query, [lead.companyName, lead.contactName, lead.contactPhone, lead.taxCode, lead.leadCode, leadSourceLabel(lead.source)]),
+    matchesQuery(query, [lead.companyName, lead.contactName, lead.contactPhone, lead.taxCode, lead.leadCode, leadSourceLabel(lead.source), lead.partnerName, lead.partnerCode]),
   );
   const matchedDeals = deals.filter((deal) =>
     matchesQuery(query, [deal.companyName, deal.title, deal.planCode, deal.dealCode]),
@@ -98,7 +98,7 @@ export function CrmHomePanel() {
                   tone="sky"
                   icon={<Building2 className="h-5 w-5" />}
                   title={lead.companyName}
-                  text={`${lead.contactName} · ${lead.contactPhone} · ${leadSourceLabel(lead.source)}`}
+                  text={`${lead.contactName} · ${lead.contactPhone} · ${lead.partnerName ? `${lead.partnerName} (${lead.partnerCode})` : leadSourceLabel(lead.source)}`}
                   meta={lead.leadCode}
                 />
               </Link>

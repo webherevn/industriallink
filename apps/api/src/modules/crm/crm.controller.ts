@@ -5,11 +5,13 @@ import {
   type CreateCrmActivityRequest,
   type CreateCrmDealRequest,
   type CreateCrmLeadRequest,
+  type CreateCrmPartnerRequest,
   type CrmActivityView,
   type CrmBoard,
   type CrmCompanyOption,
   type CrmDealView,
   type CrmLeadView,
+  type CrmPartnerView,
   type CrmPlanOption,
   type CrmRenewalView,
   type IssueCrmInvoiceRequest,
@@ -52,6 +54,21 @@ export class CrmController {
   @ApiOperation({ summary: 'Gói tin và gói Săn đang bán. Không gồm Enterprise.' })
   plans(): Promise<CrmPlanOption[]> {
     return this.crm.plans();
+  }
+
+  @Get('partners')
+  @ApiOperation({ summary: 'Danh sách cộng tác viên. Chưa tính hoa hồng.' })
+  partners(): Promise<CrmPartnerView[]> {
+    return this.crm.partners();
+  }
+
+  @Post('partners')
+  @ApiOperation({ summary: 'Tạo cộng tác viên và mã giới thiệu. Không khóa lead theo mã số thuế.' })
+  createPartner(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateCrmPartnerRequest,
+  ): Promise<CrmPartnerView> {
+    return this.crm.createPartner(user, body);
   }
 
   @Post('leads')

@@ -1877,6 +1877,23 @@ model CrmStage {
   @@schema("crm")
 }
 
+model CrmPartner {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  phone           String   @unique
+  code            String   @unique
+  /// Tài khoản NTD tự đăng ký. Null nếu CRM tạo hộ. Mỗi tài khoản một mã.
+  userId          String?  @unique @map("user_id") @db.Uuid
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  leads CrmLead[]
+
+  @@map("crm_partner")
+  @@schema("crm")
+}
+
 model CrmLead {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   leadCode     String   @unique @map("lead_code")
@@ -1892,16 +1909,20 @@ model CrmLead {
   status       String   @default("open")
   /// web | zalo | event | partner | unknown. unknown chỉ cho lead tạo trước khi có nguồn.
   source       String   @default("unknown")
+  /// Cộng tác viên giới thiệu, chỉ khi source = partner.
+  partnerId    String?  @map("partner_id") @db.Uuid
   ownerUserId  String   @map("owner_user_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   deals      CrmDeal[]
   activities CrmActivity[]
+  partner    CrmPartner? @relation(fields: [partnerId], references: [id])
 
   @@index([taxCode])
   @@index([contactPhone])
   @@index([ownerUserId, status])
+  @@index([partnerId])
   @@map("crm_lead")
   @@schema("crm")
 }

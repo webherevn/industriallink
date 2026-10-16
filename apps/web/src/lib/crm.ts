@@ -1,12 +1,18 @@
 import type {
+  CaptureCrmReferralRequest,
+  CaptureCrmReferralResponse,
   CreateCrmActivityRequest,
   CreateCrmDealRequest,
   CreateCrmLeadRequest,
+  CreateCrmPartnerRequest,
+  CrmPartnerSelfView,
+  RegisterCrmPartnerRequest,
   CrmActivityView,
   CrmBoard,
   CrmCompanyOption,
   CrmDealView,
   CrmLeadView,
+  CrmPartnerView,
   CrmPlanOption,
   CrmRenewalView,
   IssueCrmInvoiceRequest,
@@ -48,4 +54,24 @@ export function fetchCrmCompanies(query: string): Promise<CrmCompanyOption[]> {
 
 export function fetchCrmPlans(): Promise<CrmPlanOption[]> {
   return apiRequest<CrmPlanOption[]>('/crm/plans');
+}
+
+export function fetchCrmPartners(): Promise<CrmPartnerView[]> {
+  return apiRequest<CrmPartnerView[]>('/crm/partners');
+}
+
+export function createCrmPartner(body: CreateCrmPartnerRequest): Promise<CrmPartnerView> {
+  return apiRequest<CrmPartnerView>('/crm/partners', { method: 'POST', body });
+}
+
+export function fetchMyPartner(): Promise<CrmPartnerSelfView> {
+  return apiRequest<CrmPartnerSelfView>('/recruiter/partner');
+}
+
+export function registerMyPartner(body: RegisterCrmPartnerRequest): Promise<CrmPartnerView> {
+  return apiRequest<CrmPartnerView>('/recruiter/partner', { method: 'POST', body });
+}
+
+export function captureCrmReferral(body: CaptureCrmReferralRequest): Promise<CaptureCrmReferralResponse> {
+  return apiRequest<CaptureCrmReferralResponse>('/crm/referrals/leads', { method: 'POST', body });
 }

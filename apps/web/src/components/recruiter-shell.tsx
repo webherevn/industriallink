@@ -15,6 +15,7 @@ import {
   Gift,
   HelpCircle,
   LayoutDashboard,
+  Link2,
   LogOut,
   Megaphone,
   Menu,
@@ -84,6 +85,10 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '#', label: 'Báo cáo tuyển dụng', icon: BarChart3, soon: true },
       { href: '/jobs/new', label: 'Lương thị trường', icon: Wallet },
     ],
+  },
+  {
+    title: 'Giới thiệu',
+    items: [{ href: '/recruiter/partner', label: 'Cộng tác viên', icon: Link2 }],
   },
   {
     title: 'Tài khoản',

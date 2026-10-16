@@ -14,7 +14,7 @@ import {
 } from '@/components/crm-frame';
 import { errorText, isFresh, leadSourceLabel, leadStatusLabel, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
-import { createCrmLead, fetchCrmCompanies } from '@/lib/crm';
+import { createCrmLead, fetchCrmCompanies, fetchCrmPartners } from '@/lib/crm';
 
 type StatusFilter = 'all' | 'open' | 'converted';
 type SourceFilter = 'all' | 'web' | 'zalo' | 'event' | 'partner' | 'unknown';
@@ -28,12 +28,19 @@ export function CrmLeadsPanel() {
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [source, setSource] = useState<Exclude<SourceFilter, 'all' | 'unknown'> | ''>('');
+  const [partnerId, setPartnerId] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [taxCode, setTaxCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const partners = useQuery({
+    queryKey: ['crm-partners'],
+    queryFn: fetchCrmPartners,
+    enabled: source === 'partner',
+  });
 
   const companies = useQuery({
     queryKey: ['crm-companies', companyName],
@@ -46,6 +53,9 @@ export function CrmLeadsPanel() {
       if (source !== 'web' && source !== 'zalo' && source !== 'event' && source !== 'partner') {
         return Promise.reject(new Error('Chọn nguồn khách'));
       }
+      if (source === 'partner' && !partnerId) {
+        return Promise.reject(new Error('Chọn cộng tác viên'));
+      }
       return createCrmLead({
         companyName,
         contactName,
@@ -53,6 +63,7 @@ export function CrmLeadsPanel() {
         taxCode: taxCode || null,
         companyId,
         source,
+        partnerId: source === 'partner' ? partnerId : null,
       });
     },
     onSuccess: () => {
@@ -62,6 +73,7 @@ export function CrmLeadsPanel() {
       setContactPhone('');
       setTaxCode('');
       setSource('');
+      setPartnerId('');
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
     },
@@ -84,6 +96,8 @@ export function CrmLeadsPanel() {
       lead.taxCode,
       lead.leadCode,
       leadSourceLabel(lead.source),
+      lead.partnerName,
+      lead.partnerCode,
     ]);
   });
   const all = board.data?.leads ?? [];
@@ -157,7 +171,16 @@ export function CrmLeadsPanel() {
         <input className={crmFieldClass} placeholder="Người liên hệ" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Số điện thoại" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} />
-        <select className={crmFieldClass} value={source} required onChange={(event) => setSource(event.target.value as typeof source)}>
+        <select
+          className={crmFieldClass}
+          value={source}
+          required
+          onChange={(event) => {
+            const next = event.target.value as typeof source;
+            setSource(next);
+            if (next !== 'partner') setPartnerId('');
+          }}
+        >
           <option value="">Nguồn khách</option>
           {SOURCES.map((item) => (
             <option key={item} value={item}>
@@ -165,7 +188,17 @@ export function CrmLeadsPanel() {
             </option>
           ))}
         </select>
-        <button type="submit" className={crmButtonClass} disabled={addLead.isPending || !source}>
+        {source === 'partner' ? (
+          <select className={crmFieldClass} value={partnerId} required onChange={(event) => setPartnerId(event.target.value)}>
+            <option value="">{partners.isLoading ? 'Đang tải cộng tác viên…' : 'Chọn cộng tác viên'}</option>
+            {partners.data?.map((partner) => (
+              <option key={partner.id} value={partner.id}>
+                {partner.name} · {partner.code}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        <button type="submit" className={crmButtonClass} disabled={addLead.isPending || !source || (source === 'partner' && !partnerId)}>
           {addLead.isPending ? 'Đang lưu…' : 'Thêm lead'}
         </button>
       </form>
@@ -183,7 +216,7 @@ export function CrmLeadsPanel() {
               icon={<Building2 className="h-5 w-5" />}
               title={lead.companyName}
               text={`${lead.contactName} · ${lead.contactPhone}${lead.taxCode ? ` · MST ${lead.taxCode}` : ''}. ${leadStatusLabel(lead.status)}.`}
-              meta={`${lead.leadCode} · ${leadSourceLabel(lead.source)} · ${lead.ownerName}${lead.companyId ? ' · Đã khớp công ty trên inlink' : ''}`}
+              meta={`${lead.leadCode} · ${lead.partnerName ? `${lead.partnerName} (${lead.partnerCode})` : leadSourceLabel(lead.source)} · ${lead.ownerName}${lead.companyId ? ' · Đã khớp công ty trên inlink' : ''}`}
             />
           ))}
         </CrmCardGrid>
