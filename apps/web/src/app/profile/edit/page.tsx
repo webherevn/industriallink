@@ -1062,6 +1062,20 @@ export default function ProfileEditPage() {
   const [cvEntry, setCvEntry] = useState(false);
   const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
 
+  const missingProfile =
+    isError && error instanceof ApiError && error.status === 404;
+
+  useEffect(() => {
+    if (!missingProfile || hydrated) return;
+    if (me?.displayName) {
+      setForm((prev) => ({
+        ...prev,
+        displayName: prev.displayName || me.displayName,
+      }));
+    }
+    setHydrated(true);
+  }, [missingProfile, hydrated, me?.displayName]);
+
   useEffect(() => {
     if (!candidate || hydrated) return;
     const p = candidate.profile;
@@ -1353,13 +1367,13 @@ export default function ProfileEditPage() {
         </div>
 
         {isLoading && <p className="text-sm text-slate-500">Đang tải hồ sơ...</p>}
-        {isError && (
+        {isError && !missingProfile && (
           <p className="text-sm text-red-600">
             {error instanceof ApiError ? error.message : 'Không tải được hồ sơ'}
           </p>
         )}
 
-        {candidate && hydrated && (
+        {(candidate || missingProfile) && hydrated && (
           <>
             <CriteriaCompletionCard
               title="Tiến độ hoàn thiện hồ sơ"

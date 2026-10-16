@@ -114,15 +114,21 @@ export class CandidateService {
     if (existing) return;
 
     const code = await this.codeGen.next('CAN');
-    const candidate = await this.prisma.candidate.create({
-      data: {
-        code,
-        tenantId: payload.tenantId,
-        userId: payload.userId,
-        displayName: payload.displayName,
-        status: CandidateStatus.Registered,
-      },
-    });
+    let candidate;
+    try {
+      candidate = await this.prisma.candidate.create({
+        data: {
+          code,
+          tenantId: payload.tenantId,
+          userId: payload.userId,
+          displayName: payload.displayName,
+          status: CandidateStatus.Registered,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
     await this.prisma.candidateTimeline.create({
       data: {
         candidateId: candidate.id,
@@ -149,7 +155,7 @@ export class CandidateService {
       throw new BadRequestException('File vượt quá 5MB');
     }
 
-    const candidate = await this.getCandidateByUser(user.id);
+    const candidate = await this.getCandidateByUser(user);
 
     const storageKey = `resumes/${candidate.id}/${uuidv7()}-${file.originalname}`;
     await this.storage.putObject(storageKey, file.buffer, file.mimetype);
@@ -214,7 +220,7 @@ export class CandidateService {
     user: AuthenticatedUser,
     resumeId: string,
   ): Promise<ResumeParseStatusResponse> {
-    const candidate = await this.getCandidateByUser(user.id);
+    const candidate = await this.getCandidateByUser(user);
     const resume = await this.prisma.candidateResume.findFirst({
       where: { id: resumeId, candidateId: candidate.id },
     });
@@ -248,7 +254,19 @@ export class CandidateService {
     };
   }
 
+  /** Tạo hồ sơ trống nếu event đăng ký bị lỡ — form chỉnh sửa luôn mở được. */
+  private async ensureForUser(user: AuthenticatedUser): Promise<void> {
+    if (user.role !== UserRole.Candidate) return;
+    await this.createForUser({
+      userId: user.id,
+      displayName: user.displayName?.trim() || 'Ứng viên',
+      role: user.role,
+      tenantId: user.tenantId,
+    });
+  }
+
   async getMyCandidate(user: AuthenticatedUser): Promise<CandidateView> {
+    await this.ensureForUser(user);
     const candidate = await this.prisma.candidate.findUnique({
       where: { userId: user.id },
       include: {
@@ -270,7 +288,8 @@ export class CandidateService {
     user: AuthenticatedUser,
     input: UpdateCandidateProfileRequest,
   ): Promise<UpdateCandidateProfileResponse> {
-    const candidate = await this.getCandidateByUser(user.id);
+    await this.ensureForUser(user);
+    const candidate = await this.getCandidateByUser(user);
     const skillRows = input.skills
       .map((s) => ({
         name: s.name.trim(),
@@ -1098,7 +1117,7 @@ export class CandidateService {
       throw new BadRequestException('Ảnh vượt quá 2MB');
     }
 
-    const candidate = await this.getCandidateByUser(user.id);
+    const candidate = await this.getCandidateByUser(user);
     const image = await compressUploadedImage(file.buffer, 512);
     const storageKey = `avatars/${candidate.id}/${uuidv7()}.${image.ext}`;
     await this.storage.putObject(storageKey, image.buffer, image.mime);
@@ -1188,7 +1207,7 @@ export class CandidateService {
     user: AuthenticatedUser,
     draft: CvDraftView,
   ): Promise<SaveCvDraftToProfileResponse> {
-    const candidate = await this.getCandidateByUser(user.id);
+    const candidate = await this.getCandidateByUser(user);
     const skills = [...new Set(draft.skills.map((s) => s.trim()).filter(Boolean))];
     const soft = [...new Set(draft.softSkills.map((s) => s.trim()).filter(Boolean))];
     const allSkillNames = [...new Set([...skills, ...soft])];
@@ -1510,6 +1529,7 @@ export class CandidateService {
     fileBytes?: Buffer,
     mimeType?: string,
   ): Promise<CvDraftFromTextResponse> {
+    await this.ensureForUser(user);
     const candidate = await this.prisma.candidate.findUnique({
       where: { userId: user.id },
       include: {
@@ -1672,8 +1692,9 @@ export class CandidateService {
     }
   }
 
-  private async getCandidateByUser(userId: string) {
-    const candidate = await this.prisma.candidate.findUnique({ where: { userId } });
+  private async getCandidateByUser(user: AuthenticatedUser) {
+    await this.ensureForUser(user);
+    const candidate = await this.prisma.candidate.findUnique({ where: { userId: user.id } });
     if (!candidate) {
       throw new NotFoundException('Tài khoản không phải ứng viên hoặc chưa có hồ sơ');
     }
