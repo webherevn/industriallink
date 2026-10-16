@@ -5,7 +5,7 @@ import { Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmPlanKind } from '@industriallink/contracts';
-import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
+import { CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { CrmSelect } from '@/components/crm/fields';
 import { errorText, formatVnd, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
@@ -161,7 +161,7 @@ export function CrmPipelinePanel() {
                       ) : null}
                       {deal.lostReason ? <p className="mt-1 text-[11px] text-rose-600">Lý do mất: {deal.lostReason}</p> : null}
                       {deal.companyId ? (
-                        <Link href={`/crm/companies/${deal.companyId}`} className="mt-1 block text-[11px] font-medium text-[#4c3ec9]">
+                        <Link href={`/crm/companies/${deal.companyId}`} className={`${crmActionClass} mt-3 w-full`}>
                           Hồ sơ công ty
                         </Link>
                       ) : null}

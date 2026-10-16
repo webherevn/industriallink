@@ -10,6 +10,7 @@ import {
   CrmChip,
   CrmEmpty,
   CrmFrame,
+  crmActionClass,
   crmButtonClass,
   crmFieldClass,
 } from '@/components/crm-frame';
@@ -315,13 +316,13 @@ export function CrmLeadsPanel() {
               text={`${lead.contactName} · ${contactPhoneLabel(lead.contactPhone)}${lead.taxCode ? ` · MST ${lead.taxCode}` : ''}${lead.address ? ` · ${lead.address}` : ''}. ${leadStatusLabel(lead.status)}.`}
               meta={`${lead.leadCode} · ${lead.partnerName ? `${lead.partnerName} (${lead.partnerCode})` : leadSourceLabel(lead.source)} · ${lead.ownerName}${lead.nextFollowUpAt ? ` · ${followUpLabel(lead.nextFollowUpAt)}` : ''}`}
             >
-              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+              <div className="mt-4 flex flex-wrap gap-2">
                 {lead.companyId ? (
-                  <Link href={`/crm/companies/${lead.companyId}`} className="font-semibold text-[#4c3ec9]">Hồ sơ công ty</Link>
+                  <Link href={`/crm/companies/${lead.companyId}`} className={crmActionClass}>Hồ sơ công ty</Link>
                 ) : null}
                 <button
                   type="button"
-                  className="font-semibold text-[#072348]"
+                  className={crmActionClass}
                   onClick={() => {
                     setEditingId(lead.id);
                     setEditSource(lead.source === 'unknown' ? '' : lead.source);

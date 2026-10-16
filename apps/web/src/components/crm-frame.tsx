@@ -105,6 +105,10 @@ export const crmFieldClass =
 export const crmButtonClass =
   'rounded-xl bg-[#072348] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
 
+/** Nút phụ trên thẻ: cùng bo góc và chiều cao với nút chính, nền nhạt. */
+export const crmActionClass =
+  'inline-flex min-w-0 items-center justify-center whitespace-normal rounded-xl bg-[#f6f4ff] px-3 py-2 text-center text-sm font-semibold leading-snug text-[#4c3ec9] ring-1 ring-[#e4defc] transition hover:bg-[#efeaff]';
+
 const TONE = {
   sky: 'bg-sky-50 text-sky-600',
   violet: 'bg-violet-50 text-violet-600',

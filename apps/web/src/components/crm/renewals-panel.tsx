@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame } from '@/components/crm-frame';
+import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmActionClass, crmButtonClass } from '@/components/crm-frame';
 import { errorText, formatWhen, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { useCrmRenewals } from '@/components/crm/use-crm-board';
 import { createCrmDeal } from '@/lib/crm';
@@ -58,36 +58,38 @@ export function CrmRenewalsPanel() {
           {rows.map((row) => {
             const key = `${row.kind}-${row.companyId}`;
             return (
-              <div key={key} className="flex h-full flex-col gap-3">
-                <CrmCard
-                  tone={row.daysLeft < 7 ? 'rose' : 'orange'}
-                  icon={<CalendarClock className="h-5 w-5" />}
-                  title={`${row.companyName} · ${row.planName}`}
-                  text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. ${row.cyclePaidAt ? `Đã thanh toán kỳ này ${formatWhen(row.cyclePaidAt)}.` : 'Kỳ này chưa thấy đơn gói đã thanh toán.'} ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
-                  meta={row.planCode}
-                />
-                <Link href={`/crm/companies/${row.companyId}`} className="text-sm font-semibold text-[#4c3ec9]">
-                  Hồ sơ công ty
-                </Link>
-                {row.leadId ? (
-                  <button
-                    type="button"
-                    className="rounded-xl bg-[#072348] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                    disabled={addDeal.isPending}
-                    onClick={() => {
-                      setPendingId(key);
-                      addDeal.mutate({
-                        leadId: row.leadId!,
-                        title: `Gia hạn ${row.planName} — ${row.companyName}`,
-                        planKind: row.kind,
-                        planCode: row.planCode,
-                      });
-                    }}
-                  >
-                    {pendingId === key && addDeal.isPending ? 'Đang tạo…' : 'Tạo deal gia hạn'}
-                  </button>
-                ) : null}
-              </div>
+              <CrmCard
+                key={key}
+                tone={row.daysLeft < 7 ? 'rose' : 'orange'}
+                icon={<CalendarClock className="h-5 w-5" />}
+                title={`${row.companyName} · ${row.planName}`}
+                text={`${row.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${renewalLabel(row.daysLeft)}. ${row.cyclePaidAt ? `Đã thanh toán kỳ này ${formatWhen(row.cyclePaidAt)}.` : 'Kỳ này chưa thấy đơn gói đã thanh toán.'} ${row.leadId ? 'Có lead để mở deal gia hạn.' : 'Chưa có lead khớp công ty này.'}`}
+                meta={row.planCode}
+              >
+                <div className="mt-auto grid gap-2 pt-4">
+                  <Link href={`/crm/companies/${row.companyId}`} className={`${crmActionClass} w-full`}>
+                    Hồ sơ công ty
+                  </Link>
+                  {row.leadId ? (
+                    <button
+                      type="button"
+                      className={`${crmButtonClass} w-full`}
+                      disabled={addDeal.isPending}
+                      onClick={() => {
+                        setPendingId(key);
+                        addDeal.mutate({
+                          leadId: row.leadId!,
+                          title: `Gia hạn ${row.planName} — ${row.companyName}`,
+                          planKind: row.kind,
+                          planCode: row.planCode,
+                        });
+                      }}
+                    >
+                      {pendingId === key && addDeal.isPending ? 'Đang tạo…' : 'Tạo deal gia hạn'}
+                    </button>
+                  ) : null}
+                </div>
+              </CrmCard>
             );
           })}
         </CrmCardGrid>

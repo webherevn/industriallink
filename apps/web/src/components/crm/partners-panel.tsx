@@ -5,7 +5,7 @@ import type { CrmPartnerView } from '@industriallink/contracts';
 import { Users } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
-import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
+import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmPartner, createCrmPartnerClaim, fetchCrmPartners } from '@/lib/crm';
@@ -85,16 +85,16 @@ export function CrmPartnersPanel({ initialQuery = '' }: { initialQuery?: string 
                     {partner.signups.length > 4 ? <li>và {partner.signups.length - 4} tài khoản nữa</li> : null}
                   </ul>
                 ) : null}
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   <Link
                     href={`/crm/signups?q=${encodeURIComponent(partner.code)}`}
-                    className="text-xs font-medium text-[#4c3ec9] underline"
+                    className={crmActionClass}
                   >
                     Đăng ký chưa trả
                   </Link>
                   <Link
                     href={`/crm/finance/reconciliation?q=${encodeURIComponent(partner.code)}`}
-                    className="text-xs font-medium text-[#4c3ec9] underline"
+                    className={crmActionClass}
                   >
                     Xem đối soát
                   </Link>
