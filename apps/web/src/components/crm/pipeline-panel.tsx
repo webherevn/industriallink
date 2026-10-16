@@ -7,8 +7,7 @@ import type { CrmPlanKind } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { errorText, formatVnd, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
-import { fetchAdminPlatformPlans, fetchAdminSourcingPlans } from '@/lib/admin-billing';
-import { createCrmDeal, moveCrmDeal } from '@/lib/crm';
+import { createCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
 
 const TONE: Record<string, string> = {
   new: 'bg-sky-50 text-sky-600',
@@ -30,37 +29,12 @@ export function CrmPipelinePanel() {
 
   const plans = useQuery({
     queryKey: ['crm-plan-options'],
-    queryFn: async () => {
-      const [platform, sourcing] = await Promise.all([
-        fetchAdminPlatformPlans(false),
-        fetchAdminSourcingPlans(false),
-      ]);
-      return [
-        ...platform
-          .filter((plan) => plan.isActive && plan.code !== 'ENTERPRISE')
-          .map((plan) => ({
-            key: `platform:${plan.code}`,
-            kind: 'platform' as const,
-            code: plan.code,
-            name: plan.name,
-            price: plan.priceVnd,
-          })),
-        ...sourcing
-          .filter((plan) => plan.isActive)
-          .map((plan) => ({
-            key: `sourcing:${plan.code}`,
-            kind: 'sourcing' as const,
-            code: plan.code,
-            name: plan.name,
-            price: plan.feeVnd,
-          })),
-      ];
-    },
+    queryFn: fetchCrmPlans,
   });
 
   const addDeal = useMutation({
     mutationFn: () => {
-      const plan = plans.data?.find((item) => item.key === planKey);
+      const plan = plans.data?.find((item) => `${item.kind}:${item.code}` === planKey);
       return createCrmDeal({
         leadId,
         title,
@@ -99,7 +73,7 @@ export function CrmPipelinePanel() {
     <CrmFrame
       kicker="Một phễu cho gói tin và gói Săn"
       title="Theo deal từ lúc chào đến lúc thu tiền"
-      description="Chọn gói để lưu giá niêm yết. Cột Đã chốt chỉ là trạng thái kinh doanh, không bật gói trên tài khoản nhà tuyển dụng."
+      description="Chọn gói để lưu giá niêm yết. Sang Chờ thanh toán thì tạo đơn cho nhà tuyển dụng. Cột Đã chốt không tự bật gói."
       placeholder="Tìm deal theo tên nhà máy hoặc tên gói"
       search={{ value: query, onChange: setQuery }}
       footnote="Giá trên thẻ là giá chưa VAT. CRM không gán gói."
@@ -127,8 +101,8 @@ export function CrmPipelinePanel() {
         <select className={crmFieldClass} value={planKey} onChange={(event) => setPlanKey(event.target.value)}>
           <option value="">Chưa chọn gói</option>
           {plans.data?.map((plan) => (
-            <option key={plan.key} value={plan.key}>
-              {plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · {plan.name} · {formatVnd(plan.price)}
+            <option key={`${plan.kind}:${plan.code}`} value={`${plan.kind}:${plan.code}`}>
+              {plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · {plan.name} · {formatVnd(plan.priceVnd)}
             </option>
           ))}
         </select>
@@ -168,8 +142,16 @@ export function CrmPipelinePanel() {
                         {deal.planCode ? `${planLabel(deal.planKind)} ${deal.planCode}` : deal.title}
                       </p>
                       <p className="mt-2 text-sm font-semibold text-[#4c3ec9]">{formatVnd(deal.listPriceVnd)}</p>
-                      {stage.code === 'won' ? (
-                        <p className="mt-1 text-[11px] text-slate-400">Chưa gán gói cho nhà tuyển dụng</p>
+                      {stage.code === 'won' && deal.billingOrderStatus !== 'paid' ? (
+                        <p className="mt-1 text-[11px] text-slate-400">Cột này không gán gói</p>
+                      ) : null}
+                      {deal.billingOrderStatus === 'paid' ? (
+                        <p className="mt-1 text-[11px] text-emerald-600">Đã thu. Gói gán theo đơn.</p>
+                      ) : null}
+                      {deal.checkoutUrl ? (
+                        <a href={deal.checkoutUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs font-semibold text-[#4c3ec9]">
+                          Link thanh toán cho nhà tuyển dụng
+                        </a>
                       ) : null}
                       <select
                         className="mt-3 w-full rounded-xl border border-slate-200 px-2 py-1.5 text-xs text-slate-700"

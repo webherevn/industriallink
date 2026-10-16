@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CircleDot } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import {
@@ -14,7 +14,7 @@ import {
 } from '@/components/crm-frame';
 import { errorText, isFresh, leadStatusLabel, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
-import { createCrmLead } from '@/lib/crm';
+import { createCrmLead, fetchCrmCompanies } from '@/lib/crm';
 
 type Filter = 'all' | 'open' | 'converted';
 
@@ -24,10 +24,17 @@ export function CrmLeadsPanel() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [companyName, setCompanyName] = useState('');
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [taxCode, setTaxCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const companies = useQuery({
+    queryKey: ['crm-companies', companyName],
+    queryFn: () => fetchCrmCompanies(companyName),
+    enabled: companyName.trim().length >= 2 && !companyId,
+  });
 
   const addLead = useMutation({
     mutationFn: () =>
@@ -36,9 +43,11 @@ export function CrmLeadsPanel() {
         contactName,
         contactPhone,
         taxCode: taxCode || null,
+        companyId,
       }),
     onSuccess: () => {
       setCompanyName('');
+      setCompanyId(null);
       setContactName('');
       setContactPhone('');
       setTaxCode('');
@@ -64,7 +73,7 @@ export function CrmLeadsPanel() {
     <CrmFrame
       kicker="Nhà máy và người phụ trách HR"
       title="Lead chưa phải khách đã mua gói"
-      description="Thêm lead không tạo tài khoản nhà tuyển dụng và không gán gói. Trùng mã số thuế thì gắn vào công ty đã có."
+      description="Thêm lead không tạo tài khoản nhà tuyển dụng và không gán gói. Chọn công ty đã có, hoặc để trống thì hệ thống khớp theo mã số thuế."
       placeholder="Tìm tên công ty, mã số thuế hoặc số điện thoại"
       search={{ value: query, onChange: setQuery }}
       footnote="CRM không gán gói và không cộng Credit."
@@ -77,7 +86,38 @@ export function CrmLeadsPanel() {
       }
     >
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 shadow-[0_10px_28px_rgba(91,76,219,0.07)] md:grid-cols-5">
-        <input className={crmFieldClass} placeholder="Tên công ty" value={companyName} onChange={(event) => setCompanyName(event.target.value)} required />
+        <div className="relative md:col-span-1">
+          <input
+            className={crmFieldClass}
+            placeholder="Tên công ty"
+            value={companyName}
+            onChange={(event) => {
+              setCompanyName(event.target.value);
+              setCompanyId(null);
+            }}
+            required
+          />
+          {companies.data && companies.data.length > 0 ? (
+            <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-slate-100 bg-white py-1 shadow-lg">
+              {companies.data.map((company) => (
+                <li key={company.id}>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#efeaff]"
+                    onClick={() => {
+                      setCompanyId(company.id);
+                      setCompanyName(company.name);
+                      if (company.taxCode) setTaxCode(company.taxCode);
+                    }}
+                  >
+                    <span className="font-medium text-slate-800">{company.name}</span>
+                    {company.taxCode ? <span className="mt-0.5 block text-xs text-slate-400">MST {company.taxCode}</span> : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
         <input className={crmFieldClass} placeholder="Người liên hệ" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Số điện thoại" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} />

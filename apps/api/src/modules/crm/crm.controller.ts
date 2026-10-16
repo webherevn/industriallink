@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   UserRole,
@@ -7,8 +7,10 @@ import {
   type CreateCrmLeadRequest,
   type CrmActivityView,
   type CrmBoard,
+  type CrmCompanyOption,
   type CrmDealView,
   type CrmLeadView,
+  type CrmPlanOption,
   type CrmRenewalView,
   type MoveCrmDealRequest,
 } from '@industriallink/contracts';
@@ -22,21 +24,33 @@ import { CrmService } from './crm.service';
 @ApiTags('CRM')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SuperAdmin)
+@Roles(UserRole.SuperAdmin, UserRole.Sales)
 @Controller('crm')
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   @Get('board')
   @ApiOperation({ summary: 'Phễu bán gói và danh sách lead' })
-  board(): Promise<CrmBoard> {
-    return this.crm.board();
+  board(@CurrentUser() user: AuthenticatedUser): Promise<CrmBoard> {
+    return this.crm.board(user);
   }
 
   @Get('renewals')
   @ApiOperation({ summary: 'Khách sắp hết gói. Không đổi gói và không tạo đơn.' })
-  renewals(): Promise<CrmRenewalView[]> {
-    return this.crm.renewals();
+  renewals(@CurrentUser() user: AuthenticatedUser): Promise<CrmRenewalView[]> {
+    return this.crm.renewals(user);
+  }
+
+  @Get('companies')
+  @ApiOperation({ summary: 'Tìm công ty đã có trên inlink để gắn lead' })
+  companies(@Query('q') q = ''): Promise<CrmCompanyOption[]> {
+    return this.crm.searchCompanies(q);
+  }
+
+  @Get('plans')
+  @ApiOperation({ summary: 'Gói tin và gói Săn đang bán. Không gồm Enterprise.' })
+  plans(): Promise<CrmPlanOption[]> {
+    return this.crm.plans();
   }
 
   @Post('leads')

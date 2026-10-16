@@ -18,7 +18,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { isCmsAdminRole } from '@industriallink/contracts';
+import { isCrmRole } from '@industriallink/contracts';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
@@ -81,7 +81,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
-    if (!isCmsAdminRole(user.role)) {
+    if (!isCrmRole(user.role)) {
       goToPublicApp('/');
       return;
     }

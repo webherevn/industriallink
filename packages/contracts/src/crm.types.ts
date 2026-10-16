@@ -42,6 +42,10 @@ export interface CrmDealView {
   /** Giá niêm yết chưa VAT. Không dùng để gán gói. */
   listPriceVnd: string | null;
   billingOrderId: string | null;
+  /** pending | paid | failed | refunded. null khi chưa có đơn. */
+  billingOrderStatus: 'pending' | 'paid' | 'failed' | 'refunded' | null;
+  /** Link thanh toán giả lập cho nhà tuyển dụng. null khi đơn không còn chờ. */
+  checkoutUrl: string | null;
   provisionState: CrmProvisionState;
   ownerUserId: string;
   ownerName: string;
@@ -104,6 +108,19 @@ export interface CreateCrmDealRequest {
 export interface MoveCrmDealRequest {
   stageCode: string;
   lostReason?: string | null;
+}
+
+export interface CrmCompanyOption {
+  id: string;
+  name: string;
+  taxCode: string | null;
+}
+
+export interface CrmPlanOption {
+  kind: CrmPlanKind;
+  code: string;
+  name: string;
+  priceVnd: string;
 }
 
 export interface CreateCrmActivityRequest {

@@ -1,20 +1,24 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import type {
-  CreateCrmActivityRequest,
-  CreateCrmDealRequest,
-  CreateCrmLeadRequest,
-  CrmActivityType,
-  CrmActivityView,
-  CrmBoard,
-  CrmDealView,
-  CrmLeadView,
-  CrmPlanKind,
-  CrmRenewalView,
-  MoveCrmDealRequest,
+import {
+  UserRole,
+  type CreateCrmActivityRequest,
+  type CreateCrmDealRequest,
+  type CreateCrmLeadRequest,
+  type CrmActivityType,
+  type CrmActivityView,
+  type CrmBoard,
+  type CrmCompanyOption,
+  type CrmDealView,
+  type CrmLeadView,
+  type CrmPlanKind,
+  type CrmPlanOption,
+  type CrmRenewalView,
+  type MoveCrmDealRequest,
 } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { PaymentService } from '../billing/payment.service';
 
 const PIPELINE_CODE = 'ban_goi';
 
@@ -24,23 +28,34 @@ const PIPELINE_CODE = 'ban_goi';
  */
 @Injectable()
 export class CrmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly payment: PaymentService,
+  ) {}
 
-  async board(): Promise<CrmBoard> {
+  async board(actor: AuthenticatedUser): Promise<CrmBoard> {
     const pipeline = await this.prisma.crmPipeline.findUnique({
       where: { code: PIPELINE_CODE },
       include: { stages: { orderBy: { sortOrder: 'asc' } } },
     });
     if (!pipeline) throw new NotFoundException('Chưa có phễu bán gói');
+    const own = this.ownScope(actor);
     const [leads, deals, activities] = await Promise.all([
-      this.prisma.crmLead.findMany({ orderBy: { createdAt: 'desc' }, take: 200 }),
+      this.prisma.crmLead.findMany({
+        where: own,
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
       this.prisma.crmDeal.findMany({
-        where: { pipelineId: pipeline.id },
+        where: { pipelineId: pipeline.id, ...own },
         include: { stage: true, lead: true },
         orderBy: { createdAt: 'desc' },
         take: 200,
       }),
       this.prisma.crmActivity.findMany({
+        where: own
+          ? { OR: [{ lead: own }, { deal: own }] }
+          : {},
         orderBy: { createdAt: 'desc' },
         take: 80,
         include: {
@@ -54,6 +69,7 @@ export class CrmService {
       ...deals.map((deal) => deal.ownerUserId),
       ...activities.map((row) => row.createdByUserId),
     ]);
+    const orders = await this.ordersById(deals.map((deal) => deal.billingOrderId));
     return {
       pipelineCode: pipeline.code,
       pipelineName: pipeline.name,
@@ -65,12 +81,12 @@ export class CrmService {
         winProbability: stage.winProbability,
       })),
       leads: leads.map((lead) => this.mapLead(lead, names)),
-      deals: deals.map((deal) => this.mapDeal(deal, names)),
+      deals: deals.map((deal) => this.mapDeal(deal, names, deal.billingOrderId ? orders.get(deal.billingOrderId) ?? null : null)),
       activities: activities.map((row) => this.mapActivity(row, names)),
     };
   }
 
-  async renewals(): Promise<CrmRenewalView[]> {
+  async renewals(actor: AuthenticatedUser): Promise<CrmRenewalView[]> {
     const now = new Date();
     const until = new Date(now.getTime() + 30 * 86_400_000);
     const since = new Date(now.getTime() - 14 * 86_400_000);
@@ -95,12 +111,13 @@ export class CrmService {
       this.prisma.crmLead.findMany({
         where: { companyId: { in: companyIds }, status: { not: 'unqualified' } },
         orderBy: { createdAt: 'desc' },
-        select: { id: true, companyId: true, status: true },
+        select: { id: true, companyId: true, status: true, ownerUserId: true },
       }),
     ]);
     const companyName = new Map(companies.map((company) => [company.id, company.name]));
+    const scopedLeads = this.seesAll(actor) ? leads : leads.filter((lead) => lead.ownerUserId === actor.id);
     const leadByCompany = new Map<string, string>();
-    for (const lead of leads) {
+    for (const lead of scopedLeads) {
       if (!lead.companyId) continue;
       const current = leads.find((item) => item.id === leadByCompany.get(lead.companyId!));
       if (!current || (current.status !== 'open' && lead.status === 'open')) {
@@ -134,7 +151,52 @@ export class CrmService {
         leadId: leadByCompany.get(row.companyId) ?? null,
       });
     }
-    return rows.sort((a, b) => a.daysLeft - b.daysLeft);
+    const visible = this.seesAll(actor) ? rows : rows.filter((row) => row.leadId);
+    return visible.sort((a, b) => a.daysLeft - b.daysLeft);
+  }
+
+  async searchCompanies(query: string): Promise<CrmCompanyOption[]> {
+    const q = query.trim();
+    if (q.length < 2) return [];
+    return this.prisma.company.findMany({
+      where: {
+        isDeleted: false,
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { taxCode: { contains: q } },
+        ],
+      },
+      select: { id: true, name: true, taxCode: true },
+      orderBy: { name: 'asc' },
+      take: 8,
+    });
+  }
+
+  async plans(): Promise<CrmPlanOption[]> {
+    const [platform, sourcing] = await Promise.all([
+      this.prisma.billingPlatformPlan.findMany({
+        where: { isActive: true, code: { not: 'ENTERPRISE' } },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.prisma.billingSourcingPlan.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+    ]);
+    return [
+      ...platform.map((plan) => ({
+        kind: 'platform' as const,
+        code: plan.code,
+        name: plan.name,
+        priceVnd: plan.priceVnd.toString(),
+      })),
+      ...sourcing.map((plan) => ({
+        kind: 'sourcing' as const,
+        code: plan.code,
+        name: plan.name,
+        priceVnd: plan.feeVnd.toString(),
+      })),
+    ];
   }
 
   async createLead(actor: AuthenticatedUser, input: CreateCrmLeadRequest): Promise<CrmLeadView> {
@@ -184,10 +246,12 @@ export class CrmService {
     if (dealId) {
       const deal = await this.prisma.crmDeal.findUnique({ where: { id: dealId } });
       if (!deal) throw new NotFoundException('Không tìm thấy deal');
+      this.assertOwner(actor, deal.ownerUserId);
       leadId = deal.leadId;
     } else if (leadId) {
       const lead = await this.prisma.crmLead.findUnique({ where: { id: leadId } });
       if (!lead) throw new NotFoundException('Không tìm thấy lead');
+      this.assertOwner(actor, lead.ownerUserId);
     } else {
       throw new BadRequestException('Cần chọn lead hoặc deal');
     }
@@ -212,6 +276,7 @@ export class CrmService {
     if (!lead || lead.status === 'unqualified') {
       throw new NotFoundException('Không tìm thấy lead đang mở');
     }
+    this.assertOwner(actor, lead.ownerUserId);
     const title = input.title?.trim();
     if (!title) throw new BadRequestException('Cần tiêu đề deal');
     const pipeline = await this.prisma.crmPipeline.findUnique({
@@ -266,15 +331,30 @@ export class CrmService {
       include: { stage: true, lead: true },
     });
     if (!deal) throw new NotFoundException('Không tìm thấy deal');
+    this.assertOwner(actor, deal.ownerUserId);
     const stage = await this.prisma.crmStage.findFirst({
       where: { pipelineId: deal.pipelineId, code: input.stageCode },
     });
     if (!stage) throw new BadRequestException('Bước phễu không hợp lệ');
 
+    let billingOrderId = deal.billingOrderId;
+    let companyId = deal.companyId;
+    let paymentNote = '';
+    if (stage.code === 'awaiting_payment') {
+      const opened = await this.openPaymentOrder(actor, deal);
+      billingOrderId = opened.orderId;
+      companyId = opened.companyId;
+      paymentNote = opened.note;
+    } else if (stage.code === 'lost') {
+      await this.failPendingOrder(deal.billingOrderId, 'Deal không chốt');
+    }
+
     const updated = await this.prisma.crmDeal.update({
       where: { id: deal.id },
       data: {
         stageId: stage.id,
+        companyId,
+        billingOrderId,
         wonAt: stage.code === 'won' ? new Date() : null,
         lostAt: stage.code === 'lost' ? new Date() : null,
         lostReason: stage.code === 'lost' ? input.lostReason?.trim() || null : null,
@@ -282,19 +362,120 @@ export class CrmService {
       },
       include: { stage: true, lead: true },
     });
+    const summary =
+      stage.code === 'won'
+        ? `Chuyển ${deal.dealCode} sang Đã chốt. Gói chưa được gán từ cột này — chờ đơn thanh toán hoặc SuperAdmin.`
+        : stage.code === 'awaiting_payment'
+          ? `Chuyển ${deal.dealCode} sang Chờ thanh toán. ${paymentNote}`
+          : `Chuyển ${deal.dealCode} sang ${stage.name}`;
     await this.prisma.crmActivity.create({
       data: {
         leadId: deal.leadId,
         dealId: deal.id,
         activityType: 'stage',
-        summary:
-          stage.code === 'won'
-            ? `Chuyển ${deal.dealCode} sang Đã chốt. Gói chưa được gán — chờ thanh toán hoặc SuperAdmin.`
-            : `Chuyển ${deal.dealCode} sang ${stage.name}`,
+        summary,
         createdByUserId: actor.id,
       },
     });
-    return this.mapDeal(updated, await this.ownerNames([deal.ownerUserId]));
+    const orders = await this.ordersById([updated.billingOrderId]);
+    return this.mapDeal(
+      updated,
+      await this.ownerNames([deal.ownerUserId]),
+      updated.billingOrderId ? orders.get(updated.billingOrderId) ?? null : null,
+    );
+  }
+
+  private async openPaymentOrder(
+    actor: AuthenticatedUser,
+    deal: {
+      id: string;
+      leadId: string;
+      companyId: string | null;
+      planKind: string | null;
+      planCode: string | null;
+      listPriceVnd: bigint | null;
+      billingOrderId: string | null;
+    },
+  ): Promise<{ orderId: string; companyId: string; note: string }> {
+    const kind = deal.planKind === 'platform' || deal.planKind === 'sourcing' ? deal.planKind : null;
+    if (!kind || !deal.planCode) {
+      throw new BadRequestException('Chọn gói trên deal trước khi chuyển sang chờ thanh toán');
+    }
+    let companyId = deal.companyId;
+    if (!companyId) {
+      const lead = await this.prisma.crmLead.findUnique({
+        where: { id: deal.leadId },
+        select: { companyId: true },
+      });
+      companyId = lead?.companyId ?? null;
+    }
+    if (!companyId) {
+      throw new BadRequestException('Gắn công ty trên inlink trước khi tạo đơn thanh toán');
+    }
+    if (deal.billingOrderId) {
+      const existing = await this.prisma.billingOrder.findUnique({ where: { id: deal.billingOrderId } });
+      if (existing && (existing.status === 'pending' || existing.status === 'paid')) {
+        return {
+          orderId: existing.id,
+          companyId,
+          note: existing.status === 'paid' ? 'Đơn đã thu. Gói gán theo lối thanh toán.' : 'Đơn chờ thu vẫn còn.',
+        };
+      }
+    }
+    const checkout = await this.payment.createCatalogCheckout(
+      actor,
+      companyId,
+      kind,
+      deal.planCode,
+      this.recruiterOrigin(),
+      { priceVnd: deal.listPriceVnd },
+    );
+    const created = await this.prisma.billingOrder.findUnique({ where: { id: checkout.orderId } });
+    const paid = created?.status === 'paid';
+    return {
+      orderId: checkout.orderId,
+      companyId,
+      note: paid
+        ? 'Đơn giá 0đ đã thu. Gói được gán vì thanh toán thành công.'
+        : `Đã tạo đơn chờ nhà tuyển dụng thanh toán. ${checkout.url}`,
+    };
+  }
+
+  private async failPendingOrder(orderId: string | null, note: string) {
+    if (!orderId) return;
+    const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
+    if (!order || order.status !== 'pending') return;
+    await this.prisma.billingOrder.update({
+      where: { id: order.id },
+      data: { status: 'failed', failedAt: new Date(), note },
+    });
+  }
+
+  private async ordersById(ids: Array<string | null>) {
+    const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+    if (unique.length === 0) return new Map<string, { id: string; status: string; provider: string; providerSessionId: string | null }>();
+    const rows = await this.prisma.billingOrder.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, status: true, provider: true, providerSessionId: true },
+    });
+    return new Map(rows.map((row) => [row.id, row]));
+  }
+
+  private recruiterOrigin(): string {
+    return (process.env.RECRUITER_WEB_ORIGIN || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
+  }
+
+  private seesAll(actor: AuthenticatedUser): boolean {
+    return actor.role === UserRole.SuperAdmin;
+  }
+
+  private ownScope(actor: AuthenticatedUser): { ownerUserId: string } | undefined {
+    return this.seesAll(actor) ? undefined : { ownerUserId: actor.id };
+  }
+
+  private assertOwner(actor: AuthenticatedUser, ownerUserId: string) {
+    if (this.seesAll(actor) || ownerUserId === actor.id) return;
+    throw new ForbiddenException('Hồ sơ này thuộc người phụ trách khác');
   }
 
   private async resolveCompanyId(companyId: string | null | undefined, taxCode: string | null) {
@@ -415,7 +596,10 @@ export class CrmService {
     createdAt: Date;
     stage: { code: string };
     lead: { companyName: string };
-  }, names: Map<string, string>): CrmDealView {
+  },
+    names: Map<string, string>,
+    order?: { id: string; status: string; provider: string; providerSessionId: string | null } | null,
+  ): CrmDealView {
     const planKind = deal.planKind === 'platform' || deal.planKind === 'sourcing' ? deal.planKind : null;
     return {
       id: deal.id,
@@ -430,6 +614,8 @@ export class CrmService {
       planCode: deal.planCode,
       listPriceVnd: deal.listPriceVnd == null ? null : deal.listPriceVnd.toString(),
       billingOrderId: deal.billingOrderId,
+      billingOrderStatus: orderStatus(order?.status),
+      checkoutUrl: checkoutUrlFor(order, this.recruiterOrigin()),
       provisionState: 'not_provisioned',
       ownerUserId: deal.ownerUserId,
       ownerName: names.get(deal.ownerUserId) || 'SuperAdmin',
@@ -472,6 +658,19 @@ export class CrmService {
 
 function daysUntil(endsAt: Date, now: Date): number {
   return Math.ceil((endsAt.getTime() - now.getTime()) / 86_400_000);
+}
+
+function orderStatus(status: string | undefined): 'pending' | 'paid' | 'failed' | 'refunded' | null {
+  if (status === 'pending' || status === 'paid' || status === 'failed' || status === 'refunded') return status;
+  return null;
+}
+
+function checkoutUrlFor(
+  order: { id: string; status: string; provider: string; providerSessionId: string | null } | null | undefined,
+  origin: string,
+): string | null {
+  if (!order || order.status !== 'pending' || order.provider !== 'stripe-mock' || !order.providerSessionId) return null;
+  return `${origin}/recruiter/billing/topup/mock-checkout?session=${encodeURIComponent(order.providerSessionId)}&order=${order.id}`;
 }
 
 function normalizePhone(raw: string): string {

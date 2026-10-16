@@ -4,8 +4,10 @@ import type {
   CreateCrmLeadRequest,
   CrmActivityView,
   CrmBoard,
+  CrmCompanyOption,
   CrmDealView,
   CrmLeadView,
+  CrmPlanOption,
   CrmRenewalView,
   MoveCrmDealRequest,
 } from '@industriallink/contracts';
@@ -33,4 +35,12 @@ export function createCrmActivity(body: CreateCrmActivityRequest): Promise<CrmAc
 
 export function fetchCrmRenewals(): Promise<CrmRenewalView[]> {
   return apiRequest<CrmRenewalView[]>('/crm/renewals');
+}
+
+export function fetchCrmCompanies(query: string): Promise<CrmCompanyOption[]> {
+  return apiRequest<CrmCompanyOption[]>(`/crm/companies?q=${encodeURIComponent(query)}`);
+}
+
+export function fetchCrmPlans(): Promise<CrmPlanOption[]> {
+  return apiRequest<CrmPlanOption[]>('/crm/plans');
 }

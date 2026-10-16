@@ -24,6 +24,7 @@ import { createAdminUser, listAdminUsers, updateAdminUser } from '@/lib/admin-us
 const ROLE_OPTIONS: { value: UserRole; label: string; hint: string }[] = [
   { value: UserRole.SuperAdmin, label: 'Superadmin', hint: 'Toàn quyền nền tảng' },
   { value: UserRole.Editor, label: 'Biên tập viên', hint: 'CMS · viết bài · SEO' },
+  { value: UserRole.Sales, label: 'Kinh doanh', hint: 'CRM · lead và deal của mình' },
   { value: UserRole.CompanyAdmin, label: 'Admin công ty', hint: 'Quản trị NTD' },
   { value: UserRole.HiringManager, label: 'Hiring manager', hint: 'Tuyển dụng nội bộ' },
   { value: UserRole.Recruiter, label: 'Nhà tuyển dụng', hint: 'Đăng JD & inbox' },
@@ -51,6 +52,8 @@ function roleBadgeClass(role: string) {
       return 'bg-brand-600 text-white';
     case UserRole.Editor:
       return 'bg-violet-50 text-violet-800 ring-1 ring-violet-100';
+    case UserRole.Sales:
+      return 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-100';
     case UserRole.CompanyAdmin:
       return 'bg-brand-100 text-brand-800';
     case UserRole.HiringManager:

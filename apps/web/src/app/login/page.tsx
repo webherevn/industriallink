@@ -1,6 +1,6 @@
 'use client';
 
-import { isCmsAdminRole, MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
+import { isCmsAdminRole, isCrmRole, MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -39,7 +39,7 @@ export default function LoginPage() {
     clearAuthQueryCache(queryClient);
     // admin.inlink.vn: luôn ở lại origin hiện tại, không gọi goToAdminApp/goToRecruiterApp
     if (typeof window !== 'undefined' && isCrmHostname()) {
-      if (!isCmsAdminRole(role)) {
+      if (!isCrmRole(role)) {
         tokenStore.clear();
         setError('Tài khoản này không có quyền vào CRM.');
         return;
@@ -48,6 +48,10 @@ export default function LoginPage() {
       return;
     }
     if (typeof window !== 'undefined' && isAdminHostname()) {
+      if (role === UserRole.Sales) {
+        navigateAfterLogin(role, '/crm');
+        return;
+      }
       if (!isCmsAdminRole(role)) {
         tokenStore.clear();
         setError('Tài khoản này không có quyền vào admin. Dùng Superadmin hoặc Biên tập viên.');
@@ -55,6 +59,10 @@ export default function LoginPage() {
       }
       const dest = nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin';
       window.location.assign(dest);
+      return;
+    }
+    if (role === UserRole.Sales) {
+      navigateAfterLogin(role, '/crm');
       return;
     }
     if (isCmsAdminRole(role)) {

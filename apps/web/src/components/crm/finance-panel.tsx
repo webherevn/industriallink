@@ -21,7 +21,7 @@ export function CrmFinancePanel() {
       description="Màn này hiện giá đã chốt trên deal. Hóa đơn VAT và tiền đã thu sẽ gắn khi có đơn thanh toán. Chưa tính hoa hồng."
       placeholder="Tìm deal hoặc tên khách"
       search={{ value: query, onChange: setQuery }}
-      footnote="Chưa ghi nhận VAT và chưa có đơn thanh toán từ CRM."
+      footnote="Giá niêm yết chưa VAT. Gói chỉ gán khi đơn đã thu, hoặc SuperAdmin gán tay."
     >
       {board.isLoading ? <CrmEmpty>Đang tải công nợ…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được danh sách deal.</CrmEmpty> : null}
@@ -36,7 +36,7 @@ export function CrmFinancePanel() {
                 tone={deal.stageCode === 'won' ? 'green' : deal.stageCode === 'awaiting_payment' ? 'orange' : 'violet'}
                 icon={deal.stageCode === 'won' ? <Receipt className="h-5 w-5" /> : <FileClock className="h-5 w-5" />}
                 title={`${deal.companyName} · ${formatVnd(deal.listPriceVnd)}`}
-                text={`${stage}. Giá chưa VAT. ${deal.billingOrderId ? 'Đã gắn đơn thanh toán.' : 'Chưa có đơn thanh toán.'} ${deal.stageCode === 'won' ? 'Gói chưa được gán.' : ''}`}
+                text={`${stage}. Giá chưa VAT. ${paymentLine(deal.billingOrderStatus)} ${deal.stageCode === 'won' && deal.billingOrderStatus !== 'paid' ? 'Cột Đã chốt không gán gói.' : ''}`}
                 meta={deal.dealCode}
               />
             );
@@ -45,4 +45,11 @@ export function CrmFinancePanel() {
       ) : null}
     </CrmFrame>
   );
+}
+
+function paymentLine(status: 'pending' | 'paid' | 'failed' | 'refunded' | null): string {
+  if (status === 'paid') return 'Đã thu. Gói được gán theo đơn.';
+  if (status === 'pending') return 'Đơn đang chờ nhà tuyển dụng thanh toán.';
+  if (status === 'failed' || status === 'refunded') return 'Đơn không còn hiệu lực.';
+  return 'Chưa có đơn thanh toán.';
 }
