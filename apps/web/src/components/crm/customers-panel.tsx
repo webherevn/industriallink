@@ -2,10 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type { CrmCustomerStanding, CrmCustomerView } from '@industriallink/contracts';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { CrmEmpty, CrmFrame, crmActionClass } from '@/components/crm-frame';
-import { ColumnPicker, RowCheck, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
+import { Building2 } from 'lucide-react';
+import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
+import { ColumnPicker, RowActions, RowCheck, RowIconButton, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { fetchCrmCustomers } from '@/lib/crm';
 
 const CUSTOMER_COLUMNS = [
@@ -110,7 +110,7 @@ export function CrmCustomersPanel() {
                     {columns.shown('standing') ? <SortableTh label="Trạng thái" active={sort.key === 'standing'} dir={sort.dir} onClick={() => sort.toggle('standing')} /> : null}
                     {columns.shown('plan') ? <th className="whitespace-nowrap px-4 py-3">Gói đang dùng</th> : null}
                     {columns.shown('owner') ? <SortableTh label="Phụ trách" active={sort.key === 'owner'} dir={sort.dir} onClick={() => sort.toggle('owner')} /> : null}
-                    <th className="whitespace-nowrap px-4 py-3" />
+                    <th className={stickyActionsHead} />
                   </tr>
                 </thead>
                 <tbody>
@@ -142,7 +142,7 @@ function CustomerRow({
 }) {
   const plans = [row.platformPlanName, row.sourcingPlanName].filter(Boolean).join(' · ');
   return (
-    <tr className={`border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
+    <tr className={`group border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
       <td className={stickyCell(picked, 'check')}>
         <RowCheck checked={picked} onChange={onToggle} label={`Chọn ${row.companyName}`} />
       </td>
@@ -162,8 +162,12 @@ function CustomerRow({
       ) : null}
       {shown('plan') ? <td className={`${crmTd} text-slate-600`}>{plans || '—'}</td> : null}
       {shown('owner') ? <td className={`${crmTd} text-slate-600`}>{row.ownerName ?? 'Chưa có'}</td> : null}
-      <td className={`${crmTd} text-right`}>
-        <Link href={`/crm/companies/${row.companyId}`} className={`${crmActionClass} !whitespace-nowrap`}>Hồ sơ</Link>
+      <td className={stickyCell(picked, 'actions')}>
+        <RowActions open={picked}>
+          <RowIconButton label="Hồ sơ" href={`/crm/companies/${row.companyId}`}>
+            <Building2 className="h-4 w-4" strokeWidth={1.75} />
+          </RowIconButton>
+        </RowActions>
       </td>
     </tr>
   );

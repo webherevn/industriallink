@@ -14,9 +14,6 @@ import { Building2, Landmark, MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { crmFieldClass } from '@/components/crm-frame';
 import { CrmDateField, CrmField, CrmFormSection, CrmSelect } from '@/components/crm/fields';
-import { leadSourceLabel } from '@/components/crm/format';
-
-const SOURCES = ['web', 'zalo', 'event', 'partner'] as const;
 
 export type LeadDraft = {
   taxCode: string;
@@ -108,6 +105,7 @@ export function LeadFormFields({
   draft,
   onChange,
   campaignOptions,
+  sources,
   partners,
   partnersLoading,
   taxOpen,
@@ -122,6 +120,7 @@ export function LeadFormFields({
   draft: LeadDraft;
   onChange: (next: LeadDraft) => void;
   campaignOptions: Array<{ value: string; label: string }>;
+  sources: Array<{ value: string; label: string }>;
   partners: Array<{ id: string; name: string; code: string }>;
   partnersLoading: boolean;
   taxOpen: boolean;
@@ -201,7 +200,7 @@ export function LeadFormFields({
           value={draft.source}
           required
           placeholder="Chọn nguồn"
-          options={SOURCES.map((item) => ({ value: item, label: leadSourceLabel(item) }))}
+          options={sources}
           onChange={(next) => onChange({ ...draft, source: next, partnerId: next === 'partner' ? draft.partnerId : '' })}
         />
       </CrmField>

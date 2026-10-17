@@ -1,9 +1,8 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleDot, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { Building2, CircleDot, Plus } from 'lucide-react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   CrmChip,
   CrmEmpty,
@@ -13,16 +12,13 @@ import {
 } from '@/components/crm-frame';
 import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
 import { contactPhoneLabel, errorText, isFresh, leadSourceLabel, leadStatusLabel, matchesQuery, vietnamDay } from '@/components/crm/format';
-import { ColumnPicker, RowCheck, crmTableClass, crmTd, SortableTh, sortRows, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
+import { ColumnPicker, RowActions, RowCheck, RowIconButton, canDeleteOwned, crmTableClass, crmTd, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { blankLeadDraft, draftFromLead, LeadFormFields, type LeadDraft } from '@/components/crm/lead-form-fields';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { fetchMe } from '@/lib/auth';
-import { createCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
+import { createCrmLead, deleteCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
 
 type StatusFilter = 'all' | 'open' | 'converted';
-type SourceFilter = 'all' | 'web' | 'zalo' | 'event' | 'partner' | 'unknown';
-
-const SOURCES: Array<Exclude<SourceFilter, 'all' | 'unknown'>> = ['web', 'zalo', 'event', 'partner'];
 
 const LEAD_COLUMNS = [
   { key: 'company', label: 'Công ty' },
@@ -42,7 +38,7 @@ export function CrmLeadsPanel() {
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [draft, setDraft] = useState<LeadDraft>(blankLeadDraft);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [taxQuery, setTaxQuery] = useState('');
@@ -53,6 +49,7 @@ export function CrmLeadsPanel() {
   const [edit, setEdit] = useState<LeadDraft>(blankLeadDraft);
   const [editOwnerId, setEditOwnerId] = useState('');
   const [editFollowUp, setEditFollowUp] = useState('');
+  const keptSource = useRef('');
 
   const me = useQuery({ queryKey: ['me'], queryFn: fetchMe });
   const canReassign = me.data?.role === 'super_admin';
@@ -66,6 +63,10 @@ export function CrmLeadsPanel() {
   const campaignOptions = (campaigns.data?.campaigns ?? [])
     .filter((row) => row.status !== 'cancelled')
     .map((row) => ({ value: row.id, label: `${row.name} · ${row.campaignCode}` }));
+  const sourceChannels = campaigns.data?.channels ?? [];
+  const activeSources = sourceChannels
+    .filter((row) => row.isActive)
+    .map((row) => ({ value: row.code, label: row.name }));
 
   const activeDraft = taxTarget === 'edit' ? edit : draft;
   useEffect(() => {
@@ -86,10 +87,9 @@ export function CrmLeadsPanel() {
   });
 
   function leadBody(value: LeadDraft, linkedCompanyId: string | null) {
-    if (value.source !== 'web' && value.source !== 'zalo' && value.source !== 'event' && value.source !== 'partner') {
-      return Promise.reject(new Error('Chọn nguồn khách'));
+    if (!sourceChannels.some((row) => row.isActive && row.code === value.source) && value.source !== keptSource.current) {
+      return Promise.reject(new Error('Chọn nguồn khách đang bật'));
     }
-    const source: 'web' | 'zalo' | 'event' | 'partner' = value.source;
     if (value.source === 'partner' && !value.partnerId) {
       return Promise.reject(new Error('Chọn cộng tác viên'));
     }
@@ -116,7 +116,7 @@ export function CrmLeadsPanel() {
       street: value.street || null,
       areaCode: value.areaCode || null,
       companyId: linkedCompanyId,
-      source,
+      source: value.source,
       partnerId: value.source === 'partner' ? value.partnerId : null,
       campaignId: value.campaignId || null,
     };
@@ -151,12 +151,25 @@ export function CrmLeadsPanel() {
       });
     },
     onSuccess: () => {
+      keptSource.current = '';
       setEditingId(null);
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
       void qc.invalidateQueries({ queryKey: ['crm-follow-ups'] });
     },
     onError: (err) => setError(errorText(err, 'Không sửa được lead')),
+  });
+
+  const removeLead = useMutation({
+    mutationFn: deleteCrmLead,
+    onSuccess: () => {
+      setEditingId(null);
+      setError(null);
+      void qc.invalidateQueries({ queryKey: ['crm-board'] });
+      void qc.invalidateQueries({ queryKey: ['crm-follow-ups'] });
+      void qc.invalidateQueries({ queryKey: ['crm-customers'] });
+    },
+    onError: (err) => setError(errorText(err, 'Không xóa được tiềm năng')),
   });
 
   function onSubmit(event: FormEvent) {
@@ -179,7 +192,7 @@ export function CrmLeadsPanel() {
       lead.province,
       lead.taxCode,
       lead.leadCode,
-      leadSourceLabel(lead.source),
+      leadSourceLabel(lead.source, sourceChannels),
       lead.partnerName,
       lead.partnerCode,
     ]);
@@ -190,7 +203,7 @@ export function CrmLeadsPanel() {
       if (sort.key === 'tax') return lead.taxCode;
       if (sort.key === 'contact') return lead.contactName;
       if (sort.key === 'phone') return lead.contactPhone;
-      if (sort.key === 'source') return leadSourceLabel(lead.source);
+      if (sort.key === 'source') return leadSourceLabel(lead.source, sourceChannels);
       if (sort.key === 'status') return leadStatusLabel(lead.status);
       if (sort.key === 'owner') return lead.ownerName;
       return lead.createdAt;
@@ -214,13 +227,13 @@ export function CrmLeadsPanel() {
           <CrmChip active={filter === 'all'} onClick={() => setFilter('all')} icon={<CircleDot className="h-4 w-4" />} label={`Tất cả · ${all.length}`} />
           <CrmChip active={filter === 'open'} onClick={() => setFilter('open')} icon={<CircleDot className="h-4 w-4" />} label={`Đang mở · ${all.filter((lead) => lead.status === 'open').length}`} />
           <CrmChip active={filter === 'converted'} onClick={() => setFilter('converted')} icon={<CircleDot className="h-4 w-4" />} label={`Đã có deal · ${all.filter((lead) => lead.status === 'converted').length}`} />
-          {SOURCES.map((item) => (
+          {activeSources.map((item) => (
             <CrmChip
-              key={item}
-              active={sourceFilter === item}
-              onClick={() => setSourceFilter(sourceFilter === item ? 'all' : item)}
+              key={item.value}
+              active={sourceFilter === item.value}
+              onClick={() => setSourceFilter(sourceFilter === item.value ? 'all' : item.value)}
               icon={<CircleDot className="h-4 w-4" />}
-              label={`${leadSourceLabel(item)} · ${all.filter((lead) => lead.source === item).length}`}
+              label={`${item.label} · ${all.filter((lead) => lead.source === item.value).length}`}
             />
           ))}
           {all.some((lead) => lead.source === 'unknown') ? (
@@ -241,6 +254,7 @@ export function CrmLeadsPanel() {
           onClick={() => {
             setCreating((open) => !open);
             setEditingId(null);
+            keptSource.current = '';
             setTaxTarget(null);
           }}
         >
@@ -258,6 +272,7 @@ export function CrmLeadsPanel() {
             setDraft(next);
           }}
           campaignOptions={campaignOptions}
+          sources={activeSources}
           partners={partners.data ?? []}
           partnersLoading={partners.isLoading}
           taxOpen={taxTarget === 'create'}
@@ -309,6 +324,11 @@ export function CrmLeadsPanel() {
               campaignOptions.some((item) => item.value === edit.campaignId) || !edit.campaignId
                 ? campaignOptions
                 : [...campaignOptions, { value: edit.campaignId, label: editingLead.campaignName ?? 'Chiến dịch đã gắn' }]
+            }
+            sources={
+              edit.source && !activeSources.some((item) => item.value === edit.source)
+                ? [...activeSources, { value: edit.source, label: leadSourceLabel(edit.source, sourceChannels) }]
+                : activeSources
             }
             partners={partners.data ?? []}
             partnersLoading={partners.isLoading}
@@ -391,14 +411,14 @@ export function CrmLeadsPanel() {
                     {columns.shown('status') ? <SortableTh label="Trạng thái" active={sort.key === 'status'} dir={sort.dir} onClick={() => sort.toggle('status')} /> : null}
                     {columns.shown('owner') ? <SortableTh label="Phụ trách" active={sort.key === 'owner'} dir={sort.dir} onClick={() => sort.toggle('owner')} /> : null}
                     {columns.shown('created') ? <SortableTh label="Ngày tạo" active={sort.key === 'created'} dir={sort.dir} onClick={() => sort.toggle('created')} /> : null}
-                    <th className="whitespace-nowrap px-4 py-3" />
+                    <th className={stickyActionsHead} />
                   </tr>
                 </thead>
                 <tbody>
                   {leads.map((lead, index) => {
                     const picked = pick.has(lead.id);
                     return (
-                      <tr key={lead.id} className={`border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
+                      <tr key={lead.id} className={`group border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
                         <td className={stickyCell(picked, 'check')}><RowCheck checked={picked} onChange={() => pick.toggle(lead.id)} label={`Chọn ${lead.companyName}`} /></td>
                         <td className={stickyCell(picked, 'index')}>{index + 1}</td>
                         {columns.shown('company') ? (
@@ -411,7 +431,7 @@ export function CrmLeadsPanel() {
                         {columns.shown('tax') ? <td className={`${crmTd} text-slate-600`}>{lead.taxCode ?? '—'}</td> : null}
                         {columns.shown('contact') ? <td className={`${crmTd} text-slate-700`}>{lead.contactName}</td> : null}
                         {columns.shown('phone') ? <td className={`${crmTd} text-slate-600`}>{contactPhoneLabel(lead.contactPhone)}</td> : null}
-                        {columns.shown('source') ? <td className={`${crmTd} text-slate-600`}>{lead.partnerName ? lead.partnerName : leadSourceLabel(lead.source)}</td> : null}
+                        {columns.shown('source') ? <td className={`${crmTd} text-slate-600`}>{lead.partnerName ? lead.partnerName : leadSourceLabel(lead.source, sourceChannels)}</td> : null}
                         {columns.shown('status') ? (
                           <td className={crmTd}>
                             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${lead.status === 'converted' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>{leadStatusLabel(lead.status)}</span>
@@ -419,24 +439,36 @@ export function CrmLeadsPanel() {
                         ) : null}
                         {columns.shown('owner') ? <td className={`${crmTd} text-slate-600`}>{lead.ownerName}</td> : null}
                         {columns.shown('created') ? <td className={`${crmTd} text-slate-600`}>{vietnamDay(lead.createdAt).split('-').reverse().join('/')}</td> : null}
-                        <td className={crmTd}>
-                          <div className="flex justify-end gap-2">
-                            {lead.companyId ? <Link href={`/crm/companies/${lead.companyId}`} className={`${crmActionClass} !whitespace-nowrap`}>Hồ sơ</Link> : null}
-                            <button
-                              type="button"
-                              className={`${crmActionClass} !whitespace-nowrap`}
+                        <td className={stickyCell(picked, 'actions')}>
+                          <RowActions open={picked}>
+                            {lead.companyId ? (
+                              <RowIconButton label="Hồ sơ" href={`/crm/companies/${lead.companyId}`}>
+                                <Building2 className="h-4 w-4" strokeWidth={1.75} />
+                              </RowIconButton>
+                            ) : null}
+                            <RowIconButton
+                              label="Sửa"
                               onClick={() => {
                                 setCreating(false);
+                                keptSource.current = lead.source;
                                 setEditingId(lead.id);
                                 setEdit(draftFromLead(lead));
                                 setEditOwnerId(lead.ownerUserId);
                                 setEditFollowUp(lead.nextFollowUpAt ? vietnamDay(lead.nextFollowUpAt) : '');
                                 setTaxTarget(null);
                               }}
-                            >
-                              Sửa
-                            </button>
-                          </div>
+                            />
+                            {canDeleteOwned(me.data?.role, me.data?.id, lead.ownerUserId) ? (
+                              <RowIconButton
+                                label="Xóa"
+                                tone="delete"
+                                onClick={() => {
+                                  if (!window.confirm(`Xóa tiềm năng ${lead.companyName}? Công ty trên inlink và đơn đã trả vẫn giữ.`)) return;
+                                  removeLead.mutate(lead.id);
+                                }}
+                              />
+                            ) : null}
+                          </RowActions>
                         </td>
                       </tr>
                     );

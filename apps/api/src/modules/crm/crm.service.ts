@@ -37,7 +37,6 @@ import {
   type CrmOwnerOption,
   type UpdateCrmLeadRequest,
   type CrmDealView,
-  type CrmLeadSource,
   type CrmLeadView,
   type CrmPlanKind,
   type CrmPartnerView,
@@ -1349,13 +1348,12 @@ export class CrmService {
     const contactName = input.contactName?.trim();
     const phone = this.readPhone(input.contactPhone);
     const taxCode = this.readTax(input.taxCode);
-    const source = leadSource(input.source);
+    const source = await this.readLeadSource(input.source);
     const profile = readLeadProfile(input);
     if (!companyName || companyName.length < 2 || !contactName || contactName.length < 2 || !taxCode) {
       throw new BadRequestException('Cần mã số thuế, tên công ty và người liên hệ');
     }
-    if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
-    const partner = source === 'partner' ? await this.requirePartner(input.partnerId) : null;
+    const partner = source.code === 'partner' ? await this.requirePartner(input.partnerId) : null;
     const companyId = await this.resolveCompanyId(input.companyId, taxCode);
     await this.assertNoDuplicate(taxCode, phone, undefined, companyId);
     const campaignId = await this.marketing.campaignIdFor(actor, input.campaignId ?? null);
@@ -1369,7 +1367,7 @@ export class CrmService {
         contactPhone: phone,
         ...profile,
         companyId,
-        source,
+        source: source.code,
         partnerId: partner?.id ?? null,
         campaignId,
         ownerUserId: actor.id,
@@ -1385,7 +1383,7 @@ export class CrmService {
         activityType: 'note',
         summary: partner
           ? `Tạo lead ${lead.leadCode} từ cộng tác viên ${partner.name} (${partner.code})`
-          : `Tạo lead ${lead.leadCode} từ ${sourceLabel(source)}`,
+          : `Tạo lead ${lead.leadCode} từ ${source.name}`,
         createdByUserId: actor.id,
       },
     });
@@ -1634,13 +1632,12 @@ export class CrmService {
     const contactName = input.contactName?.trim();
     const phone = this.readPhone(input.contactPhone);
     const taxCode = this.readTax(input.taxCode);
-    const source = leadSource(input.source);
+    const source = await this.readLeadSource(input.source, current.source);
     const profile = readLeadProfile(input);
     if (!companyName || companyName.length < 2 || !contactName || contactName.length < 2 || !taxCode) {
       throw new BadRequestException('Cần mã số thuế, tên công ty và người liên hệ');
     }
-    if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
-    const partner = source === 'partner' ? await this.requirePartner(input.partnerId) : null;
+    const partner = source.code === 'partner' ? await this.requirePartner(input.partnerId) : null;
     await this.assertNoDuplicate(taxCode, phone, current.id, current.companyId);
     let ownerUserId = current.ownerUserId;
     let ownerNameForLog: string | null = null;
@@ -1669,7 +1666,7 @@ export class CrmService {
         contactName,
         contactPhone: phone,
         ...profile,
-        source,
+        source: source.code,
         partnerId: partner?.id ?? null,
         ownerUserId,
         ...(followUp !== undefined ? { nextFollowUpAt: followUp } : {}),
@@ -2037,10 +2034,11 @@ export class CrmService {
           select: { id: true, name: true, code: true },
         });
     const partnerName = new Map(partnerRows.map((row) => [row.id, `${row.name} · ${row.code}`]));
+    const sourceNames = await this.sourceNames();
     return {
       periodMonth,
       byOwner: funnelBuckets(owners, (key) => (key === 'unassigned' ? 'Chưa có người phụ trách' : ownerNames.get(key) ?? 'Người phụ trách')),
-      bySource: funnelBuckets(sources, funnelSourceLabel),
+      bySource: funnelBuckets(sources, (key) => sourceText(sourceNames, key)),
       byPartner: funnelBuckets(partners, (key) => partnerName.get(key) ?? 'Cộng tác viên'),
     };
   }
@@ -2103,9 +2101,10 @@ export class CrmService {
       addLeadSource(owners, lead.ownerUserId, lead.companyId, paid);
     }
     const names = await this.ownerNames([...owners.keys()]);
+    const sourceNames = await this.sourceNames();
     return {
       periodMonth,
-      bySource: leadSourceRows(sources, funnelSourceLabel),
+      bySource: leadSourceRows(sources, (key) => sourceText(sourceNames, key)),
       byOwner: leadSourceRows(owners, (key) => names.get(key) ?? 'Người phụ trách'),
     };
   }
@@ -2451,10 +2450,16 @@ export class CrmService {
       .filter((row) => row.dueOn >= start && row.dueOn < end)
       .reduce((sum, row) => sum + row.amountVnd, 0n);
     const enterpriseCollected = monthCollected.reduce((sum, row) => sum + row.amountVnd, 0n);
-    const sourceOrder = ['web', 'zalo', 'event', 'partner', 'unknown', 'none'];
-    for (const key of ['web', 'zalo', 'event', 'partner']) {
-      if (!sources.has(key)) sources.set(key, { orders: 0, amount: 0n });
+    const channels = await this.prisma.crmMarketingChannel.findMany({
+      select: { code: true, name: true, isActive: true, sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const sourceNames = new Map(channels.map((row) => [row.code, row.name]));
+    for (const channel of channels) {
+      if (channel.isActive && !sources.has(channel.code)) sources.set(channel.code, { orders: 0, amount: 0n });
     }
+    const activeCodes = new Set(channels.filter((row) => row.isActive).map((row) => row.code));
+    const sourceRank = new Map(channels.map((row) => [row.code, row.sortOrder]));
     return {
       periodMonth,
       orders: monthOrders.length,
@@ -2467,9 +2472,9 @@ export class CrmService {
       openListPriceVnd: openDeals.reduce((sum, deal) => sum + (deal.listPriceVnd ?? 0n), 0n).toString(),
       months,
       bySource: [...sources.entries()]
-        .map(([key, row]) => ({ key, label: funnelSourceLabel(key), orders: row.orders, paidAmountVnd: row.amount.toString() }))
-        .filter((row) => row.orders > 0 || ['web', 'zalo', 'event', 'partner'].includes(row.key))
-        .sort((a, b) => sourceOrder.indexOf(a.key) - sourceOrder.indexOf(b.key)),
+        .map(([key, row]) => ({ key, label: sourceText(sourceNames, key), orders: row.orders, paidAmountVnd: row.amount.toString() }))
+        .filter((row) => row.orders > 0 || activeCodes.has(row.key))
+        .sort((a, b) => (sourceRank.get(a.key) ?? 1000) - (sourceRank.get(b.key) ?? 1000)),
       plans: [...plans.entries()]
         .map(([key, row]) => ({ key, label: row.label, orders: row.orders, paidAmountVnd: row.amount.toString() }))
         .sort((a, b) => (BigInt(b.paidAmountVnd) > BigInt(a.paidAmountVnd) ? 1 : -1))
@@ -2737,6 +2742,70 @@ export class CrmService {
       });
     }
     return paid;
+  }
+
+  async deleteLead(actor: AuthenticatedUser, leadId: string): Promise<void> {
+    const lead = await this.prisma.crmLead.findUnique({ where: { id: leadId }, select: { id: true, ownerUserId: true } });
+    if (!lead) throw new NotFoundException('Không thấy tiềm năng');
+    this.assertOwner(actor, lead.ownerUserId);
+    const deals = await this.prisma.crmDeal.findMany({ where: { leadId }, select: { id: true } });
+    const dealIds = deals.map((deal) => deal.id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.crmActivity.deleteMany({
+        where: dealIds.length > 0 ? { OR: [{ leadId }, { dealId: { in: dealIds } }] } : { leadId },
+      });
+      if (dealIds.length > 0) {
+        await tx.crmQuote.updateMany({ where: { dealId: { in: dealIds } }, data: { dealId: null } });
+        await tx.crmDeal.deleteMany({ where: { leadId } });
+      }
+      await tx.crmQuote.updateMany({ where: { leadId }, data: { leadId: null } });
+      await tx.crmLead.delete({ where: { id: leadId } });
+    });
+  }
+
+  async deleteDeal(actor: AuthenticatedUser, dealId: string): Promise<void> {
+    const deal = await this.prisma.crmDeal.findUnique({ where: { id: dealId }, select: { id: true, ownerUserId: true } });
+    if (!deal) throw new NotFoundException('Không thấy cơ hội');
+    this.assertOwner(actor, deal.ownerUserId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.crmActivity.deleteMany({ where: { dealId } });
+      await tx.crmQuote.updateMany({ where: { dealId }, data: { dealId: null } });
+      await tx.crmDeal.delete({ where: { id: dealId } });
+    });
+  }
+
+  async deleteQuote(actor: AuthenticatedUser, quoteId: string): Promise<void> {
+    const quote = await this.prisma.crmQuote.findUnique({
+      where: { id: quoteId },
+      select: { id: true, ownerUserId: true, installments: { select: { status: true } } },
+    });
+    if (!quote) throw new NotFoundException('Không thấy báo giá');
+    this.assertOwner(actor, quote.ownerUserId);
+    if (quote.installments.some((line) => line.status === 'collected')) {
+      throw new BadRequestException('Tờ đã ghi thu, không xóa');
+    }
+    await this.prisma.crmQuote.delete({ where: { id: quote.id } });
+  }
+
+  private async readLeadSource(raw: string | null | undefined, current?: string | null): Promise<{ code: string; name: string }> {
+    const value = (raw ?? '').trim().toLowerCase();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) || value === 'unknown') {
+      throw new BadRequestException('Chọn nguồn khách đang bật');
+    }
+    const channel = await this.prisma.crmMarketingChannel.findUnique({
+      where: { code: value },
+      select: { code: true, name: true, isActive: true },
+    });
+    if (!channel) throw new BadRequestException('Chọn nguồn khách đang bật');
+    if (!channel.isActive && value !== (current ?? '').trim().toLowerCase()) {
+      throw new BadRequestException('Nguồn này đang tắt');
+    }
+    return channel;
+  }
+
+  private async sourceNames(): Promise<Map<string, string>> {
+    const rows = await this.prisma.crmMarketingChannel.findMany({ select: { code: true, name: true } });
+    return new Map(rows.map((row) => [row.code, row.name]));
   }
 
   private seesAll(actor: AuthenticatedUser): boolean {
@@ -3604,6 +3673,7 @@ export class CrmService {
       dealId: row.dealId ?? null,
       dealTitle: deal?.title ?? null,
       dealCode: deal?.dealCode ?? null,
+      ownerUserId: row.ownerUserId,
       ownerName: names.get(row.ownerUserId) ?? 'Người phụ trách',
       quoteKind,
       installments,
@@ -3685,7 +3755,7 @@ export class CrmService {
       address: lead.address,
       companyId: lead.companyId,
       status,
-      source: leadSource(lead.source) ?? 'unknown',
+      source: storedLeadSource(lead.source),
       partnerId: lead.partnerId,
       partnerName: lead.partner?.name ?? null,
       partnerCode: lead.partner?.code ?? null,
@@ -3894,13 +3964,12 @@ function leadSourceRows(map: Map<string, LeadSourceTally>, labelOf: (key: string
     .sort((a, b) => b.leads - a.leads || b.paidCompanies - a.paidCompanies);
 }
 
-function funnelSourceLabel(key: string): string {
-  if (key === 'web') return 'Web';
-  if (key === 'zalo') return 'Zalo';
-  if (key === 'event') return 'Sự kiện';
-  if (key === 'partner') return 'Cộng tác viên';
+function sourceText(names: Map<string, string>, key: string): string {
+  const named = names.get(key);
+  if (named) return named;
   if (key === 'none') return 'Chưa có lead';
-  return 'Chưa rõ';
+  if (key === 'unknown') return 'Chưa rõ';
+  return key;
 }
 
 function funnelBuckets(map: Map<string, FunnelTally>, labelOf: (key: string) => string): CrmFunnelBucket[] {
@@ -3937,16 +4006,9 @@ function clip(value: string | null | undefined, max: number): string {
   return (value ?? '').trim().slice(0, max);
 }
 
-function leadSource(value: string | null | undefined): Exclude<CrmLeadSource, 'unknown'> | null {
-  if (value === 'web' || value === 'zalo' || value === 'event' || value === 'partner') return value;
-  return null;
-}
-
-function sourceLabel(source: Exclude<CrmLeadSource, 'unknown'>): string {
-  if (source === 'web') return 'Web';
-  if (source === 'zalo') return 'Zalo';
-  if (source === 'event') return 'sự kiện';
-  return 'cộng tác viên';
+function storedLeadSource(value: string | null | undefined): string {
+  const code = (value ?? '').trim().toLowerCase();
+  return code || 'unknown';
 }
 
 function expectedCloseDay(raw: string | null | undefined): Date | null {

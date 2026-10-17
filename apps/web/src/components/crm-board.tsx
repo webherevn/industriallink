@@ -8,7 +8,7 @@ import { Button, Card } from '@/components/ui';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { ApiError } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
-import { createCrmDeal, createCrmLead, fetchCrmBoard, moveCrmDeal } from '@/lib/crm';
+import { createCrmDeal, createCrmLead, fetchCrmBoard, fetchCrmMarketing, moveCrmDeal } from '@/lib/crm';
 import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
 
 export function CrmBoardPage() {
@@ -19,7 +19,7 @@ export function CrmBoardPage() {
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [taxCode, setTaxCode] = useState('');
-  const [source, setSource] = useState<'web' | 'zalo' | 'event' | 'partner' | ''>('');
+  const [source, setSource] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,10 +52,17 @@ export function CrmBoardPage() {
     enabled: me.data ? isCmsAdminRole(me.data.role) : false,
   });
 
+  const channels = useQuery({
+    queryKey: ['crm-marketing'],
+    queryFn: fetchCrmMarketing,
+    enabled: me.data ? isCmsAdminRole(me.data.role) : false,
+  });
+  const activeSources = (channels.data?.channels ?? []).filter((row) => row.isActive);
+
   const addLead = useMutation({
     mutationFn: () => {
-      if (source !== 'web' && source !== 'zalo' && source !== 'event' && source !== 'partner') {
-        return Promise.reject(new Error('Chọn nguồn khách'));
+      if (!activeSources.some((row) => row.code === source)) {
+        return Promise.reject(new Error('Chọn nguồn khách đang bật'));
       }
       return createCrmLead({
         companyName,
@@ -152,10 +159,9 @@ export function CrmBoardPage() {
               onChange={(event) => setSource(event.target.value as typeof source)}
             >
               <option value="">Nguồn khách</option>
-              <option value="web">Web</option>
-              <option value="zalo">Zalo</option>
-              <option value="event">Sự kiện</option>
-              <option value="partner">Cộng tác viên</option>
+              {activeSources.map((row) => (
+                <option key={row.code} value={row.code}>{row.name}</option>
+              ))}
             </select>
             <Button type="submit" disabled={addLead.isPending || !source}>
               Thêm lead

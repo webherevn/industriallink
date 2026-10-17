@@ -9,10 +9,10 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { CrmDateField, CrmField, CrmFormSection, CrmSelect } from '@/components/crm/fields';
 import { errorText, formatVnd, matchesQuery, vietnamDay } from '@/components/crm/format';
-import { ColumnPicker, RowCheck, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
+import { ColumnPicker, RowActions, RowCheck, RowIconButton, canDeleteOwned, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { fetchMe } from '@/lib/auth';
-import { createCrmQuote, fetchCrmPlans, fetchCrmQuotes, fetchCrmTaxSuggestions } from '@/lib/crm';
+import { createCrmQuote, deleteCrmQuote, fetchCrmPlans, fetchCrmQuotes, fetchCrmTaxSuggestions } from '@/lib/crm';
 
 const QUOTE_COLUMNS = [
   { key: 'code', label: 'Số báo giá' },
@@ -63,6 +63,16 @@ export function CrmQuotesPanel() {
   const pick = useRowSelection();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const removeQuote = useMutation({
+    mutationFn: deleteCrmQuote,
+    onSuccess: () => {
+      setError(null);
+      void qc.invalidateQueries({ queryKey: ['crm-quotes'] });
+      void qc.invalidateQueries({ queryKey: ['crm-receivables'] });
+      void qc.invalidateQueries({ queryKey: ['crm-workspace'] });
+    },
+    onError: (err) => setError(errorText(err, 'Không xóa được báo giá')),
+  });
   const filledTax = useRef('');
   const deals = board.data?.deals ?? [];
   const leads = board.data?.leads ?? [];
@@ -373,13 +383,15 @@ export function CrmQuotesPanel() {
                     {quoteColumns.shown('price') ? <SortableTh label="Giá niêm yết" active={sort.key === 'price'} dir={sort.dir} onClick={() => sort.toggle('price')} /> : null}
                     {quoteColumns.shown('status') ? <SortableTh label="Tình trạng" active={sort.key === 'status'} dir={sort.dir} onClick={() => sort.toggle('status')} /> : null}
                     {quoteColumns.shown('note') ? <SortableTh label="Mô tả" active={sort.key === 'note'} dir={sort.dir} onClick={() => sort.toggle('note')} /> : null}
+                    <th className={stickyActionsHead} />
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, index) => {
                     const picked = pick.has(row.id);
+                    const collected = row.collectedVnd !== '0';
                     return (
-                      <tr key={row.id} className={`border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
+                      <tr key={row.id} className={`group border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
                         <td className={stickyCell(picked, 'check')}><RowCheck checked={picked} onChange={() => pick.toggle(row.id)} label={`Chọn ${row.quoteCode}`} /></td>
                         <td className={stickyCell(picked, 'index')}>{index + 1}</td>
                         {quoteColumns.shown('code') ? <td className={`${crmTd} ${stickyCell(picked, 'name')}`}><Link href={`/crm/quotes/${row.id}`} className="font-semibold text-[#4c3ec9]">{row.quoteCode}</Link></td> : null}
@@ -400,6 +412,22 @@ export function CrmQuotesPanel() {
                           </td>
                         ) : null}
                         {quoteColumns.shown('note') ? <td className={`${crmTd} text-slate-500`}>{row.note ?? '—'}</td> : null}
+                        <td className={stickyCell(picked, 'actions')}>
+                          <RowActions open={picked}>
+                            <RowIconButton label="Mở tờ" href={`/crm/quotes/${row.id}`} />
+                            {canDeleteOwned(me.data?.role, me.data?.id, row.ownerUserId) && !collected ? (
+                              <RowIconButton
+                                label="Xóa"
+                                tone="delete"
+                                onClick={() => {
+                                  const debt = row.status === 'accepted' ? ' Công nợ của tờ này sẽ mất.' : '';
+                                  if (!window.confirm(`Xóa báo giá ${row.quoteCode}?${debt} Đơn đã trả vẫn giữ.`)) return;
+                                  removeQuote.mutate(row.id);
+                                }}
+                              />
+                            ) : null}
+                          </RowActions>
+                        </td>
                       </tr>
                     );
                   })}

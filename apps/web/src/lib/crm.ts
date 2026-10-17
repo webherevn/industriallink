@@ -68,6 +68,18 @@ export function updateCrmLead(id: string, body: UpdateCrmLeadRequest): Promise<C
   return apiRequest<CrmLeadView>(`/crm/leads/${id}`, { method: 'PATCH', body });
 }
 
+export function deleteCrmLead(id: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/crm/leads/${id}`, { method: 'DELETE' });
+}
+
+export function deleteCrmDeal(id: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/crm/deals/${id}`, { method: 'DELETE' });
+}
+
+export function deleteCrmQuote(id: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/crm/quotes/${id}`, { method: 'DELETE' });
+}
+
 export function fetchCrmUnclaimed(): Promise<CrmUnclaimedCustomerView[]> {
   return apiRequest<CrmUnclaimedCustomerView[]>('/crm/unclaimed-customers');
 }

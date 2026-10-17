@@ -32,7 +32,7 @@ import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/
 import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { CrmWorkspaceBoard } from '@/components/crm/workspace-board';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
-import { fetchCrmFollowUps, fetchCrmInvoices, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
+import { fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
@@ -41,6 +41,8 @@ export function CrmHomePanel() {
   const partners = useQuery({ queryKey: ['crm-partners'], queryFn: fetchCrmPartners });
   const unclaimed = useQuery({ queryKey: ['crm-unclaimed'], queryFn: fetchCrmUnclaimed });
   const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
+  const channels = useQuery({ queryKey: ['crm-marketing'], queryFn: fetchCrmMarketing });
+  const sourceChannels = channels.data?.channels ?? [];
   const missingInvoices = (invoices.data?.orders ?? []).filter((order) => !order.invoiceNumber).length;
   const unpaidSignups = (partners.data ?? []).reduce((sum, partner) => sum + partner.signups.length, 0);
   const searchParams = useSearchParams();
@@ -55,7 +57,7 @@ export function CrmHomePanel() {
   const due = renewals.data?.length ?? 0;
   const needle = query.trim();
   const matchedLeads = leads.filter((lead) =>
-    matchesQuery(query, [lead.companyName, lead.contactName, lead.contactPhone, lead.taxCode, lead.leadCode, leadSourceLabel(lead.source), lead.partnerName, lead.partnerCode]),
+    matchesQuery(query, [lead.companyName, lead.contactName, lead.contactPhone, lead.taxCode, lead.leadCode, leadSourceLabel(lead.source, sourceChannels), lead.partnerName, lead.partnerCode]),
   );
   const matchedDeals = deals.filter((deal) =>
     matchesQuery(query, [deal.companyName, deal.title, deal.planCode, deal.dealCode]),
@@ -173,7 +175,7 @@ export function CrmHomePanel() {
                   tone="sky"
                   icon={<Building2 className="h-5 w-5" />}
                   title={lead.companyName}
-                  text={`${lead.contactName} · ${lead.contactPhone} · ${lead.partnerName ? `${lead.partnerName} (${lead.partnerCode})` : leadSourceLabel(lead.source)}`}
+                  text={`${lead.contactName} · ${lead.contactPhone} · ${lead.partnerName ? `${lead.partnerName} (${lead.partnerCode})` : leadSourceLabel(lead.source, sourceChannels)}`}
                   meta={lead.leadCode}
                 />
               </Link>

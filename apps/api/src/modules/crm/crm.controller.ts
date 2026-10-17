@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   UserRole,
@@ -213,6 +213,27 @@ export class CrmController {
   @ApiOperation({ summary: 'Sale và SuperAdmin đang hoạt động, để chuyển lead.' })
   owners(@CurrentUser() user: AuthenticatedUser): Promise<CrmOwnerOption[]> {
     return this.crm.owners(user);
+  }
+
+  @Delete('leads/:id')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Xóa tiềm năng của người phụ trách. SuperAdmin xóa được của mọi sale. Không xóa công ty và không hủy đơn đã trả.' })
+  deleteLead(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<{ ok: true }> {
+    return this.crm.deleteLead(user, id).then(() => ({ ok: true as const }));
+  }
+
+  @Delete('deals/:id')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Xóa cơ hội của người phụ trách. SuperAdmin xóa được của mọi sale. Không hủy đơn đã trả.' })
+  deleteDeal(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<{ ok: true }> {
+    return this.crm.deleteDeal(user, id).then(() => ({ ok: true as const }));
+  }
+
+  @Delete('quotes/:id')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Xóa báo giá của người phụ trách. Tờ đã ghi thu thì không xóa. Không hủy đơn đã trả.' })
+  deleteQuote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<{ ok: true }> {
+    return this.crm.deleteQuote(user, id).then(() => ({ ok: true as const }));
   }
 
   @Patch('leads/:id')

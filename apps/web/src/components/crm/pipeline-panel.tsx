@@ -8,9 +8,10 @@ import type { CrmDealView, CrmPlanKind, CrmStageView } from '@industriallink/con
 import { CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
 import { errorText, formatVnd, formatWhen, isFresh, matchesQuery, vietnamDay } from '@/components/crm/format';
-import { ColumnPicker, RowCheck, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
+import { ColumnPicker, RowActions, RowCheck, RowIconButton, canDeleteOwned, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
-import { createCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
+import { fetchMe } from '@/lib/auth';
+import { createCrmDeal, deleteCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
 
 const TONE: Record<string, string> = {
   new: 'bg-sky-50 text-sky-600',
@@ -313,6 +314,18 @@ function DealTable({
   const sort = useColumnSort<DealColumn>('created', 'desc');
   const columns = useVisibleColumns<DealColumn>('crm-cols-deals', DEAL_COLUMNS.map((column) => column.key));
   const pick = useRowSelection();
+  const qc = useQueryClient();
+  const me = useQuery({ queryKey: ['me'], queryFn: fetchMe });
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const removeDeal = useMutation({
+    mutationFn: deleteCrmDeal,
+    onSuccess: () => {
+      setRemoveError(null);
+      void qc.invalidateQueries({ queryKey: ['crm-board'] });
+      void qc.invalidateQueries({ queryKey: ['crm-workspace'] });
+    },
+    onError: (err) => setRemoveError(errorText(err, 'Không xóa được cơ hội')),
+  });
   const rows = sortRows(deals, sort.dir, (deal) => {
     if (sort.key === 'title') return deal.title;
     if (sort.key === 'plan') return planInfo(deal, plans);
@@ -325,6 +338,7 @@ function DealTable({
   const selectedCount = rows.filter((deal) => pick.has(deal.id)).length;
   return (
     <div className="space-y-3">
+      {removeError ? <p className="text-center text-sm text-rose-600">{removeError}</p> : null}
       {rows.length > 0 ? (
         <ColumnPicker columns={DEAL_COLUMNS} shown={columns.shown} onToggle={columns.toggle} onShowAll={columns.showAll} selectedCount={selectedCount} />
       ) : null}
@@ -350,6 +364,7 @@ function DealTable({
                   {columns.shown('date') ? <SortableTh label="Ngày kỳ vọng / kết thúc" active={sort.key === 'date'} dir={sort.dir} onClick={() => sort.toggle('date')} /> : null}
                   {columns.shown('owner') ? <SortableTh label="Người thực hiện" active={sort.key === 'owner'} dir={sort.dir} onClick={() => sort.toggle('owner')} /> : null}
                   {columns.shown('created') ? <SortableTh label="Ngày tạo" active={sort.key === 'created'} dir={sort.dir} onClick={() => sort.toggle('created')} /> : null}
+                  <th className={stickyActionsHead} />
                 </tr>
               </thead>
               <tbody>
@@ -357,7 +372,7 @@ function DealTable({
                   const stage = stages.find((item) => item.id === deal.stageId);
                   const picked = pick.has(deal.id);
                   return (
-                    <tr key={deal.id} className={picked ? 'bg-[#f6f4ff]' : ''}>
+                    <tr key={deal.id} className={`group ${picked ? 'bg-[#f6f4ff]' : ''}`}>
                       <td className={stickyCell(picked, 'check')}><RowCheck checked={picked} onChange={() => pick.toggle(deal.id)} label={`Chọn ${deal.title}`} /></td>
                       <td className={stickyCell(picked, 'index')}>{index + 1}</td>
                       {columns.shown('title') ? <td className={`${crmTd} font-medium text-slate-900 ${stickyCell(picked, 'name')}`}>{deal.title}</td> : null}
@@ -371,6 +386,20 @@ function DealTable({
                       {columns.shown('date') ? <td className={`${crmTd} text-slate-600`}>{expectOrEnd(deal)}</td> : null}
                       {columns.shown('owner') ? <td className={`${crmTd} text-slate-600`}>{deal.ownerName}</td> : null}
                       {columns.shown('created') ? <td className={`${crmTd} text-slate-600`}>{dayText(deal.createdAt)}</td> : null}
+                      <td className={stickyCell(picked, 'actions')}>
+                        <RowActions open={picked}>
+                          {canDeleteOwned(me.data?.role, me.data?.id, deal.ownerUserId) ? (
+                            <RowIconButton
+                              label="Xóa"
+                              tone="delete"
+                              onClick={() => {
+                                if (!window.confirm(`Xóa cơ hội ${deal.title}? Đơn đã trả của công ty vẫn giữ.`)) return;
+                                removeDeal.mutate(deal.id);
+                              }}
+                            />
+                          ) : null}
+                        </RowActions>
+                      </td>
                     </tr>
                   );
                 })}

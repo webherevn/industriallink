@@ -47,12 +47,15 @@ export function isFresh(iso: string): boolean {
   return Date.now() - new Date(iso).getTime() < 86_400_000;
 }
 
-export function leadSourceLabel(source: string): string {
+export function leadSourceLabel(source: string, channels?: Array<{ code: string; name: string }>): string {
+  const named = channels?.find((row) => row.code === source)?.name;
+  if (named) return named;
   if (source === 'web') return 'Web';
   if (source === 'zalo') return 'Zalo';
   if (source === 'event') return 'Sự kiện';
   if (source === 'partner') return 'Cộng tác viên';
-  return 'Chưa rõ';
+  if (!source || source === 'unknown') return 'Chưa rõ';
+  return source;
 }
 
 export function leadStatusLabel(status: string): string {

@@ -1,7 +1,9 @@
 'use client';
 
-import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Minus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { UserRole } from '@industriallink/contracts';
+import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Minus, Pencil, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export type SortDir = 'asc' | 'desc';
 
@@ -70,12 +72,60 @@ export const crmTd = 'whitespace-nowrap border-b border-slate-100 px-4 py-3 alig
 export const stickyCheck = 'sticky left-0 z-20 w-11 border-b border-slate-100 bg-slate-50 px-2 text-center align-middle';
 export const stickyIndex = 'sticky left-11 z-20 w-14 border-b border-slate-100 bg-slate-50 text-center align-middle';
 
-export function stickyCell(picked: boolean, edge: 'check' | 'index' | 'name'): string {
+export function stickyCell(picked: boolean, edge: 'check' | 'index' | 'name' | 'actions'): string {
   const bg = picked ? 'bg-[#f6f4ff]' : 'bg-white';
   const line = `border-b border-slate-100 align-middle ${bg}`;
   if (edge === 'check') return `sticky left-0 z-10 w-11 px-2 text-center ${line}`;
   if (edge === 'index') return `sticky left-11 z-10 w-14 text-center text-xs tabular-nums text-slate-400 ${line}`;
+  if (edge === 'actions') return `sticky right-0 z-10 w-24 px-2 text-right shadow-[-4px_0_8px_-6px_rgba(15,23,42,0.28)] ${line}`;
   return `sticky left-[6.25rem] z-10 shadow-[4px_0_8px_-6px_rgba(15,23,42,0.35)] ${line}`;
+}
+
+export const stickyActionsHead = 'sticky right-0 z-20 w-24 border-b border-slate-100 bg-slate-50 px-2 shadow-[-4px_0_8px_-6px_rgba(15,23,42,0.28)]';
+
+/** SuperAdmin xóa mọi dòng. Sale chỉ xóa dòng mình phụ trách. */
+export function canDeleteOwned(role: string | undefined, actorId: string | undefined, ownerUserId: string): boolean {
+  if (role === UserRole.SuperAdmin) return true;
+  return role === UserRole.Sales && Boolean(actorId) && actorId === ownerUserId;
+}
+
+export function RowActions({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <div className={`inline-flex items-center justify-end gap-1 ${open ? '' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'}`}>
+      {children}
+    </div>
+  );
+}
+
+export function RowIconButton({
+  label,
+  tone = 'edit',
+  href,
+  onClick,
+  children,
+}: {
+  label: string;
+  tone?: 'edit' | 'delete';
+  href?: string;
+  onClick?: () => void;
+  children?: ReactNode;
+}) {
+  const className = `inline-flex h-8 w-8 items-center justify-center rounded-full ${
+    tone === 'delete' ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-[#f6f4ff] text-[#4c3ec9] hover:bg-[#efeaff]'
+  }`;
+  const icon = children ?? (tone === 'delete' ? <Trash2 className="h-4 w-4" strokeWidth={1.75} /> : <Pencil className="h-4 w-4" strokeWidth={1.75} />);
+  if (href) {
+    return (
+      <Link href={href} aria-label={label} title={label} className={className}>
+        {icon}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={className}>
+      {icon}
+    </button>
+  );
 }
 
 export function useRowSelection() {

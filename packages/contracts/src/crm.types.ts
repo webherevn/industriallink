@@ -6,8 +6,8 @@ export const CRM_LEAD_ORG_FIELDS = ['Sản xuất', 'Thương mại', 'Dịch v�
 export const CRM_LEAD_REVENUE_BANDS = ['Dưới 3 tỷ', '3–10 tỷ', '10–50 tỷ', '50–200 tỷ', 'Trên 200 tỷ'] as const;
 
 export type CrmLeadStatus = 'open' | 'converted' | 'unqualified';
-/** unknown chỉ còn trên lead tạo trước khi ghi nguồn. */
-export type CrmLeadSource = 'web' | 'zalo' | 'event' | 'partner' | 'unknown';
+/** Mã kênh marketing. unknown chỉ còn trên lead tạo trước khi ghi nguồn. */
+export type CrmLeadSource = string;
 export type CrmInvoiceStatus = 'none' | 'issued';
 export type CrmPlanKind = 'platform' | 'sourcing';
 export type CrmProvisionState = 'not_provisioned';
@@ -161,7 +161,8 @@ export interface CreateCrmLeadRequest {
   street?: string | null;
   areaCode?: string | null;
   companyId?: string | null;
-  source: Exclude<CrmLeadSource, 'unknown'>;
+  /** Mã kênh đang bật. */
+  source: string;
   /** Bắt buộc khi source là partner. */
   partnerId?: string | null;
   /** Chiến dịch marketing. Null khi không gắn. */
@@ -190,7 +191,8 @@ export interface UpdateCrmLeadRequest {
   ward?: string | null;
   street?: string | null;
   areaCode?: string | null;
-  source: Exclude<CrmLeadSource, 'unknown'>;
+  /** Mã kênh đang bật. Giữ mã cũ nếu kênh đã tắt sau khi ghi. */
+  source: string;
   partnerId?: string | null;
   /** Chỉ SuperAdmin đổi. Sale gửi khác chủ hiện tại thì bị từ chối. */
   ownerUserId?: string | null;
@@ -750,6 +752,7 @@ export interface CrmQuoteView {
   dealId: string | null;
   dealTitle: string | null;
   dealCode: string | null;
+  ownerUserId: string;
   ownerName: string;
   quoteKind: CrmQuoteKind;
   installments: CrmQuoteInstallmentView[];
