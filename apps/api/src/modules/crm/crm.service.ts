@@ -48,6 +48,17 @@ import {
   type CrmRenewalView,
   type CrmFunnelReport,
   type CrmFunnelBucket,
+  type CrmPipelineReport,
+  type CrmLeadSourceReport,
+  type CrmQuoteReport,
+  type CrmRenewalReport,
+  type CrmRenewalReportRow,
+  type CrmRenewalReportStatus,
+  type CrmPartnerPaidReport,
+  type CrmWorkspaceReport,
+  type CrmWorkspacePerson,
+  type CrmReceivableLedger,
+  type CrmQuoteInstallmentInput,
   type CreateCrmQuoteRequest,
   type CrmQuoteView,
   type CrmEnterpriseRequestView,
@@ -300,6 +311,7 @@ export class CrmService {
       where: this.ownScope(actor),
       orderBy: { createdAt: 'desc' },
       take: 100,
+      include: { installments: { orderBy: { sortOrder: 'asc' } } },
     });
     const names = await this.ownerNames(rows.map((row) => row.ownerUserId));
     return this.withQuoteDeals(rows, names);
@@ -307,7 +319,10 @@ export class CrmService {
 
   async quote(actor: AuthenticatedUser, id: string): Promise<CrmQuoteView> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) throw new NotFoundException('Không tìm thấy báo giá');
-    const row = await this.prisma.crmQuote.findUnique({ where: { id } });
+    const row = await this.prisma.crmQuote.findUnique({
+      where: { id },
+      include: { installments: { orderBy: { sortOrder: 'asc' } } },
+    });
     if (!row) throw new NotFoundException('Không tìm thấy báo giá');
     this.assertOwner(actor, row.ownerUserId);
     const [view] = await this.withQuoteDeals([row], await this.ownerNames([row.ownerUserId]));
@@ -340,15 +355,6 @@ export class CrmService {
       });
       companyId = company?.id ?? null;
     }
-    const option1 = await this.snapshotPlan(input.option1Kind, input.option1Code);
-    if (!option1) throw new BadRequestException('Chọn phương án 1');
-    const option2Kind = input.option2Kind ?? null;
-    const option2Code = input.option2Code?.trim() ?? '';
-    const option2 = option2Kind || option2Code ? await this.snapshotPlan(option2Kind, option2Code || null) : null;
-    if ((option2Kind || option2Code) && !option2) throw new BadRequestException('Phương án 2 chưa đủ gói');
-    if (option2 && option2.kind === option1.kind && option2.code === option1.code) {
-      throw new BadRequestException('Hai phương án đang trùng một gói');
-    }
     const quotedOn = calendarDay(input.quotedOn, 'Ngày báo giá');
     if (!quotedOn) throw new BadRequestException('Cần ngày báo giá');
     const validUntil = calendarDay(input.validUntil, 'Hiệu lực đến ngày');
@@ -365,6 +371,45 @@ export class CrmService {
     }
     const vat = await this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } });
     const note = input.note?.trim().slice(0, 500) || null;
+    if (input.quoteKind === 'enterprise') {
+      const plan = this.readEnterpriseQuote(input.packageName, input.contractVnd, input.installments, quotedOn);
+      const row = await this.prisma.crmQuote.create({
+        data: {
+          quoteCode: await this.nextCode('BG'),
+          companyName: companyName.slice(0, 160),
+          taxCode,
+          contactName: contactName.slice(0, 160),
+          address: clip(input.address, 300) || null,
+          quotedOn,
+          validUntil,
+          status,
+          kind: 'enterprise',
+          leadId: input.leadId ?? null,
+          dealId,
+          companyId,
+          ownerUserId: actor.id,
+          option1Kind: 'enterprise',
+          option1Code: 'ENTERPRISE',
+          option1Name: plan.packageName,
+          option1PriceVnd: plan.contractVnd,
+          vatPercent: vat?.percent ?? null,
+          note,
+          installments: { create: plan.lines },
+        },
+        include: { installments: { orderBy: { sortOrder: 'asc' } } },
+      });
+      const [view] = await this.withQuoteDeals([row], await this.ownerNames([actor.id]));
+      return view;
+    }
+    const option1 = await this.snapshotPlan(input.option1Kind ?? null, input.option1Code ?? null);
+    if (!option1) throw new BadRequestException('Chọn phương án 1');
+    const option2Kind = input.option2Kind ?? null;
+    const option2Code = input.option2Code?.trim() ?? '';
+    const option2 = option2Kind || option2Code ? await this.snapshotPlan(option2Kind, option2Code || null) : null;
+    if ((option2Kind || option2Code) && !option2) throw new BadRequestException('Phương án 2 chưa đủ gói');
+    if (option2 && option2.kind === option1.kind && option2.code === option1.code) {
+      throw new BadRequestException('Hai phương án đang trùng một gói');
+    }
     const row = await this.prisma.crmQuote.create({
       data: {
         quoteCode: await this.nextCode('BG'),
@@ -393,6 +438,65 @@ export class CrmService {
     });
     const [view] = await this.withQuoteDeals([row], await this.ownerNames([actor.id]));
     return view;
+  }
+
+  /** Chốt tờ Enterprise. Các đợt thành công nợ. Không tạo đơn và không bật gói. */
+  async acceptEnterpriseQuote(actor: AuthenticatedUser, id: string): Promise<CrmQuoteView> {
+    const current = await this.quote(actor, id);
+    if (current.quoteKind !== 'enterprise') throw new BadRequestException('Chỉ hợp đồng Enterprise mới ghi công nợ');
+    if (current.status === 'accepted') throw new BadRequestException('Hợp đồng này đã chốt');
+    if (current.installments.length < 2) throw new BadRequestException('Hợp đồng cần ít nhất hai đợt');
+    if (current.dealId) {
+      const deal = await this.prisma.crmDeal.findUnique({
+        where: { id: current.dealId },
+        select: { stage: { select: { code: true } } },
+      });
+      if (deal?.stage.code === 'lost') throw new BadRequestException('Cơ hội đã kết thúc thất bại, không chốt hợp đồng');
+    }
+    await this.prisma.$transaction([
+      this.prisma.crmQuote.update({ where: { id }, data: { status: 'accepted', acceptedAt: new Date() } }),
+      this.prisma.crmQuoteInstallment.updateMany({ where: { quoteId: id, status: 'scheduled' }, data: { status: 'open' } }),
+    ]);
+    return this.quote(actor, id);
+  }
+
+  /** Ghi một đợt đã thu đủ. Không bật gói Enterprise. */
+  async collectInstallment(actor: AuthenticatedUser, quoteId: string, installmentId: string): Promise<CrmQuoteView> {
+    await this.quote(actor, quoteId);
+    if (!/^[0-9a-f-]{36}$/i.test(installmentId)) throw new NotFoundException('Không tìm thấy đợt thanh toán');
+    const line = await this.prisma.crmQuoteInstallment.findFirst({ where: { id: installmentId, quoteId } });
+    if (!line) throw new NotFoundException('Không tìm thấy đợt thanh toán');
+    if (line.status !== 'open') throw new BadRequestException('Đợt này chưa ở trạng thái phải thu');
+    await this.prisma.crmQuoteInstallment.update({
+      where: { id: line.id },
+      data: { status: 'collected', collectedAt: new Date() },
+    });
+    return this.quote(actor, quoteId);
+  }
+
+  /** Công nợ Enterprise đang mở. Sale chỉ thấy tờ của mình. */
+  async receivables(actor: AuthenticatedUser): Promise<CrmReceivableLedger> {
+    const rows = await this.prisma.crmQuoteInstallment.findMany({
+      where: { status: 'open', quote: this.ownScope(actor) },
+      orderBy: { dueOn: 'asc' },
+      include: { quote: { select: { id: true, quoteCode: true, companyName: true, ownerUserId: true } } },
+    });
+    const names = await this.ownerNames(rows.map((row) => row.quote.ownerUserId));
+    const receivable = rows.reduce((sum, row) => sum + row.amountVnd, 0n);
+    return {
+      receivableVnd: receivable.toString(),
+      rows: rows.map((row) => ({
+        id: row.id,
+        quoteId: row.quote.id,
+        quoteCode: row.quote.quoteCode,
+        companyName: row.quote.companyName,
+        ownerName: names.get(row.quote.ownerUserId) ?? 'Người phụ trách',
+        label: row.label,
+        percent: row.percent,
+        amountVnd: row.amountVnd.toString(),
+        dueOn: row.dueOn.toISOString().slice(0, 10),
+      })),
+    };
   }
 
   /** Sổ khách. Sale chỉ thấy công ty mình phụ trách. Không gán gói. */
@@ -1941,6 +2045,463 @@ export class CrmService {
     };
   }
 
+  /** Phễu hiện tại và cơ hội có ngày kỳ vọng trong tháng. Giá niêm yết, không phải doanh số. */
+  async pipelineReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmPipelineReport> {
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const [stageRows, deals] = await Promise.all([
+      this.prisma.crmStage.findMany({ orderBy: { sortOrder: 'asc' }, select: { code: true, name: true, sortOrder: true } }),
+      this.prisma.crmDeal.findMany({
+        where: this.ownScope(actor),
+        select: { listPriceVnd: true, expectedCloseOn: true, stage: { select: { code: true, name: true, sortOrder: true } } },
+      }),
+    ]);
+    const stages = new Map<string, { label: string; sort: number; deals: number; price: bigint }>();
+    for (const stage of stageRows) {
+      if (!stages.has(stage.code)) stages.set(stage.code, { label: stageLabel(stage.code, stage.name), sort: stage.sortOrder, deals: 0, price: 0n });
+    }
+    const expected = new Map<string, { label: string; sort: number; deals: number; price: bigint }>();
+    for (const deal of deals) {
+      const code = deal.stage.code;
+      const row = stages.get(code) ?? { label: stageLabel(code, deal.stage.name), sort: deal.stage.sortOrder, deals: 0, price: 0n };
+      row.deals += 1;
+      row.price += deal.listPriceVnd ?? 0n;
+      stages.set(code, row);
+      if (!deal.expectedCloseOn || deal.expectedCloseOn < start || deal.expectedCloseOn >= end) continue;
+      const slot = expected.get(code) ?? { label: row.label, sort: row.sort, deals: 0, price: 0n };
+      slot.deals += 1;
+      slot.price += deal.listPriceVnd ?? 0n;
+      expected.set(code, slot);
+    }
+    return { periodMonth, stages: stageMoneyRows(stages), expected: stageMoneyRows(expected) };
+  }
+
+  /** Lead tạo trong tháng, theo nguồn và người phụ trách, kèm công ty đã trả gói sau đó. */
+  async leadSourceReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmLeadSourceReport> {
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const leads = await this.prisma.crmLead.findMany({
+      where: { status: { not: 'unqualified' }, createdAt: { gte: start, lt: end }, ...this.ownScope(actor) },
+      select: { companyId: true, source: true, ownerUserId: true, createdAt: true },
+    });
+    const companyIds = [...new Set(leads.flatMap((lead) => (lead.companyId ? [lead.companyId] : [])))];
+    const orders = companyIds.length === 0
+      ? []
+      : await this.prisma.billingOrder.findMany({
+          where: { ...this.paidPlanOrderWhere(), companyId: { in: companyIds } },
+          select: { companyId: true, paidAt: true },
+        });
+    const paidAt = new Map<string, Date>();
+    for (const order of orders) {
+      if (!order.paidAt) continue;
+      const current = paidAt.get(order.companyId);
+      if (!current || order.paidAt < current) paidAt.set(order.companyId, order.paidAt);
+    }
+    const sources = new Map<string, LeadSourceTally>();
+    const owners = new Map<string, LeadSourceTally>();
+    for (const lead of leads) {
+      const paid = Boolean(lead.companyId && paidAt.get(lead.companyId) && paidAt.get(lead.companyId)! >= lead.createdAt);
+      addLeadSource(sources, lead.source, lead.companyId, paid);
+      addLeadSource(owners, lead.ownerUserId, lead.companyId, paid);
+    }
+    const names = await this.ownerNames([...owners.keys()]);
+    return {
+      periodMonth,
+      bySource: leadSourceRows(sources, funnelSourceLabel),
+      byOwner: leadSourceRows(owners, (key) => names.get(key) ?? 'Người phụ trách'),
+    };
+  }
+
+  /** Báo giá lập trong tháng. Hai phương án không cộng lại. Đơn đã trả chỉ để đối chiếu. */
+  async quoteReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmQuoteReport> {
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const quotes = await this.prisma.crmQuote.findMany({
+      where: { ...this.ownScope(actor), quotedOn: { gte: start, lt: end } },
+      select: {
+        id: true,
+        kind: true,
+        status: true,
+        companyId: true,
+        quotedOn: true,
+        option1PriceVnd: true,
+        option2PriceVnd: true,
+        installments: { select: { status: true, amountVnd: true } },
+      },
+    });
+    const collectedLines = await this.prisma.crmQuoteInstallment.findMany({
+      where: { status: 'collected', collectedAt: { gte: start, lt: end }, quote: this.ownScope(actor) },
+      select: { amountVnd: true },
+    });
+    const companyIds = [...new Set(quotes.flatMap((row) => (row.companyId ? [row.companyId] : [])))];
+    const orders = companyIds.length === 0
+      ? []
+      : await this.prisma.billingOrder.findMany({
+          where: { ...this.paidPlanOrderWhere(), companyId: { in: companyIds } },
+          select: { companyId: true, paidAt: true },
+        });
+    const paid = new Map<string, Date[]>();
+    for (const order of orders) {
+      if (!order.paidAt) continue;
+      paid.set(order.companyId, [...(paid.get(order.companyId) ?? []), order.paidAt]);
+    }
+    const catalog = quotes.filter((row) => row.kind !== 'enterprise');
+    const enterpriseQuotes = quotes.filter((row) => row.kind === 'enterprise');
+    const rows = (['draft', 'sent'] as const).map((status) => {
+      const group = catalog.filter((row) => row.status === status);
+      let option1 = 0n;
+      let option2 = 0n;
+      let option2Quotes = 0;
+      let paidQuotes = 0;
+      for (const quote of group) {
+        option1 += quote.option1PriceVnd;
+        if (quote.option2PriceVnd != null) {
+          option2 += quote.option2PriceVnd;
+          option2Quotes += 1;
+        }
+        const from = new Date(quote.quotedOn.getTime() - 7 * 60 * 60 * 1000);
+        if (quote.companyId && (paid.get(quote.companyId) ?? []).some((at) => at >= from)) paidQuotes += 1;
+      }
+      return {
+        status,
+        label: status === 'sent' ? 'Đã gửi' : 'Bản thảo',
+        quotes: group.length,
+        option1Vnd: option1.toString(),
+        option2Quotes,
+        option2Vnd: option2.toString(),
+        paidQuotes,
+      };
+    });
+    const enterpriseReceivable = enterpriseQuotes.reduce(
+      (sum, quote) => sum + quote.installments.filter((line) => line.status === 'open').reduce((inner, line) => inner + line.amountVnd, 0n),
+      0n,
+    );
+    return {
+      periodMonth,
+      rows,
+      enterprise: {
+        quotes: enterpriseQuotes.length,
+        contractVnd: enterpriseQuotes.filter((quote) => quote.status === 'accepted').reduce((sum, quote) => sum + quote.option1PriceVnd, 0n).toString(),
+        accepted: enterpriseQuotes.filter((quote) => quote.status === 'accepted').length,
+        receivableVnd: enterpriseReceivable.toString(),
+        collectedVnd: collectedLines.reduce((sum, line) => sum + line.amountVnd, 0n).toString(),
+      },
+    };
+  }
+
+  /** Gói hết hạn trong tháng, và gói đã có đơn trả mới sau một đơn trước đó. */
+  async renewalReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmRenewalReport> {
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const empty = { periodMonth, ending: 0, expired: 0, renewed: 0, rows: [] as CrmRenewalReportRow[] };
+    const scoped = await this.invoiceCompanyIds(actor);
+    if (scoped && scoped.length === 0) return empty;
+    const companyWhere = scoped ? { companyId: { in: scoped } } : {};
+    const [platformPlans, sourcingPlans, monthOrders] = await Promise.all([
+      this.prisma.billingCompanyPlan.findMany({
+        where: { ...companyWhere, endsAt: { gte: start, lt: end } },
+        include: { plan: { select: { name: true } } },
+      }),
+      this.prisma.billingCompanySourcingPlan.findMany({
+        where: { ...companyWhere, endsAt: { gte: start, lt: end } },
+        include: { plan: { select: { name: true } } },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: { ...this.paidPlanOrderWhere(), ...companyWhere, paidAt: { gte: start, lt: end } },
+        select: { companyId: true, kind: true, planName: true, priceVndSnapshot: true, paidAt: true },
+      }),
+    ]);
+    const touched = [...new Set([
+      ...platformPlans.map((row) => row.companyId),
+      ...sourcingPlans.map((row) => row.companyId),
+      ...monthOrders.map((row) => row.companyId),
+    ])];
+    const companies = touched.length === 0
+      ? []
+      : await this.prisma.company.findMany({
+          where: { id: { in: touched }, isDeleted: false },
+          select: { id: true, name: true },
+        });
+    const names = new Map(companies.map((company) => [company.id, company.name]));
+    const prior = touched.length === 0
+      ? []
+      : await this.prisma.billingOrder.findMany({
+          where: { ...this.paidPlanOrderWhere(), companyId: { in: touched }, paidAt: { lt: start } },
+          select: { companyId: true, kind: true },
+        });
+    const priorKey = new Set(prior.map((row) => `${row.companyId}:${row.kind}`));
+    const now = new Date();
+    const rows: CrmRenewalReportRow[] = [];
+    const pushPlan = (
+      kind: 'platform' | 'sourcing',
+      plan: { companyId: string; endsAt: Date | null; plan: { name: string } },
+    ) => {
+      if (!plan.endsAt || !names.has(plan.companyId)) return;
+      const paidRows = monthOrders.filter((order) => order.companyId === plan.companyId && order.kind === kind);
+      const renewed = paidRows.length > 0 && priorKey.has(`${plan.companyId}:${kind}`);
+      const status: CrmRenewalReportStatus = renewed ? 'renewed' : plan.endsAt < now ? 'expired' : 'ending';
+      rows.push({
+        companyId: plan.companyId,
+        companyName: names.get(plan.companyId)!,
+        kind,
+        planName: plan.plan.name,
+        endsAt: plan.endsAt.toISOString(),
+        status,
+        paidAmountVnd: paidRows.reduce((sum, order) => sum + order.priceVndSnapshot, 0n).toString(),
+      });
+    };
+    for (const plan of platformPlans) pushPlan('platform', plan);
+    for (const plan of sourcingPlans) pushPlan('sourcing', plan);
+    const seen = new Set(rows.map((row) => `${row.companyId}:${row.kind}`));
+    for (const order of monthOrders) {
+      const kind = order.kind === 'sourcing' ? 'sourcing' : 'platform';
+      const key = `${order.companyId}:${kind}`;
+      if (seen.has(key) || !priorKey.has(key) || !names.has(order.companyId)) continue;
+      seen.add(key);
+      const paidRows = monthOrders.filter((item) => item.companyId === order.companyId && item.kind === kind);
+      rows.push({
+        companyId: order.companyId,
+        companyName: names.get(order.companyId)!,
+        kind,
+        planName: order.planName ?? (kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'),
+        endsAt: null,
+        status: 'renewed',
+        paidAmountVnd: paidRows.reduce((sum, item) => sum + item.priceVndSnapshot, 0n).toString(),
+      });
+    }
+    rows.sort((a, b) => a.companyName.localeCompare(b.companyName, 'vi') || a.kind.localeCompare(b.kind));
+    return {
+      periodMonth,
+      ending: rows.filter((row) => row.status === 'ending').length,
+      expired: rows.filter((row) => row.status === 'expired').length,
+      renewed: rows.filter((row) => row.status === 'renewed').length,
+      rows,
+    };
+  }
+
+  /** Đơn đã trả gắn mã giới thiệu. Không trả số hoa hồng. */
+  async partnerPaidReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmPartnerPaidReport> {
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const scoped = await this.invoiceCompanyIds(actor);
+    if (scoped && scoped.length === 0) return { periodMonth, rows: [] };
+    const entries = await this.prisma.crmCommissionEntry.findMany({
+      where: { paidAt: { gte: start, lt: end }, ...(scoped ? { companyId: { in: scoped } } : {}) },
+      select: { partnerId: true, companyId: true, orderKind: true, paidAmountVnd: true },
+    });
+    const buckets = new Map<string, { orders: number; companies: Set<string>; platform: bigint; sourcing: bigint }>();
+    for (const entry of entries) {
+      const row = buckets.get(entry.partnerId) ?? { orders: 0, companies: new Set<string>(), platform: 0n, sourcing: 0n };
+      row.orders += 1;
+      row.companies.add(entry.companyId);
+      if (entry.orderKind === 'sourcing') row.sourcing += entry.paidAmountVnd;
+      else row.platform += entry.paidAmountVnd;
+      buckets.set(entry.partnerId, row);
+    }
+    const partners = buckets.size === 0
+      ? []
+      : await this.prisma.crmPartner.findMany({
+          where: { id: { in: [...buckets.keys()] } },
+          select: { id: true, name: true, code: true },
+        });
+    const label = new Map(partners.map((row) => [row.id, `${row.name} · ${row.code}`]));
+    const rows = [...buckets.entries()].map(([partnerId, row]) => ({
+      partnerId,
+      label: label.get(partnerId) ?? 'Cộng tác viên',
+      orders: row.orders,
+      companies: row.companies.size,
+      platformPaidVnd: row.platform.toString(),
+      sourcingPaidVnd: row.sourcing.toString(),
+      paidAmountVnd: (row.platform + row.sourcing).toString(),
+    })).sort((a, b) => {
+      const amount = BigInt(b.paidAmountVnd) - BigInt(a.paidAmountVnd);
+      if (amount > 0n) return 1;
+      if (amount < 0n) return -1;
+      return b.orders - a.orders;
+    });
+    return { periodMonth, rows };
+  }
+
+  /** Số trên bàn làm việc. Doanh số gói là đơn đã trả. Công nợ là đợt Enterprise đã chốt và chưa thu. */
+  async workspaceReport(actor: AuthenticatedUser, rawMonth: string): Promise<CrmWorkspaceReport> {
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const year = periodMonth.slice(0, 4);
+    const yearStart = vietnamMonthBounds(`${year}-01`)!.start;
+    const yearEnd = vietnamMonthBounds(`${year}-12`)!.end;
+    const scoped = await this.invoiceCompanyIds(actor);
+    const companyWhere = scoped ? { companyId: { in: scoped } } : {};
+    const noCompanies = Boolean(scoped && scoped.length === 0);
+    const [yearOrders, monthLeads, monthQuotes, monthDeals, openDeals, collectedInstallments, openInstallments] = await Promise.all([
+      noCompanies
+        ? []
+        : this.prisma.billingOrder.findMany({
+            where: { ...this.paidPlanOrderWhere(), ...companyWhere, paidAt: { gte: yearStart, lt: yearEnd } },
+            select: { companyId: true, kind: true, planCode: true, planName: true, priceVndSnapshot: true, paidAt: true },
+          }),
+      this.prisma.crmLead.findMany({
+        where: { status: { not: 'unqualified' }, createdAt: { gte: start, lt: end }, ...this.ownScope(actor) },
+        select: { ownerUserId: true },
+      }),
+      this.prisma.crmQuote.findMany({
+        where: { quotedOn: { gte: start, lt: end }, ...this.ownScope(actor) },
+        select: { ownerUserId: true },
+      }),
+      this.prisma.crmDeal.findMany({
+        where: { createdAt: { gte: start, lt: end }, ...this.ownScope(actor) },
+        select: { ownerUserId: true },
+      }),
+      this.prisma.crmDeal.findMany({
+        where: { ...this.ownScope(actor), stage: { code: { notIn: ['won', 'lost'] } } },
+        select: { listPriceVnd: true },
+      }),
+      this.prisma.crmQuoteInstallment.findMany({
+        where: { status: 'collected', collectedAt: { gte: yearStart, lt: yearEnd }, quote: this.ownScope(actor) },
+        select: { amountVnd: true, collectedAt: true, quote: { select: { ownerUserId: true, companyId: true } } },
+      }),
+      this.prisma.crmQuoteInstallment.findMany({
+        where: { status: 'open', quote: this.ownScope(actor) },
+        select: { amountVnd: true, dueOn: true },
+      }),
+    ]);
+    const monthOrders = yearOrders.filter((order) => order.paidAt && order.paidAt >= start && order.paidAt < end);
+    const monthCollected = collectedInstallments.filter((line) => line.collectedAt && line.collectedAt >= start && line.collectedAt < end);
+    const companyIds = [...new Set([
+      ...monthOrders.map((order) => order.companyId),
+      ...monthCollected.flatMap((line) => (line.quote.companyId ? [line.quote.companyId] : [])),
+    ])];
+    const leadRows = companyIds.length === 0
+      ? []
+      : await this.prisma.crmLead.findMany({
+          where: { companyId: { in: companyIds }, status: { not: 'unqualified' }, ...(this.seesAll(actor) ? {} : { ownerUserId: actor.id }) },
+          select: { companyId: true, source: true, ownerUserId: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        });
+    const firstLead = new Map<string, (typeof leadRows)[number]>();
+    for (const lead of leadRows) {
+      if (lead.companyId && !firstLead.has(lead.companyId)) firstLead.set(lead.companyId, lead);
+    }
+    const months = Array.from({ length: 12 }, (_, index) => {
+      const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+      const bounds = vietnamMonthBounds(month)!;
+      const rows = yearOrders.filter((order) => order.paidAt && order.paidAt >= bounds.start && order.paidAt < bounds.end);
+      const collected = collectedInstallments.filter((line) => line.collectedAt && line.collectedAt >= bounds.start && line.collectedAt < bounds.end);
+      const paid = rows.reduce((sum, order) => sum + order.priceVndSnapshot, 0n)
+        + collected.reduce((sum, line) => sum + line.amountVnd, 0n);
+      return {
+        month,
+        label: `T${index + 1}`,
+        orders: rows.length,
+        paidAmountVnd: paid.toString(),
+      };
+    });
+    let platform = 0n;
+    let sourcing = 0n;
+    const sources = new Map<string, { orders: number; amount: bigint }>();
+    const plans = new Map<string, { label: string; orders: number; amount: bigint }>();
+    const people = new Map<string, CrmWorkspacePerson>();
+    const person = (key: string) => {
+      const row = people.get(key) ?? { key, label: key, leads: 0, quotes: 0, deals: 0, orders: 0, paidAmountVnd: '0', enterpriseCollectedVnd: '0' };
+      people.set(key, row);
+      return row;
+    };
+    for (const order of monthOrders) {
+      const kind = order.kind === 'sourcing' ? 'sourcing' : 'platform';
+      if (kind === 'sourcing') sourcing += order.priceVndSnapshot;
+      else platform += order.priceVndSnapshot;
+      const lead = firstLead.get(order.companyId);
+      const sourceKey = lead?.source ?? 'none';
+      const source = sources.get(sourceKey) ?? { orders: 0, amount: 0n };
+      source.orders += 1;
+      source.amount += order.priceVndSnapshot;
+      sources.set(sourceKey, source);
+      const planKey = `${kind}:${order.planCode ?? order.planName ?? 'goi'}`;
+      const plan = plans.get(planKey) ?? { label: order.planName ?? (kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'), orders: 0, amount: 0n };
+      plan.orders += 1;
+      plan.amount += order.priceVndSnapshot;
+      plans.set(planKey, plan);
+      const ownerKey = lead?.ownerUserId ?? 'unassigned';
+      const owner = person(ownerKey);
+      owner.orders += 1;
+      owner.paidAmountVnd = (BigInt(owner.paidAmountVnd) + order.priceVndSnapshot).toString();
+    }
+    for (const line of monthCollected) {
+      const owner = person(line.quote.ownerUserId);
+      owner.enterpriseCollectedVnd = (BigInt(owner.enterpriseCollectedVnd) + line.amountVnd).toString();
+      const sourceKey = (line.quote.companyId && firstLead.get(line.quote.companyId)?.source) || 'none';
+      const source = sources.get(sourceKey) ?? { orders: 0, amount: 0n };
+      source.amount += line.amountVnd;
+      sources.set(sourceKey, source);
+    }
+    for (const lead of monthLeads) person(lead.ownerUserId).leads += 1;
+    for (const quote of monthQuotes) person(quote.ownerUserId).quotes += 1;
+    for (const deal of monthDeals) person(deal.ownerUserId).deals += 1;
+    const staffSeed = new Map<string, { orders: number; online: bigint; enterprise: bigint }>();
+    const staffRow = (key: string) => {
+      const row = staffSeed.get(key) ?? { orders: 0, online: 0n, enterprise: 0n };
+      staffSeed.set(key, row);
+      return row;
+    };
+    for (const row of people.values()) {
+      const online = BigInt(row.paidAmountVnd);
+      const enterprise = BigInt(row.enterpriseCollectedVnd);
+      if (online + enterprise <= 0n) continue;
+      const item = staffRow(row.key);
+      item.orders = row.orders;
+      item.online = online;
+      item.enterprise = enterprise;
+    }
+    const names = await this.ownerNames([...new Set([...people.keys(), ...staffSeed.keys()])].filter((id) => id !== 'unassigned'));
+    const receivable = openInstallments.reduce((sum, row) => sum + row.amountVnd, 0n);
+    const receivableDue = openInstallments
+      .filter((row) => row.dueOn >= start && row.dueOn < end)
+      .reduce((sum, row) => sum + row.amountVnd, 0n);
+    const enterpriseCollected = monthCollected.reduce((sum, row) => sum + row.amountVnd, 0n);
+    const sourceOrder = ['web', 'zalo', 'event', 'partner', 'unknown', 'none'];
+    for (const key of ['web', 'zalo', 'event', 'partner']) {
+      if (!sources.has(key)) sources.set(key, { orders: 0, amount: 0n });
+    }
+    return {
+      periodMonth,
+      orders: monthOrders.length,
+      paidAmountVnd: (platform + sourcing).toString(),
+      platformPaidVnd: platform.toString(),
+      sourcingPaidVnd: sourcing.toString(),
+      newLeads: monthLeads.length,
+      quotes: monthQuotes.length,
+      openDeals: openDeals.length,
+      openListPriceVnd: openDeals.reduce((sum, deal) => sum + (deal.listPriceVnd ?? 0n), 0n).toString(),
+      months,
+      bySource: [...sources.entries()]
+        .map(([key, row]) => ({ key, label: funnelSourceLabel(key), orders: row.orders, paidAmountVnd: row.amount.toString() }))
+        .filter((row) => row.orders > 0 || ['web', 'zalo', 'event', 'partner'].includes(row.key))
+        .sort((a, b) => sourceOrder.indexOf(a.key) - sourceOrder.indexOf(b.key)),
+      plans: [...plans.entries()]
+        .map(([key, row]) => ({ key, label: row.label, orders: row.orders, paidAmountVnd: row.amount.toString() }))
+        .sort((a, b) => (BigInt(b.paidAmountVnd) > BigInt(a.paidAmountVnd) ? 1 : -1))
+        .slice(0, 5),
+      people: [...people.values()]
+        .map((row) => ({ ...row, label: row.key === 'unassigned' ? 'Chưa có người phụ trách' : names.get(row.key) ?? 'Người phụ trách' }))
+        .sort((a, b) => {
+          const amount = (BigInt(b.paidAmountVnd) + BigInt(b.enterpriseCollectedVnd)) - (BigInt(a.paidAmountVnd) + BigInt(a.enterpriseCollectedVnd));
+          if (amount > 0n) return 1;
+          if (amount < 0n) return -1;
+          return b.leads - a.leads;
+        }),
+      enterpriseCollectedVnd: enterpriseCollected.toString(),
+      receivableVnd: receivable.toString(),
+      receivableDueVnd: receivableDue.toString(),
+      staff: [...staffSeed.entries()]
+        .map(([key, row]) => ({
+          key,
+          label: key === 'unassigned' ? 'Chưa có người phụ trách' : names.get(key) ?? 'Người phụ trách',
+          orders: row.orders,
+          enterpriseCollectedVnd: row.enterprise.toString(),
+          paidAmountVnd: (row.online + row.enterprise).toString(),
+        }))
+        .sort((a, b) => {
+          const amount = BigInt(b.paidAmountVnd) - BigInt(a.paidAmountVnd);
+          if (amount > 0n) return 1;
+          if (amount < 0n) return -1;
+          return b.orders - a.orders;
+        }),
+    };
+  }
+
   /** Đơn gói đã thanh toán. Sale chỉ thấy công ty mình phụ trách. */
   async paidInvoices(actor: AuthenticatedUser): Promise<CrmPaidInvoiceLedgerView> {
     const companyIds = await this.invoiceCompanyIds(actor);
@@ -2180,6 +2741,13 @@ export class CrmService {
 
   private seesAll(actor: AuthenticatedUser): boolean {
     return actor.role === UserRole.SuperAdmin;
+  }
+
+  private reportBounds(rawMonth: string): { periodMonth: string; start: Date; end: Date } {
+    const periodMonth = rawMonth.trim() || vietnamPeriodMonth(new Date());
+    const bounds = vietnamMonthBounds(periodMonth);
+    if (!bounds) throw new BadRequestException('Chọn tháng dạng YYYY-MM');
+    return { periodMonth, start: bounds.start, end: bounds.end };
   }
 
   private ownScope(actor: AuthenticatedUser): { ownerUserId: string } | undefined {
@@ -2908,6 +3476,51 @@ export class CrmService {
     return `${prefix}-${stamp}-${randomBytes(2).toString('hex').toUpperCase()}`;
   }
 
+  private readEnterpriseQuote(
+    rawName: string | null | undefined,
+    rawContract: string | null | undefined,
+    rawLines: CrmQuoteInstallmentInput[] | null | undefined,
+    quotedOn: Date,
+  ) {
+    const packageName = rawName?.trim() ?? '';
+    if (packageName.length < 2 || packageName.length > 120) throw new BadRequestException('Cần tên gói Enterprise');
+    const digits = (rawContract ?? '').replace(/\D/g, '');
+    if (!digits || digits.length > 15) throw new BadRequestException('Cần giá trị hợp đồng');
+    const contractVnd = BigInt(digits);
+    if (contractVnd <= 0n) throw new BadRequestException('Giá trị hợp đồng phải lớn hơn 0');
+    const lines = rawLines ?? [];
+    if (lines.length < 2 || lines.length > 6) throw new BadRequestException('Hợp đồng cần từ 2 đến 6 đợt');
+    let percent = 0;
+    const parsed = lines.map((line, index) => {
+      const label = line.label?.trim() ?? '';
+      if (label.length < 2 || label.length > 80) throw new BadRequestException(`Đợt ${index + 1} cần tên`);
+      if (!Number.isInteger(line.percent) || line.percent < 1 || line.percent > 99) {
+        throw new BadRequestException(`Tỉ lệ đợt ${index + 1} là số nguyên từ 1 đến 99`);
+      }
+      percent += line.percent;
+      const dueOn = calendarDay(line.dueOn, `Hạn đợt ${index + 1}`);
+      if (!dueOn) throw new BadRequestException(`Cần hạn đợt ${index + 1}`);
+      if (dueOn < quotedOn) throw new BadRequestException(`Hạn đợt ${index + 1} phải từ ngày báo giá trở đi`);
+      return { label: label.slice(0, 80), percent: line.percent, dueOn };
+    });
+    if (percent !== 100) throw new BadRequestException('Các đợt phải cộng đủ 100%');
+    const amounts = parsed.map((line) => (contractVnd * BigInt(line.percent)) / 100n);
+    const allocated = amounts.reduce((sum, amount) => sum + amount, 0n);
+    amounts[amounts.length - 1] += contractVnd - allocated;
+    return {
+      packageName: packageName.slice(0, 120),
+      contractVnd,
+      lines: parsed.map((line, index) => ({
+        sortOrder: index + 1,
+        label: line.label,
+        percent: line.percent,
+        amountVnd: amounts[index]!,
+        dueOn: line.dueOn,
+        status: 'scheduled',
+      })),
+    };
+  }
+
   private async withQuoteDeals(
     rows: Parameters<CrmService['mapQuote']>[0][],
     names: Map<string, string>,
@@ -2945,6 +3558,16 @@ export class CrmService {
       validUntil?: Date | null;
       status?: string | null;
       dealId?: string | null;
+      kind?: string | null;
+      installments?: Array<{
+        id: string;
+        label: string;
+        percent: number;
+        amountVnd: bigint;
+        dueOn: Date;
+        status: string;
+        collectedAt: Date | null;
+      }>;
     },
     names: Map<string, string>,
     deal?: { title: string; dealCode: string } | null,
@@ -2952,6 +3575,21 @@ export class CrmService {
     const kind = (value: string | null): CrmPlanKind | null =>
       value === 'sourcing' ? 'sourcing' : value === 'platform' ? 'platform' : null;
     const option1Kind = kind(row.option1Kind) ?? 'platform';
+    const quoteKind = row.kind === 'enterprise' || row.option1Kind === 'enterprise' ? 'enterprise' : 'catalog';
+    const installments = (row.installments ?? []).map((line) => {
+      const status: 'scheduled' | 'open' | 'collected' = line.status === 'open' || line.status === 'collected' ? line.status : 'scheduled';
+      return {
+        id: line.id,
+        label: line.label,
+        percent: line.percent,
+        amountVnd: line.amountVnd.toString(),
+        dueOn: line.dueOn.toISOString().slice(0, 10),
+        status,
+        collectedAt: line.collectedAt ? line.collectedAt.toISOString() : null,
+      };
+    });
+    const receivable = installments.filter((line) => line.status === 'open').reduce((sum, line) => sum + BigInt(line.amountVnd), 0n);
+    const collected = installments.filter((line) => line.status === 'collected').reduce((sum, line) => sum + BigInt(line.amountVnd), 0n);
     return {
       id: row.id,
       quoteCode: row.quoteCode,
@@ -2961,12 +3599,16 @@ export class CrmService {
       address: row.address ?? null,
       quotedOn: row.quotedOn ? row.quotedOn.toISOString().slice(0, 10) : row.createdAt.toISOString().slice(0, 10),
       validUntil: row.validUntil ? row.validUntil.toISOString().slice(0, 10) : null,
-      status: row.status === 'sent' ? 'sent' : 'draft',
+      status: row.status === 'accepted' ? 'accepted' : row.status === 'sent' ? 'sent' : 'draft',
       companyId: row.companyId,
       dealId: row.dealId ?? null,
       dealTitle: deal?.title ?? null,
       dealCode: deal?.dealCode ?? null,
       ownerName: names.get(row.ownerUserId) ?? 'Người phụ trách',
+      quoteKind,
+      installments,
+      receivableVnd: receivable.toString(),
+      collectedVnd: collected.toString(),
       option1Kind,
       option1Code: row.option1Code,
       option1Name: row.option1Name,
@@ -3202,6 +3844,54 @@ function addPaid(row: FunnelTally, kind: 'platform' | 'sourcing', amount: bigint
   row.paidAmountVnd += amount;
   if (kind === 'sourcing') row.sourcingPaidVnd += amount;
   else row.platformPaidVnd += amount;
+}
+
+function stageLabel(code: string, name: string): string {
+  if (code === 'won') return 'Kết thúc thành công';
+  if (code === 'lost') return 'Kết thúc thất bại';
+  return name;
+}
+
+const STAGE_RANK = ['new', 'consulting', 'quoted', 'awaiting_payment', 'won', 'lost'];
+
+function stageMoneyRows(map: Map<string, { label: string; sort: number; deals: number; price: bigint }>) {
+  return [...map.entries()]
+    .map(([code, row]) => ({ code, label: row.label, deals: row.deals, listPriceVnd: row.price.toString(), sort: row.sort }))
+    .sort((a, b) => {
+      const left = STAGE_RANK.indexOf(a.code);
+      const right = STAGE_RANK.indexOf(b.code);
+      if (left !== -1 || right !== -1) return (left === -1 ? 99 : left) - (right === -1 ? 99 : right);
+      return a.sort - b.sort;
+    })
+    .map(({ sort: _sort, ...row }) => row);
+}
+
+interface LeadSourceTally {
+  leads: number;
+  companies: Set<string>;
+  paid: Set<string>;
+}
+
+function addLeadSource(map: Map<string, LeadSourceTally>, key: string, companyId: string | null, paid: boolean) {
+  const row = map.get(key) ?? { leads: 0, companies: new Set<string>(), paid: new Set<string>() };
+  row.leads += 1;
+  if (companyId) {
+    row.companies.add(companyId);
+    if (paid) row.paid.add(companyId);
+  }
+  map.set(key, row);
+}
+
+function leadSourceRows(map: Map<string, LeadSourceTally>, labelOf: (key: string) => string) {
+  return [...map.entries()]
+    .map(([key, row]) => ({
+      key,
+      label: labelOf(key),
+      leads: row.leads,
+      companies: row.companies.size,
+      paidCompanies: row.paid.size,
+    }))
+    .sort((a, b) => b.leads - a.leads || b.paidCompanies - a.paidCompanies);
 }
 
 function funnelSourceLabel(key: string): string {

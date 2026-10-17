@@ -73,7 +73,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             type: 'callout',
             tone: 'info',
             title: 'Thanh toán online',
-            text: 'inlink nhận tiền online và tự duyệt gói khi cổng báo đã trả. CRM không ghi công nợ và không tạo đơn thu hộ. SePay chưa nối, vì đang test trên cổng giả.',
+            text: 'inlink nhận tiền online và tự duyệt gói tin, gói Săn khi cổng báo đã trả. CRM không tạo đơn thu hộ. Công nợ chỉ có ở hợp đồng Enterprise: chốt tờ thì các đợt theo phần trăm thành khoản phải thu, ghi đã thu không bật gói. SePay chưa nối, vì đang test trên cổng giả.',
           },
         ],
       },
@@ -82,8 +82,8 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
   {
     id: 'kinh-doanh',
     title: 'Kinh doanh',
-    description: 'Sidebar Kinh doanh đi từ tiềm năng, khách hàng, cơ hội, báo giá, đơn hàng, doanh số, rồi báo cáo. Khách tự mua sẽ nằm trong sổ khách.',
-    flow: ['Tiềm năng', 'Khách hàng', 'Cơ hội', 'Báo giá', 'Đơn hàng', 'Doanh số', 'Báo cáo'],
+    description: 'Sidebar Kinh doanh đi từ tiềm năng, khách hàng, cơ hội, báo giá, đơn hàng, rồi báo cáo. Doanh số mở trong Báo cáo. Khách tự mua sẽ nằm trong sổ khách.',
+    flow: ['Tiềm năng', 'Khách hàng', 'Cơ hội', 'Báo giá', 'Đơn hàng', 'Báo cáo'],
     sections: [
       {
         id: 'lead',
@@ -121,14 +121,14 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Báo giá',
         icon: FileText,
         href: '/crm/quotes',
-        summary: 'Tờ chào giá: khách, hạn hiệu lực, tình trạng và một hoặc hai gói. Giá lấy lúc lập, chưa cộng VAT.',
+        summary: 'Tờ chào giá gói đang bán, hoặc hợp đồng Enterprise theo đợt phần trăm. Giá chưa cộng VAT.',
         keywords: ['báo giá', 'phương án', 'pdf', 'vat', 'enterprise'],
         blocks: [
           {
             type: 'steps',
             title: 'Lập tờ',
             items: [
-              { actor: 'Sale', title: 'Chọn gói', text: 'Phương án 1 là bắt buộc. Phương án 2 có thể bỏ trống. Hai phương án không được trùng một gói. Danh sách lấy gói đang bán, trừ Enterprise vì gói đó không có giá niêm yết.' },
+              { actor: 'Sale', title: 'Chọn loại tờ', text: 'Gói đang bán: phương án 1 là bắt buộc, phương án 2 có thể bỏ trống, hai phương án không trùng một gói và không cộng lại. Enterprise: ghi tên gói, giá trị hợp đồng và từ 2 đến 6 đợt. Mỗi đợt có tên, tỉ lệ nguyên và hạn. Các đợt cộng đủ 100%.' },
               { actor: 'Hệ thống', title: 'Chụp giá', text: 'Giá gói tin là giá niêm yết, giá gói Săn là phí Săn, đúng số SuperAdmin đang đặt. Nếu thuế suất đã đặt thì ghi mức đó lên tờ, không cộng vào số tiền.' },
               { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi số, ngày báo giá, hạn hiệu lực, khách, địa chỉ, liên hệ, cơ hội nếu có, hai phương án và câu giá chưa gồm VAT.' },
             ],
@@ -137,7 +137,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             type: 'callout',
             tone: 'tip',
             title: 'Tờ này chỉ để gửi',
-            text: 'Lập báo giá không tạo đơn, không bật gói và không kéo deal sang bước Đã gửi báo giá. Khách vẫn tự thanh toán trên inlink. Mã số thuế khớp một công ty đã có thì tờ được gắn với công ty đó. Tên in trên tờ là tên đã gõ.',
+            text: 'Lập báo giá không tạo đơn, không bật gói và không kéo deal sang bước Đã gửi báo giá. Gói tin và gói Săn khách vẫn tự thanh toán trên inlink. Tờ Enterprise khi bấm Chốt hợp đồng thì các đợt thành công nợ. Ghi đã thu một đợt không bật gói. SuperAdmin kích hoạt Enterprise sau. Mã số thuế khớp một công ty đã có thì tờ được gắn với công ty đó.',
           },
         ],
       },
@@ -218,7 +218,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Doanh số',
         icon: PieChart,
         href: '/crm/reports',
-        summary: 'Một tháng theo người phụ trách, nguồn và cộng tác viên. Tiền là đơn đã trả, tách gói tin và gói Săn.',
+        summary: 'Mở từ Báo cáo. Một tháng theo người phụ trách, nguồn và cộng tác viên. Tiền là đơn đã trả, tách gói tin và gói Săn.',
         keywords: ['báo cáo', 'tháng', 'doanh số', 'nguồn'],
         blocks: [
           {

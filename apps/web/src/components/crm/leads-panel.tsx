@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleDot } from 'lucide-react';
+import { CircleDot, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import {
@@ -48,6 +48,7 @@ export function CrmLeadsPanel() {
   const [taxQuery, setTaxQuery] = useState('');
   const [taxTarget, setTaxTarget] = useState<'create' | 'edit' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [edit, setEdit] = useState<LeadDraft>(blankLeadDraft);
   const [editOwnerId, setEditOwnerId] = useState('');
@@ -131,6 +132,7 @@ export function CrmLeadsPanel() {
       setDraft(blankLeadDraft());
       setCompanyId(null);
       setTaxTarget(null);
+      setCreating(false);
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
     },
@@ -232,6 +234,21 @@ export function CrmLeadsPanel() {
         </>
       }
     >
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className={`${crmButtonClass} inline-flex items-center gap-1.5`}
+          onClick={() => {
+            setCreating((open) => !open);
+            setEditingId(null);
+            setTaxTarget(null);
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          {creating ? 'Đóng' : 'Tạo'}
+        </button>
+      </div>
+      {creating ? (
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
         <LeadFormFields
           draft={draft}
@@ -274,6 +291,7 @@ export function CrmLeadsPanel() {
           }
         />
       </form>
+      ) : null}
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {board.isLoading ? <CrmEmpty>Đang tải lead…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được danh sách lead.</CrmEmpty> : null}
@@ -408,6 +426,7 @@ export function CrmLeadsPanel() {
                               type="button"
                               className={`${crmActionClass} !whitespace-nowrap`}
                               onClick={() => {
+                                setCreating(false);
                                 setEditingId(lead.id);
                                 setEdit(draftFromLead(lead));
                                 setEditOwnerId(lead.ownerUserId);

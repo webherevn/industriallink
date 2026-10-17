@@ -34,8 +34,15 @@ import {
   type CrmPlanOption,
   type CrmRenewalView,
   type CrmFunnelReport,
+  type CrmPipelineReport,
+  type CrmLeadSourceReport,
+  type CrmQuoteReport,
+  type CrmRenewalReport,
+  type CrmPartnerPaidReport,
+  type CrmWorkspaceReport,
   type CreateCrmQuoteRequest,
   type CrmQuoteView,
+  type CrmReceivableLedger,
   type CrmPaidInvoiceLedgerView,
   type CrmPaidOrderInvoiceView,
   type IssueCrmInvoiceRequest,
@@ -62,10 +69,46 @@ export class CrmController {
     return this.crm.board(user);
   }
 
+  @Get('workspace')
+  @ApiOperation({ summary: 'Số bàn làm việc theo tháng. Công nợ là đợt Enterprise đã chốt, chưa thu.' })
+  workspace(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmWorkspaceReport> {
+    return this.crm.workspaceReport(user, month);
+  }
+
   @Get('reports/funnel')
   @ApiOperation({ summary: 'Báo cáo lead và đơn đã trả theo sale, nguồn, cộng tác viên. Không đổi gói.' })
   funnelReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmFunnelReport> {
     return this.crm.funnelReport(user, month);
+  }
+
+  @Get('reports/pipeline')
+  @ApiOperation({ summary: 'Phễu cơ hội và ngày kỳ vọng. Giá niêm yết, không phải doanh số.' })
+  pipelineReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmPipelineReport> {
+    return this.crm.pipelineReport(user, month);
+  }
+
+  @Get('reports/leads')
+  @ApiOperation({ summary: 'Lead mới trong tháng theo nguồn và người phụ trách.' })
+  leadSourceReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmLeadSourceReport> {
+    return this.crm.leadSourceReport(user, month);
+  }
+
+  @Get('reports/quotes')
+  @ApiOperation({ summary: 'Báo giá trong tháng. Hai phương án không cộng. Không tạo đơn.' })
+  quoteReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmQuoteReport> {
+    return this.crm.quoteReport(user, month);
+  }
+
+  @Get('reports/renewals')
+  @ApiOperation({ summary: 'Gói hết hạn trong tháng và gói đã trả tiếp. Không bật gói.' })
+  renewalReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmRenewalReport> {
+    return this.crm.renewalReport(user, month);
+  }
+
+  @Get('reports/partners')
+  @ApiOperation({ summary: 'Đơn đã trả gắn mã giới thiệu. Không hiện hoa hồng.' })
+  partnerPaidReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmPartnerPaidReport> {
+    return this.crm.partnerPaidReport(user, month);
   }
 
   @Get('quotes')
@@ -75,7 +118,7 @@ export class CrmController {
   }
 
   @Post('quotes')
-  @ApiOperation({ summary: 'Lập báo giá hai phương án từ giá niêm yết. Không tạo đơn và không bật gói.' })
+  @ApiOperation({ summary: 'Lập báo giá gói niêm yết hoặc hợp đồng Enterprise. Không tạo đơn và không bật gói.' })
   createQuote(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateCrmQuoteRequest,
@@ -87,6 +130,28 @@ export class CrmController {
   @ApiOperation({ summary: 'Một tờ báo giá. Giá chưa VAT.' })
   quote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<CrmQuoteView> {
     return this.crm.quote(user, id);
+  }
+
+  @Post('quotes/:id/accept')
+  @ApiOperation({ summary: 'Chốt hợp đồng Enterprise. Các đợt thành công nợ. Không bật gói.' })
+  acceptQuote(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<CrmQuoteView> {
+    return this.crm.acceptEnterpriseQuote(user, id);
+  }
+
+  @Post('quotes/:quoteId/installments/:installmentId/collect')
+  @ApiOperation({ summary: 'Ghi một đợt Enterprise đã thu. Không bật gói.' })
+  collectInstallment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('quoteId') quoteId: string,
+    @Param('installmentId') installmentId: string,
+  ): Promise<CrmQuoteView> {
+    return this.crm.collectInstallment(user, quoteId, installmentId);
+  }
+
+  @Get('receivables')
+  @ApiOperation({ summary: 'Công nợ Enterprise đang mở. Không gồm tờ chưa chốt.' })
+  receivables(@CurrentUser() user: AuthenticatedUser): Promise<CrmReceivableLedger> {
+    return this.crm.receivables(user);
   }
 
   @Get('renewals')

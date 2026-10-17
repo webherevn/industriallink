@@ -18,7 +18,6 @@ import {
   Kanban,
   Megaphone,
   Radio,
-  PieChart,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -55,7 +54,6 @@ const NAV = [
       { href: '/crm/pipeline', label: 'Cơ hội', icon: Kanban },
       { href: '/crm/quotes', label: 'Báo giá', icon: FileText },
       { href: '/crm/orders', label: 'Đơn hàng', icon: ShoppingBag },
-      { href: '/crm/reports', label: 'Doanh số', icon: PieChart },
       { href: '/crm/bao-cao', label: 'Báo cáo', icon: BarChart3 },
     ],
   },
@@ -145,6 +143,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   function isActive(href: string) {
+    if (href === '/crm/bao-cao' && (pathname === '/crm/reports' || pathname.startsWith('/crm/reports/'))) return true;
     if (href === '/crm') return pathname === '/crm';
     const matches = pathname === href || pathname.startsWith(`${href}/`);
     if (!matches) return false;

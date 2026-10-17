@@ -2218,7 +2218,7 @@ model CrmLead {
   @@schema("crm")
 }
 
-/// Tờ chào giá hai phương án. Giá niêm yết chưa VAT. Không tạo đơn và không bật gói.
+/// Tờ chào giá. catalog là hai phương án niêm yết. enterprise là hợp đồng theo đợt %. Không tạo đơn và không bật gói.
 model CrmQuote {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   quoteCode       String   @unique @map("quote_code")
@@ -2234,8 +2234,12 @@ model CrmQuote {
   quotedOn        DateTime @default(now()) @map("quoted_on") @db.Date
   /// Hết hiệu lực sau ngày này. Null khi chưa hẹn.
   validUntil      DateTime? @map("valid_until") @db.Date
-  /// draft | sent. Bản thảo hoặc đã gửi. Không phải hóa đơn.
+  /// draft | sent | accepted. accepted chỉ dùng cho Enterprise và là lúc phát sinh công nợ.
   status          String   @default("draft")
+  /// catalog | enterprise.
+  kind            String   @default("catalog")
+  /// Lúc chốt hợp đồng Enterprise. Null khi chưa chốt.
+  acceptedAt      DateTime? @map("accepted_at")
   address         String?
   option1Kind     String   @map("option1_kind")
   option1Code     String   @map("option1_code")
@@ -2250,8 +2254,31 @@ model CrmQuote {
   note            String?
   createdAt       DateTime @default(now()) @map("created_at")
 
+  installments CrmQuoteInstallment[]
+
   @@index([ownerUserId, createdAt])
   @@map("crm_quote")
+  @@schema("crm")
+}
+
+/// Đợt thanh toán của báo giá Enterprise. scheduled chưa phải công nợ. open là còn phải thu. collected là đã ghi thu.
+model CrmQuoteInstallment {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId     String    @map("quote_id") @db.Uuid
+  sortOrder   Int       @map("sort_order")
+  label       String
+  percent     Int
+  amountVnd   BigInt    @map("amount_vnd")
+  dueOn       DateTime  @map("due_on") @db.Date
+  /// scheduled | open | collected.
+  status      String    @default("scheduled")
+  collectedAt DateTime? @map("collected_at")
+
+  quote CrmQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, sortOrder])
+  @@index([status, dueOn])
+  @@map("crm_quote_installment")
   @@schema("crm")
 }
 

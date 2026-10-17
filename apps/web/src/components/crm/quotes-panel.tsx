@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmPlanKind, CrmPlanOption } from '@industriallink/contracts';
-import { AlignLeft, FileText, Package, UserRound } from 'lucide-react';
+import { AlignLeft, FileText, Package, Plus, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useRef, useState } from 'react';
@@ -48,12 +48,20 @@ export function CrmQuotesPanel() {
   const [leadId, setLeadId] = useState('');
   const [option1, setOption1] = useState('');
   const [option2, setOption2] = useState('');
+  const [quoteKind, setQuoteKind] = useState<'catalog' | 'enterprise'>('catalog');
+  const [packageName, setPackageName] = useState('');
+  const [contractVnd, setContractVnd] = useState('');
+  const [installments, setInstallments] = useState<DraftInstallment[]>([
+    { label: 'Đợt 1', percent: '', dueOn: '' },
+    { label: 'Đợt 2', percent: '', dueOn: '' },
+  ]);
   const [note, setNote] = useState('');
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'accepted'>('all');
   const sort = useColumnSort<'code' | 'quoted' | 'valid' | 'company' | 'contact' | 'price' | 'status' | 'note'>('quoted', 'desc');
   const quoteColumns = useVisibleColumns<QuoteColumn>('crm-cols-quotes', QUOTE_COLUMNS.map((column) => column.key));
   const pick = useRowSelection();
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const filledTax = useRef('');
   const deals = board.data?.deals ?? [];
@@ -64,10 +72,7 @@ export function CrmQuotesPanel() {
   }));
   const save = useMutation({
     mutationFn: () => {
-      const first = splitPlan(option1);
-      const second = option2 ? splitPlan(option2) : null;
-      if (!first) throw new Error('Chọn phương án 1');
-      return createCrmQuote({
+      const shared = {
         companyName,
         contactName,
         taxCode: taxCode || null,
@@ -78,11 +83,31 @@ export function CrmQuotesPanel() {
         status,
         leadId: leadId || null,
         dealId: dealId || null,
+        note: note || null,
+      };
+      if (quoteKind === 'enterprise') {
+        return createCrmQuote({
+          ...shared,
+          quoteKind: 'enterprise',
+          packageName,
+          contractVnd: contractVnd.replace(/\D/g, ''),
+          installments: installments.map((line) => ({
+            label: line.label,
+            percent: Number(line.percent),
+            dueOn: line.dueOn,
+          })),
+        });
+      }
+      const first = splitPlan(option1);
+      const second = option2 ? splitPlan(option2) : null;
+      if (!first) throw new Error('Chọn phương án 1');
+      return createCrmQuote({
+        ...shared,
+        quoteKind: 'catalog',
         option1Kind: first.kind,
         option1Code: first.code,
         option2Kind: second?.kind ?? null,
         option2Code: second?.code ?? null,
-        note: note || null,
       });
     },
     onSuccess: async (row) => {
@@ -143,7 +168,7 @@ export function CrmQuotesPanel() {
       if (sort.key === 'contact') return row.contactName;
       if (sort.key === 'price') return Number(row.option1PriceVnd);
       if (sort.key === 'note') return row.note;
-      return row.status === 'sent' ? 'Đã gửi' : 'Bản thảo';
+      return quoteStatusLabel(row.status);
     },
   );
 
@@ -151,11 +176,18 @@ export function CrmQuotesPanel() {
     <CrmFrame
       kicker="Giá niêm yết chưa VAT"
       title="Bảng chào giá"
-      description="Ghi khách, hạn hiệu lực và một hoặc hai gói. Mỗi dòng là một phương án, không cộng hai dòng. Giá lấy từ gói SuperAdmin, chưa VAT. Xuất tờ không tạo đơn và không bật gói."
+      description="Gói đang bán dùng một hoặc hai phương án, không cộng hai dòng. Enterprise ghi giá trị hợp đồng và các đợt theo phần trăm. Chốt tờ Enterprise mới thành công nợ. Không tạo đơn và không bật gói."
       placeholder="Tìm số báo giá, khách hàng hoặc người liên hệ"
       search={{ value: query, onChange: setQuery }}
-      footnote="Khách vẫn tự thanh toán trên inlink. Tờ này chỉ để gửi."
+      footnote="Gói tin và gói Săn khách vẫn tự trả trên inlink. Công nợ chỉ phát sinh sau khi chốt hợp đồng Enterprise."
     >
+      <div className="flex justify-end">
+        <button type="button" className={`${crmButtonClass} inline-flex items-center gap-1.5`} onClick={() => setCreating((open) => !open)}>
+          <Plus className="h-4 w-4" />
+          {creating ? 'Đóng' : 'Tạo'}
+        </button>
+      </div>
+      {creating ? (
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
         <CrmFormSection icon={<FileText className="h-3.5 w-3.5" />}>Thông tin chi tiết</CrmFormSection>
         <CrmField label="Số báo giá">
@@ -245,6 +277,20 @@ export function CrmQuotesPanel() {
         </CrmField>
 
         <CrmFormSection icon={<Package className="h-3.5 w-3.5" />}>Thông tin gói</CrmFormSection>
+        <div className="flex flex-wrap gap-2 md:col-span-2">
+          <button type="button" className={filterChipClass(quoteKind === 'catalog')} onClick={() => setQuoteKind('catalog')}>Gói đang bán</button>
+          <button type="button" className={filterChipClass(quoteKind === 'enterprise')} onClick={() => setQuoteKind('enterprise')}>Enterprise</button>
+        </div>
+        {quoteKind === 'enterprise' ? (
+          <EnterpriseFields
+            packageName={packageName}
+            contractVnd={contractVnd}
+            installments={installments}
+            onPackageName={setPackageName}
+            onContract={setContractVnd}
+            onInstallments={setInstallments}
+          />
+        ) : (
         <div className="overflow-x-auto md:col-span-2">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -265,6 +311,7 @@ export function CrmQuotesPanel() {
           </table>
           <p className="mt-2 text-xs text-slate-400">Hai dòng là hai phương án để khách chọn một. Không cộng hai thành tiền. Giá chưa VAT, không chiết khấu.</p>
         </div>
+        )}
 
         <CrmFormSection icon={<AlignLeft className="h-3.5 w-3.5" />}>Thông tin mô tả</CrmFormSection>
         <CrmField label="Mô tả" className="md:col-span-2">
@@ -276,10 +323,11 @@ export function CrmQuotesPanel() {
           <input className={crmFieldClass} aria-label="Người thực hiện" value={me.data?.displayName ?? 'Đang tải…'} disabled />
         </CrmField>
 
-        <button type="submit" className={`${crmButtonClass} md:col-span-2`} disabled={save.isPending || !option1 || !quotedOn}>
+        <button type="submit" className={`${crmButtonClass} md:col-span-2`} disabled={save.isPending || !quotedOn || (quoteKind === 'catalog' ? !option1 : !enterpriseReady(packageName, contractVnd, installments))}>
           {save.isPending ? 'Đang lập…' : 'Lưu và thêm'}
         </button>
       </form>
+      ) : null}
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {quotes.isLoading ? <CrmEmpty>Đang tải báo giá…</CrmEmpty> : null}
       {quotes.isError ? <CrmEmpty>Không tải được danh sách báo giá.</CrmEmpty> : null}
@@ -287,7 +335,7 @@ export function CrmQuotesPanel() {
       {quotes.data && quotes.data.length > 0 && rows.length === 0 ? <CrmEmpty>Không có báo giá khớp.</CrmEmpty> : null}
       {quotes.data && quotes.data.length > 0 ? (
         <div className="flex flex-wrap justify-center gap-2">
-          {([['all', 'Tất cả'], ['draft', 'Bản thảo'], ['sent', 'Đã gửi']] as const).map(([id, label]) => (
+          {([['all', 'Tất cả'], ['draft', 'Bản thảo'], ['sent', 'Đã gửi'], ['accepted', 'Đã chốt hợp đồng']] as const).map(([id, label]) => (
             <button key={id} type="button" className={filterChipClass(statusFilter === id)} onClick={() => setStatusFilter(id)}>
               {label}
             </button>
@@ -341,12 +389,14 @@ export function CrmQuotesPanel() {
                         {quoteColumns.shown('contact') ? <td className={`${crmTd} text-slate-600`}>{row.contactName}</td> : null}
                         {quoteColumns.shown('price') ? (
                           <td className={`${crmTd} text-slate-700`}>
-                            {row.option2PriceVnd ? `Phương án 1 · ${formatVnd(row.option1PriceVnd)} · Phương án 2 · ${formatVnd(row.option2PriceVnd)}` : formatVnd(row.option1PriceVnd)}
+                            {row.quoteKind === 'enterprise'
+                              ? `Enterprise · ${formatVnd(row.option1PriceVnd)}${row.status === 'accepted' ? ` · còn ${formatVnd(row.receivableVnd)}` : ''}`
+                              : row.option2PriceVnd ? `Phương án 1 · ${formatVnd(row.option1PriceVnd)} · Phương án 2 · ${formatVnd(row.option2PriceVnd)}` : formatVnd(row.option1PriceVnd)}
                           </td>
                         ) : null}
                         {quoteColumns.shown('status') ? (
                           <td className={crmTd}>
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.status === 'sent' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{row.status === 'sent' ? 'Đã gửi' : 'Bản thảo'}</span>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${quoteStatusClass(row.status)}`}>{quoteStatusLabel(row.status)}</span>
                           </td>
                         ) : null}
                         {quoteColumns.shown('note') ? <td className={`${crmTd} text-slate-500`}>{row.note ?? '—'}</td> : null}
@@ -410,4 +460,123 @@ function splitPlan(value: string): { kind: CrmPlanKind; code: string } | null {
   const [kind, code] = value.split(':');
   if ((kind !== 'platform' && kind !== 'sourcing') || !code) return null;
   return { kind, code };
+}
+
+type DraftInstallment = { label: string; percent: string; dueOn: string };
+
+function enterpriseReady(packageName: string, contractVnd: string, installments: DraftInstallment[]): boolean {
+  const percent = installments.reduce((sum, line) => sum + Number(line.percent || 0), 0);
+  return packageName.trim().length >= 2
+    && Number(contractVnd.replace(/\D/g, '')) > 0
+    && installments.length >= 2
+    && percent === 100
+    && installments.every((line) => line.label.trim().length >= 2 && line.dueOn);
+}
+
+function quoteStatusLabel(status: string): string {
+  if (status === 'accepted') return 'Đã chốt hợp đồng';
+  if (status === 'sent') return 'Đã gửi';
+  return 'Bản thảo';
+}
+
+function quoteStatusClass(status: string): string {
+  if (status === 'accepted') return 'bg-[#efeaff] text-[#4c3ec9]';
+  if (status === 'sent') return 'bg-emerald-50 text-emerald-800';
+  return 'bg-slate-100 text-slate-600';
+}
+
+function EnterpriseFields({
+  packageName,
+  contractVnd,
+  installments,
+  onPackageName,
+  onContract,
+  onInstallments,
+}: {
+  packageName: string;
+  contractVnd: string;
+  installments: DraftInstallment[];
+  onPackageName: (value: string) => void;
+  onContract: (value: string) => void;
+  onInstallments: (value: DraftInstallment[]) => void;
+}) {
+  const percent = installments.reduce((sum, line) => sum + Number(line.percent || 0), 0);
+  const contract = BigInt(contractVnd.replace(/\D/g, '') || '0');
+  function update(index: number, patch: Partial<DraftInstallment>) {
+    onInstallments(installments.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
+  }
+  return (
+    <div className="space-y-3 md:col-span-2">
+      <div className="grid gap-3 md:grid-cols-2">
+        <CrmField label="Tên gói Enterprise *">
+          <input className={crmFieldClass} aria-label="Tên gói Enterprise" value={packageName} onChange={(event) => onPackageName(event.target.value)} maxLength={120} />
+        </CrmField>
+        <CrmField label="Giá trị hợp đồng (chưa VAT) *">
+          <input
+            className={crmFieldClass}
+            aria-label="Giá trị hợp đồng"
+            inputMode="numeric"
+            value={contractVnd}
+            onChange={(event) => onContract(event.target.value.replace(/[^\d]/g, ''))}
+          />
+        </CrmField>
+      </div>
+      <p className="text-xs text-slate-500">Hợp đồng theo năm. Mỗi đợt là một phần trăm của giá trị hợp đồng. Các đợt cộng đủ 100%. Số tiền đợt cuối nhận phần lẻ.</p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="px-2 py-2">Đợt</th>
+              <th className="px-2 py-2">Tên</th>
+              <th className="px-2 py-2">Tỉ lệ %</th>
+              <th className="px-2 py-2">Hạn thanh toán</th>
+              <th className="px-2 py-2">Số tiền</th>
+              <th className="px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {installments.map((line, index) => {
+              const raw = line.percent && percent === 100 && contract > 0n
+                ? (contract * BigInt(line.percent)) / 100n
+                : 0n;
+              const earlier = installments.slice(0, index).reduce((sum, item) => sum + (item.percent ? (contract * BigInt(item.percent)) / 100n : 0n), 0n);
+              const share = raw > 0n && index === installments.length - 1 ? contract - earlier : raw;
+              return (
+                <tr key={index} className="border-t border-slate-100">
+                  <td className="px-2 py-2 text-slate-500">{index + 1}</td>
+                  <td className="px-2 py-2">
+                    <input className={crmFieldClass} aria-label={`Tên đợt ${index + 1}`} value={line.label} maxLength={80} onChange={(event) => update(index, { label: event.target.value })} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input className={crmFieldClass} aria-label={`Tỉ lệ đợt ${index + 1}`} inputMode="numeric" value={line.percent} onChange={(event) => update(index, { percent: event.target.value.replace(/\D/g, '').slice(0, 2) })} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <CrmDateField value={line.dueOn} onChange={(value) => update(index, { dueOn: value })} />
+                  </td>
+                  <td className="px-2 py-2 text-slate-700">{share > 0n ? formatVnd(share.toString()) : '—'}</td>
+                  <td className="px-2 py-2">
+                    {installments.length > 2 ? (
+                      <button type="button" className="text-xs font-semibold text-rose-600" onClick={() => onInstallments(installments.filter((_, lineIndex) => lineIndex !== index))}>Bỏ</button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className={`text-sm font-semibold ${percent === 100 ? 'text-emerald-700' : 'text-rose-600'}`}>Tổng tỉ lệ {percent}%</p>
+        {installments.length < 6 ? (
+          <button
+            type="button"
+            className="text-sm font-semibold text-[#4c3ec9]"
+            onClick={() => onInstallments([...installments, { label: `Đợt ${installments.length + 1}`, percent: '', dueOn: '' }])}
+          >
+            Thêm đợt
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
 }

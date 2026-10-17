@@ -1,4 +1,4 @@
-/** CRM: lead, phễu, nhật ký, hóa đơn đã xuất, hoa hồng chờ đối soát. Không gán gói, không công nợ, không lệnh chi. */
+/** CRM: lead, phễu, nhật ký, hóa đơn đã xuất, hoa hồng chờ đối soát. Không gán gói và không lệnh chi. Công nợ chỉ có khi chốt báo giá Enterprise theo đợt. */
 
 export const CRM_LEAD_JOB_TITLES = ['Giám đốc', 'Phó giám đốc', 'HR', 'HCNS', 'Trưởng phòng nhân sự', 'Tuyển dụng', 'Kế toán', 'Hành chính'] as const;
 export const CRM_LEAD_ORG_TYPES = ['Công ty TNHH', 'Công ty cổ phần', 'Doanh nghiệp tư nhân', 'Hộ kinh doanh', 'Hợp tác xã', 'Doanh nghiệp nhà nước', 'Công ty hợp danh'] as const;
@@ -518,7 +518,177 @@ export interface CrmFunnelReport {
   byPartner: CrmFunnelBucket[];
 }
 
-export type CrmQuoteStatus = 'draft' | 'sent';
+/** Một giai đoạn trên phễu. Giá là niêm yết chưa VAT, không phải tiền đã thu. */
+export interface CrmStageMoneyRow {
+  code: string;
+  label: string;
+  deals: number;
+  listPriceVnd: string;
+}
+
+export interface CrmPipelineReport {
+  periodMonth: string;
+  stages: CrmStageMoneyRow[];
+  /** Cơ hội có ngày kỳ vọng nằm trong tháng. Không cộng vào doanh số. */
+  expected: CrmStageMoneyRow[];
+}
+
+/** Lead tạo trong tháng. paidCompanies là công ty đã trả gói sau khi lead được tạo. */
+export interface CrmLeadSourceRow {
+  key: string;
+  label: string;
+  leads: number;
+  companies: number;
+  paidCompanies: number;
+}
+
+export interface CrmLeadSourceReport {
+  periodMonth: string;
+  bySource: CrmLeadSourceRow[];
+  byOwner: CrmLeadSourceRow[];
+}
+
+/** Tờ lập trong tháng. Hai phương án để riêng, không cộng thành một tổng. */
+export interface CrmQuoteReportRow {
+  status: CrmQuoteStatus;
+  label: string;
+  quotes: number;
+  option1Vnd: string;
+  option2Quotes: number;
+  option2Vnd: string;
+  paidQuotes: number;
+}
+
+export interface CrmQuoteReport {
+  periodMonth: string;
+  rows: CrmQuoteReportRow[];
+  enterprise: {
+    quotes: number;
+    contractVnd: string;
+    accepted: number;
+    receivableVnd: string;
+    collectedVnd: string;
+  };
+}
+
+export type CrmRenewalReportStatus = 'ending' | 'expired' | 'renewed';
+
+export interface CrmRenewalReportRow {
+  companyId: string;
+  companyName: string;
+  kind: CrmPlanKind;
+  planName: string;
+  /** ISO. Null khi chỉ thấy đơn gia hạn, chưa đọc được hạn hiện tại. */
+  endsAt: string | null;
+  status: CrmRenewalReportStatus;
+  /** Tiền gói đã trả trong tháng. 0 khi chưa có đơn mới. Không phải hoa hồng. */
+  paidAmountVnd: string;
+}
+
+export interface CrmRenewalReport {
+  periodMonth: string;
+  ending: number;
+  expired: number;
+  renewed: number;
+  rows: CrmRenewalReportRow[];
+}
+
+/** Đơn đã trả gắn mã giới thiệu. Tiền là khách đã trả, không phải hoa hồng. */
+export interface CrmPartnerPaidRow {
+  partnerId: string;
+  label: string;
+  orders: number;
+  companies: number;
+  platformPaidVnd: string;
+  sourcingPaidVnd: string;
+  paidAmountVnd: string;
+}
+
+export interface CrmPartnerPaidReport {
+  periodMonth: string;
+  rows: CrmPartnerPaidRow[];
+}
+
+export interface CrmWorkspaceMonthPoint {
+  /** YYYY-MM. */
+  month: string;
+  label: string;
+  orders: number;
+  paidAmountVnd: string;
+}
+
+export interface CrmWorkspaceSlice {
+  key: string;
+  label: string;
+  orders: number;
+  paidAmountVnd: string;
+}
+
+export interface CrmWorkspacePerson {
+  key: string;
+  label: string;
+  leads: number;
+  quotes: number;
+  deals: number;
+  orders: number;
+  /** Đơn gói tin và gói Săn đã trả. */
+  paidAmountVnd: string;
+  /** Đợt Enterprise đã ghi thu trong tháng. */
+  enterpriseCollectedVnd: string;
+}
+
+/** Bàn làm việc một tháng. Tiền là đơn gói đã trả, chưa VAT. Giá niêm yết không cộng vào doanh số. */
+export interface CrmWorkspaceReport {
+  periodMonth: string;
+  orders: number;
+  paidAmountVnd: string;
+  platformPaidVnd: string;
+  sourcingPaidVnd: string;
+  newLeads: number;
+  quotes: number;
+  openDeals: number;
+  openListPriceVnd: string;
+  months: CrmWorkspaceMonthPoint[];
+  bySource: CrmWorkspaceSlice[];
+  plans: CrmWorkspaceSlice[];
+  people: CrmWorkspacePerson[];
+  /** Xếp theo tiền đã thu trong tháng: đơn gói và đợt Enterprise đã ghi thu. */
+  staff: CrmWorkspaceStaff[];
+  enterpriseCollectedVnd: string;
+  /** Công nợ Enterprise đang mở. Không gồm tờ chưa chốt. */
+  receivableVnd: string;
+  receivableDueVnd: string;
+}
+
+export interface CrmWorkspaceStaff {
+  key: string;
+  label: string;
+  orders: number;
+  enterpriseCollectedVnd: string;
+  paidAmountVnd: string;
+}
+
+export type CrmQuoteStatus = 'draft' | 'sent' | 'accepted';
+export type CrmQuoteKind = 'catalog' | 'enterprise';
+export type CrmInstallmentStatus = 'scheduled' | 'open' | 'collected';
+
+export interface CrmQuoteInstallmentInput {
+  label: string;
+  /** Số nguyên 1–99. Các đợt cộng đủ 100. */
+  percent: number;
+  /** YYYY-MM-DD. */
+  dueOn: string;
+}
+
+export interface CrmQuoteInstallmentView {
+  id: string;
+  label: string;
+  percent: number;
+  amountVnd: string;
+  dueOn: string;
+  status: CrmInstallmentStatus;
+  collectedAt: string | null;
+}
 
 export interface CreateCrmQuoteRequest {
   companyName: string;
@@ -534,14 +704,37 @@ export interface CreateCrmQuoteRequest {
   companyId?: string | null;
   /** Cơ hội đang bán. Null khi không gắn. Không đổi bước. */
   dealId?: string | null;
-  option1Kind: CrmPlanKind;
-  option1Code: string;
+  /** catalog là gói niêm yết. enterprise là hợp đồng theo đợt, không lấy giá SuperAdmin. */
+  quoteKind?: CrmQuoteKind;
+  packageName?: string | null;
+  /** Giá trị hợp đồng Enterprise, số nguyên VND, chưa VAT. */
+  contractVnd?: string | null;
+  installments?: CrmQuoteInstallmentInput[] | null;
+  option1Kind?: CrmPlanKind;
+  option1Code?: string;
   option2Kind?: CrmPlanKind | null;
   option2Code?: string | null;
   note?: string | null;
 }
 
-/** Tờ chào giá. Giá là niêm yết chưa VAT. Không phải đơn thanh toán. */
+export interface CrmReceivableRow {
+  id: string;
+  quoteId: string;
+  quoteCode: string;
+  companyName: string;
+  ownerName: string;
+  label: string;
+  percent: number;
+  amountVnd: string;
+  dueOn: string;
+}
+
+export interface CrmReceivableLedger {
+  receivableVnd: string;
+  rows: CrmReceivableRow[];
+}
+
+/** Tờ chào giá. Giá catalog là niêm yết chưa VAT. Enterprise là giá trị hợp đồng. Không phải đơn thanh toán. */
 export interface CrmQuoteView {
   id: string;
   quoteCode: string;
@@ -558,6 +751,10 @@ export interface CrmQuoteView {
   dealTitle: string | null;
   dealCode: string | null;
   ownerName: string;
+  quoteKind: CrmQuoteKind;
+  installments: CrmQuoteInstallmentView[];
+  receivableVnd: string;
+  collectedVnd: string;
   option1Kind: CrmPlanKind;
   option1Code: string;
   option1Name: string;

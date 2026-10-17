@@ -14,7 +14,6 @@ import {
   Megaphone,
   Radio,
   FileText,
-  PieChart,
   Landmark,
   NotebookPen,
   Percent,
@@ -30,6 +29,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
+import { CrmWorkspaceBoard } from '@/components/crm/workspace-board';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
 import { fetchCrmFollowUps, fetchCrmInvoices, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
 
@@ -61,7 +61,7 @@ export function CrmHomePanel() {
     <CrmFrame
       kicker="Lead, deal đang chạy và khách sắp hết gói"
       title="Bàn làm việc của đội kinh doanh"
-      description="Số lấy từ lead và deal đang ghi trong CRM. Chốt deal không tự bật gói nhà tuyển dụng."
+      description="Tháng này hiện đơn đã trả, công nợ Enterprise, nhân viên xuất sắc và việc của người phụ trách. Chốt deal không tự bật gói."
       placeholder="Tìm lead, deal hoặc nhà máy"
       search={{ value: query, onChange: setQuery }}
       footnote="CRM không gán gói và không cộng Credit."
@@ -72,7 +72,6 @@ export function CrmHomePanel() {
           <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Cơ hội" />
           <CrmChip href="/crm/quotes" icon={<FileText className="h-4 w-4" />} label="Báo giá" />
           <CrmChip href="/crm/orders" icon={<ShoppingBag className="h-4 w-4" />} label="Đơn hàng" />
-          <CrmChip href="/crm/reports" icon={<PieChart className="h-4 w-4" />} label="Doanh số" />
           <CrmChip href="/crm/bao-cao" icon={<BarChart3 className="h-4 w-4" />} label="Báo cáo" />
           <CrmChip href="/crm/marketing" icon={<Megaphone className="h-4 w-4" />} label="Marketing" />
           <CrmChip href="/crm/marketing/campaigns" icon={<Flag className="h-4 w-4" />} label="Chiến dịch" />
@@ -91,6 +90,7 @@ export function CrmHomePanel() {
         </>
       }
     >
+      {!needle ? <CrmWorkspaceBoard /> : null}
       {board.isLoading ? <CrmEmpty>Đang tải bàn làm việc…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được dữ liệu CRM.</CrmEmpty> : null}
       {board.data && !needle ? (

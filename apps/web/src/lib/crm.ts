@@ -35,6 +35,13 @@ import type {
   CrmPlanOption,
   CrmRenewalView,
   CrmFunnelReport,
+  CrmPipelineReport,
+  CrmLeadSourceReport,
+  CrmQuoteReport,
+  CrmRenewalReport,
+  CrmPartnerPaidReport,
+  CrmWorkspaceReport,
+  CrmReceivableLedger,
   CrmQuoteView,
   CreateCrmQuoteRequest,
   CrmMarketingOverview,
@@ -109,6 +116,30 @@ export function fetchCrmFunnelReport(month: string): Promise<CrmFunnelReport> {
   return apiRequest<CrmFunnelReport>(`/crm/reports/funnel?month=${encodeURIComponent(month)}`);
 }
 
+export function fetchCrmPipelineReport(month: string): Promise<CrmPipelineReport> {
+  return apiRequest<CrmPipelineReport>(`/crm/reports/pipeline?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmLeadSourceReport(month: string): Promise<CrmLeadSourceReport> {
+  return apiRequest<CrmLeadSourceReport>(`/crm/reports/leads?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmQuoteReport(month: string): Promise<CrmQuoteReport> {
+  return apiRequest<CrmQuoteReport>(`/crm/reports/quotes?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmRenewalReport(month: string): Promise<CrmRenewalReport> {
+  return apiRequest<CrmRenewalReport>(`/crm/reports/renewals?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmPartnerPaidReport(month: string): Promise<CrmPartnerPaidReport> {
+  return apiRequest<CrmPartnerPaidReport>(`/crm/reports/partners?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmWorkspace(month: string): Promise<CrmWorkspaceReport> {
+  return apiRequest<CrmWorkspaceReport>(`/crm/workspace?month=${encodeURIComponent(month)}`);
+}
+
 export function fetchCrmQuotes(): Promise<CrmQuoteView[]> {
   return apiRequest<CrmQuoteView[]>('/crm/quotes');
 }
@@ -119,6 +150,18 @@ export function fetchCrmQuote(id: string): Promise<CrmQuoteView> {
 
 export function createCrmQuote(body: CreateCrmQuoteRequest): Promise<CrmQuoteView> {
   return apiRequest<CrmQuoteView>('/crm/quotes', { method: 'POST', body });
+}
+
+export function acceptCrmQuote(id: string): Promise<CrmQuoteView> {
+  return apiRequest<CrmQuoteView>(`/crm/quotes/${id}/accept`, { method: 'POST' });
+}
+
+export function collectCrmInstallment(quoteId: string, installmentId: string): Promise<CrmQuoteView> {
+  return apiRequest<CrmQuoteView>(`/crm/quotes/${quoteId}/installments/${installmentId}/collect`, { method: 'POST' });
+}
+
+export function fetchCrmReceivables(): Promise<CrmReceivableLedger> {
+  return apiRequest<CrmReceivableLedger>('/crm/receivables');
 }
 
 export function requestEnterpriseConsult(): Promise<CrmEnterpriseRequestView> {
