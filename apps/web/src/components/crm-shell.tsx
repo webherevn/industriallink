@@ -36,7 +36,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { isCrmRole } from '@industriallink/contracts';
 import { BrandSidebarLockup } from '@/components/brand-logo';
-import { NotificationBell } from '@/components/notification-bell';
+import { CrmTopbar } from '@/components/crm/topbar';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
 import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
@@ -248,13 +248,11 @@ export function CrmShell({ children }: { children: ReactNode }) {
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <div className="min-w-0">
+          <div className="hidden min-w-0 sm:block">
             <p className="truncate text-sm font-semibold text-brand-600">inlink CRM</p>
             <p className="truncate text-xs text-slate-500">Kinh doanh · hóa đơn · cộng tác viên</p>
           </div>
-          <div className="ml-auto">
-            <NotificationBell allHref="/crm/notifications" />
-          </div>
+          <CrmTopbar displayName={user?.displayName || 'SuperAdmin'} />
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
           <div key={pathname} className="crm-enter">

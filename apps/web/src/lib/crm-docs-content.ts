@@ -1,4 +1,6 @@
 import {
+  BarChart3,
+  BookOpen,
   Building2,
   CalendarCheck,
   CalendarClock,
@@ -8,11 +10,14 @@ import {
   Inbox,
   Kanban,
   Landmark,
+  LayoutDashboard,
   NotebookPen,
   Percent,
   PieChart,
+  Radio,
   Receipt,
   Scale,
+  Search,
   ShieldCheck,
   UserPlus,
   Users,
@@ -74,6 +79,45 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             tone: 'info',
             title: 'Thanh toán online',
             text: 'inlink nhận tiền online và tự duyệt gói tin, gói Săn khi cổng báo đã trả. CRM không tạo đơn thu hộ. Công nợ chỉ có ở hợp đồng Enterprise: chốt tờ thì các đợt theo phần trăm thành khoản phải thu, ghi đã thu không bật gói. SePay chưa nối, vì đang test trên cổng giả.',
+          },
+        ],
+      },
+      {
+        id: 'thanh-tren',
+        title: 'Thanh trên',
+        icon: Search,
+        summary: 'Ô tìm và lối tắt nằm trên mọi trang CRM, cạnh chuông thông báo.',
+        keywords: ['tìm kiếm', 'việc hẹn', 'thông báo'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Ô tìm ghi Tìm tiềm năng, liên hệ, khách hàng. Gõ từ 2 ký tự thì hiện tiềm năng và khách hàng. Bấm một dòng mở hồ sơ công ty. Nhấn Enter thì bàn làm việc lọc theo từ đó.',
+              'Việc hẹn mở Nhật ký, nơi có ngày gọi lại. Có lịch hẹn thì hiện số đỏ.',
+              'Tạo tiềm năng mở trang Tiềm năng. Tài liệu mở trang này. Chuông mở thông báo.',
+              'Vòng tròn bên phải là chữ cái của người đang đăng nhập.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'ban-lam-viec',
+        title: 'Bàn làm việc',
+        icon: LayoutDashboard,
+        href: '/crm',
+        summary: 'Tháng đang chọn: đơn đã trả, doanh số gói, công nợ Enterprise và việc của người phụ trách.',
+        keywords: ['bàn làm việc', 'nhân viên xuất sắc', 'còn phải thu'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Chọn tháng, không quá tháng hiện tại theo giờ Việt Nam.',
+              'Doanh số đã thu là đơn gói tin và gói Săn, giá lớn hơn 0, chưa VAT. Đã thu Enterprise là các đợt ghi thu trong tháng. Còn phải thu là mọi đợt Enterprise đang mở.',
+              'Biểu đồ năm và doanh số theo nguồn cộng đơn đã trả với đợt Enterprise đã ghi thu. Nguồn lấy theo lead sớm nhất của công ty.',
+              'Nhân viên xuất sắc chỉ xếp người có tiền đã thu trong tháng. Chưa có thì hiện câu chưa có tiền đã thu.',
+              'Việc trong tháng gồm lead mới, cơ hội, báo giá, đơn đã trả và doanh số của người phụ trách. Giá niêm yết trên cơ hội không cộng vào doanh số.',
+              'Khi ô tìm có chữ, bảng tháng ẩn và hiện danh sách khớp.',
+            ],
           },
         ],
       },
@@ -214,6 +258,27 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         ],
       },
       {
+        id: 'bao-cao',
+        title: 'Báo cáo',
+        icon: BarChart3,
+        href: '/crm/bao-cao',
+        summary: 'Sáu báo cáo kinh doanh. Doanh số mở ở đây, không nằm trên sidebar.',
+        keywords: ['báo cáo', 'phễu', 'nguồn', 'gia hạn', 'cộng tác viên'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Doanh số: đơn gói đã trả trong tháng, theo người phụ trách, nguồn và cộng tác viên. Tách gói tin với gói Săn. Bước Đã chốt không cộng vào tiền.',
+              'Phễu cơ hội: số cơ hội và giá niêm yết theo giai đoạn. Ngày kỳ vọng trong tháng là dự kiến, không phải doanh số.',
+              'Nguồn tiềm năng: lead tạo trong tháng theo nguồn và người phụ trách, kèm công ty đã trả gói sau lead đó.',
+              'Báo giá: tờ gói đang bán tách bản thảo và đã gửi, phương án 1 và phương án 2 để riêng. Enterprise đếm riêng: giá trị đã chốt chỉ tờ đã chốt có ngày báo giá trong tháng, còn của tờ trong tháng là đợt đang mở của các tờ đó, đã ghi thu trong tháng là mọi đợt ghi trong tháng.',
+              'Gia hạn: gói hết hạn trong tháng. Có đơn trả tiếp thì là đã gia hạn. Báo cáo này không bật gói. Khám phá 0đ không vào bảng.',
+              'Cộng tác viên: tiền khách đã trả gắn mã giới thiệu. Không hiện số hoa hồng.',
+            ],
+          },
+        ],
+      },
+      {
         id: 'doanh-so',
         title: 'Doanh số',
         icon: PieChart,
@@ -300,7 +365,8 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
               'Chỉ đơn gói tin hoặc gói Săn, đã trả, giá lớn hơn 0. Nạp Credit không vào sổ này.',
               'Lần ghi đầu giữ mức thuế suất đang đặt. Chưa đặt thì để trống. Sửa số hóa đơn sau đó không đổi mức đã giữ.',
               'Đơn ghi trước khi có cột VAT hiện câu VAT lúc ghi: chưa đặt. Không lấy mức thuế hiện tại để điền lại.',
-              'Số trên sổ là số khách đã trả, chưa cộng thuế. Tải sổ ra file CSV của cả sổ, không theo ô tìm trên màn hình.',
+              'Số trên sổ là số khách đã trả, chưa cộng thuế. Tải sổ ra file CSV của cả sổ, không theo ô tìm trên màn hình. File này không gồm công nợ.',
+              'Công nợ chỉ hiện khi hợp đồng Enterprise đã chốt. Các đợt đang mở nằm phía trên sổ hóa đơn. Ghi đã thu cả một đợt, không bật gói.',
               'Một số hóa đơn không ghi cho hai đơn.',
             ],
           },
@@ -417,6 +483,47 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
     ],
   },
   {
+    id: 'marketing',
+    title: 'Marketing',
+    description: 'Kênh, chiến dịch và chi phí. Báo cáo ROI và nối API kênh để sau.',
+    flow: ['Kênh', 'Chiến dịch', 'Chi phí'],
+    sections: [
+      {
+        id: 'kenh',
+        title: 'Kênh',
+        icon: Radio,
+        href: '/crm/marketing/channels',
+        summary: 'Mười kênh chuẩn hiện thành thẻ. SuperAdmin bật, tắt hoặc thêm kênh.',
+        keywords: ['kênh', 'facebook', 'zalo', 'youtube', 'tiktok'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Kênh sở hữu: Web, Zalo, Sự kiện, Cộng tác viên. Kênh social: Facebook, Instagram, TikTok, LinkedIn, X, YouTube.',
+              'Mở trang Kênh thì hệ thống thêm kênh chuẩn còn thiếu. Kênh đã tắt giữ nguyên trạng thái tắt.',
+              'SuperAdmin bật hoặc tắt từng kênh, và thêm kênh mới bằng tên. Sale xem được danh sách, không tắt kênh và không thêm kênh.',
+              'Kênh tắt không dùng cho chiến dịch mới. Thêm kênh là một dòng dữ liệu, không sửa logic chiến dịch.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'chien-dich',
+        title: 'Chiến dịch và chi phí',
+        icon: BookOpen,
+        href: '/crm/marketing/campaigns',
+        summary: 'Sale thấy chiến dịch của mình và gắn cơ hội của mình. SuperAdmin đặt ngân sách và ghi chi phí.',
+        keywords: ['chiến dịch', 'chi phí', 'ngân sách'],
+        blocks: [
+          {
+            type: 'p',
+            text: 'Chi phí ghi ngày, số tiền VND, chiến dịch và kênh. Hoa hồng cộng tác viên không nhập vào chi phí marketing. Báo cáo ROI, link theo dõi và nối API từng mạng chưa có.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'cai-dat',
     title: 'Cài đặt',
     description: 'Ba mức SuperAdmin đặt một lần cho cả hệ thống.',
@@ -478,13 +585,13 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         id: 'viec-de-sau',
         title: 'Chưa có trong CRM',
         icon: Inbox,
-        summary: 'Marketing, SePay và chi hoa hồng qua ngân hàng.',
+        summary: 'Báo cáo ROI, SePay và chi hoa hồng qua ngân hàng.',
         keywords: ['marketing', 'facebook', 'tiktok', 'instagram', 'linkedin', 'youtube', 'sepay', 'ngân hàng'],
         blocks: [
           {
             type: 'list',
             items: [
-              'Quản lý marketing đã có: kênh, chiến dịch, chi phí và gắn cơ hội. Kênh chuẩn gồm Web, Zalo, Sự kiện, Cộng tác viên, Facebook, Instagram, TikTok, LinkedIn, X và YouTube. Báo cáo ROI, link theo dõi và nối API kênh chưa có. Nguồn trên lead, link cộng tác viên và đăng ký chưa trả vẫn đang chạy.',
+              'Báo cáo ROI, link theo dõi và nối API kênh chưa có. Kênh, chiến dịch và chi phí đã có ở mục Marketing. Nguồn trên lead, link cộng tác viên và đăng ký chưa trả vẫn đang chạy.',
               'SePay: khi có tài khoản cổng thì nối vào cùng sổ đơn hiện tại. Trong lúc test vẫn dùng thanh toán giả.',
               'Chi hoa hồng ra ngân hàng: hiện dừng ở bảng kê và nút Đã chi trên ví inlink.',
             ],

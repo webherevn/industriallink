@@ -25,8 +25,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { CrmWorkspaceBoard } from '@/components/crm/workspace-board';
@@ -42,7 +43,10 @@ export function CrmHomePanel() {
   const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
   const missingInvoices = (invoices.data?.orders ?? []).filter((order) => !order.invoiceNumber).length;
   const unpaidSignups = (partners.data ?? []).reduce((sum, partner) => sum + partner.signups.length, 0);
-  const [query, setQuery] = useState('');
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams.get('q') ?? '';
+  const [query, setQuery] = useState(urlQuery);
+  useEffect(() => setQuery(urlQuery), [urlQuery]);
   const leads = board.data?.leads ?? [];
   const deals = board.data?.deals ?? [];
   const openLeads = leads.filter((lead) => lead.status === 'open').length;

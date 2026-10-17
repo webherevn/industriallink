@@ -7,6 +7,20 @@ import { campaignStatus, channelCode, dayAccepted, dayKey, parseDay, parseVnd, v
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
+/** Kênh chuẩn. Dòng thiếu được thêm khi mở marketing, không ghi đè kênh đã tắt. */
+const STANDARD_CHANNELS: { code: string; name: string; groupCode: 'owned' | 'social'; sortOrder: number }[] = [
+  { code: 'web', name: 'Web', groupCode: 'owned', sortOrder: 10 },
+  { code: 'zalo', name: 'Zalo', groupCode: 'owned', sortOrder: 20 },
+  { code: 'event', name: 'Sự kiện', groupCode: 'owned', sortOrder: 30 },
+  { code: 'partner', name: 'Cộng tác viên', groupCode: 'owned', sortOrder: 40 },
+  { code: 'facebook', name: 'Facebook', groupCode: 'social', sortOrder: 50 },
+  { code: 'instagram', name: 'Instagram', groupCode: 'social', sortOrder: 60 },
+  { code: 'tiktok', name: 'TikTok', groupCode: 'social', sortOrder: 70 },
+  { code: 'linkedin', name: 'LinkedIn', groupCode: 'social', sortOrder: 80 },
+  { code: 'x', name: 'X', groupCode: 'social', sortOrder: 90 },
+  { code: 'youtube', name: 'YouTube', groupCode: 'social', sortOrder: 100 },
+];
+
 function clip(value: string | null | undefined, max: number): string {
   return (value ?? '').trim().slice(0, max);
 }
@@ -16,6 +30,7 @@ export class CrmMarketingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async overview(actor: AuthenticatedUser): Promise<CrmMarketingOverview> {
+    await this.ensureStandardChannels();
     const own = this.own(actor);
     const [channels, campaigns, costs] = await Promise.all([
       this.prisma.crmMarketingChannel.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
@@ -300,5 +315,13 @@ export class CrmMarketingService {
 
   private group(value: string): 'owned' | 'social' {
     return value === 'social' ? 'social' : 'owned';
+  }
+
+  private async ensureStandardChannels() {
+    const existing = await this.prisma.crmMarketingChannel.findMany({ select: { code: true } });
+    const have = new Set(existing.map((row) => row.code));
+    const missing = STANDARD_CHANNELS.filter((row) => !have.has(row.code));
+    if (missing.length === 0) return;
+    await this.prisma.crmMarketingChannel.createMany({ data: missing, skipDuplicates: true });
   }
 }
