@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { readLeadProfile } from './lead-profile';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import {
@@ -55,6 +56,7 @@ import {
 } from '@industriallink/contracts';
 import { DEFAULT_TENANT_ID } from '../../shared/common/constants';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { CrmMarketingService } from './crm-marketing.service';
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { commissionVnd } from './commission-amount';
@@ -106,6 +108,7 @@ export class CrmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
+    private readonly marketing: CrmMarketingService,
   ) {}
 
   async board(actor: AuthenticatedUser): Promise<CrmBoard> {
@@ -120,7 +123,10 @@ export class CrmService {
         where: own,
         orderBy: { createdAt: 'desc' },
         take: 200,
-        include: { partner: { select: { id: true, name: true, code: true } } },
+        include: {
+          partner: { select: { id: true, name: true, code: true } },
+          campaign: { select: { name: true, campaignCode: true } },
+        },
       }),
       this.prisma.crmDeal.findMany({
         where: { pipelineId: pipeline.id, ...own },
@@ -296,7 +302,7 @@ export class CrmService {
       take: 100,
     });
     const names = await this.ownerNames(rows.map((row) => row.ownerUserId));
-    return rows.map((row) => this.mapQuote(row, names));
+    return this.withQuoteDeals(rows, names);
   }
 
   async quote(actor: AuthenticatedUser, id: string): Promise<CrmQuoteView> {
@@ -304,7 +310,8 @@ export class CrmService {
     const row = await this.prisma.crmQuote.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Không tìm thấy báo giá');
     this.assertOwner(actor, row.ownerUserId);
-    return this.mapQuote(row, await this.ownerNames([row.ownerUserId]));
+    const [view] = await this.withQuoteDeals([row], await this.ownerNames([row.ownerUserId]));
+    return view;
   }
 
   /** Lập tờ chào giá. Giá lấy từ gói SuperAdmin, chưa VAT. Không tạo đơn. */
@@ -342,6 +349,20 @@ export class CrmService {
     if (option2 && option2.kind === option1.kind && option2.code === option1.code) {
       throw new BadRequestException('Hai phương án đang trùng một gói');
     }
+    const quotedOn = calendarDay(input.quotedOn, 'Ngày báo giá');
+    if (!quotedOn) throw new BadRequestException('Cần ngày báo giá');
+    const validUntil = calendarDay(input.validUntil, 'Hiệu lực đến ngày');
+    if (validUntil && validUntil < quotedOn) throw new BadRequestException('Hiệu lực phải từ ngày báo giá trở đi');
+    const status = input.status === 'sent' ? 'sent' : input.status === 'draft' || input.status == null ? 'draft' : null;
+    if (!status) throw new BadRequestException('Tình trạng là bản thảo hoặc đã gửi');
+    let dealId: string | null = null;
+    if (input.dealId) {
+      if (!/^[0-9a-f-]{36}$/i.test(input.dealId)) throw new NotFoundException('Không tìm thấy cơ hội');
+      const deal = await this.prisma.crmDeal.findUnique({ where: { id: input.dealId }, select: { id: true, ownerUserId: true } });
+      if (!deal) throw new NotFoundException('Không tìm thấy cơ hội');
+      this.assertOwner(actor, deal.ownerUserId);
+      dealId = deal.id;
+    }
     const vat = await this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } });
     const note = input.note?.trim().slice(0, 500) || null;
     const row = await this.prisma.crmQuote.create({
@@ -350,7 +371,12 @@ export class CrmService {
         companyName: companyName.slice(0, 160),
         taxCode,
         contactName: contactName.slice(0, 160),
+        address: clip(input.address, 300) || null,
+        quotedOn,
+        validUntil,
+        status,
         leadId: input.leadId ?? null,
+        dealId,
         companyId,
         ownerUserId: actor.id,
         option1Kind: option1.kind,
@@ -365,7 +391,8 @@ export class CrmService {
         note,
       },
     });
-    return this.mapQuote(row, await this.ownerNames([actor.id]));
+    const [view] = await this.withQuoteDeals([row], await this.ownerNames([actor.id]));
+    return view;
   }
 
   /** Sổ khách. Sale chỉ thấy công ty mình phụ trách. Không gán gói. */
@@ -379,7 +406,22 @@ export class CrmService {
           status: { not: 'unqualified' },
           companyId: scopedIds ? { in: scopedIds } : { not: null },
         },
-        select: { companyId: true, ownerUserId: true, status: true, createdAt: true },
+        select: {
+          companyId: true,
+          ownerUserId: true,
+          status: true,
+          createdAt: true,
+          contactName: true,
+          contactPhone: true,
+          contactEmail: true,
+          department: true,
+          orgField: true,
+          industry: true,
+          address: true,
+          street: true,
+          ward: true,
+          province: true,
+        },
         orderBy: { createdAt: 'asc' },
       }),
       this.seesAll(actor)
@@ -414,11 +456,12 @@ export class CrmService {
               OR: [
                 { name: { contains: q, mode: 'insensitive' } },
                 { taxCode: { contains: q.replace(/\s+/g, '') } },
+                { id: { in: await this.customerIdsByContact(q, scopedIds) } },
               ],
             }
           : {}),
       },
-      select: { id: true, name: true, taxCode: true },
+      select: { id: true, name: true, taxCode: true, address: true, industry: true },
       orderBy: { name: 'asc' },
       take: 200,
     });
@@ -444,14 +487,14 @@ export class CrmService {
     const sourcingByCompany = new Map(sourcingPlans.map((row) => [row.companyId, row]));
     const paidIds = new Set(paidForPage.map((row) => row.companyId));
     const pageIds = new Set(companyIds);
-    const ownerByCompany = new Map<string, { id: string; open: boolean }>();
+    const ownerByCompany = new Map<string, (typeof leadRows)[number] & { open: boolean }>();
     for (const lead of leadRows) {
       if (!lead.companyId || !pageIds.has(lead.companyId)) continue;
       const open = lead.status === 'open';
       const current = ownerByCompany.get(lead.companyId);
-      if (!current || (!current.open && open)) ownerByCompany.set(lead.companyId, { id: lead.ownerUserId, open });
+      if (!current || (!current.open && open)) ownerByCompany.set(lead.companyId, { ...lead, open });
     }
-    const names = await this.ownerNames([...ownerByCompany.values()].map((row) => row.id));
+    const names = await this.ownerNames([...ownerByCompany.values()].map((row) => row.ownerUserId));
     const planLive = (row: { isActive: boolean; endsAt: Date | null } | undefined) =>
       Boolean(row && row.isActive && (!row.endsAt || row.endsAt > now));
     return companies.map((company) => {
@@ -462,14 +505,22 @@ export class CrmService {
         : paidIds.has(company.id) || platform || sourcing
           ? 'lapsed'
           : 'prospect';
+      const lead = ownerByCompany.get(company.id);
+      const address = customerAddress(lead, company.address);
       return {
         companyId: company.id,
         companyName: company.name,
         taxCode: company.taxCode,
+        contactName: lead?.contactName?.trim() || null,
+        department: lead?.department?.trim() || null,
+        contactPhone: lead?.contactPhone?.trim() || null,
+        contactEmail: lead?.contactEmail?.trim() || null,
+        orgField: lead?.orgField?.trim() || lead?.industry?.trim() || company.industry?.trim() || null,
+        address,
         standing,
         platformPlanName: planLive(platform) ? platform?.plan.name ?? null : null,
         sourcingPlanName: planLive(sourcing) ? sourcing?.plan.name ?? null : null,
-        ownerName: names.get(ownerByCompany.get(company.id)?.id ?? '') ?? null,
+        ownerName: names.get(lead?.ownerUserId ?? '') ?? null,
       };
     });
   }
@@ -1192,16 +1243,18 @@ export class CrmService {
   async createLead(actor: AuthenticatedUser, input: CreateCrmLeadRequest): Promise<CrmLeadView> {
     const companyName = input.companyName?.trim();
     const contactName = input.contactName?.trim();
-    const phone = normalizePhone(input.contactPhone ?? '');
+    const phone = this.readPhone(input.contactPhone);
     const taxCode = this.readTax(input.taxCode);
     const source = leadSource(input.source);
-    if (!companyName || !contactName || phone.length < 9) {
-      throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
+    const profile = readLeadProfile(input);
+    if (!companyName || companyName.length < 2 || !contactName || contactName.length < 2 || !taxCode) {
+      throw new BadRequestException('Cần mã số thuế, tên công ty và người liên hệ');
     }
     if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
     const partner = source === 'partner' ? await this.requirePartner(input.partnerId) : null;
     const companyId = await this.resolveCompanyId(input.companyId, taxCode);
     await this.assertNoDuplicate(taxCode, phone, undefined, companyId);
+    const campaignId = await this.marketing.campaignIdFor(actor, input.campaignId ?? null);
 
     const lead = await this.prisma.crmLead.create({
       data: {
@@ -1210,15 +1263,17 @@ export class CrmService {
         taxCode,
         contactName,
         contactPhone: phone,
-        contactEmail: input.contactEmail?.trim() || null,
-        industry: input.industry?.trim() || null,
-        address: clip(input.address, 300) || null,
+        ...profile,
         companyId,
         source,
         partnerId: partner?.id ?? null,
+        campaignId,
         ownerUserId: actor.id,
       },
-      include: { partner: { select: { id: true, name: true, code: true } } },
+      include: {
+        partner: { select: { id: true, name: true, code: true } },
+        campaign: { select: { name: true, campaignCode: true } },
+      },
     });
     await this.prisma.crmActivity.create({
       data: {
@@ -1430,6 +1485,7 @@ export class CrmService {
       id: company.id,
       name: company.name,
       taxCode: company.taxCode,
+      address: company.address,
       industry: company.industry,
       platformPlan: planSnapshot('platform', platform),
       sourcingPlan: planSnapshot('sourcing', sourcing),
@@ -1472,11 +1528,12 @@ export class CrmService {
     this.assertOwner(actor, current.ownerUserId);
     const companyName = input.companyName?.trim();
     const contactName = input.contactName?.trim();
-    const phone = normalizePhone(input.contactPhone ?? '');
+    const phone = this.readPhone(input.contactPhone);
     const taxCode = this.readTax(input.taxCode);
     const source = leadSource(input.source);
-    if (!companyName || !contactName || phone.length < 9) {
-      throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
+    const profile = readLeadProfile(input);
+    if (!companyName || companyName.length < 2 || !contactName || contactName.length < 2 || !taxCode) {
+      throw new BadRequestException('Cần mã số thuế, tên công ty và người liên hệ');
     }
     if (!source) throw new BadRequestException('Chọn nguồn khách: Web, Zalo, sự kiện hoặc cộng tác viên');
     const partner = source === 'partner' ? await this.requirePartner(input.partnerId) : null;
@@ -1499,6 +1556,7 @@ export class CrmService {
       ownerNameForLog = nextOwner.displayName;
     }
     const followUp = parseFollowUp(input.nextFollowUpAt);
+    const campaignId = input.campaignId === undefined ? undefined : await this.marketing.campaignIdFor(actor, input.campaignId);
     const lead = await this.prisma.crmLead.update({
       where: { id: current.id },
       data: {
@@ -1506,15 +1564,17 @@ export class CrmService {
         taxCode,
         contactName,
         contactPhone: phone,
-        contactEmail: input.contactEmail?.trim() || null,
-        industry: input.industry?.trim() || null,
-        address: clip(input.address, 300) || null,
+        ...profile,
         source,
         partnerId: partner?.id ?? null,
         ownerUserId,
         ...(followUp !== undefined ? { nextFollowUpAt: followUp } : {}),
+        ...(campaignId !== undefined ? { campaignId } : {}),
       },
-      include: { partner: { select: { id: true, name: true, code: true } } },
+      include: {
+        partner: { select: { id: true, name: true, code: true } },
+        campaign: { select: { name: true, campaignCode: true } },
+      },
     });
     if (ownerUserId !== current.ownerUserId) {
       await this.prisma.crmDeal.updateMany({ where: { leadId: lead.id }, data: { ownerUserId } });
@@ -1598,6 +1658,7 @@ export class CrmService {
         planKind: plan?.kind ?? null,
         planCode: plan?.code ?? null,
         listPriceVnd: plan?.priceVnd ?? null,
+        expectedCloseOn: expectedCloseDay(input.expectedCloseOn),
         provisionState: 'not_provisioned',
         ownerUserId: actor.id,
       },
@@ -2229,6 +2290,34 @@ export class CrmService {
     }
   }
 
+  private async customerIdsByContact(rawQuery: string, scopedIds: string[] | null): Promise<string[]> {
+    const q = rawQuery.trim();
+    if (q.length < 2) return [];
+    const digits = q.replace(/\D/g, '');
+    const hits = await this.prisma.crmLead.findMany({
+      where: {
+        status: { not: 'unqualified' },
+        companyId: scopedIds ? { in: scopedIds } : { not: null },
+        OR: [
+          { contactName: { contains: q, mode: 'insensitive' } },
+          { contactEmail: { contains: q, mode: 'insensitive' } },
+          { department: { contains: q, mode: 'insensitive' } },
+          ...(digits.length >= 3 ? [{ contactPhone: { contains: digits } }] : []),
+        ],
+      },
+      select: { companyId: true },
+      take: 200,
+    });
+    return [...new Set(hits.flatMap((row) => (row.companyId ? [row.companyId] : [])))];
+  }
+
+  private readPhone(raw: string | null | undefined): string {
+    const phone = normalizePhone(raw ?? '');
+    if (!phone) return '';
+    if (phone.length < 9 || phone.length > 15) throw new BadRequestException('Số điện thoại gồm 9 đến 15 số');
+    return phone;
+  }
+
   private readTax(raw: string | null | undefined): string | null {
     const trimmed = raw?.trim() ?? '';
     if (!trimmed) return null;
@@ -2819,6 +2908,18 @@ export class CrmService {
     return `${prefix}-${stamp}-${randomBytes(2).toString('hex').toUpperCase()}`;
   }
 
+  private async withQuoteDeals(
+    rows: Parameters<CrmService['mapQuote']>[0][],
+    names: Map<string, string>,
+  ): Promise<CrmQuoteView[]> {
+    const ids = [...new Set(rows.flatMap((row) => (row.dealId ? [row.dealId] : [])))];
+    const deals = ids.length
+      ? await this.prisma.crmDeal.findMany({ where: { id: { in: ids } }, select: { id: true, title: true, dealCode: true } })
+      : [];
+    const byId = new Map(deals.map((deal) => [deal.id, deal]));
+    return rows.map((row) => this.mapQuote(row, names, row.dealId ? byId.get(row.dealId) ?? null : null));
+  }
+
   private mapQuote(
     row: {
       id: string;
@@ -2839,8 +2940,14 @@ export class CrmService {
       note: string | null;
       vatPercent: number | null;
       createdAt: Date;
+      address?: string | null;
+      quotedOn?: Date | null;
+      validUntil?: Date | null;
+      status?: string | null;
+      dealId?: string | null;
     },
     names: Map<string, string>,
+    deal?: { title: string; dealCode: string } | null,
   ): CrmQuoteView {
     const kind = (value: string | null): CrmPlanKind | null =>
       value === 'sourcing' ? 'sourcing' : value === 'platform' ? 'platform' : null;
@@ -2851,7 +2958,14 @@ export class CrmService {
       companyName: row.companyName,
       taxCode: row.taxCode,
       contactName: row.contactName,
+      address: row.address ?? null,
+      quotedOn: row.quotedOn ? row.quotedOn.toISOString().slice(0, 10) : row.createdAt.toISOString().slice(0, 10),
+      validUntil: row.validUntil ? row.validUntil.toISOString().slice(0, 10) : null,
+      status: row.status === 'sent' ? 'sent' : 'draft',
       companyId: row.companyId,
+      dealId: row.dealId ?? null,
+      dealTitle: deal?.title ?? null,
+      dealCode: deal?.dealCode ?? null,
       ownerName: names.get(row.ownerUserId) ?? 'Người phụ trách',
       option1Kind,
       option1Code: row.option1Code,
@@ -2875,7 +2989,21 @@ export class CrmService {
     contactName: string;
     contactPhone: string;
     contactEmail: string | null;
+    zalo?: string | null;
+    jobTitle?: string | null;
+    department?: string | null;
     industry: string | null;
+    bankAccount?: string | null;
+    bankName?: string | null;
+    foundedOn?: Date | null;
+    orgType?: string | null;
+    orgField?: string | null;
+    revenueBand?: string | null;
+    country?: string | null;
+    province?: string | null;
+    ward?: string | null;
+    street?: string | null;
+    areaCode?: string | null;
     address: string | null;
     companyId: string | null;
     status: string;
@@ -2885,6 +3013,8 @@ export class CrmService {
     ownerUserId: string;
     nextFollowUpAt: Date | null;
     createdAt: Date;
+    campaignId?: string | null;
+    campaign?: { name: string; campaignCode: string } | null;
   }, names: Map<string, string>): CrmLeadView {
     const status = lead.status === 'converted' || lead.status === 'unqualified' ? lead.status : 'open';
     return {
@@ -2895,7 +3025,21 @@ export class CrmService {
       contactName: lead.contactName,
       contactPhone: lead.contactPhone,
       contactEmail: lead.contactEmail,
+      zalo: lead.zalo ?? null,
+      jobTitle: lead.jobTitle ?? null,
+      department: lead.department ?? null,
       industry: lead.industry,
+      bankAccount: lead.bankAccount ?? null,
+      bankName: lead.bankName ?? null,
+      foundedOn: lead.foundedOn ? lead.foundedOn.toISOString().slice(0, 10) : null,
+      orgType: lead.orgType ?? null,
+      orgField: lead.orgField ?? null,
+      revenueBand: lead.revenueBand ?? null,
+      country: lead.country ?? null,
+      province: lead.province ?? null,
+      ward: lead.ward ?? null,
+      street: lead.street ?? null,
+      areaCode: lead.areaCode ?? null,
       address: lead.address,
       companyId: lead.companyId,
       status,
@@ -2903,6 +3047,9 @@ export class CrmService {
       partnerId: lead.partnerId,
       partnerName: lead.partner?.name ?? null,
       partnerCode: lead.partner?.code ?? null,
+      campaignId: lead.campaignId ?? null,
+      campaignName: lead.campaign?.name ?? null,
+      campaignCode: lead.campaign?.campaignCode ?? null,
       ownerUserId: lead.ownerUserId,
       ownerName: names.get(lead.ownerUserId) || 'SuperAdmin',
       nextFollowUpAt: lead.nextFollowUpAt?.toISOString() ?? null,
@@ -2929,6 +3076,7 @@ export class CrmService {
     wonAt: Date | null;
     lostAt: Date | null;
     lostReason: string | null;
+    expectedCloseOn?: Date | null;
     createdAt: Date;
     stage: { code: string };
     lead: { companyName: string };
@@ -2960,6 +3108,7 @@ export class CrmService {
       wonAt: deal.wonAt?.toISOString() ?? null,
       lostAt: deal.lostAt?.toISOString() ?? null,
       lostReason: deal.lostReason,
+      expectedCloseOn: deal.expectedCloseOn ? deal.expectedCloseOn.toISOString().slice(0, 10) : null,
       createdAt: deal.createdAt.toISOString(),
     };
   }
@@ -3083,6 +3232,17 @@ function funnelBuckets(map: Map<string, FunnelTally>, labelOf: (key: string) => 
     });
 }
 
+function customerAddress(
+  lead: { address: string | null; street: string | null; ward: string | null; province: string | null } | undefined,
+  companyAddress: string | null,
+): string | null {
+  const written = lead?.address?.trim();
+  if (written) return written;
+  const parts = [lead?.street, lead?.ward, lead?.province].map((part) => part?.trim() ?? '').filter(Boolean);
+  if (parts.length > 0) return parts.join(', ');
+  return companyAddress?.trim() || null;
+}
+
 function clip(value: string | null | undefined, max: number): string {
   return (value ?? '').trim().slice(0, max);
 }
@@ -3097,6 +3257,22 @@ function sourceLabel(source: Exclude<CrmLeadSource, 'unknown'>): string {
   if (source === 'zalo') return 'Zalo';
   if (source === 'event') return 'sự kiện';
   return 'cộng tác viên';
+}
+
+function expectedCloseDay(raw: string | null | undefined): Date | null {
+  return calendarDay(raw, 'Ngày kỳ vọng');
+}
+
+function calendarDay(raw: string | null | undefined, label: string): Date | null {
+  const value = raw?.trim() ?? '';
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException(`${label} là ngày tháng năm`);
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new BadRequestException(`${label} không hợp lệ`);
+  }
+  return date;
 }
 
 function parseFollowUp(raw: string | null | undefined): Date | null | undefined {

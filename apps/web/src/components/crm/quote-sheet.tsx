@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { CrmEmpty } from '@/components/crm-frame';
-import { formatVnd, formatWhen } from '@/components/crm/format';
+import { formatVnd } from '@/components/crm/format';
 import { fetchCrmQuote } from '@/lib/crm';
 
 export function CrmQuoteSheet({ quoteId }: { quoteId: string }) {
@@ -30,28 +30,54 @@ export function CrmQuoteSheet({ quoteId }: { quoteId: string }) {
         <article className="rounded-[22px] bg-white p-8 text-slate-800 crm-surface print:shadow-none">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4c3ec9]">inlink</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">Bảng chào giá</h1>
-          <p className="mt-1 text-sm text-slate-500">{row.quoteCode} · {formatWhen(row.createdAt)} · {row.ownerName}</p>
+          <p className="mt-1 text-sm text-slate-500">{row.quoteCode} · {showDay(row.quotedOn)} · {row.status === 'sent' ? 'Đã gửi' : 'Bản thảo'} · {row.ownerName}</p>
           <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-slate-400">Công ty</dt>
+              <dt className="text-xs text-slate-400">Khách hàng</dt>
               <dd className="mt-1 font-semibold">{row.companyName}</dd>
             </div>
             <div>
-              <dt className="text-xs text-slate-400">Người nhận</dt>
+              <dt className="text-xs text-slate-400">Liên hệ</dt>
               <dd className="mt-1 font-semibold">{row.contactName}</dd>
             </div>
             <div>
               <dt className="text-xs text-slate-400">Mã số thuế</dt>
               <dd className="mt-1">{row.taxCode ?? '—'}</dd>
             </div>
+            <div>
+              <dt className="text-xs text-slate-400">Địa chỉ</dt>
+              <dd className="mt-1">{row.address ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-400">Hiệu lực đến ngày</dt>
+              <dd className="mt-1">{showDay(row.validUntil)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-400">Cơ hội</dt>
+              <dd className="mt-1">{row.dealTitle ? `${row.dealTitle} · ${row.dealCode}` : '—'}</dd>
+            </div>
           </dl>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <OptionBox index={1} name={row.option1Name} kind={row.option1Kind} price={row.option1PriceVnd} />
-            {row.option2Name && row.option2PriceVnd ? (
-              <OptionBox index={2} name={row.option2Name} kind={row.option2Kind ?? 'platform'} price={row.option2PriceVnd} />
-            ) : null}
-          </div>
+          <table className="mt-6 w-full text-sm">
+            <thead className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="py-2">STT</th>
+                <th className="py-2">Gói</th>
+                <th className="py-2">Đơn vị</th>
+                <th className="py-2">Số lượng</th>
+                <th className="py-2">Đơn giá</th>
+                <th className="py-2">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              <SheetLine index={1} name={row.option1Name} kind={row.option1Kind} price={row.option1PriceVnd} />
+              {row.option2Name && row.option2PriceVnd ? (
+                <SheetLine index={2} name={row.option2Name} kind={row.option2Kind ?? 'platform'} price={row.option2PriceVnd} />
+              ) : null}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-slate-400">Hai dòng là hai phương án. Khách chọn một. Không cộng hai thành tiền.</p>
           {row.note ? <p className="mt-6 text-sm leading-relaxed text-slate-600">{row.note}</p> : null}
+          <p className="mt-4 text-sm text-slate-600">Người thực hiện: {row.ownerName}</p>
           <p className="mt-6 text-sm text-slate-500">
             {row.vatPercent == null
               ? 'Giá niêm yết chưa gồm VAT. Thuế suất chưa đặt.'
@@ -64,7 +90,7 @@ export function CrmQuoteSheet({ quoteId }: { quoteId: string }) {
   );
 }
 
-function OptionBox({
+function SheetLine({
   index,
   name,
   kind,
@@ -76,11 +102,22 @@ function OptionBox({
   price: string;
 }) {
   return (
-    <section className="rounded-2xl border border-[#e4defc] p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#4c3ec9]">Phương án {index}</p>
-      <h2 className="mt-2 text-lg font-semibold text-slate-900">{name}</h2>
-      <p className="mt-1 text-sm text-slate-500">{kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'}</p>
-      <p className="mt-3 text-xl font-bold text-[#072348]">{formatVnd(price)}</p>
-    </section>
+    <tr className="border-t border-slate-100">
+      <td className="py-2 text-slate-500">{index}</td>
+      <td className="py-2">
+        <span className="font-semibold text-slate-900">{name}</span>
+        <span className="mt-0.5 block text-xs text-slate-400">{kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'}</span>
+      </td>
+      <td className="py-2 text-slate-500">Gói</td>
+      <td className="py-2 text-slate-500">1</td>
+      <td className="py-2">{formatVnd(price)}</td>
+      <td className="py-2 font-semibold text-[#072348]">{formatVnd(price)}</td>
+    </tr>
   );
+}
+
+function showDay(value: string | null): string {
+  if (!value) return '—';
+  const [year, month, date] = value.split('-');
+  return year && month && date ? `${date}/${month}/${year}` : value;
 }

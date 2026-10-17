@@ -1,20 +1,26 @@
 'use client';
 
 import {
+  BarChart3,
   BookOpen,
   Building2,
   Contact,
   CalendarCheck,
-  FileText,
   Inbox,
   CalendarClock,
+  CircleDollarSign,
+  Flag,
   Kanban,
+  Megaphone,
+  Radio,
+  FileText,
   PieChart,
   Landmark,
   NotebookPen,
   Percent,
   Receipt,
   Scale,
+  ShoppingBag,
   UserPlus,
   Users,
   Wallet,
@@ -61,12 +67,17 @@ export function CrmHomePanel() {
       footnote="CRM không gán gói và không cộng Credit."
       chips={
         <>
-          <CrmChip href="/crm/leads" icon={<Building2 className="h-4 w-4" />} label="Lead" />
-          <CrmChip href="/crm/quotes" icon={<FileText className="h-4 w-4" />} label="Báo giá" />
-          <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Phễu bán gói" />
+          <CrmChip href="/crm/leads" icon={<Building2 className="h-4 w-4" />} label="Tiềm năng" />
           <CrmChip href="/crm/customers" icon={<Contact className="h-4 w-4" />} label="Khách hàng" />
-          <CrmChip href="/crm/inbox" icon={<Inbox className="h-4 w-4" />} label="Khách tự mua" />
-          <CrmChip href="/crm/reports" icon={<PieChart className="h-4 w-4" />} label="Báo cáo" />
+          <CrmChip href="/crm/pipeline" icon={<Kanban className="h-4 w-4" />} label="Cơ hội" />
+          <CrmChip href="/crm/quotes" icon={<FileText className="h-4 w-4" />} label="Báo giá" />
+          <CrmChip href="/crm/orders" icon={<ShoppingBag className="h-4 w-4" />} label="Đơn hàng" />
+          <CrmChip href="/crm/reports" icon={<PieChart className="h-4 w-4" />} label="Doanh số" />
+          <CrmChip href="/crm/bao-cao" icon={<BarChart3 className="h-4 w-4" />} label="Báo cáo" />
+          <CrmChip href="/crm/marketing" icon={<Megaphone className="h-4 w-4" />} label="Marketing" />
+          <CrmChip href="/crm/marketing/campaigns" icon={<Flag className="h-4 w-4" />} label="Chiến dịch" />
+          <CrmChip href="/crm/marketing/channels" icon={<Radio className="h-4 w-4" />} label="Kênh" />
+          <CrmChip href="/crm/marketing/costs" icon={<CircleDollarSign className="h-4 w-4" />} label="Chi phí" />
           <CrmChip href="/crm/activities" icon={<NotebookPen className="h-4 w-4" />} label="Nhật ký" />
           <CrmChip href="/crm/renewals" icon={<CalendarClock className="h-4 w-4" />} label="Gia hạn" />
           <CrmChip href="/crm/finance" icon={<Receipt className="h-4 w-4" />} label="Hóa đơn" />

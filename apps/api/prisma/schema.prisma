@@ -2092,6 +2092,70 @@ model CrmOrderInvoice {
   @@schema("crm")
 }
 
+/// Kênh marketing. Thêm kênh mới bằng một dòng, không cần sửa logic chiến dịch.
+model CrmMarketingChannel {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String   @unique
+  name      String
+  /// owned | social
+  groupCode String   @map("channel_group")
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  campaigns CrmCampaign[]
+  costs     CrmMarketingCost[]
+
+  @@map("crm_marketing_channel")
+  @@schema("crm")
+}
+
+/// Một đợt marketing. Không tạo đơn và không bật gói.
+model CrmCampaign {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignCode String    @unique @map("campaign_code")
+  name         String
+  channelId    String    @map("channel_id") @db.Uuid
+  /// draft | active | ended | cancelled
+  status       String    @default("draft")
+  startsOn     DateTime? @map("starts_on") @db.Date
+  endsOn       DateTime? @map("ends_on") @db.Date
+  /// Ngân sách dự chi. Null khi SuperAdmin chưa đặt. Không phải chi phí đã chi.
+  budgetVnd    BigInt?   @map("budget_vnd")
+  ownerUserId  String    @map("owner_user_id") @db.Uuid
+  note         String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  channel CrmMarketingChannel @relation(fields: [channelId], references: [id])
+  costs   CrmMarketingCost[]
+  leads   CrmLead[]
+
+  @@index([ownerUserId, status])
+  @@index([channelId])
+  @@map("crm_campaign")
+  @@schema("crm")
+}
+
+/// Khoản đã chi cho một chiến dịch. Không gồm hoa hồng cộng tác viên.
+model CrmMarketingCost {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId      String   @map("campaign_id") @db.Uuid
+  channelId       String   @map("channel_id") @db.Uuid
+  spentOn         DateTime @map("spent_on") @db.Date
+  amountVnd       BigInt   @map("amount_vnd")
+  note            String?
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  campaign CrmCampaign         @relation(fields: [campaignId], references: [id])
+  channel  CrmMarketingChannel @relation(fields: [channelId], references: [id])
+
+  @@index([campaignId, spentOn])
+  @@map("crm_marketing_cost")
+  @@schema("crm")
+}
+
 model CrmLead {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   leadCode     String   @unique @map("lead_code")
@@ -2100,9 +2164,30 @@ model CrmLead {
   /// Địa chỉ trên sổ thuế hoặc địa chỉ công ty đã có. Sale sửa được.
   address      String?
   contactName  String   @map("contact_name")
-  contactPhone String   @map("contact_phone")
+  contactPhone String   @default("") @map("contact_phone")
   contactEmail String?  @map("contact_email")
+  zalo         String?
+  /// Giám đốc, HR, HCNS… Null khi chưa chọn.
+  jobTitle     String?  @map("job_title")
+  /// Phòng ban của người liên hệ. Null khi chưa ghi.
+  department   String?
   industry     String?
+  bankAccount  String?  @map("bank_account")
+  bankName     String?  @map("bank_name")
+  foundedOn    DateTime? @map("founded_on") @db.Date
+  /// Loại hình doanh nghiệp. Null khi chưa chọn.
+  orgType      String?  @map("org_type")
+  /// Lĩnh vực. Null khi chưa chọn.
+  orgField     String?  @map("org_field")
+  /// Khung doanh thu. Null khi chưa chọn.
+  revenueBand  String?  @map("revenue_band")
+  country      String?  @default("Việt Nam")
+  /// Một trong 34 tỉnh, thành từ 01/7/2025.
+  province     String?
+  /// Phường, xã hoặc đặc khu. Không còn cấp huyện.
+  ward         String?
+  street       String?
+  areaCode     String?  @map("area_code")
   /// Công ty đã có trên inlink, nếu lead đã khớp.
   companyId    String?  @map("company_id") @db.Uuid
   /// open | converted | unqualified
@@ -2111,6 +2196,8 @@ model CrmLead {
   source       String   @default("unknown")
   /// Cộng tác viên giới thiệu, chỉ khi source = partner.
   partnerId    String?  @map("partner_id") @db.Uuid
+  /// Chiến dịch marketing đang gắn. Null khi chưa gắn.
+  campaignId   String?  @map("campaign_id") @db.Uuid
   ownerUserId  String   @map("owner_user_id") @db.Uuid
   /// Ngày hẹn gọi lại. Null khi chưa hẹn.
   nextFollowUpAt DateTime? @map("next_follow_up_at")
@@ -2120,11 +2207,13 @@ model CrmLead {
   deals      CrmDeal[]
   activities CrmActivity[]
   partner    CrmPartner? @relation(fields: [partnerId], references: [id])
+  campaign   CrmCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([taxCode])
   @@index([contactPhone])
   @@index([ownerUserId, status])
   @@index([partnerId])
+  @@index([campaignId])
   @@map("crm_lead")
   @@schema("crm")
 }
@@ -2138,7 +2227,16 @@ model CrmQuote {
   contactName     String   @map("contact_name")
   leadId          String?  @map("lead_id") @db.Uuid
   companyId       String?  @map("company_id") @db.Uuid
+  /// Cơ hội gắn với tờ. Null khi lập tờ chưa chọn deal. Không đổi bước phễu.
+  dealId          String?  @map("deal_id") @db.Uuid
   ownerUserId     String   @map("owner_user_id") @db.Uuid
+  /// Ngày ghi trên tờ. Không phải ngày thanh toán.
+  quotedOn        DateTime @default(now()) @map("quoted_on") @db.Date
+  /// Hết hiệu lực sau ngày này. Null khi chưa hẹn.
+  validUntil      DateTime? @map("valid_until") @db.Date
+  /// draft | sent. Bản thảo hoặc đã gửi. Không phải hóa đơn.
+  status          String   @default("draft")
+  address         String?
   option1Kind     String   @map("option1_kind")
   option1Code     String   @map("option1_code")
   option1Name     String   @map("option1_name")
@@ -2182,6 +2280,8 @@ model CrmDeal {
   wonAt       DateTime? @map("won_at")
   lostAt      DateTime? @map("lost_at")
   lostReason  String?   @map("lost_reason")
+  /// Ngày sale kỳ vọng chốt. Null khi chưa hẹn. Không phải ngày thanh toán.
+  expectedCloseOn DateTime? @map("expected_close_on") @db.Date
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 

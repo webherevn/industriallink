@@ -4,16 +4,20 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   BadgePercent,
+  BarChart3,
   BookOpen,
   Building2,
   CalendarCheck,
   CalendarClock,
   CalendarDays,
+  CircleDollarSign,
   CirclePercent,
   Contact,
   FileText,
-  Inbox,
+  Flag,
   Kanban,
+  Megaphone,
+  Radio,
   PieChart,
   Landmark,
   LayoutDashboard,
@@ -23,6 +27,7 @@ import {
   Percent,
   Receipt,
   Scale,
+  ShoppingBag,
   UserPlus,
   Users,
   X,
@@ -45,12 +50,13 @@ const NAV = [
   {
     title: 'Kinh doanh',
     items: [
-      { href: '/crm/leads', label: 'Lead', icon: Building2 },
-      { href: '/crm/quotes', label: 'Báo giá', icon: FileText },
-      { href: '/crm/pipeline', label: 'Phễu bán gói', icon: Kanban },
+      { href: '/crm/leads', label: 'Tiềm năng', icon: Building2 },
       { href: '/crm/customers', label: 'Khách hàng', icon: Contact },
-      { href: '/crm/inbox', label: 'Khách tự mua', icon: Inbox },
-      { href: '/crm/reports', label: 'Báo cáo', icon: PieChart },
+      { href: '/crm/pipeline', label: 'Cơ hội', icon: Kanban },
+      { href: '/crm/quotes', label: 'Báo giá', icon: FileText },
+      { href: '/crm/orders', label: 'Đơn hàng', icon: ShoppingBag },
+      { href: '/crm/reports', label: 'Doanh số', icon: PieChart },
+      { href: '/crm/bao-cao', label: 'Báo cáo', icon: BarChart3 },
     ],
   },
   {
@@ -74,6 +80,15 @@ const NAV = [
     items: [
       { href: '/crm/partners', label: 'Cộng tác viên', icon: Users },
       { href: '/crm/signups', label: 'Đăng ký chưa trả', icon: UserPlus },
+    ],
+  },
+  {
+    title: 'Marketing',
+    items: [
+      { href: '/crm/marketing', label: 'Tổng quan', icon: Megaphone },
+      { href: '/crm/marketing/campaigns', label: 'Chiến dịch', icon: Flag },
+      { href: '/crm/marketing/channels', label: 'Kênh', icon: Radio },
+      { href: '/crm/marketing/costs', label: 'Chi phí', icon: CircleDollarSign },
     ],
   },
   {

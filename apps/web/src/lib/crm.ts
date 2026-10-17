@@ -37,6 +37,12 @@ import type {
   CrmFunnelReport,
   CrmQuoteView,
   CreateCrmQuoteRequest,
+  CrmMarketingOverview,
+  CreateCrmCampaignRequest,
+  UpdateCrmCampaignRequest,
+  CreateCrmMarketingChannelRequest,
+  UpdateCrmMarketingChannelRequest,
+  CreateCrmMarketingCostRequest,
   CrmEnterpriseRequestView,
   IssueCrmInvoiceRequest,
   MoveCrmDealRequest,
@@ -202,4 +208,32 @@ export function createCrmPartnerClaim(id: string, body: CreateCrmPartnerClaimReq
 
 export function createMyPartnerClaim(body: CreateCrmPartnerClaimRequest): Promise<CrmPartnerClaimView> {
   return apiRequest<CrmPartnerClaimView>('/recruiter/partner/claims', { method: 'POST', body });
+}
+
+export function fetchCrmMarketing(): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>('/crm/marketing');
+}
+
+export function createCrmCampaign(body: CreateCrmCampaignRequest): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>('/crm/marketing/campaigns', { method: 'POST', body });
+}
+
+export function updateCrmCampaign(id: string, body: UpdateCrmCampaignRequest): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>(`/crm/marketing/campaigns/${id}`, { method: 'PATCH', body });
+}
+
+export function createCrmMarketingChannel(body: CreateCrmMarketingChannelRequest): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>('/crm/marketing/channels', { method: 'POST', body });
+}
+
+export function updateCrmMarketingChannel(id: string, body: UpdateCrmMarketingChannelRequest): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>(`/crm/marketing/channels/${id}`, { method: 'PATCH', body });
+}
+
+export function createCrmMarketingCost(body: CreateCrmMarketingCostRequest): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>('/crm/marketing/costs', { method: 'POST', body });
+}
+
+export function deleteCrmMarketingCost(id: string): Promise<CrmMarketingOverview> {
+  return apiRequest<CrmMarketingOverview>(`/crm/marketing/costs/${id}`, { method: 'DELETE' });
 }

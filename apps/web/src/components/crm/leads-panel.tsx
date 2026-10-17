@@ -1,29 +1,41 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CircleDot } from 'lucide-react';
+import { CircleDot } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import {
-  CrmCard,
-  CrmCardGrid,
   CrmChip,
   CrmEmpty,
   CrmFrame,
   crmActionClass,
   crmButtonClass,
-  crmFieldClass,
 } from '@/components/crm-frame';
-import { CrmSelect } from '@/components/crm/fields';
-import { contactPhoneLabel, errorText, followUpLabel, isFresh, leadSourceLabel, leadStatusLabel, matchesQuery, vietnamDay } from '@/components/crm/format';
+import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
+import { contactPhoneLabel, errorText, isFresh, leadSourceLabel, leadStatusLabel, matchesQuery, vietnamDay } from '@/components/crm/format';
+import { ColumnPicker, RowCheck, crmTableClass, crmTd, SortableTh, sortRows, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
+import { blankLeadDraft, draftFromLead, LeadFormFields, type LeadDraft } from '@/components/crm/lead-form-fields';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { fetchMe } from '@/lib/auth';
-import { createCrmLead, fetchCrmCompanies, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
+import { createCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
 
 type StatusFilter = 'all' | 'open' | 'converted';
 type SourceFilter = 'all' | 'web' | 'zalo' | 'event' | 'partner' | 'unknown';
 
 const SOURCES: Array<Exclude<SourceFilter, 'all' | 'unknown'>> = ['web', 'zalo', 'event', 'partner'];
+
+const LEAD_COLUMNS = [
+  { key: 'company', label: 'Công ty' },
+  { key: 'tax', label: 'Mã số thuế' },
+  { key: 'contact', label: 'Liên hệ' },
+  { key: 'phone', label: 'Điện thoại' },
+  { key: 'source', label: 'Nguồn' },
+  { key: 'status', label: 'Trạng thái' },
+  { key: 'owner', label: 'Phụ trách' },
+  { key: 'created', label: 'Ngày tạo' },
+] as const;
+
+type LeadColumn = (typeof LEAD_COLUMNS)[number]['key'];
 
 export function CrmLeadsPanel() {
   const board = useCrmBoard();
@@ -31,20 +43,13 @@ export function CrmLeadsPanel() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [source, setSource] = useState<Exclude<SourceFilter, 'all' | 'unknown'> | ''>('');
-  const [partnerId, setPartnerId] = useState('');
-  const [companyName, setCompanyName] = useState('');
+  const [draft, setDraft] = useState<LeadDraft>(blankLeadDraft);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [contactName, setContactName] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [taxCode, setTaxCode] = useState('');
   const [taxQuery, setTaxQuery] = useState('');
-  const [taxOpen, setTaxOpen] = useState(false);
-  const [address, setAddress] = useState('');
+  const [taxTarget, setTaxTarget] = useState<'create' | 'edit' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editSource, setEditSource] = useState<Exclude<SourceFilter, 'all' | 'unknown'> | ''>('');
-  const [editPartnerId, setEditPartnerId] = useState('');
+  const [edit, setEdit] = useState<LeadDraft>(blankLeadDraft);
   const [editOwnerId, setEditOwnerId] = useState('');
   const [editFollowUp, setEditFollowUp] = useState('');
 
@@ -56,53 +61,76 @@ export function CrmLeadsPanel() {
     queryKey: ['crm-partners'],
     queryFn: fetchCrmPartners,
   });
+  const campaigns = useQuery({ queryKey: ['crm-marketing'], queryFn: fetchCrmMarketing });
+  const campaignOptions = (campaigns.data?.campaigns ?? [])
+    .filter((row) => row.status !== 'cancelled')
+    .map((row) => ({ value: row.id, label: `${row.name} · ${row.campaignCode}` }));
 
+  const activeDraft = taxTarget === 'edit' ? edit : draft;
   useEffect(() => {
-    const timer = setTimeout(() => setTaxQuery(taxCode.replace(/\D/g, '')), 300);
+    const timer = setTimeout(() => setTaxQuery(activeDraft.taxCode.replace(/\D/g, '')), 300);
     return () => clearTimeout(timer);
-  }, [taxCode]);
+  }, [activeDraft.taxCode]);
 
   const companies = useQuery({
-    queryKey: ['crm-companies', companyName],
-    queryFn: () => fetchCrmCompanies(companyName),
-    enabled: companyName.trim().length >= 2 && !companyId,
+    queryKey: ['crm-companies', activeDraft.companyName],
+    queryFn: () => fetchCrmCompanies(activeDraft.companyName),
+    enabled: activeDraft.companyName.trim().length >= 2 && (taxTarget === 'edit' || !companyId),
   });
 
   const taxSuggestions = useQuery({
     queryKey: ['crm-tax-suggestions', taxQuery],
     queryFn: () => fetchCrmTaxSuggestions(taxQuery),
-    enabled: taxOpen && taxQuery.length >= 2,
+    enabled: taxTarget !== null && taxQuery.length >= 2,
   });
+
+  function leadBody(value: LeadDraft, linkedCompanyId: string | null) {
+    if (value.source !== 'web' && value.source !== 'zalo' && value.source !== 'event' && value.source !== 'partner') {
+      return Promise.reject(new Error('Chọn nguồn khách'));
+    }
+    const source: 'web' | 'zalo' | 'event' | 'partner' = value.source;
+    if (value.source === 'partner' && !value.partnerId) {
+      return Promise.reject(new Error('Chọn cộng tác viên'));
+    }
+    return {
+      companyName: value.companyName,
+      contactName: value.contactName,
+      contactPhone: value.contactPhone || null,
+      taxCode: value.taxCode || null,
+      address: value.address || null,
+      contactEmail: value.contactEmail || null,
+      zalo: value.zalo || null,
+      jobTitle: value.jobTitle || null,
+      department: value.department || null,
+      industry: value.industry || null,
+      bankAccount: value.bankAccount || null,
+      bankName: value.bankName || null,
+      foundedOn: value.foundedOn || null,
+      orgType: value.orgType || null,
+      orgField: value.orgField || null,
+      revenueBand: value.revenueBand || null,
+      country: 'Việt Nam',
+      province: value.province || null,
+      ward: value.ward || null,
+      street: value.street || null,
+      areaCode: value.areaCode || null,
+      companyId: linkedCompanyId,
+      source,
+      partnerId: value.source === 'partner' ? value.partnerId : null,
+      campaignId: value.campaignId || null,
+    };
+  }
 
   const addLead = useMutation({
     mutationFn: () => {
-      if (source !== 'web' && source !== 'zalo' && source !== 'event' && source !== 'partner') {
-        return Promise.reject(new Error('Chọn nguồn khách'));
-      }
-      if (source === 'partner' && !partnerId) {
-        return Promise.reject(new Error('Chọn cộng tác viên'));
-      }
-      return createCrmLead({
-        companyName,
-        contactName,
-        contactPhone,
-        taxCode: taxCode || null,
-        address: address || null,
-        companyId,
-        source,
-        partnerId: source === 'partner' ? partnerId : null,
-      });
+      const body = leadBody(draft, companyId);
+      if (body instanceof Promise) return body;
+      return createCrmLead(body);
     },
     onSuccess: () => {
-      setCompanyName('');
+      setDraft(blankLeadDraft());
       setCompanyId(null);
-      setContactName('');
-      setContactPhone('');
-      setTaxCode('');
-      setAddress('');
-      setTaxOpen(false);
-      setSource('');
-      setPartnerId('');
+      setTaxTarget(null);
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
     },
@@ -111,23 +139,11 @@ export function CrmLeadsPanel() {
 
   const saveLead = useMutation({
     mutationFn: (leadId: string) => {
-      const lead = (board.data?.leads ?? []).find((item) => item.id === leadId);
-      if (!lead) return Promise.reject(new Error('Không tìm thấy lead'));
-      if (editSource !== 'web' && editSource !== 'zalo' && editSource !== 'event' && editSource !== 'partner') {
-        return Promise.reject(new Error('Chọn nguồn khách'));
-      }
-      const form = document.getElementById(`lead-edit-${leadId}`) as HTMLFormElement | null;
-      const data = form ? new FormData(form) : null;
+      const body = leadBody(edit, null);
+      if (body instanceof Promise) return body;
+      const { companyId: _linked, ...fields } = body;
       return updateCrmLead(leadId, {
-        companyName: String(data?.get('companyName') ?? ''),
-        contactName: String(data?.get('contactName') ?? ''),
-        contactPhone: String(data?.get('contactPhone') ?? ''),
-        taxCode: String(data?.get('taxCode') ?? '') || null,
-        address: String(data?.get('address') ?? '') || null,
-        contactEmail: lead.contactEmail,
-        industry: lead.industry,
-        source: editSource,
-        partnerId: editSource === 'partner' ? editPartnerId : null,
+        ...fields,
         ownerUserId: canReassign ? editOwnerId : undefined,
         nextFollowUpAt: editFollowUp || null,
       });
@@ -146,7 +162,9 @@ export function CrmLeadsPanel() {
     addLead.mutate();
   }
 
-  const leads = (board.data?.leads ?? []).filter((lead) => {
+  const sort = useColumnSort<'company' | 'tax' | 'contact' | 'phone' | 'source' | 'status' | 'owner' | 'created'>('created', 'desc');
+  const leads = sortRows(
+    (board.data?.leads ?? []).filter((lead) => {
     if (filter === 'open' && lead.status !== 'open') return false;
     if (filter === 'converted' && lead.status !== 'converted') return false;
     if (sourceFilter !== 'all' && lead.source !== sourceFilter) return false;
@@ -154,20 +172,38 @@ export function CrmLeadsPanel() {
       lead.companyName,
       lead.contactName,
       lead.contactPhone,
+      lead.contactEmail,
+      lead.zalo,
+      lead.province,
       lead.taxCode,
       lead.leadCode,
       leadSourceLabel(lead.source),
       lead.partnerName,
       lead.partnerCode,
     ]);
-  });
+  }),
+    sort.dir,
+    (lead) => {
+      if (sort.key === 'company') return lead.companyName;
+      if (sort.key === 'tax') return lead.taxCode;
+      if (sort.key === 'contact') return lead.contactName;
+      if (sort.key === 'phone') return lead.contactPhone;
+      if (sort.key === 'source') return leadSourceLabel(lead.source);
+      if (sort.key === 'status') return leadStatusLabel(lead.status);
+      if (sort.key === 'owner') return lead.ownerName;
+      return lead.createdAt;
+    },
+  );
+  const columns = useVisibleColumns<LeadColumn>('crm-cols-leads', LEAD_COLUMNS.map((column) => column.key));
+  const pick = useRowSelection();
   const all = board.data?.leads ?? [];
+  const editingLead = all.find((lead) => lead.id === editingId) ?? null;
 
   return (
     <CrmFrame
       kicker="Nhà máy và người phụ trách HR"
-      title="Lead chưa phải khách đã mua gói"
-      description="Nhập mã số thuế trước để gợi ý tên công ty. Công ty đã có trên inlink hiện trước. Chưa có thì lấy tên và địa chỉ từ sổ thuế. Người liên hệ và số điện thoại vẫn nhập tay. Không tự tạo lead."
+      title="Tiềm năng chưa phải khách đã mua gói"
+      description="Bắt buộc mã số thuế, tên công ty, người liên hệ và nguồn khách. Số điện thoại, email, Zalo, chức danh, tổ chức và địa chỉ để trống được. Gõ mã số thuế để gợi ý tên và địa chỉ."
       placeholder="Tìm tên công ty, mã số thuế hoặc số điện thoại"
       search={{ value: query, onChange: setQuery }}
       footnote="CRM không gán gói và không cộng Credit."
@@ -196,187 +232,201 @@ export function CrmLeadsPanel() {
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2 xl:grid-cols-6">
-        <div className="relative md:col-span-1">
-          <input
-            className={crmFieldClass}
-            placeholder="Mã số thuế"
-            inputMode="numeric"
-            autoComplete="off"
-            value={taxCode}
-            onFocus={() => setTaxOpen(true)}
-            onBlur={() => setTaxOpen(false)}
-            onChange={(event) => {
-              setTaxCode(event.target.value);
-              setTaxOpen(true);
-              setCompanyId(null);
-              setAddress('');
-            }}
-          />
-          {taxOpen && taxSuggestions.data && taxSuggestions.data.length > 0 ? (
-            <ul className="absolute z-10 mt-1 max-h-56 w-[min(100vw-2rem,28rem)] overflow-auto rounded-xl border border-slate-100 bg-white py-1 shadow-lg">
-              {taxSuggestions.data.map((item) => (
-                <li key={`${item.source}-${item.taxCode}-${item.companyId ?? 'registry'}`}>
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#efeaff]"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      setTaxCode(item.taxCode);
-                      setCompanyName(item.companyName);
-                      setCompanyId(item.companyId);
-                      setAddress(item.address ?? '');
-                      setTaxOpen(false);
-                    }}
-                  >
-                    <span className="font-medium text-slate-800">{item.companyName}</span>
-                    <span className="mt-0.5 block text-xs text-slate-400">
-                      MST {item.taxCode} · {item.source === 'inlink' ? 'Trên inlink' : 'Sổ thuế'}
-                    </span>
-                    {item.address ? <span className="mt-0.5 block text-xs text-slate-500">{item.address}</span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-        <div className="relative md:col-span-1">
-          <input
-            className={crmFieldClass}
-            placeholder="Tên công ty"
-            value={companyName}
-            onChange={(event) => {
-              setCompanyName(event.target.value);
-              setCompanyId(null);
-            }}
-            required
-          />
-          {companies.data && companies.data.length > 0 ? (
-            <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-slate-100 bg-white py-1 shadow-lg">
-              {companies.data.map((company) => (
-                <li key={company.id}>
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#efeaff]"
-                    onClick={() => {
-                      setCompanyId(company.id);
-                      setCompanyName(company.name);
-                      if (company.taxCode) setTaxCode(company.taxCode);
-                      if (company.address) setAddress(company.address);
-                    }}
-                  >
-                    <span className="font-medium text-slate-800">{company.name}</span>
-                    {company.taxCode ? <span className="mt-0.5 block text-xs text-slate-400">MST {company.taxCode}</span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-        <input className={crmFieldClass} placeholder="Người liên hệ" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
-        <input className={crmFieldClass} placeholder="Số điện thoại" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} required />
-        <input className={`${crmFieldClass} md:col-span-2 xl:col-span-6`} placeholder="Địa chỉ" value={address} onChange={(event) => setAddress(event.target.value)} />
-        <CrmSelect
-          value={source}
-          required
-          placeholder="Nguồn khách"
-          options={SOURCES.map((item) => ({ value: item, label: leadSourceLabel(item) }))}
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
+        <LeadFormFields
+          draft={draft}
           onChange={(next) => {
-            setSource(next as Exclude<SourceFilter, 'all' | 'unknown'>);
-            if (next !== 'partner') setPartnerId('');
+            if (next.companyName !== draft.companyName || next.taxCode !== draft.taxCode) setCompanyId(null);
+            if (next.taxCode !== draft.taxCode || next.companyName !== draft.companyName) setTaxTarget('create');
+            setDraft(next);
           }}
+          campaignOptions={campaignOptions}
+          partners={partners.data ?? []}
+          partnersLoading={partners.isLoading}
+          taxOpen={taxTarget === 'create'}
+          onTaxFocus={() => setTaxTarget('create')}
+          onTaxBlur={() => setTaxTarget((current) => (current === 'create' ? null : current))}
+          suggestions={taxTarget === 'create' ? taxSuggestions.data : undefined}
+          onPickTax={(item) => {
+            setCompanyId(item.companyId);
+            setDraft((current) => ({
+              ...current,
+              taxCode: item.taxCode,
+              companyName: item.companyName,
+              address: item.address ?? current.address,
+            }));
+            setTaxTarget(null);
+          }}
+          companies={taxTarget === 'create' ? companies.data : undefined}
+          onPickCompany={(company) => {
+            setCompanyId(company.id);
+            setDraft((current) => ({
+              ...current,
+              companyName: company.name,
+              taxCode: company.taxCode ?? current.taxCode,
+              address: company.address ?? current.address,
+            }));
+          }}
+          extra={
+            <button type="submit" className={`${crmButtonClass} md:col-span-2`} disabled={addLead.isPending || !draft.source || (draft.source === 'partner' && !draft.partnerId)}>
+              {addLead.isPending ? 'Đang lưu…' : 'Thêm lead'}
+            </button>
+          }
         />
-        {source === 'partner' ? (
-          <CrmSelect
-            value={partnerId}
-            required
-            placeholder={partners.isLoading ? 'Đang tải cộng tác viên…' : 'Chọn cộng tác viên'}
-            options={(partners.data ?? []).map((partner) => ({ value: partner.id, label: `${partner.name} · ${partner.code}` }))}
-            onChange={setPartnerId}
-          />
-        ) : null}
-        <button type="submit" className={crmButtonClass} disabled={addLead.isPending || !source || (source === 'partner' && !partnerId)}>
-          {addLead.isPending ? 'Đang lưu…' : 'Thêm lead'}
-        </button>
       </form>
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {board.isLoading ? <CrmEmpty>Đang tải lead…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được danh sách lead.</CrmEmpty> : null}
       {board.data && all.length === 0 ? <CrmEmpty>Chưa có lead.</CrmEmpty> : null}
       {board.data && all.length > 0 && leads.length === 0 ? <CrmEmpty>Không có lead khớp bộ lọc.</CrmEmpty> : null}
-      {leads.length > 0 ? (
-        <CrmCardGrid columns={3}>
-          {leads.map((lead) => (
-            <CrmCard
-              key={lead.id}
-              tone={lead.status === 'converted' ? 'green' : 'sky'}
-              badge={isFresh(lead.createdAt) ? 'Mới' : undefined}
-              icon={<Building2 className="h-5 w-5" />}
-              title={lead.companyName}
-              text={`${lead.contactName} · ${contactPhoneLabel(lead.contactPhone)}${lead.taxCode ? ` · MST ${lead.taxCode}` : ''}${lead.address ? ` · ${lead.address}` : ''}. ${leadStatusLabel(lead.status)}.`}
-              meta={`${lead.leadCode} · ${lead.partnerName ? `${lead.partnerName} (${lead.partnerCode})` : leadSourceLabel(lead.source)} · ${lead.ownerName}${lead.nextFollowUpAt ? ` · ${followUpLabel(lead.nextFollowUpAt)}` : ''}`}
-            >
-              <div className="mt-4 flex flex-wrap gap-2">
-                {lead.companyId ? (
-                  <Link href={`/crm/companies/${lead.companyId}`} className={crmActionClass}>Hồ sơ công ty</Link>
-                ) : null}
-                <button
-                  type="button"
-                  className={crmActionClass}
-                  onClick={() => {
-                    setEditingId(lead.id);
-                    setEditSource(lead.source === 'unknown' ? '' : lead.source);
-                    setEditPartnerId(lead.partnerId ?? '');
-                    setEditOwnerId(lead.ownerUserId);
-                    setEditFollowUp(lead.nextFollowUpAt ? vietnamDay(lead.nextFollowUpAt) : '');
-                  }}
-                >
-                  Sửa
-                </button>
-              </div>
-              {editingId === lead.id ? (
-                <form id={`lead-edit-${lead.id}`} onSubmit={(event) => { event.preventDefault(); saveLead.mutate(lead.id); }} className="mt-3 grid gap-2">
-                  <input className={crmFieldClass} name="companyName" defaultValue={lead.companyName} required />
-                  <input className={crmFieldClass} name="contactName" defaultValue={lead.contactName} required />
-                  <input className={crmFieldClass} name="contactPhone" defaultValue={lead.contactPhone} placeholder="Số điện thoại" required />
-                  <input className={crmFieldClass} name="taxCode" defaultValue={lead.taxCode ?? ''} placeholder="Mã số thuế" />
-                  <input className={crmFieldClass} name="address" defaultValue={lead.address ?? ''} placeholder="Địa chỉ" />
-                  <CrmSelect
-                    value={editSource}
-                    required
-                    placeholder="Nguồn khách"
-                    options={SOURCES.map((item) => ({ value: item, label: leadSourceLabel(item) }))}
-                    onChange={(next) => {
-                      setEditSource(next as Exclude<SourceFilter, 'all' | 'unknown'>);
-                      if (next !== 'partner') setEditPartnerId('');
-                    }}
-                  />
-                  {editSource === 'partner' ? (
-                    <CrmSelect
-                      value={editPartnerId}
-                      required
-                      placeholder="Chọn cộng tác viên"
-                      options={(partners.data ?? []).map((partner) => ({ value: partner.id, label: `${partner.name} · ${partner.code}` }))}
-                      onChange={setEditPartnerId}
-                    />
-                  ) : null}
-                  {canReassign ? (
+      {editingLead ? (
+        <form onSubmit={(event) => { event.preventDefault(); saveLead.mutate(editingLead.id); }} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
+          <LeadFormFields
+            draft={edit}
+            onChange={(next) => {
+              if (next.taxCode !== edit.taxCode || next.companyName !== edit.companyName) setTaxTarget('edit');
+              setEdit(next);
+            }}
+            campaignOptions={
+              campaignOptions.some((item) => item.value === edit.campaignId) || !edit.campaignId
+                ? campaignOptions
+                : [...campaignOptions, { value: edit.campaignId, label: editingLead.campaignName ?? 'Chiến dịch đã gắn' }]
+            }
+            partners={partners.data ?? []}
+            partnersLoading={partners.isLoading}
+            taxOpen={taxTarget === 'edit'}
+            onTaxFocus={() => setTaxTarget('edit')}
+            onTaxBlur={() => setTaxTarget((current) => (current === 'edit' ? null : current))}
+            suggestions={taxTarget === 'edit' ? taxSuggestions.data : undefined}
+            onPickTax={(item) => {
+              setEdit((current) => ({
+                ...current,
+                taxCode: item.taxCode,
+                companyName: item.companyName,
+                address: item.address ?? current.address,
+              }));
+              setTaxTarget(null);
+            }}
+            companies={taxTarget === 'edit' ? companies.data : undefined}
+            onPickCompany={(company) => {
+              setEdit((current) => ({
+                ...current,
+                companyName: company.name,
+                taxCode: company.taxCode ?? current.taxCode,
+                address: company.address ?? current.address,
+              }));
+            }}
+            extra={
+              <>
+                {canReassign ? (
+                  <CrmField label="Người phụ trách">
                     <CrmSelect
                       value={editOwnerId}
                       placeholder="Người phụ trách"
                       options={(owners.data ?? []).map((owner) => ({ value: owner.id, label: owner.name }))}
                       onChange={setEditOwnerId}
                     />
-                  ) : null}
-                  <input className={crmFieldClass} type="date" value={editFollowUp} onChange={(event) => setEditFollowUp(event.target.value)} aria-label="Ngày hẹn gọi lại" />
+                  </CrmField>
+                ) : null}
+                <CrmField label="Ngày hẹn gọi lại">
+                  <CrmDateField value={editFollowUp} onChange={setEditFollowUp} />
+                </CrmField>
+                <div className="flex gap-2 md:col-span-2">
                   <button type="submit" className={crmButtonClass} disabled={saveLead.isPending}>
                     {saveLead.isPending ? 'Đang lưu…' : 'Lưu lead'}
                   </button>
-                </form>
-              ) : null}
-            </CrmCard>
-          ))}
-        </CrmCardGrid>
+                  <button type="button" className={crmActionClass} onClick={() => setEditingId(null)}>Đóng</button>
+                </div>
+              </>
+            }
+          />
+        </form>
+      ) : null}
+      {leads.length > 0 ? (
+        <>
+          <ColumnPicker
+            columns={LEAD_COLUMNS}
+            shown={columns.shown}
+            onToggle={columns.toggle}
+            onShowAll={columns.showAll}
+            selectedCount={leads.filter((lead) => pick.has(lead.id)).length}
+          />
+          <section className="overflow-hidden rounded-[22px] bg-white crm-surface">
+            <div className="overflow-x-auto">
+              <table className={crmTableClass}>
+                <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className={stickyCheck}>
+                      <RowCheck
+                        checked={leads.length > 0 && leads.every((lead) => pick.has(lead.id))}
+                        mixed={leads.some((lead) => pick.has(lead.id)) && !leads.every((lead) => pick.has(lead.id))}
+                        onChange={() => pick.toggleVisible(leads.map((lead) => lead.id))}
+                        label="Chọn tất cả tiềm năng"
+                      />
+                    </th>
+                    <th className={stickyIndex}>STT</th>
+                    {columns.shown('company') ? <SortableTh className="sticky left-[6.25rem] z-20 bg-slate-50 shadow-[4px_0_8px_-6px_rgba(15,23,42,0.35)]" label="Công ty" active={sort.key === 'company'} dir={sort.dir} onClick={() => sort.toggle('company')} /> : null}
+                    {columns.shown('tax') ? <SortableTh label="Mã số thuế" active={sort.key === 'tax'} dir={sort.dir} onClick={() => sort.toggle('tax')} /> : null}
+                    {columns.shown('contact') ? <SortableTh label="Liên hệ" active={sort.key === 'contact'} dir={sort.dir} onClick={() => sort.toggle('contact')} /> : null}
+                    {columns.shown('phone') ? <SortableTh label="Điện thoại" active={sort.key === 'phone'} dir={sort.dir} onClick={() => sort.toggle('phone')} /> : null}
+                    {columns.shown('source') ? <SortableTh label="Nguồn" active={sort.key === 'source'} dir={sort.dir} onClick={() => sort.toggle('source')} /> : null}
+                    {columns.shown('status') ? <SortableTh label="Trạng thái" active={sort.key === 'status'} dir={sort.dir} onClick={() => sort.toggle('status')} /> : null}
+                    {columns.shown('owner') ? <SortableTh label="Phụ trách" active={sort.key === 'owner'} dir={sort.dir} onClick={() => sort.toggle('owner')} /> : null}
+                    {columns.shown('created') ? <SortableTh label="Ngày tạo" active={sort.key === 'created'} dir={sort.dir} onClick={() => sort.toggle('created')} /> : null}
+                    <th className="whitespace-nowrap px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((lead, index) => {
+                    const picked = pick.has(lead.id);
+                    return (
+                      <tr key={lead.id} className={`border-t border-slate-100 ${picked ? 'bg-[#f6f4ff]' : ''}`}>
+                        <td className={stickyCell(picked, 'check')}><RowCheck checked={picked} onChange={() => pick.toggle(lead.id)} label={`Chọn ${lead.companyName}`} /></td>
+                        <td className={stickyCell(picked, 'index')}>{index + 1}</td>
+                        {columns.shown('company') ? (
+                          <td className={`${crmTd} font-medium text-slate-900 ${stickyCell(picked, 'name')}`}>
+                            {lead.companyName}
+                            <span className="ml-2 text-xs font-normal text-slate-400">{lead.leadCode}</span>
+                            {isFresh(lead.createdAt) ? <span className="ml-2 rounded-full bg-[#ff4d4f] px-1.5 py-0.5 text-[10px] font-bold text-white">Mới</span> : null}
+                          </td>
+                        ) : null}
+                        {columns.shown('tax') ? <td className={`${crmTd} text-slate-600`}>{lead.taxCode ?? '—'}</td> : null}
+                        {columns.shown('contact') ? <td className={`${crmTd} text-slate-700`}>{lead.contactName}</td> : null}
+                        {columns.shown('phone') ? <td className={`${crmTd} text-slate-600`}>{contactPhoneLabel(lead.contactPhone)}</td> : null}
+                        {columns.shown('source') ? <td className={`${crmTd} text-slate-600`}>{lead.partnerName ? lead.partnerName : leadSourceLabel(lead.source)}</td> : null}
+                        {columns.shown('status') ? (
+                          <td className={crmTd}>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${lead.status === 'converted' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>{leadStatusLabel(lead.status)}</span>
+                          </td>
+                        ) : null}
+                        {columns.shown('owner') ? <td className={`${crmTd} text-slate-600`}>{lead.ownerName}</td> : null}
+                        {columns.shown('created') ? <td className={`${crmTd} text-slate-600`}>{vietnamDay(lead.createdAt).split('-').reverse().join('/')}</td> : null}
+                        <td className={crmTd}>
+                          <div className="flex justify-end gap-2">
+                            {lead.companyId ? <Link href={`/crm/companies/${lead.companyId}`} className={`${crmActionClass} !whitespace-nowrap`}>Hồ sơ</Link> : null}
+                            <button
+                              type="button"
+                              className={`${crmActionClass} !whitespace-nowrap`}
+                              onClick={() => {
+                                setEditingId(lead.id);
+                                setEdit(draftFromLead(lead));
+                                setEditOwnerId(lead.ownerUserId);
+                                setEditFollowUp(lead.nextFollowUpAt ? vietnamDay(lead.nextFollowUpAt) : '');
+                                setTaxTarget(null);
+                              }}
+                            >
+                              Sửa
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       ) : null}
     </CrmFrame>
   );

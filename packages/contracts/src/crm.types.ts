@@ -1,5 +1,10 @@
 /** CRM: lead, phễu, nhật ký, hóa đơn đã xuất, hoa hồng chờ đối soát. Không gán gói, không công nợ, không lệnh chi. */
 
+export const CRM_LEAD_JOB_TITLES = ['Giám đốc', 'Phó giám đốc', 'HR', 'HCNS', 'Trưởng phòng nhân sự', 'Tuyển dụng', 'Kế toán', 'Hành chính'] as const;
+export const CRM_LEAD_ORG_TYPES = ['Công ty TNHH', 'Công ty cổ phần', 'Doanh nghiệp tư nhân', 'Hộ kinh doanh', 'Hợp tác xã', 'Doanh nghiệp nhà nước', 'Công ty hợp danh'] as const;
+export const CRM_LEAD_ORG_FIELDS = ['Sản xuất', 'Thương mại', 'Dịch vụ', 'Xây dựng', 'Logistics', 'Nông nghiệp', 'Giáo dục', 'Y tế', 'Công nghệ'] as const;
+export const CRM_LEAD_REVENUE_BANDS = ['Dưới 3 tỷ', '3–10 tỷ', '10–50 tỷ', '50–200 tỷ', 'Trên 200 tỷ'] as const;
+
 export type CrmLeadStatus = 'open' | 'converted' | 'unqualified';
 /** unknown chỉ còn trên lead tạo trước khi ghi nguồn. */
 export type CrmLeadSource = 'web' | 'zalo' | 'event' | 'partner' | 'unknown';
@@ -16,13 +21,31 @@ export interface CrmLeadView {
   contactName: string;
   contactPhone: string;
   contactEmail: string | null;
+  zalo: string | null;
+  jobTitle: string | null;
+  department: string | null;
   industry: string | null;
+  bankAccount: string | null;
+  bankName: string | null;
+  /** YYYY-MM-DD. Null khi chưa ghi. */
+  foundedOn: string | null;
+  orgType: string | null;
+  orgField: string | null;
+  revenueBand: string | null;
+  country: string | null;
+  province: string | null;
+  ward: string | null;
+  street: string | null;
+  areaCode: string | null;
   companyId: string | null;
   status: CrmLeadStatus;
   source: CrmLeadSource;
   partnerId: string | null;
   partnerName: string | null;
   partnerCode: string | null;
+  campaignId: string | null;
+  campaignName: string | null;
+  campaignCode: string | null;
   ownerUserId: string;
   ownerName: string;
   /** Ngày hẹn gọi lại. Null khi chưa hẹn. */
@@ -68,6 +91,8 @@ export interface CrmDealView {
   wonAt: string | null;
   lostAt: string | null;
   lostReason: string | null;
+  /** YYYY-MM-DD. Null khi chưa hẹn. */
+  expectedCloseOn: string | null;
   createdAt: string;
 }
 
@@ -118,13 +143,29 @@ export interface CreateCrmLeadRequest {
   taxCode?: string | null;
   address?: string | null;
   contactName: string;
-  contactPhone: string;
+  contactPhone?: string | null;
   contactEmail?: string | null;
+  zalo?: string | null;
+  jobTitle?: string | null;
+  department?: string | null;
   industry?: string | null;
+  bankAccount?: string | null;
+  bankName?: string | null;
+  foundedOn?: string | null;
+  orgType?: string | null;
+  orgField?: string | null;
+  revenueBand?: string | null;
+  country?: string | null;
+  province?: string | null;
+  ward?: string | null;
+  street?: string | null;
+  areaCode?: string | null;
   companyId?: string | null;
   source: Exclude<CrmLeadSource, 'unknown'>;
   /** Bắt buộc khi source là partner. */
   partnerId?: string | null;
+  /** Chiến dịch marketing. Null khi không gắn. */
+  campaignId?: string | null;
 }
 
 export interface UpdateCrmLeadRequest {
@@ -132,15 +173,31 @@ export interface UpdateCrmLeadRequest {
   taxCode?: string | null;
   address?: string | null;
   contactName: string;
-  contactPhone: string;
+  contactPhone?: string | null;
   contactEmail?: string | null;
+  zalo?: string | null;
+  jobTitle?: string | null;
+  department?: string | null;
   industry?: string | null;
+  bankAccount?: string | null;
+  bankName?: string | null;
+  foundedOn?: string | null;
+  orgType?: string | null;
+  orgField?: string | null;
+  revenueBand?: string | null;
+  country?: string | null;
+  province?: string | null;
+  ward?: string | null;
+  street?: string | null;
+  areaCode?: string | null;
   source: Exclude<CrmLeadSource, 'unknown'>;
   partnerId?: string | null;
   /** Chỉ SuperAdmin đổi. Sale gửi khác chủ hiện tại thì bị từ chối. */
   ownerUserId?: string | null;
   /** Null để bỏ hẹn. Bỏ qua field này thì giữ ngày cũ. */
   nextFollowUpAt?: string | null;
+  /** Null để bỏ gắn. Bỏ qua field này thì giữ chiến dịch cũ. */
+  campaignId?: string | null;
 }
 
 export interface CrmOwnerOption {
@@ -172,6 +229,7 @@ export interface CrmCompanyProfileView {
   id: string;
   name: string;
   taxCode: string | null;
+  address: string | null;
   industry: string | null;
   platformPlan: CrmCompanyPlanSnapshot | null;
   sourcingPlan: CrmCompanyPlanSnapshot | null;
@@ -370,6 +428,8 @@ export interface CreateCrmDealRequest {
   title: string;
   planKind?: CrmPlanKind | null;
   planCode?: string | null;
+  /** YYYY-MM-DD. Bỏ trống khi chưa hẹn. */
+  expectedCloseOn?: string | null;
 }
 
 export interface MoveCrmDealRequest {
@@ -408,6 +468,14 @@ export interface CrmCustomerView {
   companyId: string;
   companyName: string;
   taxCode: string | null;
+  /** Người liên hệ trên lead gắn công ty. Null khi chưa có lead. */
+  contactName: string | null;
+  department: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  /** Lĩnh vực trên lead, hoặc ngành của công ty khi lead chưa ghi. */
+  orgField: string | null;
+  address: string | null;
   standing: CrmCustomerStanding;
   platformPlanName: string | null;
   sourcingPlanName: string | null;
@@ -450,12 +518,22 @@ export interface CrmFunnelReport {
   byPartner: CrmFunnelBucket[];
 }
 
+export type CrmQuoteStatus = 'draft' | 'sent';
+
 export interface CreateCrmQuoteRequest {
   companyName: string;
   taxCode?: string | null;
   contactName: string;
+  address?: string | null;
+  /** YYYY-MM-DD. */
+  quotedOn: string;
+  /** YYYY-MM-DD. Null khi chưa hẹn hạn. */
+  validUntil?: string | null;
+  status?: CrmQuoteStatus;
   leadId?: string | null;
   companyId?: string | null;
+  /** Cơ hội đang bán. Null khi không gắn. Không đổi bước. */
+  dealId?: string | null;
   option1Kind: CrmPlanKind;
   option1Code: string;
   option2Kind?: CrmPlanKind | null;
@@ -470,7 +548,15 @@ export interface CrmQuoteView {
   companyName: string;
   taxCode: string | null;
   contactName: string;
+  address: string | null;
+  /** YYYY-MM-DD. */
+  quotedOn: string;
+  validUntil: string | null;
+  status: CrmQuoteStatus;
   companyId: string | null;
+  dealId: string | null;
+  dealTitle: string | null;
+  dealCode: string | null;
   ownerName: string;
   option1Kind: CrmPlanKind;
   option1Code: string;
@@ -498,6 +584,96 @@ export interface CrmPlanOption {
   code: string;
   name: string;
   priceVnd: string;
+}
+
+export type CrmMarketingChannelGroup = 'owned' | 'social';
+export type CrmCampaignStatus = 'draft' | 'active' | 'ended' | 'cancelled';
+
+export interface CrmMarketingChannelView {
+  id: string;
+  code: string;
+  name: string;
+  group: CrmMarketingChannelGroup;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CrmCampaignView {
+  id: string;
+  campaignCode: string;
+  name: string;
+  channelId: string;
+  channelName: string;
+  channelGroup: CrmMarketingChannelGroup;
+  status: CrmCampaignStatus;
+  startsOn: string | null;
+  endsOn: string | null;
+  /** Ngân sách dự chi. Null khi chưa đặt. */
+  budgetVnd: string | null;
+  /** Đã chi, không gồm hoa hồng. */
+  spentVnd: string;
+  ownerUserId: string;
+  ownerName: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface CrmMarketingCostView {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  campaignCode: string;
+  channelId: string;
+  channelName: string;
+  spentOn: string;
+  amountVnd: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface CrmMarketingOverview {
+  /** SuperAdmin đặt ngân sách và ghi chi phí. */
+  canManageSpend: boolean;
+  budgetVnd: string;
+  spentVnd: string;
+  activeCount: number;
+  campaignCount: number;
+  channels: CrmMarketingChannelView[];
+  campaigns: CrmCampaignView[];
+  costs: CrmMarketingCostView[];
+}
+
+export interface CreateCrmMarketingChannelRequest {
+  name: string;
+  group: CrmMarketingChannelGroup;
+}
+
+export interface UpdateCrmMarketingChannelRequest {
+  isActive: boolean;
+}
+
+export interface CreateCrmCampaignRequest {
+  name: string;
+  channelId: string;
+  status?: CrmCampaignStatus;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  /** Chỉ SuperAdmin. Sale gửi số khác thì bị từ chối. */
+  budgetVnd?: string | null;
+  note?: string | null;
+  ownerUserId?: string | null;
+}
+
+export interface UpdateCrmCampaignRequest extends CreateCrmCampaignRequest {
+  status: CrmCampaignStatus;
+}
+
+export interface CreateCrmMarketingCostRequest {
+  campaignId: string;
+  channelId?: string | null;
+  spentOn: string;
+  amountVnd: string;
+  note?: string | null;
 }
 
 export interface CreateCrmActivityRequest {

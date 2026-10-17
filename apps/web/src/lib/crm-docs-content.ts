@@ -82,15 +82,15 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
   {
     id: 'kinh-doanh',
     title: 'Kinh doanh',
-    description: 'Đường bán đi từ lead, qua báo giá và phễu, tới sổ khách và doanh số.',
-    flow: ['Lead', 'Báo giá', 'Phễu bán gói', 'Khách hàng', 'Báo cáo'],
+    description: 'Sidebar Kinh doanh đi từ tiềm năng, khách hàng, cơ hội, báo giá, đơn hàng, doanh số, rồi báo cáo. Khách tự mua sẽ nằm trong sổ khách.',
+    flow: ['Tiềm năng', 'Khách hàng', 'Cơ hội', 'Báo giá', 'Đơn hàng', 'Doanh số', 'Báo cáo'],
     sections: [
       {
         id: 'lead',
-        title: 'Lead',
+        title: 'Tiềm năng',
         icon: Building2,
         href: '/crm/leads',
-        summary: 'Khách chưa mua hoặc đang được chăm. Mã số thuế đứng đầu và gợi ý tên, địa chỉ.',
+        summary: 'Khách chưa mua hoặc đang được chăm. Bắt buộc mã số thuế, tên công ty, người liên hệ và nguồn.',
         keywords: ['mst', 'vietqr', 'địa chỉ', 'việc cần làm', 'lý do mất', 'chuyển sale'],
         blocks: [
           {
@@ -106,7 +106,8 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             type: 'list',
             title: 'Quy tắc lead',
             items: [
-              'Địa chỉ lưu trên lead, sửa được, không bắt buộc. Hiện trên thẻ lead và form sửa.',
+              'Bắt buộc mã số thuế, tên công ty, người liên hệ và nguồn. Điện thoại, email, Zalo, chức danh, tổ chức và địa chỉ không bắt buộc.',
+              'Địa chỉ dùng 34 tỉnh, thành từ 01/7/2025. Không có cấp quận, huyện. Phường, xã ghi bằng chữ.',
               'Đánh mất thì phải ghi lý do, ít nhất 2 ký tự. Lý do vào nhật ký.',
               'Trùng mã số thuế, số điện thoại từ 9 số, hoặc cùng một công ty với lead còn hiệu lực thì báo lead đã có.',
               'Sale sửa lead của mình. SuperAdmin đổi người phụ trách thì deal của lead đó chuyển theo.',
@@ -120,7 +121,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Báo giá',
         icon: FileText,
         href: '/crm/quotes',
-        summary: 'Một tờ, hai phương án. Giá lấy từ gói SuperAdmin lúc lập, chưa cộng VAT.',
+        summary: 'Tờ chào giá: khách, hạn hiệu lực, tình trạng và một hoặc hai gói. Giá lấy lúc lập, chưa cộng VAT.',
         keywords: ['báo giá', 'phương án', 'pdf', 'vat', 'enterprise'],
         blocks: [
           {
@@ -129,7 +130,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             items: [
               { actor: 'Sale', title: 'Chọn gói', text: 'Phương án 1 là bắt buộc. Phương án 2 có thể bỏ trống. Hai phương án không được trùng một gói. Danh sách lấy gói đang bán, trừ Enterprise vì gói đó không có giá niêm yết.' },
               { actor: 'Hệ thống', title: 'Chụp giá', text: 'Giá gói tin là giá niêm yết, giá gói Săn là phí Săn, đúng số SuperAdmin đang đặt. Nếu thuế suất đã đặt thì ghi mức đó lên tờ, không cộng vào số tiền.' },
-              { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi mã, ngày, công ty, người nhận, hai phương án và câu giá chưa gồm VAT.' },
+              { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi số, ngày báo giá, hạn hiệu lực, khách, địa chỉ, liên hệ, cơ hội nếu có, hai phương án và câu giá chưa gồm VAT.' },
             ],
           },
           {
@@ -142,10 +143,10 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
       },
       {
         id: 'pheu',
-        title: 'Phễu bán gói',
+        title: 'Cơ hội',
         icon: Kanban,
         href: '/crm/pipeline',
-        summary: 'Một phễu cho gói tin và gói Săn. Đổi bước không gán gói.',
+        summary: 'Cơ hội cho gói tin và gói Săn. Xem danh sách hoặc kanban. Đổi bước không gán gói.',
         keywords: ['deal', 'đã chốt', 'chờ thanh toán', 'enterprise'],
         blocks: [
           {
@@ -163,6 +164,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
           {
             type: 'list',
             items: [
+              'Chọn Danh sách hoặc Kanban. Danh sách có tên cơ hội, gói đã chọn, số tiền niêm yết, giai đoạn, ngày kỳ vọng hoặc ngày kết thúc, người thực hiện và ngày tạo.',
               'Đơn đã trả hiện trên deal khi deal đã có trước lúc khách trả, và cùng công ty cùng gói. Bước phễu không tự chạy theo đơn.',
               'Nhà tuyển dụng bấm tư vấn Enterprise trên bảng giá thì tạo lead và deal cho SuperAdmin đang hoạt động sớm nhất. Deal đó không có giá niêm yết. SuperAdmin không gửi yêu cầu này từ bảng giá.',
             ],
@@ -189,8 +191,9 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
           {
             type: 'list',
             items: [
-              'Tìm theo tên hoặc mã số thuế. Sale chỉ thấy công ty mình phụ trách qua lead hoặc deal.',
-              'Lead chưa gắn công ty vẫn nằm ở trang Lead.',
+              'Tìm theo tên công ty, mã số thuế, người liên hệ hoặc số điện thoại. Sale chỉ thấy công ty mình phụ trách qua lead hoặc deal.',
+              'Sổ hiện người liên hệ, bộ phận, điện thoại, email, lĩnh vực và địa chỉ từ lead gắn công ty. Bộ phận nhập ở Tiềm năng.',
+              'Lead chưa gắn công ty vẫn nằm ở trang Tiềm năng.',
               'Hồ sơ một công ty gồm gói đang chạy, hạn, credit, tin đang đăng, đơn đã trả, số hóa đơn và cộng tác viên nếu có. Sổ này không gán gói.',
             ],
           },
@@ -201,7 +204,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Khách tự mua',
         icon: Inbox,
         href: '/crm/inbox',
-        summary: 'Công ty đã trả gói nhưng chưa có lead. Ai nhận thì người đó phụ trách.',
+        summary: 'Công ty đã trả gói nhưng chưa có lead. Ai nhận thì người đó phụ trách. Sẽ nằm trong sổ khách hàng, không còn mục riêng trên sidebar.',
         keywords: ['nhận khách', 'tự mua', 'chưa có lead'],
         blocks: [
           {
@@ -476,12 +479,12 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Chưa có trong CRM',
         icon: Inbox,
         summary: 'Marketing, SePay và chi hoa hồng qua ngân hàng.',
-        keywords: ['marketing', 'sepay', 'ngân hàng'],
+        keywords: ['marketing', 'facebook', 'tiktok', 'instagram', 'linkedin', 'youtube', 'sepay', 'ngân hàng'],
         blocks: [
           {
             type: 'list',
             items: [
-              'Module marketing: chiến dịch, kết nối kênh, phân tích và báo cáo. Nguồn trên lead, link cộng tác viên và đăng ký chưa trả vẫn đang chạy.',
+              'Quản lý marketing đã có: kênh, chiến dịch, chi phí và gắn cơ hội. Kênh chuẩn gồm Web, Zalo, Sự kiện, Cộng tác viên, Facebook, Instagram, TikTok, LinkedIn, X và YouTube. Báo cáo ROI, link theo dõi và nối API kênh chưa có. Nguồn trên lead, link cộng tác viên và đăng ký chưa trả vẫn đang chạy.',
               'SePay: khi có tài khoản cổng thì nối vào cùng sổ đơn hiện tại. Trong lúc test vẫn dùng thanh toán giả.',
               'Chi hoa hồng ra ngân hàng: hiện dừng ở bảng kê và nút Đã chi trên ví inlink.',
             ],

@@ -39,6 +39,7 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
           <section className="rounded-[22px] bg-white p-5 crm-surface">
             <h2 className="text-sm font-semibold text-slate-900">Đang dùng</h2>
             <p className="mt-2 text-sm text-slate-600">{data.taxCode ? `MST ${data.taxCode}` : 'Chưa có mã số thuế'}{data.industry ? ` · ${data.industry}` : ''}</p>
+            <ContactLines lead={data.leads[0] ?? null} companyAddress={data.address} companyIndustry={data.industry} />
             <PlanLine label="Gói tin" plan={data.platformPlan} />
             <PlanLine label="Gói Săn" plan={data.sourcingPlan} />
             <p className="mt-3 text-sm text-slate-700">Credit còn {data.creditBalance}. Tin đang đăng {data.openJobCount}.</p>
@@ -86,6 +87,37 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
         </div>
       ) : null}
     </CrmFrame>
+  );
+}
+
+function ContactLines({
+  lead,
+  companyAddress,
+  companyIndustry,
+}: {
+  lead: {
+    contactName: string;
+    department: string | null;
+    contactPhone: string;
+    contactEmail: string | null;
+    orgField: string | null;
+    industry: string | null;
+    address: string | null;
+  } | null;
+  companyAddress: string | null;
+  companyIndustry: string | null;
+}) {
+  const field = lead?.orgField || lead?.industry || companyIndustry;
+  const address = lead?.address || companyAddress;
+  return (
+    <div className="mt-3 space-y-1 text-sm text-slate-700">
+      <p>Người liên hệ: {lead?.contactName || 'Chưa có'}</p>
+      <p>Bộ phận: {lead?.department || 'Chưa có'}</p>
+      <p>Điện thoại: {lead ? contactPhoneLabel(lead.contactPhone) : 'Chưa có'}</p>
+      <p>Email: {lead?.contactEmail || 'Chưa có'}</p>
+      <p>Lĩnh vực: {field || 'Chưa có'}</p>
+      <p>Địa chỉ: {address || 'Chưa có'}</p>
+    </div>
   );
 }
 

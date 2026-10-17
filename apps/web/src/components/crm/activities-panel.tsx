@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { CrmActivityType } from '@industriallink/contracts';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { CrmSelect } from '@/components/crm/fields';
+import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
 import { activityLabel, errorText, followUpLabel, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmActivity, fetchCrmFollowUps } from '@/lib/crm';
@@ -60,21 +60,29 @@ export function CrmActivitiesPanel() {
       search={{ value: query, onChange: setQuery }}
       footnote="Nhật ký lưu cùng lead. CRM không gán gói."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-5">
-        <CrmSelect
-          value={leadId}
-          required
-          placeholder="Chọn lead"
-          options={leads.map((lead) => ({ value: lead.id, label: lead.companyName }))}
-          onChange={setLeadId}
-        />
-        <CrmSelect
-          value={activityType}
-          options={TYPES.map((type) => ({ value: type.value, label: type.label }))}
-          onChange={(next) => setActivityType(next as (typeof TYPES)[number]['value'])}
-        />
-        <input className={crmFieldClass} placeholder="Nội dung trao đổi" value={summary} onChange={(event) => setSummary(event.target.value)} required />
-        <input className={crmFieldClass} type="date" value={followUp} onChange={(event) => setFollowUp(event.target.value)} aria-label="Ngày hẹn gọi lại" />
+      <form onSubmit={onSubmit} className="grid items-end gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-5">
+        <CrmField label="Tiềm năng *">
+          <CrmSelect
+            value={leadId}
+            required
+            placeholder="Chọn tiềm năng"
+            options={leads.map((lead) => ({ value: lead.id, label: lead.companyName }))}
+            onChange={setLeadId}
+          />
+        </CrmField>
+        <CrmField label="Hình thức">
+          <CrmSelect
+            value={activityType}
+            options={TYPES.map((type) => ({ value: type.value, label: type.label }))}
+            onChange={(next) => setActivityType(next as (typeof TYPES)[number]['value'])}
+          />
+        </CrmField>
+        <CrmField label="Nội dung *">
+          <input className={crmFieldClass} aria-label="Nội dung trao đổi" value={summary} onChange={(event) => setSummary(event.target.value)} required />
+        </CrmField>
+        <CrmField label="Ngày hẹn gọi lại">
+          <CrmDateField value={followUp} onChange={setFollowUp} placeholder="Chưa hẹn" />
+        </CrmField>
         <button type="submit" className={crmButtonClass} disabled={add.isPending || leads.length === 0}>
           {add.isPending ? 'Đang lưu…' : 'Ghi nhật ký'}
         </button>

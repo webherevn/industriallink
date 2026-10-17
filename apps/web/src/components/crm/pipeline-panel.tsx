@@ -1,13 +1,14 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2 } from 'lucide-react';
+import { Building2, Kanban, List } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
-import type { CrmPlanKind } from '@industriallink/contracts';
+import type { CrmDealView, CrmPlanKind, CrmStageView } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { CrmSelect } from '@/components/crm/fields';
-import { errorText, formatVnd, formatWhen, isFresh, matchesQuery } from '@/components/crm/format';
+import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
+import { errorText, formatVnd, formatWhen, isFresh, matchesQuery, vietnamDay } from '@/components/crm/format';
+import { ColumnPicker, RowCheck, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { createCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
 
@@ -27,6 +28,9 @@ export function CrmPipelinePanel() {
   const [leadId, setLeadId] = useState('');
   const [title, setTitle] = useState('');
   const [planKey, setPlanKey] = useState('');
+  const [expectedClose, setExpectedClose] = useState('');
+  const [view, setView] = useState<'list' | 'kanban'>('list');
+  const [stageFilter, setStageFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
   const [lostDraft, setLostDraft] = useState<{ id: string; reason: string } | null>(null);
 
@@ -43,11 +47,13 @@ export function CrmPipelinePanel() {
         title,
         planKind: plan?.kind ?? null,
         planCode: plan?.code ?? null,
+        expectedCloseOn: expectedClose || null,
       });
     },
     onSuccess: () => {
       setTitle('');
       setPlanKey('');
+      setExpectedClose('');
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
       void qc.invalidateQueries({ queryKey: ['crm-renewals'] });
@@ -76,43 +82,76 @@ export function CrmPipelinePanel() {
 
   return (
     <CrmFrame
-      kicker="Một phễu cho gói tin và gói Săn"
+      kicker="Cơ hội bán gói tin và gói Săn"
       title="Theo deal từ lúc chào đến lúc thu tiền"
       description="Chọn gói để lưu giá niêm yết. Các cột chỉ là bước bán. Khách thanh toán trên inlink. CRM không tạo đơn, không bật gói và không ghi hoa hồng."
       placeholder="Tìm deal theo tên nhà máy hoặc tên gói"
       search={{ value: query, onChange: setQuery }}
       footnote="Giá niêm yết chưa VAT. Dòng đã thanh toán là đơn của deal này và không đổi cột."
     >
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-4">
-        <CrmSelect
-          value={leadId}
-          required
-          placeholder="Chọn lead"
-          options={leads.map((lead) => ({ value: lead.id, label: lead.companyName }))}
-          onChange={(next) => {
-            setLeadId(next);
-            const lead = leads.find((item) => item.id === next);
-            if (lead) setTitle(`Bán gói — ${lead.companyName}`);
-          }}
-        />
-        <input className={crmFieldClass} placeholder="Tiêu đề deal" value={title} onChange={(event) => setTitle(event.target.value)} required />
-        <CrmSelect
-          value={planKey}
-          placeholder="Chưa chọn gói"
-          options={(plans.data ?? []).map((plan) => ({
-            value: `${plan.kind}:${plan.code}`,
-            label: `${plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · ${plan.name} · ${formatVnd(plan.priceVnd)}`,
-          }))}
-          onChange={setPlanKey}
-        />
+      <form onSubmit={onSubmit} className="grid items-end gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-5">
+        <CrmField label="Tiềm năng *">
+          <CrmSelect
+            value={leadId}
+            required
+            placeholder="Chọn tiềm năng"
+            options={leads.map((lead) => ({ value: lead.id, label: lead.companyName }))}
+            onChange={(next) => {
+              setLeadId(next);
+              const lead = leads.find((item) => item.id === next);
+              if (lead) setTitle(`Bán gói — ${lead.companyName}`);
+            }}
+          />
+        </CrmField>
+        <CrmField label="Tên cơ hội *">
+          <input className={crmFieldClass} aria-label="Tên cơ hội" value={title} onChange={(event) => setTitle(event.target.value)} required />
+        </CrmField>
+        <CrmField label="Gói">
+          <CrmSelect
+            value={planKey}
+            placeholder="Chưa chọn gói"
+            options={(plans.data ?? []).map((plan) => ({
+              value: `${plan.kind}:${plan.code}`,
+              label: `${plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · ${plan.name} · ${formatVnd(plan.priceVnd)}`,
+            }))}
+            onChange={setPlanKey}
+          />
+        </CrmField>
+        <CrmField label="Ngày kỳ vọng">
+          <CrmDateField value={expectedClose} onChange={setExpectedClose} placeholder="Chưa chọn" />
+        </CrmField>
         <button type="submit" className={crmButtonClass} disabled={addDeal.isPending || leads.length === 0}>
-          {addDeal.isPending ? 'Đang lưu…' : 'Tạo deal'}
+          {addDeal.isPending ? 'Đang lưu…' : 'Tạo cơ hội'}
         </button>
       </form>
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
       {board.isLoading ? <CrmEmpty>Đang tải phễu…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được phễu bán gói.</CrmEmpty> : null}
       {board.data ? (
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" className={`${filterChipClass(view === 'list')} inline-flex items-center gap-1.5`} onClick={() => setView('list')}><List className="h-3.5 w-3.5" />Danh sách</button>
+          <button type="button" className={`${filterChipClass(view === 'kanban')} inline-flex items-center gap-1.5`} onClick={() => setView('kanban')}><Kanban className="h-3.5 w-3.5" />Kanban</button>
+        </div>
+      ) : null}
+      {board.data && view === 'list' ? (
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" className={filterChipClass(stageFilter === 'all')} onClick={() => setStageFilter('all')}>Tất cả giai đoạn</button>
+          {stages.map((stage) => (
+            <button key={stage.id} type="button" className={filterChipClass(stageFilter === stage.code)} onClick={() => setStageFilter(stage.code)}>
+              {stage.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {board.data && view === 'list' ? (
+        <DealTable
+          deals={(board.data.deals ?? []).filter((deal) => (stageFilter === 'all' || deal.stageCode === stageFilter) && matchesDeal(query, deal))}
+          stages={stages}
+          plans={plans.data ?? []}
+          query={query}
+        />
+      ) : null}
+      {board.data && view === 'kanban' ? (
         <div className="-mx-1 flex gap-3 overflow-x-auto pb-2">
           {stages.map((stage) => {
             const cards = (board.data?.deals ?? []).filter(
@@ -215,4 +254,133 @@ export function CrmPipelinePanel() {
 
 function planLabel(kind: CrmPlanKind | null): string {
   return kind === 'sourcing' ? 'Săn' : 'Tin';
+}
+
+function matchesDeal(query: string, deal: CrmDealView): boolean {
+  return matchesQuery(query, [deal.companyName, deal.title, deal.planCode, deal.dealCode, deal.ownerName]);
+}
+
+function stageListLabel(code: string, name: string): string {
+  if (code === 'won') return 'Kết thúc thành công';
+  if (code === 'lost') return 'Kết thúc thất bại';
+  return name;
+}
+
+function dayText(value: string | null): string {
+  if (!value) return '—';
+  const day = value.length === 10 ? value : vietnamDay(value);
+  const [year, month, date] = day.split('-');
+  if (!year || !month || !date) return '—';
+  return `${date}/${month}/${year}`;
+}
+
+function expectOrEnd(deal: CrmDealView): string {
+  if (deal.stageCode === 'won') return dayText(deal.wonAt);
+  if (deal.stageCode === 'lost') return dayText(deal.lostAt);
+  return dayText(deal.expectedCloseOn);
+}
+
+function planInfo(deal: CrmDealView, plans: Array<{ kind: string; code: string; name: string }>): string {
+  if (!deal.planCode) return 'Chưa chọn gói';
+  const plan = plans.find((item) => item.kind === deal.planKind && item.code === deal.planCode);
+  const kind = deal.planKind === 'sourcing' ? 'Gói Săn' : 'Gói tin';
+  return plan ? `${kind} · ${plan.name}` : `${kind} · ${deal.planCode}`;
+}
+
+const DEAL_COLUMNS = [
+  { key: 'title', label: 'Tên cơ hội' },
+  { key: 'plan', label: 'Thông tin gói' },
+  { key: 'amount', label: 'Số tiền' },
+  { key: 'stage', label: 'Giai đoạn' },
+  { key: 'date', label: 'Ngày kỳ vọng / kết thúc' },
+  { key: 'owner', label: 'Người thực hiện' },
+  { key: 'created', label: 'Ngày tạo' },
+] as const;
+
+type DealColumn = (typeof DEAL_COLUMNS)[number]['key'];
+
+function DealTable({
+  deals,
+  stages,
+  plans,
+  query,
+}: {
+  deals: CrmDealView[];
+  stages: CrmStageView[];
+  plans: Array<{ kind: string; code: string; name: string }>;
+  query: string;
+}) {
+  const sort = useColumnSort<DealColumn>('created', 'desc');
+  const columns = useVisibleColumns<DealColumn>('crm-cols-deals', DEAL_COLUMNS.map((column) => column.key));
+  const pick = useRowSelection();
+  const rows = sortRows(deals, sort.dir, (deal) => {
+    if (sort.key === 'title') return deal.title;
+    if (sort.key === 'plan') return planInfo(deal, plans);
+    if (sort.key === 'amount') return deal.listPriceVnd == null ? null : Number(deal.listPriceVnd);
+    if (sort.key === 'stage') return stageListLabel(deal.stageCode, stages.find((item) => item.id === deal.stageId)?.name ?? deal.stageCode);
+    if (sort.key === 'date') return deal.stageCode === 'won' ? deal.wonAt : deal.stageCode === 'lost' ? deal.lostAt : deal.expectedCloseOn;
+    if (sort.key === 'owner') return deal.ownerName;
+    return deal.createdAt;
+  });
+  const selectedCount = rows.filter((deal) => pick.has(deal.id)).length;
+  return (
+    <div className="space-y-3">
+      {rows.length > 0 ? (
+        <ColumnPicker columns={DEAL_COLUMNS} shown={columns.shown} onToggle={columns.toggle} onShowAll={columns.showAll} selectedCount={selectedCount} />
+      ) : null}
+      <section className="overflow-hidden rounded-[22px] bg-white crm-surface">
+        {rows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className={crmTableClass}>
+              <thead className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className={stickyCheck}>
+                    <RowCheck
+                      checked={selectedCount === rows.length}
+                      mixed={selectedCount > 0 && selectedCount < rows.length}
+                      onChange={() => pick.toggleVisible(rows.map((deal) => deal.id))}
+                      label="Chọn tất cả cơ hội"
+                    />
+                  </th>
+                  <th className={stickyIndex}>STT</th>
+                  {columns.shown('title') ? <SortableTh className="sticky left-[6.25rem] z-20 shadow-[4px_0_8px_-6px_rgba(15,23,42,0.35)]" label="Tên cơ hội" active={sort.key === 'title'} dir={sort.dir} onClick={() => sort.toggle('title')} /> : null}
+                  {columns.shown('plan') ? <SortableTh label="Thông tin gói" active={sort.key === 'plan'} dir={sort.dir} onClick={() => sort.toggle('plan')} /> : null}
+                  {columns.shown('amount') ? <SortableTh label="Số tiền" active={sort.key === 'amount'} dir={sort.dir} onClick={() => sort.toggle('amount')} /> : null}
+                  {columns.shown('stage') ? <SortableTh label="Giai đoạn" active={sort.key === 'stage'} dir={sort.dir} onClick={() => sort.toggle('stage')} /> : null}
+                  {columns.shown('date') ? <SortableTh label="Ngày kỳ vọng / kết thúc" active={sort.key === 'date'} dir={sort.dir} onClick={() => sort.toggle('date')} /> : null}
+                  {columns.shown('owner') ? <SortableTh label="Người thực hiện" active={sort.key === 'owner'} dir={sort.dir} onClick={() => sort.toggle('owner')} /> : null}
+                  {columns.shown('created') ? <SortableTh label="Ngày tạo" active={sort.key === 'created'} dir={sort.dir} onClick={() => sort.toggle('created')} /> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((deal, index) => {
+                  const stage = stages.find((item) => item.id === deal.stageId);
+                  const picked = pick.has(deal.id);
+                  return (
+                    <tr key={deal.id} className={picked ? 'bg-[#f6f4ff]' : ''}>
+                      <td className={stickyCell(picked, 'check')}><RowCheck checked={picked} onChange={() => pick.toggle(deal.id)} label={`Chọn ${deal.title}`} /></td>
+                      <td className={stickyCell(picked, 'index')}>{index + 1}</td>
+                      {columns.shown('title') ? <td className={`${crmTd} font-medium text-slate-900 ${stickyCell(picked, 'name')}`}>{deal.title}</td> : null}
+                      {columns.shown('plan') ? <td className={`${crmTd} text-slate-600`}>{planInfo(deal, plans)}</td> : null}
+                      {columns.shown('amount') ? <td className={`${crmTd} text-slate-700`}>{formatVnd(deal.listPriceVnd)}</td> : null}
+                      {columns.shown('stage') ? (
+                        <td className={crmTd}>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${TONE[deal.stageCode] ?? TONE.new}`}>{stageListLabel(deal.stageCode, stage?.name ?? deal.stageCode)}</span>
+                        </td>
+                      ) : null}
+                      {columns.shown('date') ? <td className={`${crmTd} text-slate-600`}>{expectOrEnd(deal)}</td> : null}
+                      {columns.shown('owner') ? <td className={`${crmTd} text-slate-600`}>{deal.ownerName}</td> : null}
+                      {columns.shown('created') ? <td className={`${crmTd} text-slate-600`}>{dayText(deal.createdAt)}</td> : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <CrmEmpty>{query.trim() ? 'Không có cơ hội khớp.' : 'Chưa có cơ hội.'}</CrmEmpty>
+        )}
+      </section>
+    </div>
+  );
 }
