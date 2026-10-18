@@ -30,6 +30,7 @@ import {
   type CloseCrmCommissionMonthRequest,
   type CloseCrmCommissionMonthResult,
   type CrmPartnerClaimView,
+  type CrmPartnerProfileView,
   type CrmPartnerView,
   type UpdateCrmCommissionRequest,
   type CrmPlanOption,
@@ -47,6 +48,10 @@ import {
   type CrmStaffProfilePage,
   type CrmStaffProfileView,
   type UpdateCrmStaffProfileRequest,
+  type CrmStaffAccountView,
+  type CrmStaffDirectory,
+  type CreateCrmStaffAccountRequest,
+  type UpdateCrmStaffAccountRequest,
   type CrmQuoteView,
   type CrmReceivableLedger,
   type CrmPaidInvoiceLedgerView,
@@ -59,6 +64,7 @@ import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
 import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { AdminUsersService } from '../cms/admin-users.service';
 import { CrmService } from './crm.service';
 
 @ApiTags('CRM')
@@ -67,7 +73,10 @@ import { CrmService } from './crm.service';
 @Roles(UserRole.SuperAdmin, UserRole.Sales, UserRole.SalesManager)
 @Controller('crm')
 export class CrmController {
-  constructor(private readonly crm: CrmService) {}
+  constructor(
+    private readonly crm: CrmService,
+    private readonly staffAccounts: AdminUsersService,
+  ) {}
 
   @Get('board')
   @ApiOperation({ summary: 'Phễu bán gói và danh sách lead' })
@@ -154,6 +163,41 @@ export class CrmController {
     const logo = await this.crm.quoteFormLogo();
     if (!logo) throw new NotFoundException('Chưa có logo tờ báo giá');
     return new StreamableFile(logo.buffer, { type: logo.mime, disposition: 'inline' });
+  }
+
+  @Get('staff-accounts')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
+  @ApiOperation({ summary: 'Bảng nhân sự. Cùng dữ liệu với Người dùng ở Admin. Nhân viên không xem.' })
+  staffAccountsList(@CurrentUser() user: AuthenticatedUser): Promise<CrmStaffDirectory> {
+    return this.staffAccounts.staffDirectory(user);
+  }
+
+  @Post('staff-accounts')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
+  @ApiOperation({ summary: 'Thêm nhân sự. Trưởng phòng chỉ thêm nhân viên kinh doanh.' })
+  createStaffAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateCrmStaffAccountRequest,
+  ): Promise<CrmStaffAccountView> {
+    return this.staffAccounts.createStaff(user, body);
+  }
+
+  @Patch('staff-accounts/:id')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin sửa tài khoản nhân sự. Admin dùng cùng bản ghi.' })
+  updateStaffAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: UpdateCrmStaffAccountRequest,
+  ): Promise<CrmStaffAccountView> {
+    return this.staffAccounts.updateStaff(user, id, body);
+  }
+
+  @Delete('staff-accounts/:id')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin xóa nhân sự. Tài khoản cũng mất ở Admin.' })
+  deleteStaffAccount(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<{ ok: true }> {
+    return this.staffAccounts.deleteStaff(user, id);
   }
 
   @Get('staff-profile')
@@ -426,9 +470,19 @@ export class CrmController {
   }
 
   @Get('partners')
-  @ApiOperation({ summary: 'Danh sách cộng tác viên và số chờ đối soát người xem được thấy.' })
+  @ApiOperation({ summary: 'Danh sách cộng tác viên, doanh số tháng và số chờ đối soát người xem được thấy.' })
   partners(@CurrentUser() user: AuthenticatedUser): Promise<CrmPartnerView[]> {
     return this.crm.partners(user);
+  }
+
+  @Get('partners/:id')
+  @ApiOperation({ summary: 'Hồ sơ cộng tác viên. Doanh số tháng là tiền khách đã trả, chưa VAT.' })
+  partner(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('month') month = '',
+  ): Promise<CrmPartnerProfileView> {
+    return this.crm.partnerProfile(user, id, month);
   }
 
   @Post('partners')

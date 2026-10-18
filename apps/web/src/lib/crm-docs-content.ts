@@ -49,8 +49,8 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             title: 'Trong CRM',
             items: [
               { label: 'SuperAdmin', tone: 'navy', code: 'super_admin', text: 'Thấy mọi lead, deal, báo giá, khách, đơn đã trả và hoa hồng. Đặt mức hoa hồng, ngày chi, thuế suất và mẫu tờ. Tạo tài khoản ở mục người dùng.' },
-              { label: 'Trưởng phòng kinh doanh', tone: 'blue', code: 'sales_manager', text: 'Thấy CRM của cả đội và chuyển người phụ trách. Không vào SuperAdmin, không đặt hoa hồng, thuế suất, ngân sách hay mẫu tờ.' },
-              { label: 'Nhân viên kinh doanh', tone: 'slate', code: 'sales', text: 'Thấy lead, deal, nhật ký, báo giá và khách của mình. Đơn đã trả và hóa đơn chỉ của công ty mình phụ trách. Không vào SuperAdmin.' },
+              { label: 'Trưởng phòng kinh doanh', tone: 'blue', code: 'sales_manager', text: 'Thấy CRM của cả đội và chuyển người phụ trách. Thấy bảng nhân sự và chỉ thêm được nhân viên kinh doanh. Không sửa, không xóa tài khoản. Không vào SuperAdmin, không đặt hoa hồng, thuế suất, ngân sách hay mẫu tờ.' },
+              { label: 'Nhân viên kinh doanh', tone: 'slate', code: 'sales', text: 'Thấy lead, deal, nhật ký, báo giá và khách của mình. Không thấy bảng nhân sự và không sửa tài khoản. Không vào SuperAdmin.' },
               { label: 'Biên tập viên', tone: 'slate', code: 'editor', text: 'Làm nội dung ở SuperAdmin. Không có quyền CRM.' },
             ],
           },
@@ -467,7 +467,11 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
           },
           {
             type: 'p',
-            text: 'Khóa mã số thuế giữ một MST cho một cộng tác viên, tối đa 30 mã. Việc này không tạo tài khoản. Sale chỉ khóa cộng tác viên mình tạo. Nếu lead còn hiệu lực đã giữ MST đó cho người khác thì không khóa được.',
+            text: 'Danh sách hiện doanh số tháng này: tiền khách đã trả gói tin hoặc gói Săn qua mã, giá lớn hơn 0, chưa VAT. Hoa hồng không cộng vào doanh số. Bấm hồ sơ để xem đơn trong tháng, đăng ký chưa trả, ví và khóa mã số thuế.',
+          },
+          {
+            type: 'p',
+            text: 'Khóa mã số thuế giữ một MST cho một cộng tác viên, tối đa 30 mã. Việc này không tạo tài khoản. Sale chỉ khóa cộng tác viên mình tạo. Nếu lead còn hiệu lực đã giữ MST đó cho người khác thì không khóa được. Ô nhập ghi tên công ty.',
           },
         ],
       },
@@ -533,6 +537,24 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
     title: 'Cài đặt',
     description: 'Hồ sơ từng nhân sự, và ba mức SuperAdmin đặt một lần cho cả hệ thống.',
     sections: [
+      {
+        id: 'nhan-su',
+        title: 'Bảng nhân sự',
+        icon: Users,
+        href: '/crm/settings/staff',
+        summary: 'Cùng tài khoản với Người dùng ở Admin. Xóa ở đây thì bên Admin cũng mất.',
+        keywords: ['nhân sự', 'tài khoản', 'trưởng phòng'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'SuperAdmin thêm, sửa và xóa nhân viên hoặc trưởng phòng.',
+              'Trưởng phòng thấy bảng và chỉ thêm nhân viên kinh doanh.',
+              'Nhân viên không thấy mục này và không sửa được bảng.',
+            ],
+          },
+        ],
+      },
       {
         id: 'ho-so',
         title: 'Hồ sơ nhân sự',

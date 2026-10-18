@@ -35,7 +35,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { isCrmRole } from '@industriallink/contracts';
+import { isCrmRole, UserRole } from '@industriallink/contracts';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { restoreSession, tokenStore } from '@/lib/api';
@@ -94,6 +94,7 @@ const NAV = [
     title: 'Cài đặt',
     items: [
       { href: '/crm/settings/profile', label: 'Hồ sơ', icon: UserRound },
+      { href: '/crm/settings/staff', label: 'Nhân sự', icon: Users },
       { href: '/crm/settings/commission', label: 'Hoa hồng', icon: Percent },
       { href: '/crm/settings/payout-day', label: 'Ngày chi', icon: CalendarDays },
       { href: '/crm/settings/vat', label: 'Thuế suất', icon: CirclePercent },
@@ -179,7 +180,17 @@ export function CrmShell({ children }: { children: ReactNode }) {
         </p>
       </div>
       <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
-        {NAV.map((section) => (
+        {NAV.map((section) => ({
+          ...section,
+          items: section.items.filter(
+            (item) =>
+              item.href !== '/crm/settings/staff' ||
+              user?.role === UserRole.SuperAdmin ||
+              user?.role === UserRole.SalesManager,
+          ),
+        }))
+          .filter((section) => section.items.length > 0)
+          .map((section) => (
           <div key={section.title}>
             <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
               {section.title}

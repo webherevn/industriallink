@@ -15,6 +15,7 @@ import type {
   CloseCrmCommissionMonthRequest,
   CloseCrmCommissionMonthResult,
   CrmPartnerClaimView,
+  CrmPartnerProfileView,
   CrmPartnerSelfView,
   RegisterCrmPartnerRequest,
   UpdateCrmCommissionRequest,
@@ -48,6 +49,10 @@ import type {
   CrmStaffProfilePage,
   CrmStaffProfileView,
   UpdateCrmStaffProfileRequest,
+  CrmStaffDirectory,
+  CrmStaffAccountView,
+  CreateCrmStaffAccountRequest,
+  UpdateCrmStaffAccountRequest,
   CreateCrmQuoteRequest,
   CrmMarketingOverview,
   CreateCrmCampaignRequest,
@@ -169,6 +174,22 @@ export function uploadCrmQuoteFormLogo(file: File): Promise<CrmQuoteFormView> {
   const form = new FormData();
   form.append('file', file);
   return apiRequest<CrmQuoteFormView>('/crm/quote-form/logo', { method: 'POST', body: form, isForm: true });
+}
+
+export function fetchCrmStaffDirectory(): Promise<CrmStaffDirectory> {
+  return apiRequest<CrmStaffDirectory>('/crm/staff-accounts');
+}
+
+export function createCrmStaffAccount(body: CreateCrmStaffAccountRequest): Promise<CrmStaffAccountView> {
+  return apiRequest<CrmStaffAccountView>('/crm/staff-accounts', { method: 'POST', body });
+}
+
+export function updateCrmStaffAccount(id: string, body: UpdateCrmStaffAccountRequest): Promise<CrmStaffAccountView> {
+  return apiRequest<CrmStaffAccountView>(`/crm/staff-accounts/${id}`, { method: 'PATCH', body });
+}
+
+export function deleteCrmStaffAccount(id: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/crm/staff-accounts/${id}`, { method: 'DELETE' });
 }
 
 export function fetchCrmStaffProfile(userId?: string): Promise<CrmStaffProfilePage> {
@@ -300,6 +321,11 @@ export function markCrmCommissionPaid(periodId: string): Promise<CrmCommissionPe
 
 export function fetchCrmPartners(): Promise<CrmPartnerView[]> {
   return apiRequest<CrmPartnerView[]>('/crm/partners');
+}
+
+export function fetchCrmPartner(id: string, month: string): Promise<CrmPartnerProfileView> {
+  const query = month ? `?month=${encodeURIComponent(month)}` : '';
+  return apiRequest<CrmPartnerProfileView>(`/crm/partners/${id}${query}`);
 }
 
 export function createCrmPartner(body: CreateCrmPartnerRequest): Promise<CrmPartnerView> {

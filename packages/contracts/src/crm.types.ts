@@ -258,9 +258,35 @@ export interface CrmPartnerView {
   /** Số dư ví hoa hồng trên inlink. Kỳ đã chốt vẫn nằm ở đây. */
   walletBalanceVnd: string;
   createdAt: string;
+  /** Lead còn hiệu lực gắn mã này, trong phạm vi người xem. */
+  leadCount: number;
+  /** Tiền khách đã trả trong tháng đang xem. Gói tin và gói Săn, giá lớn hơn 0, chưa VAT. Không phải hoa hồng. */
+  monthPaidVnd: string;
+  monthPlatformPaidVnd: string;
+  monthSourcingPaidVnd: string;
+  monthOrderCount: number;
+  monthCompanyCount: number;
   /** Đăng ký qua mã, chưa thanh toán gói. Không gồm email. */
   signups: CrmReferralSignupView[];
   claims: CrmPartnerClaimView[];
+}
+
+/** Hồ sơ một cộng tác viên. Doanh số trên partner là tháng periodMonth. */
+export interface CrmPartnerProfileView {
+  periodMonth: string;
+  partner: CrmPartnerView;
+  orders: CrmPartnerPaidOrderView[];
+}
+
+/** Một đơn đã trả gắn mã cộng tác viên. Số tiền là khách đã trả, không phải hoa hồng. */
+export interface CrmPartnerPaidOrderView {
+  id: string;
+  companyId: string;
+  companyName: string;
+  orderKind: 'platform' | 'sourcing';
+  planName: string;
+  paidAmountVnd: string;
+  paidAt: string;
 }
 
 export interface CrmReferralSignupView {
@@ -839,6 +865,42 @@ export interface UpdateCrmStaffProfileRequest {
   address?: string | null;
   province?: string | null;
   postalCode?: string | null;
+}
+
+/** Một dòng trong bảng nhân sự CRM. Cùng bản ghi với Người dùng ở Admin. */
+export interface CrmStaffAccountView {
+  id: string;
+  code: string;
+  email: string;
+  displayName: string;
+  role: 'sales' | 'sales_manager';
+  department: string | null;
+  status: string;
+}
+
+export interface CrmStaffDirectory {
+  rows: CrmStaffAccountView[];
+  /** SuperAdmin sửa và xóa. Trưởng phòng chỉ xem. */
+  canEdit: boolean;
+  /** SuperAdmin thêm cả hai vai trò. Trưởng phòng chỉ thêm nhân viên kinh doanh. */
+  canAdd: boolean;
+}
+
+export interface CreateCrmStaffAccountRequest {
+  email: string;
+  password: string;
+  displayName: string;
+  department?: string | null;
+  /** SuperAdmin chọn. Trưởng phòng bỏ trống và luôn tạo nhân viên kinh doanh. */
+  role?: 'sales' | 'sales_manager';
+}
+
+export interface UpdateCrmStaffAccountRequest {
+  displayName?: string;
+  role?: 'sales' | 'sales_manager';
+  status?: string;
+  password?: string;
+  department?: string | null;
 }
 
 export interface UpdateCrmQuoteFormRequest {

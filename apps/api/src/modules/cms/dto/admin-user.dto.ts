@@ -44,4 +44,9 @@ export class AdminUpdateUserDto {
   @IsString()
   @MinLength(8)
   password?: string;
+
+  @ApiPropertyOptional({ description: 'Phòng ban. Bỏ trống thì xóa.' })
+  @IsOptional()
+  @IsString()
+  department?: string;
 }

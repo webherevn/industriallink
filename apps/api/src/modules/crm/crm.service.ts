@@ -41,6 +41,8 @@ import {
   type CrmLeadView,
   type CrmPlanKind,
   type CrmPartnerView,
+  type CrmPartnerProfileView,
+  type CrmPartnerPaidOrderView,
   type CrmReferralSignupView,
   type CrmPlanOption,
   type CrmPaidInvoiceLedgerView,
@@ -850,12 +852,39 @@ export class CrmService {
     });
     const ids = rows.map((row) => row.id);
     await this.ensureWalletCredits(ids);
-    const [pending, signups, wallets] = await Promise.all([
+    const bounds = vietnamMonthBounds(vietnamPeriodMonth(new Date()))!;
+    const [pending, signups, wallets, paid, leads] = await Promise.all([
       this.pendingByPartner(actor, ids),
       this.unpaidSignups(ids),
       this.walletBalances(ids),
+      this.partnerMonthPaid(actor, ids, bounds.start, bounds.end),
+      this.partnerLeadCounts(actor, ids),
     ]);
-    return rows.map((row) => this.mapPartner(row, pending.get(row.id), signups.get(row.id) ?? [], wallets.get(row.id) ?? 0n));
+    return rows.map((row) =>
+      this.mapPartner(row, pending.get(row.id), signups.get(row.id) ?? [], wallets.get(row.id) ?? 0n, paid.get(row.id), leads.get(row.id) ?? 0),
+    );
+  }
+
+  /** Hồ sơ một cộng tác viên. Doanh số là đơn đã trả trong tháng, không phải hoa hồng. */
+  async partnerProfile(actor: AuthenticatedUser, id: string, rawMonth: string): Promise<CrmPartnerProfileView> {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new NotFoundException('Không thấy cộng tác viên');
+    const { periodMonth, start, end } = this.reportBounds(rawMonth);
+    const row = await this.prisma.crmPartner.findUnique({ where: { id }, include: { claims: partnerClaims } });
+    if (!row) throw new NotFoundException('Không thấy cộng tác viên');
+    await this.ensureWalletCredits([id]);
+    const [pending, signups, wallets, paid, leads, orders] = await Promise.all([
+      this.pendingByPartner(actor, [id]),
+      this.unpaidSignups([id]),
+      this.walletBalances([id]),
+      this.partnerMonthPaid(actor, [id], start, end),
+      this.partnerLeadCounts(actor, [id]),
+      this.partnerPaidOrders(actor, id, start, end),
+    ]);
+    return {
+      periodMonth,
+      partner: this.mapPartner(row, pending.get(id), signups.get(id) ?? [], wallets.get(id) ?? 0n, paid.get(id), leads.get(id) ?? 0),
+      orders,
+    };
   }
 
   async createPartner(actor: AuthenticatedUser, input: CreateCrmPartnerRequest): Promise<CrmPartnerView> {
@@ -3335,6 +3364,94 @@ export class CrmService {
     }
   }
 
+  /** Tiền khách đã trả trong tháng, cùng phạm vi với báo cáo cộng tác viên. Không phải hoa hồng. */
+  private async partnerMonthPaid(
+    actor: AuthenticatedUser,
+    partnerIds: string[],
+    start: Date,
+    end: Date,
+  ): Promise<Map<string, { platform: bigint; sourcing: bigint; orders: number; companies: number }>> {
+    const totals = new Map<string, { platform: bigint; sourcing: bigint; orders: number; companies: number }>();
+    if (partnerIds.length === 0) return totals;
+    const scoped = await this.invoiceCompanyIds(actor);
+    if (scoped && scoped.length === 0) return totals;
+    const entries = await this.prisma.crmCommissionEntry.findMany({
+      where: {
+        partnerId: { in: partnerIds },
+        paidAt: { gte: start, lt: end },
+        ...(scoped ? { companyId: { in: scoped } } : {}),
+      },
+      select: { partnerId: true, companyId: true, orderKind: true, paidAmountVnd: true },
+    });
+    const companies = new Map<string, Set<string>>();
+    for (const entry of entries) {
+      const row = totals.get(entry.partnerId) ?? { platform: 0n, sourcing: 0n, orders: 0, companies: 0 };
+      row.orders += 1;
+      if (entry.orderKind === 'sourcing') row.sourcing += entry.paidAmountVnd;
+      else row.platform += entry.paidAmountVnd;
+      const set = companies.get(entry.partnerId) ?? new Set<string>();
+      set.add(entry.companyId);
+      companies.set(entry.partnerId, set);
+      row.companies = set.size;
+      totals.set(entry.partnerId, row);
+    }
+    return totals;
+  }
+
+  private async partnerLeadCounts(actor: AuthenticatedUser, partnerIds: string[]): Promise<Map<string, number>> {
+    const totals = new Map<string, number>();
+    if (partnerIds.length === 0) return totals;
+    const rows = await this.prisma.crmLead.groupBy({
+      by: ['partnerId'],
+      where: {
+        partnerId: { in: partnerIds },
+        status: { not: 'unqualified' },
+        ...this.ownScope(actor),
+      },
+      _count: { _all: true },
+    });
+    for (const row of rows) {
+      if (row.partnerId) totals.set(row.partnerId, row._count._all);
+    }
+    return totals;
+  }
+
+  private async partnerPaidOrders(
+    actor: AuthenticatedUser,
+    partnerId: string,
+    start: Date,
+    end: Date,
+  ): Promise<CrmPartnerPaidOrderView[]> {
+    const scoped = await this.invoiceCompanyIds(actor);
+    if (scoped && scoped.length === 0) return [];
+    const entries = await this.prisma.crmCommissionEntry.findMany({
+      where: {
+        partnerId,
+        paidAt: { gte: start, lt: end },
+        ...(scoped ? { companyId: { in: scoped } } : {}),
+      },
+      orderBy: { paidAt: 'desc' },
+      select: {
+        id: true,
+        companyId: true,
+        companyName: true,
+        orderKind: true,
+        planName: true,
+        paidAmountVnd: true,
+        paidAt: true,
+      },
+    });
+    return entries.map((entry) => ({
+      id: entry.id,
+      companyId: entry.companyId,
+      companyName: entry.companyName,
+      orderKind: entry.orderKind === 'sourcing' ? 'sourcing' : 'platform',
+      planName: entry.planName ?? (entry.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin'),
+      paidAmountVnd: entry.paidAmountVnd.toString(),
+      paidAt: entry.paidAt.toISOString(),
+    }));
+  }
+
   private async walletBalances(partnerIds: string[]): Promise<Map<string, bigint>> {
     const totals = new Map<string, bigint>();
     if (partnerIds.length === 0) return totals;
@@ -3370,7 +3487,7 @@ export class CrmService {
       contactPhone: string;
       createdAt: Date;
     }>;
-  }, pending?: { count: number; amount: bigint }, signups: CrmReferralSignupView[] = [], walletBalanceVnd = 0n): CrmPartnerView {
+  }, pending?: { count: number; amount: bigint }, signups: CrmReferralSignupView[] = [], walletBalanceVnd = 0n, paid?: { platform: bigint; sourcing: bigint; orders: number; companies: number }, leadCount = 0): CrmPartnerView {
     const origin = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
     return {
       id: row.id,
@@ -3383,6 +3500,12 @@ export class CrmService {
       pendingCommissionVnd: (pending?.amount ?? 0n).toString(),
       pendingCount: pending?.count ?? 0,
       walletBalanceVnd: walletBalanceVnd.toString(),
+      leadCount,
+      monthPaidVnd: ((paid?.platform ?? 0n) + (paid?.sourcing ?? 0n)).toString(),
+      monthPlatformPaidVnd: (paid?.platform ?? 0n).toString(),
+      monthSourcingPaidVnd: (paid?.sourcing ?? 0n).toString(),
+      monthOrderCount: paid?.orders ?? 0,
+      monthCompanyCount: paid?.companies ?? 0,
       signups,
       claims: (row.claims ?? []).map((claim) => ({
         id: claim.id,
@@ -3410,7 +3533,7 @@ export class CrmService {
     const taxCode = claimTax(input.taxCode);
     const phone = normalizePhone(input.contactPhone ?? '');
     if (companyName.length < 2 || !taxCode || phone.length < 9 || phone.length > 15) {
-      throw new BadRequestException('Cần tên nhà máy, mã số thuế 10 hoặc 13 số và số điện thoại');
+      throw new BadRequestException('Cần tên công ty, mã số thuế 10 hoặc 13 số và số điện thoại');
     }
     const count = await this.prisma.crmPartnerClaim.count({ where: { partnerId } });
     if (count >= CLAIM_LIMIT) throw new BadRequestException('Mỗi cộng tác viên khóa tối đa 30 mã số thuế');
