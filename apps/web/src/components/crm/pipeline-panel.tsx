@@ -3,15 +3,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Kanban, List } from 'lucide-react';
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import type { CrmDealView, CrmPlanKind, CrmStageView } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
-import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
-import { errorText, formatVnd, formatWhen, isFresh, matchesQuery, vietnamDay } from '@/components/crm/format';
+import { CrmDateField, CrmField, CrmFormSection, CrmSelect } from '@/components/crm/fields';
+import { errorText, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, vietnamDay } from '@/components/crm/format';
 import { ColumnPicker, RowActions, RowCheck, RowIconButton, canDeleteOwned, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { fetchMe } from '@/lib/auth';
-import { createCrmDeal, deleteCrmDeal, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
+import { createCrmDeal, deleteCrmDeal, fetchCrmMarketing, fetchCrmPlans, moveCrmDeal } from '@/lib/crm';
 
 const TONE: Record<string, string> = {
   new: 'bg-sky-50 text-sky-600',
@@ -29,6 +29,8 @@ export function CrmPipelinePanel() {
   const [leadId, setLeadId] = useState('');
   const [title, setTitle] = useState('');
   const [planKey, setPlanKey] = useState('');
+  const [stageCode, setStageCode] = useState('');
+  const [lostReason, setLostReason] = useState('');
   const [expectedClose, setExpectedClose] = useState('');
   const [view, setView] = useState<'list' | 'kanban'>('list');
   const [stageFilter, setStageFilter] = useState('all');
@@ -39,6 +41,7 @@ export function CrmPipelinePanel() {
     queryKey: ['crm-plan-options'],
     queryFn: fetchCrmPlans,
   });
+  const channels = useQuery({ queryKey: ['crm-marketing'], queryFn: fetchCrmMarketing });
 
   const addDeal = useMutation({
     mutationFn: () => {
@@ -48,12 +51,16 @@ export function CrmPipelinePanel() {
         title,
         planKind: plan?.kind ?? null,
         planCode: plan?.code ?? null,
+        stageCode: stageCode || null,
+        lostReason: stageCode === 'lost' ? lostReason : null,
         expectedCloseOn: expectedClose || null,
       });
     },
     onSuccess: () => {
       setTitle('');
       setPlanKey('');
+      setStageCode('');
+      setLostReason('');
       setExpectedClose('');
       setError(null);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
@@ -80,6 +87,12 @@ export function CrmPipelinePanel() {
 
   const leads = (board.data?.leads ?? []).filter((lead) => lead.status !== 'unqualified');
   const stages = board.data?.stages ?? [];
+  const pickedLead = leads.find((item) => item.id === leadId) ?? null;
+  const pickedPlan = (plans.data ?? []).find((item) => `${item.kind}:${item.code}` === planKey) ?? null;
+  const pickedStage = stages.find((item) => item.code === stageCode) ?? null;
+  useEffect(() => {
+    if (!stageCode && stages[0]) setStageCode(stages[0].code);
+  }, [stageCode, stages]);
 
   return (
     <CrmFrame
@@ -90,7 +103,10 @@ export function CrmPipelinePanel() {
       search={{ value: query, onChange: setQuery }}
       footnote="Giá niêm yết chưa VAT. Dòng đã thanh toán là đơn của deal này và không đổi cột."
     >
-      <form onSubmit={onSubmit} className="grid items-end gap-3 rounded-[22px] bg-white p-4 crm-surface lg:grid-cols-5">
+      <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
+        <div className="md:col-span-2">
+          <CrmFormSection icon={<Building2 className="h-3.5 w-3.5" />}>Thông tin chung</CrmFormSection>
+        </div>
         <CrmField label="Tiềm năng *">
           <CrmSelect
             value={leadId}
@@ -104,6 +120,9 @@ export function CrmPipelinePanel() {
             }}
           />
         </CrmField>
+        <CrmField label="Liên hệ">
+          <input className={crmFieldClass} aria-label="Liên hệ" value={pickedLead ? `${pickedLead.contactName}${pickedLead.contactPhone ? ` · ${pickedLead.contactPhone}` : ''}` : ''} placeholder="Theo tiềm năng đã chọn" disabled />
+        </CrmField>
         <CrmField label="Tên cơ hội *">
           <input className={crmFieldClass} aria-label="Tên cơ hội" value={title} onChange={(event) => setTitle(event.target.value)} required />
         </CrmField>
@@ -113,15 +132,45 @@ export function CrmPipelinePanel() {
             placeholder="Chưa chọn gói"
             options={(plans.data ?? []).map((plan) => ({
               value: `${plan.kind}:${plan.code}`,
-              label: `${plan.kind === 'sourcing' ? 'Săn' : 'Tin'} · ${plan.name} · ${formatVnd(plan.priceVnd)}`,
+              label: `${plan.kind === 'sourcing' ? 'Gói Săn' : 'Gói tin'} · ${plan.name}`,
             }))}
             onChange={setPlanKey}
           />
         </CrmField>
+        <CrmField label="Giai đoạn *">
+          <CrmSelect
+            value={stageCode}
+            required
+            placeholder="Chọn giai đoạn"
+            options={stages.map((stage) => ({ value: stage.code, label: stageListLabel(stage.code, stage.name) }))}
+            onChange={(next) => {
+              setStageCode(next);
+              if (next !== 'lost') setLostReason('');
+            }}
+          />
+        </CrmField>
+        <CrmField label="Tỉ lệ của giai đoạn">
+          <input className={crmFieldClass} aria-label="Tỉ lệ của giai đoạn" value={pickedStage ? `${pickedStage.winProbability}%` : ''} placeholder="Theo giai đoạn" disabled />
+        </CrmField>
+        <CrmField label="Giá niêm yết">
+          <input className={crmFieldClass} aria-label="Giá niêm yết" value={pickedPlan ? formatVnd(pickedPlan.priceVnd) : ''} placeholder="Theo gói đã chọn" disabled />
+        </CrmField>
         <CrmField label="Ngày kỳ vọng">
           <CrmDateField value={expectedClose} onChange={setExpectedClose} placeholder="Chưa chọn" />
         </CrmField>
-        <button type="submit" className={crmButtonClass} disabled={addDeal.isPending || leads.length === 0}>
+        <CrmField label="Nguồn">
+          <input className={crmFieldClass} aria-label="Nguồn" value={pickedLead ? leadSourceLabel(pickedLead.source, channels.data?.channels) : ''} placeholder="Theo tiềm năng đã chọn" disabled />
+        </CrmField>
+        <CrmField label="Chiến dịch">
+          <input className={crmFieldClass} aria-label="Chiến dịch" value={pickedLead?.campaignName ?? ''} placeholder="Chưa gắn trên tiềm năng" disabled />
+        </CrmField>
+        {stageCode === 'lost' ? (
+          <CrmField label="Lý do không chốt *">
+            <input className={crmFieldClass} aria-label="Lý do không chốt" value={lostReason} onChange={(event) => setLostReason(event.target.value)} required />
+          </CrmField>
+        ) : null}
+        <p className="text-xs leading-5 text-slate-500 md:col-span-2">Giá niêm yết lấy từ gói đang bán, chưa VAT. Chọn giai đoạn không tạo đơn và không bật gói.</p>
+        <button type="submit" className={`${crmButtonClass} md:col-span-2`} disabled={addDeal.isPending || leads.length === 0 || !stageCode || (stageCode === 'lost' && lostReason.trim().length < 2)}>
           {addDeal.isPending ? 'Đang lưu…' : 'Tạo cơ hội'}
         </button>
       </form>

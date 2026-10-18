@@ -43,6 +43,8 @@ import type {
   CrmWorkspaceReport,
   CrmReceivableLedger,
   CrmQuoteView,
+  CrmQuoteFormView,
+  UpdateCrmQuoteFormRequest,
   CreateCrmQuoteRequest,
   CrmMarketingOverview,
   CreateCrmCampaignRequest,
@@ -54,7 +56,7 @@ import type {
   IssueCrmInvoiceRequest,
   MoveCrmDealRequest,
 } from '@industriallink/contracts';
-import { apiRequest } from './api';
+import { apiRequest, getApiBase, tokenStore } from './api';
 
 export function fetchCrmBoard(): Promise<CrmBoard> {
   return apiRequest<CrmBoard>('/crm/board');
@@ -150,6 +152,31 @@ export function fetchCrmPartnerPaidReport(month: string): Promise<CrmPartnerPaid
 
 export function fetchCrmWorkspace(month: string): Promise<CrmWorkspaceReport> {
   return apiRequest<CrmWorkspaceReport>(`/crm/workspace?month=${encodeURIComponent(month)}`);
+}
+
+export function fetchCrmQuoteForm(): Promise<CrmQuoteFormView> {
+  return apiRequest<CrmQuoteFormView>('/crm/quote-form');
+}
+
+export function saveCrmQuoteForm(body: UpdateCrmQuoteFormRequest): Promise<CrmQuoteFormView> {
+  return apiRequest<CrmQuoteFormView>('/crm/quote-form', { method: 'PATCH', body });
+}
+
+export function uploadCrmQuoteFormLogo(file: File): Promise<CrmQuoteFormView> {
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest<CrmQuoteFormView>('/crm/quote-form/logo', { method: 'POST', body: form, isForm: true });
+}
+
+export async function fetchCrmQuoteFormLogoObjectUrl(): Promise<string | null> {
+  const token = tokenStore.get();
+  if (!token) return null;
+  const res = await fetch(`${getApiBase()}/crm/quote-form/logo`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export function fetchCrmQuotes(): Promise<CrmQuoteView[]> {

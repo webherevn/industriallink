@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Header, HttpCode, NotFoundException, Param, Patch, Post, Query, StreamableFile, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   UserRole,
   type CreateCrmActivityRequest,
@@ -41,6 +42,8 @@ import {
   type CrmPartnerPaidReport,
   type CrmWorkspaceReport,
   type CreateCrmQuoteRequest,
+  type CrmQuoteFormView,
+  type UpdateCrmQuoteFormRequest,
   type CrmQuoteView,
   type CrmReceivableLedger,
   type CrmPaidInvoiceLedgerView,
@@ -109,6 +112,45 @@ export class CrmController {
   @ApiOperation({ summary: 'Đơn đã trả gắn mã giới thiệu. Không hiện hoa hồng.' })
   partnerPaidReport(@CurrentUser() user: AuthenticatedUser, @Query('month') month = ''): Promise<CrmPartnerPaidReport> {
     return this.crm.partnerPaidReport(user, month);
+  }
+
+  @Get('quote-form')
+  @ApiOperation({ summary: 'Mẫu in trên mọi tờ báo giá. Không chứa giá.' })
+  quoteForm(@CurrentUser() user: AuthenticatedUser): Promise<CrmQuoteFormView> {
+    return this.crm.quoteForm(user);
+  }
+
+  @Patch('quote-form')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'SuperAdmin sửa phần cố định của tờ. Không đổi báo giá đã lập.' })
+  setQuoteForm(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmQuoteFormRequest,
+  ): Promise<CrmQuoteFormView> {
+    return this.crm.setQuoteForm(user, body);
+  }
+
+  @Post('quote-form/logo')
+  @Roles(UserRole.SuperAdmin)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiOperation({ summary: 'SuperAdmin tải logo in trên tờ báo giá.' })
+  uploadQuoteFormLogo(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<CrmQuoteFormView> {
+    return this.crm.uploadQuoteFormLogo(user, file);
+  }
+
+  @Get('quote-form/logo')
+  @Header('Cache-Control', 'private, max-age=60')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
+  @ApiOperation({ summary: 'Logo trên tờ báo giá.' })
+  async quoteFormLogo(): Promise<StreamableFile> {
+    const logo = await this.crm.quoteFormLogo();
+    if (!logo) throw new NotFoundException('Chưa có logo tờ báo giá');
+    return new StreamableFile(logo.buffer, { type: logo.mime, disposition: 'inline' });
   }
 
   @Get('quotes')

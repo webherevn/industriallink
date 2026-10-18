@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CrmPlanKind, CrmPlanOption } from '@industriallink/contracts';
+import { UserRole, type CrmPlanKind, type CrmPlanOption } from '@industriallink/contracts';
 import { AlignLeft, FileText, Package, Plus, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -37,6 +37,8 @@ export function CrmQuotesPanel() {
   const [companyName, setCompanyName] = useState('');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [taxCode, setTaxCode] = useState('');
   const [taxQuery, setTaxQuery] = useState('');
   const [taxOpen, setTaxOpen] = useState(false);
@@ -85,6 +87,8 @@ export function CrmQuotesPanel() {
       const shared = {
         companyName,
         contactName,
+        contactPhone: contactPhone || null,
+        contactEmail: contactEmail || null,
         taxCode: taxCode || null,
         address: address || null,
         companyId,
@@ -191,7 +195,12 @@ export function CrmQuotesPanel() {
       search={{ value: query, onChange: setQuery }}
       footnote="Gói tin và gói Săn khách vẫn tự trả trên inlink. Công nợ chỉ phát sinh sau khi chốt hợp đồng Enterprise."
     >
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {me.data?.role === UserRole.SuperAdmin ? (
+          <Link href="/crm/quotes/mau" className={crmButtonClass}>
+            Mẫu tờ
+          </Link>
+        ) : null}
         <button type="button" className={`${crmButtonClass} inline-flex items-center gap-1.5`} onClick={() => setCreating((open) => !open)}>
           <Plus className="h-4 w-4" />
           {creating ? 'Đóng' : 'Tạo'}
@@ -262,6 +271,12 @@ export function CrmQuotesPanel() {
         <CrmField label="Liên hệ *">
           <input className={crmFieldClass} aria-label="Liên hệ" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
         </CrmField>
+        <CrmField label="Điện thoại liên hệ">
+          <input className={crmFieldClass} aria-label="Điện thoại liên hệ" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} />
+        </CrmField>
+        <CrmField label="Email liên hệ">
+          <input className={crmFieldClass} aria-label="Email liên hệ" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} />
+        </CrmField>
         <CrmField label="Cơ hội">
         <CrmSelect
           value={dealId}
@@ -280,6 +295,8 @@ export function CrmQuotesPanel() {
             setCompanyId(lead?.companyId ?? null);
             if (!lead) return;
             setContactName(lead.contactName);
+            setContactPhone(lead.contactPhone ?? '');
+            setContactEmail(lead.contactEmail ?? '');
             if (lead.taxCode) setTaxCode(lead.taxCode);
             if (lead.address) setAddress(lead.address);
           }}

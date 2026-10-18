@@ -2225,6 +2225,8 @@ model CrmQuote {
   companyName     String   @map("company_name")
   taxCode         String?  @map("tax_code")
   contactName     String   @map("contact_name")
+  contactPhone    String?  @map("contact_phone")
+  contactEmail    String?  @map("contact_email")
   leadId          String?  @map("lead_id") @db.Uuid
   companyId       String?  @map("company_id") @db.Uuid
   /// Cơ hội gắn với tờ. Null khi lập tờ chưa chọn deal. Không đổi bước phễu.
@@ -2279,6 +2281,30 @@ model CrmQuoteInstallment {
   @@index([quoteId, sortOrder])
   @@index([status, dueOn])
   @@map("crm_quote_installment")
+  @@schema("crm")
+}
+
+/// Phần cố định trên mọi tờ báo giá. Không chứa giá và không chứa các đợt.
+model CrmQuoteForm {
+  id              String   @id @default("default")
+  legalName       String?  @map("legal_name")
+  taxCode         String?  @map("tax_code")
+  address         String?
+  phone           String?
+  email           String?
+  website         String?
+  bankName        String?  @map("bank_name")
+  bankAccount     String?  @map("bank_account")
+  bankHolder      String?  @map("bank_holder")
+  transferNote    String?  @map("transfer_note")
+  terms           String?  @db.Text
+  signerTitle     String?  @map("signer_title")
+  logoStorageKey  String?  @map("logo_storage_key")
+  logoMime        String?  @map("logo_mime")
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("crm_quote_form")
   @@schema("crm")
 }
 

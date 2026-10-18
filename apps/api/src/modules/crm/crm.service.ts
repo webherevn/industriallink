@@ -59,6 +59,8 @@ import {
   type CrmReceivableLedger,
   type CrmQuoteInstallmentInput,
   type CreateCrmQuoteRequest,
+  type CrmQuoteFormView,
+  type UpdateCrmQuoteFormRequest,
   type CrmQuoteView,
   type CrmEnterpriseRequestView,
   type IssueCrmInvoiceRequest,
@@ -66,6 +68,9 @@ import {
 } from '@industriallink/contracts';
 import { DEFAULT_TENANT_ID } from '../../shared/common/constants';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { StorageService } from '../../shared/infrastructure/storage/storage.service';
+import { compressUploadedImage } from '../../shared/media/optimize-image';
+import { v7 as uuidv7 } from 'uuid';
 import { CrmMarketingService } from './crm-marketing.service';
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
@@ -119,6 +124,7 @@ export class CrmService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
     private readonly marketing: CrmMarketingService,
+    private readonly storage: StorageService,
   ) {}
 
   async board(actor: AuthenticatedUser): Promise<CrmBoard> {
@@ -328,6 +334,77 @@ export class CrmService {
     return view;
   }
 
+  /** Mẫu in trên mọi tờ. Sale đọc được. Không chứa giá. */
+  async quoteForm(actor: AuthenticatedUser): Promise<CrmQuoteFormView> {
+    const row = await this.prisma.crmQuoteForm.findUnique({ where: { id: 'default' } });
+    return this.mapQuoteForm(row, actor.role === UserRole.SuperAdmin);
+  }
+
+  /** SuperAdmin sửa phần cố định của tờ. Không đổi báo giá đã lập. */
+  async setQuoteForm(actor: AuthenticatedUser, input: UpdateCrmQuoteFormRequest): Promise<CrmQuoteFormView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin sửa mẫu tờ báo giá');
+    }
+    const data = {
+      legalName: clip(input.legalName, 200) || null,
+      taxCode: this.readTax(input.taxCode),
+      address: clip(input.address, 300) || null,
+      phone: this.optionalContactPhone(input.phone),
+      email: this.optionalContactEmail(input.email),
+      website: optionalSite(input.website),
+      bankName: clip(input.bankName, 120) || null,
+      bankAccount: optionalAccount(input.bankAccount),
+      bankHolder: clip(input.bankHolder, 160) || null,
+      transferNote: clip(input.transferNote, 160) || null,
+      terms: clip(input.terms, 4000) || null,
+      signerTitle: clip(input.signerTitle, 80) || null,
+      updatedByUserId: actor.id,
+    };
+    await this.prisma.crmQuoteForm.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', ...data },
+      update: data,
+    });
+    return this.quoteForm(actor);
+  }
+
+  async uploadQuoteFormLogo(
+    actor: AuthenticatedUser,
+    file: Express.Multer.File | undefined,
+  ): Promise<CrmQuoteFormView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin sửa mẫu tờ báo giá');
+    }
+    if (!file) throw new BadRequestException('Thiếu file ảnh logo');
+    if (!QUOTE_LOGO_MIME.has(file.mimetype)) {
+      throw new BadRequestException('Chỉ chấp nhận JPEG, PNG, WebP hoặc GIF');
+    }
+    if (file.size > 2 * 1024 * 1024) throw new BadRequestException('Ảnh vượt quá 2MB');
+    const image = await compressUploadedImage(file.buffer, 1024);
+    const storageKey = `crm/quote-form/${uuidv7()}.${image.ext}`;
+    await this.storage.putObject(storageKey, image.buffer, image.mime);
+    const current = await this.prisma.crmQuoteForm.findUnique({ where: { id: 'default' }, select: { logoStorageKey: true } });
+    await this.prisma.crmQuoteForm.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', logoStorageKey: storageKey, logoMime: image.mime, updatedByUserId: actor.id },
+      update: { logoStorageKey: storageKey, logoMime: image.mime, updatedByUserId: actor.id },
+    });
+    if (current?.logoStorageKey && current.logoStorageKey !== storageKey) {
+      await this.storage.deleteObject(current.logoStorageKey).catch(() => undefined);
+    }
+    return this.quoteForm(actor);
+  }
+
+  async quoteFormLogo(): Promise<{ buffer: Buffer; mime: string } | null> {
+    const row = await this.prisma.crmQuoteForm.findUnique({
+      where: { id: 'default' },
+      select: { logoStorageKey: true, logoMime: true },
+    });
+    if (!row?.logoStorageKey) return null;
+    const buffer = await this.storage.getObject(row.logoStorageKey);
+    return { buffer, mime: row.logoMime ?? 'image/jpeg' };
+  }
+
   /** Lập tờ chào giá. Giá lấy từ gói SuperAdmin, chưa VAT. Không tạo đơn. */
   async createQuote(actor: AuthenticatedUser, input: CreateCrmQuoteRequest): Promise<CrmQuoteView> {
     const companyName = input.companyName?.trim();
@@ -370,6 +447,8 @@ export class CrmService {
     }
     const vat = await this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } });
     const note = input.note?.trim().slice(0, 500) || null;
+    const contactPhone = this.optionalContactPhone(input.contactPhone);
+    const contactEmail = this.optionalContactEmail(input.contactEmail);
     if (input.quoteKind === 'enterprise') {
       const plan = this.readEnterpriseQuote(input.packageName, input.contractVnd, input.installments, quotedOn);
       const row = await this.prisma.crmQuote.create({
@@ -378,6 +457,8 @@ export class CrmService {
           companyName: companyName.slice(0, 160),
           taxCode,
           contactName: contactName.slice(0, 160),
+          contactPhone,
+          contactEmail,
           address: clip(input.address, 300) || null,
           quotedOn,
           validUntil,
@@ -415,6 +496,8 @@ export class CrmService {
         companyName: companyName.slice(0, 160),
         taxCode,
         contactName: contactName.slice(0, 160),
+        contactPhone,
+        contactEmail,
         address: clip(input.address, 300) || null,
         quotedOn,
         validUntil,
@@ -1746,6 +1829,13 @@ export class CrmService {
     });
     const first = pipeline?.stages[0];
     if (!pipeline || !first) throw new NotFoundException('Chưa có phễu bán gói');
+    const requested = input.stageCode?.trim();
+    const stage = requested ? pipeline.stages.find((item) => item.code === requested) : first;
+    if (!stage) throw new BadRequestException('Bước phễu không hợp lệ');
+    const lostReason = input.lostReason?.trim() ?? '';
+    if (stage.code === 'lost' && lostReason.length < 2) {
+      throw new BadRequestException('Nhập lý do mất, ít nhất 2 ký tự');
+    }
 
     const plan = await this.snapshotPlan(input.planKind ?? null, input.planCode ?? null);
     const deal = await this.prisma.crmDeal.create({
@@ -1755,11 +1845,14 @@ export class CrmService {
         leadId: lead.id,
         companyId: lead.companyId,
         pipelineId: pipeline.id,
-        stageId: first.id,
+        stageId: stage.id,
         planKind: plan?.kind ?? null,
         planCode: plan?.code ?? null,
         listPriceVnd: plan?.priceVnd ?? null,
         expectedCloseOn: expectedCloseDay(input.expectedCloseOn),
+        wonAt: stage.code === 'won' ? new Date() : null,
+        lostAt: stage.code === 'lost' ? new Date() : null,
+        lostReason: stage.code === 'lost' ? lostReason : null,
         provisionState: 'not_provisioned',
         ownerUserId: actor.id,
       },
@@ -1777,8 +1870,8 @@ export class CrmService {
         dealId: deal.id,
         activityType: 'note',
         summary: plan
-          ? `Tạo deal ${deal.dealCode} cho ${plan.kind === 'sourcing' ? 'gói Săn' : 'gói tin'} ${plan.code}. CRM không bật gói.`
-          : `Tạo deal ${deal.dealCode}. Chưa chọn gói.`,
+          ? `Tạo deal ${deal.dealCode} ở bước ${stage.name}, gói ${plan.kind === 'sourcing' ? 'Săn' : 'tin'} ${plan.code}. CRM không bật gói.`
+          : `Tạo deal ${deal.dealCode} ở bước ${stage.name}. Chưa chọn gói.`,
         createdByUserId: actor.id,
       },
     });
@@ -2948,6 +3041,57 @@ export class CrmService {
     return [...new Set(hits.flatMap((row) => (row.companyId ? [row.companyId] : [])))];
   }
 
+  private mapQuoteForm(
+    row: {
+      legalName: string | null;
+      taxCode: string | null;
+      address: string | null;
+      phone: string | null;
+      email: string | null;
+      website: string | null;
+      bankName: string | null;
+      bankAccount: string | null;
+      bankHolder: string | null;
+      transferNote: string | null;
+      terms: string | null;
+      signerTitle: string | null;
+      logoStorageKey: string | null;
+    } | null,
+    canEdit: boolean,
+  ): CrmQuoteFormView {
+    return {
+      legalName: row?.legalName ?? null,
+      taxCode: row?.taxCode ?? null,
+      address: row?.address ?? null,
+      phone: row?.phone ?? null,
+      email: row?.email ?? null,
+      website: row?.website ?? null,
+      bankName: row?.bankName ?? null,
+      bankAccount: row?.bankAccount ?? null,
+      bankHolder: row?.bankHolder ?? null,
+      transferNote: row?.transferNote ?? null,
+      terms: row?.terms ?? null,
+      signerTitle: row?.signerTitle ?? null,
+      hasLogo: Boolean(row?.logoStorageKey),
+      canEdit,
+    };
+  }
+
+  private optionalContactPhone(raw: string | null | undefined): string | null {
+    const trimmed = raw?.trim() ?? '';
+    if (!trimmed) return null;
+    return this.readPhone(trimmed);
+  }
+
+  private optionalContactEmail(raw: string | null | undefined): string | null {
+    const email = raw?.trim().toLowerCase() ?? '';
+    if (!email) return null;
+    if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException('Email chưa đúng');
+    }
+    return email;
+  }
+
   private readPhone(raw: string | null | undefined): string {
     const phone = normalizePhone(raw ?? '');
     if (!phone) return '';
@@ -3609,6 +3753,8 @@ export class CrmService {
       companyName: string;
       taxCode: string | null;
       contactName: string;
+      contactPhone?: string | null;
+      contactEmail?: string | null;
       companyId: string | null;
       ownerUserId: string;
       option1Kind: string;
@@ -3665,6 +3811,8 @@ export class CrmService {
       companyName: row.companyName,
       taxCode: row.taxCode,
       contactName: row.contactName,
+      contactPhone: row.contactPhone ?? null,
+      contactEmail: row.contactEmail ?? null,
       address: row.address ?? null,
       quotedOn: row.quotedOn ? row.quotedOn.toISOString().slice(0, 10) : row.createdAt.toISOString().slice(0, 10),
       validUntil: row.validUntil ? row.validUntil.toISOString().slice(0, 10) : null,
@@ -4000,6 +4148,22 @@ function customerAddress(
   const parts = [lead?.street, lead?.ward, lead?.province].map((part) => part?.trim() ?? '').filter(Boolean);
   if (parts.length > 0) return parts.join(', ');
   return companyAddress?.trim() || null;
+}
+
+const QUOTE_LOGO_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+function optionalSite(raw: string | null | undefined): string | null {
+  const value = raw?.trim() ?? '';
+  if (!value) return null;
+  if (value.length > 160 || /\s/.test(value)) throw new BadRequestException('Website chưa đúng');
+  return value;
+}
+
+function optionalAccount(raw: string | null | undefined): string | null {
+  const value = raw?.replace(/\s/g, '') ?? '';
+  if (!value) return null;
+  if (!/^\d{4,30}$/.test(value)) throw new BadRequestException('Số tài khoản gồm 4 đến 30 số');
+  return value;
 }
 
 function clip(value: string | null | undefined, max: number): string {

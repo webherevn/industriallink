@@ -430,6 +430,10 @@ export interface CreateCrmDealRequest {
   title: string;
   planKind?: CrmPlanKind | null;
   planCode?: string | null;
+  /** Bước phễu lúc tạo. Bỏ trống thì vào bước đầu. Không bật gói. */
+  stageCode?: string | null;
+  /** Bắt buộc khi bước là không chốt. */
+  lostReason?: string | null;
   /** YYYY-MM-DD. Bỏ trống khi chưa hẹn. */
   expectedCloseOn?: string | null;
 }
@@ -696,6 +700,8 @@ export interface CreateCrmQuoteRequest {
   companyName: string;
   taxCode?: string | null;
   contactName: string;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
   address?: string | null;
   /** YYYY-MM-DD. */
   quotedOn: string;
@@ -743,6 +749,8 @@ export interface CrmQuoteView {
   companyName: string;
   taxCode: string | null;
   contactName: string;
+  contactPhone: string | null;
+  contactEmail: string | null;
   address: string | null;
   /** YYYY-MM-DD. */
   quotedOn: string;
@@ -769,6 +777,39 @@ export interface CrmQuoteView {
   note: string | null;
   vatPercent: number | null;
   createdAt: string;
+}
+
+/** Phần cố định trên mọi tờ. Không chứa giá gói và không chứa các đợt. */
+export interface CrmQuoteFormView {
+  legalName: string | null;
+  taxCode: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  bankName: string | null;
+  bankAccount: string | null;
+  bankHolder: string | null;
+  transferNote: string | null;
+  terms: string | null;
+  signerTitle: string | null;
+  hasLogo: boolean;
+  canEdit: boolean;
+}
+
+export interface UpdateCrmQuoteFormRequest {
+  legalName?: string | null;
+  taxCode?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  bankName?: string | null;
+  bankAccount?: string | null;
+  bankHolder?: string | null;
+  transferNote?: string | null;
+  terms?: string | null;
+  signerTitle?: string | null;
 }
 
 /** Kết quả khi nhà tuyển dụng bấm tư vấn Enterprise. Không bật gói. */

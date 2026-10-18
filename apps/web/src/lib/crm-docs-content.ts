@@ -174,7 +174,8 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             items: [
               { actor: 'Sale', title: 'Chọn loại tờ', text: 'Gói đang bán: phương án 1 là bắt buộc, phương án 2 có thể bỏ trống, hai phương án không trùng một gói và không cộng lại. Enterprise: ghi tên gói, giá trị hợp đồng và từ 2 đến 6 đợt. Mỗi đợt có tên, tỉ lệ nguyên và hạn. Các đợt cộng đủ 100%.' },
               { actor: 'Hệ thống', title: 'Chụp giá', text: 'Giá gói tin là giá niêm yết, giá gói Săn là phí Săn, đúng số SuperAdmin đang đặt. Nếu thuế suất đã đặt thì ghi mức đó lên tờ, không cộng vào số tiền.' },
-              { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi số, ngày báo giá, hạn hiệu lực, khách, địa chỉ, liên hệ, cơ hội nếu có, hai phương án và câu giá chưa gồm VAT.' },
+              { actor: 'SuperAdmin', title: 'Mẫu tờ', text: 'Nút Mẫu tờ trên trang Báo giá. SuperAdmin tải logo và ghi tên pháp lý, mã số thuế, địa chỉ, điện thoại, email, website, tài khoản và điều khoản. Sale không sửa mẫu. Chưa điền thì tờ vẫn xuất được.' },
+              { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi đầu công ty, số, ngày báo giá, hạn hiệu lực, khách, điện thoại và email liên hệ, hai phương án hoặc các đợt Enterprise, điều khoản, tài khoản và chữ ký. Giá chưa gồm VAT. Hai phương án không cộng.' },
             ],
           },
           {
@@ -208,6 +209,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
           {
             type: 'list',
             items: [
+              'Form tạo có tiềm năng, tên cơ hội, gói, giai đoạn và ngày kỳ vọng. Liên hệ, nguồn và chiến dịch lấy từ tiềm năng đã chọn. Giá niêm yết và tỉ lệ thành công hiện theo gói và giai đoạn, không gõ tay. Bước Không chốt cần lý do. Chọn giai đoạn không tạo đơn và không bật gói.',
               'Chọn Danh sách hoặc Kanban. Danh sách có tên cơ hội, gói đã chọn, số tiền niêm yết, giai đoạn, ngày kỳ vọng hoặc ngày kết thúc, người thực hiện và ngày tạo.',
               'Đơn đã trả hiện trên deal khi deal đã có trước lúc khách trả, và cùng công ty cùng gói. Bước phễu không tự chạy theo đơn.',
               'Nhà tuyển dụng bấm tư vấn Enterprise trên bảng giá thì tạo lead và deal cho SuperAdmin đang hoạt động sớm nhất. Deal đó không có giá niêm yết. SuperAdmin không gửi yêu cầu này từ bảng giá.',
