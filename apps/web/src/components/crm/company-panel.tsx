@@ -76,7 +76,7 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
             <ul className="mt-2 divide-y divide-slate-100">
               {data.orders.map((order) => (
                 <li key={order.billingOrderId} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm text-slate-700">
-                  <span>{order.planName ?? order.planCode ?? (order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin')} · {formatVnd(order.paidAmountVnd)} · {formatWhen(order.paidAt)}</span>
+                  <span>{order.planName ?? order.planCode ?? (order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin')} · chưa VAT {formatVnd(order.paidAmountVnd)} · khách trả {formatVnd(order.payableVnd)} · {formatWhen(order.paidAt)}</span>
                   <Link href={`/crm/finance?q=${encodeURIComponent(order.invoiceNumber ?? data.name)}`} className="text-[#4c3ec9]">
                     {order.invoiceNumber ? `Hóa đơn ${order.invoiceNumber}` : 'Chưa ghi số hóa đơn'}
                   </Link>

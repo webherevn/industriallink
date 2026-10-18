@@ -1,3 +1,4 @@
+import { payableVnd, vatAmountVnd } from '@industriallink/contracts';
 import {
   applyPublicVatCopy,
   commissionClosedNotice,
@@ -34,6 +35,14 @@ describe('commission notices', () => {
     expect(shouldRemindPayoutDay({ ...base, todayIso: '2026-11-09' })).toBe(false);
     expect(shouldRemindPayoutDay({ ...base, remindedOn: '2026-11-10' })).toBe(false);
     expect(shouldRemindPayoutDay({ ...base, payableCount: 0 })).toBe(false);
+  });
+
+  it('tiền VAT làm tròn đồng và không tự tính khi chưa đặt', () => {
+    expect(vatAmountVnd(1_225_000n, null)).toBe(0n);
+    expect(vatAmountVnd(1_225_000n, 0)).toBe(0n);
+    expect(vatAmountVnd(1_225_000n, 8)).toBe(98_000n);
+    expect(vatAmountVnd(1005n, 10)).toBe(101n);
+    expect(payableVnd('1000', 10)).toBe(1100n);
   });
 
   it('thuế suất để trống khi chưa đặt và không tự chọn 8 hay 10', () => {

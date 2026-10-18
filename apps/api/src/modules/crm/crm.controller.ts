@@ -419,7 +419,7 @@ export class CrmController {
 
   @Patch('vat')
   @Roles(UserRole.SuperAdmin)
-  @ApiOperation({ summary: 'SuperAdmin đặt thuế suất 0–100. Không cộng vào đơn.' })
+  @ApiOperation({ summary: 'SuperAdmin đặt thuế suất 0–100. Đơn mới cộng VAT theo mức này. Đơn đã tạo giữ mức cũ.' })
   setVat(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdateCrmVatRequest,

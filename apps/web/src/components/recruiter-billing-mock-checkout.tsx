@@ -38,6 +38,9 @@ export function RecruiterMockCheckout() {
     planName: string | null;
     creditCount: number;
     priceVnd: string;
+    vatPercent: number | null;
+    vatAmountVnd: string;
+    payableVnd: string;
     status: string;
   } | null>(null);
 
@@ -54,6 +57,9 @@ export function RecruiterMockCheckout() {
             planName: found.planName,
             creditCount: found.creditCountSnapshot,
             priceVnd: found.priceVndSnapshot,
+            vatPercent: found.vatPercent,
+            vatAmountVnd: found.vatAmountVnd,
+            payableVnd: found.payableVnd,
             status: found.status,
           });
         }
@@ -146,9 +152,21 @@ export function RecruiterMockCheckout() {
                 </span>
               </div>
               <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-slate-500">Tổng</span>
-                <span className="text-base font-bold text-accent-700">
+                <span className="text-slate-500">Chưa VAT</span>
+                <span className="font-semibold text-slate-800">
                   {orderInfo ? formatVnd(orderInfo.priceVnd) : '…'}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-slate-500">{orderInfo?.vatPercent == null ? 'VAT' : `VAT ${orderInfo.vatPercent}%`}</span>
+                <span className="font-semibold text-slate-800">
+                  {!orderInfo ? '…' : orderInfo.vatPercent == null ? 'Chưa đặt' : formatVnd(orderInfo.vatAmountVnd)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-slate-500">Thanh toán</span>
+                <span className="text-base font-bold text-accent-700">
+                  {orderInfo ? formatVnd(orderInfo.payableVnd) : '…'}
                 </span>
               </div>
               <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">

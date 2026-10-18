@@ -23,6 +23,7 @@ import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd } from '@/lib/format-billing';
+import { VatPayLines } from '@/components/vat-pay-lines';
 import { createPlanCheckout, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 function fmtDate(iso: string | null) {
@@ -127,6 +128,9 @@ export function RecruiterPlanUpgrade() {
                     ? formatPriceVnd(plan.priceVnd, currency)
                     : plan.priceVnd}
               </p>
+              {isEnterprise || plan.priceVnd === '0' ? null : (
+                <VatPayLines priceVnd={plan.priceVnd} percent={pub?.vatPercent} currency={currency} />
+              )}
 
               <ul className="mt-5 space-y-2 text-sm text-slate-600">
                 <li className="flex items-center gap-2">

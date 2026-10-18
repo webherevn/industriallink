@@ -41,12 +41,12 @@ export function vatPercentOrEmpty(value: number | null | undefined): number | nu
   return null;
 }
 
-/** Câu bảng giá và FAQ. Không điền 10% khi chưa đặt, và không cộng thuế vào giá. */
+/** Câu bảng giá và FAQ. Không điền 8% hay 10% khi chưa đặt. */
 export function publicVatSentence(percent: number | null): string {
   if (percent == null) {
-    return 'Giá hiển thị chưa bao gồm VAT. Mức thuế suất chưa được đặt. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.';
+    return 'Giá hiển thị chưa bao gồm VAT. Thuế suất chưa đặt, thanh toán bằng giá niêm yết.';
   }
-  return `Giá hiển thị chưa bao gồm VAT ${percent}%. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.`;
+  return `Giá hiển thị chưa bao gồm VAT ${percent}%. Khi thanh toán cộng thêm ${percent}%.`;
 }
 
 export function applyPublicVatCopy(answer: string, percent: number | null): string {

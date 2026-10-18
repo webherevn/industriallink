@@ -1,4 +1,5 @@
 import type { CrmQuoteFormView, CrmQuoteView } from '@industriallink/contracts';
+import { payableVnd, vatAmountVnd } from '@industriallink/contracts';
 import { formatVnd } from '@/components/crm/format';
 
 type FormHead = Pick<
@@ -104,9 +105,9 @@ export function QuoteDocument({
 
       <p className="mt-6 text-sm text-slate-600">
         {quote.vatPercent == null
-          ? 'Giá chưa gồm VAT. Thuế suất chưa đặt.'
-          : `Giá chưa gồm VAT ${quote.vatPercent}%. Thuế chưa cộng vào số trên tờ.`}
-        {quote.quoteKind === 'catalog' ? ' Khách chọn một phương án và thanh toán trên inlink.' : ''}
+          ? 'Thuế suất chưa đặt lúc lập tờ. Số trên tờ là giá chưa VAT và là số thanh toán.'
+          : `VAT ${quote.vatPercent}% lấy từ thuế suất lúc lập tờ. Đổi thuế suất sau không sửa tờ này.`}
+        {quote.quoteKind === 'catalog' ? ' Khách chọn một phương án và thanh toán trên inlink.' : ' Công nợ ghi phần chưa VAT. Khách chuyển khoản theo cột phải chuyển.'}
       </p>
 
       <div className="mt-10 grid grid-cols-2 gap-8 text-center text-sm">
@@ -157,6 +158,12 @@ function CatalogBlock({ quote }: { quote: CrmQuoteView }) {
           ) : null}
         </tbody>
       </table>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <PayBox label="Phương án 1" price={quote.option1PriceVnd} percent={quote.vatPercent} />
+        {quote.option2Name && quote.option2PriceVnd ? (
+          <PayBox label="Phương án 2" price={quote.option2PriceVnd} percent={quote.vatPercent} />
+        ) : null}
+      </div>
       <p className="mt-3 text-xs text-slate-400">
         Khách chọn một phương án.{quote.option2Name && quote.option2PriceVnd ? ' Không cộng hai thành tiền.' : ''}
       </p>
@@ -204,15 +211,19 @@ function EnterpriseBlock({
       <h2 className="text-xs font-semibold uppercase tracking-wider text-[#4c3ec9]">Hợp đồng Enterprise</h2>
       <p className="mt-3 text-sm font-semibold text-slate-900">{quote.option1Name}</p>
       <p className="mt-1 text-sm text-slate-500">
-        Giá trị hợp đồng {formatVnd(quote.option1PriceVnd)} · Đã thu {formatVnd(quote.collectedVnd)} · Còn phải thu {formatVnd(quote.receivableVnd)}
+        Giá trị chưa VAT {formatVnd(quote.option1PriceVnd)} · Đã thu {formatVnd(quote.collectedVnd)} · Còn phải thu {formatVnd(quote.receivableVnd)}
       </p>
+      <div className="mt-3 max-w-sm">
+        <PayBox label="Hợp đồng" price={quote.option1PriceVnd} percent={quote.vatPercent} />
+      </div>
       <table className="mt-3 w-full text-sm">
         <thead className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           <tr>
             <th className="py-2">Đợt</th>
             <th className="py-2">Tỉ lệ</th>
             <th className="py-2">Hạn</th>
-            <th className="py-2">Số tiền</th>
+            <th className="py-2">Chưa VAT</th>
+            <th className="py-2">Phải chuyển</th>
             <th className="py-2">Tình trạng</th>
           </tr>
         </thead>
@@ -222,7 +233,8 @@ function EnterpriseBlock({
               <td className="py-2 font-medium text-slate-800">{line.label}</td>
               <td className="py-2 text-slate-600">{line.percent}%</td>
               <td className="py-2 text-slate-600">{showDay(line.dueOn)}</td>
-              <td className="py-2 font-semibold text-[#072348]">{formatVnd(line.amountVnd)}</td>
+              <td className="py-2 text-slate-700">{formatVnd(line.amountVnd)}</td>
+              <td className="py-2 font-semibold text-[#072348]">{formatVnd(payableVnd(line.amountVnd, quote.vatPercent).toString())}</td>
               <td className="py-2 text-slate-600">
                 {line.status === 'collected' ? 'Đã thu' : line.status === 'open' ? 'Còn phải thu' : 'Chưa chốt'}
                 {line.status === 'open' && onCollect ? (
@@ -236,6 +248,19 @@ function EnterpriseBlock({
         </tbody>
       </table>
     </section>
+  );
+}
+
+function PayBox({ label, price, percent }: { label: string; price: string; percent: number | null }) {
+  const vat = vatAmountVnd(price, percent).toString();
+  const total = payableVnd(price, percent).toString();
+  return (
+    <div className="rounded-xl bg-[#f6f4ff] px-3 py-2 text-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#4c3ec9]">{label}</p>
+      <p className="mt-1 text-slate-600">Chưa VAT {formatVnd(price)}</p>
+      <p className="text-slate-600">{percent == null ? 'VAT chưa đặt' : `VAT ${percent}% ${formatVnd(vat)}`}</p>
+      <p className="font-semibold text-[#072348]">Thanh toán {formatVnd(total)}</p>
+    </div>
   );
 }
 

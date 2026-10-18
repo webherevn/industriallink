@@ -264,7 +264,7 @@ export interface BillingPublicConfig {
   pageContent: BillingPageContentView;
   /** Bước 7: 'mock' | 'live' — Recruiter UI dùng để hiển thị banner cảnh báo. */
   paymentMode?: 'mock' | 'live';
-  /** Null khi SuperAdmin chưa đặt. Không cộng vào giá niêm yết. */
+  /** Null khi SuperAdmin chưa đặt. Giá niêm yết không gồm số này. Thanh toán mới cộng thêm khi đã đặt. */
   vatPercent?: number | null;
   /**
    * Bước 8: cho frontend biết hệ thống có đang enforce trừ credit thật không.

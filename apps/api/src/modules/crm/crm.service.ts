@@ -2769,7 +2769,6 @@ export class CrmService {
       select: { name: true },
     });
     const companyName = company?.name ?? order.orderInvoice?.companyName ?? 'Nhà tuyển dụng';
-    const vat = await this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } });
     try {
       const saved = order.orderInvoice
         ? await this.prisma.crmOrderInvoice.update({
@@ -2787,7 +2786,7 @@ export class CrmService {
               paidAmountVnd: order.priceVndSnapshot,
               paidAt: order.paidAt,
               invoiceNumber: number,
-              vatPercent: vat?.percent ?? null,
+              vatPercent: order.vatPercent,
               issuedByUserId: actor.id,
             },
           });
@@ -2829,6 +2828,8 @@ export class CrmService {
       planCode: string | null;
       planName: string | null;
       priceVndSnapshot: bigint;
+      vatPercent: number | null;
+      vatAmountVnd: bigint;
       paidAt: Date | null;
       orderInvoice: { invoiceNumber: string; issuedAt: Date; vatPercent: number | null } | null;
     },
@@ -2845,7 +2846,9 @@ export class CrmService {
       paidAt: (order.paidAt ?? new Date()).toISOString(),
       invoiceNumber: order.orderInvoice?.invoiceNumber ?? null,
       invoiceIssuedAt: order.orderInvoice?.issuedAt.toISOString() ?? null,
-      vatPercent: order.orderInvoice?.vatPercent ?? null,
+      vatPercent: order.vatPercent,
+      vatAmountVnd: order.vatAmountVnd.toString(),
+      payableVnd: (order.priceVndSnapshot + order.vatAmountVnd).toString(),
     };
   }
 

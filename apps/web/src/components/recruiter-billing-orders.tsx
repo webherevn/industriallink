@@ -80,8 +80,14 @@ export function RecruiterOrders() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-semibold">
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(o.priceVndSnapshot))}
+                        <td className="px-4 py-3">
+                          <p className="font-semibold">
+                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(o.payableVnd))}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Chưa VAT {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(o.priceVndSnapshot))}
+                            {o.vatPercent == null ? ' · VAT chưa đặt' : ` · VAT ${o.vatPercent}%`}
+                          </p>
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={s.tone} label={s.label} />

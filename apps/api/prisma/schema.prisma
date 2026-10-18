@@ -1778,7 +1778,12 @@ model BillingOrder {
   /// Snapshot từ billing_credit_topup tại thời điểm mua (không thay đổi sau).
   topupId                  String?  @map("topup_id") @db.Uuid
   creditCountSnapshot      Int      @default(0) @map("credit_count_snapshot")
+  /// Giá niêm yết lúc mua, chưa VAT. Hoa hồng và doanh số dùng số này.
   priceVndSnapshot         BigInt   @map("price_vnd_snapshot")
+  /// Mức VAT lúc tạo đơn. Null khi lúc đó chưa đặt. Đổi thuế suất sau không sửa đơn này.
+  vatPercent               Int?     @map("vat_percent")
+  /// Tiền VAT làm tròn đồng. Khách trả giá chưa VAT cộng số này.
+  vatAmountVnd             BigInt   @default(0) @map("vat_amount_vnd")
   /// Snapshot mã/tên gói tin hoặc gói Săn.
   planCode                 String?  @map("plan_code")
   planName                 String?  @map("plan_name")

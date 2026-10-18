@@ -1376,7 +1376,9 @@ function CrossSellCard({
 function VatPriceNote({ percent }: { percent?: number | null }) {
   return (
     <p className="mt-2 text-sm font-medium text-[#4c3ec9]">
-      {percent == null ? 'Giá niêm yết chưa gồm VAT. Thuế suất chưa đặt.' : `Giá niêm yết chưa gồm VAT ${percent}%.`}
+      {percent == null
+        ? 'Giá niêm yết chưa gồm VAT. Thuế suất chưa đặt, thanh toán bằng giá niêm yết.'
+        : `Giá niêm yết chưa gồm VAT. Khi thanh toán cộng thêm ${percent}%.`}
     </p>
   );
 }
@@ -1384,9 +1386,9 @@ function VatPriceNote({ percent }: { percent?: number | null }) {
 function displayFaqAnswer(answer: string, percent?: number | null): string {
   if (!/Giá hiển thị chưa bao gồm VAT/i.test(answer) && !/VAT\s*10\s*%/i.test(answer)) return answer;
   if (percent == null) {
-    return 'Giá hiển thị chưa bao gồm VAT. Mức thuế suất chưa được đặt. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.';
+    return 'Giá hiển thị chưa bao gồm VAT. Thuế suất chưa đặt, thanh toán bằng giá niêm yết.';
   }
-  return `Giá hiển thị chưa bao gồm VAT ${percent}%. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.`;
+  return `Giá hiển thị chưa bao gồm VAT ${percent}%. Khi thanh toán cộng thêm ${percent}%.`;
 }
 
 function PricingSkeleton() {

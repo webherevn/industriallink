@@ -45,7 +45,7 @@ export function CrmVatPanel() {
     <CrmFrame
       kicker="Cài đặt"
       title="Thuế suất"
-      description="Để trống cho đến khi chốt mức thuế. Đặt thuế suất không đổi giá niêm yết và không cộng vào đơn đã thanh toán."
+      description="Một mức cho báo giá mới và đơn thanh toán mới. Giá niêm yết vẫn là chưa VAT. Đơn và tờ đã tạo giữ mức lúc đó."
       footnote="Không tự điền 8% hay 10%."
     >
       {vat.isLoading ? <CrmEmpty>Đang tải thuế suất…</CrmEmpty> : null}
@@ -55,7 +55,7 @@ export function CrmVatPanel() {
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Mức đang đặt</p>
           <p className="mt-2 text-4xl font-bold tracking-tight text-[#4c3ec9]">{current == null ? 'Chưa đặt' : `${current}%`}</p>
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
-            Sales xem được mức này. Chỉ SuperAdmin được nhập. Khi chưa đặt, sổ hóa đơn không hiện một con số thuế.
+            Sales xem được mức này. Chỉ SuperAdmin được nhập. Khi đã đặt, khách trả giá chưa VAT cộng thêm đúng mức này. Khi chưa đặt, thanh toán bằng giá niêm yết.
           </p>
           {canEdit ? (
             <form onSubmit={onSubmit} className="mt-6 space-y-3 border-t border-slate-100 pt-5">

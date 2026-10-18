@@ -18,7 +18,8 @@ import type { Prisma } from '@prisma/client';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
-import { UserRole } from '@industriallink/contracts';
+import { UserRole, payableVnd, vatAmountVnd } from '@industriallink/contracts';
+import { vatPercentOrEmpty } from '../crm/commission-notices';
 import { decryptSecret, encryptSecret, keyPreview } from '../ai/ai-settings.cipher';
 import { BillingService } from './billing.service';
 import { SourcingService } from './sourcing.service';
@@ -192,7 +193,7 @@ export class PaymentService {
       form.set('client_reference_id', order.id);
       form.set('line_items[0][price_data][currency]', 'vnd');
       form.set('line_items[0][price_data][product_data][name]', topup.name);
-      form.set('line_items[0][price_data][unit_amount]', String(Number(topup.priceVnd)));
+      form.set('line_items[0][price_data][unit_amount]', String(Number(payableVnd(order.priceVndSnapshot, order.vatPercent))));
       form.set('line_items[0][quantity]', '1');
       form.set('metadata[orderId]', order.id);
       form.set('metadata[companyId]', companyId);
@@ -321,7 +322,7 @@ export class PaymentService {
       form.set('client_reference_id', order.id);
       form.set('line_items[0][price_data][currency]', 'vnd');
       form.set('line_items[0][price_data][product_data][name]', plan.name);
-      form.set('line_items[0][price_data][unit_amount]', String(Number(priceVnd)));
+      form.set('line_items[0][price_data][unit_amount]', String(Number(payableVnd(order.priceVndSnapshot, order.vatPercent))));
       form.set('line_items[0][quantity]', '1');
       form.set('metadata[orderId]', order.id);
       form.set('metadata[companyId]', companyId);
@@ -372,6 +373,7 @@ export class PaymentService {
     planName?: string | null;
     referral?: ReferralStamp | null;
   }) {
+    const vatPercent = await this.currentVatPercent();
     return this.prisma.billingOrder.create({
       data: {
         tenantId: args.user.tenantId,
@@ -380,6 +382,8 @@ export class PaymentService {
         topupId: args.topupId,
         creditCountSnapshot: args.creditCount,
         priceVndSnapshot: args.priceVnd,
+        vatPercent,
+        vatAmountVnd: vatAmountVnd(args.priceVnd, vatPercent),
         planCode: args.planCode ?? null,
         planName: args.planName ?? null,
         status: 'pending',
@@ -466,7 +470,7 @@ export class PaymentService {
         providerEventId: 'evt_mock_fail_' + randomBytes(8).toString('hex'),
         eventType: 'mock.payment_failed',
         status: 'processed',
-        amountVnd: order.priceVndSnapshot,
+        amountVnd: order.priceVndSnapshot + order.vatAmountVnd,
         rawPayload: { mock: true, outcome: 'failure', reason },
       },
     });
@@ -528,7 +532,7 @@ export class PaymentService {
           providerEventId: event.id,
           eventType: event.type,
           status: 'processed',
-          amountVnd: BigInt(sessionObj.amount_total ?? Number(order.priceVndSnapshot)),
+          amountVnd: BigInt(sessionObj.amount_total ?? Number(order.priceVndSnapshot + order.vatAmountVnd)),
           rawPayload: event.data.object as unknown as Prisma.InputJsonValue,
         },
       });
@@ -779,6 +783,11 @@ export class PaymentService {
     return this.mapOrder(order);
   }
 
+  private async currentVatPercent(): Promise<number | null> {
+    const row = await this.prisma.crmVatSetting.findUnique({ where: { id: 'default' }, select: { percent: true } });
+    return vatPercentOrEmpty(row?.percent);
+  }
+
   private mapOrder(o: {
     id: string;
     companyId: string;
@@ -788,6 +797,8 @@ export class PaymentService {
     planName: string | null;
     creditCountSnapshot: number;
     priceVndSnapshot: bigint;
+    vatPercent: number | null;
+    vatAmountVnd: bigint;
     status: string;
     provider: string;
     providerSessionId: string | null;
@@ -808,6 +819,9 @@ export class PaymentService {
       planName: o.planName,
       creditCountSnapshot: o.creditCountSnapshot,
       priceVndSnapshot: o.priceVndSnapshot.toString(),
+      vatPercent: o.vatPercent,
+      vatAmountVnd: o.vatAmountVnd.toString(),
+      payableVnd: (o.priceVndSnapshot + o.vatAmountVnd).toString(),
       status: o.status as BillingOrderView['status'],
       provider: o.provider as BillingOrderView['provider'],
       providerSessionId: o.providerSessionId,

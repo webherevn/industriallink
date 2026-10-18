@@ -12,7 +12,9 @@ const ORDER_COLUMNS = [
   { key: 'company', label: 'Công ty' },
   { key: 'kind', label: 'Loại' },
   { key: 'plan', label: 'Gói' },
-  { key: 'amount', label: 'Số tiền' },
+  { key: 'amount', label: 'Chưa VAT' },
+  { key: 'vat', label: 'VAT' },
+  { key: 'payable', label: 'Khách đã trả' },
   { key: 'paid', label: 'Ngày trả' },
 ] as const;
 
@@ -35,6 +37,8 @@ export function CrmOrdersPanel() {
       if (sort.key === 'kind') return order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin';
       if (sort.key === 'plan') return order.planName ?? order.planCode;
       if (sort.key === 'amount') return Number(order.paidAmountVnd);
+      if (sort.key === 'vat') return Number(order.vatAmountVnd);
+      if (sort.key === 'payable') return Number(order.payableVnd);
       return order.paidAt;
     },
   );
@@ -43,7 +47,7 @@ export function CrmOrdersPanel() {
     <CrmFrame
       kicker="Đơn khách đã thanh toán trên inlink"
       title="Đơn hàng"
-      description="Gói tin và gói Săn đã trả, giá lớn hơn 0, chưa VAT. CRM không lập đơn này."
+      description="Gói tin và gói Săn đã trả, giá lớn hơn 0. Cột chưa VAT là doanh số. Cột khách đã trả gồm VAT nếu lúc mua đã đặt thuế suất. CRM không lập đơn này."
       placeholder="Tìm nhà tuyển dụng hoặc tên gói"
       search={{ value: query, onChange: setQuery }}
       footnote="Số hóa đơn ghi ở mục Hóa đơn. Đơn này không bật gói và không ghi hoa hồng."
@@ -85,7 +89,9 @@ export function CrmOrdersPanel() {
                     {columns.shown('company') ? <SortableTh className="sticky left-[6.25rem] z-20 shadow-[4px_0_8px_-6px_rgba(15,23,42,0.35)]" label="Công ty" active={sort.key === 'company'} dir={sort.dir} onClick={() => sort.toggle('company')} /> : null}
                     {columns.shown('kind') ? <SortableTh label="Loại" active={sort.key === 'kind'} dir={sort.dir} onClick={() => sort.toggle('kind')} /> : null}
                     {columns.shown('plan') ? <SortableTh label="Gói" active={sort.key === 'plan'} dir={sort.dir} onClick={() => sort.toggle('plan')} /> : null}
-                    {columns.shown('amount') ? <SortableTh label="Số tiền" active={sort.key === 'amount'} dir={sort.dir} onClick={() => sort.toggle('amount')} /> : null}
+                    {columns.shown('amount') ? <SortableTh label="Chưa VAT" active={sort.key === 'amount'} dir={sort.dir} onClick={() => sort.toggle('amount')} /> : null}
+                    {columns.shown('vat') ? <SortableTh label="VAT" active={sort.key === 'vat'} dir={sort.dir} onClick={() => sort.toggle('vat')} /> : null}
+                    {columns.shown('payable') ? <SortableTh label="Khách đã trả" active={sort.key === 'payable'} dir={sort.dir} onClick={() => sort.toggle('payable')} /> : null}
                     {columns.shown('paid') ? <SortableTh label="Ngày trả" active={sort.key === 'paid'} dir={sort.dir} onClick={() => sort.toggle('paid')} /> : null}
                   </tr>
                 </thead>
@@ -100,6 +106,8 @@ export function CrmOrdersPanel() {
                         {columns.shown('kind') ? <td className={`${crmTd} text-slate-600`}>{order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin'}</td> : null}
                         {columns.shown('plan') ? <td className={`${crmTd} text-slate-700`}>{order.planName ?? order.planCode ?? 'Gói'}</td> : null}
                         {columns.shown('amount') ? <td className={`${crmTd} text-slate-700`}>{formatVnd(order.paidAmountVnd)}</td> : null}
+                        {columns.shown('vat') ? <td className={`${crmTd} text-slate-700`}>{order.vatPercent == null ? 'Chưa đặt' : `${order.vatPercent}% · ${formatVnd(order.vatAmountVnd)}`}</td> : null}
+                        {columns.shown('payable') ? <td className={`${crmTd} font-medium text-slate-800`}>{formatVnd(order.payableVnd)}</td> : null}
                         {columns.shown('paid') ? <td className={`${crmTd} text-slate-600`}>{formatWhen(order.paidAt)}</td> : null}
                       </tr>
                     );

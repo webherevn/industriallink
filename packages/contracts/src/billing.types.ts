@@ -399,8 +399,14 @@ export interface BillingOrderView {
   planCode: string | null;
   planName: string | null;
   creditCountSnapshot: number;
-  /** BigInt → string để JSON an toàn. */
+  /** Giá chưa VAT. BigInt → string để JSON an toàn. */
   priceVndSnapshot: string;
+  /** Mức VAT lúc tạo đơn. Null khi lúc đó chưa đặt. */
+  vatPercent: number | null;
+  /** Tiền VAT làm tròn đồng. */
+  vatAmountVnd: string;
+  /** Số cổng thanh toán thu: giá chưa VAT cộng tiền VAT. */
+  payableVnd: string;
   status: 'pending' | 'paid' | 'failed' | 'refunded';
   provider: 'stripe' | 'stripe-mock';
   providerSessionId: string | null;

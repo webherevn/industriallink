@@ -71,7 +71,10 @@ export function RecruiterTopup() {
           <h1 className="cms-page-title mt-1.5">Mua thêm Credit</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle mt-2">
-            Chọn gói Top-up phù hợp và thanh toán qua Stripe. Credit được cộng vào tài khoản ngay khi thanh toán thành công.
+            Chọn gói Top-up và thanh toán. Credit được cộng khi thanh toán thành công.
+            {pub?.vatPercent == null
+              ? ' Thuế suất chưa đặt, thanh toán bằng giá niêm yết.'
+              : ` Giá chưa gồm VAT. Thanh toán cộng thêm ${pub.vatPercent}%.`}
           </p>
         </div>
 

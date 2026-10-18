@@ -167,7 +167,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Báo giá',
         icon: FileText,
         href: '/crm/quotes',
-        summary: 'Tờ chào giá gói đang bán, hoặc hợp đồng Enterprise theo đợt phần trăm. Giá chưa cộng VAT.',
+        summary: 'Tờ chào giá gói đang bán, hoặc hợp đồng Enterprise theo đợt phần trăm. Giá ghi chưa VAT, tổng thanh toán cộng thuế suất lúc lập tờ.',
         keywords: ['báo giá', 'phương án', 'pdf', 'vat', 'enterprise'],
         blocks: [
           {
@@ -175,9 +175,9 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
             title: 'Lập tờ',
             items: [
               { actor: 'Sale', title: 'Chọn loại tờ', text: 'Gói đang bán: phương án 1 là bắt buộc, phương án 2 có thể bỏ trống, hai phương án không trùng một gói và không cộng lại. Enterprise: ghi tên gói, giá trị hợp đồng và từ 2 đến 6 đợt. Mỗi đợt có tên, tỉ lệ nguyên và hạn. Các đợt cộng đủ 100%.' },
-              { actor: 'Hệ thống', title: 'Chụp giá', text: 'Giá gói tin là giá niêm yết, giá gói Săn là phí Săn, đúng số SuperAdmin đang đặt. Nếu thuế suất đã đặt thì ghi mức đó lên tờ, không cộng vào số tiền.' },
+              { actor: 'Hệ thống', title: 'Chụp giá', text: 'Giá gói tin là giá niêm yết, giá gói Săn là phí Săn, đúng số SuperAdmin đang đặt. Thuế suất lúc lập tờ được giữ trên tờ. Đã đặt thì mỗi phương án có tiền VAT và tổng thanh toán. Chưa đặt thì thanh toán bằng giá chưa VAT.' },
               { actor: 'SuperAdmin', title: 'Mẫu tờ', text: 'Nút Mẫu tờ trên trang Báo giá. SuperAdmin tải logo và ghi tên pháp lý, mã số thuế, địa chỉ, điện thoại, email, website, tài khoản và điều khoản. Sale không sửa mẫu. Chưa điền thì tờ vẫn xuất được.' },
-              { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi đầu công ty, số, ngày báo giá, hạn hiệu lực, khách, điện thoại và email liên hệ, hai phương án hoặc các đợt Enterprise, điều khoản, tài khoản và chữ ký. Giá chưa gồm VAT. Hai phương án không cộng.' },
+              { actor: 'Sale', title: 'Xuất tờ', text: 'Nút Xuất PDF mở hộp in của trình duyệt. Tờ ghi đầu công ty, số, ngày báo giá, hạn hiệu lực, khách, điện thoại và email liên hệ, hai phương án hoặc các đợt Enterprise, điều khoản, tài khoản và chữ ký. Mỗi phương án có giá chưa VAT, tiền VAT và tổng thanh toán. Hai phương án không cộng. Đợt Enterprise ghi số chưa VAT và số phải chuyển.' },
             ],
           },
           {
@@ -361,16 +361,15 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Hóa đơn',
         icon: Receipt,
         href: '/crm/finance',
-        summary: 'Ghi số hóa đơn cho đơn gói đã trả. Mỗi đơn một số. Mức VAT được giữ tại lúc ghi.',
+        summary: 'Ghi số hóa đơn cho đơn gói đã trả. Mỗi đơn một số. VAT trên đơn là mức lúc khách trả.',
         keywords: ['hóa đơn', 'vat', 'sổ', 'csv'],
         blocks: [
           {
             type: 'list',
             items: [
               'Chỉ đơn gói tin hoặc gói Săn, đã trả, giá lớn hơn 0. Nạp Credit không vào sổ này.',
-              'Lần ghi đầu giữ mức thuế suất đang đặt. Chưa đặt thì để trống. Sửa số hóa đơn sau đó không đổi mức đã giữ.',
-              'Đơn ghi trước khi có cột VAT hiện câu VAT lúc ghi: chưa đặt. Không lấy mức thuế hiện tại để điền lại.',
-              'Số trên sổ là số khách đã trả, chưa cộng thuế. Tải sổ ra file CSV của cả sổ, không theo ô tìm trên màn hình. File này không gồm công nợ.',
+              'Mức VAT giữ theo lúc khách trả. Chưa đặt lúc đó thì để trống. Sửa số hóa đơn sau đó không đổi mức đã giữ và không lấy mức đang đặt để điền lại.',
+              'Sổ có giá chưa VAT, tiền VAT và số khách đã trả. Doanh số dùng giá chưa VAT. Tải sổ ra file CSV của cả sổ, không theo ô tìm trên màn hình. File này không gồm công nợ.',
               'Công nợ chỉ hiện khi hợp đồng Enterprise đã chốt. Các đợt đang mở nằm phía trên sổ hóa đơn. Ghi đã thu cả một đợt, không bật gói.',
               'Một số hóa đơn không ghi cho hai đơn.',
             ],
@@ -606,15 +605,15 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         title: 'Thuế suất',
         icon: CirclePercent,
         href: '/crm/settings/vat',
-        summary: 'Một mức cho cả site. Giá niêm yết và số đã trả không cộng thêm thuế.',
+        summary: 'Một mức cho cả site. Báo giá mới và đơn thanh toán mới cộng thêm mức này.',
         keywords: ['vat', 'thuế', 'bảng giá'],
         blocks: [
           {
             type: 'list',
             items: [
-              'Chưa đặt thì bảng giá và tờ báo giá không ghi một mức cụ thể.',
-              'Đã đặt thì câu VAT trên bảng giá dùng đúng mức đó. Giá hiện và giá thu vẫn là giá chưa thuế.',
-              'Đơn hóa đơn và tờ báo giá giữ mức tại lúc ghi. Đổi mức sau không sửa các tờ cũ và không đổi giá gói.',
+              'Chưa đặt thì bảng giá, tờ báo giá và thanh toán không ghi một mức cụ thể. Khách trả đúng giá niêm yết.',
+              'Đã đặt thì bảng giá nêu mức đó. Tờ mới và đơn mới cộng tiền VAT làm tròn đồng vào số khách trả. Giá niêm yết không đổi.',
+              'Tờ và đơn giữ mức tại lúc tạo. Đổi mức sau không sửa tờ cũ, không sửa đơn đã tạo và không đổi giá gói.',
             ],
           },
         ],

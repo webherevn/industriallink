@@ -21,6 +21,7 @@ import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd } from '@/lib/format-billing';
+import { VatPayLines } from '@/components/vat-pay-lines';
 import { createSourcingCheckout, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 function fmtQuota(n: number | null) {
@@ -118,6 +119,9 @@ export function RecruiterSourcingActivate() {
                 {currency ? formatPriceVnd(plan.feeVnd, currency) : plan.feeVnd}
               </p>
               <p className="mt-1 text-xs text-slate-500">Phí dịch vụ — không tặng Credit</p>
+              {plan.feeVnd === '0' ? null : (
+                <VatPayLines priceVnd={plan.feeVnd} percent={pub?.vatPercent} currency={currency} />
+              )}
 
               <ul className="mt-5 space-y-2 text-sm text-slate-600">
                 <li className="flex items-center gap-2">

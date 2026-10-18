@@ -12,8 +12,8 @@ export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }
   const vat = useQuery({ queryKey: ['crm-vat'], queryFn: fetchCrmVat });
   const receivables = useQuery({ queryKey: ['crm-receivables'], queryFn: fetchCrmReceivables });
   const vatNote = vat.data?.percent == null
-    ? 'Thuế suất chưa đặt. Giá trên sổ là số đã thanh toán, chưa cộng thuế. Công nợ chỉ là đợt Enterprise đã chốt và chưa thu.'
-    : `Thuế suất đang đặt ${vat.data.percent}%. Giá trên sổ vẫn là số đã thanh toán, chưa cộng thuế. Công nợ Enterprise cũng chưa cộng thuế.`;
+    ? 'Thuế suất chưa đặt. Đơn mới thu đúng giá niêm yết. Công nợ Enterprise ghi phần chưa VAT.'
+    : `Thuế suất đang đặt ${vat.data.percent}%. Đơn tạo sau mốc này cộng VAT vào số khách trả. Doanh số vẫn là giá chưa VAT. Công nợ ghi phần chưa VAT.`;
   const [query, setQuery] = useState(initialQuery);
   const orders = (ledger.data?.orders ?? []).filter((order) =>
     matchesQuery(query, [order.companyName, order.planName, order.planCode, order.invoiceNumber]),
@@ -65,15 +65,17 @@ export function CrmFinancePanel({ initialQuery = '' }: { initialQuery?: string }
 
 function downloadInvoiceCsv(orders: CrmPaidOrderInvoiceView[]) {
   downloadCsv('so-hoa-don.csv', [
-    ['Nhà tuyển dụng', 'Loại', 'Gói', 'Đã thanh toán', 'Thanh toán lúc', 'Số hóa đơn', 'VAT lúc ghi', 'Ghi lúc'],
+    ['Nhà tuyển dụng', 'Loại', 'Gói', 'Chưa VAT', 'VAT %', 'Tiền VAT', 'Khách đã trả', 'Thanh toán lúc', 'Số hóa đơn', 'Ghi lúc'],
     ...orders.map((order) => [
       order.companyName,
       order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin',
       order.planName ?? order.planCode ?? '',
       order.paidAmountVnd,
+      order.vatPercent == null ? 'chưa đặt' : String(order.vatPercent),
+      order.vatAmountVnd,
+      order.payableVnd,
       order.paidAt,
       order.invoiceNumber ?? '',
-      order.invoiceNumber ? (order.vatPercent == null ? 'chưa đặt' : String(order.vatPercent)) : '',
       order.invoiceIssuedAt ?? '',
     ]),
   ]);
@@ -175,8 +177,16 @@ function InvoiceCard({ order }: { order: CrmPaidOrderInvoiceView }) {
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>
-          <dt className="text-xs text-slate-400">Đã thanh toán</dt>
+          <dt className="text-xs text-slate-400">Chưa VAT</dt>
           <dd className="mt-1 font-medium text-slate-800">{formatVnd(order.paidAmountVnd)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-400">{order.vatPercent == null ? 'VAT' : `VAT ${order.vatPercent}%`}</dt>
+          <dd className="mt-1 font-medium text-slate-800">{order.vatPercent == null ? 'Chưa đặt' : formatVnd(order.vatAmountVnd)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-400">Khách đã trả</dt>
+          <dd className="mt-1 font-medium text-slate-800">{formatVnd(order.payableVnd)}</dd>
         </div>
         <div>
           <dt className="text-xs text-slate-400">Thanh toán lúc</dt>
@@ -186,10 +196,10 @@ function InvoiceCard({ order }: { order: CrmPaidOrderInvoiceView }) {
       <form onSubmit={onSubmit} className="mt-4 space-y-2">
         {order.invoiceIssuedAt ? (
           <p className="text-[11px] text-emerald-700">
-            Đã ghi {formatWhen(order.invoiceIssuedAt)}. VAT lúc ghi: {order.vatPercent == null ? 'chưa đặt' : `${order.vatPercent}%`}. Giá chưa cộng thuế.
+            Đã ghi {formatWhen(order.invoiceIssuedAt)}. VAT trên đơn là mức lúc thanh toán.
           </p>
         ) : (
-          <p className="text-[11px] text-slate-400">Nhập số hóa đơn đã xuất cho đơn này. Mức VAT được giữ tại lúc ghi.</p>
+          <p className="text-[11px] text-slate-400">Nhập số hóa đơn đã xuất. Mức VAT giữ theo lúc khách trả, không lấy lại mức đang đặt.</p>
         )}
         <input
           className={crmFieldClass}

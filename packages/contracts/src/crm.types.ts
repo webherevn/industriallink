@@ -481,12 +481,16 @@ export interface CrmPaidOrderInvoiceView {
   orderKind: CrmPlanKind;
   planCode: string | null;
   planName: string | null;
+  /** Giá chưa VAT. Doanh số dùng số này. */
   paidAmountVnd: string;
   paidAt: string;
   invoiceNumber: string | null;
   invoiceIssuedAt: string | null;
-  /** Mức VAT lúc ghi số. Null khi chưa ghi hoặc lúc ghi chưa đặt. Không cộng vào số đã trả. */
+  /** Mức VAT lúc thanh toán. Null khi lúc trả chưa đặt. */
   vatPercent: number | null;
+  vatAmountVnd: string;
+  /** Số khách đã trả: giá chưa VAT cộng tiền VAT. */
+  payableVnd: string;
 }
 
 export interface CrmPaidInvoiceLedgerView {
