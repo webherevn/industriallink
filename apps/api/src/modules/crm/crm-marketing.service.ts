@@ -31,7 +31,7 @@ export class CrmMarketingService {
 
   async overview(actor: AuthenticatedUser): Promise<CrmMarketingOverview> {
     await this.ensureStandardChannels();
-    const own = this.own(actor);
+    const own = this.ownTeam(actor);
     const [channels, campaigns, costs] = await Promise.all([
       this.prisma.crmMarketingChannel.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
       this.prisma.crmCampaign.findMany({
@@ -231,13 +231,13 @@ export class CrmMarketingService {
     return this.overview(actor);
   }
 
-  /** Sale chỉ gắn chiến dịch của mình. SuperAdmin gắn được mọi chiến dịch chưa hủy. */
+  /** Nhân viên chỉ gắn chiến dịch của mình. Trưởng phòng và SuperAdmin gắn được chiến dịch của đội. */
   async campaignIdFor(actor: AuthenticatedUser, campaignId: string | null): Promise<string | null> {
     if (!campaignId) return null;
     if (!UUID.test(campaignId)) throw new BadRequestException('Không tìm thấy chiến dịch');
     const campaign = await this.prisma.crmCampaign.findUnique({ where: { id: campaignId }, select: { id: true, ownerUserId: true, status: true } });
     if (!campaign || campaign.status === 'cancelled') throw new BadRequestException('Chiến dịch không còn để gắn');
-    if (!this.seesAll(actor) && campaign.ownerUserId !== actor.id) {
+    if (!this.seesTeam(actor) && campaign.ownerUserId !== actor.id) {
       throw new ForbiddenException('Chiến dịch này thuộc người phụ trách khác');
     }
     return campaign.id;
@@ -261,10 +261,10 @@ export class CrmMarketingService {
 
   private async readOwner(actor: AuthenticatedUser, ownerUserId: string | null | undefined): Promise<string> {
     if (!ownerUserId || ownerUserId === actor.id) return actor.id;
-    if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ SuperAdmin chuyển người phụ trách');
+    if (!this.seesTeam(actor)) throw new ForbiddenException('Chỉ trưởng phòng hoặc SuperAdmin chuyển người phụ trách');
     if (!UUID.test(ownerUserId)) throw new BadRequestException('Chọn người phụ trách đang hoạt động');
     const owner = await this.prisma.user.findFirst({
-      where: { id: ownerUserId, isDeleted: false, status: 'active', role: { in: [UserRole.Sales, UserRole.SuperAdmin] } },
+      where: { id: ownerUserId, isDeleted: false, status: 'active', role: { in: [UserRole.Sales, UserRole.SalesManager, UserRole.SuperAdmin] } },
       select: { id: true },
     });
     if (!owner) throw new BadRequestException('Chọn người phụ trách đang hoạt động');
@@ -282,7 +282,7 @@ export class CrmMarketingService {
     if (!UUID.test(campaignId)) throw new NotFoundException('Không tìm thấy chiến dịch');
     const campaign = await this.prisma.crmCampaign.findUnique({ where: { id: campaignId } });
     if (!campaign) throw new NotFoundException('Không tìm thấy chiến dịch');
-    if (!this.seesAll(actor) && campaign.ownerUserId !== actor.id) {
+    if (!this.seesTeam(actor) && campaign.ownerUserId !== actor.id) {
       throw new ForbiddenException('Chiến dịch này thuộc người phụ trách khác');
     }
     return campaign;
@@ -305,8 +305,13 @@ export class CrmMarketingService {
     return actor.role === UserRole.SuperAdmin;
   }
 
-  private own(actor: AuthenticatedUser): { ownerUserId: string } | undefined {
-    return this.seesAll(actor) ? undefined : { ownerUserId: actor.id };
+  /** Trưởng phòng thấy chiến dịch của cả đội. Ngân sách và chi phí vẫn chỉ SuperAdmin. */
+  private seesTeam(actor: AuthenticatedUser): boolean {
+    return actor.role === UserRole.SuperAdmin || actor.role === UserRole.SalesManager;
+  }
+
+  private ownTeam(actor: AuthenticatedUser): { ownerUserId: string } | undefined {
+    return this.seesTeam(actor) ? undefined : { ownerUserId: actor.id };
   }
 
   private assertSpend(actor: AuthenticatedUser) {

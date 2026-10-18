@@ -797,6 +797,50 @@ export interface CrmQuoteFormView {
   canEdit: boolean;
 }
 
+export type CrmStaffGender = 'male' | 'female' | 'other';
+
+/** Hồ sơ cá nhân của một nhân sự inlink. */
+export interface CrmStaffProfileView {
+  userId: string;
+  code: string;
+  displayName: string;
+  email: string;
+  emailVerified: boolean;
+  department: string | null;
+  /** YYYY-MM-DD. */
+  birthDate: string | null;
+  gender: CrmStaffGender | null;
+  phone: string | null;
+  address: string | null;
+  province: string | null;
+  postalCode: string | null;
+  hasAvatar: boolean;
+  canEdit: boolean;
+}
+
+export interface CrmStaffOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface CrmStaffProfilePage {
+  profile: CrmStaffProfileView | null;
+  /** SuperAdmin chọn người để sửa. Nhân sự không nhận danh sách này. */
+  staff: CrmStaffOption[] | null;
+}
+
+export interface UpdateCrmStaffProfileRequest {
+  userId?: string | null;
+  displayName: string;
+  birthDate?: string | null;
+  gender?: CrmStaffGender | null;
+  phone?: string | null;
+  address?: string | null;
+  province?: string | null;
+  postalCode?: string | null;
+}
+
 export interface UpdateCrmQuoteFormRequest {
   legalName?: string | null;
   taxCode?: string | null;

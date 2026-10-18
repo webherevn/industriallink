@@ -22,6 +22,7 @@ const ASSIGNABLE_ROLES = new Set<UserRole>([
   UserRole.SuperAdmin,
   UserRole.Editor,
   UserRole.Sales,
+  UserRole.SalesManager,
   UserRole.Recruiter,
   UserRole.HiringManager,
   UserRole.CompanyAdmin,
@@ -145,6 +146,7 @@ export class AdminUsersService {
     if (input.displayName !== undefined) data.displayName = input.displayName.trim();
     if (input.role !== undefined) data.role = input.role;
     if (input.status !== undefined) data.status = input.status;
+    if (input.department !== undefined) data.department = input.department?.trim().slice(0, 80) || null;
     if (input.password) {
       if (input.password.length < 8) {
         throw new BadRequestException('Mật khẩu phải ≥ 8 ký tự');
@@ -169,6 +171,7 @@ export class AdminUsersService {
       email: u.email,
       displayName: u.displayName,
       role: u.role as UserRole,
+      department: u.department,
       status: u.status,
       isVerified: u.isVerified,
       mfaEnabled: u.mfaEnabled,

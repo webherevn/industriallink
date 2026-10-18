@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import {
   UserRole,
+  resolveVnProvince2025,
   type CreateCrmActivityRequest,
   type CreateCrmDealRequest,
   type CreateCrmLeadRequest,
@@ -61,6 +62,10 @@ import {
   type CreateCrmQuoteRequest,
   type CrmQuoteFormView,
   type UpdateCrmQuoteFormRequest,
+  type CrmStaffGender,
+  type CrmStaffProfilePage,
+  type CrmStaffProfileView,
+  type UpdateCrmStaffProfileRequest,
   type CrmQuoteView,
   type CrmEnterpriseRequestView,
   type IssueCrmInvoiceRequest,
@@ -403,6 +408,88 @@ export class CrmService {
     if (!row?.logoStorageKey) return null;
     const buffer = await this.storage.getObject(row.logoStorageKey);
     return { buffer, mime: row.logoMime ?? 'image/jpeg' };
+  }
+
+  /** Hồ sơ nhân sự. Người đó sửa của mình. SuperAdmin sửa của từng nhân sự. */
+  async staffProfile(actor: AuthenticatedUser, userId?: string): Promise<CrmStaffProfilePage> {
+    const staff = actor.role === UserRole.SuperAdmin ? await this.staffOptions() : null;
+    const targetId = userId?.trim() || (actor.role === UserRole.SuperAdmin ? staff?.[0]?.id : actor.id);
+    if (!targetId) return { profile: null, staff };
+    const user = await this.staffUser(actor, targetId);
+    const row = await this.prisma.crmStaffProfile.findUnique({ where: { userId: user.id } });
+    return { profile: this.mapStaffProfile(user, row, actor), staff };
+  }
+
+  async saveStaffProfile(actor: AuthenticatedUser, input: UpdateCrmStaffProfileRequest): Promise<CrmStaffProfileView> {
+    const user = await this.staffUser(actor, input.userId?.trim() || actor.id);
+    const displayName = input.displayName?.trim() ?? '';
+    if (displayName.length < 2) throw new BadRequestException('Cần tên đầy đủ');
+    const gender = readStaffGender(input.gender);
+    const phone = this.optionalContactPhone(input.phone);
+    const birthDate = this.readBirth(input.birthDate);
+    const postalCode = optionalPostal(input.postalCode);
+    const province = readStaffProvince(input.province);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { displayName: displayName.slice(0, 160), updatedBy: actor.id },
+    });
+    const row = await this.prisma.crmStaffProfile.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        birthDate,
+        gender,
+        phone,
+        address: clip(input.address, 300) || null,
+        province,
+        postalCode,
+      },
+      update: {
+        birthDate,
+        gender,
+        phone,
+        address: clip(input.address, 300) || null,
+        province,
+        postalCode,
+      },
+    });
+    return this.mapStaffProfile({ ...user, displayName: displayName.slice(0, 160) }, row, actor);
+  }
+
+  async uploadStaffAvatar(
+    actor: AuthenticatedUser,
+    userId: string | undefined,
+    file: Express.Multer.File | undefined,
+  ): Promise<CrmStaffProfileView> {
+    const user = await this.staffUser(actor, userId?.trim() || actor.id);
+    if (!file) throw new BadRequestException('Thiếu ảnh đại diện');
+    if (!QUOTE_LOGO_MIME.has(file.mimetype)) throw new BadRequestException('Chỉ chấp nhận JPEG, PNG, WebP hoặc GIF');
+    if (file.size > 2 * 1024 * 1024) throw new BadRequestException('Ảnh vượt quá 2MB');
+    const image = await compressUploadedImage(file.buffer, 512);
+    const storageKey = `crm/staff-avatar/${user.id}/${uuidv7()}.${image.ext}`;
+    await this.storage.putObject(storageKey, image.buffer, image.mime);
+    const current = await this.prisma.crmStaffProfile.findUnique({ where: { userId: user.id }, select: { avatarStorageKey: true } });
+    const row = await this.prisma.crmStaffProfile.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, avatarStorageKey: storageKey, avatarMime: image.mime },
+      update: { avatarStorageKey: storageKey, avatarMime: image.mime },
+    });
+    if (current?.avatarStorageKey && current.avatarStorageKey !== storageKey) {
+      await this.storage.deleteObject(current.avatarStorageKey).catch(() => undefined);
+    }
+    return this.mapStaffProfile(user, row, actor);
+  }
+
+  async staffAvatar(actor: AuthenticatedUser, userId?: string): Promise<{ buffer: Buffer; mime: string } | null> {
+    const targetId = userId?.trim() || actor.id;
+    const user = await this.staffUser(actor, targetId);
+    const row = await this.prisma.crmStaffProfile.findUnique({
+      where: { userId: user.id },
+      select: { avatarStorageKey: true, avatarMime: true },
+    });
+    if (!row?.avatarStorageKey) return null;
+    const buffer = await this.storage.getObject(row.avatarStorageKey);
+    return { buffer, mime: row.avatarMime ?? 'image/jpeg' };
   }
 
   /** Lập tờ chào giá. Giá lấy từ gói SuperAdmin, chưa VAT. Không tạo đơn. */
@@ -1697,9 +1784,9 @@ export class CrmService {
   }
 
   async owners(actor: AuthenticatedUser): Promise<CrmOwnerOption[]> {
-    if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ SuperAdmin chuyển lead');
+    if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ trưởng phòng hoặc SuperAdmin chuyển người phụ trách');
     const users = await this.prisma.user.findMany({
-      where: { isDeleted: false, status: 'active', role: { in: [UserRole.Sales, UserRole.SuperAdmin] } },
+      where: { isDeleted: false, status: 'active', role: { in: [UserRole.Sales, UserRole.SalesManager, UserRole.SuperAdmin] } },
       select: { id: true, displayName: true },
       orderBy: { displayName: 'asc' },
     });
@@ -1725,13 +1812,13 @@ export class CrmService {
     let ownerUserId = current.ownerUserId;
     let ownerNameForLog: string | null = null;
     if (input.ownerUserId && input.ownerUserId !== current.ownerUserId) {
-      if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ SuperAdmin chuyển lead');
+      if (!this.seesAll(actor)) throw new ForbiddenException('Chỉ trưởng phòng hoặc SuperAdmin chuyển người phụ trách');
       const nextOwner = await this.prisma.user.findFirst({
         where: {
           id: input.ownerUserId,
           isDeleted: false,
           status: 'active',
-          role: { in: [UserRole.Sales, UserRole.SuperAdmin] },
+          role: { in: [UserRole.Sales, UserRole.SalesManager, UserRole.SuperAdmin] },
         },
         select: { id: true, displayName: true },
       });
@@ -2901,8 +2988,9 @@ export class CrmService {
     return new Map(rows.map((row) => [row.code, row.name]));
   }
 
+  /** SuperAdmin và trưởng phòng thấy CRM của cả đội. Nhân viên chỉ thấy hồ sơ mình. */
   private seesAll(actor: AuthenticatedUser): boolean {
-    return actor.role === UserRole.SuperAdmin;
+    return actor.role === UserRole.SuperAdmin || actor.role === UserRole.SalesManager;
   }
 
   private reportBounds(rawMonth: string): { periodMonth: string; start: Date; end: Date } {
@@ -3077,6 +3165,68 @@ export class CrmService {
     };
   }
 
+  private async staffOptions(): Promise<Array<{ id: string; name: string; code: string }>> {
+    const rows = await this.prisma.user.findMany({
+      where: { isDeleted: false, role: { in: [UserRole.Sales, UserRole.SalesManager] } },
+      select: { id: true, displayName: true, code: true },
+      orderBy: { displayName: 'asc' },
+    });
+    return rows.map((row) => ({ id: row.id, name: row.displayName, code: row.code }));
+  }
+
+  private async staffUser(actor: AuthenticatedUser, userId: string) {
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new NotFoundException('Không thấy nhân sự');
+    if (userId !== actor.id && actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ sửa hồ sơ của chính mình');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isDeleted: false, role: { in: [UserRole.Sales, UserRole.SalesManager] } },
+      select: { id: true, code: true, displayName: true, email: true, isVerified: true, department: true },
+    });
+    if (!user) throw new NotFoundException('Không thấy nhân sự');
+    if (actor.role !== UserRole.SuperAdmin && actor.id !== user.id) {
+      throw new ForbiddenException('Chỉ sửa hồ sơ của chính mình');
+    }
+    if (actor.role !== UserRole.SuperAdmin && actor.role !== UserRole.Sales && actor.role !== UserRole.SalesManager) {
+      throw new ForbiddenException('Hồ sơ này dành cho nhân sự inlink');
+    }
+    return user;
+  }
+
+  private mapStaffProfile(
+    user: { id: string; code: string; displayName: string; email: string; isVerified: boolean; department: string | null },
+    row: { birthDate: Date | null; gender: string | null; phone: string | null; address: string | null; province: string | null; postalCode: string | null; avatarStorageKey: string | null } | null,
+    actor: AuthenticatedUser,
+  ): CrmStaffProfileView {
+    const gender = row?.gender === 'male' || row?.gender === 'female' || row?.gender === 'other' ? row.gender : null;
+    return {
+      userId: user.id,
+      code: user.code,
+      displayName: user.displayName,
+      email: user.email,
+      emailVerified: user.isVerified,
+      department: user.department,
+      birthDate: row?.birthDate ? row.birthDate.toISOString().slice(0, 10) : null,
+      gender,
+      phone: row?.phone ?? null,
+      address: row?.address ?? null,
+      province: row?.province ?? null,
+      postalCode: row?.postalCode ?? null,
+      hasAvatar: Boolean(row?.avatarStorageKey),
+      canEdit: actor.role === UserRole.SuperAdmin || actor.id === user.id,
+    };
+  }
+
+  private readBirth(raw: string | null | undefined): Date | null {
+    const day = calendarDay(raw, 'Ngày sinh');
+    if (!day) return null;
+    const today = new Date();
+    const todayDay = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    if (day > todayDay) throw new BadRequestException('Ngày sinh không được ở tương lai');
+    if (day.getUTCFullYear() < 1940) throw new BadRequestException('Ngày sinh chưa đúng');
+    return day;
+  }
+
   private optionalContactPhone(raw: string | null | undefined): string | null {
     const trimmed = raw?.trim() ?? '';
     if (!trimmed) return null;
@@ -3249,7 +3399,7 @@ export class CrmService {
     actor: AuthenticatedUser,
     partner: { userId: string | null; createdByUserId: string },
   ) {
-    if (actor.role === UserRole.SuperAdmin) return;
+    if (actor.role === UserRole.SuperAdmin || actor.role === UserRole.SalesManager) return;
     if (actor.role === UserRole.Sales && partner.createdByUserId === actor.id) return;
     if (partner.userId === actor.id) return;
     throw new ForbiddenException('Không khóa mã số thuế cho cộng tác viên này');
@@ -3652,7 +3802,7 @@ export class CrmService {
       creator &&
       !creator.isDeleted &&
       creator.status === 'active' &&
-      (creator.role === UserRole.Sales || creator.role === UserRole.SuperAdmin)
+      (creator.role === UserRole.Sales || creator.role === UserRole.SalesManager || creator.role === UserRole.SuperAdmin)
     ) {
       return creator.id;
     }
@@ -4156,6 +4306,28 @@ function optionalSite(raw: string | null | undefined): string | null {
   const value = raw?.trim() ?? '';
   if (!value) return null;
   if (value.length > 160 || /\s/.test(value)) throw new BadRequestException('Website chưa đúng');
+  return value;
+}
+
+function readStaffGender(raw: string | null | undefined): CrmStaffGender | null {
+  const value = raw?.trim() ?? '';
+  if (!value) return null;
+  if (value === 'male' || value === 'female' || value === 'other') return value;
+  throw new BadRequestException('Giới tính là Nam, Nữ hoặc Khác');
+}
+
+function readStaffProvince(raw: string | null | undefined): string | null {
+  const value = raw?.trim() ?? '';
+  if (!value) return null;
+  const province = resolveVnProvince2025(value);
+  if (!province) throw new BadRequestException('Chọn tỉnh, thành theo địa giới từ 01/07/2025');
+  return province;
+}
+
+function optionalPostal(raw: string | null | undefined): string | null {
+  const value = raw?.replace(/\s/g, '') ?? '';
+  if (!value) return null;
+  if (!/^\d{5,6}$/.test(value)) throw new BadRequestException('Mã bưu chính gồm 5 hoặc 6 số');
   return value;
 }
 

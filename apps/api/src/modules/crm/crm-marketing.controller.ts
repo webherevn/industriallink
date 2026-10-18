@@ -19,7 +19,7 @@ import { CrmMarketingService } from './crm-marketing.service';
 @ApiTags('CRM')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SuperAdmin, UserRole.Sales)
+@Roles(UserRole.SuperAdmin, UserRole.Sales, UserRole.SalesManager)
 @Controller('crm/marketing')
 export class CrmMarketingController {
   constructor(private readonly marketing: CrmMarketingService) {}

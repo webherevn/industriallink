@@ -6,14 +6,25 @@ export enum UserRole {
   CompanyAdmin = 'company_admin',
   /** Biên tập viên CMS — viết/đăng bài, SEO, không quản trị nền tảng. */
   Editor = 'editor',
-  /** Kinh doanh CRM. Chỉ thấy lead và deal mình phụ trách, không gán gói. */
+  /** Nhân viên kinh doanh. CRM, chỉ hồ sơ mình phụ trách, không vào SuperAdmin. */
   Sales = 'sales',
+  /** Trưởng phòng kinh doanh. CRM cả đội, chuyển người phụ trách, không vào SuperAdmin. */
+  SalesManager = 'sales_manager',
   SuperAdmin = 'super_admin',
 }
 
 /** Vào được CRM. Biên tập viên không nằm trong nhóm này. */
 export function isCrmRole(role: UserRole | string): boolean {
-  return role === UserRole.SuperAdmin || role === UserRole.Sales;
+  return role === UserRole.SuperAdmin || isSalesStaff(role);
+}
+
+/** Nhân viên hoặc trưởng phòng kinh doanh. Không có quyền SuperAdmin. */
+export function isSalesStaff(role: UserRole | string): boolean {
+  return role === UserRole.Sales || role === UserRole.SalesManager;
+}
+
+export function isSalesManager(role: UserRole | string): boolean {
+  return role === UserRole.SalesManager;
 }
 
 /** Có quyền vào admin CMS (Dashboard / bài viết / SEO…). */

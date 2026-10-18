@@ -23,7 +23,7 @@ export function referralSignupNotices(input: {
       link: '/recruiter/partner',
     });
   }
-  const ownerIsCrm = input.createdByRole === 'sales' || input.createdByRole === 'super_admin';
+  const ownerIsCrm = input.createdByRole === 'sales' || input.createdByRole === 'sales_manager' || input.createdByRole === 'super_admin';
   if (ownerIsCrm && input.createdByUserId !== input.partnerUserId) {
     notices.push({
       userId: input.createdByUserId,

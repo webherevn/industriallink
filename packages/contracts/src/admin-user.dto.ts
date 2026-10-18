@@ -6,6 +6,7 @@ export interface AdminUserView {
   email: string;
   displayName: string;
   role: UserRole;
+  department: string | null;
   status: UserStatus | string;
   isVerified: boolean;
   mfaEnabled: boolean;
@@ -25,4 +26,6 @@ export interface AdminUpdateUserRequest {
   role?: UserRole;
   status?: UserStatus;
   password?: string;
+  /** Phòng ban trên bảng nhân sự. Bỏ trống thì xóa. */
+  department?: string | null;
 }

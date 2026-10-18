@@ -540,7 +540,7 @@ export const ADMIN_DOC_GROUPS: DocGroup[] = [
         icon: Users,
         href: '/admin/users',
         superAdminOnly: true,
-        summary: 'Tạo tài khoản, đổi vai trò, khoá/mở, đặt lại mật khẩu.',
+        summary: 'Tạo tài khoản, đổi vai trò, khoá/mở, đặt lại mật khẩu. Nhân sự Inlink hiện riêng khi vai trò là kinh doanh.',
         keywords: ['user', 'khoá', 'mật khẩu', 'mfa', 'vai trò'],
         blocks: [
           {
@@ -551,6 +551,7 @@ export const ADMIN_DOC_GROUPS: DocGroup[] = [
               'Không thể hạ quyền hoặc khoá Superadmin đang hoạt động cuối cùng; Superadmin không tự hạ quyền mình.',
               'MFA do người dùng tự bật ở /account (OTP email hoặc ứng dụng TOTP); admin chỉ thấy nhãn MFA, không ép/đặt lại được.',
               'Không có nút xoá người dùng.',
+              'Bảng Nhân sự Inlink chỉ hiện tài khoản được tick Nhân viên kinh doanh hoặc Trưởng phòng kinh doanh. Phòng ban và trạng thái sửa trên bảng đó. Hai vai trò này chỉ vào CRM, không vào SuperAdmin. Hồ sơ cá nhân sửa ở CRM, mục Hồ sơ. SuperAdmin mở từ link Hồ sơ trên từng dòng.',
             ],
           },
           {

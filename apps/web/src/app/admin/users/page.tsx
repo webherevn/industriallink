@@ -1,7 +1,7 @@
 'use client';
 
-import type { AdminUserView } from '@industriallink/contracts';
-import { UserRole, UserStatus } from '@industriallink/contracts';
+import type { AdminUpdateUserRequest, AdminUserView } from '@industriallink/contracts';
+import { isSalesStaff, UserRole, UserStatus } from '@industriallink/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
@@ -20,11 +20,13 @@ import { AdminShell } from '@/components/admin-shell';
 import { Button, Field, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { createAdminUser, listAdminUsers, updateAdminUser } from '@/lib/admin-users';
+import { goToCrmApp } from '@/lib/hosts';
 
 const ROLE_OPTIONS: { value: UserRole; label: string; hint: string }[] = [
   { value: UserRole.SuperAdmin, label: 'Superadmin', hint: 'Toàn quyền nền tảng' },
   { value: UserRole.Editor, label: 'Biên tập viên', hint: 'CMS · viết bài · SEO' },
-  { value: UserRole.Sales, label: 'Kinh doanh', hint: 'CRM · lead và deal của mình' },
+  { value: UserRole.Sales, label: 'Nhân viên kinh doanh', hint: 'CRM · hồ sơ của mình' },
+  { value: UserRole.SalesManager, label: 'Trưởng phòng kinh doanh', hint: 'CRM · cả đội · không vào SuperAdmin' },
   { value: UserRole.CompanyAdmin, label: 'Admin công ty', hint: 'Quản trị NTD' },
   { value: UserRole.HiringManager, label: 'Hiring manager', hint: 'Tuyển dụng nội bộ' },
   { value: UserRole.Recruiter, label: 'Nhà tuyển dụng', hint: 'Đăng JD & inbox' },
@@ -54,6 +56,8 @@ function roleBadgeClass(role: string) {
       return 'bg-violet-50 text-violet-800 ring-1 ring-violet-100';
     case UserRole.Sales:
       return 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-100';
+    case UserRole.SalesManager:
+      return 'bg-[#072348] text-white';
     case UserRole.CompanyAdmin:
       return 'bg-brand-100 text-brand-800';
     case UserRole.HiringManager:
@@ -155,7 +159,7 @@ export default function AdminUsersPage() {
       body,
     }: {
       id: string;
-      body: { role?: UserRole; status?: UserStatus; password?: string };
+      body: AdminUpdateUserRequest;
     }) => updateAdminUser(id, body),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['admin-users'] });
@@ -185,7 +189,7 @@ export default function AdminUsersPage() {
           <h1 className="cms-page-title mt-1.5">Người dùng & phân quyền</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle max-w-xl">
-            Quản lý tài khoản, vai trò RBAC và trạng thái truy cập nền tảng.
+            Bảng người dùng giữ mọi vai trò. Tick Nhân viên kinh doanh hoặc Trưởng phòng kinh doanh thì người đó hiện ở bảng Nhân sự Inlink.
           </p>
         </div>
         <Button
@@ -488,6 +492,13 @@ export default function AdminUsersPage() {
         )}
       </div>
 
+      <StaffTable
+        rows={data.filter((user) => isSalesStaff(user.role))}
+        onRole={(id, role) => updateMutation.mutate({ id, body: { role } })}
+        onStatus={(id, status) => updateMutation.mutate({ id, body: { status } })}
+        onDepartment={(id, department) => updateMutation.mutate({ id, body: { department } })}
+      />
+
       {/* Create drawer */}
       {createOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -636,5 +647,162 @@ export default function AdminUsersPage() {
         </div>
       )}
     </AdminShell>
+  );
+}
+
+const STAFF_ROLES = [
+  { value: UserRole.Sales, label: 'Nhân viên kinh doanh' },
+  { value: UserRole.SalesManager, label: 'Trưởng phòng kinh doanh' },
+] as const;
+
+function staffIsOn(status: string): boolean {
+  return status === UserStatus.Active || status === UserStatus.Verified;
+}
+
+function StaffTable({
+  rows,
+  onRole,
+  onStatus,
+  onDepartment,
+}: {
+  rows: AdminUserView[];
+  onRole: (id: string, role: UserRole) => void;
+  onStatus: (id: string, status: UserStatus) => void;
+  onDepartment: (id: string, department: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((user) =>
+      [user.displayName, user.email, user.code, user.department ?? ''].some((part) => part.toLowerCase().includes(needle)),
+    );
+  }, [query, rows]);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const current = Math.min(page, pages - 1);
+  const slice = shown.slice(current * pageSize, current * pageSize + pageSize);
+  const from = shown.length === 0 ? 0 : current * pageSize + 1;
+  const to = Math.min(shown.length, (current + 1) * pageSize);
+
+  return (
+    <div className="admin-dash-card admin-dash-rise mt-6 overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <h2 className="text-base font-semibold text-[#072348]">Nhân sự Inlink</h2>
+          <p className="mt-1 text-xs text-slate-500">Đội kinh doanh. Không gồm nhà tuyển dụng, ứng viên hay SuperAdmin.</p>
+        </div>
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(0);
+            }}
+            placeholder="Tìm tên, email, mã"
+            className="pl-9"
+            aria-label="Tìm nhân sự"
+          />
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-slate-500">Chưa có nhân sự. Ở bảng người dùng, chọn Nhân viên kinh doanh hoặc Trưởng phòng kinh doanh.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-[#f8fafc] text-[11px] uppercase tracking-wide text-slate-400">
+                <th className="px-5 py-3 font-semibold">Mã</th>
+                <th className="px-3 py-3 font-semibold">Tên</th>
+                <th className="px-3 py-3 font-semibold">Phòng ban</th>
+                <th className="px-3 py-3 font-semibold">Vai trò</th>
+                <th className="px-5 py-3 font-semibold">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {slice.map((user) => {
+                const on = staffIsOn(String(user.status));
+                return (
+                  <tr key={user.id} className="admin-dash-row">
+                    <td className="px-5 py-3.5 font-medium text-slate-500">{user.code}</td>
+                    <td className="px-3 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#072348] text-[11px] font-bold text-white">
+                          {initials(user.displayName)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-[#072348]">{user.displayName}</p>
+                          <p className="truncate text-xs text-slate-500">{user.email}</p>
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-[#4c3ec9]"
+                            onClick={() => goToCrmApp(`/crm/settings/profile?user=${user.id}`)}
+                          >
+                            Hồ sơ
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <Input
+                        key={`${user.id}-${user.department ?? ''}`}
+                        aria-label={`Phòng ban của ${user.displayName}`}
+                        defaultValue={user.department ?? ''}
+                        placeholder="Kinh doanh"
+                        className="h-9 min-w-[160px] text-xs"
+                        onBlur={(event) => {
+                          const next = event.target.value.trim();
+                          if (next !== (user.department ?? '')) onDepartment(user.id, next);
+                        }}
+                      />
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <Select
+                        className="h-9 min-w-[190px] text-xs"
+                        aria-label={`Vai trò của ${user.displayName}`}
+                        value={user.role}
+                        onChange={(event) => onRole(user.id, event.target.value as UserRole)}
+                      >
+                        {STAFF_ROLES.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        aria-label={on ? `Khóa ${user.displayName}` : `Mở ${user.displayName}`}
+                        className={clsx('relative h-6 w-11 rounded-full transition', on ? 'bg-emerald-500' : 'bg-slate-300')}
+                        onClick={() => onStatus(user.id, on ? UserStatus.Locked : UserStatus.Active)}
+                      >
+                        <span className={clsx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition', on ? 'left-5' : 'left-0.5')} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-400 sm:px-5">
+        <span>Tổng số {shown.length}</span>
+        <span className="inline-flex items-center gap-2">
+          {from}-{to}
+          <button type="button" className="rounded-lg px-2 py-1 hover:bg-slate-100 disabled:opacity-40" disabled={current === 0} onClick={() => setPage(current - 1)} aria-label="Trang trước">
+            ‹
+          </button>
+          <button type="button" className="rounded-lg px-2 py-1 hover:bg-slate-100 disabled:opacity-40" disabled={current >= pages - 1} onClick={() => setPage(current + 1)} aria-label="Trang sau">
+            ›
+          </button>
+        </span>
+      </div>
+    </div>
   );
 }

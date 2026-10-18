@@ -44,6 +44,9 @@ import {
   type CreateCrmQuoteRequest,
   type CrmQuoteFormView,
   type UpdateCrmQuoteFormRequest,
+  type CrmStaffProfilePage,
+  type CrmStaffProfileView,
+  type UpdateCrmStaffProfileRequest,
   type CrmQuoteView,
   type CrmReceivableLedger,
   type CrmPaidInvoiceLedgerView,
@@ -61,7 +64,7 @@ import { CrmService } from './crm.service';
 @ApiTags('CRM')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SuperAdmin, UserRole.Sales)
+@Roles(UserRole.SuperAdmin, UserRole.Sales, UserRole.SalesManager)
 @Controller('crm')
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
@@ -151,6 +154,44 @@ export class CrmController {
     const logo = await this.crm.quoteFormLogo();
     if (!logo) throw new NotFoundException('Chưa có logo tờ báo giá');
     return new StreamableFile(logo.buffer, { type: logo.mime, disposition: 'inline' });
+  }
+
+  @Get('staff-profile')
+  @ApiOperation({ summary: 'Hồ sơ nhân sự. Nhân sự xem của mình. SuperAdmin chọn người.' })
+  staffProfile(@CurrentUser() user: AuthenticatedUser, @Query('userId') userId = ''): Promise<CrmStaffProfilePage> {
+    return this.crm.staffProfile(user, userId || undefined);
+  }
+
+  @Patch('staff-profile')
+  @ApiOperation({ summary: 'Sửa hồ sơ của chính mình. SuperAdmin sửa hồ sơ nhân sự. Không đổi email đăng nhập.' })
+  saveStaffProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmStaffProfileRequest,
+  ): Promise<CrmStaffProfileView> {
+    return this.crm.saveStaffProfile(user, body);
+  }
+
+  @Post('staff-profile/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiOperation({ summary: 'Ảnh đại diện của chính mình. SuperAdmin tải cho nhân sự.' })
+  uploadStaffAvatar(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('userId') userId = '',
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<CrmStaffProfileView> {
+    return this.crm.uploadStaffAvatar(user, userId || undefined, file);
+  }
+
+  @Get('staff-profile/avatar')
+  @Header('Cache-Control', 'private, max-age=60')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
+  @ApiOperation({ summary: 'Ảnh đại diện nhân sự.' })
+  async staffAvatar(@CurrentUser() user: AuthenticatedUser, @Query('userId') userId = ''): Promise<StreamableFile> {
+    const avatar = await this.crm.staffAvatar(user, userId || undefined);
+    if (!avatar) throw new NotFoundException('Chưa có ảnh đại diện');
+    return new StreamableFile(avatar.buffer, { type: avatar.mime, disposition: 'inline' });
   }
 
   @Get('quotes')
@@ -251,8 +292,8 @@ export class CrmController {
   }
 
   @Get('owners')
-  @Roles(UserRole.SuperAdmin)
-  @ApiOperation({ summary: 'Sale và SuperAdmin đang hoạt động, để chuyển lead.' })
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
+  @ApiOperation({ summary: 'Nhân sự kinh doanh đang hoạt động, để chuyển lead.' })
   owners(@CurrentUser() user: AuthenticatedUser): Promise<CrmOwnerOption[]> {
     return this.crm.owners(user);
   }

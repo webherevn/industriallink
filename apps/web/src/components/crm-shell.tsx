@@ -28,6 +28,7 @@ import {
   Scale,
   ShoppingBag,
   UserPlus,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -92,6 +93,7 @@ const NAV = [
   {
     title: 'Cài đặt',
     items: [
+      { href: '/crm/settings/profile', label: 'Hồ sơ', icon: UserRound },
       { href: '/crm/settings/commission', label: 'Hoa hồng', icon: Percent },
       { href: '/crm/settings/payout-day', label: 'Ngày chi', icon: CalendarDays },
       { href: '/crm/settings/vat', label: 'Thuế suất', icon: CirclePercent },

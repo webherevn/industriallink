@@ -1,6 +1,6 @@
 'use client';
 
-import { isCmsAdminRole, isCrmRole, MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
+import { isCmsAdminRole, isCrmRole, isSalesStaff, MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -48,7 +48,7 @@ export default function LoginPage() {
       return;
     }
     if (typeof window !== 'undefined' && isAdminHostname()) {
-      if (role === UserRole.Sales) {
+      if (isSalesStaff(role)) {
         navigateAfterLogin(role, '/crm');
         return;
       }
@@ -61,7 +61,7 @@ export default function LoginPage() {
       window.location.assign(dest);
       return;
     }
-    if (role === UserRole.Sales) {
+    if (isSalesStaff(role)) {
       navigateAfterLogin(role, '/crm');
       return;
     }

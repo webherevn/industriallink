@@ -45,6 +45,9 @@ import type {
   CrmQuoteView,
   CrmQuoteFormView,
   UpdateCrmQuoteFormRequest,
+  CrmStaffProfilePage,
+  CrmStaffProfileView,
+  UpdateCrmStaffProfileRequest,
   CreateCrmQuoteRequest,
   CrmMarketingOverview,
   CreateCrmCampaignRequest,
@@ -166,6 +169,33 @@ export function uploadCrmQuoteFormLogo(file: File): Promise<CrmQuoteFormView> {
   const form = new FormData();
   form.append('file', file);
   return apiRequest<CrmQuoteFormView>('/crm/quote-form/logo', { method: 'POST', body: form, isForm: true });
+}
+
+export function fetchCrmStaffProfile(userId?: string): Promise<CrmStaffProfilePage> {
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+  return apiRequest<CrmStaffProfilePage>(`/crm/staff-profile${query}`);
+}
+
+export function saveCrmStaffProfile(body: UpdateCrmStaffProfileRequest): Promise<CrmStaffProfileView> {
+  return apiRequest<CrmStaffProfileView>('/crm/staff-profile', { method: 'PATCH', body });
+}
+
+export function uploadCrmStaffAvatar(file: File, userId?: string): Promise<CrmStaffProfileView> {
+  const form = new FormData();
+  form.append('file', file);
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+  return apiRequest<CrmStaffProfileView>(`/crm/staff-profile/avatar${query}`, { method: 'POST', body: form, isForm: true });
+}
+
+export async function fetchCrmStaffAvatarObjectUrl(userId: string): Promise<string | null> {
+  const token = tokenStore.get();
+  if (!token) return null;
+  const res = await fetch(`${getApiBase()}/crm/staff-profile/avatar?userId=${encodeURIComponent(userId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export async function fetchCrmQuoteFormLogoObjectUrl(): Promise<string | null> {

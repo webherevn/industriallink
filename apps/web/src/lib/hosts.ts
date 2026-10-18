@@ -1,4 +1,4 @@
-import { isCmsAdminRole, isCrmRole, UserRole } from '@industriallink/contracts';
+import { isCmsAdminRole, isSalesStaff, UserRole } from '@industriallink/contracts';
 import { handoffHashForToken, tokenStore } from './api';
 import {
   BRAND_ADMIN_HOST,
@@ -109,7 +109,7 @@ export function goToPublicApp(path = '/'): void {
 }
 
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
-  if (role === UserRole.Sales) {
+  if (isSalesStaff(role)) {
     const dest = nextPath && isCrmAppPath(nextPath) ? nextPath : '/crm';
     if (isCrmHostname()) {
       window.location.assign(dest);
@@ -155,7 +155,7 @@ export function navigateAfterLogin(role: UserRole, nextPath?: string | null): vo
 export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boolean {
   if (!shouldUseSplitHosts()) return false;
 
-  if (isCrmRole(role) && role === UserRole.Sales) {
+  if (isSalesStaff(role)) {
     const path = pathWithSearch.split('?')[0] ?? pathWithSearch;
     if (isCrmHostname() && isCrmAppPath(path)) return false;
     goToCrmApp(isCrmAppPath(path) ? path : '/crm');

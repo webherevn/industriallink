@@ -411,6 +411,14 @@ export function CrmDateField({
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
+              <div className="mt-1 flex items-center justify-between">
+                <button type="button" className="rounded-lg px-2 py-1 text-xs font-medium text-[#4c3ec9] hover:bg-[#f6f4ff]" aria-label="Năm trước" onClick={() => shift(-12)}>
+                  Năm trước
+                </button>
+                <button type="button" className="rounded-lg px-2 py-1 text-xs font-medium text-[#4c3ec9] hover:bg-[#f6f4ff]" aria-label="Năm sau" onClick={() => shift(12)}>
+                  Năm sau
+                </button>
+              </div>
               <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400">
                 {WEEKDAYS.map((day) => (
                   <span key={day}>{day}</span>

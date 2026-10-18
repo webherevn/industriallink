@@ -83,9 +83,9 @@ export function stickyCell(picked: boolean, edge: 'check' | 'index' | 'name' | '
 
 export const stickyActionsHead = 'sticky right-0 z-20 w-24 border-b border-slate-100 bg-slate-50 px-2 shadow-[-4px_0_8px_-6px_rgba(15,23,42,0.28)]';
 
-/** SuperAdmin xóa mọi dòng. Sale chỉ xóa dòng mình phụ trách. */
+/** SuperAdmin và trưởng phòng xóa dòng của đội. Nhân viên chỉ xóa dòng mình phụ trách. */
 export function canDeleteOwned(role: string | undefined, actorId: string | undefined, ownerUserId: string): boolean {
-  if (role === UserRole.SuperAdmin) return true;
+  if (role === UserRole.SuperAdmin || role === UserRole.SalesManager) return true;
   return role === UserRole.Sales && Boolean(actorId) && actorId === ownerUserId;
 }
 

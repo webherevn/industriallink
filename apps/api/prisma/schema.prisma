@@ -175,6 +175,8 @@ model User {
   email        String  @unique
   passwordHash String  @map("password_hash")
   displayName  String  @map("display_name")
+  /// Phòng ban của nhân sự inlink. Null với tài khoản không thuộc đội kinh doanh.
+  department   String?
   role         String
   status       String  @default("created")
   isVerified   Boolean @default(false) @map("is_verified")
@@ -2305,6 +2307,24 @@ model CrmQuoteForm {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("crm_quote_form")
+  @@schema("crm")
+}
+
+/// Hồ sơ cá nhân của nhân sự inlink. Không dùng cho ứng viên hay nhà tuyển dụng.
+model CrmStaffProfile {
+  userId           String    @id @map("user_id") @db.Uuid
+  birthDate        DateTime? @map("birth_date") @db.Date
+  /// male | female | other.
+  gender           String?
+  phone            String?
+  address          String?
+  province         String?
+  postalCode       String?   @map("postal_code")
+  avatarStorageKey String?   @map("avatar_storage_key")
+  avatarMime       String?   @map("avatar_mime")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@map("crm_staff_profile")
   @@schema("crm")
 }
 

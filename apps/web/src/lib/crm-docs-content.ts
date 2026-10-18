@@ -7,6 +7,7 @@ import {
   CirclePercent,
   Contact,
   FileText,
+  UserRound,
   Inbox,
   Kanban,
   Landmark,
@@ -40,15 +41,16 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
         id: 'vai-tro',
         title: 'Ai được vào CRM',
         icon: ShieldCheck,
-        summary: 'Chỉ SuperAdmin và Sale. Sale thấy hồ sơ mình phụ trách. Biên tập viên không vào CRM.',
+        summary: 'SuperAdmin, trưởng phòng và nhân viên kinh doanh. Biên tập viên không vào CRM.',
         keywords: ['sale', 'superadmin', 'quyền', 'phân quyền'],
         blocks: [
           {
             type: 'statuses',
             title: 'Trong CRM',
             items: [
-              { label: 'SuperAdmin', tone: 'navy', code: 'super_admin', text: 'Thấy mọi lead, deal, báo giá, khách, đơn đã trả và hoa hồng. Chuyển được người phụ trách. Đặt mức hoa hồng, ngày chi và thuế suất.' },
-              { label: 'Sale', tone: 'blue', code: 'sales', text: 'Thấy lead, deal, nhật ký, báo giá và khách của mình. Đơn đã trả và hóa đơn chỉ của công ty mình phụ trách. SuperAdmin tạo tài khoản Sale ở mục người dùng.' },
+              { label: 'SuperAdmin', tone: 'navy', code: 'super_admin', text: 'Thấy mọi lead, deal, báo giá, khách, đơn đã trả và hoa hồng. Đặt mức hoa hồng, ngày chi, thuế suất và mẫu tờ. Tạo tài khoản ở mục người dùng.' },
+              { label: 'Trưởng phòng kinh doanh', tone: 'blue', code: 'sales_manager', text: 'Thấy CRM của cả đội và chuyển người phụ trách. Không vào SuperAdmin, không đặt hoa hồng, thuế suất, ngân sách hay mẫu tờ.' },
+              { label: 'Nhân viên kinh doanh', tone: 'slate', code: 'sales', text: 'Thấy lead, deal, nhật ký, báo giá và khách của mình. Đơn đã trả và hóa đơn chỉ của công ty mình phụ trách. Không vào SuperAdmin.' },
               { label: 'Biên tập viên', tone: 'slate', code: 'editor', text: 'Làm nội dung ở SuperAdmin. Không có quyền CRM.' },
             ],
           },
@@ -529,8 +531,26 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
   {
     id: 'cai-dat',
     title: 'Cài đặt',
-    description: 'Ba mức SuperAdmin đặt một lần cho cả hệ thống.',
+    description: 'Hồ sơ từng nhân sự, và ba mức SuperAdmin đặt một lần cho cả hệ thống.',
     sections: [
+      {
+        id: 'ho-so',
+        title: 'Hồ sơ nhân sự',
+        icon: UserRound,
+        href: '/crm/settings/profile',
+        summary: 'Ảnh, tên, ngày sinh, giới tính, điện thoại và địa chỉ. Email đăng nhập chỉ xem.',
+        keywords: ['hồ sơ', 'ảnh đại diện', 'ngày sinh'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Nhân viên và trưởng phòng chỉ sửa hồ sơ của chính mình.',
+              'SuperAdmin chọn nhân sự rồi sửa. Trưởng phòng không sửa hộ người khác.',
+              'Địa chỉ chọn tỉnh, thành theo địa giới từ 01/07/2025, không còn cấp huyện.',
+            ],
+          },
+        ],
+      },
       {
         id: 'hoa-hong',
         title: 'Hoa hồng',
