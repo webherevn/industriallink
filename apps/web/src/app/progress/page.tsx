@@ -50,7 +50,7 @@ import { listMyOffers, respondToOffer } from '@/lib/offers';
 import { listMyOnboardings } from '@/lib/onboarding';
 import { useRouter } from 'next/navigation';
 
-type FilterTab = 'all' | 'processing' | 'interview' | 'offer' | 'rejected';
+type FilterTab = 'all' | 'processing' | 'interview' | 'offer' | 'hired' | 'rejected';
 type SortMode = 'newest' | 'oldest';
 
 const PAGE_SIZE = 5;
@@ -339,6 +339,9 @@ export default function ProgressPage() {
         break;
       case 'offer':
         list = list.filter((a) => a.status === ApplicationStatus.Offer);
+        break;
+      case 'hired':
+        list = list.filter((a) => a.status === ApplicationStatus.Hired);
         break;
       case 'rejected':
         list = list.filter(
@@ -654,6 +657,7 @@ export default function ProgressPage() {
                     count: counts.interview,
                   },
                   { id: 'offer' as const, label: 'Đề nghị', count: counts.offer },
+                  { id: 'hired' as const, label: 'Nhận việc', count: counts.hired },
                   {
                     id: 'rejected' as const,
                     label: 'Đã từ chối',

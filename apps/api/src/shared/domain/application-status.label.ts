@@ -6,7 +6,7 @@ export const APPLICATION_STATUS_LABEL: Record<string, string> = {
   [ApplicationStatus.Screening]: 'Sàng lọc',
   [ApplicationStatus.Interview]: 'Phỏng vấn',
   [ApplicationStatus.Offer]: 'Đề nghị',
-  [ApplicationStatus.Hired]: 'Trúng tuyển',
+  [ApplicationStatus.Hired]: 'Đã nhận việc',
   [ApplicationStatus.Rejected]: 'Từ chối',
   [ApplicationStatus.Withdrawn]: 'Đã rút',
 };

@@ -143,7 +143,7 @@ describe('OfferService', () => {
   });
 
   describe('update', () => {
-    it('chấp nhận offer → tự chuyển hồ sơ sang Trúng tuyển', async () => {
+    it('chấp nhận offer → tự chuyển hồ sơ sang Đã nhận việc', async () => {
       const timelineCreate = jest.fn().mockResolvedValue({});
       const appUpdate = jest.fn().mockResolvedValue({});
       const prisma = {

@@ -61,7 +61,7 @@ describe('OnboardingService', () => {
   }
 
   describe('start', () => {
-    it('bắt đầu nhận việc thành công, chuyển hồ sơ sang Trúng tuyển', async () => {
+    it('bắt đầu nhận việc thành công, chuyển hồ sơ sang Đã nhận việc', async () => {
       const tx = txStub();
       const prisma = {
         application: {

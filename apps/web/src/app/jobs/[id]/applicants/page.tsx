@@ -136,8 +136,7 @@ export default function ApplicantsPage() {
           {applicants && applicants.length > 0 && (
             <>
               <p className="mb-3 text-sm text-slate-500">
-                Kéo-thả thẻ ứng viên giữa các cột để chuyển bước. Bấm «Xem hồ sơ» để mở trang
-                ứng viên, hoặc «Đặt lịch PV» để lên lịch phỏng vấn.
+                Kéo thẻ theo bước Ứng tuyển, Sàng lọc, Phỏng vấn, Đề nghị. Kéo sang cột nhận việc sẽ mở phiếu ngày nhận việc, không đổi trạng thái trước khi lưu.
               </p>
               <KanbanBoard
                 applicants={applicants}

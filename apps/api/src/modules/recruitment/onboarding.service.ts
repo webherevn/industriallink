@@ -148,7 +148,7 @@ export class OnboardingService {
             applicationId: application.id,
             tenantId: user.tenantId,
             type: 'status_changed',
-            title: 'Chuyển sang Trúng tuyển',
+            title: 'Chuyển sang Đã nhận việc',
             description: 'Tự động khi bắt đầu onboarding',
           },
         });

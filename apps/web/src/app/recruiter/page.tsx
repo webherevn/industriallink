@@ -36,18 +36,12 @@ import { Button, Card, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { askCopilot } from '@/lib/copilot';
-import { getInterviewStats, listInterviews } from '@/lib/interviews';
+import { getInterviewStats } from '@/lib/interviews';
 import { listMyJobs } from '@/lib/jobs';
 import { getWorkspaceSummary, listInbox } from '@/lib/recruiter';
 import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
-type PipelineKey =
-  | 'applied'
-  | 'screening'
-  | 'hr_interview'
-  | 'tech_interview'
-  | 'offer'
-  | 'hired';
+type PipelineKey = 'applied' | 'screening' | 'interview' | 'offer' | 'hired';
 
 /** Màu pipeline theo mockup: 1 bước active xanh đậm, còn lại pastel */
 const PIPELINE_STYLE: Record<
@@ -66,15 +60,9 @@ const PIPELINE_STYLE: Record<
     activeBg: '#1A56DB',
     activeText: '#FFFFFF',
   },
-  hr_interview: {
-    idleBg: '#DBEAFE',
-    idleText: '#1E3A8A',
-    activeBg: '#1A56DB',
-    activeText: '#FFFFFF',
-  },
-  tech_interview: {
-    idleBg: '#FFEDD5',
-    idleText: '#9A3412',
+  interview: {
+    idleBg: '#EDE9FE',
+    idleText: '#5B21B6',
     activeBg: '#1A56DB',
     activeText: '#FFFFFF',
   },
@@ -92,13 +80,12 @@ const PIPELINE_STYLE: Record<
   },
 };
 
-const PIPELINE_STAGES: { key: PipelineKey; label: string }[] = [
-  { key: 'applied', label: 'Ứng tuyển' },
-  { key: 'screening', label: 'Sàng lọc' },
-  { key: 'hr_interview', label: 'Phỏng vấn HR' },
-  { key: 'tech_interview', label: 'PV Chuyên môn' },
-  { key: 'offer', label: 'Đề nghị' },
-  { key: 'hired', label: 'Đã tuyển' },
+const PIPELINE_STAGES: { key: PipelineKey; label: string; status: ApplicationStatus }[] = [
+  { key: 'applied', label: 'Ứng tuyển', status: ApplicationStatus.Applied },
+  { key: 'screening', label: 'Sàng lọc', status: ApplicationStatus.Screening },
+  { key: 'interview', label: 'Phỏng vấn', status: ApplicationStatus.Interview },
+  { key: 'offer', label: 'Đề nghị', status: ApplicationStatus.Offer },
+  { key: 'hired', label: 'Nhận việc', status: ApplicationStatus.Hired },
 ];
 
 const COPILOT_CHIPS = [
@@ -154,49 +141,27 @@ export default function RecruiterDashboardPage() {
     enabled: Boolean(data?.hasCompany),
     retry: false,
   });
-  const interviewWindow = useMemo(() => {
-    const from = new Date();
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(from);
-    to.setDate(to.getDate() + 30);
-    return { from: from.toISOString(), to: to.toISOString() };
-  }, []);
-  const { data: upcomingInterviews } = useQuery({
-    queryKey: ['interviews-dash', interviewWindow.from, interviewWindow.to, jobFilter],
-    queryFn: () =>
-      listInterviews({
-        from: interviewWindow.from,
-        to: interviewWindow.to,
-        jobId: jobFilter === 'all' ? undefined : jobFilter,
-        status: 'scheduled',
-      }),
-    enabled: Boolean(data?.hasCompany),
-    retry: false,
-  });
-
   const filteredInbox = useMemo(() => {
     if (jobFilter === 'all') return inbox ?? [];
     return (inbox ?? []).filter((a) => a.jobId === jobFilter);
   }, [inbox, jobFilter]);
 
+  const activeStage = PIPELINE_STAGES.find((stage) => stage.key === pipelineActive) ?? PIPELINE_STAGES[0];
   const pipelineCounts = useMemo(() => {
-    const base = { applied: 0, screening: 0, offer: 0, hired: 0 };
-    for (const a of filteredInbox) {
-      if (a.status === ApplicationStatus.Applied) base.applied += 1;
-      else if (a.status === ApplicationStatus.Screening) base.screening += 1;
-      else if (a.status === ApplicationStatus.Offer) base.offer += 1;
-      else if (a.status === ApplicationStatus.Hired) base.hired += 1;
+    const counts = { applied: 0, screening: 0, interview: 0, offer: 0, hired: 0 };
+    for (const row of filteredInbox) {
+      if (row.status === ApplicationStatus.Applied) counts.applied += 1;
+      else if (row.status === ApplicationStatus.Screening) counts.screening += 1;
+      else if (row.status === ApplicationStatus.Interview) counts.interview += 1;
+      else if (row.status === ApplicationStatus.Offer) counts.offer += 1;
+      else if (row.status === ApplicationStatus.Hired) counts.hired += 1;
     }
-    const ivs = upcomingInterviews ?? [];
-    return {
-      applied: base.applied,
-      screening: base.screening,
-      hr_interview: ivs.filter((i) => i.type === 'hr').length,
-      tech_interview: ivs.filter((i) => i.type === 'technical').length,
-      offer: base.offer,
-      hired: base.hired,
-    } satisfies Record<PipelineKey, number>;
-  }, [filteredInbox, upcomingInterviews]);
+    return counts;
+  }, [filteredInbox]);
+  const stageApplicants = useMemo(
+    () => filteredInbox.filter((row) => row.status === activeStage.status),
+    [filteredInbox, activeStage.status],
+  );
 
   const topCandidates = useMemo(() => {
     return [...(inbox ?? [])]
@@ -594,6 +559,45 @@ export default function RecruiterDashboardPage() {
                 );
               })}
             </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[13px] font-semibold text-slate-800">
+                {activeStage.label} · {stageApplicants.length} hồ sơ
+              </p>
+              {pipelineActive === 'hired' ? (
+                <Link href="/recruiter/onboarding" className="text-[12px] font-semibold text-[#2563EB] hover:underline">
+                  Mở danh sách nhận việc
+                </Link>
+              ) : (
+                <Link href="/recruiter/inbox" className="text-[12px] font-semibold text-[#2563EB] hover:underline">
+                  Mở hộp thư
+                </Link>
+              )}
+            </div>
+            {stageApplicants.length === 0 ? (
+              <p className="mt-2 rounded-xl bg-slate-50 px-3 py-4 text-[13px] text-slate-500">
+                Chưa có hồ sơ ở bước này.
+              </p>
+            ) : (
+              <ul className="mt-2 divide-y divide-slate-100">
+                {stageApplicants.slice(0, 6).map((row) => (
+                  <li key={row.applicationId} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-slate-900">{row.displayName}</p>
+                      <p className="truncate text-[12px] text-slate-500">{row.jobTitle}</p>
+                    </div>
+                    <Link href={`/jobs/${row.jobId}/applicants`} className="shrink-0 text-[12px] font-semibold text-[#2563EB] hover:underline">
+                      Mở quy trình
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {stageApplicants.length > 6 ? (
+              <p className="mt-1 text-[12px] text-slate-400">và {stageApplicants.length - 6} hồ sơ nữa</p>
+            ) : null}
           </div>
 
           <div className="mt-6">

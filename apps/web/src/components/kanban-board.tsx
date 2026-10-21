@@ -32,9 +32,12 @@ export function KanbanBoard({
     const card = applicants.find((a) => a.applicationId === draggingId);
     setOverColumn(null);
     setDraggingId(null);
-    if (card && card.status !== target) {
-      onMove(card.applicationId, target);
+    if (!card || card.status === target) return;
+    if (target === ApplicationStatus.Hired) {
+      onOnboard?.(card.applicationId, card.displayName);
+      return;
     }
+    onMove(card.applicationId, target);
   }
 
   return (

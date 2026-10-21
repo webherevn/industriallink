@@ -96,7 +96,7 @@ export default function RecruiterOnboardingPage() {
           <UserPlus className="mx-auto h-10 w-10 text-slate-300" />
           <p className="mt-3 text-slate-600">Chưa có nhân viên nào đang nhận việc.</p>
           <p className="mt-1 text-sm text-slate-400">
-            Trên bảng quy trình (cột Trúng tuyển / Đề nghị) → «Nhận việc».
+            Ở cột Đề nghị làm việc, bấm Nhận việc và lưu ngày. Hồ sơ chuyển sang Đã nhận việc sau khi lưu.
           </p>
           <Link href="/jobs/manage" className="mt-4 inline-block">
             <Button>Quản lý tin tuyển dụng</Button>

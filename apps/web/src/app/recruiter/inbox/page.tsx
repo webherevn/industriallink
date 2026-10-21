@@ -32,7 +32,7 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: ApplicationStatus.Screening, label: 'Sàng lọc' },
   { value: ApplicationStatus.Interview, label: 'Phỏng vấn' },
   { value: ApplicationStatus.Offer, label: 'Đề nghị' },
-  { value: ApplicationStatus.Hired, label: 'Đã tuyển' },
+  { value: ApplicationStatus.Hired, label: APPLICATION_STATUS_LABEL[ApplicationStatus.Hired] },
   { value: ApplicationStatus.Rejected, label: 'Từ chối' },
 ];
 
