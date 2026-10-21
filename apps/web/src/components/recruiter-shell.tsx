@@ -115,6 +115,12 @@ const PLAN_VISUAL: Record<
   SAN_CHUYEN_SAU: { icon: Shield, tone: 'bg-indigo-50 text-indigo-900 ring-indigo-200' },
 };
 
+function navMatches(href: string, path: string) {
+  if (href === '#') return false;
+  if (href === '/recruiter') return path === '/recruiter';
+  return path === href || path.startsWith(`${href}/`);
+}
+
 function PlanChip({
   code,
   name,
@@ -335,9 +341,11 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
   }
 
   function isActive(href: string) {
-    if (href === '#') return false;
-    if (href === '/recruiter') return pathname === '/recruiter';
-    return pathname === href || pathname.startsWith(`${href}/`);
+    if (!navMatches(href, pathname)) return false;
+    const winner = NAV_SECTIONS.flatMap((section) => section.items.map((item) => item.href))
+      .filter((itemHref) => navMatches(itemHref, pathname))
+      .sort((a, b) => b.length - a.length)[0];
+    return href === winner;
   }
 
   if (!sessionReady || (hasToken && !user && meFetching)) {
@@ -405,10 +413,10 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
                     <Link
                       href={item.href}
                       className={clsx(
-                        'relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition',
+                        'relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition',
                         active
-                          ? 'bg-brand-600 text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-100',
+                          ? 'bg-[#f4f7fb] text-[#072348]'
+                          : 'text-slate-600 hover:bg-slate-50',
                       )}
                     >
                       {active && (

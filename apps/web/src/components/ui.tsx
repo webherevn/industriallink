@@ -1,9 +1,12 @@
 'use client';
 
 import clsx from 'clsx';
-import { Calendar, ChevronDown } from 'lucide-react';
+import { Calendar, Check, ChevronDown } from 'lucide-react';
 import {
+  Children,
+  isValidElement,
   type ButtonHTMLAttributes,
+  type ChangeEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -14,6 +17,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { NumberedTitle } from '@/components/numbered-field-label';
 
 export function Button({
@@ -512,24 +516,184 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   },
 );
 
-export const Select = forwardRef<HTMLSelectElement, Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { size?: FieldSize }>(
-  function Select({ className, size = 'md', ...props }, ref) {
+export const Select = forwardRef<HTMLButtonElement, Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { size?: FieldSize }>(
+  function Select({ className, size = 'md', value, onChange, disabled, children, id, name }, ref) {
+    const options = readMenuOptions(children);
+    const current = options.find((option) => option.value === String(value ?? ''));
+    const [open, setOpen] = useState(false);
+    const [menu, setMenu] = useState<MenuBox | null>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLUListElement>(null);
+    const listId = useId();
+
+    function place() {
+      if (!buttonRef.current) return;
+      setMenu(menuBox(buttonRef.current));
+    }
+
+    useEffect(() => {
+      if (!open) return;
+      function onPointer(event: MouseEvent) {
+        const target = event.target as Node;
+        if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+        setOpen(false);
+      }
+      function onKey(event: KeyboardEvent) {
+        if (event.key === 'Escape') setOpen(false);
+      }
+      function onMove() {
+        place();
+      }
+      document.addEventListener('mousedown', onPointer);
+      document.addEventListener('keydown', onKey);
+      window.addEventListener('resize', onMove);
+      window.addEventListener('scroll', onMove, true);
+      return () => {
+        document.removeEventListener('mousedown', onPointer);
+        document.removeEventListener('keydown', onKey);
+        window.removeEventListener('resize', onMove);
+        window.removeEventListener('scroll', onMove, true);
+      };
+    }, [open]);
+
+    function choose(next: string) {
+      onChange?.({ target: { value: next, name } } as ChangeEvent<HTMLSelectElement>);
+      setOpen(false);
+    }
+
+    let lastGroup = '';
+
     return (
-      <div className="relative min-w-0 w-full">
-        <select
-          ref={ref}
+      <div ref={rootRef} className="relative min-w-0 w-full">
+        <button
+          ref={(node) => {
+            buttonRef.current = node;
+            if (typeof ref === 'function') ref(node);
+            else if (ref) ref.current = node;
+          }}
+          id={id}
+          type="button"
+          name={name}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
           className={clsx(
-            'w-full appearance-none rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
+            'flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white text-left text-slate-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
             selectSizeClassName[size as FieldSize],
             className,
           )}
-          {...props}
-        />
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          onClick={() => {
+            if (disabled) return;
+            if (open) {
+              setOpen(false);
+              return;
+            }
+            place();
+            setOpen(true);
+          }}
+        >
+          <span className="min-w-0 truncate">{current?.label ?? 'Chọn'}</span>
+          <ChevronDown className={clsx('h-4 w-4 shrink-0 text-slate-400 transition', open && 'rotate-180')} />
+        </button>
+        {open && menu
+          ? createPortal(
+              <ul
+                ref={menuRef}
+                id={listId}
+                role="listbox"
+                style={{ top: menu.top, left: menu.left, width: menu.width, transform: menu.lift }}
+                className="fixed z-50 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-[0_16px_40px_rgba(7,35,72,0.12)]"
+              >
+                {options.map((option, index) => {
+                  const showGroup = Boolean(option.group) && option.group !== lastGroup;
+                  if (option.group) lastGroup = option.group;
+                  const active = option.value === String(value ?? '');
+                  return (
+                    <li key={`${option.group ?? ''}-${option.value}-${index}`} role="presentation">
+                      {showGroup ? (
+                        <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                          {option.group}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        disabled={option.disabled}
+                        className={clsx(
+                          'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] disabled:cursor-not-allowed disabled:text-slate-300',
+                          active
+                            ? 'bg-[#f4f7fb] font-semibold text-[#072348]'
+                            : 'text-slate-700 hover:bg-slate-50',
+                        )}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => choose(option.value)}
+                      >
+                        <span className="min-w-0 truncate">{option.label}</span>
+                        {active ? <Check className="h-3.5 w-3.5 shrink-0 text-accent-500" /> : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>,
+              document.body,
+            )
+          : null}
       </div>
     );
   },
 );
+
+type MenuOption = { value: string; label: string; group?: string; disabled?: boolean };
+type MenuBox = { top: number; left: number; width: number; lift?: string };
+
+function menuBox(button: HTMLButtonElement): MenuBox {
+  const rect = button.getBoundingClientRect();
+  const width = Math.max(rect.width, 180);
+  const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const lift = spaceBelow < 220 && rect.top > spaceBelow;
+  return lift
+    ? { top: rect.top - 6, left, width, lift: 'translateY(-100%)' }
+    : { top: rect.bottom + 6, left, width };
+}
+
+function readMenuOptions(children: ReactNode): MenuOption[] {
+  const out: MenuOption[] = [];
+  Children.forEach(children, (child) => {
+    if (!isValidElement<{ label?: ReactNode; children?: ReactNode; value?: string | number; disabled?: boolean }>(child)) return;
+    if (child.type === 'optgroup') {
+      const group = textOf(child.props.label);
+      Children.forEach(child.props.children, (option) => {
+        pushOption(out, option, group);
+      });
+      return;
+    }
+    pushOption(out, child);
+  });
+  return out;
+}
+
+function pushOption(out: MenuOption[], node: ReactNode, group?: string) {
+  if (!isValidElement<{ value?: string | number; children?: ReactNode; disabled?: boolean }>(node) || node.type !== 'option') return;
+  const value = node.props.value == null ? textOf(node.props.children) : String(node.props.value);
+  out.push({
+    value,
+    label: textOf(node.props.children) || value,
+    group,
+    disabled: Boolean(node.props.disabled),
+  });
+}
+
+function textOf(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join('');
+  if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children);
+  return '';
+}
 
 export function Field({
   label,
