@@ -10,12 +10,16 @@ export async function listInterviews(params: {
   to?: string;
   jobId?: string;
   status?: string;
+  type?: string;
+  scope?: 'today';
 } = {}): Promise<InterviewView[]> {
   const qs = new URLSearchParams();
   if (params.from) qs.set('from', params.from);
   if (params.to) qs.set('to', params.to);
   if (params.jobId) qs.set('jobId', params.jobId);
   if (params.status) qs.set('status', params.status);
+  if (params.type) qs.set('type', params.type);
+  if (params.scope) qs.set('scope', params.scope);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return asArray(await apiRequest(`/interviews${suffix}`));
 }

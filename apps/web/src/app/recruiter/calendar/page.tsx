@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, Link2, MapPin, User } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { InterviewStatus, type InterviewView } from '@industriallink/contracts';
+import { InterviewStatus, InterviewType, type InterviewView } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Badge, Button, Card, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -21,6 +21,14 @@ function rangeDays(days: number): { from: string; to: string } {
   to.setHours(23, 59, 59, 999);
   return { from: from.toISOString(), to: to.toISOString() };
 }
+
+type TodayFocus = 'all' | 'hr' | 'technical';
+
+const FOCUS_LABEL: Record<TodayFocus, string> = {
+  all: 'PV hôm nay',
+  hr: 'PV HR hôm nay',
+  technical: 'PV chuyên môn hôm nay',
+};
 
 function formatWhen(iso: string): string {
   try {
@@ -40,6 +48,7 @@ export default function RecruiterCalendarPage() {
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState('all');
   const [range, setRange] = useState(14);
+  const [focus, setFocus] = useState<TodayFocus | null>(null);
   const window = useMemo(() => rangeDays(range), [range]);
 
   const { data: jobs } = useQuery({
@@ -66,6 +75,18 @@ export default function RecruiterCalendarPage() {
     retry: false,
   });
 
+  const {
+    data: todayScheduled,
+    isLoading: todayLoading,
+    isError: todayError,
+    error: todayQueryError,
+  } = useQuery({
+    queryKey: ['interviews', 'today-scheduled'],
+    queryFn: () => listInterviews({ scope: 'today' }),
+    retry: false,
+    enabled: focus !== null,
+  });
+
   const cancelMutation = useMutation({
     mutationFn: (id: string) =>
       updateInterview(id, { status: InterviewStatus.Cancelled }),
@@ -84,7 +105,22 @@ export default function RecruiterCalendarPage() {
     },
   });
 
-  const grouped = useMemo(() => groupByDay(interviews ?? []), [interviews]);
+  const visible = useMemo(() => {
+    if (!focus) return interviews ?? [];
+    const rows = todayScheduled ?? [];
+    if (focus === 'hr') return rows.filter((row) => row.type === InterviewType.Hr);
+    if (focus === 'technical') return rows.filter((row) => row.type === InterviewType.Technical);
+    return rows;
+  }, [focus, interviews, todayScheduled]);
+
+  const grouped = useMemo(() => groupByDay(visible), [visible]);
+  const listLoading = focus ? todayLoading : isLoading;
+  const listFailed = focus ? todayError : isError;
+  const listError = focus ? todayQueryError : error;
+
+  function pickFocus(next: TodayFocus) {
+    setFocus((current) => (current === next ? null : next));
+  }
 
   return (
     <AppShell>
@@ -114,25 +150,37 @@ export default function RecruiterCalendarPage() {
               ? `${stats.next2hCount} trong 2 giờ tới`
               : 'Không có buổi sắp tới'
           }
+          active={focus === 'all'}
+          onClick={() => pickFocus('all')}
         />
         <StatCard
           label="PV HR hôm nay"
           value={stats?.byType.hr ?? 0}
           hint="Loại HR"
+          active={focus === 'hr'}
+          onClick={() => pickFocus('hr')}
         />
         <StatCard
           label="PV chuyên môn hôm nay"
           value={stats?.byType.technical ?? 0}
           hint="Loại Chuyên môn"
+          active={focus === 'technical'}
+          onClick={() => pickFocus('technical')}
         />
       </div>
+      <p className="mt-2 text-xs text-slate-500">
+        Bấm một ô để xem đúng các buổi đã lên lịch trong số đó.
+      </p>
 
       <div className="brand-panel mt-5 grid gap-3 p-3 sm:grid-cols-2 lg:max-w-3xl lg:grid-cols-[220px_minmax(0,1fr)]">
         <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
           Khoảng thời gian
           <Select
             value={String(range)}
-            onChange={(e) => setRange(Number(e.target.value))}
+            onChange={(e) => {
+              setRange(Number(e.target.value));
+              setFocus(null);
+            }}
             className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
             size="sm"
           >
@@ -145,7 +193,10 @@ export default function RecruiterCalendarPage() {
           Tin tuyển dụng
           <Select
             value={jobId}
-            onChange={(e) => setJobId(e.target.value)}
+            onChange={(e) => {
+              setJobId(e.target.value);
+              setFocus(null);
+            }}
             className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
             size="sm"
           >
@@ -159,23 +210,45 @@ export default function RecruiterCalendarPage() {
         </label>
       </div>
 
-      {isLoading && <p className="mt-6 text-slate-500">Đang tải lịch...</p>}
-      {isError && (
+      {focus && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-slate-700">
+            {FOCUS_LABEL[focus]}
+            {!todayLoading && ` · ${visible.length} buổi đã lên lịch`}
+          </p>
+          <button
+            type="button"
+            onClick={() => setFocus(null)}
+            className="text-sm font-semibold text-brand-600 hover:underline"
+          >
+            Xem theo khoảng thời gian
+          </button>
+        </div>
+      )}
+
+      {listLoading && <p className="mt-6 text-slate-500">Đang tải lịch...</p>}
+      {listFailed && (
         <p className="mt-6 text-sm text-red-600">
-          {error instanceof ApiError ? error.message : 'Không tải được lịch'}
+          {listError instanceof ApiError ? listError.message : 'Không tải được lịch'}
         </p>
       )}
 
-      {!isLoading && grouped.length === 0 && (
+      {!listLoading && grouped.length === 0 && (
         <Card className="mt-6 text-center">
           <CalendarDays className="mx-auto h-10 w-10 text-slate-300" />
-          <p className="mt-3 text-slate-600">Chưa có lịch phỏng vấn trong khoảng này.</p>
-          <p className="mt-1 text-sm text-slate-400">
-            Mở Kanban tin tuyển dụng → chọn ứng viên → Đặt lịch PV.
-          </p>
-          <Link href="/jobs/manage" className="mt-4 inline-block">
-            <Button>Quản lý tin tuyển dụng</Button>
-          </Link>
+          {focus ? (
+            <p className="mt-3 text-slate-600">Không có buổi đã lên lịch trong mục này hôm nay.</p>
+          ) : (
+            <>
+              <p className="mt-3 text-slate-600">Chưa có lịch phỏng vấn trong khoảng này.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Mở Kanban tin tuyển dụng → chọn ứng viên → Đặt lịch PV.
+              </p>
+              <Link href="/jobs/manage" className="mt-4 inline-block">
+                <Button>Quản lý tin tuyển dụng</Button>
+              </Link>
+            </>
+          )}
         </Card>
       )}
 
@@ -207,17 +280,28 @@ function StatCard({
   label,
   value,
   hint,
+  active,
+  onClick,
 }: {
   label: string;
   value: number;
   hint: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className="brand-panel p-4">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`brand-panel w-full p-4 text-left transition hover:border-accent-300 ${
+        active ? 'ring-2 ring-brand-600' : ''
+      }`}
+    >
       <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-extrabold text-slate-900">{value}</p>
       <p className="mt-1 text-[11px] font-medium text-accent-600">{hint}</p>
-    </div>
+    </button>
   );
 }
 

@@ -205,25 +205,41 @@ export class InterviewService {
 
   async listForCompany(
     user: AuthenticatedUser,
-    params: { from?: string; to?: string; jobId?: string; status?: string },
+    params: {
+      from?: string;
+      to?: string;
+      jobId?: string;
+      status?: string;
+      type?: string;
+      scope?: string;
+    },
   ): Promise<InterviewView[]> {
     const company = await this.companies.requireUserCompany(user.id);
-    const from = params.from ? new Date(params.from) : startOfDay(new Date());
-    const to = params.to
-      ? new Date(params.to)
-      : (() => {
-          const d = new Date(from);
-          d.setDate(d.getDate() + 14);
-          return d;
-        })();
+    const today = params.scope === 'today';
+    const from = today ? startOfDay(new Date()) : params.from ? new Date(params.from) : startOfDay(new Date());
+    const to = today
+      ? endOfDay(new Date())
+      : params.to
+        ? new Date(params.to)
+        : (() => {
+            const d = new Date(from);
+            d.setDate(d.getDate() + 14);
+            return d;
+          })();
+    const type = isInterviewType(params.type) ? params.type : undefined;
 
     const rows = await this.prisma.interview.findMany({
       where: {
         isDeleted: false,
         job: { companyId: company.companyId },
         scheduledAt: { gte: from, lte: to },
-        ...(params.jobId ? { jobId: params.jobId } : {}),
-        ...(params.status ? { status: params.status } : {}),
+        ...(params.jobId && !today ? { jobId: params.jobId } : {}),
+        ...(today
+          ? { status: InterviewStatus.Scheduled }
+          : params.status
+            ? { status: params.status }
+            : {}),
+        ...(type ? { type } : {}),
       },
       orderBy: { scheduledAt: 'asc' },
       include: {
@@ -421,6 +437,10 @@ function interviewTypeLabel(type: InterviewType | string): string {
     default:
       return 'khác';
   }
+}
+
+function isInterviewType(value: string | undefined): value is InterviewType {
+  return value === InterviewType.Hr || value === InterviewType.Technical || value === InterviewType.Other;
 }
 
 function startOfDay(d: Date): Date {

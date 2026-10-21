@@ -247,6 +247,27 @@ describe('InterviewService', () => {
     });
   });
 
+  describe('listForCompany', () => {
+    it('scope today lấy đúng buổi đã lên lịch trong ngày, bỏ lọc tin', async () => {
+      const findMany = jest.fn().mockResolvedValue([]);
+      const service = buildService({ interview: { findMany } });
+
+      await service.listForCompany(recruiter, {
+        scope: 'today',
+        type: InterviewType.Hr,
+        jobId: 'job-x',
+      });
+
+      const where = findMany.mock.calls[0][0].where;
+      expect(where.status).toBe(InterviewStatus.Scheduled);
+      expect(where.type).toBe(InterviewType.Hr);
+      expect(where.jobId).toBeUndefined();
+      expect(where.scheduledAt.gte.getHours()).toBe(0);
+      expect(where.scheduledAt.gte.getMinutes()).toBe(0);
+      expect(where.scheduledAt.lte.getHours()).toBe(23);
+    });
+  });
+
   describe('statsForCompany', () => {
     it('tính đúng số buổi hôm nay theo loại', async () => {
       const now = new Date();

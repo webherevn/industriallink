@@ -37,14 +37,18 @@ export class InterviewController {
   @ApiQuery({ name: 'to', required: false })
   @ApiQuery({ name: 'jobId', required: false })
   @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'type', required: false })
+  @ApiQuery({ name: 'scope', required: false, description: 'today = đúng tập buổi đã lên lịch hôm nay' })
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('jobId') jobId?: string,
     @Query('status') status?: string,
+    @Query('type') type?: string,
+    @Query('scope') scope?: string,
   ) {
-    return this.interviews.listForCompany(user, { from, to, jobId, status });
+    return this.interviews.listForCompany(user, { from, to, jobId, status, type, scope });
   }
 
   @Get('stats')
