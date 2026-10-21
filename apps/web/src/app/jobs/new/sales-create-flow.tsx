@@ -5,14 +5,12 @@ import clsx from 'clsx';
 import {
   AlertCircle,
   Check,
-  FileUp,
   Loader2,
-  Upload,
   Wand2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   DEAL_TYPE_LABEL,
   JD_SALES_TOTAL_FIELDS,
@@ -22,6 +20,7 @@ import {
 } from '@industriallink/contracts';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { AppShell } from '@/components/app-shell';
+import { JdFileDrop } from '@/components/jd-file-drop';
 import { JdSalesForm } from '@/components/jd-sales-form';
 import { JobTrackToggle } from '@/components/job-track-toggle';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
@@ -36,9 +35,6 @@ import {
   type JdSalesFormState,
 } from '@/lib/jd-sales-form';
 import { createJob, parseJobFromFile, parseJobFromText } from '@/lib/jobs';
-
-const JD_UPLOAD_ACCEPT =
-  '.pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
 
 const STEPS = [
   { id: 1, label: 'Nguồn JD' },
@@ -66,7 +62,6 @@ export function JdSalesCreateFlow({
   onSwitchTrack: (track: JobTrack) => void;
 }) {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<JdSalesFormState>(emptyJdSalesForm);
   const [text, setText] = useState('');
@@ -192,52 +187,16 @@ export function JdSalesCreateFlow({
         <div className="min-w-0">
           {step === 1 && (
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={JD_UPLOAD_ACCEPT}
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) fileMutation.mutate(file);
-                  e.target.value = '';
+              <JdFileDrop
+                busy={busy}
+                pending={fileMutation.isPending}
+                uploadedName={uploadedName}
+                onFile={(file) => {
+                  setParseError(null);
+                  fileMutation.mutate(file);
                 }}
+                onReject={setParseError}
               />
-
-              <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600 shadow-sm ring-1 ring-brand-100">
-                      <FileUp className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-slate-900">Upload file JD</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        PDF, DOC, DOCX hoặc TXT · tối đa 5MB. AI chỉ điền mục có căn cứ trong file.
-                      </p>
-                      {uploadedName && (
-                        <p className="mt-1.5 flex items-center gap-1.5 truncate text-xs font-medium text-brand-700">
-                          <Upload className="h-3.5 w-3.5 shrink-0" />
-                          {uploadedName}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-50"
-                  >
-                    {fileMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    {fileMutation.isPending ? 'Đang đọc JD…' : 'Chọn file'}
-                  </button>
-                </div>
-              </div>
 
               <div className="relative my-2">
                 <div className="absolute inset-0 flex items-center" aria-hidden>
