@@ -159,12 +159,23 @@ async function urlToDataUrl(url: string): Promise<string | null> {
 
 const CV_UPLOAD_ACCEPT =
   '.pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
+const CV_MAX_BYTES = 5 * 1024 * 1024;
+const CV_FILE_EXT = new Set(['pdf', 'doc', 'docx', 'txt']);
+
+function cvFileReject(file: File): string | null {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  if (!CV_FILE_EXT.has(ext)) return 'Chỉ nhận file PDF, DOC, DOCX hoặc TXT.';
+  if (file.size > CV_MAX_BYTES) return 'File CV quá lớn. Hãy dùng file dưới 5MB.';
+  return null;
+}
 
 export default function CreateCvPage() {
   const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
   const [rawText, setRawText] = useState('');
   const [uploadedName, setUploadedName] = useState<string | null>(null);
+  const [fileHint, setFileHint] = useState<string | null>(null);
+  const [fileOver, setFileOver] = useState(false);
   const [analyzed, setAnalyzed] = useState(false);
   const [fields, setFields] = useState<CvDraftFieldHint[]>([]);
   const [analyzeMessage, setAnalyzeMessage] = useState<string | null>(null);
@@ -382,6 +393,12 @@ export default function CreateCvPage() {
 
   function onPickFile(file: File | undefined) {
     if (!file || analyzing) return;
+    const reason = cvFileReject(file);
+    if (reason) {
+      setFileHint(reason);
+      return;
+    }
+    setFileHint(null);
     analyzeMutation.reset();
     setUploadedName(file.name);
     uploadMutation.mutate(file);
@@ -407,6 +424,7 @@ export default function CreateCvPage() {
 
   function clearUpload() {
     setUploadedName(null);
+    setFileHint(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -539,17 +557,44 @@ export default function CreateCvPage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-4">
+                <div
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    if (!analyzing) setFileOver(true);
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!analyzing) setFileOver(true);
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault();
+                    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+                    setFileOver(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setFileOver(false);
+                    onPickFile(event.dataTransfer.files?.[0]);
+                  }}
+                  className={clsx(
+                    'rounded-xl border border-dashed px-4 py-4 transition',
+                    fileOver
+                      ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
+                      : 'border-brand-200 bg-brand-50/40',
+                  )}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600 shadow-sm ring-1 ring-brand-100">
                         <FileUp className="h-5 w-5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-900">Upload CV của bạn</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {fileOver ? 'Thả file để AI đọc CV' : 'Upload CV của bạn'}
+                        </p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          PDF, DOC, DOCX hoặc TXT · tối đa 5MB. AI đọc CV rồi ghép với hồ sơ đã
-                          có trên nền tảng để tạo bản CV hoàn chỉnh hơn.
+                          Kéo file vào đây hoặc bấm Chọn file CV. PDF, DOC, DOCX, TXT · tối đa 5MB.
+                          AI đọc CV rồi ghép với hồ sơ đã có trên nền tảng.
                         </p>
                         {uploadedName && (
                           <p className="mt-1.5 flex items-center gap-1.5 truncate text-xs font-medium text-brand-700">
@@ -583,6 +628,7 @@ export default function CreateCvPage() {
                       {uploadMutation.isPending ? 'Đang phân tích CV…' : 'Chọn file CV'}
                     </button>
                   </div>
+                  {fileHint && <p className="mt-3 text-sm text-rose-600">{fileHint}</p>}
                 </div>
 
                 <div className="relative my-4">
