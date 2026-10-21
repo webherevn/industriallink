@@ -7,6 +7,8 @@ import {
 import {
   ApplicationStatus,
   DomainEvents,
+  InterviewStatus,
+  InterviewType,
   JobStatus,
   type ApplicantView,
   type ApplicationDetailView,
@@ -232,6 +234,7 @@ export class ApplicationService {
       include: {
         job: { include: { skills: true } },
         candidate: { include: { profile: true, skills: true } },
+        interviews: interviewInclude,
       },
     });
 
@@ -252,6 +255,7 @@ export class ApplicationService {
         matchedSkills: matched,
         coverLetter: a.coverLetter,
         createdAt: a.createdAt.toISOString(),
+        interviews: interviewMarks(a.interviews),
         jobId: a.jobId,
         jobTitle: a.job.title,
       };
@@ -377,7 +381,10 @@ export class ApplicationService {
     const applications = await this.prisma.application.findMany({
       where: { jobId, isDeleted: false },
       orderBy: [{ matchScore: 'desc' }, { createdAt: 'asc' }],
-      include: { candidate: { include: { profile: true, skills: true } } },
+      include: {
+        candidate: { include: { profile: true, skills: true } },
+        interviews: interviewInclude,
+      },
     });
 
     return applications.map((a) => {
@@ -396,6 +403,7 @@ export class ApplicationService {
         matchedSkills: matched,
         coverLetter: a.coverLetter,
         createdAt: a.createdAt.toISOString(),
+        interviews: interviewMarks(a.interviews),
       };
     });
   }
@@ -610,4 +618,22 @@ function computeTimeToHireStats(
 
 function average(values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+const interviewInclude = {
+  where: { isDeleted: false },
+  orderBy: { scheduledAt: 'desc' as const },
+  select: { type: true, status: true, scheduledAt: true },
+};
+
+function interviewMarks(
+  rows: { type: string; status: string; scheduledAt: Date }[],
+): ApplicantView['interviews'] {
+  return rows
+    .filter((row) => row.status !== InterviewStatus.Cancelled)
+    .map((row) => ({
+      type: row.type as InterviewType,
+      status: row.status as InterviewStatus,
+      scheduledAt: row.scheduledAt.toISOString(),
+    }));
 }

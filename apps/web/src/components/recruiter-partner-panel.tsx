@@ -6,7 +6,7 @@ import { Check, Copy, Link2 } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 import type { CrmCommissionEntryView, CrmReferralSignupView, CrmWalletTxnView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, Input } from '@/components/ui';
 import { errorText, formatVnd, formatWhen, matchesQuery } from '@/components/crm/format';
 import { createMyPartnerClaim, fetchMyPartner, registerMyPartner } from '@/lib/crm';
 
@@ -68,8 +68,7 @@ export function RecruiterPartnerPanel() {
               Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã. Không tạo mã thứ hai cho tài khoản này.
             </p>
             <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:max-w-xl sm:flex-row">
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+              <Input
                 placeholder="Số điện thoại"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
@@ -123,10 +122,10 @@ export function RecruiterPartnerPanel() {
                   Bảng giá
                 </label>
                 <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                  <input
+                  <Input
                     id="referral-link"
                     readOnly
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700"
+                    className="border-slate-200 bg-slate-50 text-slate-700"
                     value={partner.referralUrl}
                   />
                   <Button type="button" variant="outline" onClick={() => void copyLink(partner.referralUrl)}>
@@ -235,8 +234,8 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
               </button>
             ))}
           </div>
-          <input
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm sm:w-56"
+          <Input
+            className="border-slate-200 sm:w-56"
             placeholder="Tìm công ty, gói, hóa đơn"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -387,9 +386,9 @@ function TaxLock({
         <p className="mt-3 text-sm text-slate-400">Chưa khóa mã số thuế nào.</p>
       )}
       <form onSubmit={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-4">
-        <input className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Tên công ty" value={companyName} maxLength={160} onChange={(event) => setCompanyName(event.target.value)} required />
-        <input className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} required />
-        <input className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Số điện thoại" value={phone} onChange={(event) => setPhone(event.target.value)} required />
+        <Input placeholder="Tên công ty" value={companyName} maxLength={160} onChange={(event) => setCompanyName(event.target.value)} required />
+        <Input placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} required />
+        <Input placeholder="Số điện thoại" value={phone} onChange={(event) => setPhone(event.target.value)} required />
         <Button type="submit" disabled={add.isPending}>
           {add.isPending ? 'Đang khóa…' : 'Khóa mã số thuế'}
         </Button>

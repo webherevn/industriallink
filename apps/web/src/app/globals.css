@@ -60,6 +60,15 @@ body {
   border-radius: 1rem;
 }
 
+.il-date {
+  color-scheme: light;
+}
+.il-date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+  border-radius: 4px;
+}
+
 /* Trợ lý AI — robot animated (GIF-like) */
 @keyframes copilot-float {
   0%,

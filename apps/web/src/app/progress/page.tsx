@@ -44,7 +44,7 @@ import { PaginationBar } from '@/components/pagination-bar';
 import { fetchMe, logout } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
-import { APPLICATION_STATUS_LABEL, formatSalary, formatVndAmount } from '@/lib/format';
+import { APPLICATION_STATUS_LABEL, formatSalary, formatVndAmount, INTERVIEW_TYPE_LABEL } from '@/lib/format';
 import { listMyInterviews } from '@/lib/interviews';
 import { listMyOffers, respondToOffer } from '@/lib/offers';
 import { listMyOnboardings } from '@/lib/onboarding';
@@ -1099,6 +1099,9 @@ function UpcomingInterviewCard({ interview }: { interview: InterviewView }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-slate-900">{interview.jobTitle}</p>
+          <p className="text-[11px] font-semibold text-violet-800">
+            {INTERVIEW_TYPE_LABEL[interview.type] ?? interview.type}
+          </p>
           <p className="truncate text-xs text-slate-500">{interview.companyName}</p>
           <p className="mt-1.5 text-xs font-semibold text-slate-700">
             {formatTimeRange(interview.scheduledAt, interview.durationMinutes)}

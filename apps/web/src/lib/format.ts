@@ -63,9 +63,15 @@ export const EXPERIENCE_LABEL: Record<ExperienceBand, string> = {
 
 export const INTERVIEW_TYPE_LABEL: Record<string, string> = {
   hr: 'Phỏng vấn HR',
-  technical: 'PV Chuyên môn',
+  technical: 'Phỏng vấn chuyên môn',
   other: 'Phỏng vấn khác',
 };
+
+export function interviewMarkText(mark: { type: string; status: string }): string {
+  const kind = INTERVIEW_TYPE_LABEL[mark.type] ?? mark.type;
+  const state = INTERVIEW_STATUS_LABEL[mark.status] ?? mark.status;
+  return `${kind} · ${state}`;
+}
 
 export const INTERVIEW_STATUS_LABEL: Record<string, string> = {
   scheduled: 'Đã lên lịch',

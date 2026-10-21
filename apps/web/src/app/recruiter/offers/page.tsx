@@ -74,31 +74,39 @@ export default function RecruiterOffersPage() {
         </Link>
       </div>
 
-      <div className="brand-panel mt-5 flex flex-wrap gap-3 p-3.5">
-        <Select
-          value={jobId}
-          onChange={(e) => setJobId(e.target.value)}
-          className="max-w-[240px] border-accent-200 bg-white py-2 text-sm"
-        >
-          <option value="all">Tất cả tin</option>
-          {(jobs ?? []).map((j) => (
-            <option key={j.id} value={j.id}>
-              {j.title}
-            </option>
-          ))}
-        </Select>
-        <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="max-w-[180px] border-accent-200 bg-white py-2 text-sm"
-        >
-          <option value="all">Mọi trạng thái</option>
-          {Object.values(OfferStatus).map((s) => (
-            <option key={s} value={s}>
-              {OFFER_STATUS_LABEL[s]}
-            </option>
-          ))}
-        </Select>
+      <div className="brand-panel mt-5 grid gap-3 p-3 sm:grid-cols-2 lg:max-w-3xl">
+        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
+          Tin tuyển dụng
+          <Select
+            value={jobId}
+            onChange={(e) => setJobId(e.target.value)}
+            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
+            size="sm"
+          >
+            <option value="all">Tất cả tin</option>
+            {(jobs ?? []).map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
+          Trạng thái đề nghị
+          <Select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
+            size="sm"
+          >
+            <option value="all">Mọi trạng thái</option>
+            {Object.values(OfferStatus).map((s) => (
+              <option key={s} value={s}>
+                {OFFER_STATUS_LABEL[s]}
+              </option>
+            ))}
+          </Select>
+        </label>
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Đang tải...</p>}

@@ -1,4 +1,4 @@
-import { ApplicationStatus } from './enums';
+import { ApplicationStatus, InterviewStatus, InterviewType } from './enums';
 
 export interface ApplyJobRequest {
   coverLetter?: string;
@@ -38,6 +38,15 @@ export interface ApplicantView {
   matchedSkills: string[];
   coverLetter: string | null;
   createdAt: string;
+  /** Lịch còn hiệu lực. HR và chuyên môn là loại lịch, không phải bước hồ sơ. */
+  interviews: ApplicantInterviewMark[];
+}
+
+/** Một buổi phỏng vấn gắn trên hồ sơ, đủ để hiện loại HR hoặc chuyên môn. */
+export interface ApplicantInterviewMark {
+  type: InterviewType;
+  status: InterviewStatus;
+  scheduledAt: string;
 }
 
 /** Ứng viên trong inbox toàn công ty (kèm tin tuyển dụng). */

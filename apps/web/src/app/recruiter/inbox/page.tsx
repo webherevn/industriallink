@@ -22,7 +22,7 @@ import {
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Badge, Button, Input } from '@/components/ui';
-import { APPLICATION_STATUS_LABEL, statusTone } from '@/lib/format';
+import { APPLICATION_STATUS_LABEL, interviewMarkText, statusTone } from '@/lib/format';
 import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 import { listInbox } from '@/lib/recruiter';
 
@@ -258,6 +258,11 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
                 {a.displayName}
               </h2>
               <Badge tone={statusTone(a.status)}>{APPLICATION_STATUS_LABEL[a.status]}</Badge>
+              {a.interviews.map((mark, index) => (
+                <Badge key={`${mark.type}-${mark.scheduledAt}-${index}`} tone="amber">
+                  {interviewMarkText(mark)}
+                </Badge>
+              ))}
               {a.matchScore != null && a.matchScore >= 60 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                   <Sparkles className="h-3 w-3" /> Ưu tiên

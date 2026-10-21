@@ -19,7 +19,7 @@ import {
   type SourcingQuotaKind,
 } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { listMyJobs } from '@/lib/jobs';
 import { consumeRecruiterSourcing, fetchRecruiterSourcing } from '@/lib/recruiter-billing';
@@ -151,16 +151,17 @@ export function RecruiterSourcingWorkspace() {
                 <p className="mt-1 text-sm text-slate-500">
                   Trừ 1 lượt vị trí theo hạn SuperAdmin ({fmtQuota(e!.positionsUsed, e!.positionQuota, e!.positionsRemaining)}).
                 </p>
-                <input
-                  className="mt-3 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                <Input
+                  className="mt-3 border-slate-200"
                   placeholder="Tên vị trí cần Săn"
                   value={title}
                   onChange={(ev) => setTitle(ev.target.value)}
                 />
-                <select
-                  className="mt-2 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                <Select
+                  className="mt-2 border-slate-200"
                   value={jobId}
                   onChange={(ev) => setJobId(ev.target.value)}
+                  size="sm"
                 >
                   <option value="">Không gắn tin đăng</option>
                   {(jobs ?? []).map((j) => (
@@ -168,7 +169,7 @@ export function RecruiterSourcingWorkspace() {
                       {j.title}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <Button
                   className="mt-3 w-full"
                   disabled={consume.isPending || (e!.positionsRemaining !== null && e!.positionsRemaining <= 0)}

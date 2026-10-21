@@ -136,7 +136,7 @@ export default function ApplicantsPage() {
           {applicants && applicants.length > 0 && (
             <>
               <p className="mb-3 text-sm text-slate-500">
-                Kéo thẻ theo bước Ứng tuyển, Sàng lọc, Phỏng vấn, Đề nghị. Kéo sang cột nhận việc sẽ mở phiếu ngày nhận việc, không đổi trạng thái trước khi lưu.
+                Cột Phỏng vấn là một bước hồ sơ. Kéo vào cột đó để chọn Phỏng vấn HR hoặc Phỏng vấn chuyên môn rồi lưu lịch. Kéo sang cột nhận việc mở phiếu ngày nhận việc.
               </p>
               <KanbanBoard
                 applicants={applicants}

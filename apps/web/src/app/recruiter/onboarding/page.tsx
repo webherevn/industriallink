@@ -47,8 +47,13 @@ export default function RecruiterOnboardingPage() {
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Nhận việc</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            <span className="brand-accent-dot" />
+            Tuyển dụng
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Nhận việc</h1>
+          <div className="brand-accent-bar mt-2" />
+          <p className="mt-2 text-sm text-slate-500">
             Theo dõi ngày nhận việc, checklist và email chào mừng nhân viên mới.
           </p>
         </div>
@@ -57,31 +62,39 @@ export default function RecruiterOnboardingPage() {
         </Link>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <Select
-          value={jobId}
-          onChange={(e) => setJobId(e.target.value)}
-          className="max-w-[240px] py-2 text-sm"
-        >
-          <option value="all">Tất cả tin</option>
-          {(jobs ?? []).map((j) => (
-            <option key={j.id} value={j.id}>
-              {j.title}
-            </option>
-          ))}
-        </Select>
-        <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="max-w-[180px] py-2 text-sm"
-        >
-          <option value="all">Mọi trạng thái</option>
-          {Object.values(OnboardingStatus).map((s) => (
-            <option key={s} value={s}>
-              {ONBOARDING_STATUS_LABEL[s]}
-            </option>
-          ))}
-        </Select>
+      <div className="brand-panel mt-5 grid gap-3 p-3 sm:grid-cols-2 lg:max-w-3xl">
+        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
+          Tin tuyển dụng
+          <Select
+            value={jobId}
+            onChange={(e) => setJobId(e.target.value)}
+            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
+            size="sm"
+          >
+            <option value="all">Tất cả tin</option>
+            {(jobs ?? []).map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
+          Trạng thái nhận việc
+          <Select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
+            size="sm"
+          >
+            <option value="all">Mọi trạng thái</option>
+            {Object.values(OnboardingStatus).map((s) => (
+              <option key={s} value={s}>
+                {ONBOARDING_STATUS_LABEL[s]}
+              </option>
+            ))}
+          </Select>
+        </label>
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Đang tải...</p>}

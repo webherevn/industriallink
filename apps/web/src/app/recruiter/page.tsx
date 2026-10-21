@@ -39,6 +39,7 @@ import { askCopilot } from '@/lib/copilot';
 import { getInterviewStats } from '@/lib/interviews';
 import { listMyJobs } from '@/lib/jobs';
 import { getWorkspaceSummary, listInbox } from '@/lib/recruiter';
+import { interviewMarkText } from '@/lib/format';
 import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
 type PipelineKey = 'applied' | 'screening' | 'interview' | 'offer' | 'hired';
@@ -492,10 +493,12 @@ export default function RecruiterDashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-[15px] font-semibold text-slate-900">Quy trình tuyển dụng</h3>
             <div className="flex items-center gap-3">
+              <div className="w-full max-w-[220px]">
               <Select
                 value={jobFilter}
                 onChange={(e) => setJobFilter(e.target.value)}
-                className="max-w-[200px] rounded-xl border-slate-200 bg-[#F8FAFC] py-2 text-[13px]"
+                className="rounded-xl border-slate-200 bg-[#F8FAFC] text-[13px]"
+                size="sm"
               >
                 <option value="all">Tất cả tin đang mở</option>
                 {(jobs ?? [])
@@ -506,6 +509,7 @@ export default function RecruiterDashboardPage() {
                     </option>
                   ))}
               </Select>
+              </div>
               <Link
                 href="/jobs/manage"
                 className="text-[13px] font-medium text-[#2563EB] hover:underline"
@@ -563,9 +567,17 @@ export default function RecruiterDashboardPage() {
 
           <div className="mt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[13px] font-semibold text-slate-800">
-                {activeStage.label} · {stageApplicants.length} hồ sơ
-              </p>
+              <div>
+                <p className="text-[13px] font-semibold text-slate-800">
+                  {activeStage.label} · {stageApplicants.length} hồ sơ
+                </p>
+                {pipelineActive === 'interview' && (
+                  <p className="text-[12px] text-slate-500">
+                    Lịch HR {countInterviewKind(stageApplicants, 'hr')} · Lịch chuyên môn{' '}
+                    {countInterviewKind(stageApplicants, 'technical')}
+                  </p>
+                )}
+              </div>
               {pipelineActive === 'hired' ? (
                 <Link href="/recruiter/onboarding" className="text-[12px] font-semibold text-[#2563EB] hover:underline">
                   Mở danh sách nhận việc
@@ -587,6 +599,13 @@ export default function RecruiterDashboardPage() {
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-semibold text-slate-900">{row.displayName}</p>
                       <p className="truncate text-[12px] text-slate-500">{row.jobTitle}</p>
+                      {pipelineActive === 'interview' && (
+                        <p className="truncate text-[12px] text-violet-800">
+                          {row.interviews.length > 0
+                            ? row.interviews.map((mark) => interviewMarkText(mark)).join(' · ')
+                            : 'Chưa đặt lịch HR hay chuyên môn'}
+                        </p>
+                      )}
                     </div>
                     <Link href={`/jobs/${row.jobId}/applicants`} className="shrink-0 text-[12px] font-semibold text-[#2563EB] hover:underline">
                       Mở quy trình
@@ -714,6 +733,16 @@ export default function RecruiterDashboardPage() {
 }
 
 /** Path chevron pipeline (viewBox 140×72): đầu phẳng, giữa + cuối có khía mũi tên. */
+function countInterviewKind(
+  rows: { interviews: { type: string }[] }[],
+  type: 'hr' | 'technical',
+): number {
+  return rows.reduce(
+    (sum, row) => sum + row.interviews.filter((mark) => mark.type === type).length,
+    0,
+  );
+}
+
 function chevronPath(index: number, total: number): string {
   const tip = 18;
   if (index === 0) {

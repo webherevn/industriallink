@@ -62,11 +62,13 @@ function inputClasses(size: FieldSize = 'md', extra?: string) {
 }
 
 export const Input = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & { size?: FieldSize }>(
-  function Input({ className, size = 'md', ...props }, ref) {
+  function Input({ className, size = 'md', type, ...props }, ref) {
+    const dateLike = type === 'date' || type === 'datetime-local' || type === 'time';
     return (
       <input
         ref={ref}
-        className={inputClasses(size, className)}
+        type={type}
+        className={inputClasses(size, clsx(dateLike && 'il-date', className))}
         {...props}
       />
     );
@@ -513,15 +515,18 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
 export const Select = forwardRef<HTMLSelectElement, Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { size?: FieldSize }>(
   function Select({ className, size = 'md', ...props }, ref) {
     return (
-      <select
-        ref={ref}
-        className={clsx(
-          'w-full appearance-none rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
-          selectSizeClassName[size as FieldSize],
-          className,
-        )}
-        {...props}
-      />
+      <div className="relative min-w-0 w-full">
+        <select
+          ref={ref}
+          className={clsx(
+            'w-full appearance-none rounded-lg border border-slate-300 bg-white outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',
+            selectSizeClassName[size as FieldSize],
+            className,
+          )}
+          {...props}
+        />
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      </div>
     );
   },
 );

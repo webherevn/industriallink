@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ApplicationStatus, type ApplicantView, formatJobTitle } from '@industriallink/contracts';
 import { Badge } from '@/components/ui';
-import { APPLICATION_STATUS_LABEL, PIPELINE_STEPS, statusTone } from '@/lib/format';
+import { APPLICATION_STATUS_LABEL, interviewMarkText, PIPELINE_STEPS, statusTone } from '@/lib/format';
 import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 
 /** Các cột hiển thị trên bảng: các bước pipeline + cột Từ chối. */
@@ -33,6 +33,10 @@ export function KanbanBoard({
     setOverColumn(null);
     setDraggingId(null);
     if (!card || card.status === target) return;
+    if (target === ApplicationStatus.Interview) {
+      onSchedule?.(card.applicationId, card.displayName);
+      return;
+    }
     if (target === ApplicationStatus.Hired) {
       onOnboard?.(card.applicationId, card.displayName);
       return;
@@ -67,6 +71,11 @@ export function KanbanBoard({
               </span>
               <Badge tone={statusTone(status)}>{cards.length}</Badge>
             </div>
+            {status === ApplicationStatus.Interview && (
+              <p className="mb-2 px-1 text-[11px] leading-snug text-slate-500">
+                HR và chuyên môn là loại lịch trong bước này.
+              </p>
+            )}
 
             <div className="flex min-h-24 flex-col gap-2">
               {cards.map((a) => (
@@ -96,6 +105,23 @@ export function KanbanBoard({
                       ? formatJobTitle(a.currentPosition)
                       : 'Chưa rõ vị trí'}
                   </p>
+                  {a.interviews.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {a.interviews.map((mark, index) => (
+                        <li
+                          key={`${mark.type}-${mark.scheduledAt}-${index}`}
+                          className="text-[11px] font-medium text-violet-800"
+                        >
+                          {interviewMarkText(mark)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {a.status === ApplicationStatus.Interview && a.interviews.length === 0 && (
+                    <p className="mt-2 text-[11px] font-medium text-amber-700">
+                      Chưa đặt lịch HR hay chuyên môn
+                    </p>
+                  )}
                   {a.matchedSkills.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {a.matchedSkills.slice(0, 4).map((s) => (
@@ -168,7 +194,9 @@ export function KanbanBoard({
 
               {cards.length === 0 && (
                 <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-xs text-slate-400">
-                  Kéo thẻ vào đây
+                  {status === ApplicationStatus.Interview
+                    ? 'Kéo vào đây để chọn HR hoặc chuyên môn'
+                    : 'Kéo thẻ vào đây'}
                 </p>
               )}
             </div>

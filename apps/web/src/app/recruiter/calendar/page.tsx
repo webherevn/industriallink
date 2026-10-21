@@ -127,22 +127,27 @@ export default function RecruiterCalendarPage() {
         />
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div className="brand-panel flex flex-wrap items-center gap-3 p-2.5">
+      <div className="brand-panel mt-5 grid gap-3 p-3 sm:grid-cols-2 lg:max-w-3xl lg:grid-cols-[220px_minmax(0,1fr)]">
+        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
+          Khoảng thời gian
           <Select
             value={String(range)}
             onChange={(e) => setRange(Number(e.target.value))}
-            className="max-w-[160px] border-0 bg-transparent py-2 text-sm shadow-none"
+            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
+            size="sm"
           >
             <option value="7">7 ngày tới</option>
             <option value="14">14 ngày tới</option>
             <option value="30">30 ngày tới</option>
           </Select>
-          <span className="hidden h-5 w-px bg-accent-200 sm:block" aria-hidden />
+        </label>
+        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
+          Tin tuyển dụng
           <Select
             value={jobId}
             onChange={(e) => setJobId(e.target.value)}
-            className="max-w-[240px] border-0 bg-transparent py-2 text-sm shadow-none"
+            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
+            size="sm"
           >
             <option value="all">Tất cả tin tuyển dụng</option>
             {(jobs ?? []).map((j) => (
@@ -151,7 +156,7 @@ export default function RecruiterCalendarPage() {
               </option>
             ))}
           </Select>
-        </div>
+        </label>
       </div>
 
       {isLoading && <p className="mt-6 text-slate-500">Đang tải lịch...</p>}
