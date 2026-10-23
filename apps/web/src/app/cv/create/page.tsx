@@ -44,6 +44,7 @@ import { CvPreview } from '@/components/cv-preview';
 import { CvTechnicalFields } from '@/components/cv-technical-fields';
 import { CvTechnicalExperienceFields } from '@/components/cv-technical-experience-fields';
 import { CvTrackToggle } from '@/components/cv-track-toggle';
+import { CvFormAccordion, useCvSectionProps } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
@@ -170,7 +171,16 @@ function cvFileReject(file: File): string | null {
 }
 
 export default function CreateCvPage() {
+  return (
+    <CvFormAccordion>
+      <CreateCvEditor />
+    </CvFormAccordion>
+  );
+}
+
+function CreateCvEditor() {
   const queryClient = useQueryClient();
+  const sectionA = useCvSectionProps('A');
   const [step, setStep] = useState(1);
   const [rawText, setRawText] = useState('');
   const [uploadedName, setUploadedName] = useState<string | null>(null);
@@ -818,6 +828,7 @@ export default function CreateCvPage() {
                   <MatrixSection
                     title="A. Thông tin chung (1–12)"
                     subtitle="Phần chung cho cả hồ sơ Kỹ thuật và Kinh doanh — sau đó chọn lĩnh vực bên dưới."
+                    {...sectionA}
                   >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field

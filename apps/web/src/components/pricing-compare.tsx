@@ -45,7 +45,8 @@ function platformPriceText(plan: BillingPlatformPlanView, currency: BillingCurre
   } catch {
     return 'Báo giá';
   }
-  return formatPriceVnd(plan.priceVnd, currency);
+  const payable = plan.promoPercent && plan.promoPriceVnd ? plan.promoPriceVnd : plan.priceVnd;
+  return formatPriceVnd(payable, currency);
 }
 
 function hasPaidPrice(plan: BillingPlatformPlanView): boolean {
@@ -243,7 +244,10 @@ function buildSourcingRows(
     },
     {
       label: 'Phí / vị trí',
-      cells: plans.map((p) => ({ kind: 'text', text: formatPriceVnd(p.feeVnd, currency) })),
+      cells: plans.map((p) => ({
+        kind: 'text',
+        text: formatPriceVnd(p.promoPercent && p.promoPriceVnd ? p.promoPriceVnd : p.feeVnd, currency),
+      })),
     },
     ...SOURCING_PITCH.map(({ scope, label }) => ({
       label,
@@ -349,7 +353,7 @@ function buildCreditRows(
 
 function platformInsight(plans: BillingPlatformPlanView[]): string {
   const trial = plans.find((p) => !hasPaidPrice(p) && !isEnterprisePlan(p));
-  const unlock = plans.filter((p) => planHasAction(p, 'view_profile'));
+  const unlock = plans.filter((p) => planHasAction(p, 'view_profile') && (p.creditQuota ?? 0) > 0);
   const unlimitedJd = plans.filter((p) => p.jobPostQuota == null && !isEnterprisePlan(p));
   const bits: string[] = [];
   if (trial) {

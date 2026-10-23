@@ -433,7 +433,7 @@ function EditModal({
           </Field>
           <Field
             label="Số ngày hiển thị tin"
-            description="Tin đăng hết hạn sau N ngày. Gói Khám phá: chu kỳ gói luôn 30 ngày — số này chỉ là hạn hiển thị tin, không phải hạn gói."
+            description="Số ngày tin được hiển thị. Gói Khám phá dùng cùng số này làm chu kỳ gói."
           >
             <Input
               type="number"

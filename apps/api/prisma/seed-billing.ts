@@ -28,26 +28,27 @@ const PLATFORM_PLANS = [
   {
     code: 'KHAM_PHA',
     name: 'Khám phá',
-    description: 'Trải nghiệm miễn phí AI Matching: 1 JD hiển thị 14 ngày, chu kỳ gói 30 ngày.',
+    description: 'Dùng thử 14 ngày, tối đa 1 tin. Không tự chuyển sang gói trả phí.',
     priceVnd: 0n,
     billingUnit: 'per_jd',
-    durationDays: 30,
+    durationDays: 14,
     jobPostQuota: 1,
     creditQuota: 0,
     sortOrder: 1,
     isFeatured: false,
     features: [
-      'AI phân tích JD',
-      'Tổng số Matching & phân bố %',
-      'Giới hạn xem hồ sơ cơ bản',
-      'Không mở danh tính/CV đầy đủ',
+      'Phân tích JD bằng AI',
+      'Sửa tiêu chí không giới hạn trong 14 ngày',
+      'Xem tổng số và phân bổ mức phù hợp',
+      'Xem trước hồ sơ giới hạn, không mở danh tính',
+      '0 lượt mở hồ sơ tiềm năng',
     ],
   },
   {
     code: 'TIN_DANG',
     name: 'Tin đăng',
-    description: 'Tự tuyển dụng với quyền quản lý ứng viên & mở hồ sơ tiềm năng.',
-    priceVnd: BigInt(49 * VND_PER_USD), // 1,225,000
+    description: '1 tin trong 30 ngày, 10 lượt mở hồ sơ tiềm năng.',
+    priceVnd: 3_990_000n,
     billingUnit: 'per_jd',
     durationDays: 30,
     jobPostQuota: 1,
@@ -55,54 +56,52 @@ const PLATFORM_PLANS = [
     sortOrder: 2,
     isFeatured: true,
     features: [
-      'Tất cả quyền của Khám phá',
-      'Ứng viên ứng tuyển tự động đổ về',
-      'Matching cá nhân theo JD',
-      'Quản lý ứng viên trong 1 JD',
+      '1 tin đăng trong 30 ngày',
       '10 lượt mở hồ sơ tiềm năng',
+      'Hồ sơ ứng tuyển và tổng Matching không tốn lượt',
+      'Mở lại hồ sơ đã xem không tốn thêm lượt',
     ],
   },
   {
     code: 'TIN_DANG_PLUS',
     name: 'Tin đăng Plus',
-    description: 'Hạn mức khai thác hồ sơ lớn hơn cho JD cần tìm kỹ hơn.',
-    priceVnd: BigInt(79 * VND_PER_USD), // 1,975,000
+    description: 'Thêm 20 lượt so với Tin đăng, chênh 1.000.000 đồng.',
+    priceVnd: 4_990_000n,
     billingUnit: 'per_jd',
     durationDays: 30,
     jobPostQuota: 1,
-    creditQuota: 25,
+    creditQuota: 30,
     sortOrder: 3,
     isFeatured: false,
     features: [
-      'Tất cả quyền của Tin đăng',
-      '25 lượt mở hồ sơ tiềm năng',
-      'Hạn mức khai thác lớn hơn',
-      'Phù hợp JD tuyển gấp/nhiều kênh',
+      '1 tin đăng trong 30 ngày',
+      '30 lượt mở hồ sơ tiềm năng',
+      'Thêm 20 lượt so với Tin đăng',
+      'Hồ sơ ứng tuyển không tốn lượt',
     ],
   },
   {
     code: 'DOANH_NGHIEP',
     name: 'Doanh nghiệp',
-    description: 'Gói thuê bao cho doanh nghiệp tuyển nhiều JD, nhiều user, báo cáo lớn.',
-    priceVnd: BigInt(199 * VND_PER_USD), // 4,975,000
+    description: 'Tối đa 5 tin đang hoạt động, 50 lượt mở hồ sơ dùng chung mỗi tháng.',
+    priceVnd: 10_990_000n,
     billingUnit: 'per_month',
     durationDays: 30,
-    jobPostQuota: null, // unlimited theo hợp đồng
+    jobPostQuota: 5,
     creditQuota: 50,
     sortOrder: 4,
     isFeatured: false,
     features: [
-      'Nhiều JD đồng thời',
-      'Nhiều user cùng tài khoản',
-      'Báo cáo & dashboard quản trị',
-      'Từ 50+ lượt mở hồ sơ tiềm năng',
-      'Quyền mở rộng theo hợp đồng',
+      'Tối đa 5 tin đang hoạt động',
+      '50 lượt mở hồ sơ dùng chung mỗi tháng',
+      'Tin đã đóng hoặc bản nháp không tính vào hạn mức',
+      'Không gồm tìm kiếm và liên hệ ứng viên của iLink',
     ],
   },
   {
     code: 'ENTERPRISE',
     name: 'Enterprise',
-    description: 'Thiết kế riêng cho tập đoàn lớn. Liên hệ để báo giá.',
+    description: 'Báo giá riêng. Hạn mức tin và lượt mở theo hợp đồng.',
     priceVnd: 0n, // hiển thị "Báo giá" — UI sẽ check code = ENTERPRISE
     billingUnit: 'per_month',
     durationDays: null,
@@ -111,10 +110,9 @@ const PLATFORM_PLANS = [
     sortOrder: 5,
     isFeatured: false,
     features: [
-      'Thiết kế theo nhu cầu riêng',
-      'SLA & hỗ trợ riêng',
-      'Tích hợp hệ thống nội bộ',
-      'Đào tạo & onboarding chuyên sâu',
+      'Báo giá riêng theo nhu cầu',
+      'Hạn mức tin và lượt mở theo hợp đồng',
+      'Hỗ trợ triển khai riêng',
     ],
   },
 ];
@@ -125,60 +123,45 @@ const PLATFORM_PLANS = [
 const SOURCING_PLANS = [
   {
     code: 'SAN_CO_BAN',
-    name: 'Săn cơ bản',
-    description: 'iLink tìm giúp — phù hợp vị trí dễ, ngân sách thấp.',
-    feeVnd: BigInt(49 * VND_PER_USD), // 1,225,000
+    name: 'Tin săn Cơ bản',
+    description: '30 ngày, 30 lượt mở. iLink thiết lập tiêu chí một lần và báo cáo cuối kỳ. Nhà tuyển dụng tự liên hệ.',
+    feeVnd: 5_990_000n,
     positionQuota: 1,
     searchRoundQuota: 1,
-    shortlistQuota: 1,
+    shortlistQuota: null,
     revisionQuota: 1,
+    creditQuota: 30,
     sortOrder: 1,
     isFeatured: false,
-    serviceScope: [
-      'ai_match',       // AI tìm/Matching
-      'filter_rank',    // Lọc/xếp hạng
-    ],
+    serviceScope: ['ai_match', 'filter_rank', 'shortlist'],
   },
   {
     code: 'SAN_TIEU_CHUAN',
-    name: 'Săn tiêu chuẩn',
-    description: 'iLink tìm và chọn giúp — shortlist + phân tích chi tiết.',
-    feeVnd: BigInt(99 * VND_PER_USD), // 2,475,000
+    name: 'Tin săn Tiêu chuẩn',
+    description: 'Gồm Tin săn Cơ bản, thêm 1 buổi làm rõ, tối đa 3 lần sửa tiêu chí và 4 báo cáo tuần. iLink không gọi ứng viên.',
+    feeVnd: 7_990_000n,
     positionQuota: 1,
-    searchRoundQuota: 2,
-    shortlistQuota: 3,
-    revisionQuota: 2,
+    searchRoundQuota: 4,
+    shortlistQuota: null,
+    revisionQuota: 3,
+    creditQuota: 30,
     sortOrder: 2,
     isFeatured: true,
-    serviceScope: [
-      'ai_match',
-      'filter_rank',
-      'shortlist',
-      'strengths_gaps', // Điểm mạnh/khoảng thiếu
-      'priority',        // Ứng viên ưu tiên
-    ],
+    serviceScope: ['ai_match', 'filter_rank', 'shortlist', 'strengths_gaps', 'priority'],
   },
   {
     code: 'SAN_CHUYEN_SAU',
-    name: 'Săn chuyên sâu',
-    description: 'iLink tìm, chọn và theo sát đến khi tuyển. Phù hợp vị trí quan trọng.',
-    feeVnd: BigInt(199 * VND_PER_USD), // 4,975,000 (giá khởi điểm; báo giá riêng)
+    name: 'Tin săn Chuyên sâu',
+    description: '50 lượt mở. iLink liên hệ tối đa 15 ứng viên, mỗi người tối đa 2 lần. 15 là hạn mức, không phải cam kết phản hồi.',
+    feeVnd: 12_990_000n,
     positionQuota: 1,
-    searchRoundQuota: null, // không giới hạn
-    shortlistQuota: null,
-    revisionQuota: null,
+    searchRoundQuota: 4,
+    shortlistQuota: 15,
+    revisionQuota: 3,
+    creditQuota: 50,
     sortOrder: 3,
     isFeatured: false,
-    serviceScope: [
-      'ai_match',
-      'filter_rank',
-      'shortlist',
-      'strengths_gaps',
-      'priority',
-      'outreach',        // Chủ động tiếp cận
-      'follow_up',       // Theo dõi phản hồi
-      'replacement',     // Ứng viên thay thế
-    ],
+    serviceScope: ['ai_match', 'filter_rank', 'shortlist', 'strengths_gaps', 'priority', 'outreach', 'follow_up'],
   },
 ];
 
@@ -294,6 +277,7 @@ async function upsertSourcingPlans() {
         searchRoundQuota: s.searchRoundQuota,
         shortlistQuota: s.shortlistQuota,
         revisionQuota: s.revisionQuota,
+        creditQuota: s.creditQuota,
         serviceScope: s.serviceScope as Prisma.JsonArray,
         sortOrder: s.sortOrder,
         isFeatured: s.isFeatured,
@@ -363,7 +347,7 @@ const PAGE_CONTENT_LISTS = {
     { q: 'Giá đã bao gồm VAT chưa?', a: 'Giá hiển thị chưa bao gồm VAT. Mức thuế suất chưa được đặt. Hoá đơn VAT được xuất theo yêu cầu khi thanh toán.' },
     { q: 'Tôi có thể đổi từ Tin đăng sang Tin đăng Plus không?', a: 'Có. Vào trang quản lý gói, chọn "Nâng cấp" và phần chênh lệch sẽ được tính theo tỉ lệ thời gian còn lại.' },
     { q: 'Credit mua thêm có hết hạn không?', a: 'Theo chính sách hiện tại, Credit không hết hạn khi tài khoản còn hoạt động. Chúng tôi sẽ thông báo trước 30 ngày nếu có thay đổi.' },
-    { q: 'Phí Săn nhân sự có bao gồm Credit không?', a: 'Không. Phí Săn (Cơ bản/Tiêu chuẩn/Chuyên sâu) là phí dịch vụ iLink thực hiện. Credit mua riêng theo nhu cầu mở hồ sơ tiềm năng.' },
+    { q: 'Phí Săn nhân sự có bao gồm lượt mở hồ sơ không?', a: 'Có. Tin săn Cơ bản và Tiêu chuẩn gồm 30 lượt, Tin săn Chuyên sâu gồm 50 lượt cho vị trí đó. Mua thêm lượt là việc riêng và không được giảm giá.' },
     { q: 'iLink có auto-charge Credit khi hết không?', a: 'Không. Theo nguyên tắc V1, hệ thống không tự động mua Credit. Bạn chủ động mua khi cần.' },
     { q: 'Có hỗ trợ thanh toán qua chuyển khoản ngân hàng không?', a: 'Có. Doanh nghiệp và Enterprise hỗ trợ chuyển khoản, xuất hoá đơn VAT. Liên hệ sales@inlink.vn để được hỗ trợ.' },
   ],
@@ -387,6 +371,20 @@ async function upsertPageContent() {
     },
     update: {},
   });
+  const row = await prisma.billingPageContent.findUnique({ where: { scope: 'default' } });
+  const faq = Array.isArray(row?.faqItems) ? (row.faqItems as { q?: string; a?: string }[]) : [];
+  const next = faq.map((item) =>
+    item.q === 'Phí Săn nhân sự có bao gồm Credit không?'
+      ? PAGE_CONTENT_LISTS.faqItems[3]
+      : item,
+  );
+  const changed = next.some((item, i) => item !== faq[i]);
+  if (changed && row) {
+    await prisma.billingPageContent.update({
+      where: { scope: 'default' },
+      data: { faqItems: next as Prisma.JsonArray },
+    });
+  }
 }
 
 const DEFAULT_PLAN_COSTS: { action: string; cost: number }[] = [
@@ -399,14 +397,14 @@ const DEFAULT_PLAN_COSTS: { action: string; cost: number }[] = [
 ];
 
 async function upsertPlanActionCosts() {
-  console.log('Seeding plan action costs (chỉ tạo nếu chưa có)...');
+  console.log('Seeding plan action costs...');
   const plans = await prisma.billingPlatformPlan.findMany({ select: { id: true, code: true } });
   for (const plan of plans) {
     for (const row of DEFAULT_PLAN_COSTS) {
       await prisma.billingPlanActionCost.upsert({
         where: { planId_action: { planId: plan.id, action: row.action } },
         create: { planId: plan.id, action: row.action, cost: row.cost, isActive: true },
-        update: {},
+        update: { cost: row.cost, isActive: true },
       });
     }
   }

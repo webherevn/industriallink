@@ -23,6 +23,7 @@ import {
   type CvDraftFieldHint,
 } from '@industriallink/contracts';
 import type { ReactNode } from 'react';
+import { useCvSectionProps } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { MoneyInput } from '@/components/ui';
@@ -143,12 +144,15 @@ export function CvDraftMatrixFields({
 
   const orientation = draft.careerOrientations[0] ?? '';
   const selectedMotivations = filterCareerMotivations(draft.careerMotivations, 'sales');
+  const sectionB = useCvSectionProps('B');
+  const sectionRef = useCvSectionProps('ref');
 
   return (
     <div className="space-y-5">
       <MatrixSection
         title="B. Mong muốn nghề nghiệp (13–17)"
         subtitle="Vị trí, địa điểm, thu nhập, thời gian nhận việc và định hướng"
+        {...sectionB}
       >
       {lead}
       <div>
@@ -242,6 +246,7 @@ export function CvDraftMatrixFields({
       <MatrixSection
         title="Tham khảo — phong cách làm việc & động lực"
         subtitle="Không tính vào điểm hoàn thành hồ sơ"
+        {...sectionRef}
       >
       <div>
         <NumberedFieldLabel

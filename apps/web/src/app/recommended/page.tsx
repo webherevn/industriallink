@@ -180,10 +180,23 @@ function bestFitGroup(jobs: JobMatchView[], candidate: CandidateView | undefined
   return top?.[0] ?? candidate?.profile?.specialization ?? 'Công nghiệp B2B';
 }
 
+type RecommendSort = 'newest' | 'salary';
+
+function recommendPosted(job: JobMatchView): number {
+  const time = new Date(job.publishedAt || '').getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function recommendSalary(job: JobMatchView): number {
+  const values = [job.salaryMin, job.salaryMax].filter((n): n is number => n != null && n > 0);
+  return values.length ? Math.max(...values) : -1;
+}
+
 export default function RecommendedPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterTab>('all');
+  const [sort, setSort] = useState<RecommendSort>('newest');
   const [page, setPage] = useState(1);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -249,17 +262,20 @@ export default function RecommendedPage() {
   );
 
   const filtered = useMemo(() => {
-    switch (filter) {
-      case 'high':
-        return highJobs;
-      case 'medium':
-        return mediumJobs;
-      case 'new':
-        return newJobs;
-      default:
-        return allJobs;
-    }
-  }, [filter, allJobs, highJobs, mediumJobs, newJobs]);
+    const rows =
+      filter === 'high'
+        ? highJobs
+        : filter === 'medium'
+          ? mediumJobs
+          : filter === 'new'
+            ? newJobs
+            : allJobs;
+    return rows.slice().sort((a, b) =>
+      sort === 'salary'
+        ? recommendSalary(b) - recommendSalary(a) || recommendPosted(b) - recommendPosted(a)
+        : recommendPosted(b) - recommendPosted(a),
+    );
+  }, [filter, sort, allJobs, highJobs, mediumJobs, newJobs]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -541,12 +557,26 @@ export default function RecommendedPage() {
                 </button>
               ))}
             </div>
-            <Link
-              href="/profile/edit"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-600"
-            >
-              <Settings2 className="h-3.5 w-3.5" /> Tùy chỉnh gợi ý
-            </Link>
+            <div className="flex items-center gap-3">
+              <select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value === 'salary' ? 'salary' : 'newest');
+                  setPage(1);
+                }}
+                aria-label="Sắp xếp gợi ý"
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none"
+              >
+                <option value="newest">Mới nhất</option>
+                <option value="salary">Lương cao nhất</option>
+              </select>
+              <Link
+                href="/profile/edit"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-600"
+              >
+                <Settings2 className="h-3.5 w-3.5" /> Tùy chỉnh gợi ý
+              </Link>
+            </div>
           </div>
 
           {/* Job list */}

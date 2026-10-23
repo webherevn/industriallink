@@ -18,6 +18,7 @@ import {
 } from '@industriallink/contracts';
 import { MonthYearRangeFields } from '@/components/ui';
 import { CollapsibleFormSection } from '@/components/collapsible-form-section';
+import { useCvSectionProps } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { TechnicalPositionSelect } from '@/components/technical-position-select';
@@ -236,6 +237,7 @@ export function CvTechnicalExperienceFields({
     },
   );
   const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
+  const sectionD = useCvSectionProps('D');
 
   function toggleExp(index: number, open: boolean) {
     setExpandedExp((prev) => {
@@ -257,6 +259,7 @@ export function CvTechnicalExperienceFields({
     <MatrixSection
       title="D. Kinh nghiệm công ty (20–28)"
       subtitle="Mỗi công ty một khối — công ty thứ 2 trở đi lặp lại các mục 20–28."
+      {...sectionD}
       extra={
         hint?.status === 'missing' ? (
           <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-600">

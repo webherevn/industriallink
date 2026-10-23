@@ -123,6 +123,35 @@ function PlanPriceMeta({ children }: { children?: ReactNode }) {
   return <p className="mt-1 min-h-[16px] text-[11px] leading-4 text-slate-500">{children ?? '\u00a0'}</p>;
 }
 
+function SalePrice({
+  list,
+  sale,
+  percent,
+  label,
+  currency,
+}: {
+  list: string;
+  sale?: string | null;
+  percent?: number | null;
+  label?: string | null;
+  currency: BillingCurrencyDisplay;
+}) {
+  const onSale = Boolean(percent && percent > 0 && sale && sale !== list);
+  return (
+    <div>
+      {onSale ? (
+        <p className="text-xs tabular-nums text-slate-400 line-through">{formatPriceVnd(list, currency)}</p>
+      ) : null}
+      <PlanPrice value={onSale ? sale! : list} currency={currency} />
+      {onSale ? (
+        <p className="mt-1 inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+          {label ?? `Giảm ${percent}%`}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const FEATURE_ICONS = [Sparkles, FileText, UserCheck, Users, BarChart3, Coins];
 const TRUST_ICONS = [Shield, Banknote, Sparkles];
 
@@ -715,7 +744,6 @@ function PlatformPlansView({
   enterpriseCtaHref,
   canRequestEnterprise,
   page,
-  vatPercent = null,
 }: {
   plans: BillingPlatformPlanView[];
   currency: BillingCurrencyDisplay;
@@ -729,7 +757,6 @@ function PlatformPlansView({
   enterpriseCtaHref: () => string;
   canRequestEnterprise: boolean;
   page: BillingPageContentView;
-  vatPercent?: number | null;
 }) {
   const visible = plans.filter((p) => p.isActive);
 
@@ -741,7 +768,11 @@ function PlatformPlansView({
           {page.platformTitle}
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.platformSubtitle}</p>
-        <VatPriceNote percent={vatPercent} />
+        {visible.some((p) => p.promoPercent) ? (
+          <p className="mx-auto mt-3 max-w-3xl rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-800">
+            Khuyến mại HOT ngày ra mắt: Tin đăng, Tin đăng Plus và Doanh nghiệp giảm 50%. Áp dụng đến 23/10/2027.
+          </p>
+        ) : null}
       </div>
 
       {/* Cards grid */}
@@ -839,7 +870,7 @@ function PlatformPlanCard({
     >
       {featured ? (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#072348] shadow-md">
-          <Star className="h-2.5 w-2.5 fill-current" /> Phổ biến nhất
+          <Star className="h-2.5 w-2.5 fill-current" /> Gói phổ biến
         </span>
       ) : null}
 
@@ -854,20 +885,26 @@ function PlatformPlanCard({
         ) : isFree ? (
           <PlanPriceLabel>Miễn phí</PlanPriceLabel>
         ) : (
-          <PlanPrice value={plan.priceVnd} currency={currency} />
+          <SalePrice
+            list={plan.priceVnd}
+            sale={plan.promoPriceVnd}
+            percent={plan.promoPercent}
+            label={plan.promoLabel}
+            currency={currency}
+          />
         )}
         <PlanPriceMeta>
           {isEnterprise
             ? 'Theo hợp đồng'
             : isFree
               ? plan.durationDays
-                ? `Tin hiển thị ${plan.durationDays} ngày · chu kỳ 30 ngày`
-                : 'Chu kỳ gói 30 ngày'
-              : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · tin ${plan.durationDays} ngày` : ''}`}
+                ? `${plan.durationDays} ngày · 1 tin thử nghiệm`
+                : '14 ngày · 1 tin thử nghiệm'
+              : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}`}
         </PlanPriceMeta>
         <p className="min-h-[16px] text-[10px] leading-4 text-slate-400">
           {!isEnterprise && !isFree && currency.showReferenceUsd
-            ? formatReferenceUsd(plan.priceVnd, currency)
+            ? formatReferenceUsd(plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.priceVnd, currency)
             : '\u00a0'}
         </p>
       </div>
@@ -886,29 +923,35 @@ function PlatformPlanCard({
             </span>
             <span>
               {isFree
-                ? `Tin hiển thị ${plan.durationDays} ngày · tạo JD mới sau 30 ngày`
-                : `Tin hiển thị ${plan.durationDays} ngày`}
+                ? `Tin hiển thị ${plan.durationDays} ngày · tạo tin mới sau ${plan.durationDays} ngày`
+                : plan.billingUnit === 'per_month'
+                  ? `Chu kỳ ${plan.durationDays} ngày`
+                  : `Tin hiển thị ${plan.durationDays} ngày`}
             </span>
           </li>
         ) : null}
         {plan.creditQuota != null && plan.creditQuota > 0 ? (
           <li className="flex items-start gap-1.5 text-[12px] font-semibold text-amber-700">
             <Coins className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>Tặng {plan.creditQuota} Credit mở hồ sơ</span>
+            <span>
+              {plan.billingUnit === 'per_month'
+                ? `${plan.creditQuota} lượt mở hồ sơ / tháng`
+                : `${plan.creditQuota} lượt mở hồ sơ tiềm năng`}
+            </span>
           </li>
         ) : null}
         {plan.jobPostQuota != null ? (
           <li className="flex items-start gap-1.5 text-[12px] text-slate-600">
             <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span>{plan.jobPostQuota} JD / gói</span>
-          </li>
-        ) : plan.jobPostQuota == null && !isFree && !isEnterprise ? (
-          <li className="flex items-start gap-1.5 text-[12px] text-slate-600">
-            <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span>JD không giới hạn</span>
+            <span>
+              {plan.billingUnit === 'per_month'
+                ? `Tối đa ${plan.jobPostQuota} tin đang hoạt động`
+                : `${plan.jobPostQuota} tin / gói`}
+            </span>
           </li>
         ) : null}
-        {BILLING_PLAN_BILLABLE_ACTIONS.filter((action) => {
+        {plan.creditQuota != null && plan.creditQuota > 0
+          ? BILLING_PLAN_BILLABLE_ACTIONS.filter((action) => {
           const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
           return row != null && row.cost > 0;
         }).map((action) => {
@@ -922,7 +965,8 @@ function PlatformPlanCard({
               </span>
             </li>
           );
-        })}
+        })
+          : null}
       </ul>
 
       {isEnterprise && canRequestEnterprise ? (
@@ -931,7 +975,7 @@ function PlatformPlanCard({
             'mt-5 inline-flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold transition disabled:opacity-60',
             featured ? 'bg-amber-500 text-[#072348] hover:bg-amber-400' : 'bg-[#072348] text-white hover:bg-[#0d3b80]',
           )}
-          label="Yêu cầu tư vấn"
+          label="Liên hệ tư vấn"
           noteClassName="mt-2 text-xs text-slate-500"
           errorClassName="mt-2 text-xs text-rose-600"
         />
@@ -948,9 +992,7 @@ function PlatformPlanCard({
           )}
         >
           {isEnterprise
-            ? checkoutReady || isRecruiter
-              ? 'Yêu cầu tư vấn'
-              : 'Liên hệ sales'
+            ? 'Liên hệ tư vấn'
             : isFree
               ? checkoutReady || isRecruiter
                 ? 'Vào gói của tôi'
@@ -975,7 +1017,6 @@ function SourcingPlansView({
   isRecruiter,
   planCtaHref,
   page,
-  vatPercent = null,
 }: {
   plans: BillingSourcingPlanView[];
   currency: BillingCurrencyDisplay;
@@ -983,7 +1024,6 @@ function SourcingPlansView({
   isRecruiter: boolean;
   planCtaHref: (code: string) => string;
   page: BillingPageContentView;
-  vatPercent?: number | null;
 }) {
   return (
     <div>
@@ -992,7 +1032,14 @@ function SourcingPlansView({
           {page.sourcingTitle}
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.sourcingSubtitle}</p>
-        <VatPriceNote percent={vatPercent} />
+        <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
+          Muốn iLink hỗ trợ tìm kiếm theo yêu cầu? Chọn mức độ hỗ trợ phù hợp. Giá gói đã bao gồm quyền sử dụng nền tảng cần thiết cho vị trí; không thu lại toàn bộ phí Tin đăng cho cùng vị trí.
+        </p>
+        {plans.some((p) => p.promoPercent) ? (
+          <p className="mx-auto mt-3 max-w-3xl rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-800">
+            Khuyến mại ra mắt: ba gói Tin săn giảm 30%. Mua thêm lượt không giảm giá. Áp dụng đến 23/10/2027.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3 md:grid-cols-2">
@@ -1053,21 +1100,26 @@ function SourcingPlanCard({
       </div>
 
       <div className="mt-4 min-w-0">
-        <PlanPrice value={plan.feeVnd} currency={currency} />
-        <p className="mt-1 text-[11px] text-slate-500">Phí dịch vụ / vị trí</p>
+        <SalePrice
+          list={plan.feeVnd}
+          sale={plan.promoPriceVnd}
+          percent={plan.promoPercent}
+          label={plan.promoLabel}
+          currency={currency}
+        />
+        <p className="mt-1 text-[11px] text-slate-500">Phí dịch vụ / vị trí · 30 ngày</p>
         {currency.showReferenceUsd ? (
           <p className="mt-0.5 text-[10px] text-slate-400">
-            {formatReferenceUsd(plan.feeVnd, currency)}
+            {formatReferenceUsd(plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.feeVnd, currency)}
           </p>
         ) : null}
       </div>
 
-      {/* Quota grid */}
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-center">
         <QuotaItem label="Vị trí" value={plan.positionQuota} />
-        <QuotaItem label="Đợt tìm" value={plan.searchRoundQuota} />
-        <QuotaItem label="Shortlist" value={plan.shortlistQuota} />
+        <QuotaItem label="Lượt mở" value={plan.creditQuota ?? null} />
         <QuotaItem label="Điều chỉnh" value={plan.revisionQuota} />
+        <QuotaItem label="Báo cáo" value={plan.searchRoundQuota} />
       </div>
 
       {/* Service scope */}
@@ -1107,7 +1159,7 @@ function SourcingPlanCard({
             : 'bg-[#072348] text-white hover:bg-[#0d3b80]'
         )}
       >
-        {planCtaHref(plan.code).startsWith('/recruiter') ? 'Liên hệ tư vấn' : 'Đăng ký Săn'}{' '}
+        {planCtaHref(plan.code).startsWith('/recruiter') ? 'Thanh toán' : 'Chọn gói'}{' '}
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>
@@ -1133,13 +1185,11 @@ function CreditTopupView({
   currency,
   topupCtaHref,
   page,
-  vatPercent = null,
 }: {
   topups: BillingCreditTopupView[];
   currency: BillingCurrencyDisplay;
   topupCtaHref: (id: string) => string;
   page: BillingPageContentView;
-  vatPercent?: number | null;
 }) {
   return (
     <div>
@@ -1148,7 +1198,6 @@ function CreditTopupView({
           {page.creditTitle}
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.creditSubtitle}</p>
-        <VatPriceNote percent={vatPercent} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 md:grid-cols-2">
@@ -1373,20 +1422,10 @@ function CrossSellCard({
 // ============================================================================
 // SKELETON
 // ============================================================================
-function VatPriceNote({ percent }: { percent?: number | null }) {
-  return (
-    <p className="mt-2 text-sm font-medium text-[#4c3ec9]">
-      {percent == null
-        ? 'Giá niêm yết chưa gồm VAT. Thuế suất chưa đặt, thanh toán bằng giá niêm yết.'
-        : `Giá niêm yết chưa gồm VAT. Khi thanh toán cộng thêm ${percent}%.`}
-    </p>
-  );
-}
-
 function displayFaqAnswer(answer: string, percent?: number | null): string {
   if (!/Giá hiển thị chưa bao gồm VAT/i.test(answer) && !/VAT\s*10\s*%/i.test(answer)) return answer;
   if (percent == null) {
-    return 'Giá hiển thị chưa bao gồm VAT. Thuế suất chưa đặt, thanh toán bằng giá niêm yết.';
+    return 'Giá hiển thị chưa bao gồm VAT. Thuế suất chưa đặt, thanh toán bằng giá đang hiển thị.';
   }
   return `Giá hiển thị chưa bao gồm VAT ${percent}%. Khi thanh toán cộng thêm ${percent}%.`;
 }
@@ -1565,7 +1604,6 @@ export function PricingClient({
               enterpriseCtaHref={enterpriseCtaHref}
               canRequestEnterprise={canRequestEnterprise}
               page={page}
-              vatPercent={vatPercent}
             />
           ) : tab === 'sourcing' ? (
             <SourcingPlansView
@@ -1575,7 +1613,6 @@ export function PricingClient({
               isRecruiter
               planCtaHref={sourcingCtaHref}
               page={page}
-              vatPercent={vatPercent}
             />
           ) : (
             <CreditTopupView
@@ -1583,7 +1620,6 @@ export function PricingClient({
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
-              vatPercent={vatPercent}
             />
           )}
         </section>
@@ -1626,7 +1662,6 @@ export function PricingClient({
               enterpriseCtaHref={enterpriseCtaHref}
               canRequestEnterprise={canRequestEnterprise}
               page={page}
-              vatPercent={vatPercent}
             />
           ) : tab === 'sourcing' ? (
             <SourcingPlansView
@@ -1636,7 +1671,6 @@ export function PricingClient({
               isRecruiter={isRecruiter}
               planCtaHref={sourcingCtaHref}
               page={page}
-              vatPercent={vatPercent}
             />
           ) : (
             <CreditTopupView
@@ -1644,7 +1678,6 @@ export function PricingClient({
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
-              vatPercent={vatPercent}
             />
           )}
         </div>

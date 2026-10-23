@@ -21,6 +21,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { applyPublicVatCopy, vatPercentOrEmpty } from '../crm/commission-notices';
 import type { AppConfig } from '../../config/configuration';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { applyLaunchPromo, launchPromoFor } from './launch-promo';
 import type {
   AdminCreatePlatformPlanRequest,
   AdminUpdatePlatformPlanRequest,
@@ -119,9 +120,9 @@ const PAGE_STRING_KEYS = [
 
 const PAGE_NULLABLE_KEYS = ['focusKeyword', 'ogTitle', 'ogDescription', 'ogImageUrl'] as const;
 
-/** Gói mặc định khi tạo NTD. Chu kỳ gói cố định 30 ngày — durationDays SuperAdmin là hạn tin. */
+/** Gói mặc định khi tạo NTD. Chu kỳ Khám phá 14 ngày, trùng hạn hiển thị tin. */
 const STARTER_PLAN_CODE = 'KHAM_PHA';
-const STARTER_CYCLE_DAYS = 30;
+const STARTER_CYCLE_DAYS = 14;
 
 function addUtcDays(from: Date, days: number): Date {
   const end = new Date(from);
@@ -470,8 +471,7 @@ export class BillingService {
   }
 
   /**
-   * Công ty mới / chưa gán gói → Khám phá. Chu kỳ gói luôn 30 ngày.
-   * durationDays SuperAdmin = hạn hiển thị tin, không phải hạn gói.
+   * Công ty mới / chưa gán gói → Khám phá. Chu kỳ gói 14 ngày, trùng hạn hiển thị tin.
    */
   async ensureCompanyPlan(companyId: string): Promise<BillingCompanyPlanView | null> {
     const existing = await this.prisma.billingCompanyPlan.findUnique({
@@ -596,16 +596,19 @@ export class BillingService {
     }
 
     const quota = assignment?.plan?.jobPostQuota ?? null;
+    const countActiveJobs = assignment?.plan?.code === 'DOANH_NGHIEP';
     const jobsUsed = assignment
       ? await this.prisma.job.count({
-          where: {
-            companyId,
-            isDeleted: false,
-            createdAt: {
-              gte: assignment.startsAt,
-              ...(assignment.endsAt ? { lte: assignment.endsAt } : {}),
-            },
-          },
+          where: countActiveJobs
+            ? { companyId, isDeleted: false, status: 'published' }
+            : {
+                companyId,
+                isDeleted: false,
+                createdAt: {
+                  gte: assignment.startsAt,
+                  ...(assignment.endsAt ? { lte: assignment.endsAt } : {}),
+                },
+              },
         })
       : 0;
     const jobsRemaining = quota == null ? null : Math.max(0, quota - jobsUsed);
@@ -661,7 +664,7 @@ export class BillingService {
     return days != null && days > 0 ? days : null;
   }
 
-  /** Hạn gói: Khám phá luôn 30 ngày; gói trả phí lấy durationDays SuperAdmin. */
+  /** Hạn gói: Khám phá 14 ngày; gói trả phí lấy durationDays trên bảng giá. */
   private planCycleEndsAt(plan: BillingPlatformPlan, startsAt: Date): Date | null {
     if (plan.code === STARTER_PLAN_CODE) {
       return addUtcDays(startsAt, STARTER_CYCLE_DAYS);
@@ -680,8 +683,10 @@ export class BillingService {
       code: 'JOB_QUOTA_EXCEEDED',
       message:
         e.planCode === STARTER_PLAN_CODE
-          ? `Gói Khám phá chỉ được đăng ${e.jobPostQuota} tin trong chu kỳ 30 ngày. Đợi hết hạn gói hoặc nâng cấp để tạo JD mới.`
-          : `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
+          ? `Gói Khám phá chỉ được đăng ${e.jobPostQuota} tin trong chu kỳ ${STARTER_CYCLE_DAYS} ngày. Đợi hết hạn gói hoặc nâng cấp để tạo JD mới.`
+          : e.planCode === 'DOANH_NGHIEP'
+            ? `Gói Doanh nghiệp chỉ được có ${e.jobPostQuota} tin đang hoạt động. Đóng bớt tin hoặc nâng cấp để đăng thêm.`
+            : `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
       used: e.jobsUsed,
       quota: e.jobPostQuota,
     });
@@ -909,6 +914,7 @@ export class BillingService {
         name: input.name,
         description: input.description,
         feeVnd: BigInt(input.feeVnd),
+        creditQuota: input.creditQuota,
         positionQuota: input.positionQuota,
         searchRoundQuota: input.searchRoundQuota,
         shortlistQuota: input.shortlistQuota,
@@ -943,6 +949,7 @@ export class BillingService {
     if (input.searchRoundQuota !== undefined) data.searchRoundQuota = input.searchRoundQuota;
     if (input.shortlistQuota !== undefined) data.shortlistQuota = input.shortlistQuota;
     if (input.revisionQuota !== undefined) data.revisionQuota = input.revisionQuota;
+    if (input.creditQuota !== undefined) data.creditQuota = input.creditQuota;
     if (input.serviceScope !== undefined) data.serviceScope = input.serviceScope as Prisma.JsonArray;
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.isActive !== undefined) data.isActive = input.isActive;
@@ -1429,12 +1436,17 @@ export class BillingService {
       : policy
         ? this.mapCreditPolicy(policy as BillingCreditPolicy)
         : null;
+    const promo = launchPromoFor('platform', p.code);
+    const sale = applyLaunchPromo(p.priceVnd, promo.percent);
     return {
       id: p.id,
       code: p.code,
       name: p.name,
       description: p.description,
       priceVnd: p.priceVnd.toString(),
+      promoPercent: promo.percent > 0 ? promo.percent : null,
+      promoPriceVnd: sale.toString(),
+      promoLabel: promo.label,
       billingUnit: p.billingUnit as 'per_jd' | 'per_month',
       durationDays: p.durationDays,
       jobPostQuota: p.jobPostQuota,
@@ -1523,12 +1535,18 @@ export class BillingService {
   }
 
   private mapSourcingPlan(s: BillingSourcingPlan): BillingSourcingPlanView {
+    const promo = launchPromoFor('sourcing', s.code);
+    const sale = applyLaunchPromo(s.feeVnd, promo.percent);
     return {
       id: s.id,
       code: s.code,
       name: s.name,
       description: s.description,
       feeVnd: s.feeVnd.toString(),
+      promoPercent: promo.percent > 0 ? promo.percent : null,
+      promoPriceVnd: sale.toString(),
+      promoLabel: promo.label,
+      creditQuota: s.creditQuota,
       positionQuota: s.positionQuota,
       searchRoundQuota: s.searchRoundQuota,
       shortlistQuota: s.shortlistQuota,
@@ -1619,6 +1637,7 @@ export class BillingService {
       searchRoundQuota: s.searchRoundQuota,
       shortlistQuota: s.shortlistQuota,
       revisionQuota: s.revisionQuota,
+      creditQuota: s.creditQuota,
       serviceScope: s.serviceScope,
       sortOrder: s.sortOrder,
       isActive: s.isActive,

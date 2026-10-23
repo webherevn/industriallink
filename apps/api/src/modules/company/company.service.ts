@@ -513,7 +513,7 @@ export class CompanyService {
 
   /**
    * Gán Khám phá ngay khi tạo công ty — không chờ event bus.
-   * Chu kỳ gói 30 ngày. Thiếu KHAM_PHA thì lấy gói active giá 0đ / sort thấp nhất.
+   * Chu kỳ gói Khám phá 14 ngày. Thiếu KHAM_PHA thì lấy gói active giá 0đ / sort thấp nhất.
    */
   private async assignStarterPlan(companyId: string, actorId: string): Promise<void> {
     try {

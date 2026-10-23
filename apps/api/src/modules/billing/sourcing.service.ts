@@ -33,6 +33,14 @@ const SCOPE_FOR_KIND: Record<SourcingQuotaKind, string[] | null> = {
   revision: null,
 };
 
+const SOURCING_CYCLE_DAYS = 30;
+
+function addUtcDays(from: Date, days: number): Date {
+  const end = new Date(from);
+  end.setUTCDate(end.getUTCDate() + days);
+  return end;
+}
+
 const USED_FIELD: Record<SourcingQuotaKind, keyof BillingCompanySourcingPlan> = {
   position: 'positionsUsed',
   search_round: 'searchRoundsUsed',
@@ -120,42 +128,91 @@ export class SourcingService {
 
     const company = await this.prisma.company.findUnique({
       where: { id: input.companyId },
-      select: { id: true },
+      select: { id: true, tenantId: true },
     });
     if (!company) throw new NotFoundException('Không tìm thấy công ty');
 
     const startsAt = input.startsAt ? new Date(input.startsAt) : new Date();
-    const endsAt = input.endsAt === undefined ? null : input.endsAt ? new Date(input.endsAt) : null;
     const actorId = looksLikeUuid(actor.id) ? actor.id : null;
     const before = await this.prisma.billingCompanySourcingPlan.findUnique({
       where: { companyId: input.companyId },
     });
     const switching = !before || before.planId !== input.planId || !before.isActive;
+    const cycleEnd =
+      input.endsAt === undefined
+        ? addUtcDays(startsAt, SOURCING_CYCLE_DAYS)
+        : input.endsAt
+          ? new Date(input.endsAt)
+          : null;
+    const quota = plan.creditQuota ?? 0;
 
-    const row = await this.prisma.billingCompanySourcingPlan.upsert({
-      where: { companyId: input.companyId },
-      create: {
-        companyId: input.companyId,
-        planId: input.planId,
-        startsAt,
-        endsAt,
-        isActive: input.isActive ?? true,
-        note: input.note ?? 'Kích hoạt gói Săn nhân sự',
-        createdBy: actorId,
-        updatedBy: actorId,
-      },
-      update: {
-        planId: input.planId,
-        startsAt: switching ? startsAt : undefined,
-        endsAt,
-        isActive: input.isActive ?? true,
-        note: input.note ?? 'Kích hoạt gói Săn nhân sự',
-        updatedBy: actorId,
-        ...(switching
-          ? { positionsUsed: 0, searchRoundsUsed: 0, shortlistsUsed: 0, revisionsUsed: 0 }
-          : {}),
-      },
-      include: { plan: true },
+    const row = await this.prisma.$transaction(async (tx) => {
+      const assigned = await tx.billingCompanySourcingPlan.upsert({
+        where: { companyId: input.companyId },
+        create: {
+          companyId: input.companyId,
+          planId: input.planId,
+          startsAt,
+          endsAt: cycleEnd,
+          isActive: input.isActive ?? true,
+          note: input.note ?? 'Kích hoạt gói Săn nhân sự',
+          createdBy: actorId,
+          updatedBy: actorId,
+        },
+        update: {
+          planId: input.planId,
+          startsAt: switching ? startsAt : undefined,
+          endsAt: switching || input.endsAt !== undefined ? cycleEnd : undefined,
+          isActive: input.isActive ?? true,
+          note: input.note ?? 'Kích hoạt gói Săn nhân sự',
+          updatedBy: actorId,
+          ...(switching
+            ? { positionsUsed: 0, searchRoundsUsed: 0, shortlistsUsed: 0, revisionsUsed: 0 }
+            : {}),
+        },
+        include: { plan: true },
+      });
+
+      if (switching && quota > 0 && assigned.isActive) {
+        const account = await tx.billingCreditAccount.upsert({
+          where: { companyId: company.id },
+          create: { companyId: company.id, tenantId: company.tenantId },
+          update: {},
+        });
+        const updatedAccount = await tx.billingCreditAccount.update({
+          where: { id: account.id },
+          data: {
+            balance: { increment: quota },
+            lifetimeGranted: { increment: quota },
+            lastActivityAt: new Date(),
+          },
+        });
+        await tx.billingCreditTransaction.create({
+          data: {
+            tenantId: company.tenantId,
+            companyId: company.id,
+            accountId: account.id,
+            type: 'grant',
+            action: 'plan_grant',
+            creditDelta: quota,
+            balanceAfter: updatedAccount.balance,
+            costPerUnit: 0,
+            quantity: 1,
+            actorUserId: actorId,
+            actorEmail: actor.email ?? null,
+            note: `Cộng ${quota} lượt mở hồ sơ khi kích hoạt ${plan.name}`,
+            metadata: {
+              source: 'sourcing_assign',
+              planId: plan.id,
+              planCode: plan.code,
+              assignmentId: assigned.id,
+            },
+            enforced: true,
+          },
+        });
+      }
+
+      return assigned;
     });
 
     await this.writeAudit(

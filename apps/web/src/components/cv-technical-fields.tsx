@@ -27,6 +27,7 @@ import {
   WORK_ENVIRONMENT_DESIRED_QUESTION,
   WORK_ENVIRONMENT_OPTIONS,
 } from '@industriallink/contracts';
+import { useCvSectionProps } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { MoneyInput } from '@/components/ui';
@@ -222,12 +223,16 @@ export function CvTechnicalFields({
 }) {
   const orientation = draft.careerOrientations[0] ?? '';
   const selectedMotivations = filterCareerMotivations(draft.careerMotivations, 'technical');
+  const sectionB = useCvSectionProps('B');
+  const sectionC = useCvSectionProps('C');
+  const sectionRef = useCvSectionProps('ref');
 
   return (
     <div className="space-y-5">
       <MatrixSection
         title="B. Mong muốn nghề nghiệp (13–16)"
         subtitle="Vị trí, địa điểm, thu nhập và thời gian nhận việc"
+        {...sectionB}
       >
       {lead}
       <div>
@@ -295,6 +300,7 @@ export function CvTechnicalFields({
       <MatrixSection
         title="C. Năng lực kỹ thuật (17–19)"
         subtitle="Ngoài giờ, phần mềm/công cụ và đọc bản vẽ / tài liệu"
+        {...sectionC}
       >
       <div>
         <NumberedFieldLabel
@@ -345,6 +351,7 @@ export function CvTechnicalFields({
       <MatrixSection
         title="Tham khảo — cách làm việc, định hướng & động lực"
         subtitle="Không tính vào điểm hoàn thành hồ sơ"
+        {...sectionRef}
       >
       <div>
         <NumberedFieldLabel

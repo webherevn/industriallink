@@ -115,12 +115,31 @@ export function RecruiterSourcingActivate() {
               {plan.description ? (
                 <p className="mt-2 text-sm text-slate-500">{plan.description}</p>
               ) : null}
-              <p className="mt-4 text-3xl font-bold text-[#072348]">
-                {currency ? formatPriceVnd(plan.feeVnd, currency) : plan.feeVnd}
+              {plan.promoPercent && plan.promoPriceVnd ? (
+                <p className="mt-4 text-sm text-slate-400 line-through">
+                  {currency ? formatPriceVnd(plan.feeVnd, currency) : plan.feeVnd}
+                </p>
+              ) : null}
+              <p className={plan.promoPercent ? 'text-3xl font-bold text-[#072348]' : 'mt-4 text-3xl font-bold text-[#072348]'}>
+                {currency
+                  ? formatPriceVnd(plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.feeVnd, currency)
+                  : plan.promoPriceVnd && plan.promoPercent
+                    ? plan.promoPriceVnd
+                    : plan.feeVnd}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Phí dịch vụ — không tặng Credit</p>
+              {plan.promoLabel ? (
+                <p className="mt-1 text-sm font-semibold text-rose-700">{plan.promoLabel}</p>
+              ) : null}
+              <p className="mt-1 text-xs text-slate-500">
+                Phí dịch vụ 30 ngày
+                {plan.creditQuota != null ? ` · gồm ${plan.creditQuota} lượt mở hồ sơ` : ''}
+              </p>
               {plan.feeVnd === '0' ? null : (
-                <VatPayLines priceVnd={plan.feeVnd} percent={pub?.vatPercent} currency={currency} />
+                <VatPayLines
+                  priceVnd={plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.feeVnd}
+                  percent={pub?.vatPercent}
+                  currency={currency}
+                />
               )}
 
               <ul className="mt-5 space-y-2 text-sm text-slate-600">

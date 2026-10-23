@@ -61,6 +61,7 @@ export interface AdminCreateSourcingPlanRequest {
   searchRoundQuota?: number;
   shortlistQuota?: number;
   revisionQuota?: number;
+  creditQuota?: number;
   serviceScope?: SourcingServiceScope[];
   sortOrder?: number;
   isActive?: boolean;

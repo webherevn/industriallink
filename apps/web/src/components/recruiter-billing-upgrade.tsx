@@ -121,15 +121,29 @@ export function RecruiterPlanUpgrade() {
                 <p className="mt-2 text-sm text-slate-500">{plan.description}</p>
               ) : null}
 
-              <p className="mt-4 text-3xl font-bold text-[#072348]">
+              {plan.promoPercent && plan.promoPriceVnd ? (
+                <p className="mt-4 text-sm text-slate-400 line-through">
+                  {currency ? formatPriceVnd(plan.priceVnd, currency) : plan.priceVnd}
+                </p>
+              ) : null}
+              <p className={plan.promoPercent ? 'text-3xl font-bold text-[#072348]' : 'mt-4 text-3xl font-bold text-[#072348]'}>
                 {isEnterprise
                   ? 'Báo giá'
                   : currency
-                    ? formatPriceVnd(plan.priceVnd, currency)
-                    : plan.priceVnd}
+                    ? formatPriceVnd(plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.priceVnd, currency)
+                    : plan.promoPriceVnd && plan.promoPercent
+                      ? plan.promoPriceVnd
+                      : plan.priceVnd}
               </p>
+              {plan.promoLabel ? (
+                <p className="mt-1 text-sm font-semibold text-rose-700">{plan.promoLabel}</p>
+              ) : null}
               {isEnterprise || plan.priceVnd === '0' ? null : (
-                <VatPayLines priceVnd={plan.priceVnd} percent={pub?.vatPercent} currency={currency} />
+                <VatPayLines
+                  priceVnd={plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.priceVnd}
+                  percent={pub?.vatPercent}
+                  currency={currency}
+                />
               )}
 
               <ul className="mt-5 space-y-2 text-sm text-slate-600">
@@ -143,7 +157,7 @@ export function RecruiterPlanUpgrade() {
                 {plan.code === 'KHAM_PHA' ? (
                   <li className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-slate-400" />
-                    Chu kỳ gói: <strong>30 ngày</strong> (tạo JD mới khi hết chu kỳ)
+                    Chu kỳ gói: <strong>{plan.durationDays ?? 14} ngày</strong> (tạo tin mới khi hết chu kỳ)
                   </li>
                 ) : null}
                 <li className="flex items-center gap-2">
@@ -222,7 +236,7 @@ function CurrentPlanCard({
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-600" />
               Sau khi thanh toán, gói hiển thị sẽ là <strong>{requested.name}</strong>
               {requested.code === 'KHAM_PHA'
-                ? ', chu kỳ 30 ngày'
+                ? `, chu kỳ ${requested.durationDays ?? 14} ngày`
                 : requested.durationDays != null
                   ? `, hạn gói ${requested.durationDays} ngày`
                   : ''}

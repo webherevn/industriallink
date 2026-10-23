@@ -220,7 +220,7 @@ export default function RecruiterDashboardPage() {
         icon: 'wallet' as const,
         title: 'Báo cáo lương thị trường HVAC / kỹ thuật — tham chiếu khi đăng tin mới',
         cta: 'Xem báo cáo',
-        href: '/jobs/new',
+        href: '/recruiter/salary',
       },
     ];
   }, [data, topCandidates]);

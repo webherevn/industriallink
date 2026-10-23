@@ -30,6 +30,7 @@ import {
   referralFromMetadata,
   type ReferralStamp,
 } from '../crm/referral-cookie';
+import { applyLaunchPromo, launchPromoFor } from './launch-promo';
 
 const SCOPE = 'default';
 type Row = Prisma.BillingPaymentSettingGetPayload<Record<string, never>>;
@@ -274,7 +275,9 @@ export class PaymentService {
       throw new BadRequestException('Gói Enterprise liên hệ sales — không tự thanh toán');
     }
 
-    const priceVnd = platform ? platform.priceVnd : sourcing!.feeVnd;
+    const listPrice = platform ? platform.priceVnd : sourcing!.feeVnd;
+    const promo = launchPromoFor(kind, plan.code);
+    const priceVnd = applyLaunchPromo(listPrice, promo.percent);
     const settings = await this.row();
     const mode = (settings?.mode as PaymentMode) ?? 'mock';
     const sessionId = `cs_${mode === 'live' ? 'test' : 'mock'}_${randomBytes(12).toString('hex')}`;
@@ -290,6 +293,10 @@ export class PaymentService {
       planCode: plan.code,
       planName: plan.name,
       referral: await this.referralStampForPayer(user, referralCookie),
+      promo:
+        promo.percent > 0
+          ? { listPriceVnd: listPrice.toString(), percent: promo.percent, code: promo.code }
+          : null,
     });
 
     if (priceVnd <= 0n) {
@@ -372,8 +379,19 @@ export class PaymentService {
     planCode?: string | null;
     planName?: string | null;
     referral?: ReferralStamp | null;
+    promo?: { listPriceVnd: string; percent: number; code: string | null } | null;
   }) {
     const vatPercent = await this.currentVatPercent();
+    const promoMeta = args.promo
+      ? {
+          listPriceVnd: args.promo.listPriceVnd,
+          promoPercent: args.promo.percent,
+          promoCode: args.promo.code,
+        }
+      : null;
+    const metadata = args.referral
+      ? mergeReferralMetadata(promoMeta ?? {}, args.referral.code, args.referral.capturedAt)
+      : promoMeta;
     return this.prisma.billingOrder.create({
       data: {
         tenantId: args.user.tenantId,
@@ -391,15 +409,7 @@ export class PaymentService {
         providerSessionId: args.sessionId,
         createdByUserId: args.user.id,
         createdByEmail: args.user.email ?? null,
-        ...(args.referral
-          ? {
-              metadata: mergeReferralMetadata(
-                {},
-                args.referral.code,
-                args.referral.capturedAt,
-              ) as Prisma.InputJsonValue,
-            }
-          : {}),
+        ...(metadata ? { metadata: metadata as Prisma.InputJsonValue } : {}),
       },
     });
   }

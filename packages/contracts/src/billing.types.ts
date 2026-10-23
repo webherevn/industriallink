@@ -41,8 +41,13 @@ export interface BillingPlatformPlanView {
   code: string;
   name: string;
   description: string | null;
-  /** VND integer, serialize thành string. */
+  /** Giá niêm yết, VND integer, serialize thành string. */
   priceVnd: string;
+  /** Phần trăm giảm khi chiến dịch ra mắt đang mở. Null khi không giảm. */
+  promoPercent?: number | null;
+  /** Giá thanh toán chưa VAT. Bằng giá niêm yết khi không giảm. */
+  promoPriceVnd?: string | null;
+  promoLabel?: string | null;
   billingUnit: 'per_jd' | 'per_month';
   durationDays: number | null;
   jobPostQuota: number | null;
@@ -75,8 +80,15 @@ export interface BillingSourcingPlanView {
   code: string;
   name: string;
   description: string | null;
-  /** VND integer, serialize thành string. */
+  /** Giá niêm yết, VND integer, serialize thành string. */
   feeVnd: string;
+  /** Phần trăm giảm khi chiến dịch ra mắt đang mở. Null khi không giảm. */
+  promoPercent?: number | null;
+  /** Giá thanh toán chưa VAT. Bằng giá niêm yết khi không giảm. */
+  promoPriceVnd?: string | null;
+  promoLabel?: string | null;
+  /** Lượt mở hồ sơ tiềm năng đi kèm gói. */
+  creditQuota?: number | null;
   positionQuota: number | null;
   searchRoundQuota: number | null;
   shortlistQuota: number | null;

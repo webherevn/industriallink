@@ -1361,7 +1361,7 @@ model BillingSourcingPlan {
   name        String
   description String?
 
-  /// Phí dịch vụ Săn (VND integer). KHÔNG bao gồm Credit — Credit tính riêng theo nguyên tắc V1.
+  /// Phí dịch vụ Săn (VND integer), giá niêm yết chưa VAT. Khuyến mại tính lúc thanh toán.
   feeVnd      BigInt  @map("fee_vnd")
   /// Số vị trí được Săn tối đa trong 1 gói (1 cho SAN_CO_BAN theo tài liệu V1).
   positionQuota Int? @map("position_quota")
@@ -1371,6 +1371,8 @@ model BillingSourcingPlan {
   shortlistQuota Int? @map("shortlist_quota")
   /// Số lần điều chỉnh tối đa (SAN_CO_BAN: 1 theo V1).
   revisionQuota Int? @map("revision_quota")
+  /// Lượt mở hồ sơ tiềm năng đi kèm gói. Cộng vào ví khi kích hoạt.
+  creditQuota Int? @map("credit_quota")
 
   /// Phạm vi dịch vụ dạng JSON (vd: ["ai_match","filter","shortlist","strengths_gaps","priority","outreach","follow_up","replacement"]).
   /// Mapping đến 8 hàng trong bảng XI tài liệu.
@@ -1778,7 +1780,7 @@ model BillingOrder {
   /// Snapshot từ billing_credit_topup tại thời điểm mua (không thay đổi sau).
   topupId                  String?  @map("topup_id") @db.Uuid
   creditCountSnapshot      Int      @default(0) @map("credit_count_snapshot")
-  /// Giá niêm yết lúc mua, chưa VAT. Hoa hồng và doanh số dùng số này.
+  /// Giá thanh toán chưa VAT. Có khuyến mại thì đây là giá sau giảm. Giá niêm yết nằm trong metadata.
   priceVndSnapshot         BigInt   @map("price_vnd_snapshot")
   /// Mức VAT lúc tạo đơn. Null khi lúc đó chưa đặt. Đổi thuế suất sau không sửa đơn này.
   vatPercent               Int?     @map("vat_percent")

@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import {
   Bookmark,
   Briefcase,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -71,6 +72,19 @@ const FILTER_EXPERIENCE_LABEL: Record<ExperienceBand, string> = {
 };
 
 const EXPERIENCE_OPTIONS = Object.values(ExperienceBand);
+
+type ListingSort = 'newest' | 'salary';
+
+function postedTime(publishedAt: string | null, createdAt?: string): number {
+  const time = new Date(publishedAt || createdAt || '').getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+/** Mức trần của khung lương. Tin không ghi lương xếp cuối khi sắp theo lương. */
+function salaryHigh(min: number | null, max: number | null): number {
+  const values = [min, max].filter((n): n is number => n != null && n > 0);
+  return values.length ? Math.max(...values) : -1;
+}
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return '';
@@ -174,6 +188,7 @@ function JobsPageInner({
   const experienceBands = parseList(searchParams.get('experienceBand'));
   const salaryPreset = searchParams.get('salary') ?? '';
   const salaryPresetObj = SALARY_PRESETS.find((p) => p.label === salaryPreset);
+  const sort: ListingSort = searchParams.get('sort') === 'salary' ? 'salary' : 'newest';
   const pageRaw = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
 
@@ -233,6 +248,7 @@ function JobsPageInner({
       jobLevel: null,
       experienceBand: null,
       salary: null,
+      sort: null,
       page: null,
     });
   };
@@ -254,7 +270,8 @@ function JobsPageInner({
       locations.length ||
       jobLevels.length ||
       experienceBands.length ||
-      salaryPreset,
+      salaryPreset ||
+      sort === 'salary',
   );
 
   const { data: jobs, isLoading } = useQuery({
@@ -347,9 +364,22 @@ function JobsPageInner({
     };
   }, []);
 
-  const allJobs: JobListItem[] =
-    tab === 'saved' ? (bookmarks ?? []) : tab === 'all' ? (jobs ?? []) : [];
-  const allApplications = applications ?? [];
+  const allJobs: JobListItem[] = (
+    tab === 'saved' ? (bookmarks ?? []) : tab === 'all' ? (jobs ?? []) : []
+  )
+    .slice()
+    .sort((a, b) =>
+      sort === 'salary'
+        ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
+          postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt)
+        : postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt),
+    );
+  const allApplications = (applications ?? []).slice().sort((a, b) =>
+    sort === 'salary'
+      ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
+        postedTime(b.createdAt) - postedTime(a.createdAt)
+      : postedTime(b.createdAt) - postedTime(a.createdAt),
+  );
 
   const totalItems = tab === 'applied' ? allApplications.length : allJobs.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE) || 1);
@@ -542,7 +572,7 @@ function JobsPageInner({
               onChange={(e) =>
                 setFilterParams({ desiredPosition: e.target.value || null, tab: 'all' })
               }
-              className="mb-4 h-10 py-2 text-sm"
+              className="mb-4 h-10 rounded-xl border-slate-200 bg-slate-50/80 py-2 text-sm"
             >
               <option value="">Chọn vị trí</option>
               <optgroup label="Khối Kinh doanh">
@@ -564,41 +594,33 @@ function JobsPageInner({
             <SectionTitle>Khối / cấp bậc</SectionTitle>
             {Object.values(JobTrack).map((track) => (
               <details key={track} open className="group mb-1">
-                <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 text-sm font-medium text-slate-800">
+                <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
                   {JOB_TRACK_LABEL[track]}
                   <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition group-open:rotate-180" />
                 </summary>
-                <ul className="mb-2 space-y-1.5 pl-0.5">
+                <ul className="mb-1 space-y-0.5 pl-1">
                   {CAREER_LADDERS[track].map((code) => (
                     <li key={code}>
-                      <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-slate-600">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
-                          checked={jobLevels.includes(code)}
-                          onChange={() => toggleLevel(code)}
-                        />
-                        {JOB_LEVEL_LABEL[code]}
-                      </label>
+                      <FilterCheck
+                        checked={jobLevels.includes(code)}
+                        label={JOB_LEVEL_LABEL[code]}
+                        onChange={() => toggleLevel(code)}
+                      />
                     </li>
                   ))}
                 </ul>
               </details>
             ))}
 
-            <SectionTitle className="mt-3">Kinh nghiệm</SectionTitle>
-            <ul className="space-y-1.5">
+            <SectionTitle>Kinh nghiệm</SectionTitle>
+            <ul className="space-y-0.5">
               {EXPERIENCE_OPTIONS.map((band) => (
                 <li key={band}>
-                  <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-slate-600">
-                    <input
-                      type="checkbox"
-                      className="h-3.5 w-3.5 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
-                      checked={experienceBands.includes(band)}
-                      onChange={() => toggleExperience(band)}
-                    />
-                    {FILTER_EXPERIENCE_LABEL[band]}
-                  </label>
+                  <FilterCheck
+                    checked={experienceBands.includes(band)}
+                    label={FILTER_EXPERIENCE_LABEL[band]}
+                    onChange={() => toggleExperience(band)}
+                  />
                 </li>
               ))}
             </ul>
@@ -607,7 +629,7 @@ function JobsPageInner({
             <Select
               value={salaryPreset}
               onChange={(e) => setFilterParams({ salary: e.target.value || null, tab: 'all' })}
-              className="h-10 py-2 text-sm"
+              className="h-10 rounded-xl border-slate-200 bg-slate-50/80 py-2 text-sm"
             >
               <option value="">Chọn mức lương</option>
               {SALARY_PRESETS.filter((p) => p.label !== 'Tuỳ chỉnh').map((p) => (
@@ -689,8 +711,15 @@ function JobsPageInner({
               ))}
             </div>
             <div className="pb-2.5">
-              <select className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none">
-                <option>Mới nhất</option>
+              <select
+                value={sort}
+                onChange={(e) =>
+                  setFilterParams({ sort: e.target.value === 'salary' ? 'salary' : null })
+                }
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none"
+              >
+                <option value="newest">Mới nhất</option>
+                <option value="salary">Lương cao nhất</option>
               </select>
             </div>
           </div>
@@ -906,7 +935,38 @@ function JobsPageInner({
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
-  return <p className="mb-1.5 text-xs font-medium text-slate-500">{children}</p>;
+  return <p className="mb-1.5 text-[12px] font-semibold text-slate-500">{children}</p>;
+}
+
+function FilterCheck({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  return (
+    <label
+      className={clsx(
+        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition',
+        checked ? 'bg-brand-50 font-medium text-brand-800' : 'text-slate-600 hover:bg-slate-50',
+      )}
+    >
+      <input type="checkbox" className="sr-only" checked={checked} onChange={onChange} />
+      <span
+        aria-hidden
+        className={clsx(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition',
+          checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300 bg-white',
+        )}
+      >
+        {checked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+      </span>
+      {label}
+    </label>
+  );
 }
 
 function SectionTitle({
