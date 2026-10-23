@@ -4,7 +4,6 @@ import {
   SkillLevel,
   formatJobLevel,
   isJobLevelCode,
-  type CareerAdviceView,
   type ParsedSalesJobDraft,
   type ParsedTechnicalJobDraft,
   type SalaryEstimateView,
@@ -20,9 +19,7 @@ import type {
   ResumeParseInput,
 } from '../domain/types';
 import {
-  buildCareerAdvice,
   buildSalaryEstimate,
-  type CareerAdviceEngineInput,
   type SalaryEstimateEngineInput,
 } from './career-salary.engine';
 import { deterministicEmbedding } from './embedding.util';
@@ -336,10 +333,6 @@ export class MockAiProvider implements AiProvider {
           : 'Mô phỏng: không phát hiện dấu hiệu bất thường.',
       suggested_action: action,
     });
-  }
-
-  async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {
-    return buildCareerAdvice(input);
   }
 
   async embed(text: string): Promise<number[]> {

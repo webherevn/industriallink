@@ -33,6 +33,7 @@ import {
   publishJob,
   updateJobStatus,
 } from '@/lib/jobs';
+import { plainLabel } from '@/lib/plain-label';
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   [JobStatus.Draft]: 'Nháp',
@@ -367,7 +368,11 @@ function JobManageCard({
 
         {job.skills.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {job.skills.slice(0, 5).map((s) => (
+            {job.skills
+              .map((s) => plainLabel(s))
+              .filter(Boolean)
+              .slice(0, 5)
+              .map((s) => (
               <Badge key={s} tone="green">
                 {s}
               </Badge>

@@ -12,7 +12,6 @@ import {
   CandidateStatus,
   ConnectionStatus,
   DomainEvents,
-  JobTrack,
   ResumeParseStatus,
   UserRole,
   availabilityToNoticeDays,
@@ -25,7 +24,6 @@ import {
   suggestionFillRatio,
   weightedSuggestionPercent,
   type CandidateView,
-  type CareerAdviceView,
   type ConnectionView,
   type CvDraftFromTextResponse,
   type CvDraftView,
@@ -1629,31 +1627,6 @@ export class CandidateService {
             : 'AI đã trích xuất khá đầy đủ. Bạn có thể chỉnh sửa rồi chọn mẫu CV.'
           : `AI đã tạo ${aiFields.length - missingCount} trường. Còn ${missingCount} mục cần bổ sung.`,
     };
-  }
-
-  /** Career Engine: lộ trình + khung lương dựa trên hồ sơ ứng viên. */
-  async getCareerAdvice(
-    user: AuthenticatedUser,
-    opts?: { track?: JobTrack },
-  ): Promise<CareerAdviceView> {
-    const candidate = await this.prisma.candidate.findUnique({
-      where: { userId: user.id },
-      include: { profile: true, aiProfile: true, skills: true },
-    });
-    if (!candidate) {
-      throw new NotFoundException('Chưa có hồ sơ ứng viên');
-    }
-
-    return this.ai.adviseCareer({
-      track: opts?.track,
-      jobLevel: candidate.profile?.jobLevel,
-      currentPosition: candidate.profile?.currentPosition,
-      industry: candidate.profile?.industry,
-      skills: candidate.skills.map((s) => s.name),
-      yearsOfExperience: candidate.profile?.totalExperienceYears,
-      strengths: candidate.aiProfile?.strengths ?? [],
-      weaknesses: candidate.aiProfile?.weaknesses ?? [],
-    });
   }
 
   private async hasAppliedToCompany(companyId: string, candidateId: string): Promise<boolean> {

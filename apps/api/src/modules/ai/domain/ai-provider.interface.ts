@@ -1,8 +1,5 @@
-import type { CareerAdviceView, SalaryEstimateView } from '@industriallink/contracts';
-import type {
-  CareerAdviceEngineInput,
-  SalaryEstimateEngineInput,
-} from '../providers/career-salary.engine';
+import type { SalaryEstimateView } from '@industriallink/contracts';
+import type { SalaryEstimateEngineInput } from '../providers/career-salary.engine';
 import type {
   JobDraftInput,
   JobDraftResult,
@@ -31,8 +28,6 @@ export interface AiProvider {
   parseJobDescription(input: JobParseInput): Promise<ParsedSalesJobDraft | ParsedTechnicalJobDraft>;
   /** Kiểm duyệt tin tuyển dụng (Lớp 2): chấm rủi ro + đề xuất hành động. */
   moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult>;
-  /** Career Engine: lộ trình thăng tiến theo taxonomy VN. */
-  adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView>;
   /** Salary Engine: ước lương theo cấp bậc VN. */
   estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView>;
   /** Sinh vector embedding cho semantic search / matching. */

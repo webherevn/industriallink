@@ -1,11 +1,9 @@
 import { Logger } from '@nestjs/common';
-import type { CareerAdviceView, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import type { ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { AiProvider } from '../domain/ai-provider.interface';
 import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from '../domain/types';
 import {
-  buildCareerAdvice,
   buildSalaryEstimate,
-  type CareerAdviceEngineInput,
   type SalaryEstimateEngineInput,
 } from './career-salary.engine';
 import { deterministicEmbedding } from './embedding.util';
@@ -256,10 +254,6 @@ export class GeminiProvider implements AiProvider {
       0,
     );
     return normalizeJobModerationResult(raw);
-  }
-
-  async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {
-    return buildCareerAdvice(input);
   }
 
   async estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView> {

@@ -5,6 +5,7 @@ import { Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { tokenStore } from '@/lib/api';
+import { armNotificationChime, playNotificationChime } from '@/lib/notification-chime';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/notifications';
 
 function formatTime(iso: string): string {
@@ -25,6 +26,7 @@ export function NotificationBell({ allHref = '/notifications' }: { allHref?: str
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const knownUnread = useRef<Set<string> | null>(null);
 
   const enabled = typeof window !== 'undefined' && Boolean(tokenStore.get());
 
@@ -45,6 +47,26 @@ export function NotificationBell({ allHref = '/notifications' }: { allHref?: str
     mutationFn: markAllNotificationsRead,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
+
+  useEffect(() => {
+    function arm() {
+      armNotificationChime();
+    }
+    window.addEventListener('pointerdown', arm);
+    return () => window.removeEventListener('pointerdown', arm);
+  }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    const unreadIds = (data.items ?? []).filter((item) => !item.readAt).map((item) => item.id);
+    if (!knownUnread.current) {
+      knownUnread.current = new Set(unreadIds);
+      return;
+    }
+    const fresh = unreadIds.some((id) => !knownUnread.current?.has(id));
+    knownUnread.current = new Set(unreadIds);
+    if (fresh) playNotificationChime();
+  }, [data]);
 
   useEffect(() => {
     if (!open) return;

@@ -24,6 +24,7 @@ import {
 } from './matching.util';
 import { explainSalesJobCandidate } from './sales-match-explain';
 import { explainTechnicalJobCandidate } from './technical-match-explain';
+import { plainLabel } from './html.util';
 
 const MATCH_LIMIT = 20;
 /** Pool ứng viên đưa vào engine Sales/Kỹ thuật khi matching theo JD. */
@@ -261,10 +262,38 @@ export class MatchingService {
     const networkRows = scored
       .filter((r) => !r.applied && r.match.score >= MIN_ENGINE_SCORE)
       .sort((a, b) => b.match.score - a.match.score);
+    const ranked = [...appliedRows, ...networkRows].slice(0, MATCH_LIMIT);
+    const viewedIds = await this.viewedCandidateIds(
+      companyId,
+      ranked.map((row) => row.candidateId),
+    );
 
-    return [...appliedRows, ...networkRows]
-      .slice(0, MATCH_LIMIT)
-      .map(({ applied: _applied, ...row }): CandidateMatchView => row);
+    return ranked.map(
+      (row): CandidateMatchView => ({
+        candidateId: row.candidateId,
+        displayName: row.displayName,
+        currentPosition: row.currentPosition,
+        industry: row.industry,
+        match: row.match,
+        applied: row.applied,
+        viewed: viewedIds.has(row.candidateId),
+      }),
+    );
+  }
+
+  /** Công ty đã mở hồ sơ: lượt xem có phí, hoặc mốc xem miễn phí. */
+  private async viewedCandidateIds(companyId: string, candidateIds: string[]): Promise<Set<string>> {
+    if (candidateIds.length === 0) return new Set();
+    const rows = await this.prisma.billingCreditTransaction.findMany({
+      where: {
+        companyId,
+        candidateId: { in: candidateIds },
+        action: { in: ['view_profile', 'view_applicant', 'reopen_profile'] },
+      },
+      select: { candidateId: true },
+      distinct: ['candidateId'],
+    });
+    return new Set(rows.flatMap((row) => (row.candidateId ? [row.candidateId] : [])));
   }
 
   /** Gợi ý tin tuyển dụng phù hợp cho ứng viên đang đăng nhập. */
@@ -379,7 +408,11 @@ export class MatchingService {
       experienceBand: j.experienceBand,
       salaryMin: j.salaryMin,
       salaryMax: j.salaryMax,
-      skills: j.skills.map((s) => s.name).slice(0, 6),
+      skills: j.skills
+        .map((s) => plainLabel(s.name))
+        .filter(Boolean)
+        .filter((name, index, all) => all.findIndex((n) => n.toLowerCase() === name.toLowerCase()) === index)
+        .slice(0, 6),
       publishedAt: j.publishedAt?.toISOString() ?? null,
       match: explanation,
     };

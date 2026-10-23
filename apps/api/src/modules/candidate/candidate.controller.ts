@@ -23,7 +23,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { JobTrack, UserRole } from '@industriallink/contracts';
+import { UserRole } from '@industriallink/contracts';
 import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { IdempotencyInterceptor } from '../../shared/common/idempotency.interceptor';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -81,16 +81,6 @@ export class CandidateController {
   @ApiOperation({ summary: 'Trạng thái phân tích CV (poll cho màn hình AI Analysis)' })
   getResumeStatus(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.candidates.getResumeStatus(user, id);
-  }
-
-  @Get('me/career')
-  @Roles(UserRole.Candidate)
-  @ApiOperation({ summary: 'Career Engine: lộ trình + khung lương theo cấp bậc VN' })
-  @ApiQuery({ name: 'track', required: false, enum: JobTrack })
-  getCareer(@CurrentUser() user: AuthenticatedUser, @Query('track') track?: JobTrack) {
-    return this.candidates.getCareerAdvice(user, {
-      track: track === JobTrack.Sales || track === JobTrack.Technical ? track : undefined,
-    });
   }
 
   @Get('me')

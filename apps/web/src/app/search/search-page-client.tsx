@@ -175,6 +175,8 @@ function matchToResult(row: CandidateMatchView): CandidateSearchResult {
     reason: row.match.reason,
     matchedSkills: row.match.matchedSkills,
     criteria: row.match.criteria,
+    applied: row.applied,
+    viewed: row.viewed,
   };
 }
 
@@ -325,6 +327,20 @@ function ResultCard({
                   Xem hồ sơ →
                 </span>
               </h3>
+              {(result.viewed || result.applied) && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {result.viewed && (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                      Đã xem
+                    </span>
+                  )}
+                  {result.applied && (
+                    <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                      Đã ứng tuyển
+                    </span>
+                  )}
+                </div>
+              )}
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-500">
                 <span>
                   {result.currentPosition

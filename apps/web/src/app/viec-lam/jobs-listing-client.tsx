@@ -39,6 +39,8 @@ import { IndustryPicker } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { Badge, Button, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
+import { tokenStore } from '@/lib/api';
+import { getMyCandidate } from '@/lib/candidate';
 import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import {
   APPLICATION_STATUS_LABEL,
@@ -56,6 +58,8 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
+import { plainLabel } from '@/lib/plain-label';
+import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
 type TabId = 'all' | 'saved' | 'applied';
 
@@ -189,6 +193,7 @@ function JobsPageInner({
   const salaryPreset = searchParams.get('salary') ?? '';
   const salaryPresetObj = SALARY_PRESETS.find((p) => p.label === salaryPreset);
   const sort: ListingSort = searchParams.get('sort') === 'salary' ? 'salary' : 'newest';
+  const byPlace = searchParams.get('place') === '1';
   const pageRaw = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
 
@@ -249,6 +254,8 @@ function JobsPageInner({
       experienceBand: null,
       salary: null,
       sort: null,
+      province: null,
+      place: null,
       page: null,
     });
   };
@@ -271,7 +278,19 @@ function JobsPageInner({
       jobLevels.length ||
       experienceBands.length ||
       salaryPreset ||
-      sort === 'salary',
+      sort === 'salary' ||
+      byPlace,
+  );
+
+  const { data: candidate } = useQuery({
+    queryKey: ['my-candidate'],
+    queryFn: getMyCandidate,
+    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    retry: false,
+  });
+  const provinces = useMemo(
+    () => profileProvinces(candidate?.profile?.sales?.desiredLocations),
+    [candidate],
   );
 
   const { data: jobs, isLoading } = useQuery({
@@ -373,7 +392,8 @@ function JobsPageInner({
         ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
           postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt)
         : postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt),
-    );
+    )
+    .filter((job) => !byPlace || locationMatchesProfile(job.location, provinces));
   const allApplications = (applications ?? []).slice().sort((a, b) =>
     sort === 'salary'
       ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
@@ -710,16 +730,27 @@ function JobsPageInner({
                 </button>
               ))}
             </div>
-            <div className="pb-2.5">
+            <div className="flex items-center gap-2 pb-2.5">
               <select
-                value={sort}
-                onChange={(e) =>
-                  setFilterParams({ sort: e.target.value === 'salary' ? 'salary' : null })
-                }
+                value={byPlace ? 'place' : sort}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'place') {
+                    setFilterParams({ place: '1', province: null, sort: null });
+                  } else {
+                    setFilterParams({
+                      place: null,
+                      province: null,
+                      sort: value === 'salary' ? 'salary' : null,
+                    });
+                  }
+                }}
+                aria-label="Sắp xếp và lọc việc làm"
                 className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none"
               >
                 <option value="newest">Mới nhất</option>
                 <option value="salary">Lương cao nhất</option>
+                {provinces.length > 0 && <option value="place">Địa điểm</option>}
               </select>
             </div>
           </div>
@@ -1200,7 +1231,11 @@ function JobCard({
                     {formatJobLevel(job.jobLevel)}
                   </span>
                 )}
-                {(job.skills ?? []).slice(0, 4).map((s) => (
+                {(job.skills ?? [])
+                  .map((s) => plainLabel(s))
+                  .filter(Boolean)
+                  .slice(0, 4)
+                  .map((s) => (
                   <span
                     key={s}
                     className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"

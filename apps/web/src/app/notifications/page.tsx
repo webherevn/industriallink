@@ -3,8 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
 import Link from 'next/link';
+import { UserRole } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { Button, Card } from '@/components/ui';
+import { fetchMe } from '@/lib/auth';
+import { getMyCandidate } from '@/lib/candidate';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/notifications';
 
 function formatTime(iso: string): string {
@@ -17,6 +21,14 @@ function formatTime(iso: string): string {
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
+  const { data: user, isLoading: meLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
+  const isCandidate = user?.role === UserRole.Candidate;
+  const { data: candidate } = useQuery({
+    queryKey: ['my-candidate'],
+    queryFn: getMyCandidate,
+    enabled: isCandidate,
+    retry: false,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
@@ -38,8 +50,16 @@ export default function NotificationsPage() {
   const items = data?.items ?? [];
   const unread = data?.unreadCount ?? 0;
 
-  return (
-    <AppShell>
+  if (meLoading || !user) {
+    return (
+      <AppShell>
+        <p className="text-sm text-slate-500">Đang tải...</p>
+      </AppShell>
+    );
+  }
+
+  const content = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Thông báo</h1>
@@ -104,6 +124,23 @@ export default function NotificationsPage() {
             </Card>
           );
         })}
+      </div>
+    </>
+  );
+
+  if (!isCandidate) {
+    return <AppShell>{content}</AppShell>;
+  }
+
+  return (
+    <AppShell wide>
+      <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <CandidateSidebar
+          displayName={candidate?.displayName ?? user?.displayName ?? 'Ứng viên'}
+          position={candidate?.profile?.currentPosition}
+          profileCompletion={candidate?.profileCompletion}
+        />
+        <div className="min-w-0">{content}</div>
       </div>
     </AppShell>
   );

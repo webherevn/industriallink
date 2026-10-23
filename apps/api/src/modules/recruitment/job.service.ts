@@ -63,7 +63,7 @@ import type { CreateJobDto } from './dto/create-job.dto';
 import type { EstimateSalaryDto } from './dto/estimate-salary.dto';
 import type { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
 import { ExtractTextError, extractResumeText } from '../candidate/resume/extract-text.util';
-import { stripHtml } from './html.util';
+import { plainLabel, stripHtml } from './html.util';
 
 const JOB_COMPANY_SELECT = {
   id: true,
@@ -472,15 +472,7 @@ export class JobService {
     await this.billing.assertJobQuota(company.companyId);
     const code = await this.codeGen.next('JOB');
 
-    const skillInputs = dto.skills ?? [];
-    const skillData = await Promise.all(
-      skillInputs.map(async (s) => ({
-        skillId: await this.skills.resolveSkillId(s.name),
-        name: s.name.trim(),
-        required: s.required ?? true,
-        weight: s.weight ?? 1,
-      })),
-    );
+    const skillData = await this.skillRows(dto.skills);
 
     const track = resolveCreateJobTrack(dto);
     assertTechnicalLevelFitsPosition(dto, track);
@@ -621,15 +613,7 @@ export class JobService {
     // Sửa tin đang công khai → gỡ khỏi public và kiểm duyệt lại nội dung mới.
     const wasPublished = owned.status === JobStatus.Published;
 
-    const skillInputs = dto.skills ?? [];
-    const skillData = await Promise.all(
-      skillInputs.map(async (s) => ({
-        skillId: await this.skills.resolveSkillId(s.name),
-        name: s.name.trim(),
-        required: s.required ?? true,
-        weight: s.weight ?? 1,
-      })),
-    );
+    const skillData = await this.skillRows(dto.skills);
 
     await this.prisma.jobSkill.deleteMany({ where: { jobId: id } });
 
@@ -1139,12 +1123,7 @@ export class JobService {
       jobTrack: job.jobTrack ?? null,
       salesCriteria: parseStoredSalesCriteria(job.salesCriteria),
       technicalCriteria: parseStoredTechnicalCriteria(job.technicalCriteria),
-      skills: job.skills.map((s) => ({
-        skillId: s.skillId,
-        name: s.name,
-        required: s.required,
-        weight: s.weight,
-      })),
+      skills: skillViews(job.skills),
       createdAt: job.createdAt.toISOString(),
       publishedAt: job.publishedAt ? job.publishedAt.toISOString() : null,
     };
@@ -1182,13 +1161,65 @@ export class JobService {
       status: job.status as JobStatus,
       moderationStatus: (job.moderationStatus as JobModerationStatus) ?? undefined,
       jobTrack: job.jobTrack ?? null,
-      skills: (job.skills ?? []).map((s) => s.name),
+      skills: skillLabels(job.skills),
       createdAt: job.createdAt.toISOString(),
       publishedAt: publishedAt ? publishedAt.toISOString() : null,
       isNew,
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
     };
   }
+
+  private async skillRows(inputs: CreateJobDto['skills']) {
+    const seen = new Set<string>();
+    const rows: {
+      skillId: string | null;
+      name: string;
+      required: boolean;
+      weight: number;
+    }[] = [];
+    for (const skill of inputs ?? []) {
+      const name = plainLabel(skill.name);
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({
+        skillId: await this.skills.resolveSkillId(name),
+        name,
+        required: skill.required ?? true,
+        weight: skill.weight ?? 1,
+      });
+    }
+    return rows;
+  }
+}
+
+function skillLabels(skills: Array<{ name: string }> | null | undefined): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const skill of skills ?? []) {
+    const name = plainLabel(skill.name);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+function skillViews<T extends { name: string }>(skills: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const skill of skills) {
+    const name = plainLabel(skill.name);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...skill, name });
+  }
+  return out;
 }
 
 function aggregateJobTitles(

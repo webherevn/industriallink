@@ -1,3 +1,4 @@
+import { plainLabel } from '../../recruitment/html.util';
 import {
   CUSTOMER_SEGMENTS,
   DEAL_TYPE_LABEL,
@@ -278,9 +279,9 @@ export function normalizeParsedSalesJob(
   const skills = Array.isArray(r.skills)
     ? r.skills
         .map((s) => {
-          if (typeof s === 'string') return s.trim();
+          if (typeof s === 'string') return plainLabel(s);
           const o = (s ?? {}) as Record<string, unknown>;
-          return String(o.name ?? '').trim();
+          return plainLabel(String(o.name ?? ''));
         })
         .filter(Boolean)
         .slice(0, 30)

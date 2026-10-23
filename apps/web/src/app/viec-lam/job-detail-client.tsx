@@ -47,6 +47,7 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { companyPublicPath, jobListingPath, jobPublicPath } from '@/lib/public-paths';
+import { plainLabel } from '@/lib/plain-label';
 
 function companyInitials(name: string): string {
   const parts = name
@@ -656,7 +657,7 @@ export function JobDetailClient({
                           : 'bg-slate-100 text-slate-600',
                       )}
                     >
-                      {s.name}
+                      {plainLabel(s.name)}
                       {s.required && (
                         <span className="shrink-0 text-[10px] font-bold uppercase text-amber-600">
                           Bắt buộc

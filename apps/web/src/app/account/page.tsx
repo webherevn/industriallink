@@ -3,17 +3,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { useState } from 'react';
-import { MfaMethod } from '@industriallink/contracts';
+import { MfaMethod, UserRole } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { Badge, Button, Card, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { confirmTotp, disableTotp, fetchMe, setupTotp, updateMfa } from '@/lib/auth';
+import { getMyCandidate } from '@/lib/candidate';
 
 export default function AccountPage() {
   const qc = useQueryClient();
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
+  });
+  const isCandidate = user?.role === UserRole.Candidate;
+  const { data: candidate } = useQuery({
+    queryKey: ['my-candidate'],
+    queryFn: getMyCandidate,
+    enabled: isCandidate,
+    retry: false,
   });
 
   const mfaMutation = useMutation({
@@ -50,18 +59,22 @@ export default function AccountPage() {
   const isEmailOtpActive = user?.mfaEnabled && user.mfaMethod === MfaMethod.EmailOtp;
   const isTotpActive = user?.mfaEnabled && user.mfaMethod === MfaMethod.Totp;
 
-  return (
-    <AppShell>
-      <div className="mx-auto max-w-xl space-y-6">
+  if (isLoading || !user) {
+    return (
+      <AppShell>
+        <p className="text-sm text-slate-500">Đang tải...</p>
+      </AppShell>
+    );
+  }
+
+  const content = (
+      <div className={isCandidate ? 'min-w-0 space-y-4' : 'mx-auto max-w-xl space-y-6'}>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tài khoản</h1>
           <p className="mt-1 text-sm text-slate-500">Bảo mật và tuỳ chọn đăng nhập.</p>
         </div>
 
-        {isLoading || !user ? (
-          <p className="text-sm text-slate-500">Đang tải...</p>
-        ) : (
-          <>
+        <>
             <Card>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -192,9 +205,24 @@ export default function AccountPage() {
                 thức cũ.
               </p>
             )}
-          </>
-        )}
+        </>
       </div>
+  );
+
+  return (
+    <AppShell wide={isCandidate}>
+      {isCandidate ? (
+        <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <CandidateSidebar
+            displayName={candidate?.displayName ?? user?.displayName ?? 'Ứng viên'}
+            position={candidate?.profile?.currentPosition}
+            profileCompletion={candidate?.profileCompletion}
+          />
+          {content}
+        </div>
+      ) : (
+        content
+      )}
     </AppShell>
   );
 }

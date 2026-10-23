@@ -1,14 +1,11 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { CareerAdviceView, JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import type { JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { JobModerationInput } from './providers/job-moderation.util';
 import type { AppConfig } from '../../config/configuration';
 import type { AiProvider } from './domain/ai-provider.interface';
 import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from './domain/types';
-import type {
-  CareerAdviceEngineInput,
-  SalaryEstimateEngineInput,
-} from './providers/career-salary.engine';
+import type { SalaryEstimateEngineInput } from './providers/career-salary.engine';
 import { AiSettingsService } from './ai-settings.service';
 import { buildAiProvider } from './providers/ai-provider.factory';
 
@@ -62,10 +59,6 @@ export class AiGatewayService implements OnModuleInit {
 
   moderateJobPosting(input: JobModerationInput): Promise<JobModerationAiResult> {
     return this.provider.moderateJobPosting(input);
-  }
-
-  adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {
-    return this.provider.adviseCareer(input);
   }
 
   estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView> {

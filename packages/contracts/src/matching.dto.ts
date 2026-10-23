@@ -133,6 +133,10 @@ export interface CandidateMatchView {
   currentPosition: string | null;
   industry: string | null;
   match: MatchExplanation;
+  /** Đã nộp hồ sơ vào đúng tin đang tìm. */
+  applied?: boolean;
+  /** Công ty đã mở hồ sơ ứng viên này. */
+  viewed?: boolean;
 }
 
 /** Tin tuyển dụng được AI gợi ý cho một ứng viên. */

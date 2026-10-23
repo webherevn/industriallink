@@ -38,4 +38,8 @@ export interface CandidateSearchResult {
   matchedSkills: string[];
   /** Chi tiết tiêu chí B2B (nếu có). */
   criteria?: MatchCriterionScore[];
+  /** Đã nộp hồ sơ vào tin đang tìm. */
+  applied?: boolean;
+  /** Công ty đã mở hồ sơ. */
+  viewed?: boolean;
 }

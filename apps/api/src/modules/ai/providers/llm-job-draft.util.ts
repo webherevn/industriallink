@@ -1,4 +1,5 @@
 import { formatJobLevel } from '@industriallink/contracts';
+import { plainLabel } from '../../recruitment/html.util';
 import type { JobDraftInput, JobDraftResult, JobDraftSkill } from '../domain/types';
 
 export const JOB_DRAFT_SYSTEM_PROMPT = [
@@ -56,7 +57,7 @@ export function normalizeJobDraft(raw: unknown, fallbackTitle: string): JobDraft
     .slice(0, 30)
     .map((s) => {
       const skill = (s ?? {}) as Record<string, unknown>;
-      const name = String(skill.name ?? '').trim();
+      const name = plainLabel(String(skill.name ?? ''));
       return {
         name,
         required: skill.required === false ? false : true,

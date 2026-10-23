@@ -30,12 +30,9 @@ import { useMemo, useState, type ReactNode } from 'react';
 import {
   ApplicationStatus,
   CandidateStatus,
-  JobTrack,
   SkillLevel,
-  JOB_TRACK_LABEL,
   JOB_READINESS_LABEL,
   type ApplicationView,
-  type CareerAdviceView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
@@ -44,7 +41,6 @@ import { ProfileAvatar } from '@/components/profile-avatar';
 import { fetchMe } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
-import { getCareerAdvice } from '@/lib/career';
 import {
   APPLICATION_STATUS_LABEL,
   formatJobLevel,
@@ -57,7 +53,6 @@ type ProfileTab =
   | 'education'
   | 'skills'
   | 'certificates'
-  | 'career'
   | 'interests';
 
 const ACTIVITY_PAGE_SIZE = 4;
@@ -75,7 +70,6 @@ const TABS: { id: ProfileTab; label: string }[] = [
   { id: 'education', label: 'Học vấn' },
   { id: 'skills', label: 'Kỹ năng' },
   { id: 'certificates', label: 'Chứng chỉ' },
-  { id: 'career', label: 'Lộ trình' },
   { id: 'interests', label: 'Sở thích' },
 ];
 
@@ -124,7 +118,6 @@ function appStatusBadge(status: ApplicationView['status']): string {
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<ProfileTab>('overview');
-  const [track, setTrack] = useState<JobTrack | undefined>(undefined);
   const [activityPage, setActivityPage] = useState(1);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -142,13 +135,6 @@ export default function DashboardPage() {
   const hasAnalysis = Boolean(
     candidate?.aiProfile?.summary || candidate?.profile?.summary || (candidate?.skills?.length ?? 0) > 0,
   );
-
-  const { data: career, isLoading: careerLoading } = useQuery({
-    queryKey: ['career-advice', track],
-    queryFn: () => getCareerAdvice(track),
-    enabled: hasAnalysis,
-    retry: false,
-  });
 
   const looking = statusLookingLabel(candidate?.status);
   const displayName = (candidate?.displayName ?? me?.displayName ?? 'Ứng viên').replace(
@@ -179,11 +165,6 @@ export default function DashboardPage() {
 
   const featuredSkills = technicalSkills.slice(0, 10);
 
-  const careerMilestones = useMemo(() => {
-    if (!career?.ladder?.length) return [];
-    return career.ladder.filter((s) => s.status === 'past' || s.status === 'current');
-  }, [career]);
-
   const recentApps = useMemo(() => {
     const list = [...(applications ?? [])].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -204,7 +185,6 @@ export default function DashboardPage() {
     if (min != null || max != null) {
       return formatSalary(min ?? max!, max ?? min!);
     }
-    if (career) return formatSalary(career.salaryCurrent.min, career.salaryCurrent.max);
     return 'Chưa cập nhật';
   })();
 
@@ -446,7 +426,7 @@ export default function DashboardPage() {
                 )}
 
                 <ProfileCard
-                  title={tab === 'overview' ? 'Kinh nghiệm công ty' : 'Kinh nghiệm & lộ trình'}
+                  title={tab === 'overview' ? 'Kinh nghiệm công ty' : 'Kinh nghiệm'}
                   icon={<Briefcase className="h-4 w-4" />}
                 >
                   {tab === 'overview' && (
@@ -507,7 +487,7 @@ export default function DashboardPage() {
 
                   {tab === 'experience' && (
                     <>
-                      {experiences.length === 0 && !careerLoading && careerMilestones.length === 0 && (
+                      {experiences.length === 0 && (
                         <EmptyHint
                           text="Chưa có dữ liệu kinh nghiệm. Thêm công ty đã làm trong hồ sơ."
                           href="/profile/edit"
@@ -587,49 +567,6 @@ export default function DashboardPage() {
                             </li>
                           ))}
                         </ul>
-                      )}
-                      {careerLoading && (
-                        <p className="text-sm text-slate-500">Đang tải lộ trình nghề nghiệp...</p>
-                      )}
-                      {careerMilestones.length > 0 && (
-                        <>
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Lộ trình cấp bậc
-                          </p>
-                          <ol className="relative space-y-0 border-l-2 border-slate-100 pl-5">
-                            {careerMilestones.map((step) => (
-                              <li key={step.code} className="group relative pb-5 last:pb-0">
-                                <span
-                                  className={clsx(
-                                    'absolute -left-[1.4rem] top-1.5 h-3 w-3 rounded-full ring-4 transition-transform duration-200 group-hover:scale-125',
-                                    step.status === 'current'
-                                      ? 'bg-amber-500 ring-amber-100'
-                                      : 'bg-brand-400 ring-brand-50',
-                                  )}
-                                />
-                                <div className="rounded-xl border border-transparent px-2 py-1 transition-colors duration-200 group-hover:border-slate-100 group-hover:bg-slate-50/80">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-bold text-slate-900">{step.label}</p>
-                                    <span
-                                      className={clsx(
-                                        'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                        step.status === 'current'
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-slate-100 text-slate-500',
-                                      )}
-                                    >
-                                      {step.status === 'current' ? 'Hiện tại' : 'Đã qua'}
-                                    </span>
-                                  </div>
-                                  <p className="mt-0.5 text-xs text-slate-500">
-                                    {career?.trackLabel ?? 'Khối nghề'} ·{' '}
-                                    {JOB_TRACK_LABEL[career?.track as JobTrack] ?? ''}
-                                  </p>
-                                </div>
-                              </li>
-                            ))}
-                          </ol>
-                        </>
                       )}
                     </>
                   )}
@@ -916,16 +853,6 @@ export default function DashboardPage() {
                 )}
               </ProfileCard>
             )}
-
-            {tab === 'career' && (
-              <CareerPanel
-                career={career}
-                loading={careerLoading}
-                track={track}
-                onTrack={setTrack}
-                hasAnalysis={hasAnalysis}
-              />
-            )}
           </div>
 
           {/* Sidebar */}
@@ -1182,144 +1109,6 @@ function SkillBar({
         />
       </div>
     </li>
-  );
-}
-
-function CareerPanel({
-  career,
-  loading,
-  track,
-  onTrack,
-  hasAnalysis,
-}: {
-  career: CareerAdviceView | undefined;
-  loading: boolean;
-  track: JobTrack | undefined;
-  onTrack: (t: JobTrack | undefined) => void;
-  hasAnalysis: boolean;
-}) {
-  if (!hasAnalysis) {
-    return (
-      <ProfileCard title="Lộ trình nghề nghiệp" icon={<Target className="h-4 w-4" />}>
-        <EmptyHint
-          text="Cần phân tích CV trước khi xem lộ trình & khung lương."
-          href="/upload"
-          cta="Tải CV"
-        />
-      </ProfileCard>
-    );
-  }
-
-  return (
-    <ProfileCard title="Lộ trình nghề nghiệp & lương" icon={<Target className="h-4 w-4" />}>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onTrack(undefined)}
-          className={clsx(
-            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-            !track
-              ? 'bg-amber-500 text-white'
-              : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-          )}
-        >
-          Theo hồ sơ
-        </button>
-        {Object.values(JobTrack).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => onTrack(t)}
-            className={clsx(
-              'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-              track === t
-                ? 'bg-amber-500 text-white'
-                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-            )}
-          >
-            {JOB_TRACK_LABEL[t]}
-          </button>
-        ))}
-      </div>
-
-      {loading && <p className="text-sm text-slate-500">Đang phân tích lộ trình...</p>}
-
-      {career && (
-        <>
-          <p className="text-sm text-slate-600">{career.summary}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {career.ladder.map((step) => (
-              <span
-                key={step.code}
-                className={clsx(
-                  'rounded-lg px-3 py-1.5 text-xs font-medium transition',
-                  step.status === 'current' && 'bg-amber-500 font-semibold text-white',
-                  step.status === 'next' &&
-                    'border border-amber-300 bg-amber-50 text-amber-800',
-                  step.status === 'past' && 'bg-slate-100 text-slate-500',
-                  step.status === 'future' &&
-                    'border border-dashed border-slate-200 text-slate-400',
-                )}
-              >
-                {step.label}
-                {step.status === 'current' ? ' · hiện tại' : ''}
-                {step.status === 'next' ? ' · tiếp theo' : ''}
-              </span>
-            ))}
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-amber-50/80 p-4 ring-1 ring-amber-100">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                Sẵn sàng
-              </p>
-              <p className="mt-1 text-3xl font-extrabold text-amber-600">
-                {career.readinessScore}%
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                Lương bậc hiện tại
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-800">
-                {formatSalary(career.salaryCurrent.min, career.salaryCurrent.max)}
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                Lương bậc tiếp
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-800">
-                {career.salaryNext
-                  ? formatSalary(career.salaryNext.min, career.salaryNext.max)
-                  : 'Đã ở bậc cao'}
-              </p>
-            </div>
-          </div>
-          {career.skillGaps.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs font-semibold text-slate-700">Kỹ năng nên bổ sung</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {career.skillGaps.map((s) => (
-                  <span
-                    key={s}
-                    className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800 ring-1 ring-amber-100"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {career.actionPlan.length > 0 && (
-            <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-600">
-              {career.actionPlan.map((a) => (
-                <li key={a}>{a}</li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    </ProfileCard>
   );
 }
 

@@ -1,4 +1,4 @@
-import type { CareerAdviceView, JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import type { JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import type { AiProvider } from '../domain/ai-provider.interface';
 import {
   JOB_MODERATION_SYSTEM_PROMPT,
@@ -8,9 +8,7 @@ import {
 } from './job-moderation.util';
 import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from '../domain/types';
 import {
-  buildCareerAdvice,
   buildSalaryEstimate,
-  type CareerAdviceEngineInput,
   type SalaryEstimateEngineInput,
 } from './career-salary.engine';
 import { deterministicEmbedding } from './embedding.util';
@@ -149,10 +147,6 @@ export class AnthropicProvider implements AiProvider {
     }
     const data = (await res.json()) as { content: { text: string }[] };
     return normalizeJobModerationResult(extractJson(data.content[0]?.text ?? ''));
-  }
-
-  async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {
-    return buildCareerAdvice(input);
   }
 
   async estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView> {

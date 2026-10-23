@@ -1,26 +1,7 @@
-import { JobLevelCode, JobTrack } from '@industriallink/contracts';
-import { buildCareerAdvice, buildSalaryEstimate } from './career-salary.engine';
+import { JobLevelCode } from '@industriallink/contracts';
+import { buildSalaryEstimate } from './career-salary.engine';
 
-describe('Career + Salary Engine', () => {
-  it('adviseCareer: kỹ thuật — ladder có current và next', () => {
-    const advice = buildCareerAdvice({
-      track: JobTrack.Technical,
-      currentLevel: JobLevelCode.TechStaff,
-      skills: ['PLC'],
-      yearsOfExperience: 2,
-    });
-
-    expect(advice.track).toBe(JobTrack.Technical);
-    expect(advice.currentLevel).toBe(JobLevelCode.TechStaff);
-    expect(advice.nextLevel).toBe(JobLevelCode.TechTeamLead);
-    expect(advice.ladder.some((s) => s.status === 'current')).toBe(true);
-    expect(advice.ladder.some((s) => s.status === 'next')).toBe(true);
-    expect(advice.salaryCurrent.min).toBeGreaterThan(0);
-    expect(advice.salaryNext?.min).toBeGreaterThan(advice.salaryCurrent.min);
-    expect(advice.readinessScore).toBeGreaterThanOrEqual(15);
-    expect(advice.actionPlan.length).toBeGreaterThan(0);
-  });
-
+describe('Salary Engine', () => {
   it('estimateSalary: điều chỉnh theo địa điểm HCM', () => {
     const base = buildSalaryEstimate({ jobLevel: JobLevelCode.SalesTeamLead });
     const hcm = buildSalaryEstimate({

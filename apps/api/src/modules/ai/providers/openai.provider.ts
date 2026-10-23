@@ -1,9 +1,7 @@
 import type { AiProvider } from '../domain/ai-provider.interface';
 import type { JobDraftInput, JobDraftResult, JobParseInput, ParsedResume, ResumeParseInput } from '../domain/types';
 import {
-  buildCareerAdvice,
   buildSalaryEstimate,
-  type CareerAdviceEngineInput,
   type SalaryEstimateEngineInput,
 } from './career-salary.engine';
 import {
@@ -27,7 +25,7 @@ import {
   extractJson,
   normalizeParsedResume,
 } from './llm-parse.util';
-import type { CareerAdviceView, JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
+import type { JobModerationAiResult, ParsedSalesJobDraft, ParsedTechnicalJobDraft, SalaryEstimateView } from '@industriallink/contracts';
 import {
   JOB_MODERATION_SYSTEM_PROMPT,
   buildJobModerationUserPrompt,
@@ -152,10 +150,6 @@ export class OpenAiProvider implements AiProvider {
     }
     const data = (await res.json()) as { choices: { message: { content: string } }[] };
     return normalizeJobModerationResult(extractJson(data.choices[0]?.message?.content ?? ''));
-  }
-
-  async adviseCareer(input: CareerAdviceEngineInput): Promise<CareerAdviceView> {
-    return buildCareerAdvice(input);
   }
 
   async estimateSalary(input: SalaryEstimateEngineInput): Promise<SalaryEstimateView> {

@@ -33,3 +33,8 @@ export function stripHtml(input: string | null | undefined): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/** Nhãn ngắn (kỹ năng, thẻ). Chạy hai lượt để gỡ thẻ còn sót sau khi decode entity. */
+export function plainLabel(input: string | null | undefined): string {
+  return stripHtml(stripHtml(input));
+}

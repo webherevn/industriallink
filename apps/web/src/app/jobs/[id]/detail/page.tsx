@@ -27,6 +27,7 @@ import {
 } from '@/lib/format';
 import { getJob } from '@/lib/jobs';
 import { jobPublicPath } from '@/lib/public-paths';
+import { plainLabel } from '@/lib/plain-label';
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   [JobStatus.Draft]: 'Nháp',
@@ -209,7 +210,7 @@ export default function JobDetailManagePage() {
           <div className="mt-3 flex flex-wrap gap-2">
             {job.skills.map((s) => (
               <Badge key={`${s.name}-${s.required}`} tone={s.required ? 'brand' : 'green'}>
-                {s.name}
+                {plainLabel(s.name)}
                 {s.required ? ' · bắt buộc' : ''}
               </Badge>
             ))}

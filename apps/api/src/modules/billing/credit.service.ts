@@ -17,6 +17,12 @@ import { policyCostForAction } from './billing-action-cost';
 
 const POLICY_SCOPE = 'default';
 
+const PROFILE_VIEW_ACTIONS = new Set(['view_profile', 'view_applicant', 'reopen_profile']);
+
+function isProfileViewAction(action: string): boolean {
+  return PROFILE_VIEW_ACTIONS.has(action);
+}
+
 export interface RecordTransactionInput {
   tenantId: string;
   companyId: string;
@@ -93,7 +99,14 @@ export class CreditService {
       });
     }
     const costPerUnit = resolved?.cost ?? policyCostForAction(policy, input.action);
-    if (costPerUnit <= 0) return null;
+    if (costPerUnit <= 0) {
+      if (input.oncePerCandidate && input.candidateId && isProfileViewAction(input.action)) {
+        await this.rememberProfileView(input).catch((err) => {
+          this.logger.warn(`rememberProfileView: ${String(err)}`);
+        });
+      }
+      return null;
+    }
 
     return this.recordTransaction({
       tenantId: input.tenantId,
@@ -130,6 +143,44 @@ export class CreditService {
   // =========================================================================
   // ACCOUNT
   // =========================================================================
+
+  /**
+   * Mốc «đã xem» khi mở hồ sơ không tốn Credit.
+   * Không đổi số dư. Sổ Credit bỏ qua dòng creditDelta = 0.
+   */
+  private async rememberProfileView(input: ConsumeActionInput): Promise<void> {
+    if (!input.candidateId) return;
+    const existing = await this.prisma.billingCreditTransaction.findFirst({
+      where: {
+        companyId: input.companyId,
+        candidateId: input.candidateId,
+        action: { in: [...PROFILE_VIEW_ACTIONS] },
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+    const account = await this.getOrCreateAccount(input.companyId, input.tenantId);
+    await this.prisma.billingCreditTransaction.create({
+      data: {
+        tenantId: input.tenantId,
+        companyId: input.companyId,
+        accountId: account.id,
+        type: 'deduct',
+        action: input.action,
+        creditDelta: 0,
+        balanceAfter: account.balance,
+        costPerUnit: 0,
+        quantity: 1,
+        candidateId: input.candidateId,
+        jobId: input.jobId,
+        connectionId: input.connectionId,
+        actorUserId: input.actorUserId,
+        actorEmail: input.actorEmail,
+        enforced: false,
+        note: 'Đã xem hồ sơ',
+      },
+    });
+  }
 
   /**
    * Lấy hoặc tạo tài khoản credit cho công ty.
@@ -520,12 +571,12 @@ export class CreditService {
   ): Promise<{ items: BillingCreditTransactionView[]; total: number }> {
     const [items, total] = await Promise.all([
       this.prisma.billingCreditTransaction.findMany({
-        where: { companyId },
+        where: { companyId, creditDelta: { not: 0 } },
         orderBy: { createdAt: 'desc' },
         take: opts.limit ?? 50,
         skip: opts.offset ?? 0,
       }),
-      this.prisma.billingCreditTransaction.count({ where: { companyId } }),
+      this.prisma.billingCreditTransaction.count({ where: { companyId, creditDelta: { not: 0 } } }),
     ]);
     return { items: items.map((t) => this.mapTransaction(t)), total };
   }
@@ -544,7 +595,7 @@ export class CreditService {
     limit?: number;
     offset?: number;
   }): Promise<BillingCreditLedgerListResponse> {
-    const where: Prisma.BillingCreditTransactionWhereInput = {};
+    const where: Prisma.BillingCreditTransactionWhereInput = { creditDelta: { not: 0 } };
     if (opts.companyId) where.companyId = opts.companyId;
     if (opts.type) where.type = opts.type;
     if (opts.action) where.action = opts.action;

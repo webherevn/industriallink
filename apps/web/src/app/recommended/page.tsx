@@ -31,6 +31,8 @@ import {
   type CandidateView,
   type JobMatchView,
 } from '@industriallink/contracts';
+import { plainLabel } from '@/lib/plain-label';
+import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 import { AppShell } from '@/components/app-shell';
 import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import { CopilotRobot } from '@/components/copilot-robot';
@@ -180,7 +182,7 @@ function bestFitGroup(jobs: JobMatchView[], candidate: CandidateView | undefined
   return top?.[0] ?? candidate?.profile?.specialization ?? 'Công nghiệp B2B';
 }
 
-type RecommendSort = 'newest' | 'salary';
+type RecommendSort = 'newest' | 'salary' | 'score';
 
 function recommendPosted(job: JobMatchView): number {
   const time = new Date(job.publishedAt || '').getTime();
@@ -197,6 +199,7 @@ export default function RecommendedPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [sort, setSort] = useState<RecommendSort>('newest');
+  const [byPlace, setByPlace] = useState(false);
   const [page, setPage] = useState(1);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -261,6 +264,11 @@ export default function RecommendedPage() {
     [allJobs],
   );
 
+  const provinces = useMemo(
+    () => profileProvinces(candidate?.profile?.sales?.desiredLocations),
+    [candidate],
+  );
+
   const filtered = useMemo(() => {
     const rows =
       filter === 'high'
@@ -270,12 +278,19 @@ export default function RecommendedPage() {
           : filter === 'new'
             ? newJobs
             : allJobs;
-    return rows.slice().sort((a, b) =>
-      sort === 'salary'
-        ? recommendSalary(b) - recommendSalary(a) || recommendPosted(b) - recommendPosted(a)
-        : recommendPosted(b) - recommendPosted(a),
-    );
-  }, [filter, sort, allJobs, highJobs, mediumJobs, newJobs]);
+    const located = byPlace
+      ? rows.filter((job) => locationMatchesProfile(job.location, provinces))
+      : rows;
+    return located.slice().sort((a, b) => {
+      if (sort === 'salary') {
+        return recommendSalary(b) - recommendSalary(a) || recommendPosted(b) - recommendPosted(a);
+      }
+      if (sort === 'score') {
+        return b.match.score - a.match.score || recommendPosted(b) - recommendPosted(a);
+      }
+      return recommendPosted(b) - recommendPosted(a);
+    });
+  }, [filter, sort, byPlace, provinces, allJobs, highJobs, mediumJobs, newJobs]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -315,7 +330,6 @@ export default function RecommendedPage() {
   ];
 
   const navTools = [
-    { href: '/dashboard', label: 'Lộ trình & lương' },
     { href: '/upload', label: 'Phân tích CV AI' },
     { href: '/search', label: 'Tìm kiếm AI' },
   ];
@@ -559,16 +573,25 @@ export default function RecommendedPage() {
             </div>
             <div className="flex items-center gap-3">
               <select
-                value={sort}
+                value={byPlace ? 'place' : sort}
                 onChange={(e) => {
-                  setSort(e.target.value === 'salary' ? 'salary' : 'newest');
+                  const value = e.target.value;
+                  if (value === 'place') {
+                    setByPlace(true);
+                    setSort('newest');
+                  } else {
+                    setByPlace(false);
+                    setSort(value === 'salary' ? 'salary' : value === 'score' ? 'score' : 'newest');
+                  }
                   setPage(1);
                 }}
-                aria-label="Sắp xếp gợi ý"
+                aria-label="Sắp xếp và lọc gợi ý"
                 className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none"
               >
                 <option value="newest">Mới nhất</option>
                 <option value="salary">Lương cao nhất</option>
+                <option value="score">Điểm cao nhất</option>
+                <option value="place">Địa điểm</option>
               </select>
               <Link
                 href="/profile/edit"
@@ -864,7 +887,11 @@ function MatchJobCard({
 
             {(job.skills?.length ?? 0) > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {(job.skills ?? []).slice(0, 5).map((s) => (
+                {(job.skills ?? [])
+                  .map((s) => plainLabel(s))
+                  .filter(Boolean)
+                  .slice(0, 5)
+                  .map((s) => (
                   <span
                     key={s}
                     className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
