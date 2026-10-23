@@ -55,6 +55,67 @@ export interface InboxApplicantView extends ApplicantView {
   jobTitle: string;
 }
 
+/** Một mốc trên biểu đồ hồ sơ mới. */
+export interface RecruitmentReportTrendPoint {
+  /** Ngày YYYY-MM-DD, tuần hoặc tháng tuỳ kỳ. */
+  key: string;
+  label: string;
+  applications: number;
+  hires: number;
+}
+
+/** Một bậc phễu — số hồ sơ đang đứng ở trạng thái đó trong kỳ. */
+export interface RecruitmentReportFunnelStep {
+  key: string;
+  label: string;
+  count: number;
+}
+
+/** Hiệu suất một tin trong kỳ báo cáo. */
+export interface RecruitmentReportJobRow {
+  jobId: string;
+  title: string;
+  status: string;
+  location: string | null;
+  applications: number;
+  screening: number;
+  interviews: number;
+  offers: number;
+  hires: number;
+  /** Điểm khớp trung bình 0–100. */
+  avgMatchScore: number | null;
+}
+
+/** Báo cáo tuyển dụng của công ty trong một kỳ. */
+export interface RecruitmentReportView {
+  companyName: string | null;
+  hasCompany: boolean;
+  days: number;
+  generatedAt: string;
+  openJobs: number;
+  applications: number;
+  /** Hồ sơ mới kỳ liền trước, cùng số ngày. */
+  applicationsPrev: number;
+  screening: number;
+  interviews: number;
+  /** Buổi phỏng vấn đã lên lịch trong kỳ, không tính buổi huỷ. */
+  interviewSessions: number;
+  offers: number;
+  /** Đề nghị đã lập trong kỳ. */
+  offersSent: number;
+  hires: number;
+  rejected: number;
+  withdrawn: number;
+  /** 0–100. */
+  avgMatchScore: number | null;
+  avgTimeToHireDays: number | null;
+  /** Nhận việc / hồ sơ mới trong kỳ, phần trăm 1 chữ số. */
+  conversionPct: number | null;
+  funnel: RecruitmentReportFunnelStep[];
+  trend: RecruitmentReportTrendPoint[];
+  jobs: RecruitmentReportJobRow[];
+}
+
 /** Tóm tắt Recruiter Workspace. */
 export interface RecruiterWorkspaceSummary {
   companyName: string | null;

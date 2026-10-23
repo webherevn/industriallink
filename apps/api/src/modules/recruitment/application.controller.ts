@@ -42,6 +42,15 @@ export class ApplicationController {
     return this.applications.getWorkspaceSummary(user);
   }
 
+  @Get('recruitment-report')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Báo cáo tuyển dụng của công ty trong 7, 30, 90 hoặc 365 ngày' })
+  @ApiQuery({ name: 'days', required: false })
+  recruitmentReport(@CurrentUser() user: AuthenticatedUser, @Query('days') days?: string) {
+    const n = days ? Number(days) : 30;
+    return this.applications.getRecruitmentReport(user, Number.isFinite(n) ? n : 30);
+  }
+
   @Get(':id')
   @Roles(UserRole.Candidate)
   @ApiOperation({ summary: 'Chi tiết đơn ứng tuyển + timeline trạng thái (ứng viên)' })

@@ -15,6 +15,10 @@ import {
   type ApplicationView,
   type InboxApplicantView,
   type RecruiterWorkspaceSummary,
+  type RecruitmentReportFunnelStep,
+  type RecruitmentReportJobRow,
+  type RecruitmentReportTrendPoint,
+  type RecruitmentReportView,
 } from '@industriallink/contracts';
 import { applicationStatusLabel } from '../../shared/domain/application-status.label';
 import { createDomainEvent } from '../../shared/domain/domain-event';
@@ -373,6 +377,121 @@ export class ApplicationService {
     };
   }
 
+  /** Báo cáo tuyển dụng: hồ sơ nhận trong kỳ, phễu trạng thái hiện tại và hiệu suất từng tin. */
+  async getRecruitmentReport(user: AuthenticatedUser, daysRaw: number): Promise<RecruitmentReportView> {
+    const days = REPORT_DAY_OPTIONS.includes(daysRaw as (typeof REPORT_DAY_OPTIONS)[number])
+      ? daysRaw
+      : 30;
+    const membership = await this.prisma.companyMember.findFirst({
+      where: { userId: user.id },
+      include: { company: { select: { name: true } } },
+    });
+    if (!membership) return emptyRecruitmentReport(days);
+
+    const now = new Date();
+    const from = new Date(now.getTime() - days * MS_PER_DAY);
+    const prevFrom = new Date(from.getTime() - days * MS_PER_DAY);
+    const companyId = membership.companyId;
+    const jobScope = { companyId, isDeleted: false } as const;
+
+    const [openJobs, applications, applicationsPrev, interviewSessions, offersSent, hiredRows] =
+      await Promise.all([
+        this.prisma.job.count({
+          where: { ...jobScope, status: JobStatus.Published },
+        }),
+        this.prisma.application.findMany({
+          where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
+          select: {
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            matchScore: true,
+            jobId: true,
+            job: { select: { title: true, status: true, location: true } },
+          },
+        }),
+        this.prisma.application.count({
+          where: {
+            isDeleted: false,
+            createdAt: { gte: prevFrom, lt: from },
+            job: jobScope,
+          },
+        }),
+        this.prisma.interview.count({
+          where: {
+            isDeleted: false,
+            scheduledAt: { gte: from, lte: now },
+            status: { not: InterviewStatus.Cancelled },
+            job: jobScope,
+          },
+        }),
+        this.prisma.offer.count({
+          where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
+        }),
+        this.prisma.application.findMany({
+          where: {
+            isDeleted: false,
+            status: ApplicationStatus.Hired,
+            updatedAt: { gte: from },
+            job: jobScope,
+          },
+          select: { createdAt: true, updatedAt: true },
+        }),
+      ]);
+
+    const count = (status: ApplicationStatus) =>
+      applications.filter((row) => row.status === status).length;
+    const screening = count(ApplicationStatus.Screening);
+    const interviews = count(ApplicationStatus.Interview);
+    const offers = count(ApplicationStatus.Offer);
+    const hires = count(ApplicationStatus.Hired);
+    const rejected = count(ApplicationStatus.Rejected);
+    const withdrawn = count(ApplicationStatus.Withdrawn);
+    const scores = applications
+      .map((row) => matchScorePct(row.matchScore))
+      .filter((score): score is number => score != null);
+    const avgMatchScore = scores.length ? round1(average(scores)) : null;
+    const hireDays = hiredRows.map(
+      (row) => (row.updatedAt.getTime() - row.createdAt.getTime()) / MS_PER_DAY,
+    );
+    const avgTimeToHireDays = hireDays.length ? round1(average(hireDays)) : null;
+    const conversionPct = applications.length
+      ? round1((hires / applications.length) * 100)
+      : null;
+
+    const funnel: RecruitmentReportFunnelStep[] = [
+      { key: 'applied', label: 'Ứng tuyển', count: count(ApplicationStatus.Applied) },
+      { key: 'screening', label: 'Sàng lọc', count: screening },
+      { key: 'interview', label: 'Phỏng vấn', count: interviews },
+      { key: 'offer', label: 'Đề nghị', count: offers },
+      { key: 'hired', label: 'Nhận việc', count: hires },
+    ];
+
+    return {
+      companyName: membership.company.name,
+      hasCompany: true,
+      days,
+      generatedAt: now.toISOString(),
+      openJobs,
+      applications: applications.length,
+      applicationsPrev,
+      screening,
+      interviews,
+      interviewSessions,
+      offers,
+      offersSent,
+      hires,
+      rejected,
+      withdrawn,
+      avgMatchScore,
+      avgTimeToHireDays,
+      conversionPct,
+      funnel,
+      trend: buildReportTrend(days, from, now, applications, hiredRows),
+      jobs: buildReportJobs(applications),
+    };
+  }
+
   /** Danh sách ứng viên đã ứng tuyển vào một tin (phía nhà tuyển dụng). */
   async listApplicants(user: AuthenticatedUser, jobId: string): Promise<ApplicantView[]> {
     const job = await this.jobs.requireOwnedJob(user, jobId);
@@ -636,4 +755,190 @@ function interviewMarks(
       status: row.status as InterviewStatus,
       scheduledAt: row.scheduledAt.toISOString(),
     }));
+}
+
+const REPORT_DAY_OPTIONS = [7, 30, 90, 365] as const;
+
+const REPORT_FUNNEL: RecruitmentReportFunnelStep[] = [
+  { key: 'applied', label: 'Ứng tuyển', count: 0 },
+  { key: 'screening', label: 'Sàng lọc', count: 0 },
+  { key: 'interview', label: 'Phỏng vấn', count: 0 },
+  { key: 'offer', label: 'Đề nghị', count: 0 },
+  { key: 'hired', label: 'Nhận việc', count: 0 },
+];
+
+function emptyRecruitmentReport(days: number): RecruitmentReportView {
+  return {
+    companyName: null,
+    hasCompany: false,
+    days,
+    generatedAt: new Date().toISOString(),
+    openJobs: 0,
+    applications: 0,
+    applicationsPrev: 0,
+    screening: 0,
+    interviews: 0,
+    interviewSessions: 0,
+    offers: 0,
+    offersSent: 0,
+    hires: 0,
+    rejected: 0,
+    withdrawn: 0,
+    avgMatchScore: null,
+    avgTimeToHireDays: null,
+    conversionPct: null,
+    funnel: REPORT_FUNNEL.map((step) => ({ ...step })),
+    trend: [],
+    jobs: [],
+  };
+}
+
+function matchScorePct(score: number | null): number | null {
+  if (score == null || Number.isNaN(score)) return null;
+  const scaled = score <= 1 ? score * 100 : score;
+  return Math.max(0, Math.min(100, scaled));
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function dayKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function startOfDay(date: Date): Date {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+type ReportGrain = 'day' | 'week' | 'month';
+
+function reportGrain(days: number): ReportGrain {
+  if (days > 120) return 'month';
+  if (days > 31) return 'week';
+  return 'day';
+}
+
+function bucketStart(date: Date, grain: ReportGrain): Date {
+  const start = startOfDay(date);
+  if (grain === 'month') {
+    start.setDate(1);
+    return start;
+  }
+  if (grain === 'week') {
+    const weekday = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - weekday);
+  }
+  return start;
+}
+
+function bucketLabel(key: string, grain: ReportGrain): string {
+  if (grain === 'month') {
+    const [year, month] = key.split('-');
+    return `${Number(month)}/${year.slice(2)}`;
+  }
+  const [, month, day] = key.split('-');
+  return `${Number(day)}/${Number(month)}`;
+}
+
+function nextBucket(date: Date, grain: ReportGrain): Date {
+  const next = new Date(date);
+  if (grain === 'month') next.setMonth(next.getMonth() + 1);
+  else if (grain === 'week') next.setDate(next.getDate() + 7);
+  else next.setDate(next.getDate() + 1);
+  return next;
+}
+
+function buildReportTrend(
+  days: number,
+  from: Date,
+  now: Date,
+  applications: { createdAt: Date }[],
+  hiredRows: { updatedAt: Date }[],
+): RecruitmentReportTrendPoint[] {
+  const grain = reportGrain(days);
+  const points: RecruitmentReportTrendPoint[] = [];
+  let cursor = bucketStart(from, grain);
+  const end = startOfDay(now);
+  while (cursor <= end && points.length < 400) {
+    const key = dayKey(cursor).slice(0, grain === 'month' ? 7 : 10);
+    points.push({ key, label: bucketLabel(key, grain), applications: 0, hires: 0 });
+    const next = nextBucket(cursor, grain);
+    if (next.getTime() <= cursor.getTime()) break;
+    cursor = next;
+  }
+
+  const index = new Map(points.map((point, i) => [point.key, i]));
+  const place = (date: Date, field: 'applications' | 'hires') => {
+    const key = dayKey(bucketStart(date, grain)).slice(0, grain === 'month' ? 7 : 10);
+    const i = index.get(key);
+    if (i != null) points[i][field] += 1;
+  };
+  for (const row of applications) place(row.createdAt, 'applications');
+  for (const row of hiredRows) place(row.updatedAt, 'hires');
+  return points;
+}
+
+function buildReportJobs(
+  applications: {
+    status: string;
+    matchScore: number | null;
+    jobId: string;
+    job: { title: string; status: string; location: string | null };
+  }[],
+): RecruitmentReportJobRow[] {
+  const rows = new Map<
+    string,
+    RecruitmentReportJobRow & { matchSum: number; matchCount: number }
+  >();
+  for (const row of applications) {
+    let job = rows.get(row.jobId);
+    if (!job) {
+      job = {
+        jobId: row.jobId,
+        title: row.job.title,
+        status: row.job.status,
+        location: row.job.location,
+        applications: 0,
+        screening: 0,
+        interviews: 0,
+        offers: 0,
+        hires: 0,
+        avgMatchScore: null,
+        matchSum: 0,
+        matchCount: 0,
+      };
+      rows.set(row.jobId, job);
+    }
+    job.applications += 1;
+    if (row.status === ApplicationStatus.Screening) job.screening += 1;
+    if (row.status === ApplicationStatus.Interview) job.interviews += 1;
+    if (row.status === ApplicationStatus.Offer) job.offers += 1;
+    if (row.status === ApplicationStatus.Hired) job.hires += 1;
+    const score = matchScorePct(row.matchScore);
+    if (score != null) {
+      job.matchSum += score;
+      job.matchCount += 1;
+    }
+  }
+
+  return [...rows.values()]
+    .map((job) => ({
+      jobId: job.jobId,
+      title: job.title,
+      status: job.status,
+      location: job.location,
+      applications: job.applications,
+      screening: job.screening,
+      interviews: job.interviews,
+      offers: job.offers,
+      hires: job.hires,
+      avgMatchScore: job.matchCount ? round1(job.matchSum / job.matchCount) : null,
+    }))
+    .sort((a, b) => b.applications - a.applications || b.hires - a.hires)
+    .slice(0, 12);
 }

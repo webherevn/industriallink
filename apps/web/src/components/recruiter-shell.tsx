@@ -82,7 +82,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Báo cáo',
     items: [
-      { href: '#', label: 'Báo cáo tuyển dụng', icon: BarChart3, soon: true },
+      { href: '/recruiter/report', label: 'Báo cáo tuyển dụng', icon: BarChart3 },
       { href: '/recruiter/salary', label: 'Lương thị trường', icon: Wallet },
     ],
   },

@@ -1,4 +1,8 @@
-import type { InboxApplicantView, RecruiterWorkspaceSummary } from '@industriallink/contracts';
+import type {
+  InboxApplicantView,
+  RecruiterWorkspaceSummary,
+  RecruitmentReportView,
+} from '@industriallink/contracts';
 import { apiRequest, asArray } from './api';
 
 function withMatchedSkills<T extends { matchedSkills?: unknown }>(row: T): T {
@@ -12,6 +16,10 @@ export async function getWorkspaceSummary(): Promise<RecruiterWorkspaceSummary> 
     ...data,
     recentApplicants: asArray<InboxApplicantView>(data?.recentApplicants).map(withMatchedSkills),
   };
+}
+
+export async function getRecruitmentReport(days: number): Promise<RecruitmentReportView> {
+  return apiRequest<RecruitmentReportView>(`/applications/recruitment-report?days=${days}`);
 }
 
 export async function listInbox(limit = 50): Promise<InboxApplicantView[]> {
