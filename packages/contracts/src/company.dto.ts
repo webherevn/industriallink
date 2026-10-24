@@ -12,6 +12,26 @@ export interface CreateCompanyRequest {
 
 export type UpdateCompanyRequest = CreateCompanyRequest;
 
+/** Nội dung trang công khai do chủ công ty / quản trị cập nhật. */
+export interface UpdateCompanyBrandRequest {
+  internationalName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  foundedYear?: number | null;
+  bannerCaption?: string | null;
+  facebookUrl?: string | null;
+  linkedinUrl?: string | null;
+  youtubeUrl?: string | null;
+  cultureNote?: string | null;
+  coreActivities?: string[];
+  whyChooseUs?: string[];
+  benefits?: string[];
+  stats?: CompanyStats;
+  awards?: CompanyAwardItem[];
+  /** Sửa tiêu đề ảnh văn hóa đã tải. */
+  cultureTexts?: { id: string; title: string; caption?: string }[];
+}
+
 export interface CompanyView {
   id: string;
   slug: string;
@@ -29,6 +49,8 @@ export interface CompanyView {
   myRole: CompanyRole;
   /** Đã có logo tải lên (stream qua GET /companies/me/logo hoặc /companies/:id/logo). */
   hasLogo: boolean;
+  /** Nội dung trang công khai. Không gồm khóa lưu trữ. */
+  brand?: CompanyBrandProfile;
 }
 
 export interface UploadCompanyLogoResponse {
@@ -38,6 +60,7 @@ export interface UploadCompanyLogoResponse {
 
 /** Ảnh văn hóa công ty. */
 export interface CompanyCultureItem {
+  id?: string;
   url: string;
   title: string;
   caption?: string;
@@ -79,6 +102,8 @@ export interface CompanyBrandProfile {
   facebookUrl?: string | null;
   linkedinUrl?: string | null;
   youtubeUrl?: string | null;
+  /** Đoạn giới thiệu văn hóa, hiện cùng thư viện ảnh. */
+  cultureNote?: string | null;
   coreActivities?: string[];
   whyChooseUs?: string[];
   benefits?: string[];

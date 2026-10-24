@@ -22,7 +22,6 @@ import {
   Users,
   Youtube,
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -33,7 +32,7 @@ import {
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { ApiError } from '@/lib/api';
-import { getCompanyPublicProfile } from '@/lib/company';
+import { companyMediaUrl, getCompanyPublicProfile } from '@/lib/company';
 import { formatSalary } from '@/lib/format';
 import { companyPublicPath, EXTERNAL_REL, externalHref, jobPublicPath } from '@/lib/public-paths';
 
@@ -235,51 +234,44 @@ function CompanyProfileView({
     ? data.website.replace(/^https?:\/\//, '').replace(/\/$/, '')
     : null;
 
+  const bannerSrc = companyMediaUrl(brand.bannerUrl);
+  const logoSrc = companyMediaUrl(brand.logoUrl);
+  const openCount = data.openJobs.length;
+
   return (
     <div className="min-h-screen bg-[#F5F7FB] pb-16">
-      {/* Banner */}
-      <div className="relative h-44 overflow-hidden sm:h-56 lg:h-64">
-        {brand.bannerUrl ? (
-          <Image
-            src={brand.bannerUrl}
+      <div className="relative h-52 overflow-hidden sm:h-64 lg:h-80">
+        {bannerSrc ? (
+          <img
+            src={bannerSrc}
             alt=""
-            fill
-            className="object-cover"
-            priority
-            sizes="100vw"
+            className="absolute inset-0 h-full w-full origin-center animate-banner-drift object-cover"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-700 via-brand-600 to-slate-800" />
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-800 via-brand-600 to-[#0b3a6e]">
+            <div className="absolute -left-16 top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute bottom-0 right-10 h-48 w-48 rounded-full bg-amber-400/20 blur-3xl" />
+          </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-900/70 via-brand-900/25 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-900/75 via-brand-900/20 to-brand-900/10" />
         {brand.bannerCaption && (
-          <p className="absolute bottom-5 left-5 max-w-xl text-lg font-semibold text-white drop-shadow sm:bottom-8 sm:left-8 sm:text-2xl">
+          <p className="absolute bottom-16 left-5 max-w-2xl text-lg font-semibold text-white drop-shadow sm:bottom-20 sm:left-8 sm:text-3xl">
             {brand.bannerCaption}
           </p>
         )}
       </div>
 
       <div className="relative z-10 mx-auto max-w-[1280px] px-4 sm:px-6">
-        {/* Identity card */}
-        <div className="-mt-10 rounded-2xl border border-slate-200/80 border-t-amber-200/90 bg-white p-4 shadow-sm animate-soft-rise sm:-mt-12 sm:p-6">
+        <div className="-mt-14 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm animate-soft-rise sm:-mt-16 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:h-20 sm:w-20">
-                {brand.logoUrl ? (
-                  <Image
-                    src={brand.logoUrl}
-                    alt={data.name}
-                    width={80}
-                    height={80}
-                    className="h-full w-full object-contain p-1"
-                  />
+              <div className="-mt-10 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md sm:-mt-12 sm:h-24 sm:w-24">
+                {logoSrc ? (
+                  <img src={logoSrc} alt={data.name} className="h-full w-full object-contain p-1.5" />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center bg-brand-50 text-center">
                     <span className="text-lg font-extrabold tracking-tight text-brand-600 sm:text-xl">
                       {companyInitials(shortName)}
-                    </span>
-                    <span className="mt-0.5 hidden px-1 text-[9px] font-semibold uppercase leading-tight text-brand-500 sm:block">
-                      {shortName.slice(0, 14)}
                     </span>
                   </div>
                 )}
@@ -330,6 +322,16 @@ function CompanyProfileView({
                     <Users className="h-3.5 w-3.5" />
                     Quy mô: {formatCompanySize(data.size)}
                   </span>
+                  {data.address && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {data.address}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1.5">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    {openCount} việc đang tuyển
+                  </span>
                 </div>
               </div>
             </div>
@@ -360,7 +362,14 @@ function CompanyProfileView({
 
           {/* Tabs */}
           <nav className="mt-5 flex gap-1 overflow-x-auto border-t border-slate-100 pt-1 scrollbar-none">
-            {TABS.map((t) => {
+            {TABS.filter((t) => {
+              if (t.id === 'culture') {
+                return Boolean(brand.cultureNote) || (brand.cultureGallery?.length ?? 0) > 0;
+              }
+              if (t.id === 'benefits') return (brand.benefits?.length ?? 0) > 0;
+              if (t.id === 'reviews') return (brand.reviews?.length ?? 0) > 0 || brand.ratingAvg != null;
+              return true;
+            }).map((t) => {
               const label = t.id === 'reviews' ? reviewLabel : t.label;
               const active = tab === t.id;
               return (
@@ -492,32 +501,42 @@ function CompanyProfileView({
               )}
             </SectionCard>
 
-            {(brand.cultureGallery?.length ?? 0) > 0 && (
+            {(brand.cultureNote || (brand.cultureGallery?.length ?? 0) > 0) && (
               <SectionCard id="culture" title="Văn hóa công ty">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {brand.cultureGallery!.map((item) => (
-                    <figure
-                      key={item.url + item.title}
-                      className="group overflow-hidden rounded-xl border border-slate-100 bg-white transition hover:-translate-y-1 hover:shadow-md"
-                    >
-                      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                        <Image
-                          src={item.url}
-                          alt={item.title}
-                          fill
-                          className="object-cover transition duration-500 group-hover:scale-105"
-                          sizes="(max-width:768px) 50vw, 20vw"
-                        />
-                      </div>
-                      <figcaption className="p-2.5">
-                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                        {item.caption && (
-                          <p className="mt-0.5 text-[11px] text-slate-500">{item.caption}</p>
-                        )}
-                      </figcaption>
-                    </figure>
-                  ))}
-                </div>
+                {brand.cultureNote ? (
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+                    {brand.cultureNote}
+                  </p>
+                ) : null}
+                {(brand.cultureGallery?.length ?? 0) > 0 && (
+                  <div className={clsx('grid gap-3 sm:grid-cols-2 lg:grid-cols-4', brand.cultureNote && 'mt-4')}>
+                    {brand.cultureGallery!.map((item) => {
+                      const src = companyMediaUrl(item.url);
+                      return (
+                        <figure
+                          key={item.id ?? item.url}
+                          className="group overflow-hidden rounded-xl border border-slate-100 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-md"
+                        >
+                          <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+                            {src ? (
+                              <img
+                                src={src}
+                                alt={item.title}
+                                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                              />
+                            ) : null}
+                          </div>
+                          <figcaption className="p-2.5">
+                            <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                            {item.caption && (
+                              <p className="mt-0.5 text-[11px] text-slate-500">{item.caption}</p>
+                            )}
+                          </figcaption>
+                        </figure>
+                      );
+                    })}
+                  </div>
+                )}
               </SectionCard>
             )}
 
@@ -661,6 +680,7 @@ function CompanyProfileView({
                 {brand.phone && (
                   <a
                     href={`tel:${brand.phone}`}
+                    rel={EXTERNAL_REL}
                     className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-brand-50 hover:text-brand-600"
                     aria-label="Gọi điện"
                   >

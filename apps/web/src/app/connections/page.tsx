@@ -5,12 +5,16 @@ import { Building2, Check, Loader2, UserRoundX, Users } from 'lucide-react';
 import Link from 'next/link';
 import {
   ConnectionStatus,
+  UserRole,
   type ConnectionView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { ApiError } from '@/lib/api';
+import { fetchMe } from '@/lib/auth';
 import {
   acceptConnection,
+  getMyCandidate,
   listMyConnections,
   rejectConnection,
 } from '@/lib/candidate';
@@ -53,6 +57,14 @@ function formatTime(iso: string): string {
 
 export default function ConnectionsPage() {
   const queryClient = useQueryClient();
+  const { data: user, isLoading: meLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
+  const isCandidate = user?.role === UserRole.Candidate;
+  const { data: candidate } = useQuery({
+    queryKey: ['my-candidate'],
+    queryFn: getMyCandidate,
+    enabled: isCandidate,
+    retry: false,
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-connections'],
@@ -73,9 +85,16 @@ export default function ConnectionsPage() {
   const items = data ?? [];
   const pending = items.filter((c) => c.status === ConnectionStatus.Pending);
 
-  return (
-    <AppShell>
-      <div className="mx-auto max-w-3xl animate-soft-rise">
+  if (meLoading || !user) {
+    return (
+      <AppShell>
+        <p className="text-sm text-slate-500">Đang tải...</p>
+      </AppShell>
+    );
+  }
+
+  const content = (
+      <div className="min-w-0 animate-soft-rise">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Yêu cầu kết nối</h1>
@@ -142,6 +161,26 @@ export default function ConnectionsPage() {
             />
           ))}
         </div>
+      </div>
+  );
+
+  if (!isCandidate) {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-3xl">{content}</div>
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell wide>
+      <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <CandidateSidebar
+          displayName={candidate?.displayName ?? user.displayName ?? 'Ứng viên'}
+          position={candidate?.profile?.currentPosition}
+          profileCompletion={candidate?.profileCompletion}
+        />
+        {content}
       </div>
     </AppShell>
   );

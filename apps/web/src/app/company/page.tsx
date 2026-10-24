@@ -18,6 +18,7 @@ import {
   formatCompanySize,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CompanyPublicEditor } from './company-public-editor';
 import { companyPublicPath } from '@/lib/public-paths';
 import { Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -226,6 +227,10 @@ export default function CompanyPage() {
         )}
 
         {isAdmin && <CompanyVerificationCard />}
+
+        {isAdmin ? (
+          <CompanyPublicEditor companyId={company.id} brand={company.brand} canEdit={isAdmin} />
+        ) : null}
 
         {editing && isAdmin ? (
           <Card className="mt-6 max-w-3xl space-y-4">

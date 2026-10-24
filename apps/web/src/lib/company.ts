@@ -1,4 +1,5 @@
 import type {
+  CompanyBrandProfile,
   CompanyMemberView,
   CompanyPublicProfileView,
   CompanyVerificationView,
@@ -6,6 +7,7 @@ import type {
   CreateCompanyRequest,
   InviteCompanyMemberRequest,
   SubmitCompanyVerificationRequest,
+  UpdateCompanyBrandRequest,
   UpdateCompanyRequest,
   UploadCompanyLogoResponse,
 } from '@industriallink/contracts';
@@ -43,6 +45,45 @@ export async function uploadCompanyLogo(file: File): Promise<UploadCompanyLogoRe
   const form = new FormData();
   form.append('file', file);
   return apiRequest('/companies/me/logo', { method: 'POST', body: form, isForm: true });
+}
+
+export async function updateCompanyBrand(
+  input: UpdateCompanyBrandRequest,
+): Promise<CompanyBrandProfile> {
+  return apiRequest('/companies/me/brand', { method: 'PATCH', body: input });
+}
+
+export async function uploadCompanyBanner(file: File): Promise<CompanyBrandProfile> {
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest('/companies/me/banner', { method: 'POST', body: form, isForm: true });
+}
+
+export async function deleteCompanyBanner(): Promise<CompanyBrandProfile> {
+  return apiRequest('/companies/me/banner', { method: 'DELETE' });
+}
+
+export async function uploadCompanyCulture(
+  file: File,
+  title: string,
+  caption: string,
+): Promise<CompanyBrandProfile> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('title', title);
+  if (caption.trim()) form.append('caption', caption);
+  return apiRequest('/companies/me/culture', { method: 'POST', body: form, isForm: true });
+}
+
+export async function deleteCompanyCulture(itemId: string): Promise<CompanyBrandProfile> {
+  return apiRequest(`/companies/me/culture/${itemId}`, { method: 'DELETE' });
+}
+
+/** Ảnh công ty lưu dạng đường dẫn API, hoặc URL ngoài. */
+export function companyMediaUrl(path?: string | null): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${getApiBase()}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 /** Tải logo công ty (Bearer) → blob URL. */

@@ -51,6 +51,10 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'scale(0.92)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
+        'banner-drift': {
+          '0%': { transform: 'scale(1.06)' },
+          '100%': { transform: 'scale(1)' },
+        },
         'bar-grow': {
           '0%': { transform: 'scaleX(0)' },
           '100%': { transform: 'scaleX(1)' },
@@ -64,6 +68,7 @@ const config: Config = {
         'soft-rise': 'soft-rise 0.35s ease-out both',
         'step-pulse': 'step-pulse 2s ease-in-out infinite',
         'chip-pop': 'chip-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'banner-drift': 'banner-drift 8s ease-out both',
         'bar-grow': 'bar-grow 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
         'search-shimmer': 'search-shimmer 1.4s linear infinite',
       },

@@ -37,15 +37,19 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
-import { readBrandJson, toPublicBrand, type VerificationRequestStored } from './company-verification';
+import { readBrandJson, toPublicBrand, type BrandJson, type CultureStoredItem, type VerificationRequestStored } from './company-verification';
 import type { CreateCompanyDto } from './dto/create-company.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
+import type { UpdateCompanyBrandDto } from './dto/update-company-brand.dto';
 
 /** Vai trò có quyền quản trị công ty (mời/gỡ thành viên, sửa hồ sơ). */
 const ADMIN_ROLES: CompanyRole[] = [CompanyRole.Owner, CompanyRole.Admin];
 
 const LOGO_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const LOGO_MAX_SIZE = 2 * 1024 * 1024;
+const BANNER_MAX_SIZE = 5 * 1024 * 1024;
+const CULTURE_MAX_SIZE = 4 * 1024 * 1024;
+const CULTURE_LIMIT = 8;
 
 type BrandProfileStored = CompanyBrandProfile & {
   logoStorageKey?: string | null;
@@ -659,6 +663,187 @@ export class CompanyService {
     return { hasLogo: true, message: 'Đã cập nhật logo công ty' };
   }
 
+  async updateBrand(user: AuthenticatedUser, dto: UpdateCompanyBrandDto): Promise<CompanyBrandProfile> {
+    const company = await this.requireAdminCompany(user);
+    const prev = readBrandJson(company.profile);
+    const next: BrandJson = { ...prev };
+
+    this.assignText(next, 'internationalName', dto.internationalName, 160);
+    this.assignText(next, 'email', this.cleanEmail(dto.email), 120);
+    this.assignText(next, 'phone', dto.phone, 30);
+    this.assignText(next, 'bannerCaption', dto.bannerCaption, 160);
+    this.assignText(next, 'facebookUrl', this.cleanUrl(dto.facebookUrl), 300);
+    this.assignText(next, 'linkedinUrl', this.cleanUrl(dto.linkedinUrl), 300);
+    this.assignText(next, 'youtubeUrl', this.cleanUrl(dto.youtubeUrl), 300);
+    this.assignText(next, 'cultureNote', dto.cultureNote, 600);
+    if (dto.foundedYear !== undefined) {
+      next.foundedYear = dto.foundedYear;
+    }
+    if (dto.coreActivities) next.coreActivities = cleanLines(dto.coreActivities, 12, 80);
+    if (dto.whyChooseUs) next.whyChooseUs = cleanLines(dto.whyChooseUs, 8, 160);
+    if (dto.benefits) next.benefits = cleanLines(dto.benefits, 12, 120);
+    if (dto.stats) {
+      next.stats = {
+        yearsActive: cleanCount(dto.stats.yearsActive),
+        employees: cleanCount(dto.stats.employees),
+        customers: cleanCount(dto.stats.customers),
+        projects: cleanCount(dto.stats.projects),
+        locations: cleanCount(dto.stats.locations),
+      };
+    }
+    if (dto.awards) {
+      next.awards = dto.awards
+        .map((item) => ({ name: item.name.trim() }))
+        .filter((item) => item.name.length > 0)
+        .slice(0, 8);
+    }
+    if (dto.cultureTexts) {
+      const gallery = [...(next.cultureGallery ?? [])];
+      for (const row of dto.cultureTexts) {
+        const item = gallery.find((entry) => entry.id === row.id);
+        if (!item) continue;
+        item.title = row.title.trim().slice(0, 80);
+        item.caption = row.caption?.trim().slice(0, 160) || undefined;
+      }
+      next.cultureGallery = gallery;
+    }
+
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { profile: next as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    return toPublicBrand(next);
+  }
+
+  async uploadBanner(
+    user: AuthenticatedUser,
+    file: Express.Multer.File | undefined,
+  ): Promise<CompanyBrandProfile> {
+    const stored = await this.storeCompanyImage(user, file, {
+      maxSize: BANNER_MAX_SIZE,
+      maxEdge: 1920,
+      folder: 'company-banners',
+    });
+    const prev = readBrandJson(stored.company.profile);
+    if (prev.bannerStorageKey) {
+      await this.storage.deleteObject(prev.bannerStorageKey).catch(() => undefined);
+    }
+    const next: BrandJson = {
+      ...prev,
+      bannerStorageKey: stored.storageKey,
+      bannerMime: stored.mime,
+      bannerUrl: `/companies/${stored.company.id}/banner`,
+    };
+    await this.prisma.company.update({
+      where: { id: stored.company.id },
+      data: { profile: next as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    return toPublicBrand(next);
+  }
+
+  async deleteBanner(user: AuthenticatedUser): Promise<CompanyBrandProfile> {
+    const company = await this.requireAdminCompany(user);
+    const prev = readBrandJson(company.profile);
+    if (prev.bannerStorageKey) {
+      await this.storage.deleteObject(prev.bannerStorageKey).catch(() => undefined);
+    }
+    const next: BrandJson = {
+      ...prev,
+      bannerStorageKey: null,
+      bannerMime: null,
+      bannerUrl: null,
+    };
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { profile: next as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    return toPublicBrand(next);
+  }
+
+  async uploadCulture(
+    user: AuthenticatedUser,
+    file: Express.Multer.File | undefined,
+    title: string | undefined,
+    caption: string | undefined,
+  ): Promise<CompanyBrandProfile> {
+    const label = title?.trim() ?? '';
+    if (label.length < 1) throw new BadRequestException('Nhập tiêu đề ảnh văn hóa');
+    const company = await this.requireAdminCompany(user);
+    const prev = readBrandJson(company.profile);
+    const gallery = [...(prev.cultureGallery ?? [])];
+    if (gallery.length >= CULTURE_LIMIT) {
+      throw new BadRequestException(`Tối đa ${CULTURE_LIMIT} ảnh văn hóa`);
+    }
+    const stored = await this.storeCompanyImage(user, file, {
+      maxSize: CULTURE_MAX_SIZE,
+      maxEdge: 1400,
+      folder: 'company-culture',
+      company,
+    });
+    const id = uuidv7();
+    const item: CultureStoredItem = {
+      id,
+      title: label.slice(0, 80),
+      caption: caption?.trim().slice(0, 160) || undefined,
+      storageKey: stored.storageKey,
+      mime: stored.mime,
+      url: `/companies/${company.id}/culture/${id}`,
+    };
+    const next: BrandJson = { ...prev, cultureGallery: [...gallery, item] };
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { profile: next as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    return toPublicBrand(next);
+  }
+
+  async deleteCulture(user: AuthenticatedUser, itemId: string): Promise<CompanyBrandProfile> {
+    const company = await this.requireAdminCompany(user);
+    const prev = readBrandJson(company.profile);
+    const gallery = [...(prev.cultureGallery ?? [])];
+    const index = gallery.findIndex((item) => item.id === itemId);
+    if (index < 0) throw new NotFoundException('Không tìm thấy ảnh văn hóa');
+    const [removed] = gallery.splice(index, 1);
+    if (removed?.storageKey) {
+      await this.storage.deleteObject(removed.storageKey).catch(() => undefined);
+    }
+    const next: BrandJson = { ...prev, cultureGallery: gallery };
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { profile: next as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    return toPublicBrand(next);
+  }
+
+  async getCompanyBannerBuffer(
+    companyRef: string,
+  ): Promise<{ buffer: Buffer; mime: string } | null> {
+    try {
+      const company = await this.findCompanyByRef(companyRef);
+      const brand = readBrandJson(company.profile);
+      if (!brand.bannerStorageKey) return null;
+      const buffer = await this.storage.getObject(brand.bannerStorageKey);
+      return { buffer, mime: brand.bannerMime ?? 'image/webp' };
+    } catch {
+      return null;
+    }
+  }
+
+  async getCompanyCultureBuffer(
+    companyRef: string,
+    itemId: string,
+  ): Promise<{ buffer: Buffer; mime: string } | null> {
+    try {
+      const company = await this.findCompanyByRef(companyRef);
+      const item = readBrandJson(company.profile).cultureGallery?.find((row) => row.id === itemId);
+      if (!item?.storageKey) return null;
+      const buffer = await this.storage.getObject(item.storageKey);
+      return { buffer, mime: item.mime ?? 'image/webp' };
+    } catch {
+      return null;
+    }
+  }
+
   async getMyLogoBuffer(
     user: AuthenticatedUser,
   ): Promise<{ buffer: Buffer; mime: string } | null> {
@@ -701,6 +886,66 @@ export class CompanyService {
     return company;
   }
 
+  private async requireAdminCompany(user: AuthenticatedUser): Promise<Company> {
+    const membership = await this.requireMembership(user.id);
+    this.requireAdmin(membership.roleInCompany as CompanyRole);
+    const company = await this.prisma.company.findUnique({ where: { id: membership.companyId } });
+    if (!company || company.isDeleted) {
+      throw new NotFoundException('Không tìm thấy công ty');
+    }
+    return company;
+  }
+
+  private async storeCompanyImage(
+    user: AuthenticatedUser,
+    file: Express.Multer.File | undefined,
+    options: { maxSize: number; maxEdge: number; folder: string; company?: Company },
+  ): Promise<{ company: Company; storageKey: string; mime: string }> {
+    if (!file) throw new BadRequestException('Thiếu file ảnh');
+    if (!LOGO_MIME.has(file.mimetype)) {
+      throw new BadRequestException('Chỉ chấp nhận JPEG, PNG, WebP hoặc GIF');
+    }
+    if (file.size > options.maxSize) {
+      throw new BadRequestException('Ảnh vượt quá dung lượng cho phép');
+    }
+    const company = options.company ?? (await this.requireAdminCompany(user));
+    const image = await compressUploadedImage(file.buffer, options.maxEdge);
+    const storageKey = `${options.folder}/${company.id}/${uuidv7()}.${image.ext}`;
+    await this.storage.putObject(storageKey, image.buffer, image.mime);
+    return { company, storageKey, mime: image.mime };
+  }
+
+  private assignText(
+    target: BrandJson,
+    key: 'internationalName' | 'email' | 'phone' | 'bannerCaption' | 'facebookUrl' | 'linkedinUrl' | 'youtubeUrl' | 'cultureNote',
+    value: string | null | undefined,
+    max: number,
+  ): void {
+    if (value === undefined) return;
+    const text = value?.trim() ?? '';
+    target[key] = text ? text.slice(0, max) : null;
+  }
+
+  private cleanEmail(value?: string | null): string | null | undefined {
+    if (value === undefined) return undefined;
+    const text = value?.trim() ?? '';
+    if (!text) return null;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+      throw new BadRequestException('Email không hợp lệ');
+    }
+    return text;
+  }
+
+  private cleanUrl(value?: string | null): string | null | undefined {
+    if (value === undefined) return undefined;
+    const text = value?.trim() ?? '';
+    if (!text) return null;
+    if (/^javascript:/i.test(text) || /\s/.test(text)) {
+      throw new BadRequestException('Liên kết không hợp lệ');
+    }
+    return text.slice(0, 300);
+  }
+
   private async ensureCompanySlug(company: Company): Promise<Company> {
     if (company.slug) return company;
     const slug = await allocateUniqueCompanySlug(this.prisma, company.name, company.id);
@@ -711,7 +956,7 @@ export class CompanyService {
   }
 
   private toView(company: Company, memberCount: number, myRole: CompanyRole): CompanyView {
-    const brand = parseBrandProfileStored(company.profile);
+    const brand = readBrandJson(company.profile);
     return {
       id: company.id,
       slug: company.slug ?? company.id,
@@ -727,6 +972,7 @@ export class CompanyService {
       memberCount,
       myRole,
       hasLogo: Boolean(brand.logoStorageKey),
+      brand: toPublicBrand(brand),
     };
   }
 
@@ -752,4 +998,17 @@ function parseBrandProfileStored(
     return {};
   }
   return raw as BrandProfileStored;
+}
+
+function cleanLines(values: string[], max: number, length: number): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .slice(0, max)
+    .map((value) => value.slice(0, length));
+}
+
+function cleanCount(value: number | null | undefined): number | null {
+  if (value == null || Number.isNaN(value)) return null;
+  return Math.max(0, Math.min(1_000_000, Math.round(value)));
 }

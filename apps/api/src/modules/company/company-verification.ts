@@ -1,4 +1,4 @@
-import type { CompanyBrandProfile } from '@industriallink/contracts';
+import type { CompanyBrandProfile, CompanyCultureItem } from '@industriallink/contracts';
 import type { Prisma } from '@prisma/client';
 
 export interface VerificationRequestStored {
@@ -13,9 +13,17 @@ export interface VerificationRequestStored {
   reviewNote?: string | null;
 }
 
-export type BrandJson = CompanyBrandProfile & {
+export type CultureStoredItem = CompanyCultureItem & {
+  storageKey?: string | null;
+  mime?: string | null;
+};
+
+export type BrandJson = Omit<CompanyBrandProfile, 'cultureGallery'> & {
   logoStorageKey?: string | null;
   logoMime?: string | null;
+  bannerStorageKey?: string | null;
+  bannerMime?: string | null;
+  cultureGallery?: CultureStoredItem[];
   verificationRequest?: VerificationRequestStored | null;
 };
 
@@ -26,6 +34,22 @@ export function readBrandJson(raw: Prisma.JsonValue | null | undefined): BrandJs
 
 /** Hồ sơ công khai — không lộ khóa lưu trữ hay đơn xác minh. */
 export function toPublicBrand(stored: BrandJson): CompanyBrandProfile {
-  const { logoStorageKey: _k, logoMime: _m, verificationRequest: _v, ...rest } = stored;
-  return rest;
+  const {
+    logoStorageKey: _logoKey,
+    logoMime: _logoMime,
+    bannerStorageKey: _bannerKey,
+    bannerMime: _bannerMime,
+    verificationRequest: _verification,
+    cultureGallery,
+    ...rest
+  } = stored;
+  return {
+    ...rest,
+    cultureGallery: (cultureGallery ?? []).map((item) => ({
+      id: item.id,
+      url: item.url,
+      title: item.title,
+      caption: item.caption,
+    })),
+  };
 }

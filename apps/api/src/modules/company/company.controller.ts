@@ -28,6 +28,7 @@ import { CompanyService } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { SubmitCompanyVerificationDto } from './dto/submit-company-verification.dto';
+import { UpdateCompanyBrandDto } from './dto/update-company-brand.dto';
 
 const RECRUITER_ROLES = [UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin];
 
@@ -81,6 +82,45 @@ export class CompanyController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.companies.uploadLogo(user, file);
+  }
+
+  @Patch('me/brand')
+  @ApiOperation({ summary: 'Cập nhật nội dung trang công khai (banner chữ, văn hóa, phúc lợi)' })
+  updateBrand(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateCompanyBrandDto) {
+    return this.companies.updateBrand(user, dto);
+  }
+
+  @Post('me/banner')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Tải ảnh banner trang công ty' })
+  uploadBanner(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) {
+    return this.companies.uploadBanner(user, file);
+  }
+
+  @Delete('me/banner')
+  @ApiOperation({ summary: 'Gỡ ảnh banner trang công ty' })
+  deleteBanner(@CurrentUser() user: AuthenticatedUser) {
+    return this.companies.deleteBanner(user);
+  }
+
+  @Post('me/culture')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Thêm ảnh văn hóa công ty' })
+  uploadCulture(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('title') title?: string,
+    @Body('caption') caption?: string,
+  ) {
+    return this.companies.uploadCulture(user, file, title, caption);
+  }
+
+  @Delete('me/culture/:itemId')
+  @ApiOperation({ summary: 'Xóa một ảnh văn hóa' })
+  deleteCulture(@CurrentUser() user: AuthenticatedUser, @Param('itemId') itemId: string) {
+    return this.companies.deleteCulture(user, itemId);
   }
 
   @Get('me/logo')
@@ -156,6 +196,33 @@ export class CompanyController {
       type: logo.mime,
       disposition: 'inline',
     });
+  }
+
+  @Get(':id/banner')
+  @Public()
+  @Roles()
+  @ApiOperation({ summary: 'Banner công ty (binary, công khai)' })
+  @Header('Cache-Control', 'public, max-age=300')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
+  async getBanner(@Param('id') id: string): Promise<StreamableFile> {
+    const banner = await this.companies.getCompanyBannerBuffer(id);
+    if (!banner) throw new NotFoundException('Chưa có banner công ty');
+    return new StreamableFile(banner.buffer, { type: banner.mime, disposition: 'inline' });
+  }
+
+  @Get(':id/culture/:itemId')
+  @Public()
+  @Roles()
+  @ApiOperation({ summary: 'Ảnh văn hóa công ty (binary, công khai)' })
+  @Header('Cache-Control', 'public, max-age=300')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
+  async getCulture(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<StreamableFile> {
+    const image = await this.companies.getCompanyCultureBuffer(id, itemId);
+    if (!image) throw new NotFoundException('Không tìm thấy ảnh văn hóa');
+    return new StreamableFile(image.buffer, { type: image.mime, disposition: 'inline' });
   }
 
   @Get(':id/profile')
