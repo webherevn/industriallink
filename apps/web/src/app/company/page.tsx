@@ -157,9 +157,12 @@ export default function CompanyPage() {
 
     return (
       <AppShell>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="ntd-form space-y-5">
+        <div className="animate-soft-rise overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm">
+          <div className="h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-accent-500" />
+          <div className="flex flex-wrap items-center gap-4 p-5">
           <div className="relative">
-            <span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">
+            <span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt={company.name} className="h-full w-full object-cover" />
@@ -216,6 +219,7 @@ export default function CompanyPage() {
               Xem trang công khai
             </Link>
           </div>
+          </div>
         </div>
 
         {logoMutation.isError && (
@@ -233,7 +237,7 @@ export default function CompanyPage() {
         ) : null}
 
         {editing && isAdmin ? (
-          <Card className="mt-6 max-w-3xl space-y-4">
+          <Card className="max-w-3xl space-y-4 border-brand-100">
             <h2 className="text-base font-semibold text-slate-900">Cập nhật hồ sơ công ty</h2>
             <CompanyFields form={form} setForm={setForm} />
             {updateMutation.isError && (
@@ -270,8 +274,8 @@ export default function CompanyPage() {
             </div>
           </Card>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <Card>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card className="border-brand-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
               <dl className="space-y-3 text-sm">
                 <Row label="Ngành" value={company.industry} />
                 <Row
@@ -288,8 +292,8 @@ export default function CompanyPage() {
                 <Row label="Website" value={company.website} />
               </dl>
             </Card>
-            <Card>
-              <h3 className="text-sm font-medium text-slate-700">Giới thiệu</h3>
+            <Card className="border-brand-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+              <h3 className="text-sm font-semibold text-brand-700">Giới thiệu</h3>
               <p className="mt-2 text-sm text-slate-600">
                 {company.description ?? 'Chưa có mô tả.'}
               </p>
@@ -302,6 +306,7 @@ export default function CompanyPage() {
         </Link>
 
         <MembersCard isAdmin={isAdmin} />
+        </div>
       </AppShell>
     );
   }
@@ -313,7 +318,7 @@ export default function CompanyPage() {
         Bạn cần tạo hồ sơ công ty trước khi đăng tin tuyển dụng.
       </p>
 
-      <Card className="mt-6 max-w-2xl space-y-4">
+      <Card className="ntd-form mt-6 max-w-2xl space-y-4 border-brand-100">
         <CompanyFields form={form} setForm={setForm} />
 
         {createMutation.isError && (
@@ -447,7 +452,7 @@ function MembersCard({ isAdmin }: { isAdmin: boolean }) {
   });
 
   return (
-    <Card className="mt-6">
+    <Card className="border-brand-100">
       <h3 className="text-base font-semibold text-slate-900">Thành viên công ty</h3>
       <p className="mt-1 text-sm text-slate-500">
         {isAdmin
@@ -562,7 +567,7 @@ function CompanyVerificationCard() {
   const canAskTrusted = !data.trustedEmployer;
 
   return (
-    <Card className="mt-6 max-w-3xl space-y-3">
+    <Card className="max-w-3xl space-y-3 border-brand-100 bg-gradient-to-br from-white to-brand-50/40">
       <h2 className="text-base font-semibold text-slate-900">Xác minh nhà tuyển dụng</h2>
       <p className="text-sm text-slate-600">
         Huy hiệu «Đã xác thực» và «Nhà tuyển dụng uy tín» do SuperAdmin cấp. Bạn gửi đơn, không tự bật được.
@@ -583,9 +588,10 @@ function CompanyVerificationCard() {
       ) : canAskVerified || canAskTrusted ? (
         <div className="space-y-2">
           {canAskVerified && (
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-brand-100 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-brand-300">
               <input
                 type="checkbox"
+                className="rounded border-brand-300 text-brand-600 focus:ring-brand-200"
                 checked={askVerified}
                 onChange={(e) => setAskVerified(e.target.checked)}
               />
@@ -593,9 +599,10 @@ function CompanyVerificationCard() {
             </label>
           )}
           {canAskTrusted && (
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-brand-100 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-brand-300">
               <input
                 type="checkbox"
+                className="rounded border-brand-300 text-brand-600 focus:ring-brand-200"
                 checked={askTrusted}
                 onChange={(e) => setAskTrusted(e.target.checked)}
               />

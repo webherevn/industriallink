@@ -47,27 +47,34 @@ export function RecruiterPartnerPanel() {
 
   return (
     <RecruiterShell>
-      <div className="recruiter-dash space-y-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-accent-600" />
-            <h1 className="text-xl font-bold text-slate-900">Cộng tác viên</h1>
+      <div className="ntd-form recruiter-dash space-y-5">
+        <div className="animate-soft-rise overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm">
+          <div className="h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-accent-500" />
+          <div className="flex items-start gap-3 p-5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+              <Link2 className="h-5 w-5" />
+            </span>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">Cộng tác viên</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Một tài khoản một mã. Hoa hồng ghi khi nhà tuyển dụng đăng ký qua link và thanh toán gói trong 14 ngày.
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Một tài khoản một mã. Hoa hồng ghi khi nhà tuyển dụng đăng ký qua link và thanh toán gói trong 14 ngày.
-          </p>
         </div>
 
         {mine.isLoading ? <Card className="p-5 text-sm text-slate-500">Đang tải mã của bạn…</Card> : null}
         {mine.isError ? <Card className="p-5 text-sm text-rose-600">Không tải được mã giới thiệu.</Card> : null}
 
         {mine.data && !partner ? (
-          <Card className="p-5">
-            <h2 className="text-base font-semibold text-slate-900">Đăng ký làm cộng tác viên</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã. Không tạo mã thứ hai cho tài khoản này.
-            </p>
-            <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:max-w-xl sm:flex-row">
+          <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
+            <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
+              <h2 className="text-sm font-bold text-brand-700">Đăng ký làm cộng tác viên</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã. Không tạo mã thứ hai cho tài khoản này.
+              </p>
+            </div>
+            <form onSubmit={onSubmit} className="flex flex-col gap-3 p-5 sm:max-w-xl sm:flex-row sm:items-center">
               <Input
                 placeholder="Số điện thoại"
                 value={phone}
@@ -78,14 +85,14 @@ export function RecruiterPartnerPanel() {
                 {register.isPending ? 'Đang tạo mã…' : 'Đăng ký'}
               </Button>
             </form>
-            {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+            {error ? <p className="px-5 pb-5 text-sm text-rose-600">{error}</p> : null}
           </Card>
         ) : null}
 
         {partner && mine.data ? (
           <>
-            <Card className="bg-gradient-to-br from-[#072348] to-[#1a4a7a] p-6 text-white">
-              <div className="flex flex-wrap items-end justify-between gap-6">
+            <Card className="overflow-hidden border-brand-100 p-0 shadow-md animate-soft-rise">
+              <div className="flex flex-wrap items-end justify-between gap-6 bg-gradient-to-br from-brand-800 via-brand-600 to-[#1a4a7a] p-6 text-white">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">Số dư ví hoa hồng</p>
                   <p className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{formatVnd(partner.walletBalanceVnd)}</p>
@@ -113,19 +120,21 @@ export function RecruiterPartnerPanel() {
             <WalletStatement rows={mine.data.walletTxns ?? []} />
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="p-5">
-                <h2 className="text-base font-semibold text-slate-900">Link giới thiệu</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {partner.phone}. Gửi link này. Cookie giữ 14 ngày, lần bấm sau thay mã và tính lại 14 ngày.
-                </p>
-                <label className="mt-4 block text-xs font-medium text-slate-500" htmlFor="referral-link">
+              <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
+                <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
+                  <h2 className="text-sm font-bold text-brand-700">Link giới thiệu</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {partner.phone}. Gửi link này. Cookie giữ 14 ngày, lần bấm sau thay mã và tính lại 14 ngày.
+                  </p>
+                </div>
+                <div className="p-5">
+                <label className="block text-xs font-medium text-slate-500" htmlFor="referral-link">
                   Bảng giá
                 </label>
                 <div className="mt-1 flex flex-col gap-2 sm:flex-row">
                   <Input
                     id="referral-link"
                     readOnly
-                    className="border-slate-200 bg-slate-50 text-slate-700"
                     value={partner.referralUrl}
                   />
                   <Button type="button" variant="outline" onClick={() => void copyLink(partner.referralUrl)}>
@@ -133,9 +142,10 @@ export function RecruiterPartnerPanel() {
                     {copied ? 'Đã chép' : 'Chép link'}
                   </Button>
                 </div>
+                </div>
               </Card>
-              <Card className="p-5">
-                <h2 className="text-base font-semibold text-slate-900">Khi nào có hoa hồng</h2>
+              <Card className="border-brand-100 p-5 animate-soft-rise">
+                <h2 className="text-sm font-bold text-brand-700">Khi nào có hoa hồng</h2>
                 <ol className="mt-3 space-y-2 text-sm text-slate-600">
                   <li>1. Khách mở link, rồi đăng ký tài khoản nhà tuyển dụng.</li>
                   <li>2. Trong 14 ngày kể từ lần bấm, khách thanh toán gói tin hoặc gói Săn có giá.</li>
@@ -157,7 +167,7 @@ export function RecruiterPartnerPanel() {
 
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <Card className="p-4">
+    <Card className="border-brand-100 p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
       <p className="mt-2 text-xl font-bold text-slate-900">{value}</p>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">{hint}</p>
@@ -167,9 +177,9 @@ function Stat({ label, value, hint }: { label: string; value: string; hint: stri
 
 function Signups({ rows }: { rows: CrmReferralSignupView[] }) {
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="border-b border-slate-100 px-4 py-4">
-        <h2 className="text-base font-semibold text-slate-900">Đã đăng ký, chưa thanh toán</h2>
+    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
+      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
+        <h2 className="text-sm font-bold text-brand-700">Đã đăng ký, chưa thanh toán</h2>
         <p className="mt-1 text-sm text-slate-500">
           {rows.length} nhà tuyển dụng mở link và tạo tài khoản. Hoa hồng chỉ ghi sau khi họ thanh toán gói có giá.
         </p>
@@ -179,7 +189,7 @@ function Signups({ rows }: { rows: CrmReferralSignupView[] }) {
       ) : (
         <ul className="divide-y divide-slate-100">
           {rows.map((row) => (
-            <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-brand-50/40">
               <span className="min-w-0 truncate text-sm font-medium text-slate-900">{row.companyName}</span>
               <span className="shrink-0 text-xs text-slate-500">{formatPaidAt(row.registeredAt)}</span>
             </li>
@@ -207,8 +217,8 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
   }, [entries, filter, query]);
 
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
+      <div className="flex flex-col gap-3 border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Lịch sử hoa hồng</h2>
           <p className="mt-1 text-sm text-slate-500">{rows.length} dòng đang hiện. Chỉ đơn đã thanh toán.</p>
@@ -225,8 +235,8 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
                 key={id}
                 type="button"
                 className={clsx(
-                  'rounded-full px-3 py-1.5 text-xs font-semibold',
-                  filter === id ? 'bg-[#072348] text-white' : 'bg-slate-100 text-slate-600',
+                  'rounded-full px-3 py-1.5 text-xs font-semibold transition duration-200',
+                  filter === id ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-brand-100 hover:bg-brand-50',
                 )}
                 onClick={() => setFilter(id)}
               >
@@ -235,7 +245,7 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
             ))}
           </div>
           <Input
-            className="border-slate-200 sm:w-56"
+            className="sm:w-56"
             placeholder="Tìm công ty, gói, hóa đơn"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -249,7 +259,7 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <thead className="bg-brand-50/70 text-left text-[11px] font-semibold uppercase tracking-wider text-brand-700">
               <tr>
                 <th className="px-4 py-3">Nhà tuyển dụng</th>
                 <th className="px-4 py-3">Gói</th>
@@ -263,7 +273,7 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
             </thead>
             <tbody>
               {rows.map((entry) => (
-                <tr key={entry.id} className="border-t border-slate-100">
+                <tr key={entry.id} className="border-t border-slate-100 transition hover:bg-brand-50/40">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{entry.companyName}</p>
                     <p className="mt-0.5 font-mono text-[11px] text-slate-400">Đơn {entry.billingOrderId.slice(0, 8)}</p>
@@ -302,8 +312,8 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
 
 function WalletStatement({ rows }: { rows: CrmWalletTxnView[] }) {
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="border-b border-slate-100 px-4 py-4">
+    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
+      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
         <h2 className="text-base font-semibold text-slate-900">Sao kê ví</h2>
         <p className="mt-1 text-sm text-slate-500">Cộng khi khách thanh toán gói. Trừ khi kế toán ghi đã chi. Không phải ví MoMo.</p>
       </div>
@@ -312,7 +322,7 @@ function WalletStatement({ rows }: { rows: CrmWalletTxnView[] }) {
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <thead className="bg-brand-50/70 text-left text-[11px] font-semibold uppercase tracking-wider text-brand-700">
               <tr>
                 <th className="px-4 py-3">Thời gian</th>
                 <th className="px-4 py-3">Nội dung</th>
@@ -322,7 +332,7 @@ function WalletStatement({ rows }: { rows: CrmWalletTxnView[] }) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-t border-slate-100">
+                <tr key={row.id} className="border-t border-slate-100 transition hover:bg-brand-50/40">
                   <td className="px-4 py-3 text-xs text-slate-500">{formatWhen(row.createdAt)}</td>
                   <td className="px-4 py-3 text-slate-800">{row.label}</td>
                   <td className={`px-4 py-3 font-semibold ${row.kind === 'debit' ? 'text-rose-700' : 'text-emerald-700'}`}>
@@ -368,11 +378,14 @@ function TaxLock({
   }
 
   return (
-    <Card className="p-5">
-      <h2 className="text-base font-semibold text-slate-900">Mã số thuế đã khóa</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Khóa mã số thuế của công ty bạn giới thiệu, 10 hoặc 13 số. Mã đó không về cộng tác viên khác. Tối đa 30 mã.
-      </p>
+    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
+      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
+        <h2 className="text-sm font-bold text-brand-700">Mã số thuế đã khóa</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Khóa mã số thuế của công ty bạn giới thiệu, 10 hoặc 13 số. Mã đó không về cộng tác viên khác. Tối đa 30 mã.
+        </p>
+      </div>
+      <div className="p-5">
       {claims.length > 0 ? (
         <ul className="mt-3 divide-y divide-slate-100 text-sm text-slate-700">
           {claims.map((claim) => (
@@ -385,7 +398,7 @@ function TaxLock({
       ) : (
         <p className="mt-3 text-sm text-slate-400">Chưa khóa mã số thuế nào.</p>
       )}
-      <form onSubmit={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-4">
+      <form onSubmit={onSubmit} className="mt-4 grid gap-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/40 p-3 sm:grid-cols-4">
         <Input placeholder="Tên công ty" value={companyName} maxLength={160} onChange={(event) => setCompanyName(event.target.value)} required />
         <Input placeholder="Mã số thuế" value={taxCode} onChange={(event) => setTaxCode(event.target.value)} required />
         <Input placeholder="Số điện thoại" value={phone} onChange={(event) => setPhone(event.target.value)} required />
@@ -394,6 +407,7 @@ function TaxLock({
         </Button>
       </form>
       {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+      </div>
     </Card>
   );
 }

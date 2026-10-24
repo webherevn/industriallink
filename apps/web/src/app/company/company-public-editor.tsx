@@ -2,9 +2,9 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { CompanyBrandProfile } from '@industriallink/contracts';
-import { Button, Card, Field, Input, Textarea } from '@/components/ui';
+import { Button, Field, Input, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
   companyMediaUrl,
@@ -83,6 +83,26 @@ function countOrNull(value: string): number | null {
   if (!trimmed) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
+}
+
+function Panel({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm animate-soft-rise">
+      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
+        <h3 className="text-sm font-bold text-brand-700">{title}</h3>
+        {hint ? <p className="mt-0.5 text-xs text-slate-500">{hint}</p> : null}
+      </div>
+      <div className="space-y-4 p-5">{children}</div>
+    </section>
+  );
 }
 
 export function CompanyPublicEditor({
@@ -177,52 +197,49 @@ export function CompanyPublicEditor({
     error instanceof ApiError ? error.message : 'Không lưu được. Thử lại.';
 
   return (
-    <Card className="mt-6 space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-slate-900">Trang công khai</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Banner, văn hóa và các mục này hiện trên trang thông tin công ty cho ứng viên.
-        </p>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-        <div className="relative h-36 bg-gradient-to-br from-brand-800 via-brand-600 to-brand-500">
-          {bannerSrc ? (
-            <img src={bannerSrc} alt="Banner công ty" className="h-full w-full object-cover" />
-          ) : null}
+    <div className="ntd-form space-y-4">
+      <Panel
+        title="Ảnh bìa"
+        hint="Banner và dòng chữ hiện phía trên trang công ty."
+      >
+        <div className="overflow-hidden rounded-xl border border-brand-100 bg-brand-50/40">
+          <div className="relative h-40 bg-gradient-to-br from-brand-800 via-brand-600 to-brand-500">
+            {bannerSrc ? (
+              <img src={bannerSrc} alt="Banner công ty" className="h-full w-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(232,135,42,0.35),transparent_42%)]" />
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 p-3">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-brand-700">
+              <ImagePlus className="h-4 w-4" />
+              {bannerUpload.isPending ? 'Đang tải…' : 'Tải banner'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) bannerUpload.mutate(file);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+            {bannerSrc ? (
+              <Button
+                variant="outline"
+                onClick={() => bannerDelete.mutate()}
+                disabled={bannerDelete.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+                Gỡ banner
+              </Button>
+            ) : (
+              <span className="text-xs text-slate-500">Ảnh ngang, tối đa 5MB. Nên rộng khoảng 1600px.</span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 p-3">
-          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-            <ImagePlus className="h-4 w-4" />
-            {bannerUpload.isPending ? 'Đang tải…' : 'Tải banner'}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) bannerUpload.mutate(file);
-                event.target.value = '';
-              }}
-            />
-          </label>
-          {bannerSrc ? (
-            <Button
-              variant="outline"
-              onClick={() => bannerDelete.mutate()}
-              disabled={bannerDelete.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-              Gỡ banner
-            </Button>
-          ) : (
-            <span className="text-xs text-slate-500">Ảnh ngang, tối đa 5MB. Nên rộng khoảng 1600px.</span>
-          )}
-        </div>
-      </div>
-      {bannerUpload.isError ? <p className="text-sm text-rose-600">{errorText(bannerUpload.error)}</p> : null}
-
-      <div className="grid gap-4 sm:grid-cols-2">
+        {bannerUpload.isError ? <p className="text-sm text-rose-600">{errorText(bannerUpload.error)}</p> : null}
         <Field label="Dòng chữ trên banner">
           <Input
             value={form.bannerCaption}
@@ -230,56 +247,63 @@ export function CompanyPublicEditor({
             placeholder="Ví dụ: Đồng hành cùng ngành công nghiệp Việt"
           />
         </Field>
-        <Field label="Tên quốc tế">
-          <Input
-            value={form.internationalName}
-            onChange={(event) => setForm({ ...form, internationalName: event.target.value })}
-          />
-        </Field>
-        <Field label="Email liên hệ">
-          <Input
-            value={form.email}
-            onChange={(event) => setForm({ ...form, email: event.target.value })}
-            placeholder="hr@congty.vn"
-          />
-        </Field>
-        <Field label="Điện thoại">
-          <Input
-            value={form.phone}
-            onChange={(event) => setForm({ ...form, phone: event.target.value })}
-          />
-        </Field>
-        <Field label="Năm thành lập">
-          <Input
-            inputMode="numeric"
-            value={form.foundedYear}
-            onChange={(event) => setForm({ ...form, foundedYear: event.target.value })}
-            placeholder="2012"
-          />
-        </Field>
-        <Field label="Facebook">
-          <Input
-            value={form.facebookUrl}
-            onChange={(event) => setForm({ ...form, facebookUrl: event.target.value })}
-          />
-        </Field>
-        <Field label="LinkedIn">
-          <Input
-            value={form.linkedinUrl}
-            onChange={(event) => setForm({ ...form, linkedinUrl: event.target.value })}
-          />
-        </Field>
-        <Field label="YouTube">
-          <Input
-            value={form.youtubeUrl}
-            onChange={(event) => setForm({ ...form, youtubeUrl: event.target.value })}
-          />
-        </Field>
-      </div>
+      </Panel>
 
-      <div>
-        <p className="text-sm font-semibold text-slate-800">Con số trên trang</p>
-        <div className="mt-2 grid gap-3 sm:grid-cols-5">
+      <Panel title="Liên hệ và mạng xã hội" hint="Các dòng này hiện ở cột thông tin trên trang công khai.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Tên quốc tế">
+            <Input
+              value={form.internationalName}
+              onChange={(event) => setForm({ ...form, internationalName: event.target.value })}
+            />
+          </Field>
+          <Field label="Năm thành lập">
+            <Input
+              inputMode="numeric"
+              value={form.foundedYear}
+              onChange={(event) => setForm({ ...form, foundedYear: event.target.value })}
+              placeholder="2012"
+            />
+          </Field>
+          <Field label="Email liên hệ">
+            <Input
+              value={form.email}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
+              placeholder="hr@congty.vn"
+            />
+          </Field>
+          <Field label="Điện thoại">
+            <Input
+              value={form.phone}
+              onChange={(event) => setForm({ ...form, phone: event.target.value })}
+            />
+          </Field>
+          <Field label="Facebook">
+            <Input
+              value={form.facebookUrl}
+              onChange={(event) => setForm({ ...form, facebookUrl: event.target.value })}
+              placeholder="https://"
+            />
+          </Field>
+          <Field label="LinkedIn">
+            <Input
+              value={form.linkedinUrl}
+              onChange={(event) => setForm({ ...form, linkedinUrl: event.target.value })}
+              placeholder="https://"
+            />
+          </Field>
+          <Field label="YouTube">
+            <Input
+              value={form.youtubeUrl}
+              onChange={(event) => setForm({ ...form, youtubeUrl: event.target.value })}
+              placeholder="https://"
+            />
+          </Field>
+        </div>
+      </Panel>
+
+      <Panel title="Con số trên trang">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {(
             [
               ['yearsActive', 'Năm hoạt động'],
@@ -289,62 +313,67 @@ export function CompanyPublicEditor({
               ['locations', 'Tỉnh / TP'],
             ] as const
           ).map(([key, label]) => (
-            <Field key={key} label={label}>
-              <Input
-                inputMode="numeric"
-                value={form[key]}
-                onChange={(event) => setForm({ ...form, [key]: event.target.value })}
-              />
-            </Field>
+            <div key={key} className="rounded-xl border border-brand-100 bg-brand-50/50 p-3 transition duration-200 hover:border-brand-300 hover:bg-white">
+              <Field label={label}>
+                <Input
+                  inputMode="numeric"
+                  value={form[key]}
+                  onChange={(event) => setForm({ ...form, [key]: event.target.value })}
+                />
+              </Field>
+            </div>
           ))}
         </div>
-      </div>
+      </Panel>
 
-      <Field label="Lĩnh vực hoạt động chính" description="Mỗi dòng một lĩnh vực">
-        <Textarea
-          rows={3}
-          value={form.coreActivities}
-          onChange={(event) => setForm({ ...form, coreActivities: event.target.value })}
-        />
-      </Field>
-      <Field label="Vì sao chọn chúng tôi" description="Mỗi dòng một ý">
-        <Textarea
-          rows={3}
-          value={form.whyChooseUs}
-          onChange={(event) => setForm({ ...form, whyChooseUs: event.target.value })}
-        />
-      </Field>
-      <Field label="Phúc lợi" description="Mỗi dòng một phúc lợi">
-        <Textarea
-          rows={3}
-          value={form.benefits}
-          onChange={(event) => setForm({ ...form, benefits: event.target.value })}
-        />
-      </Field>
-      <Field label="Chứng nhận và giải thưởng" description="Mỗi dòng một tên">
-        <Textarea
-          rows={3}
-          value={form.awards}
-          onChange={(event) => setForm({ ...form, awards: event.target.value })}
-        />
-      </Field>
-      <Field label="Văn hóa doanh nghiệp">
-        <Textarea
-          rows={4}
-          value={form.cultureNote}
-          onChange={(event) => setForm({ ...form, cultureNote: event.target.value })}
-          placeholder="Cách công ty làm việc, giá trị và môi trường đội ngũ."
-        />
-      </Field>
+      <Panel title="Nội dung hiển thị" hint="Mỗi dòng một ý. Mục trống sẽ không hiện trên trang công khai.">
+        <Field label="Lĩnh vực hoạt động chính" description="Mỗi dòng một lĩnh vực">
+          <Textarea
+            rows={3}
+            value={form.coreActivities}
+            onChange={(event) => setForm({ ...form, coreActivities: event.target.value })}
+          />
+        </Field>
+        <Field label="Vì sao chọn chúng tôi" description="Mỗi dòng một ý">
+          <Textarea
+            rows={3}
+            value={form.whyChooseUs}
+            onChange={(event) => setForm({ ...form, whyChooseUs: event.target.value })}
+          />
+        </Field>
+        <Field label="Phúc lợi" description="Mỗi dòng một phúc lợi">
+          <Textarea
+            rows={3}
+            value={form.benefits}
+            onChange={(event) => setForm({ ...form, benefits: event.target.value })}
+          />
+        </Field>
+        <Field label="Chứng nhận và giải thưởng" description="Mỗi dòng một tên">
+          <Textarea
+            rows={3}
+            value={form.awards}
+            onChange={(event) => setForm({ ...form, awards: event.target.value })}
+          />
+        </Field>
+      </Panel>
 
-      <div>
-        <p className="text-sm font-semibold text-slate-800">Ảnh văn hóa</p>
-        <p className="mt-1 text-xs text-slate-500">Tối đa 8 ảnh. Tiêu đề hiện dưới ảnh trên trang công khai.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Panel title="Văn hóa doanh nghiệp" hint="Đoạn giới thiệu và tối đa 8 ảnh.">
+        <Field label="Văn hóa doanh nghiệp">
+          <Textarea
+            rows={4}
+            value={form.cultureNote}
+            onChange={(event) => setForm({ ...form, cultureNote: event.target.value })}
+            placeholder="Cách công ty làm việc, giá trị và môi trường đội ngũ."
+          />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(brand?.cultureGallery ?? []).map((item) => {
             const src = companyMediaUrl(item.url);
             return (
-              <figure key={item.id ?? item.url} className="overflow-hidden rounded-xl border border-slate-200">
+              <figure
+                key={item.id ?? item.url}
+                className="overflow-hidden rounded-xl border border-brand-100 bg-white transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              >
                 {src ? <img src={src} alt={item.title} className="aspect-[4/3] w-full object-cover" /> : null}
                 <figcaption className="flex items-start justify-between gap-2 p-2">
                   <span className="text-xs font-semibold text-slate-700">{item.title}</span>
@@ -363,7 +392,7 @@ export function CompanyPublicEditor({
             );
           })}
         </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <div className="grid gap-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/40 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <Field label="Tiêu đề ảnh">
             <Input
               value={form.cultureTitle}
@@ -376,7 +405,7 @@ export function CompanyPublicEditor({
               onChange={(event) => setForm({ ...form, cultureCaption: event.target.value })}
             />
           </Field>
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-brand-200 bg-white px-3 text-sm font-semibold text-brand-700 transition hover:border-brand-400 hover:bg-brand-50">
             {cultureUpload.isPending ? 'Đang tải…' : 'Thêm ảnh'}
             <input
               type="file"
@@ -392,15 +421,15 @@ export function CompanyPublicEditor({
           </label>
         </div>
         {cultureUpload.isError ? (
-          <p className="mt-2 text-sm text-rose-600">{errorText(cultureUpload.error)}</p>
+          <p className="text-sm text-rose-600">{errorText(cultureUpload.error)}</p>
         ) : null}
-      </div>
+      </Panel>
 
       {save.isError ? <p className="text-sm text-rose-600">{errorText(save.error)}</p> : null}
       {saved && !save.isPending ? <p className="text-sm text-emerald-700">Đã lưu nội dung trang công khai.</p> : null}
       <Button onClick={() => save.mutate()} disabled={save.isPending}>
         {save.isPending ? 'Đang lưu…' : 'Lưu nội dung trang'}
       </Button>
-    </Card>
+    </div>
   );
 }

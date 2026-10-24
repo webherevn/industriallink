@@ -1056,6 +1056,36 @@ form.crm-surface:hover {
   background-color: #f6f4ff;
 }
 
+/* Hồ sơ công ty NTD — ô nhập navy, không đụng form chỗ khác */
+.ntd-form input:not([type='checkbox']):not([type='file']):not([type='radio']),
+.ntd-form textarea,
+.ntd-form button[aria-haspopup='listbox'] {
+  border-radius: 0.9rem;
+  border: 1px solid #c5d2e4;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(7, 35, 72, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.ntd-form input:not([type='checkbox']):not([type='file']):not([type='radio']):hover,
+.ntd-form textarea:hover,
+.ntd-form button[aria-haspopup='listbox']:hover {
+  border-color: #52749a;
+  background: #fff;
+  box-shadow: 0 10px 22px -16px rgba(7, 35, 72, 0.7);
+}
+.ntd-form input:not([type='checkbox']):not([type='file']):not([type='radio']):focus,
+.ntd-form textarea:focus,
+.ntd-form button[aria-haspopup='listbox']:focus,
+.ntd-form button[aria-haspopup='listbox'][aria-expanded='true'] {
+  border-color: #072348;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(7, 35, 72, 0.12);
+  outline: none;
+}
+.ntd-form textarea {
+  line-height: 1.55;
+}
+
 @media print {
   .crm-surface,
   .crm-surface:hover,
