@@ -7,6 +7,7 @@ import type { CompanyBrandProfile } from '@industriallink/contracts';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
+  COMPANY_PHOTO_ACCEPT,
   companyMediaUrl,
   deleteCompanyBanner,
   deleteCompanyCulture,
@@ -216,7 +217,7 @@ export function CompanyPublicEditor({
               {bannerUpload.isPending ? 'Đang tải…' : 'Tải banner'}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
+                accept={COMPANY_PHOTO_ACCEPT}
                 className="sr-only"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -409,7 +410,7 @@ export function CompanyPublicEditor({
             {cultureUpload.isPending ? 'Đang tải…' : 'Thêm ảnh'}
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept={COMPANY_PHOTO_ACCEPT}
               className="sr-only"
               disabled={!form.cultureTitle.trim() || cultureUpload.isPending}
               onChange={(event) => {

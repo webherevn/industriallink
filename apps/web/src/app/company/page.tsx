@@ -23,6 +23,7 @@ import { companyPublicPath } from '@/lib/public-paths';
 import { Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
+  COMPANY_PHOTO_ACCEPT,
   MY_COMPANY_LOGO_QUERY_KEY,
   createCompany,
   fetchMyCompanyLogoObjectUrl,
@@ -188,7 +189,7 @@ export default function CompanyPage() {
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  accept={COMPANY_PHOTO_ACCEPT}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];

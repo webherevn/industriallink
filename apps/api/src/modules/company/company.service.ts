@@ -45,7 +45,13 @@ import type { UpdateCompanyBrandDto } from './dto/update-company-brand.dto';
 /** Vai trò có quyền quản trị công ty (mời/gỡ thành viên, sửa hồ sơ). */
 const ADMIN_ROLES: CompanyRole[] = [CompanyRole.Owner, CompanyRole.Admin];
 
-const LOGO_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const COMPANY_PHOTO_MIME = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
+  'image/png',
+  'image/webp',
+]);
 const LOGO_MAX_SIZE = 2 * 1024 * 1024;
 const BANNER_MAX_SIZE = 5 * 1024 * 1024;
 const CULTURE_MAX_SIZE = 4 * 1024 * 1024;
@@ -622,9 +628,7 @@ export class CompanyService {
     if (!file) {
       throw new BadRequestException('Thiếu file ảnh logo');
     }
-    if (!LOGO_MIME.has(file.mimetype)) {
-      throw new BadRequestException('Chỉ chấp nhận JPEG, PNG, WebP hoặc GIF');
-    }
+    this.assertCompanyPhoto(file);
     if (file.size > LOGO_MAX_SIZE) {
       throw new BadRequestException('Ảnh vượt quá 2MB');
     }
@@ -639,7 +643,7 @@ export class CompanyService {
       throw new NotFoundException('Không tìm thấy công ty');
     }
 
-    const image = await compressUploadedImage(file.buffer, 1024);
+    const image = await this.toWebp(file.buffer, 1024);
     const storageKey = `company-logos/${company.id}/${uuidv7()}.${image.ext}`;
     await this.storage.putObject(storageKey, image.buffer, image.mime);
 
@@ -902,17 +906,36 @@ export class CompanyService {
     options: { maxSize: number; maxEdge: number; folder: string; company?: Company },
   ): Promise<{ company: Company; storageKey: string; mime: string }> {
     if (!file) throw new BadRequestException('Thiếu file ảnh');
-    if (!LOGO_MIME.has(file.mimetype)) {
-      throw new BadRequestException('Chỉ chấp nhận JPEG, PNG, WebP hoặc GIF');
-    }
+    this.assertCompanyPhoto(file);
     if (file.size > options.maxSize) {
       throw new BadRequestException('Ảnh vượt quá dung lượng cho phép');
     }
     const company = options.company ?? (await this.requireAdminCompany(user));
-    const image = await compressUploadedImage(file.buffer, options.maxEdge);
+    const image = await this.toWebp(file.buffer, options.maxEdge);
     const storageKey = `${options.folder}/${company.id}/${uuidv7()}.${image.ext}`;
     await this.storage.putObject(storageKey, image.buffer, image.mime);
     return { company, storageKey, mime: image.mime };
+  }
+
+  private assertCompanyPhoto(file: Express.Multer.File): void {
+    const mime = (file.mimetype || '').toLowerCase();
+    const name = file.originalname || '';
+    const extOk = /\.(jpe?g|png|webp)$/i.test(name);
+    const mimeOk = !mime || mime === 'application/octet-stream' || COMPANY_PHOTO_MIME.has(mime);
+    if (!extOk || !mimeOk) {
+      throw new BadRequestException('Chỉ chấp nhận ảnh JPG, PNG hoặc WebP');
+    }
+  }
+
+  private async toWebp(buffer: Buffer, maxEdge: number) {
+    try {
+      return await compressUploadedImage(buffer, maxEdge);
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw new BadRequestException('Không đọc được ảnh. Hãy dùng JPG, PNG hoặc WebP.');
+      }
+      throw err;
+    }
   }
 
   private assignText(

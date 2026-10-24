@@ -11,7 +11,25 @@ import type {
   UpdateCompanyRequest,
   UploadCompanyLogoResponse,
 } from '@industriallink/contracts';
-import { apiRequest, asArray, getApiBase, tokenStore } from './api';
+import { ApiError, apiRequest, asArray, getApiBase, tokenStore } from './api';
+
+export const COMPANY_PHOTO_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp';
+
+export function assertCompanyPhoto(file: File): void {
+  const extOk = /\.(jpe?g|png|webp)$/i.test(file.name);
+  const type = file.type.toLowerCase();
+  const typeOk =
+    !type ||
+    type === 'application/octet-stream' ||
+    type === 'image/jpeg' ||
+    type === 'image/jpg' ||
+    type === 'image/pjpeg' ||
+    type === 'image/png' ||
+    type === 'image/webp';
+  if (!extOk || !typeOk) {
+    throw new ApiError(400, 'Chỉ chấp nhận ảnh JPG, PNG hoặc WebP');
+  }
+}
 
 export const MY_COMPANY_LOGO_QUERY_KEY = ['my-company-logo'] as const;
 
@@ -42,6 +60,7 @@ export async function updateMyCompany(input: UpdateCompanyRequest): Promise<Comp
 }
 
 export async function uploadCompanyLogo(file: File): Promise<UploadCompanyLogoResponse> {
+  assertCompanyPhoto(file);
   const form = new FormData();
   form.append('file', file);
   return apiRequest('/companies/me/logo', { method: 'POST', body: form, isForm: true });
@@ -54,6 +73,7 @@ export async function updateCompanyBrand(
 }
 
 export async function uploadCompanyBanner(file: File): Promise<CompanyBrandProfile> {
+  assertCompanyPhoto(file);
   const form = new FormData();
   form.append('file', file);
   return apiRequest('/companies/me/banner', { method: 'POST', body: form, isForm: true });
@@ -68,6 +88,7 @@ export async function uploadCompanyCulture(
   title: string,
   caption: string,
 ): Promise<CompanyBrandProfile> {
+  assertCompanyPhoto(file);
   const form = new FormData();
   form.append('file', file);
   form.append('title', title);
