@@ -127,8 +127,12 @@ export class CandidateController {
   @Get(':id')
   @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
   @ApiOperation({ summary: 'Xem hồ sơ ứng viên (NTD, cùng tenant) — liên hệ ẩn đến khi kết nối' })
-  getCandidateById(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.candidates.getCandidateForRecruiter(user, id);
+  getCandidateById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('source') source?: string,
+  ) {
+    return this.candidates.getCandidateForRecruiter(user, id, source);
   }
 
   @Post(':id/connection')

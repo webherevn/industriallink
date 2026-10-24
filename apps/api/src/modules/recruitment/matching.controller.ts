@@ -24,6 +24,13 @@ export class MatchingController {
     return this.matching.candidatesForJob(user, id);
   }
 
+  @Get('jobs/:id/sourcing-candidates')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Danh sách ứng viên iLink săn cho vị trí trong gói Săn' })
+  sourcingCandidates(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.matching.candidatesForSourcing(user, id);
+  }
+
   @Get('recommended-jobs')
   @Roles(UserRole.Candidate)
   @ApiOperation({ summary: 'AI gợi ý việc làm phù hợp cho ứng viên (có giải thích)' })

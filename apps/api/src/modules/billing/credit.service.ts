@@ -148,6 +148,24 @@ export class CreditService {
    * Mốc «đã xem» khi mở hồ sơ không tốn Credit.
    * Không đổi số dư. Sổ Credit bỏ qua dòng creditDelta = 0.
    */
+  /** Gói Săn đã trả lượt mở. Ghi mốc đã xem để lần mở sau không trừ Credit ví. */
+  async rememberCoveredProfileView(input: {
+    tenantId: string;
+    companyId: string;
+    candidateId: string;
+    actorUserId?: string;
+    actorEmail?: string;
+  }): Promise<void> {
+    await this.rememberProfileView({
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      action: 'view_profile',
+      candidateId: input.candidateId,
+      actorUserId: input.actorUserId,
+      actorEmail: input.actorEmail,
+    });
+  }
+
   private async rememberProfileView(input: ConsumeActionInput): Promise<void> {
     if (!input.candidateId) return;
     const existing = await this.prisma.billingCreditTransaction.findFirst({

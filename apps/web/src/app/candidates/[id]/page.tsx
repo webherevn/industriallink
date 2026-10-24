@@ -22,7 +22,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   B2B_EXPERIENCE_BAND_LABEL,
@@ -103,14 +103,16 @@ function ProtectedValue({ label }: { label: string }) {
 
 export default function CandidateDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = params.id;
+  const fromSourcing = searchParams.get('from') === 'sourcing';
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['candidate', id],
-    queryFn: () => getCandidateById(id),
+    queryKey: ['candidate', id, fromSourcing ? 'sourcing' : 'credit'],
+    queryFn: () => getCandidateById(id, fromSourcing ? 'sourcing' : undefined),
     enabled: Boolean(id),
     retry: false,
   });
@@ -120,6 +122,12 @@ export default function CandidateDetailPage() {
   useEffect(() => {
     handleCreditError(error, showCreditAlert);
   }, [error, showCreditAlert]);
+
+  useEffect(() => {
+    if (fromSourcing && data) {
+      void queryClient.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
+    }
+  }, [fromSourcing, data, queryClient]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['candidate', id] });
 

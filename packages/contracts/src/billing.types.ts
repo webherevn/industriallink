@@ -312,15 +312,20 @@ export interface RecruiterSourcingEntitlements {
   searchRoundQuota: number | null;
   shortlistQuota: number | null;
   revisionQuota: number | null;
+  /** Lượt mở hồ sơ của gói Săn. Đọc live từ SuperAdmin, không phải số dư ví Credit. */
+  creditQuota: number | null;
   positionsUsed: number;
   searchRoundsUsed: number;
   shortlistsUsed: number;
   revisionsUsed: number;
+  /** Hồ sơ đã mở trong kỳ gói đang gán. Mỗi ứng viên tính một lần. */
+  profileOpensUsed: number;
   /** null = không giới hạn (khi đã có gói). */
   positionsRemaining: number | null;
   searchRoundsRemaining: number | null;
   shortlistsRemaining: number | null;
   revisionsRemaining: number | null;
+  profileOpensRemaining: number | null;
 }
 
 export interface RecruiterSourcingEngagementView {

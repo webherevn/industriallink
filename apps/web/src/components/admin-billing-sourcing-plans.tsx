@@ -54,6 +54,7 @@ const EMPTY: FormState = {
   searchRoundQuota: 1,
   shortlistQuota: 1,
   revisionQuota: 1,
+  creditQuota: 30,
   serviceScope: ['ai_match', 'filter_rank'],
   sortOrder: 0,
   isActive: true,
@@ -130,8 +131,8 @@ export function AdminBillingSourcingPlans() {
             <h1 className="cms-page-title mt-1.5">Gói Săn nhân sự</h1>
             <div className="brand-accent-bar mt-2" />
             <p className="cms-page-subtitle mt-2">
-              Số vị trí / đợt tìm / shortlist / điều chỉnh ở đây là hạn mức thật khi NTD kích hoạt gói.
-              Phí dịch vụ riêng — không tặng Credit.
+              Vị trí, lượt mở, báo cáo, shortlist và điều chỉnh ở đây là hạn mức của gói NTD đang dùng.
+              Đổi số thì trang Săn tính lại ngay. Lượt mở không cộng vào ví Credit.
             </p>
           </div>
           <div className="flex gap-2">
@@ -202,7 +203,10 @@ export function AdminBillingSourcingPlans() {
                         Vị trí: <strong>{p.positionQuota ?? '∞'}</strong>
                       </span>
                       <span>
-                        Đợt tìm: <strong>{p.searchRoundQuota ?? '∞'}</strong>
+                        Lượt mở: <strong>{p.creditQuota ?? '∞'}</strong>
+                      </span>
+                      <span>
+                        Báo cáo: <strong>{p.searchRoundQuota ?? '∞'}</strong>
                       </span>
                       <span>
                         Shortlist: <strong>{p.shortlistQuota ?? '∞'}</strong>
@@ -248,6 +252,7 @@ export function AdminBillingSourcingPlans() {
                           searchRoundQuota: p.searchRoundQuota ?? undefined,
                           shortlistQuota: p.shortlistQuota ?? undefined,
                           revisionQuota: p.revisionQuota ?? undefined,
+                          creditQuota: p.creditQuota ?? undefined,
                           serviceScope: p.serviceScope as SourcingServiceScope[],
                           sortOrder: p.sortOrder,
                           isActive: p.isActive,
@@ -382,6 +387,15 @@ function EditModal({
               value={form.revisionQuota ?? ''}
               onChange={(e) =>
                 update('revisionQuota', e.target.value === '' ? undefined : Number(e.target.value))
+              }
+            />
+          </Field>
+          <Field label="Lượt mở hồ sơ" description="Hạn mức gói đang dùng. Trang Săn tính còn lại theo số này.">
+            <Input
+              type="number"
+              value={form.creditQuota ?? ''}
+              onChange={(e) =>
+                update('creditQuota', e.target.value === '' ? undefined : Number(e.target.value))
               }
             />
           </Field>

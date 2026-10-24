@@ -148,8 +148,14 @@ export async function updateMyProfile(
 }
 
 /** Hồ sơ ứng viên cho NTD xem từ Search / Matching (liên hệ có thể bị ẩn). */
-export async function getCandidateById(candidateId: string): Promise<RecruiterCandidateView> {
-  return normalizeCandidate(await apiRequest<RecruiterCandidateView>(`/candidates/${candidateId}`));
+export async function getCandidateById(
+  candidateId: string,
+  source?: 'sourcing',
+): Promise<RecruiterCandidateView> {
+  const query = source === 'sourcing' ? '?source=sourcing' : '';
+  return normalizeCandidate(
+    await apiRequest<RecruiterCandidateView>(`/candidates/${candidateId}${query}`),
+  );
 }
 
 export async function requestCandidateConnection(

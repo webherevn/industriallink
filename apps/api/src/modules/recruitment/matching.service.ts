@@ -5,6 +5,7 @@ import type {
   MatchExplanation,
 } from '@industriallink/contracts';
 import { CreditService } from '../billing/credit.service';
+import { SourcingService } from '../billing/sourcing.service';
 import { CompanyService } from '../company/company.service';
 import { shouldUseSalesMatchEngine, shouldUseTechnicalMatchEngine } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
@@ -58,6 +59,7 @@ export class MatchingService {
     private readonly prisma: PrismaService,
     private readonly ai: AiGatewayService,
     private readonly credit: CreditService,
+    private readonly sourcing: SourcingService,
     private readonly companies: CompanyService,
   ) {}
 
@@ -169,6 +171,64 @@ export class MatchingService {
         throw err;
       }
       this.logger.warn(`Failed to record credit ledger for view_match_summary: ${String(err)}`);
+    }
+    return this.rankJobCandidates(user, jobId);
+  }
+
+  /**
+   * iLink săn ứng viên cho vị trí đã gắn trong gói Săn.
+   * Không trừ Credit xem matching — phí nằm trong gói. Mở hồ sơ mới trừ lượt mở.
+   */
+  async candidatesForSourcing(user: AuthenticatedUser, jobId: string): Promise<CandidateMatchView[]> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const entitlements = await this.sourcing.getEntitlements(companyId);
+    const endsAt = entitlements.assignment?.endsAt;
+    const cycleOpen = !endsAt || new Date(endsAt).getTime() >= Date.now();
+    if (!entitlements.assignment?.isActive || !cycleOpen) {
+      throw new ForbiddenException({
+        code: 'SOURCING_PLAN_REQUIRED',
+        message: 'Bạn chưa có gói Săn nhân sự đang dùng.',
+      });
+    }
+    const linked = await this.prisma.billingSourcingEngagement.findFirst({
+      where: { companyId, jobId, assignmentId: entitlements.assignment.id },
+      select: { id: true },
+    });
+    if (!linked) {
+      throw new ForbiddenException({
+        code: 'SOURCING_POSITION_REQUIRED',
+        message: 'Hãy mở vị trí Săn gắn với tin này trước.',
+      });
+    }
+    const ranked = await this.rankJobCandidates(user, jobId);
+    if (ranked.length === 0) return ranked;
+    const opened = await this.prisma.billingSourcingUsage.findMany({
+      where: {
+        companyId,
+        assignmentId: entitlements.assignment.id,
+        kind: 'profile_open',
+        note: { in: ranked.map((row) => `open:${row.candidateId}`) },
+      },
+      select: { note: true },
+    });
+    const openedIds = new Set(
+      opened.flatMap((row) => (row.note?.startsWith('open:') ? [row.note.slice(5)] : [])),
+    );
+    return ranked.map((row) => ({
+      ...row,
+      viewed: row.viewed || openedIds.has(row.candidateId),
+    }));
+  }
+
+  private async rankJobCandidates(user: AuthenticatedUser, jobId: string): Promise<CandidateMatchView[]> {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: { skills: true },
+    });
+    if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    if (job.companyId !== companyId) {
+      throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
     const jobTrack = jobMatchTrack(job);
 

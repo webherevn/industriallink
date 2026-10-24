@@ -65,14 +65,17 @@ export class SourcingService {
       searchRoundQuota: null,
       shortlistQuota: null,
       revisionQuota: null,
+      creditQuota: null,
       positionsUsed: 0,
       searchRoundsUsed: 0,
       shortlistsUsed: 0,
       revisionsUsed: 0,
+      profileOpensUsed: 0,
       positionsRemaining: 0,
       searchRoundsRemaining: 0,
       shortlistsRemaining: 0,
       revisionsRemaining: 0,
+      profileOpensRemaining: 0,
     };
   }
 
@@ -82,7 +85,8 @@ export class SourcingService {
       include: { plan: true },
     });
     if (!row?.plan || !row.isActive) return this.emptyEntitlements();
-    return this.toEntitlements(row);
+    const opensUsed = await this.countIncludedOpens(row.id, row.startsAt);
+    return this.toEntitlements(row, opensUsed);
   }
 
   async getWorkspace(companyId: string): Promise<RecruiterSourcingWorkspace> {
@@ -128,7 +132,7 @@ export class SourcingService {
 
     const company = await this.prisma.company.findUnique({
       where: { id: input.companyId },
-      select: { id: true, tenantId: true },
+      select: { id: true },
     });
     if (!company) throw new NotFoundException('Không tìm thấy công ty');
 
@@ -144,8 +148,6 @@ export class SourcingService {
         : input.endsAt
           ? new Date(input.endsAt)
           : null;
-    const quota = plan.creditQuota ?? 0;
-
     const row = await this.prisma.$transaction(async (tx) => {
       const assigned = await tx.billingCompanySourcingPlan.upsert({
         where: { companyId: input.companyId },
@@ -172,46 +174,7 @@ export class SourcingService {
         },
         include: { plan: true },
       });
-
-      if (switching && quota > 0 && assigned.isActive) {
-        const account = await tx.billingCreditAccount.upsert({
-          where: { companyId: company.id },
-          create: { companyId: company.id, tenantId: company.tenantId },
-          update: {},
-        });
-        const updatedAccount = await tx.billingCreditAccount.update({
-          where: { id: account.id },
-          data: {
-            balance: { increment: quota },
-            lifetimeGranted: { increment: quota },
-            lastActivityAt: new Date(),
-          },
-        });
-        await tx.billingCreditTransaction.create({
-          data: {
-            tenantId: company.tenantId,
-            companyId: company.id,
-            accountId: account.id,
-            type: 'grant',
-            action: 'plan_grant',
-            creditDelta: quota,
-            balanceAfter: updatedAccount.balance,
-            costPerUnit: 0,
-            quantity: 1,
-            actorUserId: actorId,
-            actorEmail: actor.email ?? null,
-            note: `Cộng ${quota} lượt mở hồ sơ khi kích hoạt ${plan.name}`,
-            metadata: {
-              source: 'sourcing_assign',
-              planId: plan.id,
-              planCode: plan.code,
-              assignmentId: assigned.id,
-            },
-            enforced: true,
-          },
-        });
-      }
-
+      // Lượt mở không cộng vào ví. Còn lại = creditQuota SuperAdmin đang đặt − hồ sơ đã mở trong kỳ.
       return assigned;
     });
 
@@ -289,6 +252,12 @@ export class SourcingService {
           message: 'Bạn chưa có gói Săn nhân sự. Hãy chọn gói trên bảng giá.',
         });
       }
+      if (!this.cycleOpen(assignment.endsAt)) {
+        throw new ForbiddenException({
+          code: 'SOURCING_CYCLE_ENDED',
+          message: 'Gói Săn đã hết hạn. Hãy gia hạn hoặc chọn gói mới.',
+        });
+      }
 
       this.assertScope(assignment.plan, kind);
       const entitlements = this.toEntitlements(assignment);
@@ -364,6 +333,63 @@ export class SourcingService {
     return this.getWorkspace(companyId);
   }
 
+  /**
+   * Hồ sơ mở khi công ty đang có gói Săn còn hạn.
+   * included / repeat: trừ vào creditQuota của gói, không trừ ví Credit.
+   * skip: không còn lượt của gói, người gọi trừ ví (top-up hoặc gói tin).
+   */
+  async coverIncludedOpen(input: {
+    companyId: string;
+    candidateId: string;
+    actorUserId?: string;
+  }): Promise<'included' | 'repeat' | 'skip'> {
+    const assignment = await this.prisma.billingCompanySourcingPlan.findUnique({
+      where: { companyId: input.companyId },
+      include: { plan: true },
+    });
+    if (!assignment?.plan || !assignment.isActive || !this.cycleOpen(assignment.endsAt)) {
+      return 'skip';
+    }
+    const quota = assignment.plan.creditQuota;
+    if (quota != null && quota <= 0) return 'skip';
+
+    const marker = `open:${input.candidateId}`;
+    return this.prisma.$transaction(async (tx) => {
+      const already = await tx.billingSourcingUsage.findFirst({
+        where: {
+          assignmentId: assignment.id,
+          kind: 'profile_open',
+          note: marker,
+          createdAt: { gte: assignment.startsAt },
+        },
+        select: { id: true },
+      });
+      if (already) return 'repeat';
+
+      if (quota != null) {
+        const used = await tx.billingSourcingUsage.count({
+          where: {
+            assignmentId: assignment.id,
+            kind: 'profile_open',
+            createdAt: { gte: assignment.startsAt },
+          },
+        });
+        if (used >= quota) return 'skip';
+      }
+
+      await tx.billingSourcingUsage.create({
+        data: {
+          companyId: input.companyId,
+          assignmentId: assignment.id,
+          kind: 'profile_open',
+          note: marker,
+          createdBy: input.actorUserId && looksLikeUuid(input.actorUserId) ? input.actorUserId : null,
+        },
+      });
+      return 'included';
+    });
+  }
+
   private remainingFor(kind: SourcingQuotaKind, e: RecruiterSourcingEntitlements): number | null {
     switch (kind) {
       case 'position':
@@ -409,8 +435,19 @@ export class SourcingService {
     return Math.max(0, quota - used);
   }
 
+  private cycleOpen(endsAt: Date | null): boolean {
+    return !endsAt || endsAt.getTime() >= Date.now();
+  }
+
+  private countIncludedOpens(assignmentId: string, startsAt: Date): Promise<number> {
+    return this.prisma.billingSourcingUsage.count({
+      where: { assignmentId, kind: 'profile_open', createdAt: { gte: startsAt } },
+    });
+  }
+
   private toEntitlements(
     row: BillingCompanySourcingPlan & { plan: BillingSourcingPlan },
+    profileOpensUsed = 0,
   ): RecruiterSourcingEntitlements {
     const plan = row.plan;
     return {
@@ -423,14 +460,17 @@ export class SourcingService {
       searchRoundQuota: plan.searchRoundQuota,
       shortlistQuota: plan.shortlistQuota,
       revisionQuota: plan.revisionQuota,
+      creditQuota: plan.creditQuota,
       positionsUsed: row.positionsUsed,
       searchRoundsUsed: row.searchRoundsUsed,
       shortlistsUsed: row.shortlistsUsed,
       revisionsUsed: row.revisionsUsed,
+      profileOpensUsed,
       positionsRemaining: this.remaining(plan.positionQuota, row.positionsUsed),
       searchRoundsRemaining: this.remaining(plan.searchRoundQuota, row.searchRoundsUsed),
       shortlistsRemaining: this.remaining(plan.shortlistQuota, row.shortlistsUsed),
       revisionsRemaining: this.remaining(plan.revisionQuota, row.revisionsUsed),
+      profileOpensRemaining: this.remaining(plan.creditQuota, profileOpensUsed),
     };
   }
 

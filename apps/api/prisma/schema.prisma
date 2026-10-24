@@ -1371,7 +1371,7 @@ model BillingSourcingPlan {
   shortlistQuota Int? @map("shortlist_quota")
   /// Số lần điều chỉnh tối đa (SAN_CO_BAN: 1 theo V1).
   revisionQuota Int? @map("revision_quota")
-  /// Lượt mở hồ sơ tiềm năng đi kèm gói. Cộng vào ví khi kích hoạt.
+  /// Lượt mở hồ sơ đi kèm gói. Đọc live khi NTD đang dùng gói; không cộng vào ví Credit.
   creditQuota Int? @map("credit_quota")
 
   /// Phạm vi dịch vụ dạng JSON (vd: ["ai_match","filter","shortlist","strengths_gaps","priority","outreach","follow_up","replacement"]).

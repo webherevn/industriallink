@@ -17,6 +17,12 @@ function withMatch<T extends { match?: MatchExplanation }>(row: T): T {
   return next;
 }
 
+export async function sourcingCandidatesForJob(jobId: string): Promise<CandidateMatchView[]> {
+  return asArray<CandidateMatchView>(
+    await apiRequest(`/matching/jobs/${jobId}/sourcing-candidates`),
+  ).map(withMatch);
+}
+
 export async function candidatesForJob(jobId: string): Promise<CandidateMatchView[]> {
   return asArray<CandidateMatchView>(await apiRequest(`/matching/jobs/${jobId}/candidates`)).map(
     withMatch,

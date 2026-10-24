@@ -51,6 +51,7 @@ import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CompanyService } from '../company/company.service';
 import { CreditService } from '../billing/credit.service';
+import { SourcingService } from '../billing/sourcing.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
@@ -97,6 +98,7 @@ export class CandidateService {
     private readonly companies: CompanyService,
     private readonly notifications: NotificationService,
     private readonly credit: CreditService,
+    private readonly sourcing: SourcingService,
     @Inject(RESUME_PARSE_QUEUE_TOKEN) private readonly queue: Queue<ResumeParseJobData>,
   ) {}
 
@@ -525,6 +527,7 @@ export class CandidateService {
   async getCandidateForRecruiter(
     user: AuthenticatedUser,
     candidateId: string,
+    source?: string,
   ): Promise<RecruiterCandidateView> {
     const { companyId } = await this.companies.requireUserCompany(user.id);
     const candidate = await this.prisma.candidate.findFirst({
@@ -573,14 +576,14 @@ export class CandidateService {
     }
 
     const applied = await this.hasAppliedToCompany(companyId, candidateId);
-    await this.chargeCredit({
+    await this.chargeProfileView({
       tenantId: user.tenantId,
       companyId,
-      action: applied ? 'view_applicant' : 'view_profile',
       candidateId,
       actorUserId: user.id,
       actorEmail: user.email ?? undefined,
-      oncePerCandidate: true,
+      applied,
+      fromSourcing: source === 'sourcing',
     });
 
     return {
@@ -1639,6 +1642,70 @@ export class CandidateService {
       select: { id: true },
     });
     return Boolean(row);
+  }
+
+  /**
+   * Mở từ danh sách Săn: trừ lượt mở của gói. Hết lượt thì trừ Credit ví.
+   * Mở từ Tìm ứng viên AI và các mục khác: chỉ trừ Credit ví, không đụng lượt Săn.
+   */
+  private async chargeProfileView(input: {
+    tenantId: string;
+    companyId: string;
+    candidateId: string;
+    actorUserId: string;
+    actorEmail?: string;
+    applied: boolean;
+    fromSourcing: boolean;
+  }): Promise<void> {
+    const action = input.applied ? 'view_applicant' : 'view_profile';
+    if (!input.fromSourcing) {
+      await this.chargeCredit({
+        tenantId: input.tenantId,
+        companyId: input.companyId,
+        action,
+        candidateId: input.candidateId,
+        actorUserId: input.actorUserId,
+        actorEmail: input.actorEmail,
+        oncePerCandidate: true,
+      });
+      return;
+    }
+
+    const seen = await this.prisma.billingCreditTransaction.findFirst({
+      where: {
+        companyId: input.companyId,
+        candidateId: input.candidateId,
+        action: { in: ['view_profile', 'view_applicant', 'reopen_profile'] },
+      },
+      select: { id: true },
+    });
+    if (seen) return;
+
+    const cover = await this.sourcing.coverIncludedOpen({
+      companyId: input.companyId,
+      candidateId: input.candidateId,
+      actorUserId: input.actorUserId,
+    });
+    if (cover === 'included' || cover === 'repeat') {
+      await this.credit.rememberCoveredProfileView({
+        tenantId: input.tenantId,
+        companyId: input.companyId,
+        candidateId: input.candidateId,
+        actorUserId: input.actorUserId,
+        actorEmail: input.actorEmail,
+      });
+      return;
+    }
+
+    await this.chargeCredit({
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      action,
+      candidateId: input.candidateId,
+      actorUserId: input.actorUserId,
+      actorEmail: input.actorEmail,
+      oncePerCandidate: true,
+    });
   }
 
   private async chargeCredit(input: {
