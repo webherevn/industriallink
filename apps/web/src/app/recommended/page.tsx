@@ -9,16 +9,12 @@ import {
   ChevronRight,
   Eye,
   FileText,
-  LayoutDashboard,
-  LogOut,
   MapPin,
   RefreshCw,
   Send,
   Settings2,
   Sparkles,
-  Target,
   TrendingUp,
-  UserRound,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
@@ -34,9 +30,10 @@ import {
 import { plainLabel } from '@/lib/plain-label';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 import { AppShell } from '@/components/app-shell';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import { CopilotRobot } from '@/components/copilot-robot';
-import { fetchMe, logout } from '@/lib/auth';
+import { fetchMe } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
 import {
@@ -51,7 +48,6 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
-import { useRouter } from 'next/navigation';
 
 type FilterTab = 'all' | 'high' | 'medium' | 'new';
 
@@ -195,7 +191,6 @@ function recommendSalary(job: JobMatchView): number {
 }
 
 export default function RecommendedPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [sort, setSort] = useState<RecommendSort>('newest');
@@ -319,134 +314,16 @@ export default function RecommendedPage() {
       })}`
     : 'Chưa cập nhật';
 
-  const navMain = [
-    { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
-    { href: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
-    { href: '/viec-lam?tab=applied', label: 'Việc đã ứng tuyển', icon: Send },
-    { href: '/viec-lam?tab=saved', label: 'Việc đã lưu', icon: Bookmark },
-    { href: '/recommended', label: 'Gợi ý việc làm AI', icon: Sparkles, active: true, badge: 'NEW' },
-    { href: '/applications', label: 'Theo dõi đơn', icon: Eye },
-    { href: '/progress', label: 'Tiến trình', icon: Target },
-  ];
-
-  const navTools = [
-    { href: '/upload', label: 'Phân tích CV AI' },
-    { href: '/search', label: 'Tìm kiếm AI' },
-  ];
-
-  const navSettings = [
-    { href: '/account', label: 'Thông tin tài khoản' },
-    { href: '/account', label: 'Bảo mật & MFA' },
-  ];
-
-  async function onLogout() {
-    await logout();
-    router.replace('/login');
-  }
-
   return (
     <AppShell wide>
-      <div className="grid gap-5 pb-8 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_260px]">
-        {/* Left sidebar */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-amber-400 text-sm font-bold text-white">
-                {(candidate?.displayName ?? me?.displayName ?? 'U')
-                  .split(/\s+/)
-                  .map((w) => w[0])
-                  .slice(0, 2)
-                  .join('')
-                  .toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">
-                  {candidate?.displayName ?? me?.displayName ?? 'Ứng viên'}
-                </p>
-                <p className="truncate text-xs text-slate-500">
-                  {candidate?.profile?.currentPosition ?? 'Chưa cập nhật vị trí'}
-                </p>
-              </div>
-            </div>
-            {typeof candidate?.profileCompletion === 'number' && (
-              <div className="mt-3">
-                <div className="flex justify-between text-[11px] text-slate-500">
-                  <span>Hồ sơ đầy đủ</span>
-                  <span className="font-semibold text-slate-700">
-                    {candidate.profileCompletion}%
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-brand-500"
-                    style={{ width: `${candidate.profileCompletion}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <nav className="mt-5 space-y-0.5">
-              {navMain.map((item) => (
-                <Link
-                  key={item.label + item.href}
-                  href={item.href}
-                  className={clsx(
-                    'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition',
-                    item.active
-                      ? 'bg-brand-50 text-brand-600'
-                      : 'text-slate-600 hover:bg-slate-50',
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.badge && (
-                    <span className="rounded bg-brand-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              ))}
-            </nav>
-
-            <p className="mb-1.5 mt-5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Công cụ
-            </p>
-            <nav className="space-y-0.5">
-              {navTools.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="block rounded-lg px-2.5 py-1.5 text-[13px] text-slate-600 hover:bg-slate-50"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-
-            <p className="mb-1.5 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Cài đặt
-            </p>
-            <nav className="space-y-0.5">
-              {navSettings.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="block rounded-lg px-2.5 py-1.5 text-[13px] text-slate-600 hover:bg-slate-50"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="mt-4 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-500 hover:bg-slate-50"
-            >
-              <LogOut className="h-4 w-4" /> Đăng xuất
-            </button>
-          </div>
-        </aside>
+      <div className="grid gap-5 pb-8 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_260px]">
+        <CandidateSidebar
+          displayName={candidate?.displayName ?? me?.displayName ?? 'Ứng viên'}
+          email={me?.email}
+          hasAvatar={Boolean(candidate?.hasAvatar)}
+          position={candidate?.profile?.currentPosition}
+          profileCompletion={candidate?.profileCompletion}
+        />
 
         {/* Center */}
         <section className="min-w-0">

@@ -177,6 +177,8 @@ export default function ConnectionsPage() {
       <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
         <CandidateSidebar
           displayName={candidate?.displayName ?? user.displayName ?? 'Ứng viên'}
+          email={user.email}
+          hasAvatar={Boolean(candidate?.hasAvatar)}
           position={candidate?.profile?.currentPosition}
           profileCompletion={candidate?.profileCompletion}
         />

@@ -40,6 +40,7 @@ import {
   type OnboardingView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { PaginationBar } from '@/components/pagination-bar';
 import { fetchMe, logout } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
@@ -429,12 +430,6 @@ export default function ProgressPage() {
       counts.hired || 1;
 
   const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
-  const initials = displayName
-    .split(/\s+/)
-    .map((w) => w[0])
-    .slice(-2)
-    .join('')
-    .toUpperCase();
 
   async function onLogout() {
     await logout();
@@ -450,9 +445,14 @@ export default function ProgressPage() {
             <div className="progress-card p-5">
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
-                  <div className="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-sky-400 text-lg font-bold text-white shadow-md ring-4 ring-brand-50 transition-transform duration-300 hover:scale-105">
-                    {initials}
-                  </div>
+                <ProfileAvatar
+                  displayName={displayName}
+                  email={me?.email}
+                  hasAvatar={Boolean(candidate?.hasAvatar)}
+                  size="card"
+                  editable={false}
+                  className="transition-transform duration-300 hover:scale-105"
+                />
                 </div>
                 <p className="mt-3 text-[15px] font-bold text-slate-900">{displayName}</p>
                 <p className="mt-0.5 text-xs text-slate-500">

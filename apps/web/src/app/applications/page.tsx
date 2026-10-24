@@ -37,6 +37,7 @@ import {
   type ApplicationView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { PaginationBar } from '@/components/pagination-bar';
 import { fetchMe, logout } from '@/lib/auth';
 import { getApplicationDetail, myApplications } from '@/lib/applications';
@@ -264,12 +265,6 @@ export default function ApplicationsPage() {
   }
 
   const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
-  const initials = displayName
-    .split(/\s+/)
-    .map((w) => w[0])
-    .slice(-2)
-    .join('')
-    .toUpperCase();
 
   async function onLogout() {
     await logout();
@@ -284,9 +279,14 @@ export default function ApplicationsPage() {
           <div className="sticky top-4 space-y-3 animate-soft-rise">
             <div className="progress-card p-5">
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-sky-400 text-lg font-bold text-white shadow-md ring-4 ring-brand-50 transition-transform duration-300 hover:scale-105">
-                  {initials}
-                </div>
+                <ProfileAvatar
+                  displayName={displayName}
+                  email={me?.email}
+                  hasAvatar={Boolean(candidate?.hasAvatar)}
+                  size="card"
+                  editable={false}
+                  className="transition-transform duration-300 hover:scale-105"
+                />
                 <p className="mt-3 text-[15px] font-bold text-slate-900">{displayName}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {candidate?.profile?.currentPosition ?? 'Chưa cập nhật vị trí'}

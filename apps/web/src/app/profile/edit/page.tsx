@@ -101,6 +101,7 @@ import {
   SkillLevel,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { BrandTechnologySearch } from '@/components/brand-technology-search';
 import { CollapsibleFormSection } from '@/components/collapsible-form-section';
 import { MatrixSection } from '@/components/matrix-section';
@@ -1346,9 +1347,20 @@ export default function ProfileEditPage() {
     scrollPageTop();
   }
 
+  const sidebarName =
+    form.displayName.trim() || candidate?.displayName || me?.displayName || 'Ứng viên';
+
   return (
-    <AppShell>
-      <div className="mx-auto max-w-3xl space-y-6 pb-16">
+    <AppShell wide>
+      <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <CandidateSidebar
+          displayName={sidebarName}
+          email={me?.email}
+          hasAvatar={Boolean(candidate?.hasAvatar)}
+          position={form.currentPosition.trim() || candidate?.profile?.currentPosition}
+          profileCompletion={candidate?.profileCompletion}
+        />
+        <div className="min-w-0 space-y-6 pb-16">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
@@ -2866,6 +2878,7 @@ export default function ProfileEditPage() {
             </Card>
           </>
         )}
+        </div>
       </div>
     </AppShell>
   );

@@ -35,7 +35,7 @@ export function ProfileAvatar({
   displayName: string;
   email: string | null | undefined;
   hasAvatar: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'card';
   /** false = chỉ hiển thị (header menu). */
   editable?: boolean;
   className?: string;
@@ -52,12 +52,16 @@ export function ProfileAvatar({
       ? 'h-8 w-8 text-[11px]'
       : size === 'md'
         ? 'h-14 w-14 text-sm'
-        : 'h-[88px] w-[88px] sm:h-[100px] sm:w-[100px] text-2xl';
+        : size === 'card'
+          ? 'h-[68px] w-[68px] text-lg'
+          : 'h-[88px] w-[88px] sm:h-[100px] sm:w-[100px] text-2xl';
 
   const ring =
     size === 'sm'
       ? 'shadow-sm ring-0'
-      : 'shadow-lg ring-4 ring-amber-50';
+      : size === 'card'
+        ? 'shadow-md ring-4 ring-brand-50'
+        : 'shadow-lg ring-4 ring-amber-50';
 
   const uploaded = useQuery({
     queryKey: MY_AVATAR_QUERY_KEY,
