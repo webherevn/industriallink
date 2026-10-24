@@ -4,12 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertTriangle,
+  Briefcase,
   CheckCircle2,
+  Eye,
   FileSearch,
   ListChecks,
   Loader2,
   RefreshCw,
   Shield,
+  Sparkles,
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -21,9 +25,10 @@ import {
   type SourcingQuotaKind,
 } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
-import { Button, Card, Input, Select } from '@/components/ui';
+import { Button, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { listMyJobs } from '@/lib/jobs';
+import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
 import { consumeRecruiterSourcing, fetchRecruiterSourcing } from '@/lib/recruiter-billing';
 
@@ -114,19 +119,34 @@ export function RecruiterSourcingWorkspace() {
 
   return (
     <RecruiterShell>
-      <div className="recruiter-dash space-y-6">
-        <div className="recruiter-dash-rise">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-600">
-            Săn nhân sự
-          </p>
-          <h1 className="cms-page-title mt-1.5">Gói Săn & hạn mức</h1>
-          <div className="brand-accent-bar mt-2" />
-        </div>
+      <div className="ntd-form recruiter-dash space-y-5">
+        <header className="recruiter-dash-rise relative overflow-hidden rounded-3xl bg-[#072348] px-5 py-6 text-white shadow-[0_18px_40px_-24px_rgba(7,35,72,0.85)] sm:px-7">
+          <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#E8872A]/35 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
+          <div className="relative flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">Săn nhân sự</p>
+              <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">
+                {hasPlan && e?.planName ? e.planName : 'Gói Săn & hạn mức'}
+              </h1>
+              <p className="mt-2 max-w-xl text-sm text-white/75">
+                {hasPlan
+                  ? ended
+                    ? 'Kỳ gói đã kết thúc.'
+                    : 'iLink đối chiếu ứng viên theo tin bạn gắn và xếp danh sách phù hợp.'
+                  : 'Kích hoạt gói để iLink săn ứng viên cho vị trí đang tuyển.'}
+              </p>
+            </div>
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
+              <Shield className="h-6 w-6 text-amber-200" />
+            </span>
+          </div>
+        </header>
 
         {banner ? (
           <div
             className={clsx(
-              'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+              'flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm shadow-sm',
               banner.tone === 'ok'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                 : 'border-rose-200 bg-rose-50 text-rose-800',
@@ -142,32 +162,36 @@ export function RecruiterSourcingWorkspace() {
         ) : null}
 
         {isLoading ? (
-          <div className="recruiter-dash-skel h-40" />
+          <div className="recruiter-dash-skel h-48 rounded-3xl" />
         ) : isError ? (
-          <Card className="p-5">
-            <p className="font-semibold text-slate-800">Không tải được gói Săn</p>
+          <section className="rounded-3xl border border-rose-100 bg-white p-6 shadow-sm">
+            <p className="font-semibold text-[#072348]">Không tải được gói Săn</p>
             <p className="mt-1 text-sm text-slate-500">
               {error instanceof ApiError ? error.message : 'Thử lại sau.'}
             </p>
             <button
               type="button"
-              className="mt-3 text-sm font-semibold text-accent-700 hover:underline"
+              className="mt-4 inline-flex rounded-xl bg-[#072348] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3b80]"
               onClick={() => void refetch()}
             >
               Thử lại
             </button>
-          </Card>
+          </section>
         ) : !hasPlan ? (
-          <Card className="p-6">
-            <p className="text-lg font-semibold text-slate-800">Chưa gán gói Săn</p>
-            <p className="mt-1 text-sm text-slate-500">Chọn gói trên bảng giá để bắt đầu săn nhân sự.</p>
+          <section className="relative overflow-hidden rounded-3xl border border-[#d7e3f2] bg-white p-6 shadow-sm sm:p-8">
+            <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-amber-100 blur-2xl" />
+            <Sparkles className="h-6 w-6 text-[#E8872A]" />
+            <p className="mt-3 text-xl font-bold text-[#072348]">Chưa có gói Săn</p>
+            <p className="mt-1 max-w-lg text-sm text-slate-500">
+              Chọn gói trên bảng giá. Sau khi kích hoạt, iLink đưa danh sách ứng viên phù hợp vào đây.
+            </p>
             <Link
               href="/recruiter/pricing"
-              className="mt-4 inline-flex text-sm font-semibold text-accent-700 hover:underline"
+              className="mt-5 inline-flex items-center rounded-xl bg-[#E8872A] px-4 py-2.5 text-sm font-bold text-[#072348] shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-400"
             >
               Xem gói Săn nhân sự
             </Link>
-          </Card>
+          </section>
         ) : (
           <>
             <QuotaGrid entitlements={e!} />
@@ -181,28 +205,22 @@ export function RecruiterSourcingWorkspace() {
             />
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Mở vị trí Săn
-                </p>
+              <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="mb-4 h-1 w-16 rounded-full bg-gradient-to-r from-[#072348] to-[#E8872A]" />
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#072348]">Mở vị trí</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Chọn tin đăng để iLink đối chiếu ứng viên phù hợp.
+                  Gắn tin đăng để iLink bắt đầu đối chiếu.
                   {' '}
                   {fmtQuota(e!.positionsUsed, e!.positionQuota, e!.positionsRemaining)}
                   {ended ? ' · Gói đã hết hạn.' : ''}
                 </p>
                 <Input
-                  className="mt-3 border-slate-200"
-                  placeholder="Tên vị trí cần Săn"
+                  className="mt-4"
+                  placeholder="Tên vị trí cần săn"
                   value={title}
                   onChange={(ev) => setTitle(ev.target.value)}
                 />
-                <Select
-                  className="mt-2 border-slate-200"
-                  value={jobId}
-                  onChange={(ev) => setJobId(ev.target.value)}
-                  size="sm"
-                >
+                <Select className="mt-2" value={jobId} onChange={(ev) => setJobId(ev.target.value)} size="sm">
                   <option value="">Không gắn tin đăng</option>
                   {(jobs ?? []).map((j) => (
                     <option key={j.id} value={j.id}>
@@ -211,7 +229,7 @@ export function RecruiterSourcingWorkspace() {
                   ))}
                 </Select>
                 <Button
-                  className="mt-3 w-full"
+                  className="mt-4 w-full"
                   disabled={
                     ended || consume.isPending || (e!.positionsRemaining !== null && e!.positionsRemaining <= 0)
                   }
@@ -223,21 +241,20 @@ export function RecruiterSourcingWorkspace() {
                     })
                   }
                 >
-                  {consume.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                  {consume.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   Mở vị trí
                 </Button>
-              </Card>
+              </section>
 
-              <Card className="p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Ghi nhận sử dụng
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Chọn vị trí đang mở rồi ghi báo cáo, shortlist hoặc điều chỉnh.
-                </p>
-                <div className="mt-3 space-y-2">
+              <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="mb-4 h-1 w-16 rounded-full bg-gradient-to-r from-[#E8872A] to-[#072348]" />
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#072348]">Vị trí đang săn</p>
+                <p className="mt-1 text-sm text-slate-500">Chọn vị trí rồi ghi báo cáo, shortlist hoặc điều chỉnh.</p>
+                <div className="mt-4 space-y-2">
                   {(data?.engagements ?? []).length === 0 ? (
-                    <p className="text-sm text-slate-500">Chưa có vị trí. Mở vị trí ở cột bên trái.</p>
+                    <p className="rounded-2xl bg-[#f4f7fb] px-3 py-4 text-sm text-slate-500">
+                      Chưa có vị trí. Mở vị trí ở cột bên cạnh.
+                    </p>
                   ) : (
                     (data?.engagements ?? []).map((eng) => (
                       <button
@@ -245,21 +262,26 @@ export function RecruiterSourcingWorkspace() {
                         type="button"
                         onClick={() => setActiveId(eng.id)}
                         className={clsx(
-                          'w-full rounded-lg border px-3 py-2 text-left text-sm',
+                          'flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left text-sm transition',
                           selected === eng.id
-                            ? 'border-accent-400 bg-accent-50'
-                            : 'border-slate-200 hover:bg-slate-50',
+                            ? 'border-[#072348] bg-[#072348] text-white shadow-md'
+                            : 'border-[#d7e3f2] bg-[#f7f9fc] text-slate-800 hover:-translate-y-0.5 hover:border-[#52749a]',
                         )}
                       >
-                        <span className="font-semibold text-slate-800">{eng.title}</span>
-                        <span className="ml-2 text-xs text-slate-500">
+                        <span className="min-w-0 truncate font-semibold">{eng.title}</span>
+                        <span
+                          className={clsx(
+                            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                            selected === eng.id ? 'bg-white/15 text-amber-100' : 'bg-white text-slate-500',
+                          )}
+                        >
                           {STATUS_LABEL[eng.status] ?? eng.status}
                         </span>
                       </button>
                     ))
                   )}
                 </div>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <UseBtn
                     kind="search_round"
                     label="Báo cáo"
@@ -283,28 +305,29 @@ export function RecruiterSourcingWorkspace() {
                     onClick={() => selected && consume.mutate({ kind: 'revision', engagementId: selected })}
                   />
                 </div>
-              </Card>
+              </section>
             </div>
 
-            <Card className="p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Lịch sử trừ hạn mức
-              </p>
+            <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#072348]">Lịch sử</p>
               {(data?.usages ?? []).length === 0 ? (
-                <p className="mt-2 text-sm text-slate-500">Chưa có lần sử dụng.</p>
+                <p className="mt-3 text-sm text-slate-500">Chưa có lần sử dụng.</p>
               ) : (
-                <ul className="mt-3 divide-y divide-slate-100 text-sm">
+                <ul className="mt-3 space-y-2">
                   {(data?.usages ?? []).map((u) => (
-                    <li key={u.id} className="flex items-center justify-between py-2">
-                      <span>
-                        <strong>{usageLabel(u.kind)}</strong>
+                    <li
+                      key={u.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl bg-[#f7f9fc] px-3 py-2.5 text-sm"
+                    >
+                      <span className="min-w-0">
+                        <strong className="text-[#072348]">{usageLabel(u.kind)}</strong>
                         {u.note?.startsWith('open:') ? (
                           <span className="text-slate-500"> · Mở hồ sơ</span>
                         ) : u.note ? (
                           <span className="text-slate-500"> · {u.note}</span>
                         ) : null}
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="shrink-0 text-xs text-slate-400">
                         {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(
                           new Date(u.createdAt),
                         )}
@@ -313,11 +336,44 @@ export function RecruiterSourcingWorkspace() {
                   ))}
                 </ul>
               )}
-            </Card>
+            </section>
           </>
         )}
       </div>
     </RecruiterShell>
+  );
+}
+
+function ScoreRing({ score }: { score: number }) {
+  const unit = score <= 1 ? score : score / 100;
+  const pct = formatMatchPct(score);
+  const r = 16;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(1, Math.max(0, unit)));
+  const color = matchRingColor(score);
+  return (
+    <div className="relative h-12 w-12 shrink-0">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 40 40" aria-hidden>
+        <circle cx="20" cy="20" r={r} fill="none" stroke="#f4f7fb" strokeWidth="3.5" />
+        <circle
+          cx="20"
+          cy="20"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          className="transition-[stroke-dashoffset] duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[10px] font-extrabold" style={{ color }}>
+          {pct}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -335,88 +391,152 @@ function HuntList({
   ready: boolean;
 }) {
   return (
-    <Card className="p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-        Ứng viên phù hợp{jobTitle ? ` · ${jobTitle}` : ''}
-      </p>
+    <section className="rounded-3xl border border-[#d7e3f2] bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#072348]">Ứng viên phù hợp</p>
+          <p className="mt-0.5 text-sm text-slate-500">{jobTitle ? jobTitle : 'Danh sách iLink săn cho vị trí đang chọn'}</p>
+        </div>
+        {ready && !loading ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+            <Users className="h-3.5 w-3.5" />
+            {results.length}
+          </span>
+        ) : null}
+      </div>
       {!ready ? (
-        <p className="mt-2 text-sm text-slate-500">
-          Mở vị trí và gắn tin đăng. iLink đưa danh sách ứng viên khớp tin vào đây.
-        </p>
+        <div className="mt-4 rounded-2xl bg-gradient-to-br from-[#f4f7fb] to-white px-4 py-8 text-center">
+          <Sparkles className="mx-auto h-6 w-6 text-[#E8872A]" />
+          <p className="mt-2 text-sm text-slate-600">Mở vị trí và gắn tin đăng để iLink đưa ứng viên vào đây.</p>
+        </div>
       ) : loading ? (
-        <div className="recruiter-dash-skel mt-3 h-24" />
+        <div className="mt-4 space-y-2">
+          <div className="recruiter-dash-skel h-20 rounded-2xl" />
+          <div className="recruiter-dash-skel h-20 rounded-2xl" />
+        </div>
       ) : error ? (
-        <p className="mt-2 text-sm text-rose-700">{error}</p>
+        <p className="mt-4 rounded-2xl bg-rose-50 px-3 py-3 text-sm text-rose-700">{error}</p>
       ) : results.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">Chưa có ứng viên khớp tin này.</p>
+        <p className="mt-4 rounded-2xl bg-[#f4f7fb] px-3 py-6 text-center text-sm text-slate-500">
+          Chưa có ứng viên khớp tin này.
+        </p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100">
-          {results.map((row) => (
-            <li key={row.candidateId}>
+        <ul className="mt-4 grid gap-3">
+          {results.map((row, index) => (
+            <li key={row.candidateId} className="animate-soft-rise" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
               <Link
                 href={`/candidates/${row.candidateId}?from=sourcing`}
-                className="flex items-start justify-between gap-3 py-3"
+                className="progress-card group flex items-start gap-3 p-3 sm:p-4"
               >
-                <span className="min-w-0">
-                  <span className="font-semibold text-slate-900">{row.displayName}</span>
-                  {row.viewed ? <span className="ml-2 text-[11px] font-medium text-slate-500">Đã xem</span> : null}
+                <ScoreRing score={row.match.score} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">{row.displayName}</span>
+                    {row.viewed ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                        Đã xem
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Mới
+                      </span>
+                    )}
+                    {row.applied ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        Đã ứng tuyển
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="mt-0.5 block text-sm text-slate-500">
                     {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
                     {row.industry ? ` · ${row.industry}` : ''}
                   </span>
                   {row.match.reason ? (
-                    <span className="mt-1 block line-clamp-2 text-sm text-slate-600">{row.match.reason}</span>
+                    <span className="mt-1.5 block line-clamp-2 text-sm leading-relaxed text-slate-600">{row.match.reason}</span>
                   ) : null}
-                </span>
-                <span className="shrink-0 text-sm font-semibold text-[#072348]">
-                  {Math.round(row.match.score)}%
+                  <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">Xem hồ sơ</span>
                 </span>
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }
 
+function quotaFill(used: number, quota: number | null) {
+  if (quota == null || quota <= 0) return quota == null ? 100 : 0;
+  return Math.max(0, Math.min(100, (used / quota) * 100));
+}
+
 function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitlements }) {
-  const rows: { label: string; used: number; quota: number | null; remaining: number | null }[] = [
-    { label: 'Vị trí', used: e.positionsUsed, quota: e.positionQuota, remaining: e.positionsRemaining },
-    { label: 'Lượt mở', used: e.profileOpensUsed, quota: e.creditQuota, remaining: e.profileOpensRemaining },
-    { label: 'Báo cáo', used: e.searchRoundsUsed, quota: e.searchRoundQuota, remaining: e.searchRoundsRemaining },
-    { label: 'Điều chỉnh', used: e.revisionsUsed, quota: e.revisionQuota, remaining: e.revisionsRemaining },
-    { label: 'Shortlist', used: e.shortlistsUsed, quota: e.shortlistQuota, remaining: e.shortlistsRemaining },
+  const rows: {
+    label: string;
+    used: number;
+    quota: number | null;
+    remaining: number | null;
+    icon: typeof Briefcase;
+  }[] = [
+    { label: 'Vị trí', used: e.positionsUsed, quota: e.positionQuota, remaining: e.positionsRemaining, icon: Briefcase },
+    { label: 'Lượt mở', used: e.profileOpensUsed, quota: e.creditQuota, remaining: e.profileOpensRemaining, icon: Eye },
+    { label: 'Báo cáo', used: e.searchRoundsUsed, quota: e.searchRoundQuota, remaining: e.searchRoundsRemaining, icon: FileSearch },
+    { label: 'Điều chỉnh', used: e.revisionsUsed, quota: e.revisionQuota, remaining: e.revisionsRemaining, icon: RefreshCw },
+    { label: 'Shortlist', used: e.shortlistsUsed, quota: e.shortlistQuota, remaining: e.shortlistsRemaining, icon: ListChecks },
   ];
   const ended = cycleEnded(e.assignment?.endsAt);
   const endLabel = e.assignment?.endsAt
     ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(e.assignment.endsAt))
     : null;
   return (
-    <Card className="p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{e.planName}</p>
-      <p className="mt-1 text-xs text-slate-500">
+    <section>
+      <p className="mb-3 text-xs text-slate-500">
         {ended
           ? `Gói đã hết hạn${endLabel ? ` ngày ${endLabel}` : ''}.`
           : endLabel
             ? `Dùng đến ${endLabel}.`
             : null}
       </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {rows.map((r) => (
-          <div key={r.label} className="rounded-xl bg-slate-50 px-3 py-2">
-            <p className="text-[11px] text-slate-500">{r.label}</p>
-            <p className="mt-0.5 text-sm font-semibold text-[#072348]">{fmtQuota(r.used, r.quota, r.remaining)}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        {rows.map((r) => {
+          const Icon = r.icon;
+          const left = r.quota == null ? '∞' : String(r.remaining ?? 0);
+          return (
+            <div
+              key={r.label}
+              className="rounded-2xl border border-[#d7e3f2] bg-white p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{r.label}</p>
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-[#f4f7fb] text-[#072348]">
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-[#072348]">{left}</p>
+              <p className="text-[11px] text-slate-400">{fmtQuota(r.used, r.quota, r.remaining)}</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e8eef6]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#072348] to-[#E8872A] transition-all duration-700"
+                  style={{ width: `${quotaFill(r.used, r.quota)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
       {e.serviceScope.length > 0 ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Phạm vi gói:{' '}
-          {e.serviceScope.map((code) => SCOPE_LABEL[code] ?? code).join(' · ')}
-        </p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {e.serviceScope.map((code) => (
+            <span
+              key={code}
+              className="rounded-full bg-[#f4f7fb] px-2.5 py-1 text-[11px] font-medium text-[#072348] ring-1 ring-[#d7e3f2]"
+            >
+              {SCOPE_LABEL[code] ?? code}
+            </span>
+          ))}
+        </div>
       ) : null}
-    </Card>
+    </section>
   );
 }
 
@@ -441,7 +561,7 @@ function UseBtn({
       type="button"
       disabled={disabled || out}
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-2 py-2.5 text-xs font-semibold text-[#072348] transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
     >
       <Icon className="h-3.5 w-3.5" />
       {label ?? SOURCING_QUOTA_LABELS[kind]}
