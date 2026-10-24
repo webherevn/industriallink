@@ -118,7 +118,7 @@ export function RecruiterSourcingWorkspace() {
   });
 
   return (
-    <RecruiterShell>
+    <RecruiterShell pinSidebar>
       <div className="ntd-form recruiter-dash space-y-5">
         <header className="recruiter-dash-rise relative overflow-hidden rounded-3xl bg-[#072348] px-5 py-6 text-white shadow-[0_18px_40px_-24px_rgba(7,35,72,0.85)] sm:px-7">
           <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#E8872A]/35 blur-3xl" />

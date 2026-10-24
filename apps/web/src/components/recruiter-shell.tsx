@@ -216,7 +216,14 @@ function CompanyAvatar({
   );
 }
 
-export function RecruiterShell({ children }: { children: ReactNode }) {
+export function RecruiterShell({
+  children,
+  pinSidebar = false,
+}: {
+  children: ReactNode;
+  /** Sidebar đứng yên khi cuộn nội dung trang. */
+  pinSidebar?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
@@ -473,7 +480,14 @@ export function RecruiterShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      <div className="hidden lg:block">{sidebar}</div>
+      <div
+        className={clsx(
+          'hidden lg:block',
+          pinSidebar && 'sticky top-0 h-screen shrink-0 self-start',
+        )}
+      >
+        {sidebar}
+      </div>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
