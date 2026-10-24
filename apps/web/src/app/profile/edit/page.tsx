@@ -1359,7 +1359,7 @@ export default function ProfileEditPage() {
               Mục 1–12: thông tin chung. Kinh doanh: mục 13–32. Kỹ thuật: mục 13–28.
             </p>
           </div>
-          <Link href="/dashboard">
+          <Link href="/profile">
             <Button type="button" variant="outline">
               Huỷ
             </Button>

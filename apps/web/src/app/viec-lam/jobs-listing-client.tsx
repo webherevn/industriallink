@@ -1140,7 +1140,7 @@ function JobCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={jobPublicPath(job)}
@@ -1177,6 +1177,45 @@ function JobCard({
                     job.companyName
                   )}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                    {job.location ?? 'Linh hoạt'}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-slate-400">₫</span>
+                    {formatSalary(job.salaryMin, job.salaryMax)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                    {job.experienceBand
+                      ? FILTER_EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ??
+                        EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ??
+                        job.experienceBand
+                      : 'Không yêu cầu'}
+                  </span>
+                </div>
+                {((job.skills?.length ?? 0) > 0 || job.jobLevel) && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {job.jobLevel && (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                        {formatJobLevel(job.jobLevel)}
+                      </span>
+                    )}
+                    {(job.skills ?? [])
+                      .map((s) => plainLabel(s))
+                      .filter(Boolean)
+                      .slice(0, 4)
+                      .map((s) => (
+                      <span
+                        key={s}
+                        className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -1204,47 +1243,6 @@ function JobCard({
                 </button>
               </div>
             </div>
-
-            <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                {job.location ?? 'Linh hoạt'}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-slate-400">₫</span>
-                {formatSalary(job.salaryMin, job.salaryMax)}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-                {job.experienceBand
-                  ? FILTER_EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ??
-                    EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ??
-                    job.experienceBand
-                  : 'Không yêu cầu'}
-              </span>
-            </div>
-
-            {((job.skills?.length ?? 0) > 0 || job.jobLevel) && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {job.jobLevel && (
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                    {formatJobLevel(job.jobLevel)}
-                  </span>
-                )}
-                {(job.skills ?? [])
-                  .map((s) => plainLabel(s))
-                  .filter(Boolean)
-                  .slice(0, 4)
-                  .map((s) => (
-                  <span
-                    key={s}
-                    className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </article>

@@ -476,7 +476,7 @@ export default function ProgressPage() {
                 </div>
               )}
               <Link
-                href="/dashboard"
+                href="/profile"
                 className="progress-btn mt-4 w-full border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
               >
                 Xem hồ sơ của tôi
@@ -490,9 +490,9 @@ export default function ProgressPage() {
               </p>
               <nav className="space-y-0.5">
                 <NavItem href="/dashboard" label="Tổng quan" icon={LayoutDashboard} />
-                <NavItem href="/dashboard" label="Hồ sơ của tôi" icon={UserRound} />
+                <NavItem href="/profile" label="Hồ sơ của tôi" icon={UserRound} />
                 <NavItem href="/upload" label="CV & Thư xin việc" icon={FileText} />
-                <NavItem href="/dashboard" label="Kỹ năng & Chứng chỉ" icon={BadgeCheck} />
+                <NavItem href="/profile?tab=skills" label="Kỹ năng & Chứng chỉ" icon={BadgeCheck} />
                 <NavItem href="/viec-lam?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
               </nav>
 

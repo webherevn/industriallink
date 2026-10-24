@@ -15,6 +15,7 @@ import {
   Settings2,
   Sparkles,
   Target,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -44,7 +45,8 @@ const CANDIDATE_PRIMARY_NAV = [
 ] as const;
 
 const CANDIDATE_ACCOUNT_LINKS = [
-  { href: '/dashboard', label: 'Hồ sơ của tôi', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
+  { href: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
   { href: '/upload', label: 'Tải / phân tích CV', icon: FileUp },
   { href: '/account', label: 'Tài khoản & bảo mật', icon: Settings2 },
 ] as const;

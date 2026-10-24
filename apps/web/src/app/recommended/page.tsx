@@ -321,7 +321,7 @@ export default function RecommendedPage() {
 
   const navMain = [
     { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
-    { href: '/dashboard', label: 'Hồ sơ của tôi', icon: UserRound },
+    { href: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
     { href: '/viec-lam?tab=applied', label: 'Việc đã ứng tuyển', icon: Send },
     { href: '/viec-lam?tab=saved', label: 'Việc đã lưu', icon: Bookmark },
     { href: '/recommended', label: 'Gợi ý việc làm AI', icon: Sparkles, active: true, badge: 'NEW' },
@@ -519,7 +519,7 @@ export default function RecommendedPage() {
                 </p>
                 <div className="mt-5">
                   <Link
-                    href="/dashboard"
+                    href="/profile"
                     className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-800 shadow-sm transition hover:bg-amber-50"
                   >
                     Xem phân tích chi tiết
@@ -699,7 +699,7 @@ export default function RecommendedPage() {
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-900">Kỹ năng của bạn</p>
-              <Link href="/dashboard" className="text-[11px] font-medium text-amber-600 hover:underline">
+              <Link href="/profile?tab=skills" className="text-[11px] font-medium text-amber-600 hover:underline">
                 Xem chi tiết
               </Link>
             </div>

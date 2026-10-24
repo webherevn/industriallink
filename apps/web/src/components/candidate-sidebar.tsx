@@ -152,13 +152,13 @@ export function CandidateSidebar({
               href="/dashboard"
               label="Tổng quan"
               icon={LayoutDashboard}
-              active={false}
+              active={pathname === '/dashboard'}
             />
             <NavItem
-              href="/dashboard"
+              href="/profile"
               label="Hồ sơ của tôi"
               icon={UserRound}
-              active={isActivePath(pathname, '/dashboard')}
+              active={pathname === '/profile' || pathname.startsWith('/profile/')}
             />
             <NavItem
               href="/cv/create"
@@ -171,7 +171,7 @@ export function CandidateSidebar({
               }
             />
             <NavItem
-              href="/dashboard"
+              href="/profile?tab=skills"
               label="Kỹ năng & Chứng chỉ"
               icon={BadgeCheck}
             />
