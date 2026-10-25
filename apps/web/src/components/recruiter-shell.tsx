@@ -36,6 +36,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { ConnectionChat } from '@/components/connection-chat';
+import { CornerRobot } from '@/components/corner-robot';
 import { CreditBalanceBadge } from '@/components/credit-balance-badge';
 import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore, ApiError } from '@/lib/api';
@@ -653,6 +654,7 @@ export function RecruiterShell({
 
         <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">{children}</main>
       </div>
+      <CornerRobot name={user?.displayName} />
       <ConnectionChat />
     </div>
   );
