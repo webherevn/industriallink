@@ -2021,6 +2021,16 @@ model CrmVatSetting {
   @@schema("crm")
 }
 
+/// Các câu chào cạnh robot. Mảng { id, body }. {ten} được thay bằng tên người xem.
+model SupportChatPromptSetting {
+  id        String   @id @default("default")
+  lines     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("support_chat_prompt_setting")
+  @@schema("crm")
+}
+
 /// Một tỷ lệ cho toàn bộ cộng tác viên. Không tạo ví và không có lệnh chi.
 model CrmCommissionSetting {
   id              String   @id @default("default")

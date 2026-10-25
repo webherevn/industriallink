@@ -6,7 +6,7 @@ import { Loader2, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { tokenStore } from '@/lib/api';
-import { fetchMySupportChat, sendSupportChat } from '@/lib/support-chat';
+import { fetchMySupportChat, fetchSupportPrompts, sendSupportChat } from '@/lib/support-chat';
 
 const ROTATE_MS = 3500;
 
@@ -14,6 +14,12 @@ function shortName(displayName?: string | null): string {
   const token = displayName?.trim().split(/\s+/).filter(Boolean).slice(-1)[0];
   return token || 'bạn';
 }
+
+const FALLBACK_PROMPTS = [
+  'Hi, {ten}, cần tôi giúp gì cho bạn?',
+  'Bạn đang khó khăn phần nào? Hãy chatbox để Inlink hướng dẫn?',
+  'Inlink vẫn đang trong giai đoạn trải nghiệm và thử nghiệm chắc chắn sẽ có một vài lỗi/thiếu sót, mong bạn thông cảm và gửi góp ý cho đội ngũ nhé.',
+];
 
 function formatClock(iso: string): string {
   const date = new Date(iso);
@@ -24,29 +30,49 @@ function formatClock(iso: string): string {
 /** Robot trợ lý góc dưới phải. Bấm robot hoặc câu chào để gửi góp ý về CRM. */
 export function CornerRobot({ name }: { name?: string | null }) {
   const who = shortName(name);
-  const lines = [
-    `Hi, ${who}, cần tôi giúp gì cho bạn?`,
-    'Bạn đang khó khăn phần nào? Hãy chatbox để Inlink hướng dẫn?',
-    'Inlink vẫn đang trong giai đoạn trải nghiệm và thử nghiệm chắc chắn sẽ có một vài lỗi/thiếu sót, mong bạn thông cảm và gửi góp ý cho đội ngũ nhé.',
-  ];
   const [index, setIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [hasToken, setHasToken] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
+  const prompts = useQuery({
+    queryKey: ['support-chat-prompts'],
+    queryFn: fetchSupportPrompts,
+    enabled: hasToken,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const stored = prompts.isSuccess ? prompts.data.map((line) => line.body) : FALLBACK_PROMPTS;
+  const lines = stored.map((line) => line.split('{ten}').join(who));
 
   useEffect(() => {
     setHasToken(Boolean(tokenStore.get()));
   }, []);
 
   useEffect(() => {
-    if (open) return;
+    if (open || lines.length === 0) return;
     const id = window.setInterval(() => {
       setIndex((current) => (current + 1) % lines.length);
     }, ROTATE_MS);
     return () => window.clearInterval(id);
   }, [lines.length, open]);
+
+  useEffect(() => {
+    const el = dock.current;
+    if (!el) return;
+    const publish = () => {
+      window.dispatchEvent(new CustomEvent('inlink-support-dock', { detail: { height: el.offsetHeight } }));
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      window.dispatchEvent(new CustomEvent('inlink-support-dock', { detail: { height: 0 } }));
+    };
+  }, []);
 
   const peek = useQuery({
     queryKey: ['support-chat', 'peek'],
@@ -82,7 +108,10 @@ export function CornerRobot({ name }: { name?: string | null }) {
   const messages = thread.data?.messages ?? [];
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col items-end">
+    <div
+      ref={dock}
+      className="pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end"
+    >
       {open && (
         <div className="chat-pop pointer-events-auto mb-3 flex h-[min(68vh,440px)] w-[min(100vw-2rem,340px)] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_22px_50px_-16px_rgba(7,35,72,0.55)] ring-1 ring-[#072348]/10">
           <div className="flex items-center gap-2 bg-[#072348] px-3 py-2.5 text-white">
@@ -159,14 +188,14 @@ export function CornerRobot({ name }: { name?: string | null }) {
       )}
 
       <div className="flex items-end gap-2">
-        {!open && (
+        {!open && lines.length > 0 && (
           <button
             type="button"
             onClick={() => setOpen(true)}
             className="pointer-events-auto mb-10 max-w-[240px] cursor-pointer rounded-2xl rounded-br-md border border-[#d5deee] bg-white px-3.5 py-2.5 text-left text-[13px] leading-snug text-slate-700 shadow-[0_14px_32px_rgba(7,35,72,0.28),0_2px_8px_rgba(7,35,72,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(7,35,72,0.34)]"
           >
             <span key={index} className="corner-robot-bubble block">
-              {lines[index]}
+              {lines[index % lines.length]}
             </span>
           </button>
         )}

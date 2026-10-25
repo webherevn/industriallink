@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
 import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
-import { SendSupportMessageDto } from './dto/send-support-message.dto';
+import { SaveSupportPromptDto, SendSupportMessageDto } from './dto/send-support-message.dto';
 import { SupportChatService } from './support-chat.service';
 
 @ApiTags('Support chat')
@@ -15,6 +15,12 @@ import { SupportChatService } from './support-chat.service';
 @Controller('support-chat')
 export class SupportChatController {
   constructor(private readonly chats: SupportChatService) {}
+
+  @Get('prompts')
+  @ApiOperation({ summary: 'Câu chào cạnh robot' })
+  prompts() {
+    return this.chats.prompts();
+  }
 
   @Get()
   @ApiOperation({ summary: 'Hội thoại góp ý của tôi' })
@@ -36,6 +42,30 @@ export class SupportChatController {
 @Controller('crm/support-chats')
 export class CrmSupportChatController {
   constructor(private readonly chats: SupportChatService) {}
+
+  @Get('prompts')
+  @ApiOperation({ summary: 'Danh sách câu chào robot' })
+  prompts() {
+    return this.chats.prompts();
+  }
+
+  @Post('prompts')
+  @ApiOperation({ summary: 'Thêm câu chào robot' })
+  addPrompt(@Body() body: SaveSupportPromptDto) {
+    return this.chats.addPrompt(body.body);
+  }
+
+  @Patch('prompts/:id')
+  @ApiOperation({ summary: 'Sửa câu chào robot' })
+  updatePrompt(@Param('id') id: string, @Body() body: SaveSupportPromptDto) {
+    return this.chats.updatePrompt(id, body.body);
+  }
+
+  @Delete('prompts/:id')
+  @ApiOperation({ summary: 'Xóa câu chào robot' })
+  deletePrompt(@Param('id') id: string) {
+    return this.chats.deletePrompt(id);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Danh sách chat góp ý' })

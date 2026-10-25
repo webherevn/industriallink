@@ -549,7 +549,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
   {
     id: 'cai-dat',
     title: 'Cài đặt',
-    description: 'Hồ sơ từng nhân sự, và ba mức SuperAdmin đặt một lần cho cả hệ thống.',
+    description: 'Hồ sơ từng nhân sự, câu chào robot, và các mức SuperAdmin đặt một lần cho cả hệ thống.',
     sections: [
       {
         id: 'nhan-su',
@@ -612,6 +612,20 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
           {
             type: 'p',
             text: 'Đến ngày này hệ thống nhắc. Nó không tự đánh dấu Đã chi và không trừ ví. Việc trừ ví vẫn là nút Đã chi trên kế toán.',
+          },
+        ],
+      },
+      {
+        id: 'cau-chao',
+        title: 'Câu chào',
+        icon: MessageCircle,
+        href: '/crm/settings/chat-prompts',
+        summary: 'Các câu hiện cạnh robot góc phải. Thêm, sửa, xóa. {ten} là tên người đang xem.',
+        keywords: ['robot', 'câu chào', 'chat'],
+        blocks: [
+          {
+            type: 'p',
+            text: 'Sale và SuperAdmin sửa được. Câu đổi nhau trên web. Xóa hết thì chỉ còn icon robot. Không tạo đơn và không bật gói.',
           },
         ],
       },

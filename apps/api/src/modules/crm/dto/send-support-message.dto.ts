@@ -6,3 +6,10 @@ export class SendSupportMessageDto {
   @MaxLength(2000)
   body!: string;
 }
+
+export class SaveSupportPromptDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  body!: string;
+}

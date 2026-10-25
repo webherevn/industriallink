@@ -100,6 +100,7 @@ const NAV = [
       { href: '/crm/settings/commission', label: 'Hoa hồng', icon: Percent },
       { href: '/crm/settings/payout-day', label: 'Ngày chi', icon: CalendarDays },
       { href: '/crm/settings/vat', label: 'Thuế suất', icon: CirclePercent },
+      { href: '/crm/settings/chat-prompts', label: 'Câu chào', icon: MessageCircle },
     ],
   },
   {

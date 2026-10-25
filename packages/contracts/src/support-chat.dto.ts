@@ -25,3 +25,8 @@ export interface SupportChatThreadView {
 export interface SendSupportChatRequest {
   body: string;
 }
+
+export interface SupportChatPromptView {
+  id: string;
+  body: string;
+}

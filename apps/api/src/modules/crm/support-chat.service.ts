@@ -1,5 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { isCrmRole, UserRole, type SupportChatMessageView, type SupportChatThreadView, type SupportChatView } from '@industriallink/contracts';
+import { Prisma } from '@prisma/client';
+import {
+  isCrmRole,
+  UserRole,
+  type SupportChatMessageView,
+  type SupportChatPromptView,
+  type SupportChatThreadView,
+  type SupportChatView,
+} from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { NotificationService } from '../notification/notification.service';
@@ -119,6 +128,60 @@ export class SupportChatService {
     return { ...this.toMessage(message, chat.userId), mine: true };
   }
 
+  async prompts(): Promise<SupportChatPromptView[]> {
+    const row = await this.prisma.supportChatPromptSetting.findUnique({ where: { id: 'default' } });
+    if (!row) return this.seedPrompts();
+    return parsePrompts(row.lines);
+  }
+
+  async addPrompt(body: string): Promise<SupportChatPromptView[]> {
+    const lines = await this.prompts();
+    if (lines.length >= 20) throw new BadRequestException('Tối đa 20 câu chào');
+    return this.savePrompts([...lines, { id: randomUUID(), body: this.cleanPrompt(body) }]);
+  }
+
+  async updatePrompt(id: string, body: string): Promise<SupportChatPromptView[]> {
+    const lines = await this.prompts();
+    if (!lines.some((line) => line.id === id)) throw new NotFoundException('Không tìm thấy câu chào');
+    const text = this.cleanPrompt(body);
+    return this.savePrompts(lines.map((line) => (line.id === id ? { ...line, body: text } : line)));
+  }
+
+  async deletePrompt(id: string): Promise<SupportChatPromptView[]> {
+    const lines = await this.prompts();
+    if (!lines.some((line) => line.id === id)) throw new NotFoundException('Không tìm thấy câu chào');
+    return this.savePrompts(lines.filter((line) => line.id !== id));
+  }
+
+  private async seedPrompts(): Promise<SupportChatPromptView[]> {
+    const lines = DEFAULT_PROMPTS.map((body) => ({ id: randomUUID(), body }));
+    try {
+      await this.prisma.supportChatPromptSetting.create({
+        data: { id: 'default', lines: lines as unknown as Prisma.InputJsonValue },
+      });
+      return lines;
+    } catch {
+      const row = await this.prisma.supportChatPromptSetting.findUnique({ where: { id: 'default' } });
+      return row ? parsePrompts(row.lines) : lines;
+    }
+  }
+
+  private async savePrompts(lines: SupportChatPromptView[]): Promise<SupportChatPromptView[]> {
+    await this.prisma.supportChatPromptSetting.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', lines: lines as unknown as Prisma.InputJsonValue },
+      update: { lines: lines as unknown as Prisma.InputJsonValue },
+    });
+    return lines;
+  }
+
+  private cleanPrompt(body: string): string {
+    const text = body.trim();
+    if (!text) throw new BadRequestException('Nhập câu chào');
+    if (text.length > 300) throw new BadRequestException('Câu chào tối đa 300 ký tự');
+    return text;
+  }
+
   private clean(body: string): string {
     const text = body.trim();
     if (!text) throw new BadRequestException('Nhập nội dung');
@@ -208,4 +271,24 @@ function roleLabel(role: string): string {
 
 function excerpt(text: string): string {
   return text.length > 160 ? `${text.slice(0, 160)}…` : text;
+}
+
+const DEFAULT_PROMPTS = [
+  'Hi, {ten}, cần tôi giúp gì cho bạn?',
+  'Bạn đang khó khăn phần nào? Hãy chatbox để Inlink hướng dẫn?',
+  'Inlink vẫn đang trong giai đoạn trải nghiệm và thử nghiệm chắc chắn sẽ có một vài lỗi/thiếu sót, mong bạn thông cảm và gửi góp ý cho đội ngũ nhé.',
+];
+
+function parsePrompts(value: unknown): SupportChatPromptView[] {
+  if (!Array.isArray(value)) return [];
+  const lines: SupportChatPromptView[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const rec = item as Record<string, unknown>;
+    const id = String(rec.id ?? '').trim();
+    const body = String(rec.body ?? '').trim();
+    if (!id || !body) continue;
+    lines.push({ id, body });
+  }
+  return lines;
 }

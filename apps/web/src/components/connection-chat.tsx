@@ -19,10 +19,20 @@ export function ConnectionChat() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [hasToken, setHasToken] = useState(false);
+  const [dockHeight, setDockHeight] = useState(128);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setHasToken(Boolean(tokenStore.get()));
+  }, []);
+
+  useEffect(() => {
+    function onDock(event: Event) {
+      const height = (event as CustomEvent<{ height?: number }>).detail?.height;
+      if (typeof height === 'number') setDockHeight(height);
+    }
+    window.addEventListener('inlink-support-dock', onDock);
+    return () => window.removeEventListener('inlink-support-dock', onDock);
   }, []);
 
   const threads = useQuery({
@@ -80,9 +90,15 @@ export function ConnectionChat() {
   }
 
   return (
-    <div className="fixed bottom-36 right-4 z-40 flex flex-col items-end">
+    <div
+      className="fixed right-4 z-40 flex flex-col items-end"
+      style={{ bottom: dockHeight + 20 }}
+    >
       {open && (
-        <div className="chat-pop mb-3 flex h-[min(70vh,480px)] w-[min(100vw-2rem,360px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_-20px_rgba(7,35,72,0.45)]">
+        <div
+          className="chat-pop mb-3 flex w-[min(100vw-2rem,360px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_-20px_rgba(7,35,72,0.45)]"
+          style={{ height: `min(480px, calc(100vh - ${dockHeight + 96}px))` }}
+        >
           <div className="flex items-center gap-2 bg-[#072348] px-3 py-2.5 text-white">
             {activeId ? (
               <button
