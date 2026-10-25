@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageCircle,
   NotebookPen,
   Percent,
   Receipt,
@@ -62,6 +63,7 @@ const NAV = [
     title: 'Chăm sóc',
     items: [
       { href: '/crm/activities', label: 'Nhật ký', icon: NotebookPen },
+      { href: '/crm/chat', label: 'Chat', icon: MessageCircle },
       { href: '/crm/renewals', label: 'Gia hạn', icon: CalendarClock },
     ],
   },

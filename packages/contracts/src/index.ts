@@ -21,6 +21,7 @@ export * from './events';
 export * from './auth.dto';
 export * from './candidate.dto';
 export * from './connection.dto';
+export * from './support-chat.dto';
 export * from './cv-draft.dto';
 export * from './company.dto';
 export * from './job.dto';

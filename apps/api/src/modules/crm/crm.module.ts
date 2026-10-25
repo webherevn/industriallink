@@ -5,6 +5,8 @@ import { CrmEnterpriseController } from './crm-enterprise.controller';
 import { CrmPartnerSelfController } from './crm-partner-self.controller';
 import { CrmReferralController } from './crm-referral.controller';
 import { CrmController } from './crm.controller';
+import { CrmSupportChatController, SupportChatController } from './support-chat.controller';
+import { SupportChatService } from './support-chat.service';
 import { CrmMarketingController } from './crm-marketing.controller';
 import { CommissionCloseService } from './commission-close.service';
 import { CrmMarketingService } from './crm-marketing.service';
@@ -12,8 +14,8 @@ import { CrmService } from './crm.service';
 
 @Module({
   imports: [NotificationModule, CmsModule],
-  controllers: [CrmController, CrmMarketingController, CrmPartnerSelfController, CrmReferralController, CrmEnterpriseController],
-  providers: [CrmService, CrmMarketingService, CommissionCloseService],
+  controllers: [CrmController, CrmMarketingController, CrmPartnerSelfController, CrmReferralController, CrmEnterpriseController, SupportChatController, CrmSupportChatController],
+  providers: [CrmService, CrmMarketingService, CommissionCloseService, SupportChatService],
   exports: [CrmService],
 })
 export class CrmModule {}

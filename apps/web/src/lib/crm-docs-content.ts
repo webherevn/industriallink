@@ -12,6 +12,7 @@ import {
   Kanban,
   Landmark,
   LayoutDashboard,
+  MessageCircle,
   NotebookPen,
   Percent,
   PieChart,
@@ -314,7 +315,7 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
   {
     id: 'cham-soc',
     title: 'Chăm sóc',
-    description: 'Việc cần làm và khách sắp hết gói.',
+    description: 'Việc cần làm, chat góp ý và khách sắp hết gói.',
     sections: [
       {
         id: 'nhat-ky',
@@ -327,6 +328,20 @@ export const CRM_DOC_GROUPS: DocGroup[] = [
           {
             type: 'p',
             text: 'Form nhật ký không tạo loại thanh toán. Khi khách trả một gói, hệ thống thêm một dòng, mỗi đơn một dòng, người ghi hiện là inlink. Ngày hẹn trên form được tính là 09:00 giờ Việt Nam.',
+          },
+        ],
+      },
+      {
+        id: 'chat',
+        title: 'Chat',
+        icon: MessageCircle,
+        href: '/crm/chat',
+        summary: 'Câu hỏi và góp ý gửi từ robot trên web. Sale và SuperAdmin trả lời tại đây.',
+        keywords: ['chat', 'góp ý', 'hỏi đáp'],
+        blocks: [
+          {
+            type: 'p',
+            text: 'Người dùng bấm robot hoặc câu chào ở góc phải để gửi nội dung. Tin vào mục Chat. Câu trả lời hiện lại trên khung chat của người gửi. Mục này không tạo đơn và không bật gói.',
           },
         ],
       },

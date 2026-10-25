@@ -206,6 +206,8 @@ model User {
   companyMemberships     CompanyMember[]
   connectionRequests     CandidateConnection[] @relation("ConnectionRequester")
   connectionMessages     ConnectionMessage[]   @relation("ConnectionMessageSender")
+  supportChat            SupportChat?
+  supportChatMessages    SupportChatMessage[]  @relation("SupportChatSender")
   shortlistSaves         CandidateShortlist[]  @relation("ShortlistSaver")
 
   @@index([tenantId])
@@ -266,6 +268,37 @@ model AuditLog {
   @@index([tenantId, entityType])
   @@index([actorId])
   @@map("audit_log")
+  @@schema("identity")
+}
+
+/// Một hội thoại góp ý giữa người dùng và đội CRM.
+model SupportChat {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  userReadAt  DateTime? @map("user_read_at")
+  staffReadAt DateTime? @map("staff_read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages SupportChatMessage[]
+
+  @@map("support_chat")
+  @@schema("identity")
+}
+
+model SupportChatMessage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatId       String   @map("chat_id") @db.Uuid
+  senderUserId String   @map("sender_user_id") @db.Uuid
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  chat   SupportChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User        @relation("SupportChatSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@map("support_chat_message")
   @@schema("identity")
 }
 
