@@ -12,6 +12,8 @@ import type {
   Prisma,
 } from '@prisma/client';
 import {
+  includedScopeCodes,
+  parseSourcingScope,
   SOURCING_QUOTA_LABELS,
   type AdminAssignCompanySourcingPlanRequest,
   type RecruiterConsumeSourcingRequest,
@@ -61,6 +63,7 @@ export class SourcingService {
       planName: null,
       feeVnd: null,
       serviceScope: [],
+      scopeItems: [],
       positionQuota: null,
       searchRoundQuota: null,
       shortlistQuota: null,
@@ -406,7 +409,7 @@ export class SourcingService {
   private assertScope(plan: BillingSourcingPlan, kind: SourcingQuotaKind): void {
     const required = SCOPE_FOR_KIND[kind];
     if (!required) return;
-    const scope = (plan.serviceScope as string[]) ?? [];
+    const scope = includedScopeCodes(parseSourcingScope(plan.serviceScope));
     if (scope.length === 0) return;
     if (required.some((s) => scope.includes(s))) return;
     throw new ForbiddenException({
@@ -450,12 +453,14 @@ export class SourcingService {
     profileOpensUsed = 0,
   ): RecruiterSourcingEntitlements {
     const plan = row.plan;
+    const scopeItems = parseSourcingScope(plan.serviceScope);
     return {
       assignment: this.mapAssignment(row),
       planCode: plan.code,
       planName: plan.name,
       feeVnd: plan.feeVnd.toString(),
-      serviceScope: (plan.serviceScope as string[]) ?? [],
+      serviceScope: includedScopeCodes(scopeItems),
+      scopeItems,
       positionQuota: plan.positionQuota,
       searchRoundQuota: plan.searchRoundQuota,
       shortlistQuota: plan.shortlistQuota,

@@ -17,6 +17,7 @@ import {
   type JobView,
   type ParsedSalesJobDraft,
 } from '@industriallink/contracts';
+import { skillNamesFromEditor, skillsToListHtml, toJdListHtml } from './jd-list-html';
 
 export type JdSalesFormState = {
   title: string;
@@ -105,10 +106,10 @@ export function parsedJobToForm(parsed: ParsedSalesJobDraft): JdSalesFormState {
     languages: parsed.languages ?? [],
     driverLicenses: parsed.driverLicenses ?? [],
     travelAbility: parsed.travelAbility ?? '',
-    description: parsed.description ?? '',
-    requirements: parsed.requirements ?? '',
-    skills: (parsed.skills ?? []).join(', '),
-    benefits: parsed.benefits ?? '',
+    description: toJdListHtml(parsed.description),
+    requirements: toJdListHtml(parsed.requirements),
+    skills: skillsToListHtml(parsed.skills),
+    benefits: toJdListHtml(parsed.benefits),
     industryHardMode: 'off',
   };
 }
@@ -163,7 +164,7 @@ export function jobViewToForm(job: JobView): JdSalesFormState {
     travelAbility: c.travelAbility ?? '',
     description: job.description ?? '',
     requirements: job.requirements ?? '',
-    skills: job.skills.map((s) => s.name).join(', '),
+    skills: skillsToListHtml(job.skills.map((s) => s.name)),
     benefits: job.benefits ?? '',
     industryHardMode: !c.hardFilters?.includes('industries')
       ? 'off'
@@ -177,11 +178,7 @@ export function formToCreateJobRequest(
   form: JdSalesFormState,
   publish: boolean,
 ): CreateJobRequest {
-  const skills = form.skills
-    .split(/[,;\n]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((name) => ({ name, required: true }));
+  const skills = skillNamesFromEditor(form.skills).map((name) => ({ name, required: true }));
 
   return {
     title: form.title.trim(),

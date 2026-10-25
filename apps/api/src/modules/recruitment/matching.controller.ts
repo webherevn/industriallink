@@ -37,4 +37,11 @@ export class MatchingController {
   recommendedJobs(@CurrentUser() user: AuthenticatedUser) {
     return this.matching.jobsForCandidate(user);
   }
+
+  @Get('jobs/:id/fit')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Mức phù hợp của ứng viên với một tin — cùng engine gợi ý AI' })
+  jobFit(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.matching.jobFitForCandidate(user, id);
+  }
 }

@@ -81,7 +81,7 @@ export const JOB_PARSE_SYSTEM_PROMPT = [
   'experienceBand: none (không yêu cầu), under_1 (<1 năm), 1_3, 3_5, 5_plus.',
   'travelAbility: none = không đi công tác; up_to_25 = khi cần; 25_50 = thường xuyên; over_50 = dài ngày.',
   'salaryMin/salaryMax là VND/tháng (ví dụ 15 triệu → 15000000).',
-  'description / requirements / benefits: trích hoặc sắp xếp lại từ JD, không viết thêm.',
+  'description / requirements / benefits: trích từ JD, không viết thêm. Mỗi ý một dòng bắt đầu bằng "- ". Không gộp thành một đoạn liền.',
   'Không markdown, không giải thích, chỉ JSON.',
 ].join('\n');
 

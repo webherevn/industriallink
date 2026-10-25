@@ -24,6 +24,7 @@ import type {
   BillingPageContentView,
   BillingPageTextItem,
   BillingPageFaqItem,
+  SourcingScopeLine,
 } from './billing.types';
 
 // Re-export types
@@ -63,6 +64,8 @@ export interface AdminCreateSourcingPlanRequest {
   revisionQuota?: number;
   creditQuota?: number;
   serviceScope?: SourcingServiceScope[];
+  /** Dòng phạm vi dịch vụ. Có trường này thì ghi đè serviceScope. */
+  scopeItems?: SourcingScopeLine[];
   sortOrder?: number;
   isActive?: boolean;
   isFeatured?: boolean;

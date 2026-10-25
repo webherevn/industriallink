@@ -29,6 +29,15 @@ export async function candidatesForJob(jobId: string): Promise<CandidateMatchVie
   );
 }
 
+export async function jobFit(jobId: string): Promise<MatchExplanation> {
+  const row = await apiRequest<MatchExplanation>(`/matching/jobs/${jobId}/fit`);
+  return {
+    ...row,
+    matchedSkills: asArray(row?.matchedSkills),
+    missingSkills: asArray(row?.missingSkills),
+  };
+}
+
 export async function recommendedJobs(): Promise<JobMatchView[]> {
   return asArray<JobMatchView>(await apiRequest('/matching/recommended-jobs')).map((row) =>
     withMatch({ ...row, skills: asArray(row?.skills) }),

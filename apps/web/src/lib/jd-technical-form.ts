@@ -17,6 +17,7 @@ import {
   type JobView,
   type ParsedTechnicalJobDraft,
 } from '@industriallink/contracts';
+import { toJdListHtml } from './jd-list-html';
 
 export type JdTechnicalFormState = {
   /** Vị trí tuyển dụng dùng cho matching (1 trong 13 vị trí hoặc tự nhập). */
@@ -110,9 +111,9 @@ export function parsedJobToTechnicalForm(parsed: ParsedTechnicalJobDraft): JdTec
     shiftFlexibility: parsed.shiftFlexibility ?? '',
     technicalTools: parsed.technicalTools ?? [],
     documentLiteracy: parsed.documentLiteracy ?? [],
-    description: parsed.description ?? '',
-    requirements: parsed.requirements ?? '',
-    benefits: parsed.benefits ?? '',
+    description: toJdListHtml(parsed.description),
+    requirements: toJdListHtml(parsed.requirements),
+    benefits: toJdListHtml(parsed.benefits),
   };
 }
 

@@ -46,6 +46,8 @@ import {
   listPublishedJobs,
   removeJobBookmark,
 } from '@/lib/jobs';
+import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import { jobFit } from '@/lib/matching';
 import { companyPublicPath, jobListingPath, jobPublicPath } from '@/lib/public-paths';
 import { plainLabel } from '@/lib/plain-label';
 
@@ -71,6 +73,13 @@ function formatDate(iso: string | null | undefined): string {
   } catch {
     return iso;
   }
+}
+
+function fitRingLabel(score: number): string {
+  if (score >= 90) return 'Rất phù hợp';
+  if (score >= 80) return 'Phù hợp cao';
+  if (score >= 55) return 'Phù hợp';
+  return 'Cân nhắc';
 }
 
 function daysUntil(iso: string | null): string | null {
@@ -162,6 +171,13 @@ export function JobDetailClient({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
     enabled: Boolean(tokenStore.get()),
+    retry: false,
+  });
+
+  const { data: fit, isLoading: fitLoading } = useQuery({
+    queryKey: ['job-fit', job?.id],
+    queryFn: () => jobFit(job!.id),
+    enabled: Boolean(tokenStore.get() && job?.id && myCandidate),
     retry: false,
   });
 
@@ -451,6 +467,63 @@ export function JobDetailClient({
         <div className="mt-4 grid min-w-0 gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]">
           {/* Sidebar — trên mobile hiện ngay sau hero để không lệch / phải cuộn quá dài */}
           <aside className="order-1 min-w-0 space-y-3 sm:space-y-4 lg:order-2 lg:sticky lg:top-20 lg:self-start">
+            {myCandidate && (fitLoading || fit) && (
+              <div className="job-detail-card p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                  Mức phù hợp với hồ sơ
+                </p>
+                {fit ? (
+                  <div className="mt-3 flex items-center gap-4">
+                    <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center">
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-full bg-amber-400/25 blur-[10px]"
+                        aria-hidden
+                      />
+                      <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-amber-50 to-white p-0.5 shadow-sm ring-1 ring-amber-200/80">
+                        <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+                          <circle cx="32" cy="32" r="26" fill="none" stroke="#fde68a" strokeWidth="6" />
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r="26"
+                            fill="none"
+                            stroke={matchRingColor(fit.score)}
+                            strokeWidth="6"
+                            strokeLinecap="round"
+                            strokeDasharray={2 * Math.PI * 26}
+                            strokeDashoffset={
+                              2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, fit.score / 100)))
+                            }
+                          />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <span
+                            className="text-[15px] font-extrabold leading-none tracking-tight"
+                            style={{ color: matchRingColor(fit.score) }}
+                          >
+                            {formatMatchPct(fit.score)}
+                            <span className="text-[10px] font-bold">%</span>
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold" style={{ color: matchRingColor(fit.score) }}>
+                        {fitRingLabel(fit.score)}
+                      </p>
+                      {fit.reason && (
+                        <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-500">
+                          {fit.reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 h-16 animate-pulse rounded-xl bg-amber-50" />
+                )}
+              </div>
+            )}
+
             <div id="job-apply" className="job-detail-card overflow-hidden p-0 shadow-md scroll-mt-24">
               <div className="bg-gradient-to-br from-amber-50 via-white to-brand-50/40 px-4 py-3.5 sm:px-5 sm:py-4">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">

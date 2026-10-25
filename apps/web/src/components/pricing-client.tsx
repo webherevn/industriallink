@@ -35,12 +35,13 @@ import type {
   BillingCreditTopupView,
   BillingCurrencyDisplay,
   BillingPageContentView,
-  SourcingServiceScope,
+  SourcingScopeLine,
 } from '@industriallink/contracts';
 import {
   BILLING_PLAN_ACTION_LABELS,
   BILLING_PLAN_BILLABLE_ACTIONS,
   DEFAULT_BILLING_PAGE_CONTENT,
+  DEFAULT_SOURCING_SCOPE_LINES,
   UserRole,
 } from '@industriallink/contracts';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
@@ -58,27 +59,11 @@ const NTD_ROLES = new Set<string>([
   UserRole.SuperAdmin,
 ]);
 
-const SCOPE_LABEL: Record<SourcingServiceScope, string> = {
-  ai_match: 'AI tìm / Matching',
-  filter_rank: 'Lọc & xếp hạng',
-  shortlist: 'Shortlist',
-  strengths_gaps: 'Điểm mạnh / Khoảng thiếu',
-  priority: 'Ứng viên ưu tiên',
-  outreach: 'Chủ động tiếp cận',
-  follow_up: 'Theo dõi phản hồi',
-  replacement: 'Ứng viên thay thế',
-};
-
-const ALL_SCOPES: SourcingServiceScope[] = [
-  'ai_match',
-  'filter_rank',
-  'shortlist',
-  'strengths_gaps',
-  'priority',
-  'outreach',
-  'follow_up',
-  'replacement',
-];
+function scopeLinesOf(plan: BillingSourcingPlanView): SourcingScopeLine[] {
+  if (plan.scopeItems?.length) return plan.scopeItems;
+  const on = new Set(plan.serviceScope);
+  return DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({ ...line, included: on.has(line.code) }));
+}
 
 const UNIT_LABEL: Record<'per_jd' | 'per_month', string> = {
   per_jd: '/ JD',
@@ -1128,25 +1113,22 @@ function SourcingPlanCard({
           Phạm vi dịch vụ
         </p>
         <ul className="space-y-1.5">
-          {ALL_SCOPES.map((s) => {
-            const included = plan.serviceScope.includes(s);
-            return (
-              <li
-                key={s}
-                className={clsx(
-                  'flex items-center gap-1.5 text-[12px]',
-                  included ? 'text-slate-700' : 'text-slate-400 line-through'
-                )}
-              >
-                {included ? (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                ) : (
-                  <X className="h-3.5 w-3.5 shrink-0 text-slate-300" />
-                )}
-                <span>{SCOPE_LABEL[s]}</span>
-              </li>
-            );
-          })}
+          {scopeLinesOf(plan).map((line) => (
+            <li
+              key={line.code}
+              className={clsx(
+                'flex items-center gap-1.5 text-[12px]',
+                line.included ? 'text-slate-700' : 'text-slate-400 line-through'
+              )}
+            >
+              {line.included ? (
+                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+              ) : (
+                <X className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+              )}
+              <span>{line.label}</span>
+            </li>
+          ))}
         </ul>
       </div>
 

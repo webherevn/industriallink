@@ -55,6 +55,8 @@ import {
   DEFAULT_BILLING_PAGE_HOW_STEPS,
   DEFAULT_BILLING_PAGE_FAQ,
   DEFAULT_BILLING_PAGE_TRUST,
+  includedScopeCodes,
+  parseSourcingScope,
   UserRole,
   looksLikeUuid,
 } from '@industriallink/contracts';
@@ -919,7 +921,7 @@ export class BillingService {
         searchRoundQuota: input.searchRoundQuota,
         shortlistQuota: input.shortlistQuota,
         revisionQuota: input.revisionQuota,
-        serviceScope: (input.serviceScope ?? []) as Prisma.JsonArray,
+        serviceScope: this.scopePayload(input) as Prisma.JsonArray,
         sortOrder: input.sortOrder ?? 0,
         isActive: input.isActive ?? true,
         isFeatured: input.isFeatured ?? false,
@@ -950,7 +952,9 @@ export class BillingService {
     if (input.shortlistQuota !== undefined) data.shortlistQuota = input.shortlistQuota;
     if (input.revisionQuota !== undefined) data.revisionQuota = input.revisionQuota;
     if (input.creditQuota !== undefined) data.creditQuota = input.creditQuota;
-    if (input.serviceScope !== undefined) data.serviceScope = input.serviceScope as Prisma.JsonArray;
+    if (input.scopeItems !== undefined || input.serviceScope !== undefined) {
+      data.serviceScope = this.scopePayload(input) as Prisma.JsonArray;
+    }
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.isActive !== undefined) data.isActive = input.isActive;
     if (input.isFeatured !== undefined) data.isFeatured = input.isFeatured;
@@ -1534,9 +1538,18 @@ export class BillingService {
     };
   }
 
+  private scopePayload(input: {
+    scopeItems?: AdminCreateSourcingPlanRequest['scopeItems'];
+    serviceScope?: AdminCreateSourcingPlanRequest['serviceScope'];
+  }): unknown[] {
+    if (input.scopeItems) return parseSourcingScope(input.scopeItems);
+    return input.serviceScope ?? [];
+  }
+
   private mapSourcingPlan(s: BillingSourcingPlan): BillingSourcingPlanView {
     const promo = launchPromoFor('sourcing', s.code);
     const sale = applyLaunchPromo(s.feeVnd, promo.percent);
+    const scopeItems = parseSourcingScope(s.serviceScope);
     return {
       id: s.id,
       code: s.code,
@@ -1551,7 +1564,8 @@ export class BillingService {
       searchRoundQuota: s.searchRoundQuota,
       shortlistQuota: s.shortlistQuota,
       revisionQuota: s.revisionQuota,
-      serviceScope: (s.serviceScope as string[]) ?? [],
+      serviceScope: includedScopeCodes(scopeItems),
+      scopeItems,
       sortOrder: s.sortOrder,
       isActive: s.isActive,
       isFeatured: s.isFeatured,

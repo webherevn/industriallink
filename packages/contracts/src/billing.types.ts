@@ -75,6 +75,54 @@ export interface BillingCompanyPlanView {
   updatedAt: string;
 }
 
+/** Một dòng «Phạm vi dịch vụ» trên thẻ gói Săn. */
+export interface SourcingScopeLine {
+  code: string;
+  label: string;
+  included: boolean;
+}
+
+export const DEFAULT_SOURCING_SCOPE_LINES: readonly { code: string; label: string }[] = [
+  { code: 'ai_match', label: 'AI tìm / Matching' },
+  { code: 'filter_rank', label: 'Lọc & xếp hạng' },
+  { code: 'shortlist', label: 'Shortlist' },
+  { code: 'strengths_gaps', label: 'Điểm mạnh / Khoảng thiếu' },
+  { code: 'priority', label: 'Ứng viên ưu tiên' },
+  { code: 'outreach', label: 'Chủ động tiếp cận' },
+  { code: 'follow_up', label: 'Theo dõi phản hồi' },
+  { code: 'replacement', label: 'Ứng viên thay thế' },
+];
+
+/** Đọc JSON gói Săn: mảng mã cũ hoặc danh sách dòng đã sửa chữ. */
+export function parseSourcingScope(raw: unknown): SourcingScopeLine[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({ ...line, included: false }));
+  }
+  if (raw.every((item) => typeof item === 'string')) {
+    const on = new Set(raw.filter((item): item is string => typeof item === 'string'));
+    return DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({
+      ...line,
+      included: on.has(line.code),
+    }));
+  }
+  const lines: SourcingScopeLine[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const rec = item as Record<string, unknown>;
+    const code = String(rec.code ?? '').trim();
+    const label = String(rec.label ?? '').trim();
+    if (!code || !label) continue;
+    lines.push({ code, label, included: rec.included === true });
+  }
+  return lines.length > 0
+    ? lines
+    : DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({ ...line, included: false }));
+}
+
+export function includedScopeCodes(lines: readonly SourcingScopeLine[]): string[] {
+  return lines.filter((line) => line.included).map((line) => line.code);
+}
+
 export interface BillingSourcingPlanView {
   id: string;
   code: string;
@@ -93,7 +141,10 @@ export interface BillingSourcingPlanView {
   searchRoundQuota: number | null;
   shortlistQuota: number | null;
   revisionQuota: number | null;
+  /** Mã hạng mục gói đang bán. */
   serviceScope: string[];
+  /** Toàn bộ dòng phạm vi, kể cả dòng không tick. */
+  scopeItems: SourcingScopeLine[];
   sortOrder: number;
   isActive: boolean;
   isFeatured: boolean;
@@ -308,6 +359,7 @@ export interface RecruiterSourcingEntitlements {
   planName: string | null;
   feeVnd: string | null;
   serviceScope: string[];
+  scopeItems: SourcingScopeLine[];
   positionQuota: number | null;
   searchRoundQuota: number | null;
   shortlistQuota: number | null;

@@ -7,7 +7,7 @@ import type {
 import { CreditService } from '../billing/credit.service';
 import { SourcingService } from '../billing/sourcing.service';
 import { CompanyService } from '../company/company.service';
-import { shouldUseSalesMatchEngine, shouldUseTechnicalMatchEngine } from '@industriallink/contracts';
+import { looksLikeUuid, shouldUseSalesMatchEngine, shouldUseTechnicalMatchEngine } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import {
   backfillMissingCompanySlugs,
@@ -134,6 +134,50 @@ export class MatchingService {
     }
 
     return this.explainPair(semantic, job, candidate);
+  }
+
+  /**
+   * Mức phù hợp của ứng viên đang đăng nhập với một tin.
+   * Cùng explainPair với danh sách gợi ý AI.
+   */
+  async jobFitForCandidate(user: AuthenticatedUser, jobRef: string): Promise<MatchExplanation> {
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { userId: user.id },
+      include: CANDIDATE_MATCH_INCLUDE,
+    });
+    if (!candidate) throw new NotFoundException('Chưa có hồ sơ ứng viên');
+
+    const job = await this.prisma.job.findFirst({
+      where: {
+        ...(looksLikeUuid(jobRef) ? { id: jobRef } : { slug: jobRef }),
+        tenantId: user.tenantId,
+        status: 'published',
+        isDeleted: false,
+      },
+      include: { skills: true },
+    });
+    if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+
+    const criteriaEngine = shouldUseSalesMatchEngine(job) || shouldUseTechnicalMatchEngine(job);
+    const semantic = criteriaEngine ? 0 : await this.semanticScoreForJob(job.id, candidate);
+    return this.explainPair(semantic, job, candidate);
+  }
+
+  /** Cosine lưu trên tin. Không có embedding thì 0 — cùng đường gợi ý AI. */
+  private async semanticScoreForJob(jobId: string, candidate: CandidateWithSales): Promise<number> {
+    try {
+      const candVec = await this.ai.embed(this.buildCandidateText(candidate));
+      const literal = `[${candVec.join(',')}]`;
+      const rows = await this.prisma.$queryRaw<{ score: number }[]>`
+        SELECT (1 - (embedding <=> ${literal}::vector))::float AS score
+        FROM recruitment.job
+        WHERE id = ${jobId}::uuid AND embedding IS NOT NULL`;
+      const score = rows[0]?.score;
+      return typeof score === 'number' && Number.isFinite(score) ? score : 0;
+    } catch (err) {
+      this.logger.warn(`Không tính được mức phù hợp tin ${jobId}: ${String(err)}`);
+      return 0;
+    }
   }
 
   /**

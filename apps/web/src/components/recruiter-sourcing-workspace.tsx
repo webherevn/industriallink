@@ -43,17 +43,6 @@ function usageLabel(kind: string) {
   return SOURCING_QUOTA_LABELS[kind as SourcingQuotaKind] ?? kind;
 }
 
-const SCOPE_LABEL: Record<string, string> = {
-  ai_match: 'AI tìm ứng viên',
-  filter_rank: 'Lọc và xếp hạng',
-  shortlist: 'Shortlist',
-  strengths_gaps: 'Điểm mạnh / khoảng thiếu',
-  priority: 'Ưu tiên',
-  outreach: 'iLink liên hệ',
-  follow_up: 'Theo dõi phản hồi',
-  replacement: 'Thay thế',
-};
-
 function cycleEnded(endsAt: string | null | undefined) {
   return Boolean(endsAt && new Date(endsAt).getTime() < Date.now());
 }
@@ -524,16 +513,18 @@ function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitle
           );
         })}
       </div>
-      {e.serviceScope.length > 0 ? (
+      {(e.scopeItems?.length ? e.scopeItems.filter((line) => line.included) : []).length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {e.serviceScope.map((code) => (
-            <span
-              key={code}
-              className="rounded-full bg-[#f4f7fb] px-2.5 py-1 text-[11px] font-medium text-[#072348] ring-1 ring-[#d7e3f2]"
-            >
-              {SCOPE_LABEL[code] ?? code}
-            </span>
-          ))}
+          {(e.scopeItems ?? [])
+            .filter((line) => line.included)
+            .map((line) => (
+              <span
+                key={line.code}
+                className="rounded-full bg-[#f4f7fb] px-2.5 py-1 text-[11px] font-medium text-[#072348] ring-1 ring-[#d7e3f2]"
+              >
+                {line.label}
+              </span>
+            ))}
         </div>
       ) : null}
     </section>

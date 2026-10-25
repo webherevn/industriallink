@@ -14,11 +14,12 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
-import type {
-  AdminCreateSourcingPlanRequest,
-  AdminUpdateSourcingPlanRequest,
-  BillingSourcingPlanView,
-  SourcingServiceScope,
+import {
+  DEFAULT_SOURCING_SCOPE_LINES,
+  type AdminCreateSourcingPlanRequest,
+  type AdminUpdateSourcingPlanRequest,
+  type BillingSourcingPlanView,
+  type SourcingScopeLine,
 } from '@industriallink/contracts';
 import { AdminShell } from '@/components/admin-shell';
 import { Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
@@ -34,16 +35,14 @@ import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
 
 type FormState = AdminCreateSourcingPlanRequest & { id?: string };
 
-const ALL_SCOPES: { code: SourcingServiceScope; label: string }[] = [
-  { code: 'ai_match', label: 'AI tìm / Matching' },
-  { code: 'filter_rank', label: 'Lọc & xếp hạng' },
-  { code: 'shortlist', label: 'Shortlist' },
-  { code: 'strengths_gaps', label: 'Điểm mạnh / Khoảng thiếu' },
-  { code: 'priority', label: 'Ứng viên ưu tiên' },
-  { code: 'outreach', label: 'Chủ động tiếp cận' },
-  { code: 'follow_up', label: 'Theo dõi phản hồi' },
-  { code: 'replacement', label: 'Ứng viên thay thế' },
-];
+function scopeLinesOf(plan: BillingSourcingPlanView): SourcingScopeLine[] {
+  if (plan.scopeItems?.length) return plan.scopeItems.map((line) => ({ ...line }));
+  const on = new Set(plan.serviceScope);
+  return DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({
+    ...line,
+    included: on.has(line.code),
+  }));
+}
 
 const EMPTY: FormState = {
   code: '',
@@ -56,6 +55,10 @@ const EMPTY: FormState = {
   revisionQuota: 1,
   creditQuota: 30,
   serviceScope: ['ai_match', 'filter_rank'],
+  scopeItems: DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({
+    ...line,
+    included: line.code === 'ai_match' || line.code === 'filter_rank',
+  })),
   sortOrder: 0,
   isActive: true,
   isFeatured: false,
@@ -113,10 +116,14 @@ export function AdminBillingSourcingPlans() {
 
   const handleSubmit = () => {
     if (!editing) return;
+    const body = {
+      ...editing,
+      scopeItems: (editing.scopeItems ?? []).filter((line) => line.label.trim()),
+    };
     if (editing.id) {
-      updateM.mutate({ id: editing.id, body: editing });
+      updateM.mutate({ id: editing.id, body });
     } else {
-      createM.mutate(editing);
+      createM.mutate(body);
     }
   };
 
@@ -216,17 +223,16 @@ export function AdminBillingSourcingPlans() {
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {p.serviceScope.map((s) => {
-                        const meta = ALL_SCOPES.find((x) => x.code === s);
-                        return (
+                      {scopeLinesOf(p)
+                        .filter((line) => line.included)
+                        .map((line) => (
                           <span
-                            key={s}
+                            key={line.code}
                             className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100"
                           >
-                            {meta?.label ?? s}
+                            {line.label}
                           </span>
-                        );
-                      })}
+                        ))}
                     </div>
                   </div>
                   <div className="text-right">
@@ -253,7 +259,8 @@ export function AdminBillingSourcingPlans() {
                           shortlistQuota: p.shortlistQuota ?? undefined,
                           revisionQuota: p.revisionQuota ?? undefined,
                           creditQuota: p.creditQuota ?? undefined,
-                          serviceScope: p.serviceScope as SourcingServiceScope[],
+                          serviceScope: p.serviceScope as FormState['serviceScope'],
+                          scopeItems: scopeLinesOf(p),
                           sortOrder: p.sortOrder,
                           isActive: p.isActive,
                           isFeatured: p.isFeatured,
@@ -312,13 +319,9 @@ function EditModal({
   saving: boolean;
 }) {
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm({ ...form, [k]: v });
-  const toggleScope = (s: SourcingServiceScope) => {
-    const cur = form.serviceScope ?? [];
-    update(
-      'serviceScope',
-      cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]
-    );
-  };
+  const lines = form.scopeItems ?? [];
+  const setLines = (next: SourcingScopeLine[]) =>
+    update('scopeItems', next);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -417,31 +420,59 @@ function EditModal({
         </Field>
 
         <div className="mt-3">
-          <p className="mb-1.5 text-xs font-semibold text-slate-700">Phạm vi dịch vụ (8 mức bảng XI)</p>
-          <div className="grid gap-1.5 sm:grid-cols-2">
-            {ALL_SCOPES.map((s) => {
-              const checked = (form.serviceScope ?? []).includes(s.code);
-              return (
-                <label
-                  key={s.code}
-                  className={clsx(
-                    'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs',
-                    checked
-                      ? 'border-violet-300 bg-violet-50 text-violet-800'
-                      : 'border-slate-200 bg-white text-slate-600'
-                  )}
+          <p className="mb-1 text-xs font-semibold text-slate-700">Phạm vi dịch vụ</p>
+          <p className="mb-2 text-[11px] text-slate-500">
+            Sửa nội dung từng dòng. Tick = thẻ gói hiện dấu tích. Bỏ tick = hiện dấu tắt.
+          </p>
+          <div className="space-y-1.5">
+            {lines.map((line, index) => (
+              <div key={line.code} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={line.included}
+                  onChange={() =>
+                    setLines(
+                      lines.map((item, i) =>
+                        i === index ? { ...item, included: !item.included } : item,
+                      ),
+                    )
+                  }
+                  className="h-3.5 w-3.5 shrink-0 rounded border-slate-300"
+                  aria-label={`Gói có ${line.label || 'dòng này'}`}
+                />
+                <Input
+                  value={line.label}
+                  onChange={(e) =>
+                    setLines(
+                      lines.map((item, i) => (i === index ? { ...item, label: e.target.value } : item)),
+                    )
+                  }
+                  placeholder="Nội dung hiển thị"
+                />
+                <button
+                  type="button"
+                  className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  aria-label="Xóa dòng"
+                  onClick={() => setLines(lines.filter((_, i) => i !== index))}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleScope(s.code)}
-                    className="h-3.5 w-3.5 rounded border-slate-300"
-                  />
-                  {s.label}
-                </label>
-              );
-            })}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
+          <button
+            type="button"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline"
+            onClick={() =>
+              setLines([
+                ...lines,
+                { code: `custom_${Date.now().toString(36)}`, label: '', included: true },
+              ])
+            }
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Thêm dòng
+          </button>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-4">

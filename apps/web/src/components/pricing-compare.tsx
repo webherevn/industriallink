@@ -9,7 +9,7 @@ import type {
   BillingPageContentView,
   BillingPlatformPlanView,
   BillingSourcingPlanView,
-  SourcingServiceScope,
+  SourcingScopeLine,
 } from '@industriallink/contracts';
 import { BILLING_PLAN_BILLABLE_ACTIONS } from '@industriallink/contracts';
 import { formatPriceVnd } from '@/lib/format-billing';
@@ -222,16 +222,18 @@ function buildPlatformRows(
   ];
 }
 
-const SOURCING_PITCH: { scope: SourcingServiceScope; label: string }[] = [
-  { scope: 'ai_match', label: 'iLink dùng AI tìm ứng viên' },
-  { scope: 'filter_rank', label: 'Lọc & xếp hạng giúp bạn' },
-  { scope: 'shortlist', label: 'Giao shortlist sẵn sàng phỏng vấn' },
-  { scope: 'strengths_gaps', label: 'Phân tích điểm mạnh / khoảng thiếu' },
-  { scope: 'priority', label: 'Chỉ ra ứng viên ưu tiên' },
-  { scope: 'outreach', label: 'Chủ động tiếp cận ứng viên' },
-  { scope: 'follow_up', label: 'Theo dõi phản hồi giúp bạn' },
-  { scope: 'replacement', label: 'Ứng viên thay thế nếu không chốt' },
-];
+function sourcingScopeCatalog(plans: BillingSourcingPlanView[]): SourcingScopeLine[] {
+  const order: SourcingScopeLine[] = [];
+  const seen = new Set<string>();
+  for (const plan of plans) {
+    for (const line of plan.scopeItems ?? []) {
+      if (seen.has(line.code)) continue;
+      seen.add(line.code);
+      order.push(line);
+    }
+  }
+  return order;
+}
 
 function buildSourcingRows(
   plans: BillingSourcingPlanView[],
@@ -249,11 +251,11 @@ function buildSourcingRows(
         text: formatPriceVnd(p.promoPercent && p.promoPriceVnd ? p.promoPriceVnd : p.feeVnd, currency),
       })),
     },
-    ...SOURCING_PITCH.map(({ scope, label }) => ({
-      label,
+    ...sourcingScopeCatalog(plans).map((line) => ({
+      label: line.label,
       cells: plans.map((p) => ({
         kind: 'flag' as const,
-        yes: p.serviceScope.includes(scope),
+        yes: (p.scopeItems ?? []).some((item) => item.code === line.code && item.included),
       })),
     })),
     {
