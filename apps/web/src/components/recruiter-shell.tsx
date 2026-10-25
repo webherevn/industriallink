@@ -35,6 +35,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
+import { ConnectionChat } from '@/components/connection-chat';
 import { CreditBalanceBadge } from '@/components/credit-balance-badge';
 import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore, ApiError } from '@/lib/api';
@@ -515,9 +516,7 @@ export function RecruiterShell({
               <div className="min-w-0">
                 <p className="truncate text-[1.25rem] font-bold leading-tight text-slate-900">
                   Xin chào{' '}
-                  {user?.displayName
-                    ? `Anh ${user.displayName.split(' ').slice(-1)[0]}`
-                    : 'bạn'}
+                  {user?.displayName?.split(' ').slice(-1)[0] || 'bạn'}
                   ! 👋
                 </p>
                 <p className="mt-1 hidden truncate text-[13px] text-slate-500 sm:block">
@@ -654,6 +653,7 @@ export function RecruiterShell({
 
         <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">{children}</main>
       </div>
+      <ConnectionChat />
     </div>
   );
 }

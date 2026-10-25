@@ -201,11 +201,11 @@ function SourceCard({
       {asList ? (
         <ul className="space-y-1.5">
           {lines.map((line, idx) => {
-            const match = line.match(/phù hợp\s+(\d+)%/i);
+            const match = line.match(/phù hợp\s+(\d+(?:[.,]\d+)?)%/i);
             const pct = match?.[1];
             const name = line.split('·')[0]?.trim() ?? line;
             const rest = line.includes('·')
-              ? line.slice(line.indexOf('·') + 1).replace(/phù hợp\s+\d+%\s*—?\s*/i, '').trim()
+              ? line.slice(line.indexOf('·') + 1).replace(/phù hợp\s+\d+(?:[.,]\d+)?%\s*—?\s*/i, '').trim()
               : '';
             const href = candidateIds?.[idx] ? `/candidates/${candidateIds[idx]}` : null;
             const body = (

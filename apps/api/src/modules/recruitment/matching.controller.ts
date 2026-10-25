@@ -17,6 +17,13 @@ const RECRUITER_ROLES = [UserRole.Recruiter, UserRole.HiringManager, UserRole.Co
 export class MatchingController {
   constructor(private readonly matching: MatchingService) {}
 
+  @Get('open-job-boards')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Top ứng viên các tin đang mở — cùng điểm AI gợi ý, không trừ Credit' })
+  openJobBoards(@CurrentUser() user: AuthenticatedUser) {
+    return this.matching.openJobMatchBoards(user);
+  }
+
   @Get('jobs/:id/candidates')
   @Roles(...RECRUITER_ROLES)
   @ApiOperation({ summary: 'AI gợi ý ứng viên phù hợp cho tin tuyển dụng (có giải thích)' })

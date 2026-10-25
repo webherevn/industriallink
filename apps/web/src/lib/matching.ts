@@ -1,4 +1,9 @@
-import type { CandidateMatchView, JobMatchView, MatchExplanation } from '@industriallink/contracts';
+import type {
+  CandidateMatchView,
+  JobMatchView,
+  MatchExplanation,
+  OpenJobMatchBoard,
+} from '@industriallink/contracts';
 import { apiRequest, asArray } from './api';
 
 function withMatch<T extends { match?: MatchExplanation }>(row: T): T {
@@ -21,6 +26,13 @@ export async function sourcingCandidatesForJob(jobId: string): Promise<Candidate
   return asArray<CandidateMatchView>(
     await apiRequest(`/matching/jobs/${jobId}/sourcing-candidates`),
   ).map(withMatch);
+}
+
+export async function openJobMatchBoards(): Promise<OpenJobMatchBoard[]> {
+  return asArray<OpenJobMatchBoard>(await apiRequest('/matching/open-job-boards')).map((board) => ({
+    ...board,
+    candidates: asArray<CandidateMatchView>(board.candidates).map(withMatch),
+  }));
 }
 
 export async function candidatesForJob(jobId: string): Promise<CandidateMatchView[]> {

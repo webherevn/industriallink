@@ -29,3 +29,24 @@ export interface RecruiterCandidateView extends CandidateView {
 export interface CreateConnectionRequest {
   message?: string;
 }
+
+export interface ConnectionChatThread {
+  connectionId: string;
+  peerName: string;
+  peerHint: string | null;
+  lastBody: string | null;
+  lastAt: string | null;
+  unread: number;
+}
+
+export interface ConnectionChatMessage {
+  id: string;
+  connectionId: string;
+  body: string;
+  mine: boolean;
+  createdAt: string;
+}
+
+export interface SendConnectionMessageRequest {
+  body: string;
+}

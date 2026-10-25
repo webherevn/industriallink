@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Check, Loader2, UserRoundX, Users } from 'lucide-react';
+import { Building2, Check, Loader2, MessageCircle, UserRoundX, Users } from 'lucide-react';
 import Link from 'next/link';
 import {
   ConnectionStatus,
@@ -16,6 +16,7 @@ import {
   acceptConnection,
   getMyCandidate,
   listMyConnections,
+  openConnectionChat,
   rejectConnection,
 } from '@/lib/candidate';
 
@@ -233,6 +234,17 @@ function ConnectionCard({
 
       {error && (
         <p className="mt-2 text-xs text-rose-600">{error}</p>
+      )}
+
+      {connection.status === ConnectionStatus.Accepted && (
+        <button
+          type="button"
+          onClick={() => openConnectionChat(connection.id)}
+          className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#072348] px-3 text-xs font-semibold text-white hover:bg-[#0d3b80]"
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+          Nhắn tin
+        </button>
       )}
 
       {pending && (

@@ -713,6 +713,44 @@ function ZaloFAB({ page }: { page: BillingPageContentView }) {
   );
 }
 
+const PROMO_END = new Date('2027-10-23T23:59:59+07:00').getTime();
+
+function LaunchCountdown({ note }: { note: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const left = Math.max(0, PROMO_END - now);
+  const parts = [
+    { label: 'Ngày', value: Math.floor(left / 86_400_000) },
+    { label: 'Giờ', value: Math.floor((left % 86_400_000) / 3_600_000) },
+    { label: 'Phút', value: Math.floor((left % 3_600_000) / 60_000) },
+    { label: 'Giây', value: Math.floor((left % 60_000) / 1000) },
+  ];
+  return (
+    <div className="mx-auto mt-4 max-w-3xl rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50 px-4 py-4 shadow-[0_10px_30px_-18px_rgba(190,18,60,0.65)]">
+      <p className="text-sm font-semibold text-rose-800">{note}</p>
+      <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.18em] text-rose-500">
+        Kết thúc sau
+      </p>
+      <div className="mt-2 flex justify-center gap-2 sm:gap-3">
+        {parts.map((part) => (
+          <div key={part.label} className="min-w-[4.5rem] rounded-xl bg-[#072348] px-2 py-2.5 text-white shadow-md sm:min-w-[5.75rem]">
+            <p className="text-3xl font-black tabular-nums leading-none sm:text-4xl">
+              {String(part.value).padStart(2, '0')}
+            </p>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+              {part.label}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-rose-700/80">Đến 23/10/2027</p>
+    </div>
+  );
+}
+
 // ============================================================================
 // PLATFORM PLANS
 // ============================================================================
@@ -754,9 +792,9 @@ function PlatformPlansView({
         </h2>
         <p className="mt-2 text-sm text-slate-500">{page.platformSubtitle}</p>
         {visible.some((p) => p.promoPercent) ? (
-          <p className="mx-auto mt-3 max-w-3xl rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-800">
-            Khuyến mại HOT ngày ra mắt: Tin đăng, Tin đăng Plus và Doanh nghiệp giảm 50%. Áp dụng đến 23/10/2027.
-          </p>
+          <LaunchCountdown
+            note="Khuyến mại HOT ngày ra mắt: Tin đăng, Tin đăng Plus và Doanh nghiệp giảm 50%."
+          />
         ) : null}
       </div>
 
@@ -1021,9 +1059,7 @@ function SourcingPlansView({
           Muốn iLink hỗ trợ tìm kiếm theo yêu cầu? Chọn mức độ hỗ trợ phù hợp. Giá gói đã bao gồm quyền sử dụng nền tảng cần thiết cho vị trí; không thu lại toàn bộ phí Tin đăng cho cùng vị trí.
         </p>
         {plans.some((p) => p.promoPercent) ? (
-          <p className="mx-auto mt-3 max-w-3xl rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-800">
-            Khuyến mại ra mắt: ba gói Tin săn giảm 30%. Mua thêm lượt không giảm giá. Áp dụng đến 23/10/2027.
-          </p>
+          <LaunchCountdown note="Khuyến mại ra mắt: ba gói Tin săn giảm 30%. Mua thêm lượt không giảm giá." />
         ) : null}
       </div>
 

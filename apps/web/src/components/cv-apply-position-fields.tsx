@@ -8,6 +8,7 @@ import {
   desiredPositionOptionsForTrack,
 } from '@industriallink/contracts';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { criteriaAnchorId } from '@/lib/criteria-jump';
 import type { CvDraft } from '@/lib/cv-templates';
 
 type Props = {
@@ -59,7 +60,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div id={criteriaAnchorId('desiredPositions')} className="scroll-mt-28 space-y-3">
       <div>
         <NumberedFieldLabel
           title="13. Vị trí ứng tuyển"

@@ -139,6 +139,14 @@ export interface CandidateMatchView {
   viewed?: boolean;
 }
 
+/** Cùng danh sách và điểm với AI gợi ý ứng viên, không trừ Credit. */
+export interface OpenJobMatchBoard {
+  jobId: string;
+  jobTitle: string;
+  jobCode: string;
+  candidates: CandidateMatchView[];
+}
+
 /** Tin tuyển dụng được AI gợi ý cho một ứng viên. */
 export interface JobMatchView {
   jobId: string;

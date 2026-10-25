@@ -28,6 +28,7 @@ import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { MoneyInput } from '@/components/ui';
 import { filterCareerMotivations } from '@/lib/career-motivations';
+import { criteriaAnchorId } from '@/lib/criteria-jump';
 import type { CvDraft } from '@/lib/cv-templates';
 
 function MultiCheck({
@@ -92,6 +93,7 @@ function SelectField({
   onChange,
   options,
   emptyLabel = '— Chọn —',
+  id,
 }: {
   label: string;
   description?: string;
@@ -99,9 +101,10 @@ function SelectField({
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   emptyLabel?: string;
+  id?: string;
 }) {
   return (
-    <label className="block">
+    <label id={id} className="block scroll-mt-28">
       <NumberedFieldLabel title={label} description={description} className="mb-0" />
       <select
         value={value}
@@ -155,7 +158,7 @@ export function CvDraftMatrixFields({
         {...sectionB}
       >
       {lead}
-      <div>
+      <div id={criteriaAnchorId('desiredLocations')} className="scroll-mt-28">
         <NumberedFieldLabel
           title="14. Địa điểm mong muốn làm việc"
           description="Anh/chị có thể làm việc ở đâu?"
@@ -168,7 +171,7 @@ export function CvDraftMatrixFields({
         />
       </div>
 
-      <div>
+      <div id={criteriaAnchorId('expectedSalary')} className="scroll-mt-28">
         <NumberedFieldLabel
           title={`15. ${EXPECTED_INCOME_TITLE}`}
           description={EXPECTED_INCOME_QUESTION}
@@ -200,6 +203,7 @@ export function CvDraftMatrixFields({
       </div>
 
       <SelectField
+        id={criteriaAnchorId('availability')}
         label="16. Thời gian có thể nhận việc"
         description={AVAILABILITY_QUESTION}
         value={draft.availabilityBand ?? ''}
@@ -210,7 +214,7 @@ export function CvDraftMatrixFields({
         }))}
       />
 
-      <div>
+      <div id={criteriaAnchorId('careerOrientations')} className="scroll-mt-28">
         <NumberedFieldLabel
           title="17. Định hướng nghề nghiệp"
           description={CAREER_ORIENTATION_QUESTION}

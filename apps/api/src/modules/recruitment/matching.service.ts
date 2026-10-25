@@ -1,13 +1,17 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type {
-  CandidateMatchView,
-  JobMatchView,
-  MatchExplanation,
+import {
+  JobStatus,
+  looksLikeUuid,
+  shouldUseSalesMatchEngine,
+  shouldUseTechnicalMatchEngine,
+  type CandidateMatchView,
+  type JobMatchView,
+  type MatchExplanation,
+  type OpenJobMatchBoard,
 } from '@industriallink/contracts';
 import { CreditService } from '../billing/credit.service';
 import { SourcingService } from '../billing/sourcing.service';
 import { CompanyService } from '../company/company.service';
-import { looksLikeUuid, shouldUseSalesMatchEngine, shouldUseTechnicalMatchEngine } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import {
   backfillMissingCompanySlugs,
@@ -217,6 +221,31 @@ export class MatchingService {
       this.logger.warn(`Failed to record credit ledger for view_match_summary: ${String(err)}`);
     }
     return this.rankJobCandidates(user, jobId);
+  }
+
+  /**
+   * Top ứng viên từng tin đang mở — cùng rankJobCandidates với AI gợi ý ứng viên.
+   * Không trừ Credit: chỉ để tổng quan và Copilot hiện đúng %.
+   */
+  async openJobMatchBoards(user: AuthenticatedUser): Promise<OpenJobMatchBoard[]> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const jobs = await this.prisma.job.findMany({
+      where: { companyId, isDeleted: false, status: JobStatus.Published },
+      orderBy: { updatedAt: 'desc' },
+      take: 4,
+      select: { id: true, title: true, code: true },
+    });
+    const boards: OpenJobMatchBoard[] = [];
+    for (const job of jobs) {
+      const ranked = await this.rankJobCandidates(user, job.id);
+      boards.push({
+        jobId: job.id,
+        jobTitle: job.title,
+        jobCode: job.code,
+        candidates: ranked.slice(0, 3),
+      });
+    }
+    return boards;
   }
 
   /**

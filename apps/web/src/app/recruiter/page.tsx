@@ -38,6 +38,7 @@ import { fetchMe } from '@/lib/auth';
 import { askCopilot } from '@/lib/copilot';
 import { getInterviewStats } from '@/lib/interviews';
 import { listMyJobs } from '@/lib/jobs';
+import { openJobMatchBoards } from '@/lib/matching';
 import { getWorkspaceSummary, listInbox } from '@/lib/recruiter';
 import { interviewMarkText } from '@/lib/format';
 import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
@@ -142,6 +143,13 @@ export default function RecruiterDashboardPage() {
     enabled: Boolean(data?.hasCompany),
     retry: false,
   });
+  const { data: matchBoards } = useQuery({
+    queryKey: ['open-job-match-boards'],
+    queryFn: openJobMatchBoards,
+    enabled: Boolean(data?.hasCompany),
+    retry: false,
+    staleTime: 60_000,
+  });
   const filteredInbox = useMemo(() => {
     if (jobFilter === 'all') return inbox ?? [];
     return (inbox ?? []).filter((a) => a.jobId === jobFilter);
@@ -181,12 +189,32 @@ export default function RecruiterDashboardPage() {
 
   const avgMatchDelta = useMemo(() => computeMatchScoreDelta(inbox ?? []), [inbox]);
 
-  const firstName = (me?.displayName ?? 'bạn').split(' ').slice(-1)[0];
-  const honorificName = me?.displayName?.includes(' ')
-    ? `Anh ${firstName}`
-    : firstName === 'bạn'
-      ? 'bạn'
-      : `Anh ${firstName}`;
+  const firstName = (me?.displayName ?? 'bạn').split(' ').slice(-1)[0] || 'bạn';
+
+  const featured = useMemo(() => {
+    let best: {
+      candidateId: string;
+      displayName: string;
+      jobTitle: string;
+      score: number;
+    } | null = null;
+    for (const board of matchBoards ?? []) {
+      for (const row of board.candidates) {
+        const raw = row.match?.score;
+        if (raw == null || Number.isNaN(raw)) continue;
+        const score = raw <= 1 ? raw * 100 : raw;
+        if (!best || score > best.score) {
+          best = {
+            candidateId: row.candidateId,
+            displayName: row.displayName,
+            jobTitle: board.jobTitle,
+            score,
+          };
+        }
+      }
+    }
+    return best;
+  }, [matchBoards]);
 
   const suggestions = useMemo(() => {
     const n = data?.newApplicationCount ?? 0;
@@ -210,11 +238,17 @@ export default function RecruiterDashboardPage() {
       },
       {
         icon: 'check' as const,
-        title: top
-          ? `${top.displayName} khớp ${formatMatchPct(top.matchScore)}% với tin «${top.jobTitle}»`
-          : 'Kỹ sư PLC đạt độ khớp cao — dùng AI xếp hạng để ưu tiên hồ sơ',
+        title: featured
+          ? `${featured.displayName} khớp ${formatMatchPct(featured.score)}% với tin «${featured.jobTitle}»`
+          : top
+            ? `${top.displayName} khớp ${formatMatchPct(top.matchScore)}% với tin «${top.jobTitle}»`
+            : 'Kỹ sư PLC đạt độ khớp cao — dùng AI xếp hạng để ưu tiên hồ sơ',
         cta: 'Xem hồ sơ',
-        href: top ? `/candidates/${top.candidateId}` : '/search',
+        href: featured
+          ? `/candidates/${featured.candidateId}`
+          : top
+            ? `/candidates/${top.candidateId}`
+            : '/search',
       },
       {
         icon: 'wallet' as const,
@@ -223,7 +257,7 @@ export default function RecruiterDashboardPage() {
         href: '/recruiter/salary',
       },
     ];
-  }, [data, topCandidates]);
+  }, [data, topCandidates, featured]);
 
   if (isLoading) {
     return (
@@ -349,7 +383,7 @@ export default function RecruiterDashboardPage() {
                 Trợ lý AI
               </p>
               <h2 className="mt-2.5 text-[1.65rem] font-bold leading-snug tracking-tight sm:text-[1.85rem]">
-                Tôi có thể giúp gì cho bạn, {honorificName}?
+                Tôi có thể giúp gì cho bạn, {firstName}?
               </h2>
 
               <form

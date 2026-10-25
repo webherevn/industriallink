@@ -700,15 +700,17 @@ export function Field({
   description,
   children,
   className,
+  id,
 }: {
   label: string;
   /** Câu hỏi / gợi ý mờ dưới tiêu đề (cùng kiểu meta A/B/C). */
   description?: string;
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
-    <div className={clsx('block space-y-1.5', className)}>
+    <div id={id} className={clsx('block space-y-1.5', id && 'scroll-mt-28', className)}>
       <span className="block text-sm font-semibold text-slate-800">
         <NumberedTitle text={label} />
       </span>

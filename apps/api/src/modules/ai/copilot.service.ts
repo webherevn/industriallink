@@ -3,10 +3,12 @@ import type {
   CopilotChatResponse,
   CopilotSource,
   InboxApplicantView,
+  OpenJobMatchBoard,
 } from '@industriallink/contracts';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { ApplicationService } from '../recruitment/application.service';
 import { JobService } from '../recruitment/job.service';
+import { MatchingService } from '../recruitment/matching.service';
 import { SearchService } from '../search/search.service';
 import { AiGatewayService } from './ai-gateway.service';
 
@@ -41,6 +43,7 @@ export class CopilotService {
     private readonly jobs: JobService,
     private readonly applications: ApplicationService,
     private readonly search: SearchService,
+    private readonly matching: MatchingService,
   ) {}
 
   async chat(user: AuthenticatedUser, message: string): Promise<CopilotChatResponse> {
@@ -76,32 +79,57 @@ export class CopilotService {
       this.logger.debug(`Copilot: bỏ qua jobs: ${String(err)}`);
     }
 
-    try {
-      const suggestions = await this.suggestTopCandidates(user, trimmed);
-      if (suggestions.length > 0) {
-        const lines = suggestions.map(
-          (h) =>
-            `- ${h.displayName}${h.currentPosition ? ` · ${h.currentPosition}` : ''} · phù hợp ${h.scorePct}% — ${h.reason}`,
-        );
-        const snippet = lines.join('\n');
-        const appliedCount = suggestions.filter((s) => s.origin === 'applied').length;
-        const title =
-          appliedCount > 0
-            ? 'Ứng viên phù hợp nhất (ưu tiên đã nộp)'
-            : 'Ứng viên phù hợp nhất (mạng lưới)';
-        sources.push({
-          title,
-          snippet,
-          candidateIds: suggestions.map((h) => h.candidateId),
-        });
-        parts.push(`### ${title}\n${snippet}`);
+    let matchAnswer: string | null = null;
+    if (isFindCandidatesQuery(trimmed)) {
+      try {
+        const boards = filterMatchBoards(await this.matching.openJobMatchBoards(user), trimmed);
+        if (boards.some((b) => b.candidates.length > 0)) {
+          matchAnswer = buildMatchAnswer(boards);
+          const snippet = matchSnippet(boards);
+          sources.push({
+            title: 'Ứng viên phù hợp (AI gợi ý)',
+            snippet,
+            candidateIds: boards.flatMap((b) => b.candidates.map((c) => c.candidateId)),
+          });
+          parts.push(`### Ứng viên phù hợp (điểm matching)\n${snippet}`);
+        }
+      } catch (err) {
+        this.logger.debug(`Copilot: không chấm được matching: ${String(err)}`);
       }
-    } catch (err) {
-      this.logger.debug(`Copilot: bỏ qua candidate suggest: ${String(err)}`);
+    }
+
+    if (!matchAnswer) {
+      try {
+        const suggestions = await this.suggestTopCandidates(user, trimmed);
+        if (suggestions.length > 0) {
+          const lines = suggestions.map(
+            (h) =>
+              `- ${h.displayName}${h.currentPosition ? ` · ${h.currentPosition}` : ''} · phù hợp ${h.scorePct}% — ${h.reason}`,
+          );
+          const snippet = lines.join('\n');
+          const appliedCount = suggestions.filter((s) => s.origin === 'applied').length;
+          const title =
+            appliedCount > 0
+              ? 'Ứng viên phù hợp nhất (ưu tiên đã nộp)'
+              : 'Ứng viên phù hợp nhất (mạng lưới)';
+          sources.push({
+            title,
+            snippet,
+            candidateIds: suggestions.map((h) => h.candidateId),
+          });
+          parts.push(`### ${title}\n${snippet}`);
+        }
+      } catch (err) {
+        this.logger.debug(`Copilot: bỏ qua candidate suggest: ${String(err)}`);
+      }
     }
 
     const context = parts.join('\n\n') || '(Chưa có dữ liệu nội bộ — tài khoản mới hoặc chưa có tin/ứng viên.)';
     const userPrompt = `Ngữ cảnh:\n${context}\n\nCâu hỏi:\n${trimmed}`;
+
+    if (matchAnswer) {
+      return { answer: matchAnswer, sources, provider: 'matching' };
+    }
 
     const answer = await this.ai.chat({
       system: COPILOT_SYSTEM,
@@ -124,13 +152,12 @@ export class CopilotService {
     user: AuthenticatedUser,
     query: string,
   ): Promise<SuggestedCandidate[]> {
-    const tokens = tokenizeQuery(query);
     const picked: SuggestedCandidate[] = [];
     const seen = new Set<string>();
 
     try {
       const inbox = await this.applications.listCompanyInbox(user, 100);
-      const fromApplied = rankAppliedCandidates(inbox, tokens)
+      const fromApplied = rankAppliedCandidates(inbox)
         .filter((s) => s.scorePct >= MIN_APPLIED_SCORE)
         .slice(0, TOP_CANDIDATES);
 
@@ -172,27 +199,12 @@ export class CopilotService {
   }
 }
 
-function rankAppliedCandidates(
-  inbox: InboxApplicantView[],
-  tokens: string[],
-): SuggestedCandidate[] {
+function rankAppliedCandidates(inbox: InboxApplicantView[]): SuggestedCandidate[] {
   const byCandidate = new Map<string, SuggestedCandidate>();
 
   for (const a of inbox) {
     const match = Math.max(0, Math.min(100, a.matchScore ?? 0));
-    const textPct = Math.round(textRelevance(tokens, [
-      a.displayName,
-      a.currentPosition ?? '',
-      a.industry ?? '',
-      a.jobTitle,
-      ...a.matchedSkills,
-    ]) * 100);
-
-    // Không có từ khóa → xếp theo matchScore tin đã nộp
-    const scorePct =
-      tokens.length === 0
-        ? match || 40
-        : Math.round(match * 0.55 + textPct * 0.45);
+    const scorePct = Math.round(match * 10) / 10;
 
     const next: SuggestedCandidate = {
       candidateId: a.candidateId,
@@ -260,19 +272,71 @@ const STOP_WORDS = new Set([
   'with',
 ]);
 
-/** Độ khớp từ khóa đơn giản 0–1 trên các trường hồ sơ. */
-function textRelevance(tokens: string[], fields: string[]): number {
-  if (tokens.length === 0) return 0;
-  const hay = fields
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '');
-  if (!hay.trim()) return 0;
-  let hit = 0;
-  for (const t of tokens) {
-    if (hay.includes(t)) hit += 1;
-  }
-  return hit / tokens.length;
+function isFindCandidatesQuery(message: string): boolean {
+  const q = message.toLowerCase();
+  const find = q.includes('tìm') || q.includes('tim');
+  const person = q.includes('ứng viên') || q.includes('ung vien');
+  return find && person;
 }
+
+function enginePct(score: number): string {
+  const numeric = score <= 1 ? score * 100 : score;
+  const clamped = Math.max(0, Math.min(100, numeric));
+  return clamped.toFixed(1);
+}
+
+function filterMatchBoards(boards: OpenJobMatchBoard[], query: string): OpenJobMatchBoard[] {
+  const tokens = tokenizeQuery(query).filter((t) => !FIND_QUERY_NOISE.has(t));
+  if (tokens.length === 0) return boards;
+  const picked = boards.filter((board) => {
+    const jobHay = `${board.jobTitle} ${board.jobCode}`.toLowerCase();
+    if (tokens.some((t) => jobHay.includes(t))) return true;
+    return board.candidates.some((c) => {
+      const hay = `${c.displayName} ${c.currentPosition ?? ''} ${c.industry ?? ''}`.toLowerCase();
+      return tokens.some((t) => hay.includes(t));
+    });
+  });
+  return picked.length > 0 ? picked : boards;
+}
+
+function matchSnippet(boards: OpenJobMatchBoard[]): string {
+  return boards
+    .flatMap((board) =>
+      board.candidates.map((c) => {
+        const where = c.applied ? 'Đã nộp hồ sơ' : 'Mạng lưới';
+        const pos = c.currentPosition ? ` · ${c.currentPosition}` : '';
+        return `- ${c.displayName}${pos} · phù hợp ${enginePct(c.match.score)}% — ${where} · tin «${board.jobTitle}»`;
+      }),
+    )
+    .join('\n');
+}
+
+function buildMatchAnswer(boards: OpenJobMatchBoard[]): string {
+  const lines = ['Dưới đây là ứng viên phù hợp theo đúng điểm AI gợi ý ứng viên:', ''];
+  boards.forEach((board, index) => {
+    lines.push(`${index + 1}. Tin «${board.jobTitle}» (${board.jobCode})`);
+    if (board.candidates.length === 0) {
+      lines.push('- Chưa có ứng viên đủ điểm cho tin này.');
+      lines.push('');
+      return;
+    }
+    for (const c of board.candidates) {
+      const where = c.applied ? 'Đã nộp hồ sơ' : 'Mạng lưới';
+      const pos = c.currentPosition ? `: ${c.currentPosition}` : '';
+      lines.push(`- ${c.displayName} (Phù hợp ${enginePct(c.match.score)}%)${pos}. ${where}.`);
+    }
+    lines.push('');
+  });
+  return lines.join('\n').trim();
+}
+
+const FIND_QUERY_NOISE = new Set([
+  'tin',
+  'dang',
+  'mo',
+  'viec',
+  'lam',
+  'nganh',
+  'luong',
+  'tai',
+]);

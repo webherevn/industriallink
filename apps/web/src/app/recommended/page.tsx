@@ -28,7 +28,7 @@ import {
   type JobMatchView,
 } from '@industriallink/contracts';
 import { plainLabel } from '@/lib/plain-label';
-import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
+import { locationMatchesProvince } from '@/lib/profile-province';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
@@ -194,7 +194,7 @@ export default function RecommendedPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [sort, setSort] = useState<RecommendSort>('newest');
-  const [byPlace, setByPlace] = useState(false);
+  const [place, setPlace] = useState('');
   const [page, setPage] = useState(1);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -259,10 +259,17 @@ export default function RecommendedPage() {
     [allJobs],
   );
 
-  const provinces = useMemo(
-    () => profileProvinces(candidate?.profile?.sales?.desiredLocations),
-    [candidate],
-  );
+  const places = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const raw of candidate?.profile?.sales?.desiredLocations ?? []) {
+      const name = raw.trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      list.push(name);
+    }
+    return list;
+  }, [candidate]);
 
   const filtered = useMemo(() => {
     const rows =
@@ -273,8 +280,8 @@ export default function RecommendedPage() {
           : filter === 'new'
             ? newJobs
             : allJobs;
-    const located = byPlace
-      ? rows.filter((job) => locationMatchesProfile(job.location, provinces))
+    const located = place
+      ? rows.filter((job) => locationMatchesProvince(job.location, place))
       : rows;
     return located.slice().sort((a, b) => {
       if (sort === 'salary') {
@@ -285,7 +292,7 @@ export default function RecommendedPage() {
       }
       return recommendPosted(b) - recommendPosted(a);
     });
-  }, [filter, sort, byPlace, provinces, allJobs, highJobs, mediumJobs, newJobs]);
+  }, [filter, sort, place, allJobs, highJobs, mediumJobs, newJobs]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -448,28 +455,39 @@ export default function RecommendedPage() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <select
-                value={byPlace ? 'place' : sort}
+                value={sort}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value === 'place') {
-                    setByPlace(true);
-                    setSort('newest');
-                  } else {
-                    setByPlace(false);
-                    setSort(value === 'salary' ? 'salary' : value === 'score' ? 'score' : 'newest');
-                  }
+                  setSort(value === 'salary' ? 'salary' : value === 'score' ? 'score' : 'newest');
                   setPage(1);
                 }}
-                aria-label="Sắp xếp và lọc gợi ý"
+                aria-label="Sắp xếp gợi ý"
                 className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none"
               >
                 <option value="newest">Mới nhất</option>
                 <option value="salary">Lương cao nhất</option>
                 <option value="score">Điểm cao nhất</option>
-                <option value="place">Địa điểm</option>
               </select>
+              {places.length > 0 && (
+                <select
+                  value={places.includes(place) ? place : ''}
+                  onChange={(e) => {
+                    setPlace(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Địa điểm"
+                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 outline-none"
+                >
+                  <option value="">Địa điểm</option>
+                  {places.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <Link
                 href="/profile/edit"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-amber-600"

@@ -205,6 +205,7 @@ model User {
   refreshTokens          RefreshToken[]
   companyMemberships     CompanyMember[]
   connectionRequests     CandidateConnection[] @relation("ConnectionRequester")
+  connectionMessages     ConnectionMessage[]   @relation("ConnectionMessageSender")
   shortlistSaves         CandidateShortlist[]  @relation("ShortlistSaver")
 
   @@index([tenantId])
@@ -593,18 +594,37 @@ model CandidateConnection {
   status           String    @default("pending")
   message          String?
   respondedAt      DateTime? @map("responded_at")
+  candidateReadAt  DateTime? @map("candidate_read_at")
+  companyReadAt    DateTime? @map("company_read_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  requester User      @relation("ConnectionRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidate Candidate           @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  requester User                @relation("ConnectionRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  messages  ConnectionMessage[]
 
   @@unique([companyId, candidateId])
   @@index([candidateId, status])
   @@index([companyId, status])
   @@index([tenantId])
   @@map("candidate_connection")
+  @@schema("candidate")
+}
+
+/// Tin nhắn sau khi kết nối đã được chấp nhận.
+model ConnectionMessage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connectionId String   @map("connection_id") @db.Uuid
+  senderUserId String   @map("sender_user_id") @db.Uuid
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  connection CandidateConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  sender     User                @relation("ConnectionMessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, createdAt])
+  @@map("connection_message")
   @@schema("candidate")
 }
 

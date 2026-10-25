@@ -44,7 +44,7 @@ import { CvPreview } from '@/components/cv-preview';
 import { CvTechnicalFields } from '@/components/cv-technical-fields';
 import { CvTechnicalExperienceFields } from '@/components/cv-technical-experience-fields';
 import { CvTrackToggle } from '@/components/cv-track-toggle';
-import { CvFormAccordion, useCvSectionProps } from '@/components/cv-form-accordion';
+import { CvFormAccordion, useCvSectionProps, useOpenCvSection } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
@@ -72,6 +72,7 @@ import {
   matrixCriteriaHints,
   mergeCvDrafts,
 } from '@/lib/cv-from-profile';
+import { criteriaAnchorId, criteriaPlace, scrollToCriteria } from '@/lib/criteria-jump';
 import {
   CV_CREATE_STEPS,
   CV_INDUSTRY_FILTERS,
@@ -181,6 +182,7 @@ export default function CreateCvPage() {
 function CreateCvEditor() {
   const queryClient = useQueryClient();
   const sectionA = useCvSectionProps('A');
+  const revealSection = useOpenCvSection();
   const [step, setStep] = useState(1);
   const [rawText, setRawText] = useState('');
   const [uploadedName, setUploadedName] = useState<string | null>(null);
@@ -195,6 +197,7 @@ function CreateCvEditor() {
   const [selectedId, setSelectedId] = useState(CV_TEMPLATES[0].id);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   const [draft, setDraft] = useState<CvDraft | null>(null);
+  const [jump, setJump] = useState<{ key: string; n: number } | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -451,6 +454,18 @@ function CreateCvEditor() {
     scrollPageTop();
   }
 
+  function jumpToGap(gap: CvDraftFieldHint) {
+    const place = criteriaPlace(gap.key, activeDraft.jobTrack);
+    if (step !== 1) setStep(1);
+    if (!activeDraft.jobTrack && place.cvSection !== 'A') {
+      scrollToCriteria('jobTrack');
+      return;
+    }
+    revealSection(place.cvSection);
+    setJump({ key: gap.key, n: Date.now() });
+    scrollToCriteria(gap.key);
+  }
+
   function goToTemplates() {
     if (!draft) setDraft(activeDraft);
     goToStep(2);
@@ -697,6 +712,7 @@ function CreateCvEditor() {
                         filledCount={filledFields.length}
                         totalCount={criteriaHints.length}
                         gaps={criteriaGaps}
+                        onGapClick={jumpToGap}
                       />
                     </div>
                   )}
@@ -737,8 +753,14 @@ function CreateCvEditor() {
                       <ul className="mt-2 space-y-1.5">
                         {[...missingFields, ...weakFields].map((f) => (
                           <li key={f.key} className="text-xs text-amber-900/90">
-                            <span className="font-semibold">{f.label}</span>
-                            <span className="text-amber-700"> — {f.suggestion}</span>
+                            <button
+                              type="button"
+                              onClick={() => jumpToGap(f)}
+                              className="text-left hover:underline"
+                            >
+                              <span className="font-semibold text-brand-800">{f.label}</span>
+                              <span className="text-amber-700"> — {f.suggestion}</span>
+                            </button>
                           </li>
                         ))}
                       </ul>
@@ -832,12 +854,13 @@ function CreateCvEditor() {
                   >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field
+                      anchor={criteriaAnchorId('fullName')}
                       label="1. Họ và tên"
                       value={activeDraft.fullName}
                       onChange={(v) => updateDraft('fullName', v)}
                       hint={liveFields.find((f) => f.key === 'fullName')}
                     />
-                    <label className="block">
+                    <label id={criteriaAnchorId('birthYear')} className="block scroll-mt-28">
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                         <NumberedTitle text="2. Năm sinh" />
                         <FieldStatusDot hint={liveFields.find((f) => f.key === 'birthYear')} />
@@ -851,12 +874,14 @@ function CreateCvEditor() {
                       />
                     </label>
                     <Field
+                      anchor={criteriaAnchorId('phone')}
                       label="3. Số điện thoại"
                       value={activeDraft.phone}
                       onChange={(v) => updateDraft('phone', v)}
                       hint={liveFields.find((f) => f.key === 'phone')}
                     />
                     <Field
+                      anchor={criteriaAnchorId('email')}
                       label="4. Email"
                       value={activeDraft.email}
                       onChange={(v) => updateDraft('email', v)}
@@ -864,7 +889,7 @@ function CreateCvEditor() {
                     />
                   </div>
 
-                  <div>
+                  <div id={criteriaAnchorId('location')} className="scroll-mt-28">
                     <NumberedFieldLabel
                       title="5. Nơi đang sinh sống"
                       description="Địa chỉ hành chính mới từ 01/7/2025"
@@ -882,7 +907,7 @@ function CreateCvEditor() {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block">
+                    <label id={criteriaAnchorId('educationLevel')} className="block scroll-mt-28">
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                         <NumberedTitle text="6. Trình độ học vấn" />
                         <FieldStatusDot
@@ -905,6 +930,7 @@ function CreateCvEditor() {
                       </select>
                     </label>
                     <Field
+                      anchor={criteriaAnchorId('education')}
                       label="7. Trường học"
                       value={activeDraft.education[0]?.school ?? ''}
                       onChange={(v) =>
@@ -922,6 +948,7 @@ function CreateCvEditor() {
                       hint={liveFields.find((f) => f.key === 'education')}
                     />
                     <Field
+                      anchor={criteriaAnchorId('educationMajor')}
                       label="8. Chuyên ngành"
                       value={
                         activeDraft.educationMajor ||
@@ -952,6 +979,7 @@ function CreateCvEditor() {
                       }}
                     />
                     <CsvField
+                      anchor={criteriaAnchorId('certificates')}
                       label="9. Chứng chỉ (phẩy)"
                       values={activeDraft.certificates}
                       onChange={(v) => updateDraft('certificates', v)}
@@ -959,7 +987,7 @@ function CreateCvEditor() {
                     />
                   </div>
 
-                  <div>
+                  <div id={criteriaAnchorId('languages')} className="scroll-mt-28">
                     <NumberedFieldLabel
                       title="10. Ngoại ngữ"
                       extra={<FieldStatusDot hint={liveFields.find((f) => f.key === 'languages')} />}
@@ -978,7 +1006,7 @@ function CreateCvEditor() {
                     />
                   </div>
 
-                  <div>
+                  <div id={criteriaAnchorId('driversLicense')} className="scroll-mt-28">
                     <NumberedFieldLabel
                       title="11. Giấy phép lái xe"
                       extra={
@@ -1036,7 +1064,7 @@ function CreateCvEditor() {
                     </div>
                   </div>
 
-                  <label className="block">
+                  <label id={criteriaAnchorId('travel')} className="block scroll-mt-28">
                     <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                       <NumberedTitle text="12. Khả năng đi công tác" />
                       <FieldStatusDot hint={liveFields.find((f) => f.key === 'travel')} />
@@ -1057,6 +1085,7 @@ function CreateCvEditor() {
                   </label>
                   </MatrixSection>
 
+                  <div id={criteriaAnchorId('jobTrack')} className="scroll-mt-28">
                   <CvTrackToggle
                     value={activeDraft.jobTrack}
                     onChange={(track) => {
@@ -1075,6 +1104,7 @@ function CreateCvEditor() {
                       }
                     }}
                   />
+                  </div>
 
                   {activeDraft.jobTrack === 'sales' ? (
                     <>
@@ -1095,6 +1125,7 @@ function CreateCvEditor() {
                         draft={activeDraft}
                         onChange={updateDraft}
                         hint={liveFields.find((f) => f.key === 'experience')}
+                        jump={jump}
                       />
                     </>
                   ) : activeDraft.jobTrack === 'technical' ? (
@@ -1112,6 +1143,7 @@ function CreateCvEditor() {
                       />
 
                       <CvTechnicalExperienceFields
+                        jump={jump}
                         draft={activeDraft}
                         onChange={updateDraft}
                         hint={liveFields.find((f) => f.key === 'experience')}
@@ -1366,6 +1398,7 @@ function CreateCvEditor() {
                   totalCount={criteriaHints.length}
                   gaps={criteriaGaps}
                   maxGaps={3}
+                  onGapClick={jumpToGap}
                 />
               </div>
             )}
@@ -1568,11 +1601,13 @@ function CsvField({
   values,
   onChange,
   hint,
+  anchor,
 }: {
   label: string;
   values: string[];
   onChange: (next: string[]) => void;
   hint?: CvDraftFieldHint;
+  anchor?: string;
 }) {
   const [text, setText] = useState(() => values.join(', '));
   const focusedRef = useRef(false);
@@ -1585,7 +1620,7 @@ function CsvField({
   }, [valuesKey, values]);
 
   return (
-    <label className="block">
+    <label id={anchor} className="block scroll-mt-28">
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
         <NumberedTitle text={label} />
         <FieldStatusDot hint={hint} />
@@ -1625,14 +1660,16 @@ function Field({
   value,
   onChange,
   hint,
+  anchor,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hint?: CvDraftFieldHint;
+  anchor?: string;
 }) {
   return (
-    <label className="block">
+    <label id={anchor} className="block scroll-mt-28">
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
         <NumberedTitle text={label} />
         <FieldStatusDot hint={hint} />

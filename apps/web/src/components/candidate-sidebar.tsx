@@ -15,6 +15,7 @@ import {
   Settings2,
   Sparkles,
   Target,
+  UserPlus,
   UserRound,
   Users,
   type LucideIcon,
@@ -222,6 +223,12 @@ export function CandidateSidebar({
               href="/progress#offers"
               label="Đề nghị làm việc"
               icon={Gift}
+              active={false}
+            />
+            <NavItem
+              href="/progress#onboarding"
+              label="Quá trình nhận việc"
+              icon={UserPlus}
               active={false}
             />
           </nav>

@@ -9,6 +9,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { NotificationModule } from '../notification/notification.module';
 import { CandidateController } from './candidate.controller';
 import { CandidateService } from './candidate.service';
+import { ConnectionChatService } from './connection-chat.service';
 import { CompanySuggestService } from './company-suggest.service';
 import { resumeParseQueueProvider } from './resume/resume-parse.queue';
 import { ResumeParseService } from './resume/resume-parse.service';
@@ -23,6 +24,7 @@ import { ResumeParseWorker } from './resume/resume-parse.worker';
   controllers: [CandidateController],
   providers: [
     CandidateService,
+    ConnectionChatService,
     CompanySuggestService,
     ResumeParseService,
     ResumeParseWorker,

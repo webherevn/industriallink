@@ -20,6 +20,7 @@ import {
   MapPin,
   Settings2,
   Sparkles,
+  Send,
   Target,
   UserPlus,
   UserRound,
@@ -502,6 +503,7 @@ export default function ProgressPage() {
               <nav className="space-y-0.5">
                 <NavItem href="/applications" label="Đơn ứng tuyển" icon={ClipboardList} />
                 <NavItem href="/progress" label="Tiến trình" icon={Target} active />
+                <NavItem href="/viec-lam?tab=applied" label="Việc đã ứng tuyển" icon={Send} />
                 <NavItem href="/progress#interviews" label="Lịch phỏng vấn" icon={CalendarDays} />
                 <NavItem href="/progress#offers" label="Đề nghị làm việc" icon={Gift} />
                 <NavItem

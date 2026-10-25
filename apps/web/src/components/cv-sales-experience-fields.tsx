@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CUSTOMER_SEGMENTS,
   DEAL_TYPE_LABEL,
@@ -27,6 +27,7 @@ import { useCvSectionProps } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { MoneyInput, MonthYearRangeFields } from '@/components/ui';
+import { criteriaAnchorId, criteriaPlace } from '@/lib/criteria-jump';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
 
 function suggestProducts(query: string) {
@@ -132,14 +133,16 @@ function SelectField({
   value,
   onChange,
   options,
+  id,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: readonly { value: string; label: string }[];
+  id?: string;
 }) {
   return (
-    <label className="block">
+    <label id={id} className="block scroll-mt-28">
       <span className="text-sm font-semibold text-slate-800">
         <NumberedTitle text={label} />
       </span>
@@ -204,10 +207,12 @@ export function CvSalesExperienceFields({
   draft,
   onChange,
   hint,
+  jump,
 }: {
   draft: CvDraft;
   onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
   hint?: CvDraftFieldHint;
+  jump?: { key: string; n: number } | null;
 }) {
   const dealTypeOptions = DEAL_TYPE_OPTIONS.map((v) => ({
     value: v as string,
@@ -216,7 +221,16 @@ export function CvSalesExperienceFields({
 
   const experiences = draft.experience.length ? draft.experience : [emptyCvExperience()];
   const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
+  const [deepOpen, setDeepOpen] = useState<Set<number>>(() => new Set());
   const sectionC = useCvSectionProps('C');
+
+  useEffect(() => {
+    if (!jump) return;
+    const place = criteriaPlace(jump.key, 'sales');
+    if (place.cvSection !== 'C') return;
+    setExpandedExp((prev) => new Set(prev).add(0));
+    if (place.deep) setDeepOpen((prev) => new Set(prev).add(0));
+  }, [jump]);
 
   function toggleExp(index: number, open: boolean) {
     setExpandedExp((prev) => {
@@ -294,7 +308,7 @@ export function CvSalesExperienceFields({
           >
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
+              <label id={index === 0 ? criteriaAnchorId('experience') : undefined} className="block scroll-mt-28">
                 <span className="text-sm font-semibold text-slate-800">
                   <NumberedTitle text="18. Tên công ty" />
                 </span>
@@ -305,7 +319,7 @@ export function CvSalesExperienceFields({
                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
                 />
               </label>
-              <label className="block">
+              <label id={index === 0 ? criteriaAnchorId('experienceRole') : undefined} className="block scroll-mt-28">
                 <span className="text-sm font-semibold text-slate-800">
                   <NumberedTitle text="19. Vị trí" />
                 </span>
@@ -321,7 +335,7 @@ export function CvSalesExperienceFields({
             {(() => {
               const parts = periodParts(exp.period);
               return (
-                <div>
+                <div id={index === 0 ? criteriaAnchorId('experiencePeriod') : undefined} className="scroll-mt-28">
                   <NumberedFieldLabel title="20. Thời gian làm việc" />
                   <MonthYearRangeFields
                     start={parts.start}
@@ -347,7 +361,7 @@ export function CvSalesExperienceFields({
               );
             })()}
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('industries') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="21. Ngành / lĩnh vực"
                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
@@ -361,7 +375,7 @@ export function CvSalesExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('products') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="22. Sản phẩm / thiết bị đã bán"
                 description={PRODUCTS_SOLD_QUESTION}
@@ -376,7 +390,7 @@ export function CvSalesExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('segments') : undefined} className="scroll-mt-28">
               <FieldLabel title="23. Nhóm khách hàng đã bán" />
               <MultiCheck
                 options={CUSTOMER_SEGMENTS}
@@ -386,7 +400,7 @@ export function CvSalesExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('dealType') : undefined} className="scroll-mt-28">
               <FieldLabel title="24. Giải pháp sản phẩm" />
               <MultiCheck
                 options={dealTypeOptions.map((o) => o.label)}
@@ -401,7 +415,7 @@ export function CvSalesExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('sellingStages') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="25. Phạm vi công việc bán hàng đã phụ trách"
                 description={SELLING_STAGES_QUESTION}
@@ -446,8 +460,17 @@ export function CvSalesExperienceFields({
               variant="hot"
               title="Thông tin bán hàng chuyên sâu (26-32)"
               subtitle="Bổ sung để hoàn thành hồ sơ — không phải điểm matching JD."
+              open={deepOpen.has(index)}
+              onOpenChange={(open) =>
+                setDeepOpen((prev) => {
+                  const next = new Set(prev);
+                  if (open) next.add(index);
+                  else next.delete(index);
+                  return next;
+                })
+              }
             >
-                <div>
+                <div id={index === 0 ? criteriaAnchorId('brands') : undefined} className="scroll-mt-28">
                   <FieldLabel
                     title="26. Hãng / thương hiệu sản phẩm"
                     description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
@@ -459,7 +482,7 @@ export function CvSalesExperienceFields({
                     }
                   />
                 </div>
-                <div>
+                <div id={index === 0 ? criteriaAnchorId('markets') : undefined} className="scroll-mt-28">
                   <FieldLabel title="27. Khu vực / thị trường phụ trách" />
                   <MultiCheck
                     options={MARKET_REGIONS}
@@ -469,7 +492,7 @@ export function CvSalesExperienceFields({
                   />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
+                  <label id={index === 0 ? criteriaAnchorId('revenue') : undefined} className="block scroll-mt-28">
                     <span className="text-sm font-semibold text-slate-800">
                       <NumberedTitle text={`28. ${PERSONAL_REVENUE_QUESTION}`} />
                     </span>
@@ -486,6 +509,7 @@ export function CvSalesExperienceFields({
                     </div>
                   </label>
                   <SelectField
+                    id={index === 0 ? criteriaAnchorId('kpi') : undefined}
                     label="29. Mức độ hoàn thành KPI"
                     value={pctToKpiBand(exp.kpiAchievementPct)}
                     onChange={(v) => {
@@ -500,6 +524,7 @@ export function CvSalesExperienceFields({
                     }))}
                   />
                   <SelectField
+                    id={index === 0 ? criteriaAnchorId('newCustomerRatio') : undefined}
                     label="30. Tỷ lệ khách hàng tự tìm kiếm"
                     value={pctToNewCustomerBand(exp.newCustomerRatioPct)}
                     onChange={(v) => {
@@ -514,6 +539,7 @@ export function CvSalesExperienceFields({
                     }))}
                   />
                   <SelectField
+                    id={index === 0 ? criteriaAnchorId('dealValue') : undefined}
                     label="31. Giá trị hợp đồng thường gặp"
                     value={vndToDealValueBand(exp.typicalDealValue)}
                     onChange={(v) => {
@@ -528,7 +554,7 @@ export function CvSalesExperienceFields({
                     }))}
                   />
                 </div>
-                <label className="block">
+                <label id={index === 0 ? criteriaAnchorId('salesHighlights') : undefined} className="block scroll-mt-28">
                   <span className="text-sm font-semibold text-slate-800">
                     <NumberedTitle text="32. Thành tích kinh doanh nổi bật tại công ty này?" />
                   </span>

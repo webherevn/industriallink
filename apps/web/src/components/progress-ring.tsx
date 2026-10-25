@@ -2,6 +2,7 @@
 
 import clsx from 'clsx';
 import { Check, Circle, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 import type { CvDraftFieldHint } from '@industriallink/contracts';
 
 export function ProgressRing({ percent }: { percent: number }) {
@@ -40,6 +41,7 @@ export function CriteriaCompletionCard({
   totalCount,
   gaps,
   maxGaps = 5,
+  onGapClick,
 }: {
   title: string;
   percent: number;
@@ -47,8 +49,11 @@ export function CriteriaCompletionCard({
   totalCount: number;
   gaps: CvDraftFieldHint[];
   maxGaps?: number;
+  /** Bấm một mục thiếu để mở đúng ô cần điền. */
+  onGapClick?: (gap: CvDraftFieldHint) => void;
 }) {
-  const shown = gaps.slice(0, maxGaps);
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? gaps : gaps.slice(0, maxGaps);
   const safe = Math.max(0, Math.min(100, percent));
   const remaining = Math.max(0, totalCount - filledCount);
   const done = filledCount >= totalCount;
@@ -88,23 +93,57 @@ export function CriteriaCompletionCard({
           {shown.length > 0 ? (
             <ul className="space-y-1.5">
               {shown.map((f) => (
-                <li key={f.key} className="flex items-start gap-2">
-                  <span
-                    className={clsx(
-                      'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
-                      'bg-rose-50 text-rose-500 ring-1 ring-rose-200/80',
-                    )}
-                  >
-                    <Circle className="h-2.5 w-2.5 fill-current" />
-                  </span>
-                  <span className="text-[13px] font-medium text-slate-700 line-clamp-1">
-                    {f.label}
-                  </span>
+                <li key={f.key}>
+                  {onGapClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onGapClick(f)}
+                      className="flex w-full items-start gap-2 rounded-md text-left transition hover:bg-rose-50/80"
+                    >
+                      <span
+                        className={clsx(
+                          'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
+                          'bg-rose-50 text-rose-500 ring-1 ring-rose-200/80',
+                        )}
+                      >
+                        <Circle className="h-2.5 w-2.5 fill-current" />
+                      </span>
+                      <span className="text-[13px] font-medium text-brand-700 underline-offset-2 line-clamp-1 hover:underline">
+                        {f.label}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <span
+                        className={clsx(
+                          'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
+                          'bg-rose-50 text-rose-500 ring-1 ring-rose-200/80',
+                        )}
+                      >
+                        <Circle className="h-2.5 w-2.5 fill-current" />
+                      </span>
+                      <span className="text-[13px] font-medium text-slate-700 line-clamp-1">
+                        {f.label}
+                      </span>
+                    </div>
+                  )}
                 </li>
               ))}
               {gaps.length > maxGaps && (
-                <li className="text-xs font-medium text-slate-400 pl-7">
-                  +{gaps.length - maxGaps} mục khác
+                <li className="pl-7">
+                  {onGapClick ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAll((v) => !v)}
+                      className="text-xs font-medium text-brand-600 underline-offset-2 hover:underline"
+                    >
+                      {showAll ? 'Thu gọn' : `+${gaps.length - maxGaps} mục khác`}
+                    </button>
+                  ) : (
+                    <span className="text-xs font-medium text-slate-400">
+                      +{gaps.length - maxGaps} mục khác
+                    </span>
+                  )}
                 </li>
               )}
             </ul>

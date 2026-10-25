@@ -113,6 +113,10 @@ body {
   animation: copilot-answer-in 0.35s ease-out both;
 }
 
+.chat-pop {
+  animation: copilot-answer-in 0.22s ease-out both;
+}
+
 /* Badge Hot — nhấp nháy nổi bật */
 @keyframes hot-badge {
   0%,

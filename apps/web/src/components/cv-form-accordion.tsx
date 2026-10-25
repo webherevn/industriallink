@@ -8,6 +8,7 @@ export type CvSectionKey = 'A' | 'B' | 'C' | 'D' | 'ref';
 const CvAccordionContext = createContext<{
   open: CvSectionKey | null;
   toggle: (key: CvSectionKey) => void;
+  reveal: (key: CvSectionKey) => void;
 } | null>(null);
 
 export function CvFormAccordion({ children }: { children: ReactNode }) {
@@ -15,7 +16,18 @@ export function CvFormAccordion({ children }: { children: ReactNode }) {
   const toggle = useCallback((key: CvSectionKey) => {
     setOpen((prev) => (prev === key ? null : key));
   }, []);
-  return <CvAccordionContext.Provider value={{ open, toggle }}>{children}</CvAccordionContext.Provider>;
+  const reveal = useCallback((key: CvSectionKey) => {
+    setOpen(key);
+  }, []);
+  return (
+    <CvAccordionContext.Provider value={{ open, toggle, reveal }}>{children}</CvAccordionContext.Provider>
+  );
+}
+
+/** Mở một khối trên trang tạo CV (từ danh sách mục còn thiếu). */
+export function useOpenCvSection() {
+  const ctx = useContext(CvAccordionContext);
+  return ctx?.reveal ?? (() => {});
 }
 
 /** Props cho MatrixSection. Ngoài trang tạo CV thì trả về rỗng, mỗi khối tự mở/đóng. */

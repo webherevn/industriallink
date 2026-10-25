@@ -120,6 +120,7 @@ import {
   fieldHintsFromDraft,
   matrixCriteriaHints,
 } from '@/lib/cv-from-profile';
+import { criteriaAnchorId, criteriaPlace, scrollToCriteria } from '@/lib/criteria-jump';
 import { emptyCvDraft, type CvDraft } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
 
@@ -1062,6 +1063,7 @@ export default function ProfileEditPage() {
   const [hydrated, setHydrated] = useState(false);
   const [cvEntry, setCvEntry] = useState(false);
   const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
+  const [deepOpen, setDeepOpen] = useState<Set<number>>(() => new Set());
 
   const missingProfile =
     isError && error instanceof ApiError && error.status === 404;
@@ -1347,6 +1349,32 @@ export default function ProfileEditPage() {
     scrollPageTop();
   }
 
+  function jumpToGap(gap: { key: string }) {
+    const place = criteriaPlace(gap.key, trackExtras.jobTrack);
+    if (!trackExtras.jobTrack && place.profileStep > 2) {
+      setStep(2);
+      scrollToCriteria('jobTrack');
+      return;
+    }
+    setStep(place.profileStep);
+    if (place.profileStep === 5) {
+      setExpandedExp((prev) => new Set(prev).add(0));
+    }
+    if (place.deep) {
+      setDeepOpen((prev) => new Set(prev).add(0));
+    }
+    scrollToCriteria(gap.key);
+  }
+
+  function toggleDeep(index: number, open: boolean) {
+    setDeepOpen((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  }
+
   const sidebarName =
     form.displayName.trim() || candidate?.displayName || me?.displayName || 'Ứng viên';
 
@@ -1393,6 +1421,7 @@ export default function ProfileEditPage() {
               filledCount={filledCriteria.length}
               totalCount={criteriaHints.length}
               gaps={criteriaGaps}
+              onGapClick={jumpToGap}
             />
 
             <nav className="overflow-x-auto">
@@ -1457,7 +1486,7 @@ export default function ProfileEditPage() {
                   }
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="1. Họ và tên *">
+                    <Field id={criteriaAnchorId('fullName')} label="1. Họ và tên *">
                       <Input
                         value={form.displayName}
                         onChange={(e) => patch('displayName', e.target.value)}
@@ -1465,13 +1494,13 @@ export default function ProfileEditPage() {
                         required
                       />
                     </Field>
-                    <Field label="2. Năm sinh">
+                    <Field id={criteriaAnchorId('birthYear')} label="2. Năm sinh">
                       <YearInput
                         value={form.birthYear}
                         onChange={(v) => patch('birthYear', v)}
                       />
                     </Field>
-                    <Field label="3. Số điện thoại *">
+                    <Field id={criteriaAnchorId('phone')} label="3. Số điện thoại *">
                       <Input
                         value={form.phone}
                         onChange={(e) => patch('phone', e.target.value)}
@@ -1479,14 +1508,14 @@ export default function ProfileEditPage() {
                         required
                       />
                     </Field>
-                    <Field label="4. Email *">
+                    <Field id={criteriaAnchorId('email')} label="4. Email *">
                       <Input value={me?.email ?? ''} disabled readOnly />
                       <p className="mt-1 text-[11px] text-slate-400">
                         Email tài khoản — đổi tại trang Tài khoản.
                       </p>
                     </Field>
                   </div>
-                  <div>
+                  <div id={criteriaAnchorId('location')} className="scroll-mt-28">
                     <NumberedFieldLabel
                       title="5. Nơi đang sinh sống *"
                       description="Địa chỉ hành chính mới từ 01/7/2025"
@@ -1503,7 +1532,7 @@ export default function ProfileEditPage() {
                     />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="6. Trình độ học vấn">
+                    <Field id={criteriaAnchorId('educationLevel')} label="6. Trình độ học vấn">
                       <Select
                         value={form.educationLevel}
                         onChange={(e) => patch('educationLevel', e.target.value)}
@@ -1516,14 +1545,14 @@ export default function ProfileEditPage() {
                         ))}
                       </Select>
                     </Field>
-                    <Field label="7. Trường học">
+                    <Field id={criteriaAnchorId('education')} label="7. Trường học">
                       <Input
                         value={form.educationSchool}
                         onChange={(e) => patch('educationSchool', e.target.value)}
                         placeholder="Anh/chị học trường nào?"
                       />
                     </Field>
-                    <Field label="8. Chuyên ngành">
+                    <Field id={criteriaAnchorId('educationMajor')} label="8. Chuyên ngành">
                       <Input
                         value={form.educationMajor}
                         onChange={(e) => patch('educationMajor', e.target.value)}
@@ -1531,14 +1560,14 @@ export default function ProfileEditPage() {
                       />
                     </Field>
                   </div>
-                  <Field label="9. Chứng chỉ / chứng nhận chuyên môn (cách nhau bằng dấu phẩy)">
+                  <Field id={criteriaAnchorId('certificates')} label="9. Chứng chỉ / chứng nhận chuyên môn (cách nhau bằng dấu phẩy)">
                     <Input
                       value={form.certificates}
                       onChange={(e) => patch('certificates', e.target.value)}
                       placeholder="VD: ISO 9001, An toàn lao động..."
                     />
                   </Field>
-                  <Field label="10. Ngoại ngữ sử dụng trong công việc">
+                  <Field id={criteriaAnchorId('languages')} label="10. Ngoại ngữ sử dụng trong công việc">
                     <LanguageSkillsFields
                       languages={form.languages}
                       languageSkills={form.languageSkills}
@@ -1548,6 +1577,7 @@ export default function ProfileEditPage() {
                     />
                   </Field>
                   <Field
+                    id={criteriaAnchorId('driversLicense')}
                     label="11. Giấy phép lái xe"
                     description={DRIVER_LICENSE_QUESTION}
                   >
@@ -1577,6 +1607,7 @@ export default function ProfileEditPage() {
                     </div>
                   </Field>
                   <Field
+                    id={criteriaAnchorId('travel')}
                     label="12. Khả năng đi công tác *"
                     description={TRAVEL_ABILITY_QUESTION}
                   >
@@ -1597,7 +1628,7 @@ export default function ProfileEditPage() {
               )}
 
               {step === 2 && (
-                <>
+                <div id={criteriaAnchorId('jobTrack')} className="space-y-5 scroll-mt-28">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900">
                       Chọn hướng hồ sơ *
@@ -1655,7 +1686,7 @@ export default function ProfileEditPage() {
                       );
                     })}
                   </div>
-                </>
+                </div>
               )}
 
               {step === 3 && (
@@ -1676,6 +1707,7 @@ export default function ProfileEditPage() {
                     <>
                       {isSales ? (
                         <Field
+                          id={criteriaAnchorId('desiredPositions')}
                           label="13. Vị trí ứng tuyển *"
                           description={DESIRED_POSITION_QUESTION}
                         >
@@ -1691,6 +1723,7 @@ export default function ProfileEditPage() {
                         </Field>
                       ) : (
                         <Field
+                          id={criteriaAnchorId('desiredPositions')}
                           label="13. Vị trí ứng tuyển *"
                           description={TECHNICAL_POSITION_QUESTION}
                         >
@@ -1707,6 +1740,7 @@ export default function ProfileEditPage() {
                         </Field>
                       )}
                       <Field
+                        id={criteriaAnchorId('desiredLocations')}
                         label="14. Địa điểm mong muốn làm việc *"
                         description="Anh/chị có thể làm việc ở đâu?"
                       >
@@ -1718,6 +1752,7 @@ export default function ProfileEditPage() {
                         />
                       </Field>
                       <Field
+                        id={criteriaAnchorId('expectedSalary')}
                         label={`15. ${EXPECTED_INCOME_TITLE} *`}
                         description={EXPECTED_INCOME_QUESTION}
                       >
@@ -1745,6 +1780,7 @@ export default function ProfileEditPage() {
                         </div>
                       </Field>
                       <Field
+                        id={criteriaAnchorId('availability')}
                         label="16. Thời gian có thể nhận việc *"
                         description={AVAILABILITY_QUESTION}
                       >
@@ -1761,7 +1797,7 @@ export default function ProfileEditPage() {
                         </Select>
                       </Field>
                       {isSales && (
-                        <div className="space-y-3">
+                        <div id={criteriaAnchorId('careerOrientations')} className="scroll-mt-28 space-y-3">
                           <div>
                             <NumberedFieldLabel
                               title="17. Định hướng nghề nghiệp"
@@ -1798,6 +1834,7 @@ export default function ProfileEditPage() {
                   {isTechnical && (
                     <>
                       <Field
+                        id={criteriaAnchorId('shiftFlexibility')}
                         label="17. Khả năng làm ngoài giờ"
                         description={SHIFT_FLEXIBILITY_QUESTION}
                       >
@@ -1819,6 +1856,7 @@ export default function ProfileEditPage() {
                         />
                       </Field>
                       <Field
+                        id={criteriaAnchorId('technicalTools')}
                         label="18. Phần mềm & công cụ đã sử dụng"
                         description={TECHNICAL_TOOLS_QUESTION}
                       >
@@ -1832,6 +1870,7 @@ export default function ProfileEditPage() {
                         />
                       </Field>
                       <Field
+                        id={criteriaAnchorId('documentLiteracy')}
                         label="19. Đọc bản vẽ / tài liệu"
                         description={DOCUMENT_LITERACY_QUESTION}
                       >
@@ -2085,7 +2124,7 @@ export default function ProfileEditPage() {
                             >
 
                               <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label="20. Tên công ty *">
+                                <Field id={index === 0 ? criteriaAnchorId('experience') : undefined} label="20. Tên công ty *">
                                   <Input
                                     value={exp.companyName}
                                     onChange={(e) =>
@@ -2094,14 +2133,14 @@ export default function ProfileEditPage() {
                                     placeholder="Anh/chị từng làm việc tại công ty nào?"
                                   />
                                 </Field>
-                                <Field label="21. Vị trí *">
+                                <Field id={index === 0 ? criteriaAnchorId('experienceRole') : undefined} label="21. Vị trí *">
                                   <TechnicalPositionSelect
                                     value={exp.jobTitle}
                                     onChange={(jobTitle) => patchExperience(index, { jobTitle })}
                                   />
                                 </Field>
                               </div>
-                              <Field label="22. Thời gian làm việc *">
+                              <Field id={index === 0 ? criteriaAnchorId('experiencePeriod') : undefined} label="22. Thời gian làm việc *">
                                 <MonthYearRangeFields
                                   start={exp.startYear}
                                   end={exp.endYear}
@@ -2122,6 +2161,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('industries') : undefined}
                                 label="23. Lĩnh vực đã làm *"
                                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
                               >
@@ -2135,6 +2175,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('products') : undefined}
                                 label="24. Thiết bị / hệ thống đã làm *"
                                 description={EQUIPMENT_SYSTEM_QUESTION}
                               >
@@ -2148,6 +2189,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('segments') : undefined}
                                 label="25. Môi trường làm việc thực tế *"
                                 description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
                               >
@@ -2162,6 +2204,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('technicalWorkTypes') : undefined}
                                 label="26. Công việc kỹ thuật đã thực hiện *"
                                 description={TECHNICAL_WORK_TYPES_QUESTION}
                               >
@@ -2174,6 +2217,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('technicalAutonomyLevel') : undefined}
                                 label="27. Mức độ tự chủ"
                                 description={TECHNICAL_AUTONOMY_QUESTION}
                               >
@@ -2197,6 +2241,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('salesHighlights') : undefined}
                                 label="28. Thành tích/dự án nổi bật"
                                 description={TECHNICAL_HIGHLIGHTS_QUESTION}
                               >
@@ -2264,7 +2309,7 @@ export default function ProfileEditPage() {
                               }
                             >
                               <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label="18. Tên công ty *">
+                                <Field id={index === 0 ? criteriaAnchorId('experience') : undefined} label="18. Tên công ty *">
                                   <Input
                                     value={exp.companyName}
                                     onChange={(e) =>
@@ -2273,7 +2318,7 @@ export default function ProfileEditPage() {
                                     placeholder="Anh/chị từng làm việc tại công ty nào?"
                                   />
                                 </Field>
-                                <Field label="19. Vị trí *">
+                                <Field id={index === 0 ? criteriaAnchorId('experienceRole') : undefined} label="19. Vị trí *">
                                   <Select
                                     value={exp.jobTitle}
                                     onChange={(e) =>
@@ -2295,7 +2340,7 @@ export default function ProfileEditPage() {
                                   </Select>
                                 </Field>
                               </div>
-                              <Field label="20. Thời gian làm việc *">
+                              <Field id={index === 0 ? criteriaAnchorId('experiencePeriod') : undefined} label="20. Thời gian làm việc *">
                                 <MonthYearRangeFields
                                   start={exp.startYear}
                                   end={exp.endYear}
@@ -2316,6 +2361,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('industries') : undefined}
                                 label="21. Ngành / lĩnh vực *"
                                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
                               >
@@ -2329,6 +2375,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('products') : undefined}
                                 label="22. Sản phẩm / thiết bị đã bán *"
                                 description={PRODUCTS_SOLD_QUESTION}
                               >
@@ -2342,7 +2389,7 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label="23. Nhóm khách hàng đã bán *">
+                              <Field id={index === 0 ? criteriaAnchorId('segments') : undefined} label="23. Nhóm khách hàng đã bán *">
                                 <MultiCheck
                                   options={CUSTOMER_SEGMENTS}
                                   selected={exp.customerSegments}
@@ -2353,7 +2400,7 @@ export default function ProfileEditPage() {
                                 />
                               </Field>
 
-                              <Field label="24. Giải pháp sản phẩm *">
+                              <Field id={index === 0 ? criteriaAnchorId('dealType') : undefined} label="24. Giải pháp sản phẩm *">
                                 <MultiCheck
                                   options={DEAL_TYPE_CHECK_OPTIONS.map((o) => o.label)}
                                   selected={dealTypesSelected}
@@ -2374,6 +2421,7 @@ export default function ProfileEditPage() {
                               </Field>
 
                               <Field
+                                id={index === 0 ? criteriaAnchorId('sellingStages') : undefined}
                                 label="25. Phạm vi công việc bán hàng đã phụ trách"
                                 description={SELLING_STAGES_QUESTION}
                               >
@@ -2424,8 +2472,11 @@ export default function ProfileEditPage() {
                                 variant="hot"
                                 title="Thông tin bán hàng chuyên sâu (26-32)"
                                 subtitle="Bổ sung để hoàn thành hồ sơ — không phải điểm matching JD."
+                                open={deepOpen.has(index)}
+                                onOpenChange={(open) => toggleDeep(index, open)}
                               >
                                   <Field
+                                    id={index === 0 ? criteriaAnchorId('brands') : undefined}
                                     label="26. Hãng / thương hiệu sản phẩm"
                                     description="Anh/chị từng làm sản phẩm/thiết bị hãng nào?"
                                   >
@@ -2436,7 +2487,7 @@ export default function ProfileEditPage() {
                                       }
                                     />
                                   </Field>
-                                  <Field label="27. Khu vực / thị trường phụ trách">
+                                  <Field id={index === 0 ? criteriaAnchorId('markets') : undefined} label="27. Khu vực / thị trường phụ trách">
                                     <MultiCheck
                                       options={MARKET_REGIONS}
                                       selected={exp.marketsCovered}
@@ -2447,7 +2498,7 @@ export default function ProfileEditPage() {
                                     />
                                   </Field>
                                   <div className="grid gap-4 sm:grid-cols-2">
-                                    <Field label={`28. ${PERSONAL_REVENUE_QUESTION}`}>
+                                    <Field id={index === 0 ? criteriaAnchorId('revenue') : undefined} label={`28. ${PERSONAL_REVENUE_QUESTION}`}>
                                       <MoneyInput
                                         value={exp.latestRevenue}
                                         onChange={(v) =>
@@ -2457,7 +2508,7 @@ export default function ProfileEditPage() {
                                         hint={moneyHint(exp.latestRevenue)}
                                       />
                                     </Field>
-                                    <Field label="29. Mức độ hoàn thành KPI">
+                                    <Field id={index === 0 ? criteriaAnchorId('kpi') : undefined} label="29. Mức độ hoàn thành KPI">
                                       <Select
                                         value={exp.kpiBand}
                                         onChange={(e) =>
@@ -2472,7 +2523,7 @@ export default function ProfileEditPage() {
                                         ))}
                                       </Select>
                                     </Field>
-                                    <Field label="30. Tỷ lệ khách hàng tự tìm kiếm">
+                                    <Field id={index === 0 ? criteriaAnchorId('newCustomerRatio') : undefined} label="30. Tỷ lệ khách hàng tự tìm kiếm">
                                       <Select
                                         value={exp.newCustomerRatioBand}
                                         onChange={(e) =>
@@ -2489,7 +2540,7 @@ export default function ProfileEditPage() {
                                         ))}
                                       </Select>
                                     </Field>
-                                    <Field label="31. Giá trị hợp đồng thường gặp">
+                                    <Field id={index === 0 ? criteriaAnchorId('dealValue') : undefined} label="31. Giá trị hợp đồng thường gặp">
                                       <Select
                                         value={exp.typicalDealValueBand}
                                         onChange={(e) =>
@@ -2507,7 +2558,7 @@ export default function ProfileEditPage() {
                                       </Select>
                                     </Field>
                                   </div>
-                                  <Field label="32. Thành tích kinh doanh nổi bật tại công ty này?">
+                                  <Field id={index === 0 ? criteriaAnchorId('salesHighlights') : undefined} label="32. Thành tích kinh doanh nổi bật tại công ty này?">
                                     <Textarea
                                       rows={3}
                                       value={exp.highlights}

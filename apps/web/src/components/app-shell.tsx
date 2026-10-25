@@ -24,6 +24,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { UserRole } from '@industriallink/contracts';
 import { BrandLogo } from '@/components/brand-logo';
+import { ConnectionChat } from '@/components/connection-chat';
 import { NotificationBell } from '@/components/notification-bell';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { PublicHeader } from '@/components/public-header';
@@ -427,6 +428,7 @@ export function AppShell({
       >
         {children}
       </main>
+      {user ? <ConnectionChat /> : null}
       <SiteFooter />
     </div>
   );

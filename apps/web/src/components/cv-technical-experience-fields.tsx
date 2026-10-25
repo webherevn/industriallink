@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   EQUIPMENT_SYSTEM_OPTIONS,
   EQUIPMENT_SYSTEM_QUESTION,
@@ -22,6 +22,7 @@ import { useCvSectionProps } from '@/components/cv-form-accordion';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel, NumberedTitle } from '@/components/numbered-field-label';
 import { TechnicalPositionSelect } from '@/components/technical-position-select';
+import { criteriaAnchorId, criteriaPlace } from '@/lib/criteria-jump';
 import { emptyCvExperience, type CvDraft } from '@/lib/cv-templates';
 
 /** Tách chuỗi "03/2021 – 05/2024" (hoặc "2021 - Hiện tại") → YYYY-MM cho picker. */
@@ -219,10 +220,12 @@ export function CvTechnicalExperienceFields({
   draft,
   onChange,
   hint,
+  jump,
 }: {
   draft: CvDraft;
   onChange: <K extends keyof CvDraft>(key: K, value: CvDraft[K]) => void;
   hint?: CvDraftFieldHint;
+  jump?: { key: string; n: number } | null;
 }) {
   const experiences = (draft.experience.length ? draft.experience : [emptyCvExperience()]).map(
     (e, i) => {
@@ -238,6 +241,13 @@ export function CvTechnicalExperienceFields({
   );
   const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
   const sectionD = useCvSectionProps('D');
+
+  useEffect(() => {
+    if (!jump) return;
+    const place = criteriaPlace(jump.key, 'technical');
+    if (place.cvSection !== 'D') return;
+    setExpandedExp((prev) => new Set(prev).add(0));
+  }, [jump]);
 
   function toggleExp(index: number, open: boolean) {
     setExpandedExp((prev) => {
@@ -309,7 +319,7 @@ export function CvTechnicalExperienceFields({
           >
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
+              <label id={index === 0 ? criteriaAnchorId('experience') : undefined} className="block scroll-mt-28">
                 <span className="text-sm font-semibold text-slate-800">
                   <NumberedTitle text="20. Tên công ty" />
                 </span>
@@ -320,7 +330,7 @@ export function CvTechnicalExperienceFields({
                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-500/30 focus:ring-2"
                 />
               </label>
-              <div className="block">
+              <div id={index === 0 ? criteriaAnchorId('experienceRole') : undefined} className="block scroll-mt-28">
                 <span className="text-sm font-semibold text-slate-800">
                   <NumberedTitle text="21. Vị trí" />
                 </span>
@@ -332,7 +342,7 @@ export function CvTechnicalExperienceFields({
               </div>
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('experiencePeriod') : undefined} className="scroll-mt-28">
               <FieldLabel title="22. Thời gian làm việc" />
               <MonthYearRangeFields
                 start={parts.start}
@@ -356,7 +366,7 @@ export function CvTechnicalExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('industries') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="23. Lĩnh vực đã làm"
                 description="Anh/chị làm trong lĩnh vực nào tại công ty này?"
@@ -370,7 +380,7 @@ export function CvTechnicalExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('products') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="24. Thiết bị / hệ thống đã làm"
                 description={EQUIPMENT_SYSTEM_QUESTION}
@@ -384,7 +394,7 @@ export function CvTechnicalExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('segments') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="25. Môi trường làm việc thực tế"
                 description={WORK_ENVIRONMENT_ACTUAL_QUESTION}
@@ -397,7 +407,7 @@ export function CvTechnicalExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('technicalWorkTypes') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="26. Công việc kỹ thuật đã thực hiện"
                 description={TECHNICAL_WORK_TYPES_QUESTION}
@@ -419,7 +429,7 @@ export function CvTechnicalExperienceFields({
               />
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('technicalAutonomyLevel') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="27. Mức độ tự chủ"
                 description={TECHNICAL_AUTONOMY_QUESTION}
@@ -451,7 +461,7 @@ export function CvTechnicalExperienceFields({
               </div>
             </div>
 
-            <div>
+            <div id={index === 0 ? criteriaAnchorId('salesHighlights') : undefined} className="scroll-mt-28">
               <FieldLabel
                 title="28. Thành tích/dự án nổi bật"
                 description={TECHNICAL_HIGHLIGHTS_QUESTION}

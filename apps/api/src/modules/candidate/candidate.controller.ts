@@ -32,6 +32,8 @@ import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CandidateService } from './candidate.service';
+import { ConnectionChatService } from './connection-chat.service';
+import { SendConnectionMessageDto } from './dto/send-connection-message.dto';
 import { CompanySuggestService } from './company-suggest.service';
 import { CvDraftFromTextDto } from './dto/cv-draft-from-text.dto';
 import { SaveCvDraftDto } from './dto/save-cv-draft.dto';
@@ -45,6 +47,7 @@ export class CandidateController {
   constructor(
     private readonly candidates: CandidateService,
     private readonly companySuggest: CompanySuggestService,
+    private readonly chats: ConnectionChatService,
   ) {}
 
   @Get('company-suggest')
@@ -101,6 +104,46 @@ export class CandidateController {
       user,
       body as unknown as import('@industriallink/contracts').UpdateCandidateProfileRequest,
     );
+  }
+
+  @Get('me/chats')
+  @Roles(
+    UserRole.Candidate,
+    UserRole.Recruiter,
+    UserRole.HiringManager,
+    UserRole.CompanyAdmin,
+  )
+  @ApiOperation({ summary: 'Hội thoại đã kết nối' })
+  listChats(@CurrentUser() user: AuthenticatedUser) {
+    return this.chats.listThreads(user);
+  }
+
+  @Get('me/chats/:id/messages')
+  @Roles(
+    UserRole.Candidate,
+    UserRole.Recruiter,
+    UserRole.HiringManager,
+    UserRole.CompanyAdmin,
+  )
+  @ApiOperation({ summary: 'Tin nhắn của một kết nối' })
+  listChatMessages(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.chats.listMessages(user, id);
+  }
+
+  @Post('me/chats/:id/messages')
+  @Roles(
+    UserRole.Candidate,
+    UserRole.Recruiter,
+    UserRole.HiringManager,
+    UserRole.CompanyAdmin,
+  )
+  @ApiOperation({ summary: 'Gửi tin nhắn sau khi đã kết nối' })
+  sendChatMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: SendConnectionMessageDto,
+  ) {
+    return this.chats.sendMessage(user, id, body.body);
   }
 
   @Get('me/connections')

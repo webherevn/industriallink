@@ -32,6 +32,7 @@ import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { MoneyInput } from '@/components/ui';
 import { filterCareerMotivations } from '@/lib/career-motivations';
+import { criteriaAnchorId } from '@/lib/criteria-jump';
 import type { CvDraft } from '@/lib/cv-templates';
 
 function MultiCheck({
@@ -235,7 +236,7 @@ export function CvTechnicalFields({
         {...sectionB}
       >
       {lead}
-      <div>
+      <div id={criteriaAnchorId('desiredLocations')} className="scroll-mt-28">
         <NumberedFieldLabel
           title="14. Địa điểm mong muốn làm việc"
           description="Anh/chị có thể làm việc ở đâu?"
@@ -248,7 +249,7 @@ export function CvTechnicalFields({
         />
       </div>
 
-      <div>
+      <div id={criteriaAnchorId('expectedSalary')} className="scroll-mt-28">
         <NumberedFieldLabel
           title={`15. ${EXPECTED_INCOME_TITLE}`}
           description={EXPECTED_INCOME_QUESTION}
@@ -277,7 +278,7 @@ export function CvTechnicalFields({
         </div>
       </div>
 
-      <label className="block">
+      <label id={criteriaAnchorId('availability')} className="block scroll-mt-28">
         <NumberedFieldLabel
           title="16. Thời gian có thể nhận việc"
           description={AVAILABILITY_QUESTION}
@@ -302,7 +303,7 @@ export function CvTechnicalFields({
         subtitle="Ngoài giờ, phần mềm/công cụ và đọc bản vẽ / tài liệu"
         {...sectionC}
       >
-      <div>
+      <div id={criteriaAnchorId('shiftFlexibility')} className="scroll-mt-28">
         <NumberedFieldLabel
           title="17. Khả năng làm ngoài giờ"
           description={SHIFT_FLEXIBILITY_QUESTION}
@@ -321,7 +322,7 @@ export function CvTechnicalFields({
         />
       </div>
 
-      <div>
+      <div id={criteriaAnchorId('technicalTools')} className="scroll-mt-28">
         <NumberedFieldLabel
           title="18. Phần mềm & công cụ đã sử dụng"
           description={TECHNICAL_TOOLS_QUESTION}
@@ -334,7 +335,7 @@ export function CvTechnicalFields({
         />
       </div>
 
-      <div>
+      <div id={criteriaAnchorId('documentLiteracy')} className="scroll-mt-28">
         <NumberedFieldLabel
           title="19. Đọc bản vẽ / tài liệu"
           description={DOCUMENT_LITERACY_QUESTION}

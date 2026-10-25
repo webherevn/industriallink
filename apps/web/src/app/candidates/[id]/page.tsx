@@ -18,6 +18,7 @@ import {
   Plane,
   Sparkles,
   Target,
+  MessageCircle,
   UserPlus,
   Wallet,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ import {
   addCandidateShortlist,
   cancelCandidateConnection,
   getCandidateById,
+  openConnectionChat,
   removeCandidateShortlist,
   requestCandidateConnection,
 } from '@/lib/candidate';
@@ -546,9 +548,21 @@ export default function CandidateDetailPage() {
                 )}
 
                 {unlocked ? (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-100/80 px-3 py-2 text-xs font-semibold text-emerald-800">
-                    <Check className="h-4 w-4" />
-                    Đã kết nối — có thể liên hệ trực tiếp
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-100/80 px-3 py-2 text-xs font-semibold text-emerald-800">
+                      <Check className="h-4 w-4" />
+                      Đã kết nối — có thể liên hệ trực tiếp
+                    </div>
+                    {data.connection?.id && (
+                      <button
+                        type="button"
+                        onClick={() => openConnectionChat(data.connection!.id)}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#072348] text-sm font-semibold text-white hover:bg-[#0d3b80]"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Nhắn tin
+                      </button>
+                    )}
                   </div>
                 ) : status === ConnectionStatus.Pending ? (
                   <div className="mt-3 space-y-2">

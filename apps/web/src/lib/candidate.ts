@@ -2,6 +2,8 @@ import type {
   CandidateExperienceView,
   CandidateSalesProfileView,
   CandidateView,
+  ConnectionChatMessage,
+  ConnectionChatThread,
   ConnectionView,
   CvDraftExperienceView,
   CvDraftFromTextResponse,
@@ -176,6 +178,30 @@ export async function cancelCandidateConnection(
 
 export async function listMyConnections(): Promise<ConnectionView[]> {
   return asArray(await apiRequest('/candidates/me/connections'));
+}
+
+export async function listConnectionChats(): Promise<ConnectionChatThread[]> {
+  return asArray(await apiRequest('/candidates/me/chats'));
+}
+
+export async function listConnectionMessages(
+  connectionId: string,
+): Promise<ConnectionChatMessage[]> {
+  return asArray(await apiRequest(`/candidates/me/chats/${connectionId}/messages`));
+}
+
+export async function sendConnectionMessage(
+  connectionId: string,
+  body: string,
+): Promise<ConnectionChatMessage> {
+  return apiRequest(`/candidates/me/chats/${connectionId}/messages`, {
+    method: 'POST',
+    body: { body },
+  });
+}
+
+export function openConnectionChat(connectionId: string) {
+  window.dispatchEvent(new CustomEvent('inlink-open-chat', { detail: connectionId }));
 }
 
 export async function acceptConnection(connectionId: string): Promise<ConnectionView> {

@@ -768,7 +768,7 @@ export class CandidateService {
       type: accept ? 'connection.accepted' : 'connection.rejected',
       title: accept ? 'Ứng viên đã chấp nhận kết nối' : 'Ứng viên từ chối kết nối',
       body: accept
-        ? `«${candidate.displayName}» đã đồng ý — bạn có thể xem SĐT/email.`
+        ? `«${candidate.displayName}» đã đồng ý. Bạn có thể nhắn tin ngay trên inlink.`
         : `«${candidate.displayName}» đã từ chối yêu cầu kết nối.`,
       link: `/candidates/${candidate.id}`,
       entityType: 'connection',

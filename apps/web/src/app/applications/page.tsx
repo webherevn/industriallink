@@ -343,6 +343,7 @@ export default function ApplicationsPage() {
                 <NavItem href="/viec-lam?tab=applied" label="Việc đã ứng tuyển" icon={Send} />
                 <NavItem href="/progress#interviews" label="Lịch phỏng vấn" icon={CalendarDays} />
                 <NavItem href="/progress#offers" label="Đề nghị làm việc" icon={Gift} />
+                <NavItem href="/progress#onboarding" label="Quá trình nhận việc" icon={UserPlus} />
               </nav>
 
               <div className="mt-3 space-y-0.5 border-t border-slate-100 pt-3">
