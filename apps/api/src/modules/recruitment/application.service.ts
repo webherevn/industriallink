@@ -29,13 +29,22 @@ import { buildBroadcastEmail } from '../../shared/infrastructure/email/broadcast
 import { EmailService } from '../../shared/infrastructure/email/email.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CompanyService } from '../company/company.service';
+import {
+  broadcastPurposeLabel,
+  localBroadcastDraft,
+  parseBroadcastDraft,
+  stripCompanyFromSubject,
+  type BroadcastEmailPurpose,
+} from './broadcast-email-suggest';
 import { JobService } from './job.service';
 import { candidateMatchTrack, jobMatchTrack } from './match-track.util';
 import { MatchingService } from './matching.service';
 import { skillOverlap } from './matching.util';
 import type { ApplyJobDto, UpdateApplicationStatusDto } from './dto/apply-job.dto';
 import type { BroadcastEmailDto } from './dto/broadcast-email.dto';
+import type { SuggestBroadcastEmailDto } from './dto/suggest-broadcast-email.dto';
 
 @Injectable()
 export class ApplicationService {
@@ -50,6 +59,7 @@ export class ApplicationService {
     private readonly matching: MatchingService,
     private readonly companies: CompanyService,
     private readonly email: EmailService,
+    private readonly ai: AiGatewayService,
   ) {}
 
   async apply(
@@ -582,6 +592,54 @@ export class ApplicationService {
     return { id: applicationId, status: dto.status };
   }
 
+  /** AI soạn tiêu đề và nội dung email hàng loạt theo tin và trạng thái hồ sơ. Không gửi thư. */
+  async suggestBroadcastEmail(
+    user: AuthenticatedUser,
+    jobId: string,
+    dto: SuggestBroadcastEmailDto,
+  ): Promise<{ subject: string; body: string }> {
+    const job = await this.jobs.requireOwnedJob(user, jobId);
+    const purpose = dto.purpose as BroadcastEmailPurpose;
+    const statuses = [...new Set(dto.statuses ?? [])];
+    const fallback = localBroadcastDraft({
+      purpose,
+      companyName: job.company.name,
+      jobTitle: job.title,
+      statuses,
+    });
+    const statusText =
+      statuses.length > 0 ? statuses.map((status) => applicationStatusLabel(status)).join(', ') : 'chưa chọn';
+
+    try {
+      const raw = await this.ai.chat({
+        system: [
+          'Bạn soạn email tuyển dụng tiếng Việt cho nhà tuyển dụng gửi hàng loạt.',
+          'Chỉ trả về JSON {"subject":"...","body":"..."} không markdown.',
+          'subject tối đa 120 ký tự, không gắn tên công ty ở đầu.',
+          'body là đoạn sau câu chào tên. Hệ thống tự thêm Xin chào {tên}.',
+          'Giọng chuyên nghiệp, ngắn, nói rõ bước hiện tại và việc ứng viên cần làm.',
+          'Không bịa ngày giờ, lương, tên người phỏng vấn, số điện thoại.',
+          'Không hứa chuyển trạng thái hồ sơ. Không gọi tên một ứng viên cụ thể.',
+        ].join(' '),
+        user: [
+          `Công ty: ${job.company.name}`,
+          `Vị trí: ${job.title}`,
+          `Mục đích: ${broadcastPurposeLabel(purpose)}`,
+          `Trạng thái hồ sơ đang chọn: ${statusText}`,
+          'Bản nháp để viết lại cho sát việc hơn:',
+          `Tiêu đề: ${fallback.subject}`,
+          fallback.body,
+        ].join('\n'),
+      });
+      const parsed = parseBroadcastDraft(raw);
+      if (!parsed) return fallback;
+      return { ...parsed, subject: stripCompanyFromSubject(parsed.subject, job.company.name) };
+    } catch (err) {
+      this.logger.warn(`Gợi ý email hàng loạt dùng bản nháp: ${String(err)}`);
+      return fallback;
+    }
+  }
+
   /** Gửi email hàng loạt tới ứng viên của một tin (lọc status tùy chọn). */
   async broadcastEmail(
     user: AuthenticatedUser,
@@ -596,10 +654,12 @@ export class ApplicationService {
       throw new BadRequestException('Tiêu đề và nội dung không được để trống');
     }
 
+    const applicationIds = dto.applicationIds ? [...new Set(dto.applicationIds)] : undefined;
     const applications = await this.prisma.application.findMany({
       where: {
         jobId,
         isDeleted: false,
+        ...(applicationIds ? { id: { in: applicationIds } } : {}),
         ...(dto.status ? { status: dto.status } : {}),
       },
       include: {
@@ -613,15 +673,25 @@ export class ApplicationService {
       take: 200,
     });
 
+    if (applicationIds && applications.length !== applicationIds.length) {
+      throw new BadRequestException('Có hồ sơ không thuộc tin này hoặc không còn để gửi');
+    }
+
     if (applications.length === 0) {
       throw new BadRequestException('Không có ứng viên nào khớp bộ lọc để gửi email');
     }
 
+    const withEmail = applications.filter((a) => a.candidate.user?.email);
+    const missingEmail = applications.length - withEmail.length;
+    if (withEmail.length === 0) {
+      throw new BadRequestException('Ứng viên đã chọn chưa có email trên tài khoản');
+    }
+
     const applicationsUrl = `${this.email.webOrigin}/applications`;
-    const messages = applications.map((a) =>
+    const messages = withEmail.map((a) =>
       buildBroadcastEmail({
         candidateName: a.candidate.displayName,
-        candidateEmail: a.candidate.user.email,
+        candidateEmail: a.candidate.user!.email,
         companyName: job.company.name,
         jobTitle: job.title,
         subject,
@@ -641,18 +711,17 @@ export class ApplicationService {
       after: {
         subject,
         statusFilter: dto.status ?? null,
+        applicationIds: applicationIds ?? null,
         recipients: applications.length,
         sent: result.sent,
-        failed: result.failed,
+        failed: result.failed + missingEmail,
       },
       correlationId,
     });
 
-    // Ghi timeline trên tối đa 20 hồ sơ để không làm chậm request.
-    const timelineSlice = applications.slice(0, 20);
-    if (timelineSlice.length > 0) {
+    if (withEmail.length > 0) {
       await this.prisma.applicationTimeline.createMany({
-        data: timelineSlice.map((a) => ({
+        data: withEmail.map((a) => ({
           applicationId: a.id,
           tenantId: a.tenantId,
           type: 'broadcast_email',
@@ -669,7 +738,7 @@ export class ApplicationService {
     return {
       recipients: applications.length,
       sent: result.sent,
-      failed: result.failed,
+      failed: result.failed + missingEmail,
     };
   }
 }

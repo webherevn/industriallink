@@ -99,12 +99,17 @@ export default function RecruiterInboxPage() {
             Theo dõi và xử lý toàn bộ hồ sơ ứng tuyển — ưu tiên điểm phù hợp AI cao.
           </p>
         </div>
-        <Link href="/search">
-          <Button>
-            <Sparkles className="h-4 w-4 text-accent-300" />
-            Tìm ứng viên AI
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/recruiter/email">
+            <Button variant="outline">Gửi email hàng loạt</Button>
+          </Link>
+          <Link href="/search">
+            <Button>
+              <Sparkles className="h-4 w-4 text-accent-300" />
+              Tìm ứng viên AI
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">

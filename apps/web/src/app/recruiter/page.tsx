@@ -749,7 +749,7 @@ export default function RecruiterDashboardPage() {
             iconClass="bg-blue-50 text-[#2563EB]"
           />
           <QuickOutline
-            href="/recruiter/inbox"
+            href="/recruiter/email"
             icon={<Send className="h-4 w-4" strokeWidth={2} />}
             label="Gửi email hàng loạt"
             iconClass="bg-violet-50 text-[#7C3AED]"

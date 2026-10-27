@@ -33,6 +33,7 @@ import { ApplicationService } from './application.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { BroadcastEmailDto } from './dto/broadcast-email.dto';
+import { SuggestBroadcastEmailDto } from './dto/suggest-broadcast-email.dto';
 import { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
 import { ParseJobDescriptionDto } from './dto/parse-job-description.dto';
 import { EstimateSalaryDto } from './dto/estimate-salary.dto';
@@ -273,9 +274,20 @@ export class JobController {
     return this.applications.listApplicants(user, id);
   }
 
+  @Post(':id/broadcast-email/suggest')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'AI gợi ý nội dung email hàng loạt theo tin và trạng thái hồ sơ' })
+  suggestBroadcastEmail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SuggestBroadcastEmailDto,
+  ) {
+    return this.applications.suggestBroadcastEmail(user, id, dto);
+  }
+
   @Post(':id/broadcast-email')
   @Roles(...RECRUITER_ROLES)
-  @ApiOperation({ summary: 'Gửi email hàng loạt tới ứng viên của tin (lọc status tùy chọn)' })
+  @ApiOperation({ summary: 'Gửi email hàng loạt tới các hồ sơ đã chọn của tin' })
   broadcastEmail(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

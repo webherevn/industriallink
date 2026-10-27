@@ -17,6 +17,7 @@ describe('ApplicationService', () => {
     sendSafe: jest.fn(),
     sendMany: jest.fn().mockResolvedValue({ sent: 0, failed: 0 }),
   };
+  const ai = { chat: jest.fn() };
 
   function buildService(prisma: Record<string, unknown>) {
     events.publish.mockClear();
@@ -26,6 +27,7 @@ describe('ApplicationService', () => {
     matching.computePairMatch.mockClear();
     companies.requireUserCompany.mockClear();
     email.sendMany.mockClear();
+    ai.chat.mockReset();
     return new ApplicationService(
       prisma as never,
       codeGen as never,
@@ -35,6 +37,7 @@ describe('ApplicationService', () => {
       matching as never,
       companies as never,
       email as never,
+      ai as never,
     );
   }
 
@@ -330,6 +333,61 @@ describe('ApplicationService', () => {
 
       expect(result).toEqual({ recipients: 2, sent: 2, failed: 0 });
       expect(createMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('chỉ gửi hồ sơ được tick và từ chối hồ sơ không thuộc tin', async () => {
+      jobs.requireOwnedJob.mockResolvedValue({ id: 'job-1', title: 'Kỹ sư PLC', company: { name: 'ABC' } });
+      const findMany = jest.fn().mockResolvedValue([
+        {
+          id: 'app-1',
+          tenantId: 'default',
+          candidate: { displayName: 'A', user: { email: 'a@abc.com' } },
+        },
+      ]);
+      const service = buildService({
+        application: { findMany },
+        applicationTimeline: { createMany: jest.fn() },
+      });
+
+      await expect(
+        service.broadcastEmail(
+          recruiterUser,
+          'job-1',
+          { subject: 'Thông báo', body: 'Nội dung email', applicationIds: ['app-1', 'app-khac'] },
+          'corr-9',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(email.sendMany).not.toHaveBeenCalled();
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ jobId: 'job-1', id: { in: ['app-1', 'app-khac'] } }),
+        }),
+      );
+    });
+
+    it('lấy nội dung AI khi trả JSON, và dùng bản nháp khi AI lỗi', async () => {
+      jobs.requireOwnedJob.mockResolvedValue({
+        id: 'job-1',
+        title: 'Kỹ sư PLC',
+        company: { name: 'ABC' },
+      });
+      const service = buildService({});
+      ai.chat.mockResolvedValue('```json\n{"subject":"Cập nhật hồ sơ PLC - ABC","body":"Hồ sơ đang được xem xét theo quy trình."}\n```');
+
+      const drafted = await service.suggestBroadcastEmail(recruiterUser, 'job-1', {
+        purpose: 'progress',
+        statuses: [ApplicationStatus.Screening],
+      });
+      expect(drafted.subject).toBe('Cập nhật hồ sơ PLC');
+      expect(drafted.body).toContain('quy trình');
+
+      ai.chat.mockRejectedValue(new Error('offline'));
+      const fallback = await service.suggestBroadcastEmail(recruiterUser, 'job-1', {
+        purpose: 'interview',
+        statuses: [ApplicationStatus.Interview],
+      });
+      expect(fallback.subject).toContain('Kỹ sư PLC');
+      expect(fallback.body).toContain('Lịch cụ thể');
     });
   });
 });

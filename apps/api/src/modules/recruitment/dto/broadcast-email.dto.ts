@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApplicationStatus } from '@industriallink/contracts';
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class BroadcastEmailDto {
   @ApiProperty({ example: 'Cập nhật lịch phỏng vấn vòng 2' })
@@ -19,9 +29,20 @@ export class BroadcastEmailDto {
 
   @ApiPropertyOptional({
     enum: ApplicationStatus,
-    description: 'Chỉ gửi cho ứng viên ở trạng thái này (mặc định: tất cả)',
+    description: 'Lọc thêm theo một trạng thái khi không gửi applicationIds',
   })
   @IsOptional()
   @IsEnum(ApplicationStatus)
   status?: ApplicationStatus;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Hồ sơ được tick. Chỉ những hồ sơ thuộc tin này mới được gửi.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  applicationIds?: string[];
 }

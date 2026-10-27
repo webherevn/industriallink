@@ -190,6 +190,7 @@ export default function ApplicantsPage() {
       {broadcastOpen && (
         <BroadcastEmailModal
           jobId={jobId}
+          applicants={applicants ?? []}
           onClose={() => setBroadcastOpen(false)}
           onSent={(r) => {
             setBroadcastResult(
