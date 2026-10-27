@@ -672,7 +672,7 @@ export default function RecruiterDashboardPage() {
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] xl:col-span-2">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-[15px] font-semibold text-slate-900">
-              Ứng viên phù hợp nhất hôm nay
+              Ứng viên ứng tuyển phù hợp nhất hôm nay
             </h3>
             <Link
               href="/recruiter/inbox"

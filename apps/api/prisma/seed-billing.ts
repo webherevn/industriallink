@@ -54,7 +54,7 @@ const PLATFORM_PLANS = [
     jobPostQuota: 1,
     creditQuota: 10,
     sortOrder: 2,
-    isFeatured: true,
+    isFeatured: false,
     features: [
       '1 tin đăng trong 30 ngày',
       '10 lượt mở hồ sơ tiềm năng',
@@ -72,7 +72,7 @@ const PLATFORM_PLANS = [
     jobPostQuota: 1,
     creditQuota: 30,
     sortOrder: 3,
-    isFeatured: false,
+    isFeatured: true,
     features: [
       '1 tin đăng trong 30 ngày',
       '30 lượt mở hồ sơ tiềm năng',

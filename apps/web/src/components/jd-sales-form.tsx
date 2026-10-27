@@ -9,6 +9,7 @@ import {
   EDUCATION_LEVELS,
   EmploymentType,
   ExperienceBand,
+  JD_SALES_FIELDS,
   JD_SALES_GROUPS,
   JD_SALES_INDUSTRY_OPTIONS,
   JD_SALES_TITLE_OPTIONS,
@@ -30,11 +31,13 @@ import { JdRichEditor } from '@/components/jd-rich-editor';
 import { LocationPicker } from '@/components/location-picker';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { criteriaAnchorId, scrollToCriteria } from '@/lib/criteria-jump';
 import { Input, MoneyInput, Select } from '@/components/ui';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL } from '@/lib/format';
 import type { JdSalesFormState } from '@/lib/jd-sales-form';
-import { formHasJobFit } from '@/lib/jd-sales-form';
-import { useCallback, useState } from 'react';
+import { countFilledJdFields, formHasJobFit } from '@/lib/jd-sales-form';
+import { useCallback, useMemo, useState } from 'react';
 
 type GroupKey = 'A' | 'B' | 'C' | 'D';
 const ACCORDION_GROUP = 'jd-sales';
@@ -139,11 +142,14 @@ export function JdSalesForm({
   onChange,
   uncertainKeys = [],
   disabled,
+  showProgress = false,
 }: {
   form: JdSalesFormState;
   onChange: (patch: Partial<JdSalesFormState>) => void;
   uncertainKeys?: JdSalesFieldKey[];
   disabled?: boolean;
+  /** Thẻ tiến độ trên trang sửa tin. Bấm mục thiếu để mở đúng ô. */
+  showProgress?: boolean;
 }) {
   const uncertain = new Set(uncertainKeys);
   const openJobFit = formHasJobFit(form);
@@ -158,9 +164,41 @@ export function JdSalesForm({
     (key: GroupKey) => setOpenGroup((prev) => (prev === key ? null : key)),
     [],
   );
+  const progress = useMemo(() => countFilledJdFields(form), [form]);
+  const jumpToGap = useCallback((key: string) => {
+    const field = JD_SALES_FIELDS.find((item) => item.key === key);
+    if (field) setOpenGroup(field.group);
+    scrollToCriteria(key);
+  }, []);
+
+  const progressCard = showProgress ? (
+    <aside className="order-first mb-4 lg:order-none lg:sticky lg:top-24 lg:z-20 lg:mb-0 lg:self-start">
+      <CriteriaCompletionCard
+        title="Tiến độ điền JD"
+        percent={progress.percent}
+        filledCount={progress.filled}
+        totalCount={progress.total}
+        gaps={progress.missing.map((item) => ({
+          key: item.key,
+          label: item.label,
+          status: 'missing' as const,
+          value: null,
+          suggestion: '',
+        }))}
+        onGapClick={(gap) => jumpToGap(gap.key)}
+      />
+    </aside>
+  ) : null;
 
   return (
-    <fieldset disabled={disabled} className="min-w-0 space-y-4">
+    <fieldset disabled={disabled} className="min-w-0">
+      <div
+        className={clsx(
+          'flex flex-col',
+          showProgress && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-6',
+        )}
+      >
+      <div className="min-w-0 space-y-4">
       <MatrixSection
         title={JD_SALES_GROUPS.A.title}
         subtitle={JD_SALES_GROUPS.A.subtitle}
@@ -168,7 +206,7 @@ export function JdSalesForm({
         controlledOpen={openGroup === 'A'}
         onToggle={() => toggleGroup('A')}
       >
-        <div>
+        <div id={criteriaAnchorId('title')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="1. Vị trí tuyển dụng"
             extra={<UncertainBadge show={uncertain.has('title')} />}
@@ -222,7 +260,7 @@ export function JdSalesForm({
           </p>
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('industries')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="2. Ngành / lĩnh vực"
             extra={<UncertainBadge show={uncertain.has('industries')} />}
@@ -259,7 +297,7 @@ export function JdSalesForm({
           </div>
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('employmentType')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="3. Hình thức làm việc"
             extra={<UncertainBadge show={uncertain.has('employmentType')} />}
@@ -274,7 +312,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('location')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="4. Địa điểm làm việc"
             extra={<UncertainBadge show={uncertain.has('location')} />}
@@ -288,7 +326,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('experienceBand')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="5. Kinh nghiệm yêu cầu"
             extra={<UncertainBadge show={uncertain.has('experienceBand')} />}
@@ -303,7 +341,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('salary')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="6. Mức thu nhập"
             description="Mức tối thiểu công ty chi trả và mức kỳ vọng (nếu JD nêu)."
@@ -326,7 +364,7 @@ export function JdSalesForm({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div>
+          <div id={criteriaAnchorId('headcount')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="7. Số lượng tuyển dụng"
               extra={<UncertainBadge show={uncertain.has('headcount')} />}
@@ -340,7 +378,7 @@ export function JdSalesForm({
               size="sm"
             />
           </div>
-          <div>
+          <div id={criteriaAnchorId('deadline')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="8. Hạn nộp hồ sơ"
               extra={<UncertainBadge show={uncertain.has('deadline')} />}
@@ -362,7 +400,7 @@ export function JdSalesForm({
         controlledOpen={openGroup === 'B'}
         onToggle={() => toggleGroup('B')}
       >
-        <div>
+        <div id={criteriaAnchorId('productsSold')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="9. Sản phẩm / thiết bị"
             description="Chỉ chọn mục JD nêu rõ — không suy diễn."
@@ -378,7 +416,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('customerSegments')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="10. Nhóm khách hàng"
             extra={<UncertainBadge show={uncertain.has('customerSegments')} />}
@@ -390,7 +428,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('dealTypes')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="11. Loại hình kinh doanh"
             extra={<UncertainBadge show={uncertain.has('dealTypes')} />}
@@ -407,7 +445,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('sellingStages')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="12. Phạm vi công việc bán hàng"
             extra={<UncertainBadge show={uncertain.has('sellingStages')} />}
@@ -431,7 +469,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('marketsCovered')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="13. Khu vực / thị trường phụ trách"
             extra={<UncertainBadge show={uncertain.has('marketsCovered')} />}
@@ -453,7 +491,7 @@ export function JdSalesForm({
         onToggle={() => toggleGroup('C')}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div id={criteriaAnchorId('educationLevel')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="14. Trình độ học vấn"
               extra={<UncertainBadge show={uncertain.has('educationLevel')} />}
@@ -471,7 +509,7 @@ export function JdSalesForm({
               ))}
             </Select>
           </div>
-          <div>
+          <div id={criteriaAnchorId('educationMajor')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="15. Chuyên ngành"
               extra={<UncertainBadge show={uncertain.has('educationMajor')} />}
@@ -485,7 +523,7 @@ export function JdSalesForm({
           </div>
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('languages')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="16. Ngoại ngữ"
             extra={<UncertainBadge show={uncertain.has('languages')} />}
@@ -498,7 +536,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('driverLicenses')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="17. Giấy phép lái xe"
             extra={<UncertainBadge show={uncertain.has('driverLicenses')} />}
@@ -517,7 +555,7 @@ export function JdSalesForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('travelAbility')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="18. Khả năng đi công tác"
             extra={<UncertainBadge show={uncertain.has('travelAbility')} />}
@@ -540,7 +578,7 @@ export function JdSalesForm({
         controlledOpen={openGroup === 'D'}
         onToggle={() => toggleGroup('D')}
       >
-        <div>
+        <div id={criteriaAnchorId('description')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="19. Mô tả công việc"
             extra={<UncertainBadge show={uncertain.has('description')} />}
@@ -554,7 +592,7 @@ export function JdSalesForm({
             compact
           />
         </div>
-        <div>
+        <div id={criteriaAnchorId('requirements')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="20. Yêu cầu công việc"
             extra={<UncertainBadge show={uncertain.has('requirements')} />}
@@ -568,7 +606,7 @@ export function JdSalesForm({
             compact
           />
         </div>
-        <div>
+        <div id={criteriaAnchorId('skills')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="21. Kỹ năng"
             extra={<UncertainBadge show={uncertain.has('skills')} />}
@@ -582,7 +620,7 @@ export function JdSalesForm({
             compact
           />
         </div>
-        <div>
+        <div id={criteriaAnchorId('benefits')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="22. Quyền lợi"
             extra={<UncertainBadge show={uncertain.has('benefits')} />}
@@ -597,6 +635,9 @@ export function JdSalesForm({
           />
         </div>
       </MatrixSection>
+      </div>
+      {progressCard}
+      </div>
     </fieldset>
   );
 }

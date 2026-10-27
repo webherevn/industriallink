@@ -9,6 +9,7 @@ import {
   ExperienceBand,
   JD_TECHNICAL_AUTONOMY_OPTIONS,
   JD_TECHNICAL_CERTIFICATE_OPTIONS,
+  JD_TECHNICAL_FIELDS,
   JD_TECHNICAL_GROUPS,
   JD_TECHNICAL_INDUSTRY_OPTIONS,
   JD_TECHNICAL_SHIFT_OPTIONS,
@@ -29,15 +30,18 @@ import { JdRichEditor } from '@/components/jd-rich-editor';
 import { LocationPicker } from '@/components/location-picker';
 import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { criteriaAnchorId, scrollToCriteria } from '@/lib/criteria-jump';
 import { TechnicalPositionSelect } from '@/components/technical-position-select';
 import { Input, MoneyInput, Select } from '@/components/ui';
 import { EXPERIENCE_LABEL } from '@/lib/format';
 import {
+  countFilledJdTechnicalFields,
   formHasTechnicalJobFit,
   technicalLevelForForm,
   type JdTechnicalFormState,
 } from '@/lib/jd-technical-form';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 type GroupKey = 'A' | 'B' | 'C' | 'D';
 const ACCORDION_GROUP = 'jd-tech';
@@ -144,11 +148,14 @@ export function JdTechnicalForm({
   onChange,
   uncertainKeys = [],
   disabled,
+  showProgress = false,
 }: {
   form: JdTechnicalFormState;
   onChange: (patch: Partial<JdTechnicalFormState>) => void;
   uncertainKeys?: JdTechnicalFieldKey[];
   disabled?: boolean;
+  /** Thẻ tiến độ trên trang sửa tin. Bấm mục thiếu để mở đúng ô. */
+  showProgress?: boolean;
 }) {
   const uncertain = new Set(uncertainKeys);
   const openJobFit = formHasTechnicalJobFit(form);
@@ -161,9 +168,41 @@ export function JdTechnicalForm({
     (key: GroupKey) => setOpenGroup((prev) => (prev === key ? null : key)),
     [],
   );
+  const progress = useMemo(() => countFilledJdTechnicalFields(form), [form]);
+  const jumpToGap = useCallback((key: string) => {
+    const field = JD_TECHNICAL_FIELDS.find((item) => item.key === key);
+    if (field) setOpenGroup(field.group);
+    scrollToCriteria(key);
+  }, []);
+
+  const progressCard = showProgress ? (
+    <aside className="order-first mb-4 lg:order-none lg:sticky lg:top-24 lg:z-20 lg:mb-0 lg:self-start">
+      <CriteriaCompletionCard
+        title="Tiến độ điền JD"
+        percent={progress.percent}
+        filledCount={progress.filled}
+        totalCount={progress.total}
+        gaps={progress.missing.map((item) => ({
+          key: item.key,
+          label: item.label,
+          status: 'missing' as const,
+          value: null,
+          suggestion: '',
+        }))}
+        onGapClick={(gap) => jumpToGap(gap.key)}
+      />
+    </aside>
+  ) : null;
 
   return (
-    <fieldset disabled={disabled} className="min-w-0 space-y-4">
+    <fieldset disabled={disabled} className="min-w-0">
+      <div
+        className={clsx(
+          'flex flex-col',
+          showProgress && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-6',
+        )}
+      >
+      <div className="min-w-0 space-y-4">
       <MatrixSection
         title={JD_TECHNICAL_GROUPS.A.title}
         subtitle={JD_TECHNICAL_GROUPS.A.subtitle}
@@ -171,7 +210,7 @@ export function JdTechnicalForm({
         controlledOpen={openGroup === 'A'}
         onToggle={() => toggleGroup('A')}
       >
-        <div>
+        <div id={criteriaAnchorId('title')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="1. Vị trí tuyển dụng"
             extra={<UncertainBadge show={uncertain.has('title')} />}
@@ -225,7 +264,7 @@ export function JdTechnicalForm({
           </p>
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('industries')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="2. Lĩnh vực / ngành kỹ thuật"
             extra={<UncertainBadge show={uncertain.has('industries')} />}
@@ -238,7 +277,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('location')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="3. Địa điểm làm việc"
             extra={<UncertainBadge show={uncertain.has('location')} />}
@@ -252,7 +291,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('experienceBand')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="4. Kinh nghiệm yêu cầu"
             extra={<UncertainBadge show={uncertain.has('experienceBand')} />}
@@ -267,7 +306,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('salary')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="5. Mức thu nhập"
             extra={<UncertainBadge show={uncertain.has('salary')} />}
@@ -289,7 +328,7 @@ export function JdTechnicalForm({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div>
+          <div id={criteriaAnchorId('headcount')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="6. Số lượng tuyển dụng"
               extra={<UncertainBadge show={uncertain.has('headcount')} />}
@@ -303,7 +342,7 @@ export function JdTechnicalForm({
               size="sm"
             />
           </div>
-          <div>
+          <div id={criteriaAnchorId('deadline')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="7. Hạn nộp hồ sơ"
               extra={<UncertainBadge show={uncertain.has('deadline')} />}
@@ -325,7 +364,7 @@ export function JdTechnicalForm({
         controlledOpen={openGroup === 'B'}
         onToggle={() => toggleGroup('B')}
       >
-        <div>
+        <div id={criteriaAnchorId('equipmentSystems')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="8. Thiết bị / hệ thống"
             description="Chỉ chọn mục JD nêu rõ — không suy diễn."
@@ -341,7 +380,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('workEnvironments')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="9. Môi trường làm việc"
             extra={<UncertainBadge show={uncertain.has('workEnvironments')} />}
@@ -354,7 +393,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('technicalWorkTypes')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="10. Công việc kỹ thuật"
             extra={<UncertainBadge show={uncertain.has('technicalWorkTypes')} />}
@@ -378,7 +417,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('autonomyLevel')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="11. Mức độ tự chủ"
             description="Chỉ chọn mức tự chủ 1–5 khi JD mô tả — khác với Cấp bậc ở phần A."
@@ -403,7 +442,7 @@ export function JdTechnicalForm({
         onToggle={() => toggleGroup('C')}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div id={criteriaAnchorId('educationLevel')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="12. Trình độ học vấn"
               extra={<UncertainBadge show={uncertain.has('educationLevel')} />}
@@ -421,7 +460,7 @@ export function JdTechnicalForm({
               ))}
             </Select>
           </div>
-          <div>
+          <div id={criteriaAnchorId('educationMajor')} className="scroll-mt-28">
             <NumberedFieldLabel
               title="13. Chuyên ngành"
               extra={<UncertainBadge show={uncertain.has('educationMajor')} />}
@@ -435,7 +474,7 @@ export function JdTechnicalForm({
           </div>
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('languages')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="14. Ngoại ngữ"
             extra={<UncertainBadge show={uncertain.has('languages')} />}
@@ -448,7 +487,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('certificates')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="15. Chứng chỉ"
             extra={<UncertainBadge show={uncertain.has('certificates')} />}
@@ -463,7 +502,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('driverLicenses')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="16. Giấy phép lái xe"
             extra={<UncertainBadge show={uncertain.has('driverLicenses')} />}
@@ -482,7 +521,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('travelAbility')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="17. Khả năng đi công tác"
             extra={<UncertainBadge show={uncertain.has('travelAbility')} />}
@@ -497,7 +536,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('shiftFlexibility')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="18. Làm ngoài giờ / xử lý sự cố"
             extra={<UncertainBadge show={uncertain.has('shiftFlexibility')} />}
@@ -512,7 +551,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('technicalTools')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="19. Công cụ / phần mềm"
             extra={<UncertainBadge show={uncertain.has('technicalTools')} />}
@@ -527,7 +566,7 @@ export function JdTechnicalForm({
           />
         </div>
 
-        <div>
+        <div id={criteriaAnchorId('documentLiteracy')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="20. Bản vẽ / tài liệu kỹ thuật"
             extra={<UncertainBadge show={uncertain.has('documentLiteracy')} />}
@@ -548,7 +587,7 @@ export function JdTechnicalForm({
         controlledOpen={openGroup === 'D'}
         onToggle={() => toggleGroup('D')}
       >
-        <div>
+        <div id={criteriaAnchorId('description')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="21. Mô tả công việc"
             extra={<UncertainBadge show={uncertain.has('description')} />}
@@ -562,7 +601,7 @@ export function JdTechnicalForm({
             compact
           />
         </div>
-        <div>
+        <div id={criteriaAnchorId('requirements')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="22. Yêu cầu công việc"
             extra={<UncertainBadge show={uncertain.has('requirements')} />}
@@ -576,7 +615,7 @@ export function JdTechnicalForm({
             compact
           />
         </div>
-        <div>
+        <div id={criteriaAnchorId('benefits')} className="scroll-mt-28">
           <NumberedFieldLabel
             title="23. Quyền lợi / phúc lợi"
             extra={<UncertainBadge show={uncertain.has('benefits')} />}
@@ -591,6 +630,9 @@ export function JdTechnicalForm({
           />
         </div>
       </MatrixSection>
+      </div>
+      {progressCard}
+      </div>
     </fieldset>
   );
 }

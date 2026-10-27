@@ -38,8 +38,6 @@ import type {
   SourcingScopeLine,
 } from '@industriallink/contracts';
 import {
-  BILLING_PLAN_ACTION_LABELS,
-  BILLING_PLAN_BILLABLE_ACTIONS,
   DEFAULT_BILLING_PAGE_CONTENT,
   DEFAULT_SOURCING_SCOPE_LINES,
   UserRole,
@@ -77,9 +75,11 @@ const PRICE_TEXT =
 function PlanPrice({
   value,
   currency,
+  className,
 }: {
   value: string;
   currency: BillingCurrencyDisplay;
+  className?: string;
 }) {
   const formatted = formatPriceVnd(value, currency);
   const symbol = currency.displaySymbol;
@@ -92,7 +92,7 @@ function PlanPrice({
       : formatted;
 
   return (
-    <p className={clsx('flex min-w-0 max-w-full flex-nowrap items-baseline gap-0.5', PRICE_TEXT)}>
+    <p className={clsx('flex min-w-0 max-w-full flex-nowrap items-baseline gap-0.5', className ?? PRICE_TEXT)}>
       {symbolBefore ? <span className="shrink-0 text-[0.72em]">{symbol}</span> : null}
       <span className="min-w-0 tabular-nums">{amount}</span>
       {symbolAfter ? <span className="shrink-0 text-[0.72em]">{symbol}</span> : null}
@@ -100,8 +100,8 @@ function PlanPrice({
   );
 }
 
-function PlanPriceLabel({ children }: { children: string }) {
-  return <p className={PRICE_TEXT}>{children}</p>;
+function PlanPriceLabel({ children, className }: { children: string; className?: string }) {
+  return <p className={className ?? PRICE_TEXT}>{children}</p>;
 }
 
 function PlanPriceMeta({ children }: { children?: ReactNode }) {
@@ -114,24 +114,35 @@ function SalePrice({
   percent,
   label,
   currency,
+  priceClassName,
+  stacked = false,
 }: {
   list: string;
   sale?: string | null;
   percent?: number | null;
   label?: string | null;
   currency: BillingCurrencyDisplay;
+  priceClassName?: string;
+  /** Giữ chỗ giá gạch và nhãn giảm để các cột thẳng hàng. */
+  stacked?: boolean;
 }) {
   const onSale = Boolean(percent && percent > 0 && sale && sale !== list);
   return (
     <div>
-      {onSale ? (
-        <p className="text-xs tabular-nums text-slate-400 line-through">{formatPriceVnd(list, currency)}</p>
-      ) : null}
-      <PlanPrice value={onSale ? sale! : list} currency={currency} />
-      {onSale ? (
-        <p className="mt-1 inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
-          {label ?? `Giảm ${percent}%`}
+      {stacked || onSale ? (
+        <p className="h-4 text-xs tabular-nums text-slate-400 line-through">
+          {onSale ? formatPriceVnd(list, currency) : ''}
         </p>
+      ) : null}
+      <PlanPrice value={onSale ? sale! : list} currency={currency} className={priceClassName} />
+      {stacked || onSale ? (
+        onSale ? (
+          <p className="mt-1 inline-flex h-5 items-center rounded-full bg-rose-50 px-2 text-[10px] font-bold text-rose-700">
+            {label ?? `Giảm ${percent}%`}
+          </p>
+        ) : (
+          <p className="mt-1 h-5" />
+        )
       ) : null}
     </div>
   );
@@ -510,14 +521,6 @@ function HowItWorksSection({ page }: { page: BillingPageContentView }) {
   );
 }
 
-function formatActionCost(
-  plan: BillingPlatformPlanView,
-  action: (typeof BILLING_PLAN_BILLABLE_ACTIONS)[number],
-): string {
-  const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
-  if (!row) return '—';
-  return row.cost === 0 ? 'Miễn phí' : `${row.cost} Credit`;
-}
 
 // ============================================================================
 // CONTACT CTA
@@ -754,10 +757,110 @@ function LaunchCountdown({ note }: { note: string }) {
 // ============================================================================
 // PLATFORM PLANS
 // ============================================================================
+const TOP_PLAN_CODES = ['KHAM_PHA', 'TIN_DANG', 'TIN_DANG_PLUS'] as const;
+const BOTTOM_PLAN_CODES = ['DOANH_NGHIEP', 'ENTERPRISE'] as const;
+
+function takePlans(plans: BillingPlatformPlanView[], codes: readonly string[]) {
+  return codes
+    .map((code) => plans.find((plan) => plan.code === code))
+    .filter((plan): plan is BillingPlatformPlanView => Boolean(plan));
+}
+
+function actionCost(plan: BillingPlatformPlanView, action: string): number | null {
+  const row = plan.actionCosts?.find((item) => item.action === action && item.isActive);
+  return row ? row.cost : null;
+}
+
+/** Cùng thứ tự trên mọi thẻ để các dòng quyền lợi thẳng hàng. */
+function platformFeatureRows(plan: BillingPlatformPlanView): { text: string; included: boolean }[] {
+  const free = plan.code === 'KHAM_PHA';
+  const plus = plan.code === 'TIN_DANG_PLUS';
+  const company = plan.code === 'DOANH_NGHIEP';
+  const enterprise = plan.code === 'ENTERPRISE';
+  const monthly = plan.billingUnit === 'per_month';
+  const jobs = plan.jobPostQuota;
+  const days = plan.durationDays;
+  const credits = plan.creditQuota;
+  const openCost = actionCost(plan, 'view_profile');
+  const canOpen = enterprise || credits == null || credits > 0;
+
+  return [
+    {
+      included: true,
+      text:
+        enterprise || jobs == null
+          ? 'Hạn mức tin theo hợp đồng'
+          : monthly
+            ? `Tối đa ${jobs} tin đang hoạt động`
+            : free
+              ? `${jobs} tin thử nghiệm`
+              : `${jobs} tin đăng`,
+    },
+    {
+      included: true,
+      text:
+        enterprise || days == null
+          ? 'Thời hạn theo hợp đồng'
+          : monthly
+            ? `Chu kỳ ${days} ngày`
+            : `Hiển thị ${days} ngày`,
+    },
+    {
+      included: canOpen,
+      text:
+        enterprise || credits == null
+          ? 'Lượt mở hồ sơ theo hợp đồng'
+          : credits > 0
+            ? monthly
+              ? `${credits} lượt mở hồ sơ / tháng`
+              : `${credits} lượt mở hồ sơ tiềm năng`
+            : 'Không có lượt mở hồ sơ tiềm năng',
+    },
+    {
+      included: plus,
+      text: 'Thêm lượt mở so với Tin đăng',
+    },
+    {
+      included: canOpen && (openCost == null || openCost > 0),
+      text:
+        openCost != null && openCost > 0
+          ? `Mỗi lượt mở hồ sơ tốn ${openCost} Credit`
+          : 'Mở hồ sơ tiềm năng không tốn Credit',
+    },
+    {
+      included: !free,
+      text: 'Hồ sơ ứng tuyển không tốn lượt',
+    },
+    {
+      included: true,
+      text: 'Tổng Matching không tốn lượt',
+    },
+    {
+      included: !free,
+      text: 'Mở lại hồ sơ đã xem không tốn lượt',
+    },
+    {
+      included: true,
+      text: 'Phân tích JD bằng AI',
+    },
+    {
+      included: true,
+      text: 'Sửa tiêu chí JD',
+    },
+    {
+      included: company,
+      text: 'Tin đóng hoặc nháp không tính hạn mức',
+    },
+    {
+      included: enterprise,
+      text: 'Hỗ trợ triển khai riêng',
+    },
+  ];
+}
+
 function PlatformPlansView({
   plans,
   currency,
-  enterprise,
   onSourcing,
   onTopup,
   isRecruiter,
@@ -770,7 +873,6 @@ function PlatformPlansView({
 }: {
   plans: BillingPlatformPlanView[];
   currency: BillingCurrencyDisplay;
-  enterprise: BillingPlatformPlanView | undefined;
   onSourcing: () => void;
   onTopup: () => void;
   isRecruiter: boolean;
@@ -782,6 +884,19 @@ function PlatformPlansView({
   page: BillingPageContentView;
 }) {
   const visible = plans.filter((p) => p.isActive);
+  const known = new Set<string>([...TOP_PLAN_CODES, ...BOTTOM_PLAN_CODES]);
+  const top = takePlans(visible, TOP_PLAN_CODES);
+  const bottom = takePlans(visible, BOTTOM_PLAN_CODES);
+  const rest = visible.filter((plan) => !known.has(plan.code));
+  const cardProps = {
+    currency,
+    isRecruiter,
+    checkoutReady,
+    planCtaHref,
+    freeCtaHref,
+    enterpriseCtaHref,
+    canRequestEnterprise,
+  };
 
   return (
     <div>
@@ -798,51 +913,23 @@ function PlatformPlansView({
         ) : null}
       </div>
 
-      {/* Cards grid */}
-      <div className="grid min-w-0 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        {visible.map((p) => (
-          <PlatformPlanCard
-            key={p.id}
-            plan={p}
-            currency={currency}
-            isRecruiter={isRecruiter}
-            checkoutReady={checkoutReady}
-            planCtaHref={planCtaHref}
-            freeCtaHref={freeCtaHref}
-            enterpriseCtaHref={enterpriseCtaHref}
-            canRequestEnterprise={canRequestEnterprise}
-          />
+      <div className="grid min-w-0 items-stretch gap-5 pt-4 md:grid-cols-3">
+        {top.map((p) => (
+          <PlatformPlanCard key={p.id} plan={p} {...cardProps} />
         ))}
       </div>
-
-      {/* Enterprise banner */}
-      {enterprise ? (
-        <div className="mt-6 rounded-2xl bg-gradient-to-r from-[#072348] to-[#0d3b80] p-5 text-white">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-300">
-                {enterprise.name}
-              </p>
-              <p className="mt-1 text-base font-semibold">Cho tập đoàn & đội ngũ lớn</p>
-              <p className="mt-0.5 text-sm text-slate-300">{enterprise.description}</p>
-            </div>
-            {canRequestEnterprise ? (
-              <EnterpriseConsultButton
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-amber-500 px-4 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400 disabled:opacity-60"
-                label={isRecruiter ? 'Yêu cầu tư vấn' : 'Liên hệ tư vấn'}
-                noteClassName="mt-2 max-w-xs text-xs text-amber-100"
-                errorClassName="mt-2 max-w-xs text-xs text-rose-200"
-              />
-            ) : (
-              <a
-                href={enterpriseCtaHref()}
-                className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-amber-500 px-4 text-sm font-bold text-[#072348] transition-colors hover:bg-amber-400"
-              >
-                {isRecruiter ? 'Yêu cầu tư vấn' : 'Liên hệ tư vấn'}{' '}
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </div>
+      {bottom.length > 0 ? (
+        <div className="mt-5 grid min-w-0 items-stretch gap-5 md:grid-cols-2">
+          {bottom.map((p) => (
+            <PlatformPlanCard key={p.id} plan={p} roomy {...cardProps} />
+          ))}
+        </div>
+      ) : null}
+      {rest.length > 0 ? (
+        <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-3">
+          {rest.map((p) => (
+            <PlatformPlanCard key={p.id} plan={p} {...cardProps} />
+          ))}
         </div>
       ) : null}
 
@@ -868,6 +955,7 @@ function PlatformPlanCard({
   freeCtaHref,
   enterpriseCtaHref,
   canRequestEnterprise,
+  roomy = false,
 }: {
   plan: BillingPlatformPlanView;
   currency: BillingCurrencyDisplay;
@@ -877,36 +965,59 @@ function PlatformPlanCard({
   freeCtaHref: () => string;
   enterpriseCtaHref: () => string;
   canRequestEnterprise: boolean;
+  roomy?: boolean;
 }) {
   const isFree = plan.code === 'KHAM_PHA';
   const isEnterprise = plan.code === 'ENTERPRISE';
-  const featured = plan.isFeatured;
+  const featured = plan.code === 'TIN_DANG_PLUS';
+  const priceClass = roomy
+    ? 'font-bold leading-none tracking-tight text-[#072348] text-[2rem] md:text-5xl'
+    : 'font-bold leading-none tracking-tight text-[#072348] text-[1.7rem] md:text-[2rem]';
+  const rows = platformFeatureRows(plan);
+  const ctaClass = clsx(
+    'inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
+    featured
+      ? 'bg-[#E8872A] text-white shadow-[0_10px_20px_-10px_rgba(232,135,42,0.9)] hover:bg-[#d9781f]'
+      : isFree
+        ? 'bg-slate-100 text-slate-800 hover:bg-slate-200'
+        : 'bg-[#072348] text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.7)] hover:bg-[#0d3b80]',
+  );
 
   return (
     <div
       className={clsx(
-        'relative flex min-w-0 flex-col rounded-2xl bg-white p-4 ring-1 transition sm:p-5',
+        'relative flex min-w-0 flex-col rounded-2xl border bg-white transition',
+        roomy ? 'p-6 sm:p-7' : 'p-5',
         featured
-          ? 'ring-2 ring-amber-400 shadow-xl shadow-amber-500/10'
-          : 'ring-slate-200 hover:shadow-md hover:ring-slate-300'
+          ? 'z-10 border-amber-200 bg-gradient-to-b from-amber-50/90 via-white to-white shadow-[0_22px_44px_-24px_rgba(232,135,42,0.65)]'
+          : 'border-slate-200/90 shadow-[0_10px_28px_-18px_rgba(7,35,72,0.35)] hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-20px_rgba(7,35,72,0.4)]',
       )}
     >
       {featured ? (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#072348] shadow-md">
-          <Star className="h-2.5 w-2.5 fill-current" /> Gói phổ biến
+        <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[#072348] px-3 py-1 text-[11px] font-semibold tracking-wide text-white shadow-[0_8px_18px_-8px_rgba(7,35,72,0.7)]">
+          <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
+          Gói phổ biến
         </span>
       ) : null}
 
-      <h3 className="text-base font-bold text-slate-900">{plan.name}</h3>
-      {plan.description ? (
-        <p className="mt-1 text-[12px] leading-relaxed text-slate-500">{plan.description}</p>
-      ) : null}
+      <h3 className={clsx('font-bold tracking-tight text-[#072348]', roomy ? 'text-2xl' : 'text-lg')}>{plan.name}</h3>
+      <p className="mt-1 line-clamp-2 min-h-10 text-[13px] leading-5 text-slate-500">
+        {plan.description || '\u00a0'}
+      </p>
 
-      <div className="mt-4 min-w-0">
+      <div className="mt-4 flex min-h-[7.5rem] flex-col justify-end">
         {isEnterprise ? (
-          <PlanPriceLabel>Báo giá</PlanPriceLabel>
+          <div>
+            <p className="h-4" />
+            <PlanPriceLabel className={priceClass}>Báo giá</PlanPriceLabel>
+            <p className="mt-1 h-5" />
+          </div>
         ) : isFree ? (
-          <PlanPriceLabel>Miễn phí</PlanPriceLabel>
+          <div>
+            <p className="h-4" />
+            <PlanPriceLabel className={priceClass}>Miễn phí</PlanPriceLabel>
+            <p className="mt-1 h-5" />
+          </div>
         ) : (
           <SalePrice
             list={plan.priceVnd}
@@ -914,6 +1025,8 @@ function PlatformPlanCard({
             percent={plan.promoPercent}
             label={plan.promoLabel}
             currency={currency}
+            priceClassName={priceClass}
+            stacked
           />
         )}
         <PlanPriceMeta>
@@ -925,79 +1038,19 @@ function PlatformPlanCard({
                 : '14 ngày · 1 tin thử nghiệm'
               : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}`}
         </PlanPriceMeta>
-        <p className="min-h-[16px] text-[10px] leading-4 text-slate-400">
+        <p className="min-h-4 text-[10px] leading-4 text-slate-400">
           {!isEnterprise && !isFree && currency.showReferenceUsd
-            ? formatReferenceUsd(plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.priceVnd, currency)
+            ? formatReferenceUsd(
+                plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.priceVnd,
+                currency,
+              )
             : '\u00a0'}
         </p>
       </div>
 
-      <ul className="mt-4 flex-1 space-y-1.5">
-        {plan.features.map((f, i) => (
-          <li key={i} className="flex items-start gap-1.5 text-[12px] text-slate-600">
-            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-            <span>{f}</span>
-          </li>
-        ))}
-        {plan.durationDays != null ? (
-          <li className="flex items-start gap-1.5 text-[12px] text-slate-600">
-            <span className="mt-0.5 h-3.5 w-3.5 shrink-0 text-center text-[10px] font-bold text-slate-400">
-              ⏱
-            </span>
-            <span>
-              {isFree
-                ? `Tin hiển thị ${plan.durationDays} ngày · tạo tin mới sau ${plan.durationDays} ngày`
-                : plan.billingUnit === 'per_month'
-                  ? `Chu kỳ ${plan.durationDays} ngày`
-                  : `Tin hiển thị ${plan.durationDays} ngày`}
-            </span>
-          </li>
-        ) : null}
-        {plan.creditQuota != null && plan.creditQuota > 0 ? (
-          <li className="flex items-start gap-1.5 text-[12px] font-semibold text-amber-700">
-            <Coins className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              {plan.billingUnit === 'per_month'
-                ? `${plan.creditQuota} lượt mở hồ sơ / tháng`
-                : `${plan.creditQuota} lượt mở hồ sơ tiềm năng`}
-            </span>
-          </li>
-        ) : null}
-        {plan.jobPostQuota != null ? (
-          <li className="flex items-start gap-1.5 text-[12px] text-slate-600">
-            <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span>
-              {plan.billingUnit === 'per_month'
-                ? `Tối đa ${plan.jobPostQuota} tin đang hoạt động`
-                : `${plan.jobPostQuota} tin / gói`}
-            </span>
-          </li>
-        ) : null}
-        {plan.creditQuota != null && plan.creditQuota > 0
-          ? BILLING_PLAN_BILLABLE_ACTIONS.filter((action) => {
-          const row = plan.actionCosts?.find((c) => c.action === action && c.isActive);
-          return row != null && row.cost > 0;
-        }).map((action) => {
-          const label = BILLING_PLAN_ACTION_LABELS[action];
-          const text = formatActionCost(plan, action);
-          return (
-            <li key={action} className="flex items-start gap-1.5 text-[12px] text-slate-600">
-              <Coins className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span>
-                {label}: {text}
-              </span>
-            </li>
-          );
-        })
-          : null}
-      </ul>
-
       {isEnterprise && canRequestEnterprise ? (
         <EnterpriseConsultButton
-          className={clsx(
-            'mt-5 inline-flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold transition disabled:opacity-60',
-            featured ? 'bg-amber-500 text-[#072348] hover:bg-amber-400' : 'bg-[#072348] text-white hover:bg-[#0d3b80]',
-          )}
+          className={clsx(ctaClass, 'mt-4 disabled:opacity-60')}
           label="Liên hệ tư vấn"
           noteClassName="mt-2 text-xs text-slate-500"
           errorClassName="mt-2 text-xs text-rose-600"
@@ -1005,14 +1058,7 @@ function PlatformPlanCard({
       ) : (
         <Link
           href={isEnterprise ? enterpriseCtaHref() : isFree ? freeCtaHref() : planCtaHref(plan.code)}
-          className={clsx(
-            'mt-5 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
-            featured
-              ? 'bg-amber-500 text-[#072348] hover:bg-amber-400'
-              : isFree
-                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                : 'bg-[#072348] text-white hover:bg-[#0d3b80]',
-          )}
+          className={clsx(ctaClass, 'mt-4')}
         >
           {isEnterprise
             ? 'Liên hệ tư vấn'
@@ -1022,10 +1068,38 @@ function PlatformPlanCard({
                 : 'Đăng ký miễn phí'
               : checkoutReady || isRecruiter
                 ? 'Thanh toán'
-                : 'Chọn gói'}{' '}
+                : 'Chọn gói'}
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       )}
+
+      <ul className="mt-5 border-t border-slate-100 pt-2">
+        {rows.map((row) => (
+          <li key={row.text} className="flex h-10 items-center gap-2.5 border-b border-slate-100/80 last:border-0">
+            <span
+              className={clsx(
+                'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
+                row.included ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-300',
+              )}
+            >
+              {row.included ? (
+                <Check className="h-3 w-3" strokeWidth={2.6} />
+              ) : (
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              )}
+            </span>
+            <span
+              title={row.text}
+              className={clsx(
+                'min-w-0 truncate text-[13px] leading-5',
+                row.included ? 'font-medium text-slate-800' : 'text-slate-400 line-through decoration-slate-300',
+              )}
+            >
+              {row.text}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -1595,7 +1669,6 @@ export function PricingClient({
   }
 
   const cur = resolved.currency;
-  const enterprise = resolved.platformPlans.find((p) => p.code === 'ENTERPRISE' && p.isActive);
 
   if (embedded) {
     return (
@@ -1612,7 +1685,6 @@ export function PricingClient({
             <PlatformPlansView
               plans={resolved.platformPlans}
               currency={cur}
-              enterprise={enterprise}
               onSourcing={() => setTab('sourcing')}
               onTopup={() => setTab('credit')}
               isRecruiter
@@ -1665,12 +1737,11 @@ export function PricingClient({
 
       {/* CONTENT */}
       <section className="bg-slate-50 py-12 sm:py-16">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
           {tab === 'platform' ? (
             <PlatformPlansView
               plans={resolved.platformPlans}
               currency={cur}
-              enterprise={enterprise}
               onSourcing={() => setTab('sourcing')}
               onTopup={() => setTab('credit')}
               isRecruiter={isRecruiter}

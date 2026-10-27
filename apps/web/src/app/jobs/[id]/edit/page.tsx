@@ -79,7 +79,7 @@ export default function EditJobPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-3xl space-y-5 pb-10">
+      <div className="mx-auto max-w-6xl space-y-5 pb-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link
@@ -137,6 +137,7 @@ export default function EditJobPage() {
             )}
             <JdSalesForm
               form={salesForm}
+              showProgress
               onChange={(patch) => setSalesForm((prev) => ({ ...prev, ...patch }))}
             />
             <div className="flex justify-end gap-2 pt-2">
@@ -173,6 +174,7 @@ export default function EditJobPage() {
             )}
             <JdTechnicalForm
               form={techForm}
+              showProgress
               onChange={(patch) => setTechForm((prev) => ({ ...prev, ...patch }))}
             />
             <div className="flex justify-end gap-2 pt-2">

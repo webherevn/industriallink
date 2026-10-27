@@ -549,7 +549,7 @@ export function CompareSection({
   let insight = '';
 
   if (tab === 'platform') {
-    columns = platform.map((p) => ({ id: p.id, name: p.name, featured: p.isFeatured }));
+    columns = platform.map((p) => ({ id: p.id, name: p.name, featured: p.code === 'TIN_DANG_PLUS' }));
     rows = buildPlatformRows(platform, currency);
     insight = platformInsight(platform);
   } else if (tab === 'sourcing') {
