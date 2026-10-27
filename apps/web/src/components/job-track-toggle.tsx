@@ -18,7 +18,7 @@ export function JobTrackToggle({
   return (
     <div className={className}>
       <p className="mb-2 text-xs font-semibold text-slate-700">Lĩnh vực tin tuyển dụng</p>
-      <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <div data-guide="jd-track" className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
         {options.map((track) => {
           const active = value === track;
           return (
@@ -39,7 +39,7 @@ export function JobTrackToggle({
         })}
       </div>
       <p className="mt-1.5 text-[11px] text-slate-400">
-        Kinh doanh dùng ma trận 22 trường JD matching. Kỹ thuật giữ form hiện tại — sẽ cập nhật sau.
+        Kinh doanh dùng ma trận 22 tiêu chí. Kỹ thuật dùng ma trận 23 tiêu chí.
       </p>
     </div>
   );

@@ -21,6 +21,7 @@ import {
 } from '@industriallink/contracts';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { AppShell } from '@/components/app-shell';
+import { JdCreateGuide } from '@/components/jd-create-guide';
 import { JdFileDrop } from '@/components/jd-file-drop';
 import { JdTechnicalForm } from '@/components/jd-technical-form';
 import { JobTrackToggle } from '@/components/job-track-toggle';
@@ -141,6 +142,7 @@ export function JdTechnicalCreateFlow({
           <p className="mt-1 text-[13px] text-slate-500">
             Upload JD hoặc dán nội dung — AI điền 23 trường kỹ thuật, HR chỉ xác nhận.
           </p>
+          <JdCreateGuide track="technical" step={step} onStep={setStep} />
         </div>
         <Button
           type="button"
@@ -152,10 +154,12 @@ export function JdTechnicalCreateFlow({
         </Button>
       </div>
 
-      <JobTrackToggle value={JobTrack.Technical} onChange={onSwitchTrack} className="mt-4" />
+      <div className="mt-4">
+        <JobTrackToggle value={JobTrack.Technical} onChange={onSwitchTrack} />
+      </div>
 
       <nav className="mt-6 overflow-x-auto">
-        <ol className="flex min-w-max items-center gap-1 sm:gap-2">
+        <ol data-guide="jd-steps" className="flex min-w-max items-center gap-1 sm:gap-2">
           {STEPS.map((s, idx) => {
             const active = step === s.id;
             const done = step > s.id;
@@ -195,7 +199,10 @@ export function JdTechnicalCreateFlow({
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           {step === 1 && (
-            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div
+              data-guide="jd-source"
+              className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
               <JdFileDrop
                 busy={busy}
                 pending={fileMutation.isPending}
@@ -228,6 +235,7 @@ export function JdTechnicalCreateFlow({
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
+                  data-guide="jd-ai"
                   disabled={busy || text.trim().length < 40}
                   onClick={() => textMutation.mutate()}
                 >
@@ -266,7 +274,7 @@ export function JdTechnicalCreateFlow({
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
+            <div data-guide="jd-form" className="space-y-4">
               {parseNote && (
                 <p className="rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-[13px] text-brand-900">
                   {parseNote}
@@ -285,7 +293,10 @@ export function JdTechnicalCreateFlow({
           )}
 
           {step === 3 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div
+              data-guide="jd-preview"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
               <h2 className="text-lg font-bold text-slate-900">{form.title || 'Chưa có vị trí'}</h2>
               <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-slate-600">
                 {form.jobLevel && (
@@ -381,6 +392,7 @@ export function JdTechnicalCreateFlow({
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <div data-guide="jd-progress">
           <CriteriaCompletionCard
             title="Tiến độ điền JD"
             percent={progress.percent}
@@ -394,6 +406,7 @@ export function JdTechnicalCreateFlow({
               suggestion: '',
             }))}
           />
+          </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[13px] text-slate-600 shadow-sm">
             <p className="font-semibold text-slate-900">Gợi ý cho HR</p>
             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed">

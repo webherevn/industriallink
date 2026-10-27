@@ -37,6 +37,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { ConnectionChat } from '@/components/connection-chat';
 import { CornerRobot } from '@/components/corner-robot';
+import { RecruiterGuide } from '@/components/recruiter-guide';
 import { CreditBalanceBadge } from '@/components/credit-balance-badge';
 import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore, ApiError } from '@/lib/api';
@@ -115,6 +116,17 @@ const PLAN_VISUAL: Record<
   SAN_CO_BAN: { icon: Shield, tone: 'bg-violet-50 text-violet-800 ring-violet-200' },
   SAN_TIEU_CHUAN: { icon: Shield, tone: 'bg-fuchsia-50 text-fuchsia-900 ring-fuchsia-200' },
   SAN_CHUYEN_SAU: { icon: Shield, tone: 'bg-indigo-50 text-indigo-900 ring-indigo-200' },
+};
+
+const GUIDE_TARGET: Record<string, string> = {
+  '/recruiter': 'nav-overview',
+  '/jobs/manage': 'nav-jobs',
+  '/jobs/new': 'nav-jd',
+  '/recruiter/inbox': 'nav-inbox',
+  '/search': 'nav-search',
+  '/recruiter/calendar': 'nav-calendar',
+  '/recruiter/offers': 'nav-offer',
+  '/recruiter/onboarding': 'nav-hire',
 };
 
 function navMatches(href: string, path: string) {
@@ -236,6 +248,12 @@ export function RecruiterShell({
 
   useEffect(() => {
     void restoreSession().finally(() => setSessionReady(true));
+  }, []);
+
+  useEffect(() => {
+    const openNav = () => setMobileOpen(true);
+    window.addEventListener('inlink-guide-open-nav', openNav);
+    return () => window.removeEventListener('inlink-guide-open-nav', openNav);
   }, []);
 
   const hasToken = sessionReady && Boolean(tokenStore.get());
@@ -421,6 +439,7 @@ export function RecruiterShell({
                   <li key={`${item.href}-${item.label}`}>
                     <Link
                       href={item.href}
+                      data-guide={GUIDE_TARGET[item.href]}
                       className={clsx(
                         'relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition',
                         active
@@ -444,6 +463,17 @@ export function RecruiterShell({
           </div>
         ))}
       </nav>
+
+      <div className="px-3 pb-3">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event('inlink-open-guide'))}
+          className="flex w-full items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-sm font-semibold text-[#072348] transition hover:border-amber-300 hover:bg-amber-100"
+        >
+          <HelpCircle className="h-4 w-4 text-[#E8872A]" />
+          Hướng dẫn
+        </button>
+      </div>
 
       <div className="border-t border-slate-100 p-4">
         <div className="flex items-center gap-3">
@@ -548,14 +578,15 @@ export function RecruiterShell({
               >
                 <MessageSquare className="h-5 w-5" strokeWidth={1.75} />
               </Link>
-              <a
-                href="mailto:support@inlink.vn"
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('inlink-open-guide'))}
                 className="rounded-full p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                title="Trợ giúp"
-                aria-label="Trợ giúp"
+                title="Hướng dẫn"
+                aria-label="Hướng dẫn"
               >
                 <HelpCircle className="h-5 w-5" strokeWidth={1.75} />
-              </a>
+              </button>
 
               <div ref={accountRef} className="relative ml-1">
                 <button
@@ -654,6 +685,7 @@ export function RecruiterShell({
 
         <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">{children}</main>
       </div>
+      <RecruiterGuide />
       <CornerRobot name={user?.displayName} />
       <ConnectionChat />
     </div>

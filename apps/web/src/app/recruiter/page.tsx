@@ -553,7 +553,7 @@ export default function RecruiterDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-5 overflow-x-auto pb-1">
+          <div className="mt-5 overflow-x-auto pb-1" data-guide="pipeline">
             <div className="flex min-w-[560px]">
               {PIPELINE_STAGES.map((stage, i) => {
                 const count = pipelineCounts[stage.key];
