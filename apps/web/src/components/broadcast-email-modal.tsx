@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Sparkles } from 'lucide-react';
 import { ApplicationStatus, formatJobTitle, type ApplicantView } from '@industriallink/contracts';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { APPLICATION_STATUS_LABEL, PIPELINE_STEPS } from '@/lib/format';
@@ -271,7 +271,7 @@ function StatusChip({
 }: {
   active: boolean;
   onClick: () => void;
-  children: string;
+  children: ReactNode;
 }) {
   return (
     <button
