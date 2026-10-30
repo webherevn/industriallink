@@ -60,6 +60,13 @@ body {
   border-radius: 1rem;
 }
 
+/* Menu header ứng viên: chừa chỗ cho nút Đã nhận việc, giữ một dòng */
+nav[aria-label='Menu chính'] > a.px-3 {
+  padding-left: 0.45rem;
+  padding-right: 0.75rem;
+  white-space: nowrap;
+}
+
 .il-date {
   color-scheme: light;
 }
