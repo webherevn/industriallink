@@ -132,6 +132,32 @@ export function displayFeatureLines(plan: BillingPlatformPlanView): PlatformFeat
   return readPlatformFeatureLines(plan.features) ?? platformFeatureRows(plan);
 }
 
+export type PlatformHighlightStat = { label: string; value: string; hint?: string };
+
+function quotaStat(value: number | null, empty: string, hint?: string): { value: string; hint?: string } {
+  if (value == null) return { value: empty, hint };
+  return { value: String(value) };
+}
+
+/** Bốn thông số nổi trên thẻ gói tin. Số lấy từ cài đặt SuperAdmin, không lấy từ câu mô tả. */
+export function platformHighlightStats(plan: BillingPlatformPlanView): PlatformHighlightStat[] {
+  const enterprise = plan.code === 'ENTERPRISE';
+  const jobs = quotaStat(plan.jobPostQuota, enterprise ? 'HĐ' : '∞', enterprise ? 'Theo hợp đồng' : 'Không giới hạn');
+  const opens = quotaStat(plan.creditQuota, 'HĐ', 'Theo hợp đồng');
+  const days = quotaStat(plan.durationDays, enterprise ? 'HĐ' : '∞', enterprise ? 'Theo hợp đồng' : 'Không giới hạn');
+  const openCost = actionCost(plan, 'view_profile');
+  return [
+    { label: 'Số tin', ...jobs },
+    { label: 'Lượt mở', ...opens },
+    { label: 'Số ngày', ...days },
+    {
+      label: 'Credit/lượt',
+      value: openCost == null ? '—' : String(openCost),
+      hint: openCost == null ? 'Chưa đặt' : 'Credit cho mỗi lượt mở hồ sơ',
+    },
+  ];
+}
+
 /** Cụm số tin trong điểm nhấn bảng so sánh. */
 export function platformJobCountLabel(plan: BillingPlatformPlanView): string {
   if (plan.code === 'ENTERPRISE' || plan.jobPostQuota == null) return 'Không giới hạn tin';

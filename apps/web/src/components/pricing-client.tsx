@@ -53,6 +53,7 @@ import {
   normalizePricingConfig,
   normalizePricingPage,
   displayFeatureLines,
+  platformHighlightStats,
   platformJobSentence,
   pricingPlatformFact,
 } from '@/lib/pricing-catalog';
@@ -1007,6 +1008,8 @@ function PlatformPlanCard({
         </p>
       </div>
 
+      <PlanStatGrid ariaLabel="Thông số chính" items={platformHighlightStats(plan)} />
+
       {isEnterprise && canRequestEnterprise ? (
         <EnterpriseConsultButton
           className={clsx(ctaClass, 'mt-4 disabled:opacity-60')}
@@ -1175,12 +1178,15 @@ function SourcingPlanCard({
         ) : null}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-center">
-        <QuotaItem label="Vị trí" value={plan.positionQuota} />
-        <QuotaItem label="Lượt mở" value={plan.creditQuota ?? null} />
-        <QuotaItem label="Điều chỉnh" value={plan.revisionQuota} />
-        <QuotaItem label="Báo cáo" value={plan.searchRoundQuota} />
-      </div>
+      <PlanStatGrid
+        ariaLabel="Thông số gói săn"
+        items={[
+          { label: 'Vị trí', value: plan.positionQuota == null ? '∞' : String(plan.positionQuota) },
+          { label: 'Lượt mở', value: plan.creditQuota == null ? '∞' : String(plan.creditQuota) },
+          { label: 'Điều chỉnh', value: plan.revisionQuota == null ? '∞' : String(plan.revisionQuota) },
+          { label: 'Báo cáo', value: plan.searchRoundQuota == null ? '∞' : String(plan.searchRoundQuota) },
+        ]}
+      />
 
       {/* Service scope */}
       <div className="mt-4">
@@ -1227,13 +1233,34 @@ function SourcingPlanCard({
   );
 }
 
-function QuotaItem({ label, value }: { label: string; value: number | null }) {
+function PlanStatGrid({
+  items,
+  ariaLabel,
+}: {
+  items: { label: string; value: string; hint?: string }[];
+  ariaLabel: string;
+}) {
   return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums text-[#072348]">
-        {value == null ? '∞' : value}
-      </p>
+    <div
+      className="mt-4 grid grid-cols-2 overflow-hidden rounded-xl bg-[#f6f8fb] ring-1 ring-[#072348]/10"
+      aria-label={ariaLabel}
+    >
+      {items.map((stat, index) => (
+        <div
+          key={stat.label}
+          title={stat.hint}
+          className={clsx(
+            'flex items-center justify-between gap-2 px-3 py-2.5',
+            index % 2 === 0 && 'border-r border-[#072348]/10',
+            index < items.length - 2 && 'border-b border-[#072348]/10',
+          )}
+        >
+          <span className="min-w-0 text-[12px] leading-4 text-slate-500">{stat.label}</span>
+          <span className="shrink-0 text-lg font-bold tabular-nums leading-none text-[#072348]">
+            {stat.value}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
