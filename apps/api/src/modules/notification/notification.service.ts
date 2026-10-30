@@ -14,6 +14,7 @@ import {
   buildApplicationSubmittedEmail,
 } from '../../shared/infrastructure/email/application-email.templates';
 import { EmailService } from '../../shared/infrastructure/email/email.service';
+import type { EmailMessage } from '../../shared/infrastructure/email/email.types';
 import {
   buildInterviewCancelledEmail,
   buildInterviewInviteEmail,
@@ -114,6 +115,10 @@ export class NotificationService {
         entityId: input.entityId ?? null,
       },
     });
+  }
+
+  emailSafe(message: EmailMessage): Promise<boolean> {
+    return this.email.sendSafe(message);
   }
 
   /** OtpIssued → gửi email OTP (đọc mã từ DB, không lấy từ payload). */

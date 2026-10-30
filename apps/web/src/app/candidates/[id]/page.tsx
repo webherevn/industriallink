@@ -23,7 +23,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   B2B_EXPERIENCE_BAND_LABEL,
@@ -39,6 +39,7 @@ import {
   formatJobTitle,
 } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
+import { StarterProfileLockDialog } from '@/components/starter-profile-lock';
 import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
 import { ApiError } from '@/lib/api';
 import {
@@ -105,6 +106,7 @@ function ProtectedValue({ label }: { label: string }) {
 
 export default function CandidateDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = params.id;
   const fromSourcing = searchParams.get('from') === 'sourcing';
@@ -205,7 +207,9 @@ export default function CandidateDetailPage() {
           </div>
         )}
 
-        {error && (
+        {error instanceof ApiError && error.code === 'STARTER_PROFILE_LOCKED' ? (
+          <StarterProfileLockDialog open onClose={() => router.back()} />
+        ) : error ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-8 text-center">
             <p className="text-sm font-semibold text-rose-700">
               {error instanceof ApiError ? error.message : 'Không tải được hồ sơ ứng viên'}
@@ -217,7 +221,7 @@ export default function CandidateDetailPage() {
               Về trang tìm kiếm
             </Link>
           </div>
-        )}
+        ) : null}
 
         {data && (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">

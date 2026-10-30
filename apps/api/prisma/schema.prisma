@@ -345,6 +345,8 @@ model Candidate {
   displayName       String @map("display_name")
   status            String @default("registered")
   profileCompletion Int    @default(0) @map("profile_completion")
+  /// Bật: nhận email gợi ý việc và email kết nối. Tắt: không gửi các email đó.
+  outreachEmailEnabled Boolean @default(true) @map("outreach_email_enabled")
   /// áº¢nh Ä‘áº¡i diá»‡n táº£i lÃªn (Object Storage key). null â†’ frontend dÃ¹ng Gravatar/email.
   avatarStorageKey  String? @map("avatar_storage_key")
   avatarMime        String? @map("avatar_mime")

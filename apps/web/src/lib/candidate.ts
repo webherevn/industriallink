@@ -138,6 +138,17 @@ export async function getResumeStatus(resumeId: string): Promise<ResumeParseStat
   return apiRequest(`/candidates/me/resumes/${resumeId}/status`);
 }
 
+export async function getOutreachEmail(): Promise<{ enabled: boolean }> {
+  return apiRequest('/candidates/me/outreach-email');
+}
+
+export async function setOutreachEmail(enabled: boolean): Promise<{ enabled: boolean }> {
+  return apiRequest('/candidates/me/outreach-email', {
+    method: 'PATCH',
+    body: { enabled },
+  });
+}
+
 export async function getMyCandidate(): Promise<CandidateView> {
   return normalizeCandidate(await apiRequest<CandidateView>('/candidates/me'));
 }

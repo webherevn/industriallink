@@ -83,10 +83,7 @@ export class SourcingService {
   }
 
   async getEntitlements(companyId: string): Promise<RecruiterSourcingEntitlements> {
-    const row = await this.prisma.billingCompanySourcingPlan.findUnique({
-      where: { companyId },
-      include: { plan: true },
-    });
+    const row = await this.settleExpiredPlan(companyId);
     if (!row?.plan || !row.isActive) return this.emptyEntitlements();
     const opensUsed = await this.countIncludedOpens(row.id, row.startsAt);
     return this.toEntitlements(row, opensUsed);
@@ -129,6 +126,7 @@ export class SourcingService {
   async assignCompanyPlan(
     actor: AuthenticatedUser,
     input: AdminAssignCompanySourcingPlanRequest,
+    opts: { restartCycle?: boolean } = {},
   ): Promise<BillingCompanySourcingPlanView> {
     const plan = await this.prisma.billingSourcingPlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new NotFoundException('Không tìm thấy gói Săn');
@@ -144,7 +142,7 @@ export class SourcingService {
     const before = await this.prisma.billingCompanySourcingPlan.findUnique({
       where: { companyId: input.companyId },
     });
-    const switching = !before || before.planId !== input.planId || !before.isActive;
+    const switching = Boolean(opts.restartCycle) || !before || before.planId !== input.planId || !before.isActive;
     const cycleEnd =
       input.endsAt === undefined
         ? addUtcDays(startsAt, SOURCING_CYCLE_DAYS)
@@ -204,12 +202,19 @@ export class SourcingService {
       where: { code: planCode, isActive: true },
     });
     if (!plan) throw new NotFoundException('Không tìm thấy gói Săn hoặc gói đã tắt');
-    return this.assignCompanyPlan(actor, {
-      companyId,
-      planId: plan.id,
-      isActive: true,
-      note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt`,
-    });
+    const startsAt = new Date();
+    return this.assignCompanyPlan(
+      actor,
+      {
+        companyId,
+        planId: plan.id,
+        startsAt: startsAt.toISOString(),
+        endsAt: addUtcDays(startsAt, SOURCING_CYCLE_DAYS).toISOString(),
+        isActive: true,
+        note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt`,
+      },
+      { restartCycle: true },
+    );
   }
 
   async unassignCompanyPlan(actor: AuthenticatedUser, companyId: string): Promise<void> {
@@ -258,7 +263,7 @@ export class SourcingService {
       if (!this.cycleOpen(assignment.endsAt)) {
         throw new ForbiddenException({
           code: 'SOURCING_CYCLE_ENDED',
-          message: 'Gói Săn đã hết hạn. Hãy gia hạn hoặc chọn gói mới.',
+          message: 'Gói Săn đã hết hạn. Hãy gia hạn để dùng tiếp.',
         });
       }
 
@@ -346,10 +351,7 @@ export class SourcingService {
     candidateId: string;
     actorUserId?: string;
   }): Promise<'included' | 'repeat' | 'skip'> {
-    const assignment = await this.prisma.billingCompanySourcingPlan.findUnique({
-      where: { companyId: input.companyId },
-      include: { plan: true },
-    });
+    const assignment = await this.settleExpiredPlan(input.companyId);
     if (!assignment?.plan || !assignment.isActive || !this.cycleOpen(assignment.endsAt)) {
       return 'skip';
     }
@@ -436,6 +438,27 @@ export class SourcingService {
   private remaining(quota: number | null, used: number): number | null {
     if (quota == null) return null;
     return Math.max(0, quota - used);
+  }
+
+  /** Hết hạn mà không gia hạn thì tắt gói Săn và đưa hạn mức đã dùng về 0. */
+  private async settleExpiredPlan(companyId: string) {
+    const row = await this.prisma.billingCompanySourcingPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (!row?.plan || !row.isActive || !row.endsAt || row.endsAt.getTime() > Date.now()) return row;
+    return this.prisma.billingCompanySourcingPlan.update({
+      where: { companyId },
+      data: {
+        isActive: false,
+        positionsUsed: 0,
+        searchRoundsUsed: 0,
+        shortlistsUsed: 0,
+        revisionsUsed: 0,
+        note: 'Gói Săn hết hạn và không gia hạn',
+      },
+      include: { plan: true },
+    });
   }
 
   private cycleOpen(endsAt: Date | null): boolean {

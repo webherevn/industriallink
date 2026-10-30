@@ -2,10 +2,12 @@ import type {
   BillingPageContentView,
   BillingPlatformPlanView,
   BillingPublicConfig,
+  PlatformFeatureLine,
+  PlatformPriceMetaItem,
 } from '@industriallink/contracts';
 
 /** Một dòng trên thẻ gói tin. Tick = Bao gồm, bỏ tick = Không bao gồm. */
-export type PlatformFeatureLine = { label: string; included: boolean };
+export type { PlatformFeatureLine };
 
 function isPlatformFeatureLine(item: unknown): item is PlatformFeatureLine {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
@@ -13,14 +15,31 @@ function isPlatformFeatureLine(item: unknown): item is PlatformFeatureLine {
   return typeof row.label === 'string' && typeof row.included === 'boolean';
 }
 
+function isPriceMetaItem(item: unknown): item is PlatformPriceMetaItem {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+  return typeof (item as { priceMeta?: unknown }).priceMeta === 'string';
+}
+
+/** Câu dưới giá đã lưu. Null khi SuperAdmin chưa ghi đè. */
+export function readPlatformPriceMeta(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return null;
+  for (const item of raw) {
+    if (!isPriceMetaItem(item)) continue;
+    const text = item.priceMeta.trim();
+    if (text) return text;
+  }
+  return null;
+}
+
 /** Null khi dữ liệu còn là danh sách chữ cũ — trang giữ dòng mặc định. */
 export function readPlatformFeatureLines(raw: unknown): PlatformFeatureLine[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null;
-  if (!raw.every(isPlatformFeatureLine)) return null;
-  const lines = raw
+  const content = raw.filter((item) => !isPriceMetaItem(item));
+  if (content.length === 0 || !content.every(isPlatformFeatureLine)) return null;
+  const lines = content
     .map((item) => ({ label: item.label.trim(), included: item.included }))
     .filter((item) => item.label.length > 0);
-  return lines;
+  return lines.length > 0 ? lines : null;
 }
 
 /** Tên thương hiệu trên bảng giá. Khớp domain inlink.vn. */
@@ -59,6 +78,45 @@ export function normalizePricingConfig(config: BillingPublicConfig): BillingPubl
       description: pricingPlatformFact(plan).description,
     })),
   };
+}
+
+const PRICE_UNIT: Record<'per_jd' | 'per_month', string> = {
+  per_jd: '/ JD',
+  per_month: '/ tháng',
+};
+
+/** Câu dưới giá khi SuperAdmin chưa ghi đè. */
+export function defaultPlatformPriceMeta(plan: {
+  code: string;
+  billingUnit: 'per_jd' | 'per_month';
+  durationDays?: number | null;
+  jobPostQuota?: number | null;
+}): string {
+  if (plan.code === 'ENTERPRISE') return 'Theo hợp đồng';
+  if (plan.code === 'KHAM_PHA') {
+    return `${plan.durationDays ?? 14} ngày · ${platformJobSentence(plan as BillingPlatformPlanView)}`;
+  }
+  const unit = PRICE_UNIT[plan.billingUnit];
+  return plan.durationDays ? `${unit} · ${plan.durationDays} ngày` : unit;
+}
+
+/** Câu đang hiện dưới giá: bản đã lưu, hoặc câu tự tính. */
+export function platformPriceMetaText(plan: BillingPlatformPlanView): string {
+  const saved = readPlatformPriceMeta(plan.features);
+  return normalizePricingBrand(saved ?? defaultPlatformPriceMeta(plan));
+}
+
+/** Gói dòng thẻ và câu dưới giá vào đúng mảng features API đang lưu. */
+export function packPlatformFeatures(
+  lines: PlatformFeatureLine[],
+  priceMeta: string,
+): Array<PlatformFeatureLine | PlatformPriceMetaItem> {
+  const clean = lines
+    .map((line) => ({ label: line.label.trim(), included: line.included }))
+    .filter((line) => line.label.length > 0);
+  const text = priceMeta.trim();
+  if (!text) return clean;
+  return [...clean, { priceMeta: text }];
 }
 
 /** Câu hạn mức tin dùng chung cho thẻ, bảng so sánh và schema. */

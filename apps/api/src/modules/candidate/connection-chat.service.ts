@@ -13,6 +13,7 @@ import { EmailService } from '../../shared/infrastructure/email/email.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CompanyService } from '../company/company.service';
 import { NotificationService } from '../notification/notification.service';
+import { candidateAcceptsOutreachEmail } from './outreach-email';
 
 const PREVIEW = 160;
 
@@ -170,7 +171,9 @@ export class ConnectionChatService {
         ? `${this.email.webOrigin}/candidates/${row.candidate.id}`
         : `${this.email.webOrigin}/connections`;
 
-    if (recipient.email) {
+    const emailCandidate =
+      side !== 'company' || (await candidateAcceptsOutreachEmail(this.prisma, recipient.userId));
+    if (recipient.email && emailCandidate) {
       await this.email.sendSafe({
         to: recipient.email,
         subject: `${senderName} vừa nhắn cho bạn trên inlink`,

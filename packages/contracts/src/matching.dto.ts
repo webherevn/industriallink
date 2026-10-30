@@ -132,6 +132,8 @@ export interface CandidateMatchView {
   displayName: string;
   currentPosition: string | null;
   industry: string | null;
+  /** Nơi ở hoặc nơi muốn làm, để NTD thấy ngay trên thẻ kết quả. */
+  location: string | null;
   match: MatchExplanation;
   /** Đã nộp hồ sơ vào đúng tin đang tìm. */
   applied?: boolean;

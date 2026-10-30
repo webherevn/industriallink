@@ -38,6 +38,6 @@ export class SearchController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const filters = SearchService.parseFilters(query);
-    return this.search.searchCandidates(filters, user.tenantId);
+    return this.search.searchCandidates(filters, user.tenantId, user.id);
   }
 }

@@ -10,6 +10,7 @@ import {
   FileSearch,
   ListChecks,
   Loader2,
+  MapPin,
   RefreshCw,
   Shield,
   Sparkles,
@@ -25,6 +26,7 @@ import {
   type SourcingQuotaKind,
 } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
+import { ProfileOpenLink } from '@/components/starter-profile-lock';
 import { Button, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { listMyJobs } from '@/lib/jobs';
@@ -413,9 +415,10 @@ function HuntList({
         <ul className="mt-4 grid gap-3">
           {results.map((row, index) => (
             <li key={row.candidateId} className="animate-soft-rise" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
-              <Link
+              <ProfileOpenLink
                 href={`/candidates/${row.candidateId}?from=sourcing`}
-                className="progress-card group flex items-start gap-3 p-3 sm:p-4"
+                potential={!row.applied}
+                className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4"
               >
                 <ScoreRing score={row.match.score} />
                 <span className="min-w-0 flex-1">
@@ -439,13 +442,18 @@ function HuntList({
                   <span className="mt-0.5 block text-sm text-slate-500">
                     {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
                     {row.industry ? ` · ${row.industry}` : ''}
+                    {' · '}
+                    <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
+                      <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
+                      {row.location ?? 'Chưa có địa điểm'}
+                    </span>
                   </span>
                   {row.match.reason ? (
                     <span className="mt-1.5 block line-clamp-2 text-sm leading-relaxed text-slate-600">{row.match.reason}</span>
                   ) : null}
                   <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">Xem hồ sơ</span>
                 </span>
-              </Link>
+              </ProfileOpenLink>
             </li>
           ))}
         </ul>

@@ -23,6 +23,7 @@ import { buildJobText } from './job.service';
 import { candidateMatchTrack, jobMatchTrack, type MatchTrack } from './match-track.util';
 import {
   buildB2bExplanation,
+  candidateLocationLabel,
   cosine,
   jobToB2bMatchInput,
   toB2bCandidateFromRecords,
@@ -384,6 +385,7 @@ export class MatchingService {
         displayName: c.displayName,
         currentPosition: c.profile?.currentPosition ?? null,
         industry: c.profile?.industry ?? null,
+        location: candidateLocationLabel(c.profile),
         match: explanation,
         applied: appliedIds.has(c.id),
       };
@@ -407,6 +409,7 @@ export class MatchingService {
         displayName: row.displayName,
         currentPosition: row.currentPosition,
         industry: row.industry,
+        location: row.location,
         match: row.match,
         applied: row.applied,
         viewed: viewedIds.has(row.candidateId),

@@ -93,6 +93,23 @@ export class CandidateController {
     return this.candidates.getMyCandidate(user);
   }
 
+  @Get('me/outreach-email')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Ứng viên còn nhận email gợi ý và kết nối hay không' })
+  getOutreachEmail(@CurrentUser() user: AuthenticatedUser) {
+    return this.candidates.getOutreachEmail(user);
+  }
+
+  @Patch('me/outreach-email')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Bật hoặc tắt email gợi ý việc và email kết nối' })
+  setOutreachEmail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { enabled?: boolean },
+  ) {
+    return this.candidates.setOutreachEmail(user, body?.enabled !== false);
+  }
+
   @Patch('me')
   @Roles(UserRole.Candidate)
   @ApiOperation({ summary: 'Cập nhật toàn bộ hồ sơ ứng viên (chỉnh sửa hồ sơ)' })

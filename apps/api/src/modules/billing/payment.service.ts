@@ -157,6 +157,7 @@ export class PaymentService {
     if (!topup || !topup.isActive) {
       throw new NotFoundException('Gói Top-up không tồn tại hoặc đã tắt');
     }
+    await this.billing.assertStarterTopupAllowed(companyId);
     const settings = await this.row();
     const mode = (settings?.mode as PaymentMode) ?? 'mock';
     const successUrlTemplate = settings?.successUrl ?? '/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}';
@@ -625,7 +626,7 @@ export class PaymentService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const paid = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.billingOrder.update({
         where: { id: order.id },
         data: {
@@ -742,6 +743,13 @@ export class PaymentService {
 
       return this.mapOrder(updated);
     });
+
+    if (kind === 'topup') {
+      await this.billing.ensureCompanyPlan(order.companyId).catch((err) => {
+        this.logger.error(`Không chốt được Credit Khám phá cho ${order.companyId}: ${String(err)}`);
+      });
+    }
+    return paid;
   }
 
   private actorFromOrder(order: {

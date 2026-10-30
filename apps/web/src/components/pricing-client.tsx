@@ -54,7 +54,7 @@ import {
   normalizePricingPage,
   displayFeatureLines,
   platformHighlightStats,
-  platformJobSentence,
+  platformPriceMetaText,
   pricingPlatformFact,
 } from '@/lib/pricing-catalog';
 import { EnterpriseConsultButton } from './enterprise-consult-button';
@@ -73,11 +73,6 @@ function scopeLinesOf(plan: BillingSourcingPlanView): SourcingScopeLine[] {
   const on = new Set(plan.serviceScope);
   return DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({ ...line, included: on.has(line.code) }));
 }
-
-const UNIT_LABEL: Record<'per_jd' | 'per_month', string> = {
-  per_jd: '/ JD',
-  per_month: '/ tháng',
-};
 
 /** Cùng cỡ cho Miễn phí / số tiền / Báo giá — nhỏ vừa ở lưới 5 cột, lớn hơn khi card rộng. */
 const PRICE_TEXT =
@@ -991,13 +986,7 @@ function PlatformPlanCard({
             stacked
           />
         )}
-        <PlanPriceMeta>
-          {isEnterprise
-            ? 'Theo hợp đồng'
-            : isFree
-              ? `${plan.durationDays ?? 14} ngày · ${platformJobSentence(plan)}`
-              : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}`}
-        </PlanPriceMeta>
+        <PlanPriceMeta>{platformPriceMetaText(plan)}</PlanPriceMeta>
         <p className="min-h-4 text-[10px] leading-4 text-slate-400">
           {!isEnterprise && !isFree && currency.showReferenceUsd
             ? formatReferenceUsd(

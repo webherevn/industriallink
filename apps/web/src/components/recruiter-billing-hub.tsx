@@ -105,7 +105,11 @@ export function RecruiterBillingHub() {
                 <p className="mt-2 text-2xl font-bold text-[#072348]">{planName}</p>
                 {plan ? (
                 <p className="mt-1 text-sm text-slate-500">
-                  Chu kỳ gói {fmtDate(plan.startsAt)} → {fmtDate(plan.endsAt)}
+                  {plan.planCode === 'KHAM_PHA'
+                    ? `Dùng thử ${fmtDate(plan.startsAt)} → ${fmtDate(plan.endsAt)}. Hết hạn Credit về 0, gói mở lại sau 30 ngày.`
+                    : plan.planCode === 'ENTERPRISE'
+                      ? `Theo hợp đồng${plan.endsAt ? ` · đến ${fmtDate(plan.endsAt)}` : ''}`
+                      : `Hạn gói đến ${fmtDate(plan.endsAt)}. Không gia hạn thì về Khám phá, Credit về 0.`}
                   {!plan.isActive ? ' · đã tắt' : ''}
                 </p>
                 ) : null}
@@ -170,6 +174,9 @@ export function RecruiterBillingHub() {
                 Vị trí {sourcing.positionsUsed}/{sourcing.positionQuota ?? '∞'} · Đợt tìm{' '}
                 {sourcing.searchRoundsUsed}/{sourcing.searchRoundQuota ?? '∞'} · Shortlist{' '}
                 {sourcing.shortlistsUsed}/{sourcing.shortlistQuota ?? '∞'}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Hạn đến {fmtDate(sourcing.assignment?.endsAt ?? null)}. Không gia hạn thì gói Săn tắt khi hết hạn.
               </p>
               <Link
                 href="/recruiter/sourcing"

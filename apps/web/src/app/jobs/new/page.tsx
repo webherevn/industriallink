@@ -3,13 +3,39 @@
 import { useQuery } from '@tanstack/react-query';
 import { Building2 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { JobTrack } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { Button } from '@/components/ui';
 import { getMyCompany } from '@/lib/company';
+import { jobViewToForm } from '@/lib/jd-sales-form';
+import { jobViewToTechnicalForm } from '@/lib/jd-technical-form';
+import { getJob } from '@/lib/jobs';
 import { JdSalesCreateFlow } from './sales-create-flow';
 import { JdTechnicalCreateFlow } from './technical-create-flow';
+
+function trackFromJob(job: {
+  jobTrack?: string | null;
+  jobLevel?: string | null;
+  salesCriteria?: unknown;
+  technicalCriteria?: unknown;
+}): JobTrack {
+  if (job.jobTrack === JobTrack.Technical || job.jobLevel?.startsWith('technical.') || job.technicalCriteria) {
+    return JobTrack.Technical;
+  }
+  if (job.jobTrack === JobTrack.Sales || job.jobLevel?.startsWith('sales.') || job.salesCriteria) {
+    return JobTrack.Sales;
+  }
+  return JobTrack.Technical;
+}
+
+function openDeadline(value: string): string {
+  if (!value.trim()) return '';
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time) || time < Date.now()) return '';
+  return value;
+}
 
 function CompanyRequiredGate() {
   return (
@@ -30,7 +56,9 @@ function CompanyRequiredGate() {
 }
 
 export default function NewJobPage() {
-  const [track, setTrack] = useState<JobTrack>(JobTrack.Sales);
+  const searchParams = useSearchParams();
+  const copyFrom = searchParams.get('from') ?? '';
+  const [pickedTrack, setPickedTrack] = useState<JobTrack | null>(null);
 
   // Auth do RecruiterShell lo — chỉ kiểm tra hồ sơ công ty
   const {
@@ -46,7 +74,14 @@ export default function NewJobPage() {
     staleTime: 30_000,
   });
 
-  if (isLoading || (isFetching && !isFetched)) {
+  const copyQuery = useQuery({
+    queryKey: ['job', copyFrom],
+    queryFn: () => getJob(copyFrom),
+    enabled: Boolean(copyFrom),
+    retry: false,
+  });
+
+  if (isLoading || (isFetching && !isFetched) || (copyFrom && copyQuery.isLoading)) {
     return (
       <AppShell>
         <p className="py-16 text-center text-sm text-slate-500">Đang tải...</p>
@@ -58,8 +93,28 @@ export default function NewJobPage() {
     return <CompanyRequiredGate />;
   }
 
+  const source = copyQuery.data;
+  const sourceTrack = source ? trackFromJob(source) : null;
+  const track = pickedTrack ?? sourceTrack ?? JobTrack.Sales;
+  const copiedTitle = source?.title;
+
   if (track === JobTrack.Technical) {
-    return <JdTechnicalCreateFlow onSwitchTrack={setTrack} />;
+    const initial =
+      source && sourceTrack === JobTrack.Technical ? jobViewToTechnicalForm(source) : undefined;
+    return (
+      <JdTechnicalCreateFlow
+        onSwitchTrack={setPickedTrack}
+        initialForm={initial ? { ...initial, deadline: openDeadline(initial.deadline) } : undefined}
+        copiedTitle={initial ? copiedTitle : undefined}
+      />
+    );
   }
-  return <JdSalesCreateFlow onSwitchTrack={setTrack} />;
+  const initial = source && sourceTrack === JobTrack.Sales ? jobViewToForm(source) : undefined;
+  return (
+    <JdSalesCreateFlow
+      onSwitchTrack={setPickedTrack}
+      initialForm={initial ? { ...initial, deadline: openDeadline(initial.deadline) } : undefined}
+      copiedTitle={initial ? copiedTitle : undefined}
+    />
+  );
 }

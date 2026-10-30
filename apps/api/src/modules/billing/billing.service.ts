@@ -125,6 +125,8 @@ const PAGE_NULLABLE_KEYS = ['focusKeyword', 'ogTitle', 'ogDescription', 'ogImage
 /** Gói mặc định khi tạo NTD. Chu kỳ Khám phá 14 ngày, trùng hạn hiển thị tin. */
 const STARTER_PLAN_CODE = 'KHAM_PHA';
 const STARTER_CYCLE_DAYS = 14;
+/** Sau ngày kết thúc Khám phá, đợi thêm bấy nhiêu ngày mới mở chu kỳ mới. */
+const TRIAL_COOLDOWN_DAYS = 30;
 
 function addUtcDays(from: Date, days: number): Date {
   const end = new Date(from);
@@ -476,28 +478,70 @@ export class BillingService {
    * Công ty mới / chưa gán gói → Khám phá. Chu kỳ gói 14 ngày, trùng hạn hiển thị tin.
    */
   async ensureCompanyPlan(companyId: string): Promise<BillingCompanyPlanView | null> {
-    const existing = await this.prisma.billingCompanyPlan.findUnique({
+    let existing = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
       include: { plan: true },
     });
     if (!existing || !existing.plan) {
       return this.provisionStarterPlan(companyId);
     }
+
     const now = new Date();
-    if (existing.plan.code === STARTER_PLAN_CODE && existing.isActive) {
-      const cycleEnd = addUtcDays(existing.startsAt, STARTER_CYCLE_DAYS);
-      if (now >= cycleEnd) {
-        return this.provisionStarterPlan(companyId, { renew: true });
-      }
-      if (!existing.endsAt || existing.endsAt < cycleEnd) {
-        const fixed = await this.prisma.billingCompanyPlan.update({
+    if (
+      existing.isActive &&
+      existing.plan.code !== STARTER_PLAN_CODE &&
+      existing.plan.code !== 'ENTERPRISE'
+    ) {
+      let cycleEnd = existing.endsAt;
+      if (!cycleEnd && existing.plan.durationDays != null && existing.plan.durationDays > 0) {
+        cycleEnd = addUtcDays(existing.startsAt, existing.plan.durationDays);
+        const restored = await this.prisma.billingCompanyPlan.update({
           where: { companyId },
           data: { endsAt: cycleEnd },
           include: { plan: true },
         });
-        await this.safeBackfillPlanGrant(companyId, fixed);
-        return this.mapCompanyPlan(fixed);
+        existing = restored;
       }
+      if (!cycleEnd || now < cycleEnd) {
+        await this.safeBackfillPlanGrant(companyId, existing);
+        return this.mapCompanyPlan(existing);
+      }
+      await this.zeroStarterCredit(companyId, cycleEnd, existing.plan.name);
+      return this.provisionStarterPlan(companyId, {
+        renew: true,
+        note: `Về gói Khám phá vì ${existing.plan.name} hết hạn và không gia hạn`,
+      });
+    }
+
+    if (existing.plan.code === STARTER_PLAN_CODE && existing.isActive) {
+      const cycleEnd = addUtcDays(existing.startsAt, STARTER_CYCLE_DAYS);
+      if (now < cycleEnd) {
+        if (!existing.endsAt || existing.endsAt.getTime() !== cycleEnd.getTime()) {
+          const fixed = await this.prisma.billingCompanyPlan.update({
+            where: { companyId },
+            data: { endsAt: cycleEnd },
+            include: { plan: true },
+          });
+          await this.safeBackfillPlanGrant(companyId, fixed);
+          return this.mapCompanyPlan(fixed);
+        }
+        await this.safeBackfillPlanGrant(companyId, existing);
+        return this.mapCompanyPlan(existing);
+      }
+      await this.zeroStarterCredit(companyId, cycleEnd, 'Khám phá');
+      const restartAt = addUtcDays(cycleEnd, TRIAL_COOLDOWN_DAYS);
+      if (now < restartAt) {
+        if (!existing.endsAt || existing.endsAt.getTime() !== cycleEnd.getTime()) {
+          const closed = await this.prisma.billingCompanyPlan.update({
+            where: { companyId },
+            data: { endsAt: cycleEnd },
+            include: { plan: true },
+          });
+          return this.mapCompanyPlan(closed);
+        }
+        return this.mapCompanyPlan(existing);
+      }
+      return this.provisionStarterPlan(companyId, { renew: true });
     }
     const expired = Boolean(existing.endsAt && existing.endsAt < now);
     if (expired || !existing.isActive) {
@@ -509,7 +553,7 @@ export class BillingService {
 
   async provisionStarterPlan(
     companyId: string,
-    opts: { renew?: boolean } = {},
+    opts: { renew?: boolean; note?: string } = {},
   ): Promise<BillingCompanyPlanView | null> {
     const already = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
@@ -546,9 +590,11 @@ export class BillingService {
         planId: starter.id,
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
-        note: opts.renew
-          ? 'Gia hạn / về gói Khám phá khi hết hạn'
-          : 'Gói Khám phá mặc định khi tạo tài khoản nhà tuyển dụng',
+        note:
+          opts.note ??
+          (opts.renew
+            ? 'Mở lại gói Khám phá sau 30 ngày kể từ lần kết thúc trước'
+            : 'Gói Khám phá mặc định khi tạo tài khoản nhà tuyển dụng'),
       });
     } catch (err) {
       this.logger.error(
@@ -666,26 +712,119 @@ export class BillingService {
     return days != null && days > 0 ? days : null;
   }
 
-  /** Hạn gói: Khám phá 14 ngày; gói trả phí lấy durationDays trên bảng giá. */
+  /**
+   * Mốc muộn nhất của hạn tin. Khám phá không được vượt ngày kết thúc gói.
+   * Gói tin đăng khác chỉ theo số ngày hiển thị, không có hạn gói.
+   */
+  async getJobDeadlineCeiling(companyId: string, from = new Date()): Promise<Date | null> {
+    await this.ensureCompanyPlan(companyId);
+    const row = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: { select: { code: true, durationDays: true } } },
+    });
+    const days = row?.plan?.durationDays;
+    const fromDays = days != null && days > 0 ? addUtcDays(from, days) : null;
+    if (row?.plan?.code === STARTER_PLAN_CODE && row.endsAt) {
+      if (!fromDays || row.endsAt.getTime() < fromDays.getTime()) return row.endsAt;
+    }
+    return fromDays;
+  }
+
+  /** Khám phá hạn 14 ngày. Gói tin đăng khác hạn theo số ngày trên gói. Enterprise theo hợp đồng. */
   private planCycleEndsAt(plan: BillingPlatformPlan, startsAt: Date): Date | null {
     if (plan.code === STARTER_PLAN_CODE) {
       return addUtcDays(startsAt, STARTER_CYCLE_DAYS);
     }
+    if (plan.code === 'ENTERPRISE') return null;
     if (plan.durationDays != null && plan.durationDays > 0) {
       return addUtcDays(startsAt, plan.durationDays);
     }
     return null;
   }
 
+  /**
+   * Khám phá được mua Top-up trong 14 ngày. Hết hạn thì không bán thêm
+   * cho đến khi đủ 30 ngày và gói được mở lại, hoặc họ chuyển sang gói tin đăng.
+   */
+  async assertStarterTopupAllowed(companyId: string): Promise<void> {
+    await this.ensureCompanyPlan(companyId);
+    const row = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: { select: { code: true } } },
+    });
+    if (!row?.plan || row.plan.code === 'ENTERPRISE') return;
+    const cycleEnd =
+      row.endsAt ??
+      (row.plan.code === STARTER_PLAN_CODE ? addUtcDays(row.startsAt, STARTER_CYCLE_DAYS) : null);
+    if (!cycleEnd || new Date() < cycleEnd) return;
+    if (row.plan.code === STARTER_PLAN_CODE) {
+      throw new BadRequestException(
+        'Gói Khám phá chỉ mua thêm Credit trong 14 ngày dùng thử. Hết hạn thì Credit về 0.',
+      );
+    }
+    throw new BadRequestException(
+      'Gói đã hết hạn và tài khoản đã về gói Khám phá. Hãy gia hạn gói tin đăng để mua thêm Credit.',
+    );
+  }
+
+  /** Đưa Credit về 0 khi hết hạn Khám phá, hoặc khi gói tin đăng hết hạn và về Khám phá. */
+  private async zeroStarterCredit(companyId: string, cycleEnd: Date, planName: string): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { tenantId: true },
+    });
+    if (!company) return;
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string; balance: number }>>`
+        SELECT id, balance FROM billing.billing_credit_account
+        WHERE company_id = ${companyId}::uuid
+        FOR UPDATE
+      `;
+      const account = locked[0];
+      const balance = Number(account?.balance ?? 0);
+      if (!account || !Number.isFinite(balance) || balance <= 0) return;
+      await tx.billingCreditAccount.update({
+        where: { id: account.id },
+        data: { balance: 0, lastActivityAt: new Date() },
+      });
+      await tx.billingCreditTransaction.create({
+        data: {
+          tenantId: company.tenantId,
+          companyId,
+          accountId: account.id,
+          type: 'adjustment',
+          action: 'trial_reset',
+          creditDelta: -balance,
+          balanceAfter: 0,
+          costPerUnit: 0,
+          quantity: 1,
+          note: `Reset Credit gói ${planName} vì đã quá hạn và không gia hạn`,
+          metadata: { cycleEnd: cycleEnd.toISOString(), source: 'trial_reset' },
+          enforced: true,
+        },
+      });
+    });
+  }
+
   async assertJobQuota(companyId: string): Promise<void> {
     const e = await this.getEntitlements(companyId);
+    if (
+      e.planCode === STARTER_PLAN_CODE &&
+      e.plan?.endsAt &&
+      new Date(e.plan.endsAt).getTime() <= Date.now()
+    ) {
+      throw new ForbiddenException({
+        code: 'TRIAL_COOLDOWN',
+        message: `Gói Khám phá đã hết ${STARTER_CYCLE_DAYS} ngày. Có thể đăng tin thử lại sau ${TRIAL_COOLDOWN_DAYS} ngày kể từ ngày kết thúc, hoặc đăng ký gói tin đăng.`,
+      });
+    }
     if (e.jobsRemaining == null) return;
     if (e.jobsRemaining > 0) return;
     throw new ForbiddenException({
       code: 'JOB_QUOTA_EXCEEDED',
       message:
         e.planCode === STARTER_PLAN_CODE
-          ? `Gói Khám phá chỉ được đăng ${e.jobPostQuota} tin trong chu kỳ ${STARTER_CYCLE_DAYS} ngày. Đợi hết hạn gói hoặc nâng cấp để tạo JD mới.`
+          ? `Gói Khám phá chỉ được đăng ${e.jobPostQuota} tin trong ${STARTER_CYCLE_DAYS} ngày. Hết hạn phải đợi ${TRIAL_COOLDOWN_DAYS} ngày hoặc đăng ký gói tin đăng.`
           : e.planCode === 'DOANH_NGHIEP'
             ? `Gói Doanh nghiệp chỉ được có ${e.jobPostQuota} tin đang hoạt động. Đóng bớt tin hoặc nâng cấp để đăng thêm.`
             : `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
@@ -783,7 +922,7 @@ export class BillingService {
   }
 
   /**
-   * NTD thanh toán / SuperAdmin duyệt → gán gói, hạn = durationDays trên bảng giá.
+   * NTD thanh toán / SuperAdmin duyệt → gán gói. Khám phá hạn 14 ngày; gói tin khác không hạn ngày.
    */
   async activatePurchasedPlan(
     actor: AuthenticatedUser,

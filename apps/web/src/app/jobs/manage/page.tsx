@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   Briefcase,
+  Copy,
   Eye,
   MapPin,
   Pause,
@@ -405,6 +406,12 @@ function JobManageCard({
           <ActionChip>
             <Users className="h-3.5 w-3.5" />
             Ứng viên
+          </ActionChip>
+        </Link>
+        <Link href={`/jobs/new?from=${job.id}`}>
+          <ActionChip>
+            <Copy className="h-3.5 w-3.5" />
+            Copy tin đăng
           </ActionChip>
         </Link>
 

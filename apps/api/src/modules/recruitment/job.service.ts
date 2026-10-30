@@ -88,22 +88,11 @@ type JobWithRelations = Job & {
   };
 };
 
-function addUtcDays(from: Date, days: number): Date {
-  const end = new Date(from);
-  end.setUTCDate(end.getUTCDate() + days);
-  return end;
-}
-
-/** Hạn tin: không vượt durationDays SuperAdmin của gói đang gán. */
-function clampJobDeadline(
-  requested: Date | null,
-  displayDays: number | null,
-  from = new Date(),
-): Date | null {
-  const cap = displayDays != null && displayDays > 0 ? addUtcDays(from, displayDays) : null;
-  if (!requested) return cap;
-  if (!cap) return requested;
-  return requested.getTime() <= cap.getTime() ? requested : cap;
+/** Hạn tin không vượt mốc trần của gói đang gán. */
+function clampJobDeadline(requested: Date | null, ceiling: Date | null): Date | null {
+  if (!requested) return ceiling;
+  if (!ceiling) return requested;
+  return requested.getTime() <= ceiling.getTime() ? requested : ceiling;
 }
 
 function publicDeadlineWhere(now = new Date()): Prisma.JobWhereInput {
@@ -265,8 +254,8 @@ export class JobService {
     requested: Date | null,
     from = new Date(),
   ): Promise<Date | null> {
-    const displayDays = await this.billing.getJobDisplayDays(companyId);
-    return clampJobDeadline(requested, displayDays, from);
+    const ceiling = await this.billing.getJobDeadlineCeiling(companyId, from);
+    return clampJobDeadline(requested, ceiling);
   }
 
   /** Đưa tin vào hàng đợi kiểm duyệt (Lớp 2). SuperAdmin requeue cũng gọi hàm này. */

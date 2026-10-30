@@ -5,7 +5,11 @@ import { AiGatewayService } from '../ai/ai-gateway.service';
 import { inferSkillsFromText } from '../ai/providers/industrial-skills';
 import { OpenSearchService } from '../../shared/infrastructure/opensearch/opensearch.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
-import { buildB2bExplanation, toB2bCandidateFromRecords } from '../recruitment/matching.util';
+import {
+  buildB2bExplanation,
+  candidateLocationLabel,
+  toB2bCandidateFromRecords,
+} from '../recruitment/matching.util';
 
 function splitCsv(value?: string | string[]): string[] {
   if (!value) return [];
@@ -97,6 +101,7 @@ export class SearchService {
   async searchCandidates(
     queryOrFilters: string | CandidateSearchFilters,
     tenantId: string,
+    userId?: string,
   ): Promise<CandidateSearchResult[]> {
     const filters: CandidateSearchFilters =
       typeof queryOrFilters === 'string' ? { q: queryOrFilters } : queryOrFilters;
@@ -216,6 +221,10 @@ export class SearchService {
       where: { id: { in: ids.map((r) => r.candidate_id) } },
       include: { profile: true, skills: true, experiences: true },
     });
+    const appliedIds = await this.appliedCandidateIds(
+      userId,
+      candidates.map((c) => c.id),
+    );
 
     return candidates
       .map((c) => {
@@ -254,13 +263,34 @@ export class SearchService {
           displayName: c.displayName,
           currentPosition: p?.currentPosition ?? null,
           industry: p?.industry ?? null,
+          location: candidateLocationLabel(p),
           score: Number((explanation.score / 100).toFixed(4)),
           reason: explanation.reason,
           matchedSkills: explanation.matchedSkills,
           criteria: explanation.criteria,
+          applied: appliedIds.has(c.id),
         } satisfies CandidateSearchResult;
       })
       .sort((a, b) => b.score - a.score);
+  }
+
+  /** Ứng viên đã nộp vào tin của công ty đang tìm. */
+  private async appliedCandidateIds(userId: string | undefined, candidateIds: string[]): Promise<Set<string>> {
+    if (!userId || candidateIds.length === 0) return new Set();
+    const membership = await this.prisma.companyMember.findFirst({
+      where: { userId },
+      select: { companyId: true },
+    });
+    if (!membership) return new Set();
+    const rows = await this.prisma.application.findMany({
+      where: {
+        candidateId: { in: candidateIds },
+        isDeleted: false,
+        job: { companyId: membership.companyId, isDeleted: false },
+      },
+      select: { candidateId: true },
+    });
+    return new Set(rows.map((row) => row.candidateId));
   }
 
   /** Parse query string từ controller thành filters. */

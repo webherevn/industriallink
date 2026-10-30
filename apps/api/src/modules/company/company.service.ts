@@ -548,7 +548,7 @@ export class CompanyService {
 
       const startsAt = new Date();
       const endsAt = new Date(startsAt);
-      endsAt.setUTCDate(endsAt.getUTCDate() + 30);
+      endsAt.setUTCDate(endsAt.getUTCDate() + 14);
       const actor = looksLikeUuid(actorId) ? actorId : null;
       await this.prisma.billingCompanyPlan.upsert({
         where: { companyId },

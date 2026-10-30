@@ -39,11 +39,17 @@ import {
   updateAdminPlatformPlan,
 } from '@/lib/admin-billing';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
-import { displayFeatureLines } from '@/lib/pricing-catalog';
+import {
+  defaultPlatformPriceMeta,
+  displayFeatureLines,
+  packPlatformFeatures,
+  readPlatformPriceMeta,
+} from '@/lib/pricing-catalog';
 
 type FormState = Omit<AdminCreatePlatformPlanRequest, 'features'> & {
   id?: string;
   features: PlatformFeatureLine[];
+  priceMeta: string;
 };
 
 function costsFromPolicy(policy?: BillingCreditPolicyView | null): AdminPlanActionCostItem[] {
@@ -79,8 +85,15 @@ function emptyForm(policy?: BillingCreditPolicyView | null): FormState {
     isActive: true,
     isFeatured: false,
     features: [],
+    priceMeta: '',
     actionCosts: costsFromPolicy(policy),
   };
+}
+
+function priceMetaToSave(form: FormState): string {
+  const text = form.priceMeta.trim();
+  if (!text || text === defaultPlatformPriceMeta(form)) return '';
+  return text;
 }
 
 function costOf(plan: BillingPlatformPlanView, action: AdminPlanActionCostItem['action']): number {
@@ -156,18 +169,14 @@ export function AdminBillingPlatformPlans() {
         sortOrder: editing.sortOrder,
         isActive: editing.isActive,
         isFeatured: editing.isFeatured,
-        features: editing.features
-          .map((line) => ({ label: line.label.trim(), included: line.included }))
-          .filter((line) => line.label),
+        features: packPlatformFeatures(editing.features, priceMetaToSave(editing)),
         actionCosts: editing.actionCosts,
       };
       updateM.mutate({ id: editing.id, body });
     } else {
       createM.mutate({
         ...editing,
-        features: editing.features
-          .map((line) => ({ label: line.label.trim(), included: line.included }))
-          .filter((line) => line.label),
+        features: packPlatformFeatures(editing.features, priceMetaToSave(editing)),
       });
     }
   };
@@ -255,6 +264,7 @@ export function AdminBillingPlatformPlans() {
                     isActive: p.isActive,
                     isFeatured: p.isFeatured,
                     features: displayFeatureLines(p).map((line) => ({ ...line })),
+                    priceMeta: readPlatformPriceMeta(p.features) ?? defaultPlatformPriceMeta(p),
                     actionCosts: BILLING_PLAN_BILLABLE_ACTIONS.map((action) => ({
                       action,
                       cost: costOf(p, action),
@@ -390,7 +400,16 @@ function EditModal({
   saving: boolean;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm({ ...form, [k]: v });
+  const update = <K extends keyof FormState>(k: K, v: FormState[K]) => {
+    const next = { ...form, [k]: v };
+    if (k === 'durationDays' || k === 'billingUnit' || k === 'jobPostQuota' || k === 'code') {
+      const prevAuto = defaultPlatformPriceMeta(form);
+      if (!form.priceMeta.trim() || form.priceMeta.trim() === prevAuto) {
+        next.priceMeta = defaultPlatformPriceMeta(next);
+      }
+    }
+    setForm(next);
+  };
   const lines = form.features;
   const setLines = (next: PlatformFeatureLine[]) => update('features', next);
   const moveLine = (from: number, to: number) => {
@@ -494,6 +513,18 @@ function EditModal({
             rows={2}
             value={form.description ?? ''}
             onChange={(e) => update('description', e.target.value)}
+          />
+        </Field>
+
+        <Field
+          label="Dòng dưới giá"
+          description="Câu xám ngay dưới số tiền. Xóa trắng rồi lưu để trang tự ghép lại từ số ngày và đơn vị giá."
+          className="mt-3"
+        >
+          <Input
+            value={form.priceMeta}
+            onChange={(e) => update('priceMeta', e.target.value)}
+            placeholder={defaultPlatformPriceMeta(form)}
           />
         </Field>
 

@@ -30,6 +30,7 @@ import {
   type CopilotSource,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { ProfileOpenLink } from '@/components/starter-profile-lock';
 import { CopilotAnswer } from '@/components/copilot-answer';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { Button, Card, Input, Select } from '@/components/ui';
@@ -197,6 +198,7 @@ export default function RecruiterDashboardPage() {
       displayName: string;
       jobTitle: string;
       score: number;
+      applied: boolean;
     } | null = null;
     for (const board of matchBoards ?? []) {
       for (const row of board.candidates) {
@@ -209,6 +211,7 @@ export default function RecruiterDashboardPage() {
             displayName: row.displayName,
             jobTitle: board.jobTitle,
             score,
+            applied: Boolean(row.applied),
           };
         }
       }
@@ -249,6 +252,7 @@ export default function RecruiterDashboardPage() {
           : top
             ? `/candidates/${top.candidateId}`
             : '/search',
+        potential: Boolean(featured && !featured.applied),
       },
       {
         icon: 'wallet' as const,
@@ -509,12 +513,13 @@ export default function RecruiterDashboardPage() {
               >
                 <SuggestionIcon type={s.icon} />
                 <p className="min-w-0 flex-1 text-[13px] leading-snug text-slate-700">{s.title}</p>
-                <Link
+                <ProfileOpenLink
                   href={s.href}
-                  className="shrink-0 rounded-lg bg-[#EEF2FF] px-2.5 py-1.5 text-[11px] font-semibold text-[#4338CA] transition hover:bg-[#E0E7FF]"
+                  potential={'potential' in s ? s.potential : false}
+                  className="shrink-0 rounded-lg border-0 bg-[#EEF2FF] px-2.5 py-1.5 text-[11px] font-semibold text-[#4338CA] transition hover:bg-[#E0E7FF]"
                 >
                   {s.cta}
-                </Link>
+                </ProfileOpenLink>
               </li>
             ))}
           </ul>
@@ -583,13 +588,17 @@ export default function RecruiterDashboardPage() {
                       <path d={chevronPath(i, n)} fill={bg} />
                     </svg>
                     <div
-                      className="relative z-10 flex h-full flex-col items-start justify-center px-5 pl-6"
-                      style={{ color, paddingLeft: i === 0 ? 16 : 22 }}
+                      className="relative z-10 flex h-full flex-col items-center justify-center text-center"
+                      style={{
+                        color,
+                        paddingLeft: i === 0 ? '4%' : i === n - 1 ? '11%' : '10%',
+                        paddingRight: i === 0 ? '11%' : i === n - 1 ? '4%' : '10%',
+                      }}
                     >
-                      <span className="truncate text-[10px] font-semibold opacity-90">
+                      <span className="text-[11px] font-semibold leading-none">
                         {stage.label}
                       </span>
-                      <span className="text-[1.35rem] font-bold leading-none tracking-tight">
+                      <span className="mt-1 text-[1.35rem] font-bold leading-none tabular-nums">
                         {count}
                       </span>
                     </div>

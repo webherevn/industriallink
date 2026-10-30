@@ -32,6 +32,39 @@ import {
 } from '@industriallink/contracts';
 import { stripHtml } from './html.util';
 
+function placeKey(value: string): string {
+  return value
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/^(thành phố|tp\.?|tỉnh)\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function shortPlace(value: string): string {
+  return value.replace(/^(Thành phố|TP\.?|Tỉnh)\s+/i, '').trim() || value;
+}
+
+/** Nơi ở và nơi muốn làm, gộp để hiện trên thẻ kết quả. */
+export function candidateLocationLabel(profile: {
+  currentCity?: string | null;
+  desiredLocations?: string[] | null;
+} | null | undefined): string | null {
+  const places: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [profile?.currentCity, ...(profile?.desiredLocations ?? [])]) {
+    for (const part of (raw ?? '').split(/[,;/|·]/)) {
+      const place = shortPlace(part.trim());
+      const key = placeKey(place);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      places.push(place);
+    }
+  }
+  if (!places.length) return null;
+  return places.slice(0, 3).join(' · ');
+}
+
 /** Độ tương đồng cosine giữa hai vector embedding. */
 export function cosine(a: number[], b: number[]): number {
   if (!a?.length || !b?.length || a.length !== b.length) return 0;

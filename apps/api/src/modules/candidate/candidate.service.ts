@@ -50,6 +50,7 @@ import { StorageService } from '../../shared/infrastructure/storage/storage.serv
 import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CompanyService } from '../company/company.service';
+import { BillingService } from '../billing/billing.service';
 import { CreditService } from '../billing/credit.service';
 import { SourcingService } from '../billing/sourcing.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
@@ -57,7 +58,16 @@ import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
 import { mergeCvDraftViews, profileSourceToCvDraft } from './merge-cv-draft';
 import { ExtractTextError, extractResumeText } from './resume/extract-text.util';
+import { candidateAcceptsOutreachEmail } from './outreach-email';
 import { RESUME_PARSE_QUEUE_TOKEN, type ResumeParseJobData } from './resume/queue.constants';
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function maskPhone(phone: string | null | undefined): string | null {
   if (!phone?.trim()) return null;
@@ -98,6 +108,7 @@ export class CandidateService {
     private readonly companies: CompanyService,
     private readonly notifications: NotificationService,
     private readonly credit: CreditService,
+    private readonly billing: BillingService,
     private readonly sourcing: SourcingService,
     @Inject(RESUME_PARSE_QUEUE_TOKEN) private readonly queue: Queue<ResumeParseJobData>,
   ) {}
@@ -263,6 +274,22 @@ export class CandidateService {
       role: user.role,
       tenantId: user.tenantId,
     });
+  }
+
+  async getOutreachEmail(user: AuthenticatedUser): Promise<{ enabled: boolean }> {
+    await this.ensureForUser(user);
+    return { enabled: await candidateAcceptsOutreachEmail(this.prisma, user.id) };
+  }
+
+  async setOutreachEmail(user: AuthenticatedUser, enabled: boolean): Promise<{ enabled: boolean }> {
+    await this.ensureForUser(user);
+    const on = Boolean(enabled);
+    await this.prisma.$executeRaw`
+      UPDATE candidate.candidate
+      SET outreach_email_enabled = ${on}, updated_at = NOW()
+      WHERE user_id = CAST(${user.id} AS uuid) AND is_deleted = false
+    `;
+    return { enabled: on };
   }
 
   async getMyCandidate(user: AuthenticatedUser): Promise<CandidateView> {
@@ -576,6 +603,7 @@ export class CandidateService {
     }
 
     const applied = await this.hasAppliedToCompany(companyId, candidateId);
+    await this.assertStarterCanOpenProfile(companyId, applied);
     await this.chargeProfileView({
       tenantId: user.tenantId,
       companyId,
@@ -623,6 +651,7 @@ export class CandidateService {
     }
 
     const applied = await this.hasAppliedToCompany(companyId, candidateId);
+    await this.assertStarterCanOpenProfile(companyId, applied);
     await this.chargeCredit({
       tenantId: user.tenantId,
       companyId,
@@ -672,6 +701,20 @@ export class CandidateService {
       entityType: 'connection',
       entityId: row.id,
     });
+    if (await candidateAcceptsOutreachEmail(this.prisma, candidate.userId)) {
+      const candidateUser = await this.prisma.user.findUnique({
+        where: { id: candidate.userId },
+        select: { email: true },
+      });
+      if (candidateUser?.email) {
+        await this.notifications.emailSafe({
+          to: candidateUser.email,
+          subject: `${companyName} muốn kết nối với bạn trên inlink`,
+          text: `${companyName} gửi lời mời kết nối. Bạn xem và phản hồi trong mục Kết nối trên inlink.`,
+          html: `<p><strong>${escapeHtml(companyName)}</strong> gửi lời mời kết nối.</p><p>Bạn xem và phản hồi trong mục Kết nối trên inlink.</p>`,
+        });
+      }
+    }
 
     return this.toConnectionView(row);
   }
@@ -1630,6 +1673,18 @@ export class CandidateService {
             : 'AI đã trích xuất khá đầy đủ. Bạn có thể chỉnh sửa rồi chọn mẫu CV.'
           : `AI đã tạo ${aiFields.length - missingCount} trường. Còn ${missingCount} mục cần bổ sung.`,
     };
+  }
+
+  /** Gói Khám phá chỉ mở hồ sơ đã nộp ứng tuyển. Hồ sơ tiềm năng phải nâng cấp. */
+  private async assertStarterCanOpenProfile(companyId: string, applied: boolean): Promise<void> {
+    if (applied) return;
+    const plan = await this.billing.ensureCompanyPlan(companyId);
+    if (plan?.planCode !== 'KHAM_PHA') return;
+    throw new ForbiddenException({
+      code: 'STARTER_PROFILE_LOCKED',
+      message:
+        'Hãy nâng cấp gói để xem ngay hồ sơ ứng viên tiềm năng phù hợp nhất công ty bạn',
+    });
   }
 
   private async hasAppliedToCompany(companyId: string, candidateId: string): Promise<boolean> {

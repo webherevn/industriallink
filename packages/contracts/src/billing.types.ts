@@ -42,6 +42,11 @@ export interface PlatformFeatureLine {
   included: boolean;
 }
 
+/** Câu dưới giá đã lưu trong cùng mảng features. Không phải một dòng quyền lợi. */
+export interface PlatformPriceMetaItem {
+  priceMeta: string;
+}
+
 export interface BillingPlatformPlanView {
   id: string;
   code: string;
@@ -61,8 +66,8 @@ export interface BillingPlatformPlanView {
   sortOrder: number;
   isActive: boolean;
   isFeatured: boolean;
-  /** Chữ cũ hoặc dòng { label, included } đã lưu từ cài đặt. */
-  features: Array<string | PlatformFeatureLine>;
+  /** Chữ cũ, dòng { label, included }, hoặc câu dưới giá { priceMeta }. */
+  features: Array<string | PlatformFeatureLine | PlatformPriceMetaItem>;
   /** Cost-per-action của gói; thiếu action → UI/backend fallback policy global. */
   actionCosts: BillingPlanActionCostView[];
   createdAt: string;
@@ -238,7 +243,8 @@ export type CreditAction =
   | 'view_match_summary'
   | 'manual_grant'
   | 'manual_adjust'
-  | 'plan_grant';
+  | 'plan_grant'
+  | 'trial_reset';
 
 /** View model: BillingCreditAccount. */
 export interface BillingCreditAccountView {

@@ -59,12 +59,16 @@ Lương + hoa hồng, BHXH đầy đủ.`;
 
 export function JdSalesCreateFlow({
   onSwitchTrack,
+  initialForm,
+  copiedTitle,
 }: {
   onSwitchTrack: (track: JobTrack) => void;
+  initialForm?: JdSalesFormState;
+  copiedTitle?: string;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState<JdSalesFormState>(emptyJdSalesForm);
+  const [step, setStep] = useState(initialForm ? 2 : 1);
+  const [form, setForm] = useState<JdSalesFormState>(initialForm ?? emptyJdSalesForm);
   const [text, setText] = useState('');
   const [uploadedName, setUploadedName] = useState<string | null>(null);
   const [uncertainKeys, setUncertainKeys] = useState<JdSalesFieldKey[]>([]);
@@ -129,9 +133,13 @@ export function JdSalesCreateFlow({
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Đăng tin tuyển dụng</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {copiedTitle ? 'Tạo tin mới từ tin đã có' : 'Đăng tin tuyển dụng'}
+          </h1>
           <p className="mt-1 text-[13px] text-slate-500">
-            Upload JD hoặc dán nội dung — AI điền 22 trường Sales B2B, HR chỉ xác nhận.
+            {copiedTitle
+              ? `Thông số đã chép từ «${copiedTitle}». Sửa lại rồi bấm đăng tin mới.`
+              : 'Upload JD hoặc dán nội dung — AI điền 22 trường Sales B2B, HR chỉ xác nhận.'}
           </p>
           <JdCreateGuide track="sales" step={step} onStep={setStep} />
         </div>

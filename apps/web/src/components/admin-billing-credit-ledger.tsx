@@ -37,6 +37,7 @@ const ACTION_LABEL: Record<string, string> = {
   manual_grant: 'Cấp thêm',
   manual_adjust: 'Điều chỉnh',
   plan_grant: 'Tặng gói',
+  trial_reset: 'Hết hạn Khám phá',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -49,6 +50,7 @@ const ACTION_COLOR: Record<string, string> = {
   manual_grant: 'bg-emerald-100 text-emerald-700',
   manual_adjust: 'bg-teal-100 text-teal-700',
   plan_grant: 'bg-lime-100 text-lime-700',
+  trial_reset: 'bg-rose-100 text-rose-700',
 };
 
 const TYPE_LABEL: Record<string, string> = {

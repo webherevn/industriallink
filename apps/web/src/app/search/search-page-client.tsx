@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  ArrowDownWideNarrow,
   Briefcase,
   Car,
   ChevronDown,
@@ -50,6 +51,7 @@ import {
   type JobListItem,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { ProfileOpenLink } from '@/components/starter-profile-lock';
 import { ApiError } from '@/lib/api';
 import { listMyJobs } from '@/lib/jobs';
 import { candidatesForJob } from '@/lib/matching';
@@ -164,6 +166,48 @@ function engineLabel(job: JobListItem | null): string {
   return 'Matching theo tin';
 }
 
+type LocationRefine = 'off' | 'exact' | 'nearest';
+
+function locationFit(result: CandidateSearchResult): number | null {
+  const row = result.criteria?.find(
+    (c) => c.key === 'jd04' || c.key === 'tech.jd03' || c.label === 'Địa điểm làm việc',
+  );
+  if (!row || row.score == null) return null;
+  return row.score;
+}
+
+function refineMatchResults(
+  results: CandidateSearchResult[],
+  sortByScore: boolean,
+  locationMode: LocationRefine,
+): CandidateSearchResult[] {
+  if (locationMode === 'off' && !sortByScore) return results;
+  const rows =
+    locationMode === 'exact'
+      ? results.filter((row) => (locationFit(row) ?? 0) >= 0.99)
+      : results;
+  const ranked = [...rows];
+  ranked.sort((a, b) => {
+    if (locationMode === 'nearest' || locationMode === 'exact') {
+      const da = locationFit(a) ?? -1;
+      const db = locationFit(b) ?? -1;
+      if (db !== da) return db - da;
+    }
+    if (sortByScore) return b.score - a.score;
+    return 0;
+  });
+  return ranked;
+}
+
+function refineCaption(sortByScore: boolean, locationMode: LocationRefine): string {
+  if (locationMode === 'exact' && sortByScore) return 'chỉ đúng địa điểm JD · điểm cao trước';
+  if (locationMode === 'exact') return 'chỉ đúng địa điểm JD';
+  if (locationMode === 'nearest' && sortByScore) return 'địa điểm gần JD trước · rồi điểm phù hợp';
+  if (locationMode === 'nearest') return 'địa điểm gần JD trước';
+  if (sortByScore) return 'sắp xếp theo điểm phù hợp';
+  return 'thứ tự gợi ý của tin';
+}
+
 function matchToResult(row: CandidateMatchView): CandidateSearchResult {
   return {
     candidateId: row.candidateId,
@@ -171,6 +215,7 @@ function matchToResult(row: CandidateMatchView): CandidateSearchResult {
     displayName: row.displayName,
     currentPosition: row.currentPosition,
     industry: row.industry,
+    location: row.location,
     score: Math.max(0, Math.min(1, row.match.score / 100)),
     reason: row.match.reason,
     matchedSkills: row.match.matchedSkills,
@@ -311,10 +356,11 @@ function ResultCard({
       className="progress-card group relative p-4 animate-soft-rise sm:p-5"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
-      <Link
+      <ProfileOpenLink
         href={`/candidates/${result.candidateId}`}
-        className="absolute inset-0 z-0 rounded-xl"
-        aria-label={`Xem hồ sơ ${result.displayName}`}
+        potential={!result.applied}
+        className="absolute inset-0 z-0 cursor-pointer rounded-xl border-0 bg-transparent p-0"
+        ariaLabel={`Xem hồ sơ ${result.displayName}`}
       />
       <div className="relative z-10 pointer-events-none flex items-start gap-3 sm:gap-4">
         <ScoreRing score={result.score} />
@@ -350,12 +396,19 @@ function ResultCard({
                 {result.industry && (
                   <>
                     <span className="text-slate-300">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {result.industry}
-                    </span>
+                    <span>{result.industry}</span>
                   </>
                 )}
+                <span className="text-slate-300">·</span>
+                <span
+                  className={clsx(
+                    'inline-flex items-center gap-1 font-medium',
+                    result.location ? 'text-slate-700' : 'text-slate-400',
+                  )}
+                >
+                  <MapPin className="h-3.5 w-3.5 text-[#E8872A]" />
+                  {result.location ?? 'Chưa có địa điểm'}
+                </span>
                 {result.code ? (
                   <>
                     <span className="text-slate-300">·</span>
@@ -484,6 +537,78 @@ function ResultList({
   );
 }
 
+function MatchRefineBar({
+  sortByScore,
+  locationMode,
+  jobLocation,
+  onSortByScore,
+  onLocationMode,
+}: {
+  sortByScore: boolean;
+  locationMode: LocationRefine;
+  jobLocation: string | null;
+  onSortByScore: (value: boolean) => void;
+  onLocationMode: (value: LocationRefine) => void;
+}) {
+  const place = jobLocation?.trim() || null;
+
+  function locationButton(mode: 'exact' | 'nearest', label: string) {
+    const on = locationMode === mode;
+    return (
+      <button
+        type="button"
+        disabled={!place}
+        aria-pressed={on}
+        onClick={() => onLocationMode(on ? 'off' : mode)}
+        className={clsx(
+          'h-7 rounded-full px-2.5 text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40',
+          on ? 'bg-[#E8872A] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50',
+        )}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        aria-pressed={sortByScore}
+        onClick={() => onSortByScore(!sortByScore)}
+        className={clsx(
+          'inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[12px] font-semibold shadow-sm transition',
+          sortByScore
+            ? 'border-[#072348] bg-[#072348] text-white'
+            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+        )}
+      >
+        <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+        Tỷ lệ matching
+        <span className={clsx('font-medium', sortByScore ? 'text-white/70' : 'text-slate-400')}>
+          cao tới thấp
+        </span>
+      </button>
+
+      <div
+        className={clsx(
+          'inline-flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white pl-3 pr-1 shadow-sm',
+          !place && 'opacity-60',
+        )}
+        title={place ? `Lọc theo địa điểm trên JD: ${place}` : 'Tin này chưa có địa điểm làm việc'}
+      >
+        <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+        <span className="max-w-[14rem] truncate pr-1 text-[12px] font-semibold text-slate-700">
+          Địa điểm
+          {place ? <span className="ml-1 font-medium text-slate-400">{place}</span> : null}
+        </span>
+        {locationButton('exact', 'Chính xác')}
+        {locationButton('nearest', 'Gần nhất')}
+      </div>
+    </div>
+  );
+}
+
 export function SearchPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -494,6 +619,8 @@ export function SearchPageClient() {
   const [jobQuery, setJobQuery] = useState('');
   const [matchResults, setMatchResults] = useState<CandidateSearchResult[]>([]);
   const [hasMatched, setHasMatched] = useState(false);
+  const [sortByScore, setSortByScore] = useState(true);
+  const [locationMode, setLocationMode] = useState<LocationRefine>('off');
 
   const [filters, setFilters] = useState<FilterState>({ ...EMPTY, q: initialQ });
   const [filtersOpen, setFiltersOpen] = useState(Boolean(initialQ.trim()));
@@ -584,6 +711,8 @@ export function SearchPageClient() {
     if (!jobId) return;
     writeUrl({ jobId });
     setMatchResults([]);
+    setSortByScore(true);
+    setLocationMode('off');
     matchMutation.mutate(jobId);
   }
 
@@ -719,6 +848,10 @@ export function SearchPageClient() {
     return chips;
   }, [filters, patch]);
 
+  const shownMatches = useMemo(
+    () => refineMatchResults(matchResults, sortByScore, locationMode),
+    [matchResults, sortByScore, locationMode],
+  );
   const matching = matchMutation.isPending;
   const filtering = filterMutation.isPending;
   const showFilterResults = hasFilterSearched && hasOptionalSignal(filters);
@@ -729,6 +862,8 @@ export function SearchPageClient() {
       if (jobId !== selectedJobId) {
         setMatchResults([]);
         setHasMatched(false);
+        setSortByScore(true);
+        setLocationMode('off');
       }
       setSelectedJobId(jobId);
       writeUrl({ jobId });
@@ -921,20 +1056,37 @@ export function SearchPageClient() {
             <div>
               <h2 id="match-heading" className="text-sm font-bold text-slate-900">
                 {hasMatched
-                  ? `${matchResults.length} ứng viên khớp «${selectedJob?.title ?? 'tin đã chọn'}»`
+                  ? `${shownMatches.length} ứng viên khớp «${selectedJob?.title ?? 'tin đã chọn'}»`
                   : 'Đang chấm matching'}
               </h2>
               <p className="text-[11px] text-slate-400">
                 {matching
                   ? 'Đang đối chiếu tiêu chí chuẩn của tin…'
-                  : `${engineLabel(selectedJob)} · sắp xếp theo điểm phù hợp`}
+                  : `${engineLabel(selectedJob)} · ${refineCaption(sortByScore, locationMode)}`}
               </p>
+              {hasMatched && matchResults.length > 0 && (
+                <MatchRefineBar
+                  sortByScore={sortByScore}
+                  locationMode={locationMode}
+                  jobLocation={selectedJob?.location ?? null}
+                  onSortByScore={setSortByScore}
+                  onLocationMode={setLocationMode}
+                />
+              )}
             </div>
             <ResultList
-              results={matchResults}
+              results={shownMatches}
               loading={matching}
-              emptyTitle="Chưa thấy ứng viên khớp tin này"
-              emptyHint="Engine Sales/Kỹ thuật chưa tìm thấy hồ sơ đủ tiêu chí JD. Kiểm tra Inbox hoặc bổ sung dữ liệu hồ sơ ứng viên."
+              emptyTitle={
+                locationMode === 'exact' && matchResults.length > 0
+                  ? 'Không có ứng viên đúng địa điểm của tin'
+                  : 'Chưa thấy ứng viên khớp tin này'
+              }
+              emptyHint={
+                locationMode === 'exact' && matchResults.length > 0
+                  ? 'Chọn Gần nhất để xem hồ sơ cùng miền với địa điểm trên JD.'
+                  : 'Engine Sales/Kỹ thuật chưa tìm thấy hồ sơ đủ tiêu chí JD. Kiểm tra Inbox hoặc bổ sung dữ liệu hồ sơ ứng viên.'
+              }
             />
           </section>
         )}

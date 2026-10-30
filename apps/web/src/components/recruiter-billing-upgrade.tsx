@@ -157,7 +157,12 @@ export function RecruiterPlanUpgrade() {
                 {plan.code === 'KHAM_PHA' ? (
                   <li className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-slate-400" />
-                    Chu kỳ gói: <strong>{plan.durationDays ?? 14} ngày</strong> (tạo tin mới khi hết chu kỳ)
+                    Dùng thử <strong>14 ngày</strong>, được mua thêm Credit. Hết hạn Credit về 0. Mở lại sau 30 ngày.
+                  </li>
+                ) : plan.code !== 'ENTERPRISE' ? (
+                  <li className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                    Hạn gói <strong>{plan.durationDays ?? 30} ngày</strong>. Không gia hạn thì về gói Khám phá, Credit về 0.
                   </li>
                 ) : null}
                 <li className="flex items-center gap-2">
@@ -236,10 +241,10 @@ function CurrentPlanCard({
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-600" />
               Sau khi thanh toán, gói hiển thị sẽ là <strong>{requested.name}</strong>
               {requested.code === 'KHAM_PHA'
-                ? `, chu kỳ ${requested.durationDays ?? 14} ngày`
-                : requested.durationDays != null
-                  ? `, hạn gói ${requested.durationDays} ngày`
-                  : ''}
+                ? ', dùng thử 14 ngày, hết hạn Credit về 0'
+                : requested.code === 'ENTERPRISE'
+                  ? ''
+                  : `, hạn ${requested.durationDays ?? 30} ngày, không gia hạn thì về gói Khám phá`}
               {requested.durationDays != null
                 ? `, tin hiển thị ${requested.durationDays} ngày`
                 : ''}
