@@ -36,6 +36,12 @@ export interface BillingPlanActionCostView {
   isActive: boolean;
 }
 
+/** Dòng quyền lợi trên thẻ gói tin. */
+export interface PlatformFeatureLine {
+  label: string;
+  included: boolean;
+}
+
 export interface BillingPlatformPlanView {
   id: string;
   code: string;
@@ -55,7 +61,8 @@ export interface BillingPlatformPlanView {
   sortOrder: number;
   isActive: boolean;
   isFeatured: boolean;
-  features: string[];
+  /** Chữ cũ hoặc dòng { label, included } đã lưu từ cài đặt. */
+  features: Array<string | PlatformFeatureLine>;
   /** Cost-per-action của gói; thiếu action → UI/backend fallback policy global. */
   actionCosts: BillingPlanActionCostView[];
   createdAt: string;
@@ -631,10 +638,10 @@ export const DEFAULT_BILLING_PAGE_FAQ: BillingPageFaqItem[] = [
   },
   {
     q: 'Phí Săn nhân sự có bao gồm Credit không?',
-    a: 'Không. Phí Săn (Cơ bản/Tiêu chuẩn/Chuyên sâu) là phí dịch vụ iLink thực hiện. Credit mua riêng theo nhu cầu mở hồ sơ tiềm năng.',
+    a: 'Không. Phí Săn (Cơ bản/Tiêu chuẩn/Chuyên sâu) là phí dịch vụ inlink thực hiện. Credit mua riêng theo nhu cầu mở hồ sơ tiềm năng.',
   },
   {
-    q: 'iLink có auto-charge Credit khi hết không?',
+    q: 'inlink có auto-charge Credit khi hết không?',
     a: 'Không. Theo nguyên tắc V1, hệ thống không tự động mua Credit. Bạn chủ động mua khi cần.',
   },
   {
@@ -654,7 +661,7 @@ export const DEFAULT_BILLING_PAGE_TRUST: BillingPageTextItem[] = [
   },
   {
     title: 'Hỗ trợ 1-1',
-    desc: 'Đội ngũ iLink đồng hành setup, training và tối ưu JD.',
+    desc: 'Đội ngũ inlink đồng hành setup, training và tối ưu JD.',
   },
 ];
 
@@ -676,7 +683,7 @@ export const DEFAULT_BILLING_PAGE_CONTENT: BillingPageContentView = {
   heroHeading: 'Tuyển dụng công nghiệp',
   heroHeadingAccent: 'minh bạch, không phát sinh',
   heroSubtitle:
-    'iLink giúp nhà tuyển dụng đăng tin, matching AI, mở hồ sơ tiềm năng chỉ với vài cú click. Không auto-charge, không phí ẩn.',
+    'inlink giúp nhà tuyển dụng đăng tin, matching AI, mở hồ sơ tiềm năng chỉ với vài cú click. Không auto-charge, không phí ẩn.',
   heroSocialProof: 'Được 50+ doanh nghiệp FDI tin dùng',
   heroCtaPrimary: 'Bắt đầu miễn phí',
   heroCtaSecondary: 'Xem cách tính phí',
@@ -686,7 +693,7 @@ export const DEFAULT_BILLING_PAGE_CONTENT: BillingPageContentView = {
   platformTitle: 'Gói nền tảng',
   platformSubtitle: 'Tự tuyển dụng với AI Matching. Quản lý JD, ứng viên, mở hồ sơ tiềm năng.',
   sourcingTitle: 'Gói Săn nhân sự',
-  sourcingSubtitle: 'Đội ngũ iLink trực tiếp tìm kiếm, sàng lọc và đánh giá ứng viên theo JD của bạn.',
+  sourcingSubtitle: 'Đội ngũ inlink trực tiếp tìm kiếm, sàng lọc và đánh giá ứng viên theo JD của bạn.',
   creditTitle: 'Top-up Credit',
   creditSubtitle: 'Mua thêm lượt mở hồ sơ tiềm năng. Đơn giá giảm khi mua nhiều.',
   featuresTitle: 'Tính năng nổi bật',
@@ -699,7 +706,7 @@ export const DEFAULT_BILLING_PAGE_CONTENT: BillingPageContentView = {
   faqTitle: 'Câu hỏi thường gặp',
   faqSubtitle: 'Mọi thắc mắc về giá, gói và Credit.',
   contactTitle: 'Cần tư vấn gói riêng cho doanh nghiệp?',
-  contactSubtitle: 'Đội ngũ iLink sẵn sàng hỗ trợ bạn chọn gói phù hợp nhất.',
+  contactSubtitle: 'Đội ngũ inlink sẵn sàng hỗ trợ bạn chọn gói phù hợp nhất.',
   finalCtaTitle: 'Sẵn sàng tuyển hiệu quả hơn?',
   finalCtaSubtitle: 'Đăng ký miễn phí hoặc liên hệ sales để được tư vấn gói phù hợp.',
   footerTagline: 'Kết nối nhân tài – Dẫn lối công nghiệp',

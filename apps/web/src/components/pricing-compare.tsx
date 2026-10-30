@@ -13,6 +13,7 @@ import type {
 } from '@industriallink/contracts';
 import { BILLING_PLAN_BILLABLE_ACTIONS } from '@industriallink/contracts';
 import { formatPriceVnd } from '@/lib/format-billing';
+import { PRICING_BRAND, PRICING_HEADING_CONTEXT, platformJobCountLabel } from '@/lib/pricing-catalog';
 
 type CompareTab = 'platform' | 'sourcing' | 'credit';
 type CompareCell =
@@ -72,10 +73,10 @@ function platformHook(plan: BillingPlatformPlanView): string {
   const credit =
     plan.creditQuota == null ? 'Credit theo HĐ' : `tặng ${plan.creditQuota} Credit`;
   if (plan.jobPostQuota == null) {
-    return `Không giới hạn JD · ${credit}`;
+    return `${platformJobCountLabel(plan)} · ${credit}`;
   }
   const days = plan.durationDays ? ` · ${plan.durationDays} ngày` : '';
-  return `${plan.jobPostQuota} JD${days} · ${credit}`;
+  return `${platformJobCountLabel(plan)}${days} · ${credit}`;
 }
 
 function platformFit(plan: BillingPlatformPlanView): string {
@@ -86,7 +87,7 @@ function platformFit(plan: BillingPlatformPlanView): string {
   }
   const credits =
     plan.creditQuota == null ? 'Credit theo HĐ' : `${plan.creditQuota} Credit`;
-  return `Tự tuyển ${plan.jobPostQuota} JD, ${credits} mở hồ sơ`;
+  return `Tự tuyển ${platformJobCountLabel(plan)}, ${credits} mở hồ sơ`;
 }
 
 function sourcingHook(plan: BillingSourcingPlanView): string {
@@ -97,16 +98,16 @@ function sourcingHook(plan: BillingSourcingPlanView): string {
   }
   if (n >= 4) {
     const sl = plan.shortlistQuota == null ? 'shortlist linh hoạt' : `shortlist ${plan.shortlistQuota}`;
-    return `iLink tìm & chọn · ${sl} · ${rounds}`;
+    return `${PRICING_BRAND} tìm & chọn · ${sl} · ${rounds}`;
   }
-  return `iLink tìm giúp · ${n} hạng mục · ${rounds}`;
+  return `${PRICING_BRAND} tìm giúp · ${n} hạng mục · ${rounds}`;
 }
 
 function sourcingFit(plan: BillingSourcingPlanView): string {
   const n = plan.serviceScope.length;
   if (plan.searchRoundQuota == null || n >= 7) return 'Vị trí then chốt, cần người theo đến khi chốt';
   if (n >= 4) return 'Cần shortlist + phân tích, không chỉ danh sách thô';
-  return 'Vị trí dễ, ngân sách gọn, cần iLink tìm hộ';
+  return `Vị trí dễ, ngân sách gọn, cần ${PRICING_BRAND} tìm hộ`;
 }
 
 function creditHook(topup: BillingCreditTopupView, minUnit: number, maxUnit: number): string {
@@ -180,7 +181,7 @@ function buildPlatformRows(
       cells: plans.map((p) => ({ kind: 'flag', yes: hasGiftCredit(p) })),
     },
     {
-      label: 'Tuyển nhiều JD song song',
+      label: 'Tuyển nhiều tin song song',
       cells: plans.map((p) => ({
         kind: 'flag',
         yes: p.jobPostQuota == null || p.jobPostQuota > 1,
@@ -205,7 +206,7 @@ function buildPlatformRows(
       })),
     },
     {
-      label: 'Số JD',
+      label: 'Số tin',
       cells: plans.map((p) => ({ kind: 'text', text: formatQuota(p.jobPostQuota) })),
     },
     {
@@ -367,7 +368,7 @@ function platformInsight(plans: BillingPlatformPlanView[]): string {
     );
   }
   if (unlimitedJd.length) {
-    bits.push(`${unlimitedJd.map((p) => p.name).join(', ')} không giới hạn JD.`);
+    bits.push(`${unlimitedJd.map((p) => p.name).join(', ')} không giới hạn tin.`);
   }
   bits.push('Enterprise không niêm yết — báo giá theo hợp đồng.');
   return bits.join(' ');
@@ -377,11 +378,11 @@ function sourcingInsight(plans: BillingSourcingPlanView[]): string {
   const sorted = [...plans].sort((a, b) => a.serviceScope.length - b.serviceScope.length);
   const slim = sorted[0];
   const full = sorted[sorted.length - 1];
-  if (!slim || !full) return '✓ / ✗ theo đúng hạng mục iLink thực hiện ở từng gói.';
+  if (!slim || !full) return `✓ / ✗ theo đúng hạng mục ${PRICING_BRAND} thực hiện ở từng gói.`;
   if (slim.id === full.id) {
-    return `${slim.name}: iLink làm ${slim.serviceScope.length} hạng mục đã cấu hình.`;
+    return `${slim.name}: ${PRICING_BRAND} làm ${slim.serviceScope.length} hạng mục đã cấu hình.`;
   }
-  return `${slim.name} — iLink tìm & lọc (${slim.serviceScope.length} hạng mục). ${full.name} — theo sát đến khi tuyển (${full.serviceScope.length} hạng mục). Không tick hạng mục gói chưa bán.`;
+  return `${slim.name} — ${PRICING_BRAND} tìm & lọc (${slim.serviceScope.length} hạng mục). ${full.name} — theo sát đến khi tuyển (${full.serviceScope.length} hạng mục). Không tick hạng mục gói chưa bán.`;
 }
 
 function creditInsight(topups: BillingCreditTopupView[]): string {
@@ -398,13 +399,22 @@ function creditInsight(topups: BillingCreditTopupView[]): string {
   return `Mua nhiều thì rẻ hơn: ${cheapest.name} thấp hơn ${pct}% / lượt so với ${dearest.name}. Không tự động trừ thêm khi hết Credit.`;
 }
 
+function CompareFlag({ yes, compact = false }: { yes: boolean; compact?: boolean }) {
+  return (
+    <span className={clsx('inline-flex items-center justify-center', compact ? '' : 'mx-auto')}>
+      {yes ? (
+        <Check className={compact ? 'h-3.5 w-3.5 shrink-0 text-emerald-500' : 'h-4 w-4 text-emerald-500'} aria-hidden="true" />
+      ) : (
+        <X className={compact ? 'h-3.5 w-3.5 shrink-0 text-slate-300' : 'h-4 w-4 text-slate-300'} aria-hidden="true" />
+      )}
+      <span className="sr-only">{yes ? 'Có hỗ trợ' : 'Không hỗ trợ'}</span>
+    </span>
+  );
+}
+
 function CompareCellView({ cell }: { cell: CompareCell }) {
   if (cell.kind === 'flag') {
-    return cell.yes ? (
-      <Check className="mx-auto h-4 w-4 text-emerald-500" aria-label="Có" />
-    ) : (
-      <X className="mx-auto h-4 w-4 text-slate-300" aria-label="Không" />
-    );
+    return <CompareFlag yes={cell.yes} />;
   }
   if (cell.kind === 'hook') {
     return (
@@ -428,6 +438,9 @@ function CompareMatrix({
       <div className="hidden lg:block">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-sm">
+            <caption className="sr-only">
+              Bảng so sánh chi tiết thông số và quyền lợi các gói tuyển dụng công nghiệp trên inlink.vn
+            </caption>
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="px-4 py-3 text-left font-semibold text-slate-600" scope="col">
@@ -456,7 +469,9 @@ function CompareMatrix({
                     ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50',
                   )}
                 >
-                  <td className="px-4 py-3 font-medium text-slate-700">{row.label}</td>
+                  <th scope="row" className="px-4 py-3 text-left font-medium text-slate-700">
+                    {row.label}
+                  </th>
                   {row.cells.map((cell, ci) => (
                     <td
                       key={columns[ci]?.id ?? ci}
@@ -492,11 +507,7 @@ function CompareMatrix({
                   <div key={row.label} className="flex items-start justify-between gap-3 text-xs">
                     <span className="text-slate-500">{row.label}</span>
                     {cell.kind === 'flag' ? (
-                      cell.yes ? (
-                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-label="Có" />
-                      ) : (
-                        <X className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-label="Không" />
-                      )
+                      <CompareFlag yes={cell.yes} compact />
                     ) : (
                       <span
                         className={clsx(
@@ -544,33 +555,44 @@ export function CompareSection({
     ['credit', page.creditTitle, Coins],
   ] as const;
 
-  let columns: { id: string; name: string; featured: boolean }[] = [];
-  let rows: CompareRow[] = [];
-  let insight = '';
-
-  if (tab === 'platform') {
-    columns = platform.map((p) => ({ id: p.id, name: p.name, featured: p.code === 'TIN_DANG_PLUS' }));
-    rows = buildPlatformRows(platform, currency);
-    insight = platformInsight(platform);
-  } else if (tab === 'sourcing') {
-    columns = sourcing.map((p) => ({ id: p.id, name: p.name, featured: p.isFeatured }));
-    rows = buildSourcingRows(sourcing, currency);
-    insight = sourcingInsight(sourcing);
-  } else {
-    columns = credit.map((t) => ({
-      id: t.id,
-      name: t.name,
-      featured: t.isFeatured || Boolean(t.badge),
-    }));
-    rows = buildCreditRows(credit, currency);
-    insight = creditInsight(credit);
-  }
+  const panels: {
+    id: CompareTab;
+    columns: { id: string; name: string; featured: boolean }[];
+    rows: CompareRow[];
+    insight: string;
+  }[] = [
+    {
+      id: 'platform',
+      columns: platform.map((p) => ({ id: p.id, name: p.name, featured: p.code === 'TIN_DANG_PLUS' })),
+      rows: buildPlatformRows(platform, currency),
+      insight: platformInsight(platform),
+    },
+    {
+      id: 'sourcing',
+      columns: sourcing.map((p) => ({ id: p.id, name: p.name, featured: p.isFeatured })),
+      rows: buildSourcingRows(sourcing, currency),
+      insight: sourcingInsight(sourcing),
+    },
+    {
+      id: 'credit',
+      columns: credit.map((t) => ({
+        id: t.id,
+        name: t.name,
+        featured: t.isFeatured || Boolean(t.badge),
+      })),
+      rows: buildCreditRows(credit, currency),
+      insight: creditInsight(credit),
+    },
+  ];
 
   return (
-    <section id="compare" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
+    <section id="compare" aria-labelledby="compare-title" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.compareTitle}</h2>
+          <h2 id="compare-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
+            {page.compareTitle}
+            <span className="sr-only">{PRICING_HEADING_CONTEXT}</span>
+          </h2>
           <p className="mt-2 text-sm text-slate-500">{page.compareSubtitle}</p>
         </div>
 
@@ -597,24 +619,29 @@ export function CompareSection({
           </div>
         </div>
 
-        {insight ? (
-          <p className="mx-auto mb-6 max-w-3xl text-center text-sm leading-relaxed text-slate-600">{insight}</p>
-        ) : null}
-
-        {columns.length === 0 ? (
-          <p className="text-center text-sm text-slate-500">Chưa có gói đang bật để so sánh.</p>
-        ) : (
-          <>
-            <CompareMatrix
-              columns={columns}
-              featured={columns.map((c) => c.featured)}
-              rows={rows}
-            />
-            <p className="mt-4 text-center text-[11px] text-slate-400">
-              ✓ / ✗ lấy từ giá, hạn mức và quyền đang bật của từng gói — đổi cấu hình SuperAdmin là bảng đổi theo.
-            </p>
-          </>
-        )}
+        {panels.map((panel) => (
+          <div key={panel.id} hidden={tab !== panel.id} aria-hidden={tab !== panel.id}>
+            {panel.insight ? (
+              <p className="mx-auto mb-6 max-w-3xl text-center text-sm leading-relaxed text-slate-600">
+                {panel.insight}
+              </p>
+            ) : null}
+            {panel.columns.length === 0 ? (
+              <p className="text-center text-sm text-slate-500">Chưa có gói đang bật để so sánh.</p>
+            ) : (
+              <>
+                <CompareMatrix
+                  columns={panel.columns}
+                  featured={panel.columns.map((c) => c.featured)}
+                  rows={panel.rows}
+                />
+                <p className="mt-4 text-center text-[11px] text-slate-400">
+                  ✓ / ✗ lấy từ giá, hạn mức và quyền đang bật của từng gói — đổi cấu hình SuperAdmin là bảng đổi theo.
+                </p>
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </section>
   );

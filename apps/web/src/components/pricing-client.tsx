@@ -46,6 +46,16 @@ import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { tokenStore } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
+import {
+  PRICING_BRAND,
+  PRICING_HEADING_CONTEXT,
+  normalizePricingBrand,
+  normalizePricingConfig,
+  normalizePricingPage,
+  displayFeatureLines,
+  platformJobSentence,
+  pricingPlatformFact,
+} from '@/lib/pricing-catalog';
 import { EnterpriseConsultButton } from './enterprise-consult-button';
 import { BrandMark } from './brand-logo';
 import { CompareSection } from './pricing-compare';
@@ -129,12 +139,22 @@ function SalePrice({
   const onSale = Boolean(percent && percent > 0 && sale && sale !== list);
   return (
     <div>
-      {stacked || onSale ? (
-        <p className="h-4 text-xs tabular-nums text-slate-400 line-through">
-          {onSale ? formatPriceVnd(list, currency) : ''}
-        </p>
+      {onSale ? (
+        <del className="block h-4 text-xs tabular-nums text-slate-400 line-through">
+          <span className="sr-only">Giá gốc: </span>
+          {formatPriceVnd(list, currency)}
+        </del>
+      ) : stacked ? (
+        <p className="h-4" aria-hidden="true" />
       ) : null}
-      <PlanPrice value={onSale ? sale! : list} currency={currency} className={priceClassName} />
+      {onSale ? (
+        <ins className="block no-underline">
+          <span className="sr-only">Giá ưu đãi hiện tại: </span>
+          <PlanPrice value={sale!} currency={currency} className={priceClassName} />
+        </ins>
+      ) : (
+        <PlanPrice value={list} currency={currency} className={priceClassName} />
+      )}
       {stacked || onSale ? (
         onSale ? (
           <p className="mt-1 inline-flex h-5 items-center rounded-full bg-rose-50 px-2 text-[10px] font-bold text-rose-700">
@@ -387,6 +407,32 @@ function HeroRecruiter({ page }: { page: BillingPageContentView }) {
 // ============================================================================
 type PricingTab = 'platform' | 'sourcing' | 'credit';
 
+/** Giữ cả ba nhóm gói trong HTML. Đổi tab chỉ ẩn, không gỡ khỏi DOM. */
+function PricingH2({
+  id,
+  className,
+  children,
+}: {
+  id: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <h2 id={id} className={className}>
+      {children}
+      <span className="sr-only">{PRICING_HEADING_CONTEXT}</span>
+    </h2>
+  );
+}
+
+function PricingTabPane({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <div hidden={!active} aria-hidden={!active}>
+      {children}
+    </div>
+  );
+}
+
 function SectionNav({
   isRecruiter,
   tab,
@@ -453,10 +499,12 @@ function SectionNav({
 // ============================================================================
 function FeaturesSection({ page }: { page: BillingPageContentView }) {
   return (
-    <section id="features" className="bg-white py-14 sm:py-20 scroll-mt-20">
+    <section id="features" aria-labelledby="features-title" className="bg-white py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.featuresTitle}</h2>
+          <PricingH2 id="features-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
+            {page.featuresTitle}
+          </PricingH2>
           <p className="mt-2 text-sm text-slate-500">{page.featuresSubtitle}</p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -488,17 +536,20 @@ function HowItWorksSection({ page }: { page: BillingPageContentView }) {
   return (
     <section
       id="how"
+      aria-labelledby="how-title"
       className="relative overflow-hidden bg-gradient-to-br from-[#072348] to-[#0d3b80] py-14 text-white sm:py-20 scroll-mt-20"
     >
       <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />
       <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" aria-hidden="true" />
       <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold sm:text-3xl">{page.howTitle}</h2>
+          <PricingH2 id="how-title" className="text-2xl font-bold sm:text-3xl">
+            {page.howTitle}
+          </PricingH2>
           <p className="mt-2 text-sm text-slate-300">{page.howSubtitle}</p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <dl className="grid gap-6 lg:grid-cols-3">
           {page.howSteps.map((step, i) => (
             <div key={`${step.title}-${i}`} className="relative">
               {i < page.howSteps.length - 1 && (
@@ -508,12 +559,12 @@ function HowItWorksSection({ page }: { page: BillingPageContentView }) {
               )}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
                 <span className="text-4xl font-bold text-amber-400">{String(i + 1).padStart(2, '0')}</span>
-                <h3 className="mt-3 text-base font-bold">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300">{step.desc}</p>
+                <dt className="mt-3 text-base font-bold">{step.title}</dt>
+                <dd className="mt-2 text-sm leading-relaxed text-slate-300">{step.desc}</dd>
               </div>
             </div>
           ))}
-        </div>
+        </dl>
 
         <p className="mt-8 text-center text-sm text-slate-300">{page.howFooter}</p>
       </div>
@@ -551,12 +602,14 @@ function ContactCTASection({ page }: { page: BillingPageContentView }) {
   ];
 
   return (
-    <section id="contact" className="bg-white py-14 sm:py-20 scroll-mt-20">
+    <section id="contact" aria-labelledby="contact-title" className="bg-white py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#072348] to-[#0d3b80] p-8 text-white sm:p-12">
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />
           <div className="relative mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-bold sm:text-3xl">{page.contactTitle}</h2>
+            <PricingH2 id="contact-title" className="text-2xl font-bold sm:text-3xl">
+              {page.contactTitle}
+            </PricingH2>
             <p className="mt-3 text-sm text-slate-300">{page.contactSubtitle}</p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -766,98 +819,6 @@ function takePlans(plans: BillingPlatformPlanView[], codes: readonly string[]) {
     .filter((plan): plan is BillingPlatformPlanView => Boolean(plan));
 }
 
-function actionCost(plan: BillingPlatformPlanView, action: string): number | null {
-  const row = plan.actionCosts?.find((item) => item.action === action && item.isActive);
-  return row ? row.cost : null;
-}
-
-/** Cùng thứ tự trên mọi thẻ để các dòng quyền lợi thẳng hàng. */
-function platformFeatureRows(plan: BillingPlatformPlanView): { text: string; included: boolean }[] {
-  const free = plan.code === 'KHAM_PHA';
-  const plus = plan.code === 'TIN_DANG_PLUS';
-  const company = plan.code === 'DOANH_NGHIEP';
-  const enterprise = plan.code === 'ENTERPRISE';
-  const monthly = plan.billingUnit === 'per_month';
-  const jobs = plan.jobPostQuota;
-  const days = plan.durationDays;
-  const credits = plan.creditQuota;
-  const openCost = actionCost(plan, 'view_profile');
-  const canOpen = enterprise || credits == null || credits > 0;
-
-  return [
-    {
-      included: true,
-      text:
-        enterprise || jobs == null
-          ? 'Hạn mức tin theo hợp đồng'
-          : monthly
-            ? `Tối đa ${jobs} tin đang hoạt động`
-            : free
-              ? `${jobs} tin thử nghiệm`
-              : `${jobs} tin đăng`,
-    },
-    {
-      included: true,
-      text:
-        enterprise || days == null
-          ? 'Thời hạn theo hợp đồng'
-          : monthly
-            ? `Chu kỳ ${days} ngày`
-            : `Hiển thị ${days} ngày`,
-    },
-    {
-      included: canOpen,
-      text:
-        enterprise || credits == null
-          ? 'Lượt mở hồ sơ theo hợp đồng'
-          : credits > 0
-            ? monthly
-              ? `${credits} lượt mở hồ sơ / tháng`
-              : `${credits} lượt mở hồ sơ tiềm năng`
-            : 'Không có lượt mở hồ sơ tiềm năng',
-    },
-    {
-      included: plus,
-      text: 'Thêm lượt mở so với Tin đăng',
-    },
-    {
-      included: canOpen && (openCost == null || openCost > 0),
-      text:
-        openCost != null && openCost > 0
-          ? `Mỗi lượt mở hồ sơ tốn ${openCost} Credit`
-          : 'Mở hồ sơ tiềm năng không tốn Credit',
-    },
-    {
-      included: !free,
-      text: 'Hồ sơ ứng tuyển không tốn lượt',
-    },
-    {
-      included: true,
-      text: 'Tổng Matching không tốn lượt',
-    },
-    {
-      included: !free,
-      text: 'Mở lại hồ sơ đã xem không tốn lượt',
-    },
-    {
-      included: true,
-      text: 'Phân tích JD bằng AI',
-    },
-    {
-      included: true,
-      text: 'Sửa tiêu chí JD',
-    },
-    {
-      included: company,
-      text: 'Tin đóng hoặc nháp không tính hạn mức',
-    },
-    {
-      included: enterprise,
-      text: 'Hỗ trợ triển khai riêng',
-    },
-  ];
-}
-
 function PlatformPlansView({
   plans,
   currency,
@@ -899,12 +860,12 @@ function PlatformPlansView({
   };
 
   return (
-    <div>
+    <section id="pricing" aria-labelledby="pricing-title" className="scroll-mt-20">
       {/* Section header */}
       <div className="mb-8 text-center">
-        <h2 id="pricing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
+        <PricingH2 id="pricing-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
           {page.platformTitle}
-        </h2>
+        </PricingH2>
         <p className="mt-2 text-sm text-slate-500">{page.platformSubtitle}</p>
         {visible.some((p) => p.promoPercent) ? (
           <LaunchCountdown
@@ -936,13 +897,13 @@ function PlatformPlansView({
       {/* Cross-sell */}
       {!isRecruiter ? (
         <CrossSellCard
-          title="Cần iLink tìm giúp?"
+          title={`Cần ${PRICING_BRAND} tìm giúp?`}
           desc="Dịch vụ Săn nhân sự — chúng tôi tìm và sàng lọc giúp bạn."
           cta="Xem gói Săn"
           onClick={onSourcing}
         />
       ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -973,7 +934,7 @@ function PlatformPlanCard({
   const priceClass = roomy
     ? 'font-bold leading-none tracking-tight text-[#072348] text-[2rem] md:text-5xl'
     : 'font-bold leading-none tracking-tight text-[#072348] text-[1.7rem] md:text-[2rem]';
-  const rows = platformFeatureRows(plan);
+  const rows = displayFeatureLines(plan);
   const ctaClass = clsx(
     'inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
     featured
@@ -1002,7 +963,7 @@ function PlatformPlanCard({
 
       <h3 className={clsx('font-bold tracking-tight text-[#072348]', roomy ? 'text-2xl' : 'text-lg')}>{plan.name}</h3>
       <p className="mt-1 line-clamp-2 min-h-10 text-[13px] leading-5 text-slate-500">
-        {plan.description || '\u00a0'}
+        {pricingPlatformFact(plan).description || '\u00a0'}
       </p>
 
       <div className="mt-4 flex min-h-[7.5rem] flex-col justify-end">
@@ -1033,9 +994,7 @@ function PlatformPlanCard({
           {isEnterprise
             ? 'Theo hợp đồng'
             : isFree
-              ? plan.durationDays
-                ? `${plan.durationDays} ngày · 1 tin thử nghiệm`
-                : '14 ngày · 1 tin thử nghiệm'
+              ? `${plan.durationDays ?? 14} ngày · ${platformJobSentence(plan)}`
               : `${UNIT_LABEL[plan.billingUnit]}${plan.durationDays ? ` · ${plan.durationDays} ngày` : ''}`}
         </PlanPriceMeta>
         <p className="min-h-4 text-[10px] leading-4 text-slate-400">
@@ -1074,13 +1033,18 @@ function PlatformPlanCard({
       )}
 
       <ul className="mt-5 border-t border-slate-100 pt-2">
-        {rows.map((row) => (
-          <li key={row.text} className="flex h-10 items-center gap-2.5 border-b border-slate-100/80 last:border-0">
+        {rows.map((row, index) => (
+          <li
+            key={`${index}-${row.label}`}
+            aria-disabled={row.included ? undefined : true}
+            className="flex h-10 items-center gap-2.5 border-b border-slate-100/80 last:border-0"
+          >
             <span
               className={clsx(
                 'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
                 row.included ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-300',
               )}
+              aria-hidden="true"
             >
               {row.included ? (
                 <Check className="h-3 w-3" strokeWidth={2.6} />
@@ -1089,13 +1053,14 @@ function PlatformPlanCard({
               )}
             </span>
             <span
-              title={row.text}
+              title={row.label}
               className={clsx(
                 'min-w-0 truncate text-[13px] leading-5',
                 row.included ? 'font-medium text-slate-800' : 'text-slate-400 line-through decoration-slate-300',
               )}
             >
-              {row.text}
+              <span className="sr-only">{row.included ? 'Bao gồm: ' : 'Không bao gồm: '}</span>
+              {row.label}
             </span>
           </li>
         ))}
@@ -1123,14 +1088,14 @@ function SourcingPlansView({
   page: BillingPageContentView;
 }) {
   return (
-    <div>
+    <section aria-labelledby="sourcing">
       <div className="mb-8 text-center">
-        <h2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
+        <PricingH2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
           {page.sourcingTitle}
-        </h2>
+        </PricingH2>
         <p className="mt-2 text-sm text-slate-500">{page.sourcingSubtitle}</p>
         <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Muốn iLink hỗ trợ tìm kiếm theo yêu cầu? Chọn mức độ hỗ trợ phù hợp. Giá gói đã bao gồm quyền sử dụng nền tảng cần thiết cho vị trí; không thu lại toàn bộ phí Tin đăng cho cùng vị trí.
+          Muốn {PRICING_BRAND} hỗ trợ tìm kiếm theo yêu cầu? Chọn mức độ hỗ trợ phù hợp. Giá gói đã bao gồm quyền sử dụng nền tảng cần thiết cho vị trí; không thu lại toàn bộ phí Tin đăng cho cùng vị trí.
         </p>
         {plans.some((p) => p.promoPercent) ? (
           <LaunchCountdown note="Khuyến mại ra mắt: ba gói Tin săn giảm 30%. Mua thêm lượt không giảm giá." />
@@ -1153,7 +1118,7 @@ function SourcingPlansView({
           onClick={onTopup}
         />
       ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -1186,7 +1151,7 @@ function SourcingPlanCard({
         <div>
           <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
           {plan.description ? (
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">{plan.description}</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">{normalizePricingBrand(plan.description)}</p>
           ) : null}
         </div>
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
@@ -1226,17 +1191,21 @@ function SourcingPlanCard({
           {scopeLinesOf(plan).map((line) => (
             <li
               key={line.code}
+              aria-disabled={line.included ? undefined : true}
               className={clsx(
                 'flex items-center gap-1.5 text-[12px]',
                 line.included ? 'text-slate-700' : 'text-slate-400 line-through'
               )}
             >
               {line.included ? (
-                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
               ) : (
-                <X className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+                <X className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden="true" />
               )}
-              <span>{line.label}</span>
+              <span>
+                <span className="sr-only">{line.included ? 'Bao gồm: ' : 'Không bao gồm: '}</span>
+                {line.label}
+              </span>
             </li>
           ))}
         </ul>
@@ -1284,11 +1253,11 @@ function CreditTopupView({
   page: BillingPageContentView;
 }) {
   return (
-    <div>
+    <section aria-labelledby="credit">
       <div className="mb-8 text-center">
-        <h2 id="credit" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
+        <PricingH2 id="credit" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
           {page.creditTitle}
-        </h2>
+        </PricingH2>
         <p className="mt-2 text-sm text-slate-500">{page.creditSubtitle}</p>
       </div>
 
@@ -1304,7 +1273,7 @@ function CreditTopupView({
         <CreditCard className="mr-1 inline h-3.5 w-3.5" />
         Hỗ trợ thanh toán online và chuyển khoản. Hoá đơn VAT cho doanh nghiệp.
       </p>
-    </div>
+    </section>
   );
 }
 
@@ -1410,42 +1379,27 @@ function TrustItem({
 // FAQ
 // ============================================================================
 function FAQSection({ page, vatPercent = null }: { page: BillingPageContentView; vatPercent?: number | null }) {
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-
   return (
-    <section id="faq" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
+    <section id="faq" aria-labelledby="faq-title" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-[#072348] sm:text-3xl">{page.faqTitle}</h2>
+          <PricingH2 id="faq-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
+            {page.faqTitle}
+          </PricingH2>
           <p className="mt-2 text-sm text-slate-500">{page.faqSubtitle}</p>
         </div>
         <div className="space-y-2">
-          {page.faqItems.map((item, i) => {
-            const open = openFaq === i;
-            return (
-              <div key={i} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setOpenFaq(open ? null : i)}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
-                  aria-expanded={open}
-                >
-                  <span className="text-sm font-semibold text-slate-900">{item.q}</span>
-                  <ChevronDown
-                    className={clsx(
-                      'h-4 w-4 shrink-0 text-slate-400 transition',
-                      open && 'rotate-180 text-slate-700'
-                    )}
-                  />
-                </button>
-                {open ? (
-                  <div className="border-t border-slate-100 px-5 py-4 text-sm text-slate-600">
-                    {displayFaqAnswer(item.a, vatPercent)}
-                  </div>
-                ) : null}
+          {page.faqItems.map((item, i) => (
+            <details key={i} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+                <span>{item.q}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180 group-open:text-slate-700" />
+              </summary>
+              <div className="border-t border-slate-100 px-5 py-4 text-sm text-slate-600">
+                {displayFaqAnswer(item.a, vatPercent)}
               </div>
-            );
-          })}
+            </details>
+          ))}
         </div>
       </div>
     </section>
@@ -1457,9 +1411,11 @@ function FAQSection({ page, vatPercent = null }: { page: BillingPageContentView;
 // ============================================================================
 function FinalCTA({ page, checkoutReady }: { page: BillingPageContentView; checkoutReady: boolean }) {
   return (
-    <section className="bg-gradient-to-br from-[#072348] to-[#0d3b80] py-12 text-white">
+    <section aria-labelledby="final-cta-title" className="bg-gradient-to-br from-[#072348] to-[#0d3b80] py-12 text-white">
       <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="text-2xl font-bold sm:text-3xl">{page.finalCtaTitle}</h2>
+        <PricingH2 id="final-cta-title" className="text-2xl font-bold sm:text-3xl">
+          {page.finalCtaTitle}
+        </PricingH2>
         <p className="mt-2 text-sm text-slate-300">{page.finalCtaSubtitle}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Link
@@ -1618,7 +1574,8 @@ export function PricingClient({
     refetchOnMount: embedded ? 'always' : true,
     retry: 1,
   });
-  const resolved = embedded ? (fetched ?? null) : (config ?? fetched ?? null);
+  const resolvedRaw = embedded ? (fetched ?? null) : (config ?? fetched ?? null);
+  const resolved = resolvedRaw ? normalizePricingConfig(resolvedRaw) : null;
 
   /** NTD đã login → trang thanh toán / billing. Khách → đăng ký. */
   const planCtaHref = (code: string) =>
@@ -1626,7 +1583,7 @@ export function PricingClient({
       ? `/recruiter/billing/upgrade?plan=${encodeURIComponent(code)}`
       : `/register?plan=${encodeURIComponent(code)}`;
   const freeCtaHref = () => (checkoutReady ? '/recruiter/billing' : '/register');
-  const page = resolved?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
+  const page = normalizePricingPage(resolved?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT);
   const vatPercent = resolved?.vatPercent ?? null;
   const enterpriseCtaHref = () =>
     checkoutReady ? '/recruiter/billing?plan=ENTERPRISE' : `mailto:${page.contactEmail}`;
@@ -1681,7 +1638,7 @@ export function PricingClient({
           page={page}
         />
         <section>
-          {tab === 'platform' ? (
+          <PricingTabPane active={tab === 'platform'}>
             <PlatformPlansView
               plans={resolved.platformPlans}
               currency={cur}
@@ -1695,7 +1652,8 @@ export function PricingClient({
               canRequestEnterprise={canRequestEnterprise}
               page={page}
             />
-          ) : tab === 'sourcing' ? (
+          </PricingTabPane>
+          <PricingTabPane active={tab === 'sourcing'}>
             <SourcingPlansView
               plans={resolved.sourcingPlans}
               currency={cur}
@@ -1704,14 +1662,15 @@ export function PricingClient({
               planCtaHref={sourcingCtaHref}
               page={page}
             />
-          ) : (
+          </PricingTabPane>
+          <PricingTabPane active={tab === 'credit'}>
             <CreditTopupView
               topups={resolved.creditTopups}
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
             />
-          )}
+          </PricingTabPane>
         </section>
         <CompareSection
           platformPlans={resolved.platformPlans}
@@ -1738,7 +1697,7 @@ export function PricingClient({
       {/* CONTENT */}
       <section className="bg-slate-50 py-12 sm:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          {tab === 'platform' ? (
+          <PricingTabPane active={tab === 'platform'}>
             <PlatformPlansView
               plans={resolved.platformPlans}
               currency={cur}
@@ -1752,7 +1711,8 @@ export function PricingClient({
               canRequestEnterprise={canRequestEnterprise}
               page={page}
             />
-          ) : tab === 'sourcing' ? (
+          </PricingTabPane>
+          <PricingTabPane active={tab === 'sourcing'}>
             <SourcingPlansView
               plans={resolved.sourcingPlans}
               currency={cur}
@@ -1761,14 +1721,15 @@ export function PricingClient({
               planCtaHref={sourcingCtaHref}
               page={page}
             />
-          ) : (
+          </PricingTabPane>
+          <PricingTabPane active={tab === 'credit'}>
             <CreditTopupView
               topups={resolved.creditTopups}
               currency={cur}
               topupCtaHref={topupCtaHref}
               page={page}
             />
-          )}
+          </PricingTabPane>
         </div>
       </section>
 

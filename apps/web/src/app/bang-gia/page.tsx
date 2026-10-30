@@ -9,6 +9,7 @@ import { headers } from 'next/headers';
 import { DEFAULT_BILLING_PAGE_CONTENT } from '@industriallink/contracts';
 import { PricingClient } from '@/components/pricing-client';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
+import { normalizePricingConfig, normalizePricingPage, pricingSoftwareApplicationJsonLd } from '@/lib/pricing-catalog';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import {
   isRecruiterHostname,
@@ -32,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
   let page = DEFAULT_BILLING_PAGE_CONTENT;
   try {
     const config = await fetchPublicBillingConfig();
-    if (config.pageContent) page = config.pageContent;
+    if (config.pageContent) page = normalizePricingPage(config.pageContent);
   } catch {
     // fallback defaults
   }
@@ -75,36 +76,19 @@ export default async function PricingPage() {
 
   let config: Awaited<ReturnType<typeof fetchPublicBillingConfig>> | null = null;
   try {
-    config = await fetchPublicBillingConfig();
+    const loaded = await fetchPublicBillingConfig();
+    config = normalizePricingConfig(loaded);
   } catch {
     // Render skeleton nếu API lỗi — không fail cả trang
   }
 
   const canonical = buildCanonical(hostname);
-  const page = config?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT;
+  const page = normalizePricingPage(config?.pageContent ?? DEFAULT_BILLING_PAGE_CONTENT);
   const salesMailto = `mailto:${page.contactEmail}`;
 
-  const productSchema = config
-    ? config.platformPlans
-        .filter((p) => p.isActive)
-        .map((p) => ({
-          '@type': 'Product',
-          name: `${p.name} — inlink`,
-          description: p.description ?? '',
-          url: canonical,
-          brand: { '@type': 'Brand', name: 'inlink' },
-          offers:
-            p.code === 'ENTERPRISE'
-              ? { '@type': 'Offer', availability: 'https://schema.org/ContactSupplier', url: salesMailto }
-              : {
-                  '@type': 'Offer',
-                  price: (Number(BigInt(p.priceVnd)) / 1_000_000).toFixed(0),
-                  priceCurrency: 'VND',
-                  availability: 'https://schema.org/InStock',
-                  url: canonical,
-                },
-        }))
-    : [];
+  const softwareSchema = config
+    ? pricingSoftwareApplicationJsonLd(config, canonical, salesMailto)
+    : null;
 
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -126,7 +110,7 @@ export default async function PricingPage() {
   };
 
   const jsonLd = [
-    ...(productSchema.length ? [{ '@context': 'https://schema.org', '@graph': productSchema }] : []),
+    ...(softwareSchema ? [softwareSchema] : []),
     faqSchema,
     breadcrumbSchema,
   ];

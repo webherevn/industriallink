@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import {
   CheckCircle2,
   Edit3,
+  GripVertical,
   Loader2,
   Package,
   Plus,
@@ -14,13 +15,14 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type {
   AdminCreatePlatformPlanRequest,
   AdminPlanActionCostItem,
   AdminUpdatePlatformPlanRequest,
   BillingCreditPolicyView,
   BillingPlatformPlanView,
+  PlatformFeatureLine,
 } from '@industriallink/contracts';
 import {
   BILLING_PLAN_ACTION_LABELS,
@@ -37,8 +39,12 @@ import {
   updateAdminPlatformPlan,
 } from '@/lib/admin-billing';
 import { formatPriceVnd, formatReferenceUsd } from '@/lib/format-billing';
+import { displayFeatureLines } from '@/lib/pricing-catalog';
 
-type FormState = AdminCreatePlatformPlanRequest & { id?: string };
+type FormState = Omit<AdminCreatePlatformPlanRequest, 'features'> & {
+  id?: string;
+  features: PlatformFeatureLine[];
+};
 
 function costsFromPolicy(policy?: BillingCreditPolicyView | null): AdminPlanActionCostItem[] {
   return BILLING_PLAN_BILLABLE_ACTIONS.map((action) => ({
@@ -150,12 +156,19 @@ export function AdminBillingPlatformPlans() {
         sortOrder: editing.sortOrder,
         isActive: editing.isActive,
         isFeatured: editing.isFeatured,
-        features: editing.features,
+        features: editing.features
+          .map((line) => ({ label: line.label.trim(), included: line.included }))
+          .filter((line) => line.label),
         actionCosts: editing.actionCosts,
       };
       updateM.mutate({ id: editing.id, body });
     } else {
-      createM.mutate(editing);
+      createM.mutate({
+        ...editing,
+        features: editing.features
+          .map((line) => ({ label: line.label.trim(), included: line.included }))
+          .filter((line) => line.label),
+      });
     }
   };
 
@@ -241,7 +254,7 @@ export function AdminBillingPlatformPlans() {
                     sortOrder: p.sortOrder,
                     isActive: p.isActive,
                     isFeatured: p.isFeatured,
-                    features: p.features,
+                    features: displayFeatureLines(p).map((line) => ({ ...line })),
                     actionCosts: BILLING_PLAN_BILLABLE_ACTIONS.map((action) => ({
                       action,
                       cost: costOf(p, action),
@@ -376,12 +389,18 @@ function EditModal({
   onSubmit: () => void;
   saving: boolean;
 }) {
-  const [featuresText, setFeaturesText] = useState((form.features ?? []).join('\n'));
-  useEffect(() => {
-    setFeaturesText((form.features ?? []).join('\n'));
-  }, [form.id]);
-
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm({ ...form, [k]: v });
+  const lines = form.features;
+  const setLines = (next: PlatformFeatureLine[]) => update('features', next);
+  const moveLine = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= lines.length || to >= lines.length) return;
+    const next = [...lines];
+    const [item] = next.splice(from, 1);
+    if (!item) return;
+    next.splice(to, 0, item);
+    setLines(next);
+  };
 
   return (
     <div
@@ -513,24 +532,76 @@ function EditModal({
           </div>
         </div>
 
-        <Field
-          label="Quyền / tính năng"
-          description="Mỗi dòng 1 mục. Hiển thị trên trang bảng giá."
-          className="mt-3"
-        >
-          <Textarea
-            rows={4}
-            value={featuresText}
-            onChange={(e) => {
-              setFeaturesText(e.target.value);
-              update(
-                'features',
-                e.target.value.split('\n').map((s) => s.trim()).filter(Boolean)
-              );
-            }}
-            placeholder={'10 lượt mở hồ sơ tiềm năng\nQuản lý ứng viên'}
-          />
-        </Field>
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-semibold text-slate-700">Dòng trên thẻ gói</p>
+          <p className="mb-2 text-[11px] text-slate-500">
+            Tick = Bao gồm. Bỏ tick = Không bao gồm. Kéo tay nắm để đổi thứ tự.
+          </p>
+          <div className="space-y-1.5">
+            {lines.map((line, index) => (
+              <div
+                key={index}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  if (dragFrom === null) return;
+                  moveLine(dragFrom, index);
+                  setDragFrom(null);
+                }}
+                className={clsx(
+                  'flex items-center gap-2 rounded-lg',
+                  dragFrom === index && 'opacity-60',
+                )}
+              >
+                <button
+                  type="button"
+                  draggable
+                  aria-label="Kéo để đổi vị trí"
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', String(index));
+                    setDragFrom(index);
+                  }}
+                  onDragEnd={() => setDragFrom(null)}
+                  className="cursor-grab rounded-lg p-2 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </button>
+                <input
+                  type="checkbox"
+                  checked={line.included}
+                  onChange={() =>
+                    setLines(lines.map((item, i) => (i === index ? { ...item, included: !item.included } : item)))
+                  }
+                  className="h-3.5 w-3.5 shrink-0 rounded border-slate-300"
+                  aria-label={line.included ? 'Bao gồm' : 'Không bao gồm'}
+                />
+                <Input
+                  value={line.label}
+                  onChange={(event) =>
+                    setLines(lines.map((item, i) => (i === index ? { ...item, label: event.target.value } : item)))
+                  }
+                  placeholder="Nội dung hiển thị"
+                />
+                <button
+                  type="button"
+                  className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  aria-label="Xóa dòng"
+                  onClick={() => setLines(lines.filter((_, i) => i !== index))}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline"
+            onClick={() => setLines([...lines, { label: '', included: true }])}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Thêm dòng
+          </button>
+        </div>
 
         <div className="mt-3 flex flex-wrap gap-4">
           <label className="flex items-center gap-2 text-sm">

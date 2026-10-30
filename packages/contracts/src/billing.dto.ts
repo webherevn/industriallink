@@ -24,6 +24,7 @@ import type {
   BillingPageContentView,
   BillingPageTextItem,
   BillingPageFaqItem,
+  PlatformFeatureLine,
   SourcingScopeLine,
 } from './billing.types';
 
@@ -46,7 +47,8 @@ export interface AdminCreatePlatformPlanRequest {
   sortOrder?: number;
   isActive?: boolean;
   isFeatured?: boolean;
-  features?: string[];
+  /** Mỗi phần tử là một dòng thẻ: chữ cũ, hoặc { label, included }. */
+  features?: Array<string | PlatformFeatureLine>;
   /** Cost-per-action khi tạo gói. Thiếu thì copy từ policy global. */
   actionCosts?: AdminPlanActionCostItem[];
 }
