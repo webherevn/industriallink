@@ -54,19 +54,6 @@ const CANDIDATE_ACCOUNT_LINKS = [
   { href: '/account', label: 'Tài khoản & bảo mật', icon: Settings2 },
 ] as const;
 
-function candidateHasSideMenu(pathname: string): boolean {
-  return (
-    pathname === '/dashboard' ||
-    pathname.startsWith('/profile') ||
-    pathname.startsWith('/cv/') ||
-    pathname === '/cv' ||
-    pathname.startsWith('/recommended') ||
-    pathname.startsWith('/account') ||
-    pathname.startsWith('/notifications') ||
-    pathname.startsWith('/connections')
-  );
-}
-
 function isNavActive(pathname: string, href: string): boolean {
   if (href === '/viec-lam') {
     return pathname === '/' || pathname === '/viec-lam' || pathname.startsWith('/viec-lam/');
@@ -211,7 +198,6 @@ export function AppShell({
             className="ml-1 hidden h-full min-w-0 flex-1 items-stretch gap-0.5 lg:flex"
             aria-label="Menu chính"
           >
-            {candidateHasSideMenu(pathname) ? null : <HiredNoticeSwitch />}
             {CANDIDATE_PRIMARY_NAV.map((item) => {
               const active = isNavActive(pathname, item.href);
               const Icon = item.icon;
@@ -240,6 +226,9 @@ export function AppShell({
           </nav>
 
           <div className="ml-auto flex items-center gap-1 self-center sm:gap-1.5">
+            <span className="hidden lg:inline-flex">
+              <HiredNoticeSwitch />
+            </span>
             <Link
               href="/viec-lam"
               className="hidden items-center rounded-lg bg-brand-600 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-700 md:inline-flex"
@@ -359,9 +348,6 @@ export function AppShell({
             className="border-t border-slate-100 bg-white px-4 py-3 shadow-sm lg:hidden"
             aria-label="Menu mobile"
           >
-            <div className="px-1 pb-3">
-              <HiredNoticeSwitch wide />
-            </div>
             <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
               Khám phá & theo dõi
             </p>
@@ -387,6 +373,10 @@ export function AppShell({
                 );
               })}
             </ul>
+
+            <div className="mt-2 px-1">
+              <HiredNoticeSwitch wide />
+            </div>
 
             <p className="mt-3 px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
               Cá nhân

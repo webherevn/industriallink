@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { HiredNoticeSwitch } from '@/components/hired-notice-switch';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { logout } from '@/lib/auth';
 
@@ -150,9 +149,6 @@ export function CandidateSidebar({
         )}
 
         <div className="progress-card p-3">
-          <div className="mb-3 border-b border-slate-100 px-1 pb-3">
-            <HiredNoticeSwitch wide />
-          </div>
           <SectionLabel>Cá nhân</SectionLabel>
           <nav className="space-y-0.5">
             <NavItem

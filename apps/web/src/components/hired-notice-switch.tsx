@@ -4,7 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { getOutreachEmail, setOutreachEmail } from '@/lib/candidate';
 
-/** Công tắc iPhone: bật thì vẫn nhận email gợi ý và kết nối, tắt thì ngừng gửi. */
+const HIRED_HINT =
+  'Bật/Tắt thông báo email công việc mới phù hợp nhất. Nếu bạn đã tìm được việc phù hợp thì Bấm Tắt để không bị làm phiền.';
+
+/** Bật: nhận email gợi ý và kết nối. Tắt: ngừng gửi các email đó. */
 export function HiredNoticeSwitch({ wide = false }: { wide?: boolean }) {
   const qc = useQueryClient();
   const { data } = useQuery({
@@ -30,36 +33,40 @@ export function HiredNoticeSwitch({ wide = false }: { wide?: boolean }) {
     },
   });
 
-  const hint = enabled ? 'Nhận email gợi ý và kết nối' : 'Đã tắt email gợi ý và kết nối';
-
   return (
     <button
       type="button"
       role="switch"
       aria-checked={enabled}
-      aria-label={`Báo đã nhận việc. ${hint}`}
+      aria-label={`Đã nhận việc. ${HIRED_HINT}`}
       disabled={mutation.isPending}
       onClick={() => mutation.mutate(!enabled)}
-      title={hint}
       className={clsx(
-        'inline-flex shrink-0 items-center gap-2.5 self-center rounded-full border border-slate-200/90 bg-white py-1 pl-3 pr-1 text-left shadow-[0_1px_2px_rgba(7,35,72,0.05)] transition hover:border-slate-300',
+        'group relative inline-flex shrink-0 items-center gap-2.5 self-center rounded-full border border-slate-200/90 bg-white py-1 pl-3 pr-1 text-left shadow-[0_1px_2px_rgba(7,35,72,0.05)] transition hover:border-slate-300',
         wide && 'w-full justify-between gap-3 rounded-2xl px-3.5 py-3',
         mutation.isPending && 'opacity-80',
       )}
     >
       <span className="min-w-0">
-        <span className="block text-[12.5px] font-semibold leading-none tracking-tight text-[#072348]">
-          Báo đã nhận việc
+        <span className="block text-[12.5px] font-semibold leading-none tracking-tight text-brand-600">
+          Đã nhận việc
         </span>
         {wide ? (
-          <span className="mt-1 block text-[11px] leading-snug text-slate-500">{hint}</span>
-        ) : null}
+          <span className="mt-1 block text-[11px] leading-snug text-slate-500">{HIRED_HINT}</span>
+        ) : (
+          <span
+            role="tooltip"
+            className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-72 rounded-xl bg-brand-600 px-3 py-2 text-left text-[12px] font-medium leading-snug text-white shadow-lg group-hover:block"
+          >
+            {HIRED_HINT}
+          </span>
+        )}
       </span>
       <span
         aria-hidden
         className={clsx(
           'relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors duration-300 ease-out',
-          enabled ? 'bg-[#34C759]' : 'bg-[#E5E5EA]',
+          enabled ? 'bg-brand-600' : 'bg-slate-200',
         )}
       >
         <span
