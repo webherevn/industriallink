@@ -3,8 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  Bookmark,
   Briefcase,
+  Heart,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   CAREER_LADDERS,
   DESIRED_POSITIONS,
@@ -41,11 +41,9 @@ import { Badge, Button, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
 import { tokenStore } from '@/lib/api';
 import { getMyCandidate } from '@/lib/candidate';
-import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
+import { apiPublicBase, companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import {
   APPLICATION_STATUS_LABEL,
-  EXPERIENCE_LABEL,
-  formatJobLevel,
   formatSalary,
   statusTone,
 } from '@/lib/format';
@@ -57,14 +55,15 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
-import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
-import { plainLabel } from '@/lib/plain-label';
+import { formatMatchPct } from '@/lib/match-percent';
+import { composeJobBoard } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
 type TabId = 'all' | 'saved' | 'applied';
 
 /** Số tin mỗi trang — giữ cột giữa cân với sidebar. */
-const PAGE_SIZE = 5;
+const APPLIED_PAGE_SIZE = 5;
+const JOB_PAGE_SIZE = 12;
 
 /** Nhãn kinh nghiệm trên bộ lọc — khớp mockup, giá trị DB vẫn đồng bộ ExperienceBand. */
 const FILTER_EXPERIENCE_LABEL: Record<ExperienceBand, string> = {
@@ -90,30 +89,12 @@ function salaryHigh(min: number | null, max: number | null): number {
   return values.length ? Math.max(...values) : -1;
 }
 
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 60) return `${Math.max(1, minutes)} phút trước`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours} giờ trước`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} ngày trước`;
-  return new Date(iso).toLocaleDateString('vi-VN');
-}
-
 function parseList(value: string | null): string[] {
   if (!value) return [];
   return value
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-function shortIndustry(industry: string | null): string {
-  if (!industry) return '';
-  const head = industry.split('/')[0]?.trim();
-  return head || industry;
 }
 
 /** Chữ viết tắt công ty — tránh slice(0,2) với tên tiếng Việt (vd. "Công" → "Cô"). */
@@ -196,6 +177,11 @@ function JobsPageInner({
   const byPlace = searchParams.get('place') === '1';
   const pageRaw = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const listQuery: ListPublishedJobsQuery = useMemo(() => {
     const q: ListPublishedJobsQuery = {};
@@ -401,12 +387,26 @@ function JobsPageInner({
       : postedTime(b.createdAt) - postedTime(a.createdAt),
   );
 
+  const jobBoard = useMemo(
+    () => (tab === 'all' ? composeJobBoard(allJobs, page - 1, now) : null),
+    [tab, allJobs, page, now],
+  );
+  const pageSize = tab === 'applied' ? APPLIED_PAGE_SIZE : JOB_PAGE_SIZE;
   const totalItems = tab === 'applied' ? allApplications.length : allJobs.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE) || 1);
+  const totalPages =
+    tab === 'all'
+      ? (jobBoard?.totalPages ?? 1)
+      : Math.max(1, Math.ceil(totalItems / pageSize) || 1);
   const currentPage = Math.min(page, totalPages);
-  const pageOffset = (currentPage - 1) * PAGE_SIZE;
-  const displayJobs = allJobs.slice(pageOffset, pageOffset + PAGE_SIZE);
-  const displayApplications = allApplications.slice(pageOffset, pageOffset + PAGE_SIZE);
+  const pageOffset = (currentPage - 1) * pageSize;
+  const displayJobs =
+    tab === 'all'
+      ? (jobBoard && currentPage === page ? jobBoard.page : composeJobBoard(allJobs, currentPage - 1, now).page)
+      : allJobs.slice(pageOffset, pageOffset + pageSize);
+  const displayApplications = allApplications.slice(
+    (currentPage - 1) * APPLIED_PAGE_SIZE,
+    currentPage * APPLIED_PAGE_SIZE,
+  );
 
   const goToPage = (next: number) => {
     const clamped = Math.min(Math.max(1, next), totalPages);
@@ -772,7 +772,7 @@ function JobsPageInner({
                   page={currentPage}
                   totalPages={totalPages}
                   totalItems={totalItems}
-                  pageSize={PAGE_SIZE}
+                  pageSize={APPLIED_PAGE_SIZE}
                   onChange={goToPage}
                 />
               )}
@@ -781,15 +781,17 @@ function JobsPageInner({
 
           {!loading && tab !== 'applied' && (
             <>
-              <ul className="mt-4 space-y-3">
+              <ul className="mt-4 grid grid-cols-2 gap-3">
                 {allJobs.length === 0 && (
-                  <EmptyState
-                    text={
-                      tab === 'saved'
-                        ? 'Chưa có việc làm đã lưu.'
-                        : 'Chưa có tin tuyển dụng phù hợp bộ lọc.'
-                    }
-                  />
+                  <li className="col-span-2">
+                    <EmptyState
+                      text={
+                        tab === 'saved'
+                          ? 'Chưa có việc làm đã lưu.'
+                          : 'Chưa có tin tuyển dụng phù hợp bộ lọc.'
+                      }
+                    />
+                  </li>
                 )}
                 {displayJobs.map((job) => (
                   <JobCard
@@ -811,7 +813,12 @@ function JobsPageInner({
                   page={currentPage}
                   totalPages={totalPages}
                   totalItems={totalItems}
-                  pageSize={PAGE_SIZE}
+                  pageSize={JOB_PAGE_SIZE}
+                  caption={
+                    tab === 'all'
+                      ? `Trang ${currentPage}/${totalPages} · ${totalItems} việc làm`
+                      : undefined
+                  }
                   onChange={goToPage}
                 />
               )}
@@ -1046,12 +1053,14 @@ function PaginationBar({
   totalItems,
   pageSize,
   onChange,
+  caption,
 }: {
   page: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
   onChange: (page: number) => void;
+  caption?: string;
 }) {
   if (totalPages <= 1) {
     return (
@@ -1063,13 +1072,11 @@ function PaginationBar({
 
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, totalItems);
+  const rangeLabel = caption ?? `Hiển thị ${from}–${to} / ${totalItems} việc làm`;
 
   return (
     <div className="mt-5 flex flex-col items-center gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-between">
-      <p className="text-xs text-slate-500">
-        Hiển thị <span className="font-medium text-slate-700">{from}–{to}</span> / {totalItems} việc
-        làm
-      </p>
+      <p className="text-xs text-slate-500">{rangeLabel}</p>
       <nav className="flex items-center gap-1" aria-label="Phân trang">
         <button
           type="button"
@@ -1115,6 +1122,25 @@ function PaginationBar({
   );
 }
 
+function CompanyMark({ job }: { job: JobListItem }) {
+  const [failed, setFailed] = useState(false);
+  const showLogo = Boolean(job.companyHasLogo && job.companyId && !failed);
+  return (
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-white">
+      {showLogo ? (
+        <img
+          src={`${apiPublicBase()}/companies/${job.companyId}/logo`}
+          alt=""
+          className="h-full w-full object-contain"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="text-[11px] font-bold text-slate-500">{companyInitials(job.companyName)}</span>
+      )}
+    </div>
+  );
+}
+
 function JobCard({
   job,
   match,
@@ -1127,122 +1153,58 @@ function JobCard({
   onToggleBookmark: () => void;
 }) {
   const saved = Boolean(job.isBookmarked);
-  const industryTag = shortIndustry(job.industry);
 
   return (
-    <li>
-      <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-amber-200 hover:shadow-md">
-        <div className="flex gap-3.5">
-          {/* Logo */}
-          <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-sm font-bold text-slate-500">
-            {companyInitials(job.companyName)}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={jobPublicPath(job)}
-                    className="text-[15px] font-semibold text-slate-900 hover:text-brand-500"
-                  >
-                    {job.title}
-                  </Link>
-                  {industryTag && (
-                    <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-100">
-                      {industryTag}
-                    </span>
-                  )}
-                  {job.subIndustry && job.subIndustry !== industryTag && (
-                    <span className="rounded bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100">
-                      {job.subIndustry}
-                    </span>
-                  )}
-                  {match && (
-                    <span className={clsx('rounded px-2 py-0.5 text-[11px] font-medium ring-1', matchBadgeTone(match.match.score))}>
-                      Phù hợp {formatMatchPct(match.match.score)}%
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm text-slate-500">
-                  {job.companyId ? (
-                    <Link
-                      href={companyPublicPath(job)}
-                      className="transition hover:text-amber-700 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {job.companyName}
-                    </Link>
-                  ) : (
-                    job.companyName
-                  )}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-slate-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                    {job.location ?? 'Linh hoạt'}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-slate-400">₫</span>
-                    {formatSalary(job.salaryMin, job.salaryMax)}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-                    {job.experienceBand
-                      ? FILTER_EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ??
-                        EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ??
-                        job.experienceBand
-                      : 'Không yêu cầu'}
-                  </span>
-                </div>
-                {((job.skills?.length ?? 0) > 0 || job.jobLevel) && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {job.jobLevel && (
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                        {formatJobLevel(job.jobLevel)}
-                      </span>
-                    )}
-                    {(job.skills ?? [])
-                      .map((s) => plainLabel(s))
-                      .filter(Boolean)
-                      .slice(0, 4)
-                      .map((s) => (
-                      <span
-                        key={s}
-                        className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                {job.isNew && (
-                  <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                    Mới
-                  </span>
-                )}
-                <span className="text-[11px] text-slate-400">
-                  {formatRelativeTime(job.publishedAt ?? job.createdAt)}
-                </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
-                  onClick={onToggleBookmark}
-                  className={clsx(
-                    'rounded-md p-1 transition',
-                    saved
-                      ? 'text-amber-500'
-                      : 'text-slate-300 hover:text-amber-500',
-                  )}
-                >
-                  <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} />
-                </button>
-              </div>
-            </div>
+    <li className="min-w-0">
+      <article className="flex h-full gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm transition hover:border-amber-200 hover:shadow-md">
+        <CompanyMark job={job} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Link
+            href={jobPublicPath(job)}
+            className="line-clamp-2 text-[13px] font-semibold leading-5 text-slate-900 hover:text-brand-600"
+          >
+            {job.title}
+          </Link>
+          <p className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            {job.companyId ? (
+              <Link
+                href={companyPublicPath(job)}
+                className="hover:text-brand-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {job.companyName}
+              </Link>
+            ) : (
+              job.companyName
+            )}
+          </p>
+          <div className="mt-auto flex items-center gap-1.5 pt-2">
+            <span className="max-w-[46%] shrink-0 truncate rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+              {formatSalary(job.salaryMin, job.salaryMax)}
+            </span>
+            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-slate-500">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
+            </span>
+            {match && (
+              <span className="shrink-0 text-[11px] font-semibold text-brand-600">
+                {formatMatchPct(match.match.score)}%
+              </span>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
+              onClick={onToggleBookmark}
+              className={clsx(
+                'ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition',
+                saved
+                  ? 'border-brand-200 bg-brand-50 text-brand-600'
+                  : 'border-slate-200 text-slate-300 hover:border-brand-200 hover:text-brand-600',
+              )}
+            >
+              <Heart className={clsx('h-3.5 w-3.5', saved && 'fill-current')} />
+            </button>
           </div>
         </div>
       </article>

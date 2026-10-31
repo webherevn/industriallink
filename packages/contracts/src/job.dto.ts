@@ -103,6 +103,8 @@ export interface JobListItem {
   companyId: string;
   companySlug: string | null;
   companyName: string;
+  /** Công ty đã có logo. Ảnh lấy ở /companies/{id}/logo. */
+  companyHasLogo?: boolean;
   industry: string | null;
   subIndustry: string | null;
   jobLevel: string | null;
@@ -119,6 +121,8 @@ export interface JobListItem {
   publishedAt: string | null;
   /** Tin đăng trong 48h gần nhất. */
   isNew: boolean;
+  /** Gói nền tảng đang hiệu lực của công ty. Hết hạn thì là KHAM_PHA. */
+  planCode?: string | null;
   /** Trạng thái kiểm duyệt (dùng ở trang "Tin của tôi" phía recruiter). */
   moderationStatus?: JobModerationStatus;
   /** Chỉ có khi ứng viên đã đăng nhập và đã lưu tin. */

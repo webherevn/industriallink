@@ -957,7 +957,7 @@ export class JobService {
         company: { select: JOB_COMPANY_SELECT },
         skills: { select: { name: true }, take: 6 },
       },
-      take: 100,
+      take: 1000,
     });
 
     await backfillMissingJobSlugs(this.prisma, jobs);
@@ -965,6 +965,8 @@ export class JobService {
       ...new Map(jobs.map((j) => [j.company.id, j.company])).values(),
     ];
     await backfillMissingCompanySlugs(this.prisma, companies);
+
+    const planByCompany = await this.effectivePlanCodes(jobs.map((j) => j.companyId));
 
     let bookmarkedIds = new Set<string>();
     if (params.userId) {
@@ -978,6 +980,7 @@ export class JobService {
     return jobs.map((j) =>
       this.toListItem(j, j.company.name, {
         isBookmarked: bookmarkedIds.has(j.id),
+        planCode: planByCompany.get(j.companyId) ?? 'KHAM_PHA',
       }),
     );
   }
@@ -1120,17 +1123,18 @@ export class JobService {
 
   private toListItem(
     job: Job & {
-      company: { id?: string; name: string; slug?: string | null };
+      company: { id?: string; name: string; slug?: string | null; profile?: Prisma.JsonValue | null };
       skills?: { name: string }[];
       publishedAt?: Date | null;
     },
     companyName: string,
-    extras?: { isBookmarked?: boolean },
+    extras?: { isBookmarked?: boolean; planCode?: string | null },
   ): JobListItem {
     const publishedAt = job.publishedAt ?? null;
     const isNew = publishedAt
       ? Date.now() - publishedAt.getTime() < 48 * 60 * 60 * 1000
       : false;
+    const profile = job.company.profile as { logoStorageKey?: string } | null;
     return {
       id: job.id,
       slug: job.slug ?? job.id,
@@ -1139,6 +1143,7 @@ export class JobService {
       companyId: job.companyId,
       companySlug: job.company?.slug ?? null,
       companyName: job.company?.name ?? companyName,
+      companyHasLogo: Boolean(profile?.logoStorageKey),
       industry: normalizeIndustry(job.industry) ?? job.industry,
       subIndustry: job.subIndustry,
       jobLevel: job.jobLevel,
@@ -1155,7 +1160,32 @@ export class JobService {
       publishedAt: publishedAt ? publishedAt.toISOString() : null,
       isNew,
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
+      ...(extras?.planCode != null ? { planCode: extras.planCode } : {}),
     };
+  }
+
+  /** Gói còn hạn. Hết hạn hoặc chưa gán thì tính là Khám phá. */
+  private async effectivePlanCodes(companyIds: string[]): Promise<Map<string, string>> {
+    const ids = [...new Set(companyIds)];
+    const map = new Map<string, string>();
+    if (ids.length === 0) return map;
+    const rows = await this.prisma.billingCompanyPlan.findMany({
+      where: { companyId: { in: ids } },
+      select: {
+        companyId: true,
+        isActive: true,
+        endsAt: true,
+        plan: { select: { code: true } },
+      },
+    });
+    const now = Date.now();
+    for (const row of rows) {
+      const code = row.plan.code;
+      const expired =
+        code !== 'ENTERPRISE' && row.endsAt != null && row.endsAt.getTime() <= now;
+      map.set(row.companyId, !row.isActive || expired ? 'KHAM_PHA' : code);
+    }
+    return map;
   }
 
   private async skillRows(inputs: CreateJobDto['skills']) {
