@@ -32,6 +32,7 @@ export function CornerRobot({ name }: { name?: string | null }) {
   const who = shortName(name);
   const [index, setIndex] = useState(0);
   const [open, setOpen] = useState(false);
+  const [hintHidden, setHintHidden] = useState(false);
   const [draft, setDraft] = useState('');
   const [hasToken, setHasToken] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -49,15 +50,16 @@ export function CornerRobot({ name }: { name?: string | null }) {
 
   useEffect(() => {
     setHasToken(Boolean(tokenStore.get()));
+    setHintHidden(window.sessionStorage.getItem('inlink-robot-hint-hidden') === '1');
   }, []);
 
   useEffect(() => {
-    if (open || lines.length === 0) return;
+    if (open || hintHidden || lines.length === 0) return;
     const id = window.setInterval(() => {
       setIndex((current) => (current + 1) % lines.length);
     }, ROTATE_MS);
     return () => window.clearInterval(id);
-  }, [lines.length, open]);
+  }, [lines.length, open, hintHidden]);
 
   useEffect(() => {
     const el = dock.current;
@@ -188,16 +190,29 @@ export function CornerRobot({ name }: { name?: string | null }) {
       )}
 
       <div className="flex items-end gap-2">
-        {!open && lines.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="pointer-events-auto mb-10 max-w-[240px] cursor-pointer rounded-2xl rounded-br-md border border-[#d5deee] bg-white px-3.5 py-2.5 text-left text-[13px] leading-snug text-slate-700 shadow-[0_14px_32px_rgba(7,35,72,0.28),0_2px_8px_rgba(7,35,72,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(7,35,72,0.34)]"
-          >
-            <span key={index} className="corner-robot-bubble block">
-              {lines[index % lines.length]}
-            </span>
-          </button>
+        {!open && !hintHidden && lines.length > 0 && (
+          <div className="pointer-events-auto relative mb-10 max-w-[240px]">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="cursor-pointer rounded-2xl rounded-br-md border border-[#d5deee] bg-white px-3.5 py-2.5 pr-7 text-left text-[13px] leading-snug text-slate-700 shadow-[0_14px_32px_rgba(7,35,72,0.28),0_2px_8px_rgba(7,35,72,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(7,35,72,0.34)]"
+            >
+              <span key={index} className="corner-robot-bubble block">
+                {lines[index % lines.length]}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setHintHidden(true);
+                window.sessionStorage.setItem('inlink-robot-hint-hidden', '1');
+              }}
+              className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:text-brand-700"
+              aria-label="Ẩn lời chào"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         )}
         <button
           type="button"

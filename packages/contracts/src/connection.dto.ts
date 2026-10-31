@@ -30,6 +30,25 @@ export interface CreateConnectionRequest {
   message?: string;
 }
 
+export interface ConnectionChatProfileFact {
+  label: string;
+  value: string;
+}
+
+/** Hồ sơ sơ bộ của người đối diện trong chat đã kết nối. */
+export interface ConnectionChatProfile {
+  /** candidate: đối phương là ứng viên. company: đối phương là nhà tuyển dụng. */
+  kind: 'candidate' | 'company';
+  /** Trang hồ sơ đầy đủ: /candidates/:id hoặc /cong-ty/:slug. */
+  path: string;
+  headline: string | null;
+  summary: string | null;
+  facts: ConnectionChatProfileFact[];
+  tags: string[];
+  /** Id công ty khi đã có logo công khai. */
+  logoCompanyId: string | null;
+}
+
 export interface ConnectionChatThread {
   connectionId: string;
   peerName: string;
@@ -37,6 +56,7 @@ export interface ConnectionChatThread {
   lastBody: string | null;
   lastAt: string | null;
   unread: number;
+  profile: ConnectionChatProfile;
 }
 
 export interface ConnectionChatMessage {

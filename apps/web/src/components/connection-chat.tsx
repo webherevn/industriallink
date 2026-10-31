@@ -3,10 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowLeft, Loader2, MessageCircle, Search, Send, X } from 'lucide-react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ConnectionChatThread } from '@industriallink/contracts';
 import { tokenStore } from '@/lib/api';
+import { apiPublicBase } from '@/lib/public-paths';
 import {
   listConnectionChats,
   listConnectionMessages,
@@ -88,7 +90,10 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
     return list.filter((thread) => {
       if (folder === 'unread' && thread.unread <= 0) return false;
       if (!q) return true;
-      const hay = `${thread.peerName} ${thread.peerHint ?? ''} ${thread.lastBody ?? ''}`.toLowerCase();
+      const profileText = thread.profile
+        ? `${thread.profile.headline ?? ''} ${thread.profile.summary ?? ''} ${thread.profile.facts.map((fact) => fact.value).join(' ')} ${thread.profile.tags.join(' ')}`
+        : '';
+      const hay = `${thread.peerName} ${thread.peerHint ?? ''} ${thread.lastBody ?? ''} ${profileText}`.toLowerCase();
       return hay.includes(q);
     });
   }, [list, query, folder]);
@@ -254,9 +259,17 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                   {active ? active.peerName : 'Chọn hội thoại'}
                 </p>
                 <p className="truncate text-[11px] text-slate-500">
-                  {active?.peerHint ?? 'Kết nối đã chấp nhận'}
+                  {active?.profile?.headline ?? active?.peerHint ?? 'Kết nối đã chấp nhận'}
                 </p>
               </div>
+              {active?.profile?.path && (
+                <Link
+                  href={active.profile.path}
+                  className="shrink-0 rounded-full border border-brand-200 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 xl:hidden"
+                >
+                  Xem hồ sơ
+                </Link>
+              )}
               {!embedded && (
                 <button
                   type="button"
@@ -327,21 +340,9 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
             </form>
           </section>
 
-          <aside className="hidden w-[240px] shrink-0 flex-col border-l border-slate-100 bg-white xl:flex">
+          <aside className="hidden w-[268px] shrink-0 flex-col border-l border-slate-100 bg-white xl:flex">
             {active ? (
-              <div className="px-4 py-5">
-                <PeerMark name={active.peerName} large />
-                <p className="mt-3 text-sm font-semibold text-brand-700">{active.peerName}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{active.peerHint ?? 'Đối tác kết nối'}</p>
-                <p className="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-[11px] leading-relaxed text-brand-700">
-                  Kết nối đã được chấp nhận. Trao đổi tiếp trong khung chat này.
-                </p>
-                {active.lastBody && (
-                  <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-                    Tin gần nhất: {active.lastBody}
-                  </p>
-                )}
-              </div>
+              <ProfilePane thread={active} />
             ) : (
               <p className="px-4 py-8 text-center text-xs text-slate-400">
                 Hồ sơ hiện khi bạn mở một hội thoại.
@@ -367,6 +368,68 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         </button>
       )}
     </div>
+  );
+}
+
+function ProfilePane({ thread }: { thread: ConnectionChatThread }) {
+  const profile = thread.profile;
+  const kindLabel = profile?.kind === 'company' ? 'Nhà tuyển dụng' : profile?.kind === 'candidate' ? 'Ứng viên' : null;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+        <PeerPhoto name={thread.peerName} companyId={profile?.logoCompanyId ?? null} />
+        {kindLabel && (
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{kindLabel}</p>
+        )}
+        <p className={clsx('text-sm font-semibold text-brand-700', kindLabel ? 'mt-0.5' : 'mt-3')}>{thread.peerName}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{profile?.headline ?? thread.peerHint ?? 'Đối tác kết nối'}</p>
+        {profile && profile.facts.length > 0 && (
+          <dl className="mt-4 space-y-2.5">
+            {profile.facts.map((fact) => (
+              <div key={fact.label}>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{fact.label}</dt>
+                <dd className="mt-0.5 text-xs leading-snug text-slate-700">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {profile && profile.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1">
+            {profile.tags.map((tag) => (
+              <span key={tag} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        {profile?.summary && (
+          <p className="mt-3 text-[11px] leading-relaxed text-slate-500">{profile.summary}</p>
+        )}
+      </div>
+      {profile?.path && (
+        <div className="border-t border-slate-100 px-4 py-3">
+          <Link
+            href={profile.path}
+            className="flex h-9 items-center justify-center rounded-lg bg-brand-600 text-xs font-semibold text-white hover:bg-brand-700"
+          >
+            Xem hồ sơ
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PeerPhoto({ name, companyId }: { name: string; companyId: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (!companyId || broken) return <PeerMark name={name} large />;
+  return (
+    <img
+      src={`${apiPublicBase()}/companies/${companyId}/logo`}
+      alt=""
+      className="h-14 w-14 rounded-2xl bg-white object-contain ring-1 ring-slate-200"
+      onError={() => setBroken(true)}
+    />
   );
 }
 
