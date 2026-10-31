@@ -38,6 +38,7 @@ export function isCandidatePublicPath(pathname: string): boolean {
     '/recommended',
     '/progress',
     '/connections',
+    '/chat',
     '/upload',
     '/analyze',
     '/profile',

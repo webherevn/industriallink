@@ -11,6 +11,7 @@ import {
   Gift,
   Headphones,
   LayoutDashboard,
+  MessageCircle,
   Send,
   Settings2,
   Sparkles,
@@ -200,6 +201,12 @@ export function CandidateSidebar({
               label="Yêu cầu kết nối"
               icon={Users}
               active={isActivePath(pathname, '/connections')}
+            />
+            <NavItem
+              href="/chat"
+              label="Chat"
+              icon={MessageCircle}
+              active={isActivePath(pathname, '/chat')}
             />
             <NavItem
               href="/progress"

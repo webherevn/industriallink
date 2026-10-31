@@ -11,6 +11,7 @@ import {
   FileUp,
   LayoutDashboard,
   LogOut,
+  MessageCircle,
   Menu,
   Settings2,
   Sparkles,
@@ -45,6 +46,13 @@ const CANDIDATE_PRIMARY_NAV = [
   { href: '/applications', label: 'Đơn ứng tuyển', icon: ClipboardList },
   { href: '/connections', label: 'Kết nối', icon: Users },
   { href: '/progress', label: 'Tiến trình', icon: Target },
+] as const;
+
+/** Menu kéo trên điện thoại — thêm Chat sau Kết nối, không nhét vào header desktop. */
+const CANDIDATE_MOBILE_NAV = [
+  ...CANDIDATE_PRIMARY_NAV.slice(0, 5),
+  { href: '/chat', label: 'Chat', icon: MessageCircle },
+  ...CANDIDATE_PRIMARY_NAV.slice(5),
 ] as const;
 
 const CANDIDATE_ACCOUNT_LINKS = [
@@ -352,7 +360,7 @@ export function AppShell({
               Khám phá & theo dõi
             </p>
             <ul className="space-y-0.5">
-              {CANDIDATE_PRIMARY_NAV.map((item) => {
+              {CANDIDATE_MOBILE_NAV.map((item) => {
                 const active = isNavActive(pathname, item.href);
                 const Icon = item.icon;
                 return (
