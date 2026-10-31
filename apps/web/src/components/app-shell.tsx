@@ -374,7 +374,7 @@ export function AppShell({
               })}
             </ul>
 
-            <div className="mt-2 px-1">
+            <div className="mt-1 border-t border-slate-100 pt-1">
               <HiredNoticeSwitch wide />
             </div>
 

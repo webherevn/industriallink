@@ -1,6 +1,6 @@
 import type { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 
-/** Tắt «Báo đã nhận việc» thì không gửi email gợi ý việc và email kết nối. */
+/** Cột bật: vẫn gửi email. Nút «Đã nhận việc» bật thì cột này tắt và không gửi email gợi ý, kết nối. */
 export async function candidateAcceptsOutreachEmail(
   prisma: PrismaService,
   userId: string,
