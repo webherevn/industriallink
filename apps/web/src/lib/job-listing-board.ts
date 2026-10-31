@@ -46,23 +46,40 @@ export function fairStepIndex(jobCount: number, slots: number, now: Date): numbe
   return Math.min(jobCount - 1, Math.floor(progress * jobCount));
 }
 
-function pageOfTier<T>(jobs: T[], slots: number, pageIndex: number, now: Date): T[] {
-  if (jobs.length === 0 || pageIndex < 0) return [];
-  if (jobs.length <= slots) return pageIndex === 0 ? jobs : [];
+function rotateTier<T>(jobs: T[], slots: number, now: Date): T[] {
+  if (jobs.length <= slots) return jobs.slice();
   const offset = fairStepIndex(jobs.length, slots, now) % jobs.length;
-  const rotated = jobs.slice(offset).concat(jobs.slice(0, offset));
-  if (pageIndex === 0) return rotated.slice(0, slots);
-  const rest = rotated.slice(slots);
-  const start = (pageIndex - 1) * slots;
-  return rest.slice(start, start + slots);
+  return jobs.slice(offset).concat(jobs.slice(0, offset));
 }
 
-function tierPageCount(count: number, slots: number): number {
-  if (count <= 0) return 0;
-  return Math.ceil(count / slots);
+function take<T>(queue: T[], count: number): T[] {
+  if (count <= 0 || queue.length === 0) return [];
+  return queue.splice(0, count);
 }
 
-/** Trang 12 ô: 6 tin đầu, 4 tin trả phí, 2 tin Khám phá. Thiếu nhóm thì để trống, không lấy tin nhóm khác. */
+/** Lấy đủ số ô, ưu tiên đúng nhóm rồi tới các nhóm còn tin. */
+function takePrefer<T>(count: number, sources: T[][]): T[] {
+  const picked: T[] = [];
+  for (const source of sources) {
+    if (picked.length >= count) break;
+    picked.push(...take(source, count - picked.length));
+  }
+  return picked;
+}
+
+/**
+ * Một trang đủ 12 tin khi còn tin.
+ * Đủ cả ba nhóm thì giữ 6 + 4 + 2.
+ * Nhóm nào thiếu thì nhóm khác lấp cho đầy trang, không để trống ô phía trên.
+ */
+function fillPage<T>(spotlight: T[], paid: T[], starter: T[]): T[] {
+  const top = takePrefer(SPOTLIGHT_SLOTS, [spotlight, paid, starter]);
+  const mid = takePrefer(PAID_SLOTS, [paid, spotlight, starter]);
+  const bot = takePrefer(STARTER_SLOTS, [starter, paid, spotlight]);
+  return [...top, ...mid, ...bot];
+}
+
+/** Trang 12 ô. Thiếu nhóm nào thì lấy tin nhóm khác lấp cho đủ trang. */
 export function composeJobBoard<T extends { planCode?: string | null }>(
   jobs: T[],
   pageIndex: number,
@@ -77,19 +94,18 @@ export function composeJobBoard<T extends { planCode?: string | null }>(
     else if (tier === 'paid') paid.push(job);
     else starter.push(job);
   }
-  const totalPages = Math.max(
-    1,
-    tierPageCount(spotlight.length, SPOTLIGHT_SLOTS),
-    tierPageCount(paid.length, PAID_SLOTS),
-    tierPageCount(starter.length, STARTER_SLOTS),
-  );
+
+  const spotlightQueue = rotateTier(spotlight, SPOTLIGHT_SLOTS, now);
+  const paidQueue = rotateTier(paid, PAID_SLOTS, now);
+  const starterQueue = rotateTier(starter, STARTER_SLOTS, now);
+  const pages: T[][] = [];
+  while (spotlightQueue.length > 0 || paidQueue.length > 0 || starterQueue.length > 0) {
+    const page = fillPage(spotlightQueue, paidQueue, starterQueue);
+    if (page.length === 0) break;
+    pages.push(page);
+  }
+
+  const totalPages = Math.max(1, pages.length);
   const index = Math.min(Math.max(0, pageIndex), totalPages - 1);
-  return {
-    page: [
-      ...pageOfTier(spotlight, SPOTLIGHT_SLOTS, index, now),
-      ...pageOfTier(paid, PAID_SLOTS, index, now),
-      ...pageOfTier(starter, STARTER_SLOTS, index, now),
-    ],
-    totalPages,
-  };
+  return { page: pages[index] ?? [], totalPages };
 }

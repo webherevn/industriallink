@@ -56,7 +56,7 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct } from '@/lib/match-percent';
-import { composeJobBoard } from '@/lib/job-listing-board';
+import { composeJobBoard, listingTier } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
 type TabId = 'all' | 'saved' | 'applied';
@@ -781,7 +781,7 @@ function JobsPageInner({
 
           {!loading && tab !== 'applied' && (
             <>
-              <ul className="mt-4 grid grid-cols-2 gap-3">
+              <ul className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-[#eef3f8] p-3 ring-1 ring-slate-200/80">
                 {allJobs.length === 0 && (
                   <li className="col-span-2">
                     <EmptyState
@@ -1122,11 +1122,40 @@ function PaginationBar({
   );
 }
 
-function CompanyMark({ job }: { job: JobListItem }) {
+const TIER_STYLE = {
+  spotlight: {
+    card: 'border-accent-200 bg-gradient-to-br from-accent-50 via-white to-white shadow-md shadow-accent-100/80 hover:border-accent-300',
+    mark: 'border-accent-100 bg-accent-50 text-accent-700',
+    badge: 'Nổi bật',
+    badgeClass: 'bg-accent-500 text-white',
+    salary: 'bg-accent-100 text-accent-800',
+  },
+  paid: {
+    card: 'border-brand-100 bg-white shadow-md shadow-brand-100/80 hover:border-brand-300',
+    mark: 'border-brand-100 bg-brand-50 text-brand-700',
+    badge: 'Ưu tiên',
+    badgeClass: 'bg-brand-600 text-white',
+    salary: 'bg-brand-50 text-brand-700',
+  },
+  starter: {
+    card: 'border-slate-200 bg-white shadow-md shadow-slate-200/90 hover:border-slate-300',
+    mark: 'border-slate-200 bg-slate-50 text-brand-700',
+    badge: '',
+    badgeClass: '',
+    salary: 'bg-accent-50 text-accent-700',
+  },
+} as const;
+
+function CompanyMark({ job, markClass }: { job: JobListItem; markClass: string }) {
   const [failed, setFailed] = useState(false);
   const showLogo = Boolean(job.companyHasLogo && job.companyId && !failed);
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-white">
+    <div
+      className={clsx(
+        'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white',
+        markClass,
+      )}
+    >
       {showLogo ? (
         <img
           src={`${apiPublicBase()}/companies/${job.companyId}/logo`}
@@ -1135,7 +1164,7 @@ function CompanyMark({ job }: { job: JobListItem }) {
           onError={() => setFailed(true)}
         />
       ) : (
-        <span className="text-[11px] font-bold text-slate-500">{companyInitials(job.companyName)}</span>
+        <span className="text-[11px] font-bold">{companyInitials(job.companyName)}</span>
       )}
     </div>
   );
@@ -1153,19 +1182,37 @@ function JobCard({
   onToggleBookmark: () => void;
 }) {
   const saved = Boolean(job.isBookmarked);
+  const tone = TIER_STYLE[listingTier(job.planCode)];
 
   return (
     <li className="min-w-0">
-      <article className="flex h-full gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm transition hover:border-amber-200 hover:shadow-md">
-        <CompanyMark job={job} />
+      <article
+        className={clsx(
+          'flex h-full gap-3 rounded-xl border p-3 transition hover:-translate-y-0.5 hover:shadow-lg',
+          tone.card,
+        )}
+      >
+        <CompanyMark job={job} markClass={tone.mark} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Link
-            href={jobPublicPath(job)}
-            className="line-clamp-2 text-[13px] font-semibold leading-5 text-slate-900 hover:text-brand-600"
-          >
-            {job.title}
-          </Link>
-          <p className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-wide text-slate-400">
+          <div className="flex items-start gap-2">
+            <Link
+              href={jobPublicPath(job)}
+              className="line-clamp-2 min-w-0 flex-1 text-[13px] font-semibold leading-5 text-brand-700 hover:text-accent-600"
+            >
+              {job.title}
+            </Link>
+            {tone.badge ? (
+              <span
+                className={clsx(
+                  'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-4',
+                  tone.badgeClass,
+                )}
+              >
+                {tone.badge}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
             {job.companyId ? (
               <Link
                 href={companyPublicPath(job)}
@@ -1179,11 +1226,16 @@ function JobCard({
             )}
           </p>
           <div className="mt-auto flex items-center gap-1.5 pt-2">
-            <span className="max-w-[46%] shrink-0 truncate rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+            <span
+              className={clsx(
+                'max-w-[48%] shrink-0 truncate rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                tone.salary,
+              )}
+            >
               {formatSalary(job.salaryMin, job.salaryMax)}
             </span>
-            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-slate-500">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-slate-600">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-accent-500" />
               <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
             </span>
             {match && (
@@ -1197,10 +1249,10 @@ function JobCard({
               aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
               onClick={onToggleBookmark}
               className={clsx(
-                'ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition',
+                'ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-white transition',
                 saved
-                  ? 'border-brand-200 bg-brand-50 text-brand-600'
-                  : 'border-slate-200 text-slate-300 hover:border-brand-200 hover:text-brand-600',
+                  ? 'border-accent-200 text-accent-500'
+                  : 'border-slate-200 text-slate-400 hover:border-accent-200 hover:text-accent-500',
               )}
             >
               <Heart className={clsx('h-3.5 w-3.5', saved && 'fill-current')} />
