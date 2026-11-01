@@ -140,6 +140,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         sending={send.isPending}
         sendError={send.isError}
         scroller={scroller}
+        dockHeight={dockHeight}
       />
     );
   }
@@ -416,6 +417,7 @@ function MessengerDock({
   sending,
   sendError,
   scroller,
+  dockHeight,
 }: {
   open: boolean;
   onOpen: () => void;
@@ -433,6 +435,7 @@ function MessengerDock({
   sending: boolean;
   sendError: boolean;
   scroller: RefObject<HTMLDivElement | null>;
+  dockHeight: number;
 }) {
   const [query, setQuery] = useState('');
   const shown = useMemo(() => {
@@ -445,9 +448,15 @@ function MessengerDock({
   }, [threads, query]);
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-[7.25rem] z-40 flex flex-col items-end sm:right-[9.25rem]">
+    <div
+      className="pointer-events-none fixed right-4 z-40 flex flex-col items-end"
+      style={{ bottom: dockHeight + 36 }}
+    >
       {open && (
-        <div className="chat-pop pointer-events-auto flex h-[min(520px,calc(100vh-6.5rem))] w-[min(360px,calc(100vw-8.75rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_42px_rgba(7,35,72,0.28)] sm:w-[360px]">
+        <div
+          className="chat-pop pointer-events-auto flex w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_42px_rgba(7,35,72,0.28)]"
+          style={{ height: `min(520px, calc(100vh - ${dockHeight + 88}px))` }}
+        >
           <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
             {active ? (
               <button
@@ -611,7 +620,7 @@ function MessengerDock({
         <button
           type="button"
           onClick={onOpen}
-          className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full bg-[#072348] text-white shadow-lg shadow-[#072348]/30 transition hover:scale-105"
+          className="pointer-events-auto relative mr-[18px] flex h-14 w-14 items-center justify-center rounded-full bg-[#072348] text-white shadow-lg shadow-[#072348]/30 transition hover:scale-105 sm:mr-7"
           aria-label="Mở tin nhắn"
         >
           <MessageCircle className="h-6 w-6" />
