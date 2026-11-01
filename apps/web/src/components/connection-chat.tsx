@@ -2,11 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, Loader2, MessageCircle, Search, Send, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, Loader2, MessageCircle, Minus, Search, Send, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ConnectionChatThread } from '@industriallink/contracts';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import type { ConnectionChatMessage, ConnectionChatThread } from '@industriallink/contracts';
 import { tokenStore } from '@/lib/api';
 import { apiPublicBase } from '@/lib/public-paths';
 import {
@@ -27,6 +27,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
   const [hasToken, setHasToken] = useState(false);
   const [dockHeight, setDockHeight] = useState(128);
   const scroller = useRef<HTMLDivElement>(null);
+  const viewing = embedded || open;
 
   useEffect(() => {
     setHasToken(Boolean(tokenStore.get()));
@@ -46,15 +47,15 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
     queryFn: listConnectionChats,
     enabled: hasToken,
     retry: false,
-    refetchInterval: open ? 8_000 : 25_000,
+    refetchInterval: viewing ? 8_000 : 25_000,
   });
 
   const messages = useQuery({
     queryKey: ['connection-messages', activeId],
     queryFn: () => listConnectionMessages(activeId!),
-    enabled: hasToken && open && Boolean(activeId),
+    enabled: hasToken && viewing && Boolean(activeId),
     retry: false,
-    refetchInterval: open && activeId ? 4_000 : false,
+    refetchInterval: viewing && activeId ? 4_000 : false,
   });
 
   const send = useMutation({
@@ -114,6 +115,33 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
   function pick(thread: ConnectionChatThread) {
     setActiveId(thread.connectionId);
     setDraft('');
+  }
+
+  if (!embedded) {
+    return (
+      <MessengerDock
+        open={open}
+        onOpen={() => setOpen(true)}
+        onClose={() => setOpen(false)}
+        threads={list}
+        active={active}
+        onPick={pick}
+        onBack={() => setActiveId(null)}
+        unread={unread}
+        messages={messages.data ?? []}
+        messagesLoading={Boolean(activeId) && messages.isLoading}
+        draft={draft}
+        onDraft={setDraft}
+        onSend={() => {
+          const text = draft.trim();
+          if (!activeId || !text || send.isPending) return;
+          send.mutate(text);
+        }}
+        sending={send.isPending}
+        sendError={send.isError}
+        scroller={scroller}
+      />
+    );
   }
 
   const panelOpen = embedded || open;
@@ -371,6 +399,252 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
   );
 }
 
+function MessengerDock({
+  open,
+  onOpen,
+  onClose,
+  threads,
+  active,
+  onPick,
+  onBack,
+  unread,
+  messages,
+  messagesLoading,
+  draft,
+  onDraft,
+  onSend,
+  sending,
+  sendError,
+  scroller,
+}: {
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  threads: ConnectionChatThread[];
+  active: ConnectionChatThread | null;
+  onPick: (thread: ConnectionChatThread) => void;
+  onBack: () => void;
+  unread: number;
+  messages: ConnectionChatMessage[];
+  messagesLoading: boolean;
+  draft: string;
+  onDraft: (value: string) => void;
+  onSend: () => void;
+  sending: boolean;
+  sendError: boolean;
+  scroller: RefObject<HTMLDivElement | null>;
+}) {
+  const [query, setQuery] = useState('');
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return threads;
+    return threads.filter((thread) => {
+      const hay = `${thread.peerName} ${thread.peerHint ?? ''} ${thread.lastBody ?? ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [threads, query]);
+
+  return (
+    <div className="pointer-events-none fixed bottom-4 right-[7.25rem] z-40 flex flex-col items-end sm:right-[9.25rem]">
+      {open && (
+        <div className="chat-pop pointer-events-auto flex h-[min(520px,calc(100vh-6.5rem))] w-[min(360px,calc(100vw-8.75rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_42px_rgba(7,35,72,0.28)] sm:w-[360px]">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
+            {active ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="rounded-full p-1 text-slate-500 hover:bg-slate-100"
+                aria-label="Danh sách hội thoại"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            ) : (
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white">
+                <MessageCircle className="h-5 w-5" />
+              </span>
+            )}
+            {active ? (
+              <DockAvatar name={active.peerName} companyId={active.profile?.logoCompanyId} />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {active ? active.peerName : 'Tin nhắn'}
+              </p>
+              <p className="truncate text-[11px] text-slate-500">
+                {active ? (active.profile?.headline ?? active.peerHint ?? 'Đã kết nối') : 'Kết nối đã chấp nhận'}
+              </p>
+            </div>
+            {active?.profile?.path && (
+              <Link href={active.profile.path} className="shrink-0 text-[11px] font-semibold text-brand-700 hover:underline">
+                Hồ sơ
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Thu nhỏ"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Đóng"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {active ? (
+            <>
+              <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F4F7FB] px-3 py-3">
+                {messagesLoading && <p className="text-center text-xs text-slate-400">Đang tải tin nhắn…</p>}
+                {messages.map((message, index) => {
+                  const prev = messages[index - 1];
+                  const showStamp = !prev || dayKey(prev.createdAt) !== dayKey(message.createdAt);
+                  return (
+                    <div key={message.id}>
+                      {showStamp && (
+                        <p className="py-2 text-center text-[11px] text-slate-400">{formatStamp(message.createdAt)}</p>
+                      )}
+                      <div className={clsx('flex', message.mine ? 'justify-end' : 'justify-start')}>
+                        <div
+                          className={clsx(
+                            'max-w-[78%] rounded-2xl px-3 py-2 text-[13px] leading-snug',
+                            message.mine
+                              ? 'rounded-br-md bg-[#072348] text-white'
+                              : 'rounded-bl-md bg-[#eef1f6] text-slate-800',
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!messagesLoading && messages.length === 0 && (
+                  <p className="pt-10 text-center text-xs text-slate-400">Hãy gửi lời chào đầu tiên.</p>
+                )}
+              </div>
+              <form
+                className="border-t border-slate-100 bg-white px-3 py-2.5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onSend();
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    value={draft}
+                    onChange={(event) => onDraft(event.target.value)}
+                    maxLength={2000}
+                    placeholder="Aa"
+                    className="h-10 min-w-0 flex-1 rounded-full bg-slate-100 px-3 text-sm outline-none placeholder:text-slate-400 focus:bg-slate-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending || draft.trim().length === 0}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8872A] text-white disabled:opacity-40"
+                    aria-label="Gửi"
+                  >
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </div>
+                {sendError && <p className="mt-1 text-[11px] text-rose-600">Chưa gửi được. Thử lại sau.</p>}
+              </form>
+            </>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="px-3 pt-3">
+                <label className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5">
+                  <Search className="h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Tìm kiếm"
+                    className="w-full bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                </label>
+              </div>
+              <ul className="mt-2 min-h-0 flex-1 overflow-y-auto">
+                {shown.length === 0 && (
+                  <li className="px-3 py-8 text-center text-xs text-slate-400">Không có hội thoại.</li>
+                )}
+                {shown.map((thread) => (
+                  <li key={thread.connectionId}>
+                    <button
+                      type="button"
+                      onClick={() => onPick(thread)}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-slate-50"
+                    >
+                      <DockAvatar name={thread.peerName} companyId={thread.profile?.logoCompanyId} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[13px] font-semibold text-slate-900">{thread.peerName}</span>
+                          <span className="shrink-0 text-[10px] text-slate-400">
+                            {thread.lastAt ? formatClock(thread.lastAt) : ''}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 flex items-center justify-between gap-2">
+                          <span className="truncate text-xs text-slate-500">
+                            {thread.lastBody ?? thread.peerHint ?? 'Bắt đầu trò chuyện'}
+                          </span>
+                          {thread.unread > 0 && (
+                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-bold text-white">
+                              {thread.unread}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!open && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full bg-[#072348] text-white shadow-lg shadow-[#072348]/30 transition hover:scale-105"
+          aria-label="Mở tin nhắn"
+        >
+          <MessageCircle className="h-6 w-6" />
+          {unread > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DockAvatar({ name, companyId }: { name: string; companyId?: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (companyId && !broken) {
+    return (
+      <img
+        src={`${apiPublicBase()}/companies/${companyId}/logo`}
+        alt=""
+        className="h-10 w-10 shrink-0 rounded-full bg-white object-contain ring-1 ring-slate-200"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
 function ProfilePane({ thread }: { thread: ConnectionChatThread }) {
   const profile = thread.profile;
   const kindLabel = profile?.kind === 'company' ? 'Nhà tuyển dụng' : profile?.kind === 'candidate' ? 'Ứng viên' : null;
@@ -450,4 +724,18 @@ function formatClock(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function dayKey(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function formatStamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const day = date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' });
+  return `${time} ${day}`;
 }
