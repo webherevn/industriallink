@@ -191,17 +191,17 @@ export default function ManageJobsPage() {
       </div>
 
       <div className="brand-panel mt-5 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative min-w-0 flex-1">
+        <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-2">
+          <div className="relative min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Tìm theo tên tin, mã JOB, địa điểm, kỹ năng..."
-              className="border-accent-200 bg-[#FFFBF7] pl-9"
+              className="w-full border-accent-200 bg-[#FFFBF7] pl-9"
             />
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-wrap gap-1.5">
             {STATUS_FILTERS.map((f) => {
               const active = statusFilter === f.value;
               return (

@@ -523,6 +523,35 @@ export interface BillingPageFaqItem {
   a: string;
 }
 
+/** Ô trong bảng so sánh khi SuperAdmin tự nhập. */
+export interface BillingCompareCell {
+  /** Mã gói nền tảng, mã gói Săn, hoặc `credit-{số lượt}`. */
+  code: string;
+  kind: 'text' | 'flag';
+  text: string;
+  yes: boolean;
+}
+
+export interface BillingCompareRow {
+  label: string;
+  /** auto: chữ/✓✗ lấy từ giá và hạn mức. custom: dùng cells. */
+  mode: 'auto' | 'custom';
+  autoKey: string | null;
+  cells: BillingCompareCell[];
+}
+
+export interface BillingCompareTable {
+  /** Để trống thì trang bảng giá giữ câu gợi ý tự sinh. */
+  insight: string;
+  rows: BillingCompareRow[];
+}
+
+export interface BillingCompareTables {
+  platform: BillingCompareTable;
+  sourcing: BillingCompareTable;
+  credit: BillingCompareTable;
+}
+
 /** Nội dung marketing / SEO trang bảng giá. Không gồm giá-quota của gói. */
 export interface BillingPageContentView {
   seoTitle: string;
@@ -584,6 +613,8 @@ export interface BillingPageContentView {
   howSteps: BillingPageTextItem[];
   faqItems: BillingPageFaqItem[];
   trustItems: BillingPageTextItem[];
+  /** Null = bảng so sánh tự sinh từ gói. Có giá trị = SuperAdmin đã lưu cấu trúc bảng. */
+  compareTables: BillingCompareTables | null;
   updatedAt: string;
 }
 
@@ -729,5 +760,6 @@ export const DEFAULT_BILLING_PAGE_CONTENT: BillingPageContentView = {
   howSteps: DEFAULT_BILLING_PAGE_HOW_STEPS,
   faqItems: DEFAULT_BILLING_PAGE_FAQ,
   trustItems: DEFAULT_BILLING_PAGE_TRUST,
+  compareTables: null,
   updatedAt: '',
 };

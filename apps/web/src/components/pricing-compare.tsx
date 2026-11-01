@@ -4,6 +4,7 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { Check, Coins, Package, Shield, X } from 'lucide-react';
 import type {
+  BillingCompareTable,
   BillingCreditTopupView,
   BillingCurrencyDisplay,
   BillingPageContentView,
@@ -20,7 +21,49 @@ type CompareCell =
   | { kind: 'text'; text: string }
   | { kind: 'hook'; text: string }
   | { kind: 'flag'; yes: boolean };
-type CompareRow = { label: string; cells: CompareCell[] };
+export type CompareRow = { label: string; autoKey?: string; cells: CompareCell[] };
+
+const PLATFORM_ROW_KEYS = [
+  'hook',
+  'price',
+  'billing',
+  'free_start',
+  'ai_match',
+  'view_match_summary',
+  'view_profile',
+  'reopen_profile',
+  'view_applicant',
+  'contact_potential',
+  'contact_applicant',
+  'gift_credit',
+  'multi_job',
+  'monthly',
+  'enterprise_sla',
+  'duration',
+  'job_count',
+  'credit_quota',
+  'fit',
+];
+
+const CREDIT_ROW_KEYS = [
+  'hook',
+  'count',
+  'price',
+  'unit',
+  'cheaper_pct',
+  'cheapest',
+  'smallest',
+  'largest',
+  'no_auto',
+];
+
+function tagRows(rows: CompareRow[], keys: string[]): CompareRow[] {
+  return rows.map((row, index) => ({ ...row, autoKey: row.autoKey ?? keys[index] }));
+}
+
+export function creditColumnCode(topup: BillingCreditTopupView): string {
+  return `credit-${topup.creditCount}`;
+}
 
 function formatQuota(value: number | null, unlimited = 'Không giới hạn'): string {
   return value == null ? unlimited : String(value);
@@ -124,11 +167,11 @@ function creditHook(topup: BillingCreditTopupView, minUnit: number, maxUnit: num
   return `${topup.creditCount} lượt · mua đúng số cần`;
 }
 
-function buildPlatformRows(
+export function buildPlatformRows(
   plans: BillingPlatformPlanView[],
   currency: BillingCurrencyDisplay,
 ): CompareRow[] {
-  return [
+  return tagRows([
     {
       label: 'Điểm nhấn',
       cells: plans.map((p) => ({ kind: 'hook', text: platformHook(p) })),
@@ -220,7 +263,7 @@ function buildPlatformRows(
       label: 'Phù hợp khi',
       cells: plans.map((p) => ({ kind: 'text', text: platformFit(p) })),
     },
-  ];
+  ], PLATFORM_ROW_KEYS);
 }
 
 function sourcingScopeCatalog(plans: BillingSourcingPlanView[]): SourcingScopeLine[] {
@@ -236,11 +279,12 @@ function sourcingScopeCatalog(plans: BillingSourcingPlanView[]): SourcingScopeLi
   return order;
 }
 
-function buildSourcingRows(
+export function buildSourcingRows(
   plans: BillingSourcingPlanView[],
   currency: BillingCurrencyDisplay,
 ): CompareRow[] {
-  return [
+  const scopes = sourcingScopeCatalog(plans);
+  return tagRows([
     {
       label: 'Điểm nhấn',
       cells: plans.map((p) => ({ kind: 'hook', text: sourcingHook(p) })),
@@ -252,8 +296,9 @@ function buildSourcingRows(
         text: formatPriceVnd(p.promoPercent && p.promoPriceVnd ? p.promoPriceVnd : p.feeVnd, currency),
       })),
     },
-    ...sourcingScopeCatalog(plans).map((line) => ({
+    ...scopes.map((line) => ({
       label: line.label,
+      autoKey: `scope:${line.code}`,
       cells: plans.map((p) => ({
         kind: 'flag' as const,
         yes: (p.scopeItems ?? []).some((item) => item.code === line.code && item.included),
@@ -287,10 +332,21 @@ function buildSourcingRows(
       label: 'Phù hợp khi',
       cells: plans.map((p) => ({ kind: 'text', text: sourcingFit(p) })),
     },
-  ];
+  ], [
+    'hook',
+    'fee',
+    ...scopes.map((line) => `scope:${line.code}`),
+    'unlimited_rounds',
+    'unlimited_revisions',
+    'positions',
+    'rounds',
+    'shortlist',
+    'revisions',
+    'fit',
+  ]);
 }
 
-function buildCreditRows(
+export function buildCreditRows(
   topups: BillingCreditTopupView[],
   currency: BillingCurrencyDisplay,
 ): CompareRow[] {
@@ -300,7 +356,7 @@ function buildCreditRows(
 
   const maxCount = topups.reduce((m, t) => Math.max(m, t.creditCount), 0);
 
-  return [
+  return tagRows([
     {
       label: 'Điểm nhấn',
       cells: topups.map((t) => ({ kind: 'hook', text: creditHook(t, minUnit, maxUnit) })),
@@ -351,10 +407,10 @@ function buildCreditRows(
       label: 'Không tự động trừ thêm khi hết',
       cells: topups.map(() => ({ kind: 'flag', yes: true })),
     },
-  ];
+  ], CREDIT_ROW_KEYS);
 }
 
-function platformInsight(plans: BillingPlatformPlanView[]): string {
+export function platformInsight(plans: BillingPlatformPlanView[]): string {
   const trial = plans.find((p) => !hasPaidPrice(p) && !isEnterprisePlan(p));
   const unlock = plans.filter((p) => planHasAction(p, 'view_profile') && (p.creditQuota ?? 0) > 0);
   const unlimitedJd = plans.filter((p) => p.jobPostQuota == null && !isEnterprisePlan(p));
@@ -374,7 +430,7 @@ function platformInsight(plans: BillingPlatformPlanView[]): string {
   return bits.join(' ');
 }
 
-function sourcingInsight(plans: BillingSourcingPlanView[]): string {
+export function sourcingInsight(plans: BillingSourcingPlanView[]): string {
   const sorted = [...plans].sort((a, b) => a.serviceScope.length - b.serviceScope.length);
   const slim = sorted[0];
   const full = sorted[sorted.length - 1];
@@ -385,7 +441,7 @@ function sourcingInsight(plans: BillingSourcingPlanView[]): string {
   return `${slim.name} — ${PRICING_BRAND} tìm & lọc (${slim.serviceScope.length} hạng mục). ${full.name} — theo sát đến khi tuyển (${full.serviceScope.length} hạng mục). Không tick hạng mục gói chưa bán.`;
 }
 
-function creditInsight(topups: BillingCreditTopupView[]): string {
+export function creditInsight(topups: BillingCreditTopupView[]): string {
   if (topups.length < 2) return 'Mua Credit khi cần. Hệ thống không tự trừ thêm khi hết.';
   const byUnit = [...topups].sort((a, b) => Number(BigInt(a.unitPriceVnd) - BigInt(b.unitPriceVnd)));
   const cheapest = byUnit[0];
@@ -397,6 +453,33 @@ function creditInsight(topups: BillingCreditTopupView[]): string {
   const min = Number(BigInt(cheapest.unitPriceVnd));
   const pct = max > 0 ? Math.round(((max - min) / max) * 100) : 0;
   return `Mua nhiều thì rẻ hơn: ${cheapest.name} thấp hơn ${pct}% / lượt so với ${dearest.name}. Không tự động trừ thêm khi hết Credit.`;
+}
+
+function applySavedRows(
+  columns: { code: string }[],
+  computed: CompareRow[],
+  saved: BillingCompareTable | null | undefined,
+): CompareRow[] {
+  if (!saved) return computed;
+  const byKey = new Map(computed.filter((row) => row.autoKey).map((row) => [row.autoKey as string, row]));
+  return saved.rows.flatMap((row) => {
+    if (row.mode === 'auto' && row.autoKey && byKey.has(row.autoKey)) {
+      const built = byKey.get(row.autoKey)!;
+      return [{ ...built, label: row.label.trim() || built.label }];
+    }
+    if (row.mode === 'auto') return [];
+    return [
+      {
+        label: row.label,
+        cells: columns.map((col) => {
+          const cell = row.cells.find((item) => item.code === col.code);
+          if (!cell) return { kind: 'text' as const, text: '—' };
+          if (cell.kind === 'flag') return { kind: 'flag' as const, yes: cell.yes };
+          return { kind: 'text' as const, text: cell.text || '—' };
+        }),
+      },
+    ];
+  });
 }
 
 function CompareFlag({ yes, compact = false }: { yes: boolean; compact?: boolean }) {
@@ -555,35 +638,55 @@ export function CompareSection({
     ['credit', page.creditTitle, Coins],
   ] as const;
 
-  const panels: {
+  const saved = page.compareTables ?? null;
+  type ComparePanel = {
     id: CompareTab;
-    columns: { id: string; name: string; featured: boolean }[];
+    columns: { id: string; code: string; name: string; featured: boolean }[];
     rows: CompareRow[];
     insight: string;
-  }[] = [
+    custom: boolean;
+  };
+  const panels: ComparePanel[] = ([
     {
       id: 'platform',
-      columns: platform.map((p) => ({ id: p.id, name: p.name, featured: p.code === 'TIN_DANG_PLUS' })),
+      columns: platform.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        featured: p.code === 'TIN_DANG_PLUS',
+      })),
       rows: buildPlatformRows(platform, currency),
       insight: platformInsight(platform),
+      custom: Boolean(saved?.platform),
     },
     {
       id: 'sourcing',
-      columns: sourcing.map((p) => ({ id: p.id, name: p.name, featured: p.isFeatured })),
+      columns: sourcing.map((p) => ({ id: p.id, code: p.code, name: p.name, featured: p.isFeatured })),
       rows: buildSourcingRows(sourcing, currency),
       insight: sourcingInsight(sourcing),
+      custom: Boolean(saved?.sourcing),
     },
     {
       id: 'credit',
       columns: credit.map((t) => ({
         id: t.id,
+        code: creditColumnCode(t),
         name: t.name,
         featured: t.isFeatured || Boolean(t.badge),
       })),
       rows: buildCreditRows(credit, currency),
       insight: creditInsight(credit),
+      custom: Boolean(saved?.credit),
     },
-  ];
+  ] as ComparePanel[]).map((panel) => {
+    const table = saved?.[panel.id] ?? null;
+    const insight = table?.insight.trim() ? table.insight.trim() : panel.insight;
+    return {
+      ...panel,
+      rows: applySavedRows(panel.columns, panel.rows, table),
+      insight,
+    };
+  });
 
   return (
     <section id="compare" aria-labelledby="compare-title" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
@@ -636,7 +739,9 @@ export function CompareSection({
                   rows={panel.rows}
                 />
                 <p className="mt-4 text-center text-[11px] text-slate-400">
-                  ✓ / ✗ lấy từ giá, hạn mức và quyền đang bật của từng gói — đổi cấu hình SuperAdmin là bảng đổi theo.
+                  {panel.custom
+                    ? 'Dòng “Theo dữ liệu gói” vẫn đổi theo giá, hạn mức và quyền đang bật. Dòng tự nhập giữ nguyên chữ SuperAdmin đã lưu.'
+                    : '✓ / ✗ lấy từ giá, hạn mức và quyền đang bật của từng gói — đổi cấu hình SuperAdmin là bảng đổi theo.'}
                 </p>
               </>
             )}

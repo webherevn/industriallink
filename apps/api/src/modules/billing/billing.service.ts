@@ -47,6 +47,10 @@ import type {
   BillingPageContentView,
   BillingPageTextItem,
   BillingPageFaqItem,
+  BillingCompareTables,
+  BillingCompareTable,
+  BillingCompareRow,
+  BillingCompareCell,
   RecruiterBillingEntitlements,
 } from '@industriallink/contracts';
 import {
@@ -1333,6 +1337,12 @@ export class BillingService {
     if (input.trustItems !== undefined) {
       data.trustItems = this.parseTextItems(input.trustItems, 'trustItems') as unknown as Prisma.JsonArray;
     }
+    if (input.compareTables !== undefined) {
+      data.compareTables =
+        input.compareTables === null
+          ? Prisma.JsonNull
+          : (this.parseCompareTables(input.compareTables) as unknown as Prisma.InputJsonValue);
+    }
 
     const after = await this.prisma.billingPageContent.update({
       where: { id: before.id },
@@ -1449,6 +1459,78 @@ export class BillingService {
     }
   }
 
+  private parseCompareTables(raw: unknown): BillingCompareTables {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new BadRequestException('compareTables không hợp lệ');
+    }
+    const rec = raw as Record<string, unknown>;
+    return {
+      platform: this.parseCompareTable(rec.platform, 'platform'),
+      sourcing: this.parseCompareTable(rec.sourcing, 'sourcing'),
+      credit: this.parseCompareTable(rec.credit, 'credit'),
+    };
+  }
+
+  private parseCompareTable(raw: unknown, label: string): BillingCompareTable {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new BadRequestException(`compareTables.${label} không hợp lệ`);
+    }
+    const rec = raw as Record<string, unknown>;
+    const insight = String(rec.insight ?? '').trim();
+    if (insight.length > 600) throw new BadRequestException(`Câu gợi ý ${label} quá dài`);
+    if (!Array.isArray(rec.rows)) throw new BadRequestException(`compareTables.${label}.rows phải là mảng`);
+    if (rec.rows.length > 40) throw new BadRequestException(`Bảng ${label} tối đa 40 dòng`);
+    return {
+      insight,
+      rows: rec.rows.map((row, i) => this.parseCompareRow(row, `${label}[${i}]`)),
+    };
+  }
+
+  private parseCompareRow(raw: unknown, label: string): BillingCompareRow {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new BadRequestException(`${label} không hợp lệ`);
+    }
+    const rec = raw as Record<string, unknown>;
+    const rowLabel = String(rec.label ?? '').trim();
+    if (!rowLabel) throw new BadRequestException(`${label}.label là bắt buộc`);
+    if (rowLabel.length > 160) throw new BadRequestException(`${label}.label quá dài`);
+    const mode = rec.mode === 'custom' ? 'custom' : rec.mode === 'auto' ? 'auto' : null;
+    if (!mode) throw new BadRequestException(`${label}.mode không hợp lệ`);
+    const autoKeyRaw = rec.autoKey == null ? '' : String(rec.autoKey).trim();
+    if (autoKeyRaw.length > 80) throw new BadRequestException(`${label}.autoKey quá dài`);
+    if (!Array.isArray(rec.cells)) throw new BadRequestException(`${label}.cells phải là mảng`);
+    if (rec.cells.length > 16) throw new BadRequestException(`${label} quá nhiều cột`);
+    return {
+      label: rowLabel,
+      mode,
+      autoKey: autoKeyRaw || null,
+      cells: rec.cells.map((cell, i) => this.parseCompareCell(cell, `${label}.cells[${i}]`)),
+    };
+  }
+
+  private parseCompareCell(raw: unknown, label: string): BillingCompareCell {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new BadRequestException(`${label} không hợp lệ`);
+    }
+    const rec = raw as Record<string, unknown>;
+    const code = String(rec.code ?? '').trim();
+    if (!code || code.length > 80) throw new BadRequestException(`${label}.code không hợp lệ`);
+    const kind = rec.kind === 'flag' ? 'flag' : rec.kind === 'text' ? 'text' : null;
+    if (!kind) throw new BadRequestException(`${label}.kind không hợp lệ`);
+    const text = String(rec.text ?? '').trim();
+    if (text.length > 240) throw new BadRequestException(`${label}.text quá dài`);
+    return { code, kind, text, yes: rec.yes === true };
+  }
+
+  private asCompareTables(raw: unknown): BillingCompareTables | null {
+    if (raw == null) return null;
+    try {
+      return this.parseCompareTables(raw);
+    } catch {
+      return null;
+    }
+  }
+
   private asFaqItems(raw: unknown, fallback: BillingPageFaqItem[]): BillingPageFaqItem[] {
     if (!Array.isArray(raw) || raw.length === 0) return fallback;
     try {
@@ -1514,6 +1596,7 @@ export class BillingService {
       howSteps: this.asTextItems(row.howSteps, DEFAULT_BILLING_PAGE_HOW_STEPS),
       faqItems: this.asFaqItems(row.faqItems, DEFAULT_BILLING_PAGE_FAQ),
       trustItems: this.asTextItems(row.trustItems, DEFAULT_BILLING_PAGE_TRUST),
+      compareTables: this.asCompareTables(row.compareTables),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -1531,6 +1614,7 @@ export class BillingService {
       howStepsCount: Array.isArray(row.howSteps) ? row.howSteps.length : 0,
       faqCount: Array.isArray(row.faqItems) ? row.faqItems.length : 0,
       trustCount: Array.isArray(row.trustItems) ? row.trustItems.length : 0,
+      compareCustom: row.compareTables != null,
     };
   }
 

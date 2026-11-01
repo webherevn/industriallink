@@ -577,6 +577,13 @@ export function AdminBillingPageContent() {
               <Field label="Dòng dưới block Cách tính phí">
                 <Input value={form.howFooter} onChange={(e) => patch('howFooter', e.target.value)} />
               </Field>
+              <p className="text-sm text-slate-600">
+                Từng dòng trong bảng so sánh gói chỉnh ở{' '}
+                <Link href="/admin/billing/compare" className="font-semibold text-brand-700 underline">
+                  Bảng so sánh gói
+                </Link>
+                .
+              </p>
               <Field label="Tagline footer">
                 <Input value={form.footerTagline} onChange={(e) => patch('footerTagline', e.target.value)} />
               </Field>

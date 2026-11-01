@@ -45,6 +45,12 @@ const HUB = [
     desc: 'SEO, tiêu đề section, FAQ, hotline, Zalo, email — không gồm số liệu gói.',
   },
   {
+    href: '/admin/billing/compare',
+    icon: FileText,
+    title: 'Bảng so sánh gói',
+    desc: 'Sửa dòng, chữ và dấu có/không trên bảng so sánh. Giá và hạn mức vẫn theo từng gói.',
+  },
+  {
     href: '/admin/billing/settings',
     icon: SettingsIcon,
     title: 'Policy & tiền tệ',

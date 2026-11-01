@@ -24,6 +24,7 @@ import type {
   BillingPageContentView,
   BillingPageTextItem,
   BillingPageFaqItem,
+  BillingCompareTables,
   PlatformFeatureLine,
   PlatformPriceMetaItem,
   SourcingScopeLine,
@@ -177,6 +178,8 @@ export interface AdminUpdatePageContentRequest {
   howSteps?: BillingPageTextItem[];
   faqItems?: BillingPageFaqItem[];
   trustItems?: BillingPageTextItem[];
+  /** Null để trả bảng so sánh về dạng tự sinh. */
+  compareTables?: BillingCompareTables | null;
 }
 
 /** Admin thêm/trừ credit thủ công cho một công ty. */

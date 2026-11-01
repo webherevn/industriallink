@@ -1707,6 +1707,8 @@ model BillingPageContent {
   faqItems   Json @default("[]") @map("faq_items")
   /// [{title, desc}]
   trustItems Json @default("[]") @map("trust_items")
+  /// Bảng so sánh gói. Null = tự sinh từ giá và hạn mức.
+  compareTables Json? @map("compare_tables")
 
   createdAt DateTime @default(now()) @map("created_at")
   createdBy String?  @map("created_by") @db.Uuid
