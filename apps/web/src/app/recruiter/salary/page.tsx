@@ -138,7 +138,7 @@ export default function MarketSalaryPage() {
           title="Kỹ thuật"
           hint="Vận hành, tự động hoá, bảo trì"
           icon={<Wrench className="h-5 w-5" />}
-          activeClass="bg-gradient-to-br from-brand-700 via-brand-600 to-brand-500 text-white shadow-lg shadow-brand-700/25"
+          activeClass="brand-hero-surface"
           onClick={() => chooseTrack(JobTrack.Technical)}
         />
         <TrackCard
@@ -206,12 +206,10 @@ export default function MarketSalaryPage() {
         <section
           key={`${focus.jobLevel}-${focus.salaryMin}-${focus.salaryMax}-${focus.factors.join('|')}`}
           className={clsx(
-            'relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 via-brand-600 to-brand-500 p-5 text-white shadow-xl sm:p-6',
+            'brand-hero-surface mt-4 rounded-2xl p-5 sm:p-6',
             ladder.isFetching && 'opacity-80',
           )}
         >
-          <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-accent-400/35 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 left-8 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
           <div className="relative animate-soft-rise">
             <div className="flex flex-wrap items-center gap-2">
               <span className={clsx('rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-white/30', 'bg-white/15')}>

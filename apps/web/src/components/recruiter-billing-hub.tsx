@@ -146,7 +146,7 @@ export function RecruiterBillingHub() {
             </Link>
           </Card>
 
-          <Card className="bg-gradient-to-br from-[#072348] to-[#1a4a7a] p-5 text-white">
+          <Card className="brand-hero-surface p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
               Số dư Credit
             </p>

@@ -93,7 +93,7 @@ export default function RecruiterBillingCreditsPage() {
         </div>
 
         {/* Balance hero */}
-        <Card className="bg-gradient-to-br from-[#072348] to-[#1a4a7a] p-6 text-white">
+        <Card className="brand-hero-surface p-6">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
             Số dư Credit
           </p>

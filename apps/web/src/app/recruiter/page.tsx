@@ -368,17 +368,7 @@ export default function RecruiterDashboardPage() {
 
       {/* Copilot + Suggestions */}
       <div className="mt-5 grid gap-4 xl:grid-cols-5">
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B1B4D] via-[#152A6B] to-[#1E40AF] p-6 text-white shadow-[0_12px_40px_-12px_rgba(15,40,120,0.55)] xl:col-span-3">
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.22]"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
-              backgroundSize: '32px 32px',
-            }}
-          />
-          <div className="pointer-events-none absolute -right-16 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full bg-[#6366F1]/30 blur-3xl" />
-          <div className="pointer-events-none absolute -left-10 -bottom-10 h-48 w-48 rounded-full bg-cyan-400/20 blur-3xl" />
+        <section className="brand-hero-surface rounded-2xl p-6 xl:col-span-3">
 
           <div className="relative flex gap-4">
             <div className="min-w-0 flex-1">

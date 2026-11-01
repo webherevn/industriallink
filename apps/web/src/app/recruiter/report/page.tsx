@@ -125,9 +125,7 @@ function ReportBody({
 
   return (
     <div className={clsx('mt-5 space-y-4', refreshing && 'opacity-80')}>
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 via-brand-600 to-brand-500 p-5 text-white shadow-xl shadow-brand-700/20 sm:p-6">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-accent-400/30 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-14 left-10 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
+      <section className="brand-hero-surface rounded-2xl p-5 sm:p-6">
         <div className="relative animate-soft-rise">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-white/80">

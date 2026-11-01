@@ -967,10 +967,10 @@ a.admin-dash-card:hover,
     0 1px 1px rgba(7, 35, 72, 0.04),
     0 22px 44px -18px rgba(7, 35, 72, 0.32);
 }
-.admin-dash-hero {
+.admin-dash-hero,
+.brand-hero-surface {
   position: relative;
   overflow: hidden;
-  border-radius: 1.25rem;
   color: #fff;
   background:
     radial-gradient(120% 80% at 100% 0%, rgba(232, 135, 42, 0.28), transparent 46%),
@@ -978,6 +978,12 @@ a.admin-dash-card:hover,
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.08) inset,
     0 24px 50px -24px rgba(7, 35, 72, 0.7);
+}
+.brand-hero-surface {
+  border-color: transparent;
+}
+.admin-dash-hero {
+  border-radius: 1.25rem;
   transition:
     transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
