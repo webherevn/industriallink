@@ -179,6 +179,19 @@ export class ConnectionChatService {
           : { companyReadAt: new Date() },
     });
 
+    void this.notifyMessage(row, side, text).catch(() => undefined);
+
+    return {
+      id: message.id,
+      connectionId: message.connectionId,
+      body: message.body,
+      mine: true,
+      createdAt: message.createdAt.toISOString(),
+    };
+  }
+
+  /** Email và thông báo chạy sau khi tin đã lưu, không giữ request gửi. */
+  private async notifyMessage(row: ChatRow, side: ChatSide, text: string) {
     const recipient =
       side === 'candidate'
         ? { userId: row.requester.id, email: row.requester.email, name: row.requester.displayName }
@@ -214,14 +227,6 @@ export class ConnectionChatService {
       entityType: 'connection',
       entityId: row.id,
     });
-
-    return {
-      id: message.id,
-      connectionId: message.connectionId,
-      body: message.body,
-      mine: true,
-      createdAt: message.createdAt.toISOString(),
-    };
   }
 
   private async requireAccess(

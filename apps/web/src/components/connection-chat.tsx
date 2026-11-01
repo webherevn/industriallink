@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, ChevronLeft, Loader2, MessageCircle, Minus, Search, Send, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, MessageCircle, Minus, Search, Send, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
@@ -59,13 +59,49 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
   });
 
   const send = useMutation({
-    mutationFn: (body: string) => sendConnectionMessage(activeId!, body),
-    onSuccess: async () => {
-      setDraft('');
-      await qc.invalidateQueries({ queryKey: ['connection-messages', activeId] });
-      await qc.invalidateQueries({ queryKey: ['connection-chats'] });
-    },
+    mutationFn: (input: { connectionId: string; body: string }) =>
+      sendConnectionMessage(input.connectionId, input.body),
   });
+
+  function publish(text: string) {
+    const id = activeId;
+    if (!id || !text) return;
+    const tempId = `pending-${Date.now()}`;
+    const temp: ConnectionChatMessage = {
+      id: tempId,
+      connectionId: id,
+      body: text,
+      mine: true,
+      createdAt: new Date().toISOString(),
+    };
+    setDraft('');
+    qc.setQueryData<ConnectionChatMessage[]>(['connection-messages', id], (current) => [
+      ...(current ?? []),
+      temp,
+    ]);
+    send.mutate(
+      { connectionId: id, body: text },
+      {
+        onSuccess: (saved) => {
+          qc.setQueryData<ConnectionChatMessage[]>(['connection-messages', id], (current) => {
+            const items = current ?? [];
+            if (items.some((item) => item.id === tempId)) {
+              return items.map((item) => (item.id === tempId ? saved : item));
+            }
+            if (items.some((item) => item.id === saved.id)) return items;
+            return [...items, saved];
+          });
+          void qc.invalidateQueries({ queryKey: ['connection-chats'] });
+        },
+        onError: () => {
+          setDraft(text);
+          qc.setQueryData<ConnectionChatMessage[]>(['connection-messages', id], (current) =>
+            (current ?? []).filter((item) => item.id !== tempId),
+          );
+        },
+      },
+    );
+  }
 
   useEffect(() => {
     function onOpen(event: Event) {
@@ -91,8 +127,9 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
     return list.filter((thread) => {
       if (folder === 'unread' && thread.unread <= 0) return false;
       if (!q) return true;
-      const profileText = thread.profile
-        ? `${thread.profile.headline ?? ''} ${thread.profile.summary ?? ''} ${thread.profile.facts.map((fact) => fact.value).join(' ')} ${thread.profile.tags.join(' ')}`
+      const profile = thread.profile;
+      const profileText = profile
+        ? `${profile.headline ?? ''} ${profile.summary ?? ''} ${(profile.facts ?? []).map((fact) => fact.value).join(' ')} ${(profile.tags ?? []).join(' ')}`
         : '';
       const hay = `${thread.peerName} ${thread.peerHint ?? ''} ${thread.lastBody ?? ''} ${profileText}`.toLowerCase();
       return hay.includes(q);
@@ -132,12 +169,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         messagesLoading={Boolean(activeId) && messages.isLoading}
         draft={draft}
         onDraft={setDraft}
-        onSend={() => {
-          const text = draft.trim();
-          if (!activeId || !text || send.isPending) return;
-          send.mutate(text);
-        }}
-        sending={send.isPending}
+        onSend={() => publish(draft.trim())}
         sendError={send.isError}
         scroller={scroller}
         dockHeight={dockHeight}
@@ -166,7 +198,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         >
           <aside
             className={clsx(
-              'w-full shrink-0 flex-col border-r border-slate-100 bg-white lg:flex lg:w-[300px]',
+              'min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-slate-100 bg-white lg:flex lg:w-[300px]',
               activeId ? 'hidden lg:flex' : 'flex',
             )}
           >
@@ -268,7 +300,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
 
           <section
             className={clsx(
-              'min-w-0 flex-1 flex-col bg-[#F4F7FB]',
+              'min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#F4F7FB]',
               activeId ? 'flex' : 'hidden lg:flex',
             )}
           >
@@ -310,7 +342,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                 </button>
               )}
             </div>
-            <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+            <div ref={scroller} className="min-h-0 flex-1 basis-0 space-y-2 overflow-y-auto px-3 py-3">
               {!activeId && (
                 <p className="pt-16 text-center text-sm text-slate-400">
                   Chọn một người ở danh sách để trao đổi.
@@ -345,9 +377,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
               className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2.5"
               onSubmit={(e) => {
                 e.preventDefault();
-                const text = draft.trim();
-                if (!activeId || !text || send.isPending) return;
-                send.mutate(text);
+                publish(draft.trim());
               }}
             >
               <input
@@ -360,16 +390,16 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
               />
               <button
                 type="submit"
-                disabled={!activeId || send.isPending || draft.trim().length === 0}
+                disabled={!activeId || draft.trim().length === 0}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E8872A] text-white transition hover:brightness-105 disabled:opacity-50"
                 aria-label="Gửi"
               >
-                {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                <Send className="h-4 w-4" />
               </button>
             </form>
           </section>
 
-          <aside className="hidden w-[268px] shrink-0 flex-col border-l border-slate-100 bg-white xl:flex">
+          <aside className="hidden min-h-0 w-[268px] shrink-0 flex-col overflow-hidden border-l border-slate-100 bg-white xl:flex">
             {active ? (
               <ProfilePane thread={active} />
             ) : (
@@ -414,7 +444,6 @@ function MessengerDock({
   draft,
   onDraft,
   onSend,
-  sending,
   sendError,
   scroller,
   dockHeight,
@@ -432,7 +461,6 @@ function MessengerDock({
   draft: string;
   onDraft: (value: string) => void;
   onSend: () => void;
-  sending: boolean;
   sendError: boolean;
   scroller: RefObject<HTMLDivElement | null>;
   dockHeight: number;
@@ -554,11 +582,11 @@ function MessengerDock({
                   />
                   <button
                     type="submit"
-                    disabled={sending || draft.trim().length === 0}
+                    disabled={draft.trim().length === 0}
                     className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8872A] text-white disabled:opacity-40"
                     aria-label="Gửi"
                   >
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    <Send className="h-4 w-4" />
                   </button>
                 </div>
                 {sendError && <p className="mt-1 text-[11px] text-rose-600">Chưa gửi được. Thử lại sau.</p>}
@@ -657,6 +685,8 @@ function DockAvatar({ name, companyId }: { name: string; companyId?: string | nu
 function ProfilePane({ thread }: { thread: ConnectionChatThread }) {
   const profile = thread.profile;
   const kindLabel = profile?.kind === 'company' ? 'Nhà tuyển dụng' : profile?.kind === 'candidate' ? 'Ứng viên' : null;
+  const briefLabels = profile?.kind === 'company' ? ['Quy mô', 'Địa điểm'] : ['Kinh nghiệm', 'Khu vực'];
+  const facts = (profile?.facts ?? []).filter((fact) => briefLabels.includes(fact.label)).slice(0, 2);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
@@ -666,27 +696,15 @@ function ProfilePane({ thread }: { thread: ConnectionChatThread }) {
         )}
         <p className={clsx('text-sm font-semibold text-brand-700', kindLabel ? 'mt-0.5' : 'mt-3')}>{thread.peerName}</p>
         <p className="mt-0.5 text-xs text-slate-500">{profile?.headline ?? thread.peerHint ?? 'Đối tác kết nối'}</p>
-        {profile && profile.facts.length > 0 && (
-          <dl className="mt-4 space-y-2.5">
-            {profile.facts.map((fact) => (
+        {facts.length > 0 && (
+          <dl className="mt-4 space-y-2">
+            {facts.map((fact) => (
               <div key={fact.label}>
                 <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{fact.label}</dt>
                 <dd className="mt-0.5 text-xs leading-snug text-slate-700">{fact.value}</dd>
               </div>
             ))}
           </dl>
-        )}
-        {profile && profile.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {profile.tags.map((tag) => (
-              <span key={tag} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-        {profile?.summary && (
-          <p className="mt-3 text-[11px] leading-relaxed text-slate-500">{profile.summary}</p>
         )}
       </div>
       {profile?.path && (
