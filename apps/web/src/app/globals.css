@@ -981,6 +981,9 @@ a.admin-dash-card:hover,
 }
 .brand-hero-surface {
   border-color: transparent;
+  background:
+    radial-gradient(ellipse 64% 120% at 100% 0%, #6f5541 0%, rgba(111, 85, 65, 0.45) 32%, transparent 60%),
+    linear-gradient(155deg, #04162f 0%, #062044 40%, #0a315c 78%, #0c3a72 100%);
 }
 .admin-dash-hero {
   border-radius: 1.25rem;
