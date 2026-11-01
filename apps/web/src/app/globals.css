@@ -981,9 +981,32 @@ a.admin-dash-card:hover,
 }
 .brand-hero-surface {
   border-color: transparent;
-  background:
-    radial-gradient(ellipse 64% 120% at 100% 0%, #6f5541 0%, rgba(111, 85, 65, 0.45) 32%, transparent 60%),
-    linear-gradient(155deg, #04162f 0%, #062044 40%, #0a315c 78%, #0c3a72 100%);
+  isolation: isolate;
+}
+.brand-hero-surface::before,
+.brand-hero-surface::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  filter: blur(36px);
+  pointer-events: none;
+  animation: admin-dash-float 7s ease-in-out infinite;
+}
+.brand-hero-surface::before {
+  top: -2.5rem;
+  right: -2rem;
+  width: max(10rem, 38%);
+  height: max(10rem, 78%);
+  background: rgb(232 135 42 / 0.4);
+}
+.brand-hero-surface::after {
+  bottom: -4rem;
+  left: 33%;
+  width: max(8rem, 28%);
+  height: max(8rem, 52%);
+  background: rgb(56 189 248 / 0.2);
+  animation-delay: -3.5s;
 }
 .admin-dash-hero {
   border-radius: 1.25rem;
