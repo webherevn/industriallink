@@ -1178,10 +1178,10 @@ form.crm-surface:hover {
 }
 @keyframes home-reasons-draw {
   from {
-    transform: translateX(-50%) scaleX(0);
+    transform: scaleX(0);
   }
   to {
-    transform: translateX(-50%) scaleX(1);
+    transform: scaleX(1);
   }
 }
 @keyframes home-reasons-float {
@@ -1211,6 +1211,12 @@ form.crm-surface:hover {
 .home-reasons-item:hover .home-reasons-bubble {
   transform: translateY(-4px);
   background-color: #163e74;
+}
+.home-steps-bubble {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.home-reasons-item:hover .home-steps-bubble {
+  transform: translateY(-4px);
 }
 
 @media print {
@@ -1247,7 +1253,8 @@ form.crm-surface:hover {
   .home-reasons-glyph {
     animation: none !important;
   }
-  .home-reasons-item:hover .home-reasons-bubble {
+  .home-reasons-item:hover .home-reasons-bubble,
+  .home-reasons-item:hover .home-steps-bubble {
     transform: none;
   }
 }

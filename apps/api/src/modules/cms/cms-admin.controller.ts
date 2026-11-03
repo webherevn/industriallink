@@ -35,6 +35,7 @@ import { UpsertCmsCategoryDto } from './dto/upsert-cms-category.dto';
 import { UpsertCmsFooterSettingsDto } from './dto/upsert-cms-footer.dto';
 import { SaveHomepageHeroDto } from './dto/save-homepage-hero.dto';
 import { SaveHomepageReasonsDto } from './dto/save-homepage-reasons.dto';
+import { SaveHomepageStepsDto } from './dto/save-homepage-steps.dto';
 import { UpsertCmsHomepageSettingsDto } from './dto/upsert-cms-homepage.dto';
 import { UpsertCmsPostDto } from './dto/upsert-cms-post.dto';
 import { UpsertCmsRedirectDto } from './dto/upsert-cms-redirect.dto';
@@ -332,6 +333,16 @@ export class CmsAdminController {
     @Body() dto: SaveHomepageReasonsDto,
   ) {
     return this.cms.saveHomepageReasons(user, dto);
+  }
+
+  @Put('homepage/steps')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu khối cách hoạt động của trang chủ' })
+  saveHomepageSteps(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SaveHomepageStepsDto,
+  ) {
+    return this.cms.saveHomepageSteps(user, dto);
   }
 
   @Get('robots')

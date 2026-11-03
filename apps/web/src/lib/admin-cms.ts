@@ -227,6 +227,15 @@ export async function saveHomepageReasonsAdmin(
   );
 }
 
+export async function saveHomepageStepsAdmin(
+  body: import('@industriallink/contracts').HomepageStepsContent,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsHomepageSettingsView>(
+    '/admin/cms/homepage/steps',
+    { method: 'PUT', body },
+  );
+}
+
 export async function getCmsRobotsAdmin() {
   return apiRequest<import('@industriallink/contracts').CmsRobotsSettingsView>(
     '/admin/cms/robots',

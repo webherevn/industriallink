@@ -79,7 +79,7 @@ export function AdminHomepageReasonsForm({
 
   return (
     <form
-      className="mt-8 space-y-5"
+      className="mt-4 space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
         setSaved(false);

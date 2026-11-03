@@ -10,10 +10,9 @@ function accentTitle(title: string, accent: string) {
       {title.slice(0, at)}
       <span className="relative inline-block">
         {needle}
-        <span
-          className="home-reasons-mark absolute left-1/2 top-[calc(100%+2px)] h-[3px] w-9 origin-center rounded-full bg-[#F08A24]"
-          aria-hidden
-        />
+        <span className="absolute left-0 right-0 top-full mt-1.5 flex justify-center">
+          <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" aria-hidden />
+        </span>
       </span>
       {title.slice(at + needle.length)}
     </>
@@ -87,7 +86,7 @@ export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
         <div className="home-reasons-head text-center">
           <h2
             id="home-reasons-title"
-            className="text-[1.85rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.35rem]"
+            className="pb-3 text-[1.85rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.35rem]"
           >
             {accentTitle(reasons.title, reasons.titleAccent)}
           </h2>

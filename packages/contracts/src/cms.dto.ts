@@ -1,6 +1,7 @@
 import { CmsContentStatus, CmsContentType } from './enums';
 import type { HomepageHeroContent } from './homepage-hero';
 import type { HomepageReasonsContent } from './homepage-reasons';
+import type { HomepageStepsContent } from './homepage-steps';
 
 export interface CmsFaqItem {
   question: string;
@@ -363,6 +364,8 @@ export interface CmsHomepageSettingsView {
   hero: HomepageHeroContent;
   /** Khối lý do ngay dưới danh sách việc làm. */
   reasons: HomepageReasonsContent;
+  /** Khối 4 bước ngay dưới «Vì sao chọn inlink». */
+  steps: HomepageStepsContent;
   updatedAt: string;
 }
 

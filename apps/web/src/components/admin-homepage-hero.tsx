@@ -15,6 +15,7 @@ import { CmsMediaPicker } from '@/components/cms-media-library';
 import { Button, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { AdminHomepageReasonsForm } from '@/components/admin-homepage-reasons';
+import { AdminHomepageStepsForm } from '@/components/admin-homepage-steps';
 import { getCmsHomepageAdmin, saveHomepageHeroAdmin, uploadCmsMedia } from '@/lib/admin-cms';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
@@ -151,13 +152,29 @@ export function AdminHomepageHeroPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Trang chủ</p>
         <h1 className="cms-page-title mt-1.5">Trang chủ</h1>
         <div className="brand-accent-bar mt-2" />
-        <p className="cms-page-subtitle max-w-xl">
-          Sửa banner đầu trang và khối lý do ngay dưới danh sách việc làm.
+        <p className="cms-page-subtitle max-w-2xl">
+          Mỗi khối trang chủ là một mục riêng. Lưu mục nào chỉ đổi mục đó.
         </p>
       </div>
 
+      <nav className="mt-5 flex flex-wrap gap-2" aria-label="Các mục trang chủ">
+        <a href="#home-admin-banner" className="rounded-full border border-[#d5e2f2] bg-white px-3 py-1.5 text-xs font-semibold text-[#072348]">
+          1. Banner
+        </a>
+        <a href="#home-admin-reasons" className="rounded-full border border-[#f3d7b4] bg-[#fffaf4] px-3 py-1.5 text-xs font-semibold text-[#9a5b16]">
+          2. Vì sao chọn
+        </a>
+        <a href="#home-admin-steps" className="rounded-full border border-[#cfe0f5] bg-[#f4f8fc] px-3 py-1.5 text-xs font-semibold text-[#1e4e8c]">
+          3. Cách hoạt động
+        </a>
+      </nav>
+
+      <section id="home-admin-banner" className="mt-6 scroll-mt-24 rounded-2xl border border-[#d5e2f2] bg-white p-4 sm:p-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1e4e8c]">Mục riêng · Banner</p>
+        <p className="mt-1 text-xs text-slate-500">Ảnh và chữ ở đầu trang chủ.</p>
+
       <form
-        className="mt-6 space-y-5"
+        className="mt-4 space-y-5"
         onSubmit={(event) => {
           event.preventDefault();
           setSaved(false);
@@ -329,7 +346,19 @@ export function AdminHomepageHeroPage() {
         }}
       />
 
-      <AdminHomepageReasonsForm initial={query.data?.reasons ?? null} />
+      </section>
+
+      <section id="home-admin-reasons" className="mt-8 scroll-mt-24 rounded-2xl border border-[#f3d7b4] bg-[#fffaf4] p-4 sm:p-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a5b16]">Mục riêng · Vì sao chọn inlink</p>
+        <p className="mt-1 text-xs text-slate-500">Hiện ngay dưới danh sách việc làm. Nút lưu của mục này không đụng banner.</p>
+        <AdminHomepageReasonsForm initial={query.data?.reasons ?? null} />
+      </section>
+
+      <section id="home-admin-steps" className="mt-8 scroll-mt-24 rounded-2xl border border-[#cfe0f5] bg-[#f4f8fc] p-4 sm:p-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1e4e8c]">Mục riêng · AI Matching hoạt động như thế nào</p>
+        <p className="mt-1 text-xs text-slate-500">Hiện ngay dưới «Vì sao chọn inlink». Nút lưu của mục này không đụng hai mục trên.</p>
+        <AdminHomepageStepsForm initial={query.data?.steps ?? null} />
+      </section>
     </AdminShell>
   );
 }
