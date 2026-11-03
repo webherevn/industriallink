@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  BarChart3,
   Briefcase,
   CalendarDays,
   Check,
@@ -62,7 +63,7 @@ const PIPELINE_SHORT: Record<string, string> = {
   [ApplicationStatus.Hired]: 'Nhận việc',
 };
 
-/** Màu từng bước pipeline theo mockup. */
+/** Màu từng bước: navy, cam và xanh hoàn tất. */
 const STEP_TONE: Record<
   string,
   { done: string; active: string; line: string; pulse: string }
@@ -74,28 +75,28 @@ const STEP_TONE: Record<
     pulse: 'shadow-[0_0_0_4px_rgba(16,185,129,0.2)]',
   },
   [ApplicationStatus.Screening]: {
-    done: 'bg-sky-500 text-white',
-    active: 'bg-sky-500 text-white',
-    line: 'bg-sky-400',
-    pulse: 'shadow-[0_0_0_4px_rgba(14,165,233,0.22)]',
+    done: 'bg-brand-500 text-white',
+    active: 'bg-brand-600 text-white',
+    line: 'bg-brand-400',
+    pulse: 'shadow-[0_0_0_4px_rgba(7,35,72,0.16)]',
   },
   [ApplicationStatus.Interview]: {
-    done: 'bg-violet-500 text-white',
-    active: 'bg-violet-500 text-white',
-    line: 'bg-violet-400',
-    pulse: 'shadow-[0_0_0_4px_rgba(139,92,246,0.25)]',
+    done: 'bg-brand-600 text-white',
+    active: 'bg-brand-700 text-white',
+    line: 'bg-brand-500',
+    pulse: 'shadow-[0_0_0_4px_rgba(7,35,72,0.18)]',
   },
   [ApplicationStatus.Offer]: {
-    done: 'bg-orange-500 text-white',
-    active: 'bg-orange-500 text-white',
-    line: 'bg-orange-400',
-    pulse: 'shadow-[0_0_0_4px_rgba(249,115,22,0.22)]',
+    done: 'bg-accent-500 text-white',
+    active: 'bg-accent-500 text-white',
+    line: 'bg-accent-400',
+    pulse: 'shadow-[0_0_0_4px_rgba(232,135,42,0.25)]',
   },
   [ApplicationStatus.Hired]: {
-    done: 'bg-teal-500 text-white',
-    active: 'bg-teal-500 text-white',
-    line: 'bg-teal-400',
-    pulse: 'shadow-[0_0_0_4px_rgba(20,184,166,0.22)]',
+    done: 'bg-emerald-500 text-white',
+    active: 'bg-emerald-500 text-white',
+    line: 'bg-emerald-400',
+    pulse: 'shadow-[0_0_0_4px_rgba(16,185,129,0.2)]',
   },
 };
 
@@ -155,15 +156,15 @@ function pipelineIndex(status: ApplicationStatus): number {
 function statusBadgeClass(status: ApplicationStatus): string {
   switch (status) {
     case ApplicationStatus.Applied:
-      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+      return 'bg-brand-50 text-brand-700 ring-brand-100';
     case ApplicationStatus.Screening:
-      return 'bg-sky-50 text-sky-700 ring-sky-200';
+      return 'bg-accent-50 text-accent-700 ring-accent-100';
     case ApplicationStatus.Interview:
-      return 'bg-violet-50 text-violet-700 ring-violet-200';
+      return 'bg-brand-50 text-brand-700 ring-brand-100';
     case ApplicationStatus.Offer:
-      return 'bg-orange-50 text-orange-700 ring-orange-200';
+      return 'bg-accent-50 text-accent-700 ring-accent-100';
     case ApplicationStatus.Hired:
-      return 'bg-teal-50 text-teal-700 ring-teal-200';
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
     case ApplicationStatus.Rejected:
     case ApplicationStatus.Withdrawn:
       return 'bg-slate-100 text-slate-600 ring-slate-200';
@@ -402,43 +403,61 @@ export default function ProgressPage() {
             <span className="font-medium text-slate-600">Tiến trình của tôi</span>
           </nav>
 
-          <h1 className="mt-2 text-[26px] font-bold tracking-tight text-slate-900">
-            Tiến trình của tôi
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Theo dõi toàn bộ quá trình ứng tuyển của bạn
-          </p>
+          <div className="mt-3 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
+                <BarChart3 className="h-5 w-5" />
+              </span>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-brand-800">
+                  Tiến trình của tôi
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Theo dõi toàn bộ quá trình ứng tuyển của bạn.
+                </p>
+              </div>
+            </div>
+            <div className="relative hidden h-16 w-28 shrink-0 sm:block" aria-hidden>
+              <span className="absolute right-1 top-0 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-md ring-1 ring-accent-100">
+                <CalendarDays className="h-6 w-6 text-accent-500" />
+              </span>
+              <span className="absolute bottom-1 left-2 h-1.5 w-10 rounded-full bg-accent-200" />
+              <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-white">
+                <Target className="h-3.5 w-3.5" />
+              </span>
+            </div>
+          </div>
 
           {/* Stats */}
           <div className="progress-card mt-5 p-4 sm:p-5">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-2">
               <StatCell
                 icon={<Briefcase className="h-4 w-4" />}
-                iconClass="bg-emerald-50 text-emerald-600"
+                iconClass="bg-brand-50 text-brand-600"
                 label="Đã ứng tuyển"
                 value={counts.total}
               />
               <StatCell
                 icon={<ClipboardList className="h-4 w-4" />}
-                iconClass="bg-sky-50 text-sky-600"
-                label="Sàng lọc hồ sơ"
+                iconClass="bg-accent-50 text-accent-600"
+                label="Sàng lọc"
                 value={counts.screening}
               />
               <StatCell
                 icon={<Users className="h-4 w-4" />}
-                iconClass="bg-violet-50 text-violet-600"
+                iconClass="bg-brand-50 text-brand-700"
                 label="Phỏng vấn"
                 value={counts.interview}
               />
               <StatCell
-                icon={<UserPlus className="h-4 w-4" />}
-                iconClass="bg-orange-50 text-orange-600"
+                icon={<Gift className="h-4 w-4" />}
+                iconClass="bg-accent-50 text-accent-700"
                 label="Đề nghị làm việc"
                 value={counts.offer}
               />
               <StatCell
                 icon={<CheckCircle2 className="h-4 w-4" />}
-                iconClass="bg-teal-50 text-teal-600"
+                iconClass="bg-emerald-50 text-emerald-600"
                 label="Đã nhận việc"
                 value={counts.hired}
               />
@@ -446,11 +465,11 @@ export default function ProgressPage() {
             <div className="mt-4 flex h-1.5 overflow-hidden rounded-full bg-slate-100">
               {(
                 [
-                  { n: counts.applied, c: 'bg-emerald-400' },
-                  { n: counts.screening, c: 'bg-sky-400' },
-                  { n: counts.interview, c: 'bg-violet-400' },
-                  { n: counts.offer, c: 'bg-orange-400' },
-                  { n: counts.hired, c: 'bg-teal-400' },
+                  { n: counts.applied, c: 'bg-brand-300' },
+                  { n: counts.screening, c: 'bg-brand-500' },
+                  { n: counts.interview, c: 'bg-brand-600' },
+                  { n: counts.offer, c: 'bg-accent-500' },
+                  { n: counts.hired, c: 'bg-emerald-500' },
                 ] as const
               ).map((seg, i) =>
                 seg.n > 0 ? (
@@ -467,69 +486,61 @@ export default function ProgressPage() {
             </div>
           </div>
 
-          {/* Tabs — underline style như mockup */}
-          <div className="mt-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200">
-            <div className="flex flex-wrap gap-0.5">
-              {(
-                [
-                  { id: 'all' as const, label: 'Tất cả', count: counts.total },
-                  {
-                    id: 'processing' as const,
-                    label: 'Đang xử lý',
-                    count: counts.processing,
-                  },
-                  {
-                    id: 'interview' as const,
-                    label: 'Phỏng vấn',
-                    count: counts.interview,
-                  },
-                  { id: 'offer' as const, label: 'Đề nghị', count: counts.offer },
-                  { id: 'hired' as const, label: 'Nhận việc', count: counts.hired },
-                  {
-                    id: 'rejected' as const,
-                    label: 'Đã từ chối',
-                    count: counts.rejected,
-                  },
-                ] as const
-              ).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => {
-                    setTab(t.id);
-                    setPage(1);
-                  }}
-                  className={clsx(
-                    'relative px-3.5 py-2.5 text-[13px] font-semibold transition-colors duration-200',
-                    tab === t.id
-                      ? 'text-amber-700'
-                      : 'text-slate-500 hover:text-slate-800',
-                  )}
-                >
-                  {t.label} ({t.count})
-                  <span
-                    className={clsx(
-                      'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-amber-500 transition-all duration-200 ease-soft',
-                      tab === t.id ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-50',
-                    )}
-                  />
-                </button>
-              ))}
-            </div>
-            <div className="relative mb-1.5">
+          <div className="mt-5 flex flex-wrap gap-1">
+            {(
+              [
+                { id: 'all' as const, label: 'Tất cả', count: counts.total },
+                {
+                  id: 'processing' as const,
+                  label: 'Đang xử lý',
+                  count: counts.processing,
+                },
+                {
+                  id: 'interview' as const,
+                  label: 'Phỏng vấn',
+                  count: counts.interview,
+                },
+                { id: 'offer' as const, label: 'Đề nghị', count: counts.offer },
+                { id: 'hired' as const, label: 'Nhận việc', count: counts.hired },
+                {
+                  id: 'rejected' as const,
+                  label: 'Đã từ chối',
+                  count: counts.rejected,
+                },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setTab(t.id);
+                  setPage(1);
+                }}
+                className={clsx(
+                  'rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-200',
+                  tab === t.id
+                    ? 'bg-accent-500 text-white'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+                )}
+              >
+                {t.label} ({t.count})
+              </button>
+            ))}
+          </div>
+
+          <div className="relative mt-3 w-fit">
             <select
               value={sort}
               onChange={(e) => {
                 setSort(e.target.value as SortMode);
                 setPage(1);
               }}
-              className="appearance-none rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-slate-600 transition-colors duration-200 hover:border-slate-300 hover:bg-slate-50 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className="appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-medium text-slate-600 transition-colors duration-200 hover:border-brand-200 hover:bg-slate-50 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100"
             >
-                <option value="newest">Mới nhất</option>
-                <option value="oldest">Cũ nhất</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-            </div>
+              <option value="newest">Mới nhất</option>
+              <option value="oldest">Cũ nhất</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           </div>
 
           {/* Application list */}
@@ -594,7 +605,7 @@ export default function ProgressPage() {
             <div className="mt-4 text-center">
               <Link
                 href="/applications"
-                className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 transition-all duration-200 hover:gap-1.5 hover:text-brand-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-200 hover:text-brand-700"
               >
                 Xem danh sách đơn ứng tuyển
                 <ChevronDown className="h-4 w-4" />
@@ -606,14 +617,21 @@ export default function ProgressPage() {
         {/* Right */}
         <aside className="space-y-4 animate-soft-rise [animation-delay:120ms]">
           <div id="interviews" className="progress-card p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                <CalendarDays className="h-4 w-4" />
+              </span>
               <h2 className="text-sm font-bold text-slate-900">Lịch phỏng vấn sắp tới</h2>
-              <CalendarDays className="h-4 w-4 text-amber-500" />
             </div>
             {upcomingInterviews.length === 0 ? (
-              <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                Chưa có lịch phỏng vấn sắp tới.
-              </p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <p className="text-xs leading-relaxed text-slate-500">
+                  Chưa có lịch phỏng vấn sắp tới.
+                </p>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-400">
+                  <CalendarDays className="h-6 w-6" />
+                </span>
+              </div>
             ) : (
               <ul className="mt-3 space-y-3">
                 {upcomingInterviews.map((i) => (
@@ -624,14 +642,21 @@ export default function ProgressPage() {
           </div>
 
           <div id="offers" className="progress-card p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                <Gift className="h-4 w-4" />
+              </span>
               <h2 className="text-sm font-bold text-slate-900">Đề nghị làm việc</h2>
-              <Gift className="h-4 w-4 text-orange-500" />
             </div>
             {pendingOffers.length === 0 ? (
-              <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                Chưa có đề nghị đang chờ phản hồi.
-              </p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <p className="text-xs leading-relaxed text-slate-500">
+                  Chưa có đề nghị đang chờ phản hồi.
+                </p>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-400">
+                  <Gift className="h-6 w-6" />
+                </span>
+              </div>
             ) : (
               <ul className="mt-3 space-y-3">
                 {pendingOffers.map((o) => (
@@ -653,14 +678,21 @@ export default function ProgressPage() {
           </div>
 
           <div id="onboarding" className="progress-card p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <UserPlus className="h-4 w-4" />
+              </span>
               <h2 className="text-sm font-bold text-slate-900">Quá trình nhận việc</h2>
-              <UserPlus className="h-4 w-4 text-teal-500" />
             </div>
             {!activeOnboarding ? (
-              <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                Chưa có quá trình nhận việc. Khi bạn chấp nhận đề nghị, checklist sẽ hiện tại đây.
-              </p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <p className="text-xs leading-relaxed text-slate-500">
+                  Chưa có quá trình nhận việc. Khi bạn chấp nhận đề nghị, checklist sẽ hiện tại đây.
+                </p>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-400">
+                  <ClipboardList className="h-6 w-6" />
+                </span>
+              </div>
             ) : (
               <OnboardingWidget item={activeOnboarding} />
             )}
@@ -683,18 +715,18 @@ function StatCell({
   value: number;
 }) {
   return (
-    <div className="group flex items-center gap-2.5 rounded-xl px-1 py-1 transition-colors duration-200 hover:bg-slate-50/80">
+    <div className="group flex min-w-0 items-center gap-2 rounded-xl px-0.5 py-1 transition-colors duration-200 hover:bg-slate-50/80">
       <div
         className={clsx(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 ease-soft group-hover:scale-105',
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 ease-soft group-hover:scale-105',
           iconClass,
         )}
       >
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[11px] leading-tight text-slate-500">{label}</p>
-        <p className="text-xl font-bold tabular-nums tracking-tight text-slate-900">
+        <p className="text-[11px] leading-tight text-slate-500">{label}</p>
+        <p className="text-xl font-bold tabular-nums tracking-tight text-brand-800">
           {value}
         </p>
       </div>
@@ -723,11 +755,11 @@ function ApplicationCard({
 
   return (
     <li
-      className="progress-card p-4 sm:p-5"
+      className="progress-card border-l-[3px] border-l-accent-400 p-4 sm:p-5"
       style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
     >
       <div className="flex gap-3 sm:gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-sm font-bold text-slate-500 transition-transform duration-200 hover:scale-105 sm:h-[52px] sm:w-[52px]">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-brand-100 bg-brand-50 text-sm font-bold text-brand-700 sm:h-[52px] sm:w-[52px]">
           {companyInitials(app.companyName)}
         </div>
 
@@ -736,17 +768,19 @@ function ApplicationCard({
             <div className="min-w-0 flex-1">
               <Link
                 href={`/jobs/${app.jobId}`}
-                className="text-[15px] font-bold text-slate-900 transition-colors duration-200 hover:text-amber-700"
+                className="text-[15px] font-bold text-brand-800 transition-colors duration-200 hover:text-brand-600"
               >
                 {app.jobTitle}
               </Link>
-              <p className="mt-0.5 text-sm text-slate-500">{app.companyName}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+                <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="truncate">{app.companyName}</span>
+              </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5 text-slate-400" />
                   {app.location || 'Thỏa thuận'}
                 </span>
-                <span className="hidden text-slate-300 sm:inline">|</span>
                 <span className="inline-flex items-center gap-1">
                   <Wallet className="h-3.5 w-3.5 text-slate-400" />
                   {formatSalary(app.salaryMin, app.salaryMax)}
@@ -769,14 +803,15 @@ function ApplicationCard({
               <div className="hidden flex-col items-end gap-1.5 sm:flex">
                 <Link
                   href="/applications"
-                  className="text-xs font-semibold text-brand-600 transition-colors duration-200 hover:text-brand-700 hover:underline"
+                  className="inline-flex items-center gap-0.5 text-xs font-semibold text-brand-600 transition-colors duration-200 hover:text-brand-700"
                 >
                   Xem chi tiết
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
                 {hasInterview && app.status === ApplicationStatus.Interview && (
                   <a
                     href="#interviews"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 transition-colors duration-200 hover:text-violet-700 hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 transition-colors duration-200 hover:text-brand-800"
                   >
                     <CalendarDays className="h-3.5 w-3.5" />
                     Lịch phỏng vấn
@@ -786,7 +821,7 @@ function ApplicationCard({
                   <button
                     type="button"
                     onClick={onViewOffer}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 transition-colors duration-200 hover:text-orange-700 hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 transition-colors duration-200 hover:text-accent-800"
                   >
                     <Gift className="h-3.5 w-3.5" />
                     Xem đề nghị
@@ -796,7 +831,12 @@ function ApplicationCard({
             </div>
           </div>
 
-          <PipelineStepper currentIdx={currentIdx} failAt={failAt} rejected={rejected} />
+          <PipelineStepper
+            currentIdx={currentIdx}
+            failAt={failAt}
+            rejected={rejected}
+            appliedAt={formatAppliedDate(app.createdAt)}
+          />
 
           <div className="mt-3 flex flex-wrap gap-2 sm:hidden">
             <Link
@@ -808,7 +848,7 @@ function ApplicationCard({
             {hasInterview && app.status === ApplicationStatus.Interview && (
               <a
                 href="#interviews"
-                className="progress-btn bg-violet-50 text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100"
+                className="progress-btn bg-brand-50 text-brand-700 ring-1 ring-brand-100 hover:bg-brand-100"
               >
                 <CalendarDays className="h-3.5 w-3.5" />
                 Lịch phỏng vấn
@@ -818,7 +858,7 @@ function ApplicationCard({
               <button
                 type="button"
                 onClick={onViewOffer}
-                className="progress-btn bg-orange-50 text-orange-700 ring-1 ring-orange-200 hover:bg-orange-100"
+                className="progress-btn bg-accent-50 text-accent-700 ring-1 ring-accent-100 hover:bg-accent-100"
               >
                 <Gift className="h-3.5 w-3.5" />
                 Xem đề nghị
@@ -835,10 +875,12 @@ function PipelineStepper({
   currentIdx,
   failAt,
   rejected,
+  appliedAt,
 }: {
   currentIdx: number;
   failAt: number;
   rejected: boolean;
+  appliedAt?: string;
 }) {
   return (
     <div className="mt-4 overflow-x-auto pb-0.5">
@@ -885,6 +927,9 @@ function PipelineStepper({
                 >
                   {PIPELINE_SHORT[step]}
                 </span>
+                {step === ApplicationStatus.Applied && (done || active) && appliedAt && (
+                  <span className="mt-0.5 text-center text-[9px] text-slate-400">{appliedAt}</span>
+                )}
               </div>
               {idx < PIPELINE.length - 1 && (
                 <div className="relative mx-0 mt-3 h-0.5 min-w-[10px] flex-1 overflow-hidden rounded-full bg-slate-200">
@@ -915,18 +960,18 @@ function UpcomingInterviewCard({ interview }: { interview: InterviewView }) {
     : interview.location || 'Địa điểm cập nhật sau';
 
   return (
-    <li className="group rounded-xl border border-slate-100 bg-[#F8FAFC] p-3 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-amber-200 hover:bg-white hover:shadow-sm">
+    <li className="group rounded-xl border border-slate-100 bg-slate-50 p-3 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-accent-200 hover:bg-white hover:shadow-sm">
       <div className="flex gap-3">
-        <div className="flex w-[52px] shrink-0 flex-col items-center justify-center rounded-lg bg-white px-1 py-2 shadow-sm ring-1 ring-amber-100/80 transition-shadow duration-200 group-hover:shadow-md">
+        <div className="flex w-[52px] shrink-0 flex-col items-center justify-center rounded-lg bg-white px-1 py-2 shadow-sm ring-1 ring-accent-100 transition-shadow duration-200 group-hover:shadow-md">
           <p className="text-[10px] font-medium capitalize text-slate-500">{weekday}</p>
-          <p className="text-[22px] font-bold leading-none text-amber-600">{day}</p>
+          <p className="text-[22px] font-bold leading-none text-accent-600">{day}</p>
           <p className="mt-0.5 text-[9px] font-semibold tracking-wide text-slate-400">
             {month}
           </p>
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-slate-900">{interview.jobTitle}</p>
-          <p className="text-[11px] font-semibold text-violet-800">
+          <p className="text-[11px] font-semibold text-brand-700">
             {INTERVIEW_TYPE_LABEL[interview.type] ?? interview.type}
           </p>
           <p className="truncate text-xs text-slate-500">{interview.companyName}</p>
@@ -940,14 +985,14 @@ function UpcomingInterviewCard({ interview }: { interview: InterviewView }) {
             <span
               className={clsx(
                 'h-1.5 w-1.5 rounded-full',
-                isOnline ? 'bg-emerald-500' : 'bg-sky-500',
+                isOnline ? 'bg-emerald-500' : 'bg-brand-500',
               )}
             />
             <span className="truncate">{place}</span>
           </p>
           <Link
             href={`/jobs/${interview.jobId}`}
-            className="progress-btn mt-2.5 w-full border border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+            className="progress-btn mt-2.5 w-full border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800"
           >
             Xem chi tiết
           </Link>
@@ -979,8 +1024,8 @@ function OfferWidget({
       className={clsx(
         'rounded-xl border p-3 transition-all duration-200 ease-soft',
         highlighted
-          ? 'border-orange-300 bg-orange-50/40 shadow-sm ring-2 ring-orange-100'
-          : 'border-slate-100 bg-[#F8FAFC] hover:-translate-y-0.5 hover:border-slate-200 hover:bg-white hover:shadow-sm',
+          ? 'border-accent-300 bg-accent-50/60 shadow-sm ring-2 ring-accent-100'
+          : 'border-slate-100 bg-slate-50 hover:-translate-y-0.5 hover:border-slate-200 hover:bg-white hover:shadow-sm',
       )}
     >
       <div className="flex gap-2.5">
