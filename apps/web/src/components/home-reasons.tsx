@@ -10,7 +10,10 @@ function accentTitle(title: string, accent: string) {
       {title.slice(0, at)}
       <span className="relative inline-block">
         {needle}
-        <span className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-[#E8872A]" aria-hidden />
+        <span
+          className="home-reasons-mark absolute left-1/2 top-[calc(100%+2px)] h-[3px] w-9 origin-center rounded-full bg-[#F08A24]"
+          aria-hidden
+        />
       </span>
       {title.slice(at + needle.length)}
     </>
@@ -18,57 +21,57 @@ function accentTitle(title: string, accent: string) {
 }
 
 function ReasonGlyph({ icon }: { icon: HomepageReasonIcon }) {
-  const common = {
-    viewBox: '0 0 24 24',
+  const stroke = {
     fill: 'none',
     stroke: 'currentColor',
-    strokeWidth: 1.7,
+    strokeWidth: 1.8,
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
-    className: 'h-7 w-7',
-    'aria-hidden': true,
   };
   if (icon === 'chart') {
     return (
-      <svg {...common}>
-        <path d="M4 19h16" />
-        <path d="M7 16v-3" />
-        <path d="M12 16V8" />
-        <path d="M17 16v-6" />
+      <svg viewBox="0 0 48 48" className="h-8 w-8" aria-hidden>
+        <path {...stroke} d="M8 36h28" />
+        <path {...stroke} d="M12 36V25" />
+        <path {...stroke} d="M20 36V18" />
+        <path {...stroke} d="M28 36V12" />
+        <path {...stroke} d="M12 24.5 20 17.5 28 11" />
       </svg>
     );
   }
   if (icon === 'blocked') {
     return (
-      <svg {...common}>
-        <circle cx="12" cy="12" r="8" />
-        <path d="M7 17 17 7" />
+      <svg viewBox="0 0 48 48" className="h-8 w-8" aria-hidden>
+        <circle {...stroke} cx="24" cy="24" r="11" />
+        <path {...stroke} d="M16.2 31.8 31.8 16.2" />
       </svg>
     );
   }
   if (icon === 'chat') {
     return (
-      <svg {...common}>
-        <path d="M7 16.5 4.5 19V8.5A2.5 2.5 0 0 1 7 6h6.5A2.5 2.5 0 0 1 16 8.5V12" />
-        <path d="M10 18.5h7.2L20 21v-6.2A2.3 2.3 0 0 0 17.7 12H12a2 2 0 0 0-2 2v4.5Z" />
+      <svg viewBox="0 0 48 48" className="h-8 w-8" aria-hidden>
+        <path {...stroke} d="M11 16.5a5 5 0 0 1 5-5h9a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5h-5l-4.5 3.5V27.5h-.5a5 5 0 0 1-4-4.8v-6.2Z" />
+        <path {...stroke} d="M22 22.5h10.5a4.5 4.5 0 0 1 4.5 4.5v5a4.5 4.5 0 0 1-4.5 4.5H30l-3.5 3v-3h-1.2" />
       </svg>
     );
   }
   if (icon === 'factory') {
     return (
-      <svg {...common}>
-        <path d="M4 20V10l5 3V10l5 3V8h2.5L19 6v2h1v12" />
-        <path d="M8 20v-3" />
-        <path d="M12 20v-3" />
+      <svg viewBox="0 0 48 48" className="h-8 w-8" aria-hidden>
+        <path {...stroke} d="M7 36V19l7 4v-4l7 4V16h12v20" />
+        <path {...stroke} d="M26 16V11h4" />
+        <path {...stroke} d="M31 12c1.2-1.6 2.2-2.2 3.4-2.2" />
+        <path {...stroke} d="M34.2 8.2c.7-.8 1.5-1.1 2.4-1" />
+        <path {...stroke} d="M13 36v-5M18 36v-5M31 36v-5M35 36v-5" />
       </svg>
     );
   }
   return (
-    <svg {...common}>
-      <circle cx="9" cy="8" r="2.2" />
-      <circle cx="16" cy="9" r="1.8" />
-      <path d="M4.8 18.2c.6-2.3 2.3-3.4 4.2-3.4s3.6 1.1 4.2 3.4" />
-      <path d="M13.2 15.2c.8-.5 1.7-.8 2.7-.8 1.5 0 2.8.8 3.3 2.4" />
+    <svg viewBox="0 0 48 48" className="h-8 w-8" aria-hidden>
+      <circle {...stroke} cx="18" cy="16" r="5" />
+      <path {...stroke} d="M8.5 33.5c.9-5.2 4-8 9.5-8s8.6 2.8 9.5 8" />
+      <circle {...stroke} cx="31" cy="17.5" r="3.6" />
+      <path {...stroke} d="M27.5 33.5c.5-3.4 2.2-5.4 5-5.4 2.6 0 4.2 1.6 4.8 4.6" />
     </svg>
   );
 }
@@ -76,26 +79,46 @@ function ReasonGlyph({ icon }: { icon: HomepageReasonIcon }) {
 export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
   const items = reasons.items.filter((item) => item.title.trim());
   return (
-    <section className="bg-[#F3F7FB] py-14 sm:py-16" aria-labelledby="home-reasons-title">
+    <section
+      className="bg-[radial-gradient(ellipse_90%_80%_at_50%_0%,#ffffff_0%,rgba(255,255,255,0)_58%),linear-gradient(180deg,#f8fbfe_0%,#eef4fa_100%)] py-14 sm:py-16 lg:py-20"
+      aria-labelledby="home-reasons-title"
+    >
       <div className="mx-auto max-w-[1120px] px-4 sm:px-6">
-        <h2 id="home-reasons-title" className="text-center text-[1.85rem] font-extrabold tracking-tight text-[#072348] sm:text-[2.15rem]">
-          {accentTitle(reasons.title, reasons.titleAccent)}
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px] text-slate-600">{reasons.subtitle}</p>
-        <ul className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-5 lg:gap-6">
-          {items.map((item) => {
+        <div className="home-reasons-head text-center">
+          <h2
+            id="home-reasons-title"
+            className="text-[1.85rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.35rem]"
+          >
+            {accentTitle(reasons.title, reasons.titleAccent)}
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-[#5c6b7d] sm:text-base">
+            {reasons.subtitle}
+          </p>
+        </div>
+        <ul className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-12 lg:mt-14 lg:grid-cols-5 lg:gap-6">
+          {items.map((item, index) => {
             const image = resolveCmsAssetUrl(item.imageUrl);
             return (
-              <li key={item.title} className="text-center">
-                <span className="mx-auto flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full bg-[#12315c] text-white shadow-[0_10px_24px_-16px_rgba(7,35,72,0.8)]">
+              <li
+                key={`${item.icon}-${index}`}
+                className="home-reasons-item mx-auto w-full max-w-[240px] text-center sm:max-w-none"
+                style={{ animationDelay: `${120 + index * 90}ms` }}
+              >
+                <span className="home-reasons-bubble mx-auto flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-full bg-[#1e4e8c] text-white shadow-[0_10px_18px_-14px_rgba(18,49,92,0.9)]">
                   {image ? (
-                    <img src={image} alt="" className="h-full w-full object-cover" />
+                    <img src={image} alt="" className="home-reasons-glyph h-full w-full object-cover" />
                   ) : (
-                    <ReasonGlyph icon={item.icon} />
+                    <span className="home-reasons-glyph inline-flex" style={{ animationDelay: `${index * 0.35}s` }}>
+                      <ReasonGlyph icon={item.icon} />
+                    </span>
                   )}
                 </span>
-                <p className="mt-4 text-[15px] font-bold leading-snug text-[#072348]">{item.title}</p>
-                <p className="mt-2 text-[13px] leading-relaxed text-slate-500">{item.description}</p>
+                <h3 className="mx-auto mt-5 max-w-[11.5rem] text-balance text-[15px] font-bold leading-snug text-[#12315c]">
+                  {item.title}
+                </h3>
+                <p className="mx-auto mt-2 max-w-[13.5rem] text-balance text-[13px] leading-relaxed text-[#7d8b9a]">
+                  {item.description}
+                </p>
               </li>
             );
           })}

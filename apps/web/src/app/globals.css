@@ -1166,6 +1166,53 @@ form.crm-surface:hover {
   line-height: 1.55;
 }
 
+@keyframes home-reasons-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes home-reasons-draw {
+  from {
+    transform: translateX(-50%) scaleX(0);
+  }
+  to {
+    transform: translateX(-50%) scaleX(1);
+  }
+}
+@keyframes home-reasons-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+.home-reasons-head {
+  animation: home-reasons-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home-reasons-mark {
+  animation: home-reasons-draw 0.55s 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home-reasons-item {
+  animation: home-reasons-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home-reasons-glyph {
+  animation: home-reasons-float 4.8s ease-in-out infinite;
+}
+.home-reasons-bubble {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.35s ease;
+}
+.home-reasons-item:hover .home-reasons-bubble {
+  transform: translateY(-4px);
+  background-color: #163e74;
+}
+
 @media print {
   .crm-surface,
   .crm-surface:hover,
@@ -1193,6 +1240,15 @@ form.crm-surface:hover {
   }
   .crm-enter :is(.space-y-4, .space-y-5, .space-y-6, .space-y-8) > * {
     animation: none;
+  }
+  .home-reasons-head,
+  .home-reasons-mark,
+  .home-reasons-item,
+  .home-reasons-glyph {
+    animation: none !important;
+  }
+  .home-reasons-item:hover .home-reasons-bubble {
+    transform: none;
   }
 }
 
