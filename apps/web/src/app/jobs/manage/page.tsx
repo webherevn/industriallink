@@ -4,8 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   Briefcase,
+  Building2,
+  CalendarDays,
   Copy,
   Eye,
+  FileText,
+  Laptop,
   MapPin,
   Pause,
   Pencil,
@@ -13,6 +17,7 @@ import {
   Plus,
   Search,
   Trash2,
+  UserCheck,
   Users,
   Wallet,
   XCircle,
@@ -35,6 +40,7 @@ import {
   updateJobStatus,
 } from '@/lib/jobs';
 import { plainLabel } from '@/lib/plain-label';
+import { apiPublicBase } from '@/lib/public-paths';
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   [JobStatus.Draft]: 'Nháp',
@@ -90,6 +96,7 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
 export default function ManageJobsPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sort, setSort] = useState<'new' | 'old'>('new');
   const [q, setQ] = useState('');
 
   const { data: jobs, isLoading, isError, error } = useQuery({
@@ -154,40 +161,43 @@ export default function ManageJobsPage() {
         return hay.includes(query);
       });
     }
-    return [...list].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-  }, [jobs, statusFilter, q]);
+    return [...list].sort((a, b) => {
+      const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return sort === 'new' ? diff : -diff;
+    });
+  }, [jobs, statusFilter, q, sort]);
 
   return (
     <AppShell>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-            <span className="brand-accent-dot" />
-            Tuyển dụng
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-            Tin tuyển dụng
-          </h1>
-          <div className="brand-accent-bar mt-2" />
-          <p className="mt-2 max-w-xl text-sm text-slate-500">
-            Quản lý tin đăng, xem chi tiết và theo dõi ứng viên ứng tuyển.
-          </p>
+      <section className="brand-hero-surface relative rounded-2xl p-5 sm:p-6">
+        <div className="pointer-events-none absolute -right-2 bottom-0 top-0 hidden w-52 items-center justify-end pr-8 opacity-20 lg:flex">
+          <Laptop className="h-28 w-28" strokeWidth={1.1} />
         </div>
-        <Link href="/jobs/new">
-          <Button className="bg-brand-600 hover:bg-brand-700">
-            <Plus className="h-4 w-4" /> Đăng tin mới
-            <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden />
-          </Button>
-        </Link>
-      </div>
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              Tuyển dụng
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">Tin tuyển dụng</h1>
+            <p className="mt-1 max-w-xl text-sm text-white/70">
+              Quản lý tin đăng, xem chi tiết và theo dõi kết quả tuyển dụng từng tin.
+            </p>
+          </div>
+          <Link
+            href="/jobs/new"
+            className="inline-flex items-center gap-2 rounded-full bg-accent-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-accent-600 active:scale-95"
+          >
+            <Plus className="h-4 w-4" />
+            Đăng tin mới
+          </Link>
+        </div>
+      </section>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Tổng tin" value={stats.total} tone="navy" />
-        <StatCard label="Đang tuyển" value={stats.published} tone="green" />
-        <StatCard label="Bản nháp" value={stats.draft} tone="accent" />
-        <StatCard label="Tạm dừng" value={stats.paused} tone="amber" />
+        <StatCard icon={<Briefcase className="h-4 w-4" />} label="Tổng tin" value={stats.total} tone="bg-brand-50 text-brand-700" />
+        <StatCard icon={<UserCheck className="h-4 w-4" />} label="Đang tuyển" value={stats.published} tone="bg-emerald-50 text-emerald-700" />
+        <StatCard icon={<FileText className="h-4 w-4" />} label="Bản nháp" value={stats.draft} tone="bg-accent-50 text-accent-700" />
+        <StatCard icon={<Pause className="h-4 w-4" />} label="Tạm dừng" value={stats.paused} tone="bg-amber-50 text-amber-700" />
       </div>
 
       <div className="brand-panel mt-5 p-4">
@@ -224,10 +234,21 @@ export default function ManageJobsPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <p className="text-sm text-slate-500">
-          {isLoading ? 'Đang tải…' : `${filtered.length} tin`}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium text-slate-600">
+          {isLoading ? 'Đang tải…' : `${filtered.length} tin tuyển dụng`}
         </p>
+        <label className="inline-flex items-center gap-2 text-sm text-slate-500">
+          Sắp xếp
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value === 'old' ? 'old' : 'new')}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-brand-800"
+          >
+            <option value="new">Mới nhất</option>
+            <option value="old">Cũ nhất</option>
+          </select>
+        </label>
       </div>
 
       {isError && (
@@ -328,65 +349,83 @@ function JobManageCard({
     month: '2-digit',
     year: 'numeric',
   });
+  const result = job.recruitment ?? {
+    applications: 0,
+    screening: 0,
+    interviews: 0,
+    offers: 0,
+    hires: 0,
+  };
 
   return (
-    <article className="brand-panel brand-card-accent group p-4 transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/jobs/${job.id}/detail`}
-            className="text-[15px] font-semibold text-slate-900 hover:text-brand-700"
-          >
-            {job.title}
-          </Link>
-          <Badge tone={badge.tone}>{badge.label}</Badge>
-          {job.isNew && <Badge tone="accent">Mới</Badge>}
-        </div>
+    <article className="brand-panel group p-4 transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.35)] sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <JobThumb job={job} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/jobs/${job.id}/detail`}
+              className="text-[15px] font-semibold text-brand-800 hover:text-brand-600"
+            >
+              {job.title}
+            </Link>
+            <Badge tone={badge.tone}>{badge.label}</Badge>
+            {job.isNew && <Badge tone="accent">Mới</Badge>}
+          </div>
 
-        <p className="mt-1.5 text-[12px] font-medium text-slate-400">{job.code}</p>
+          <p className="mt-1.5 text-[12px] font-medium text-slate-400">{job.code}</p>
 
-        <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-slate-600">
-          {job.jobLevel && (
+          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-slate-600">
+            {job.jobLevel && (
+              <span className="inline-flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                {formatJobLevel(job.jobLevel)}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
-              <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-              {formatJobLevel(job.jobLevel)}
+              <MapPin className="h-3.5 w-3.5 text-slate-400" />
+              {job.location ?? 'Chưa rõ địa điểm'}
             </span>
-          )}
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 text-slate-400" />
-            {job.location ?? 'Chưa rõ địa điểm'}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Wallet className="h-3.5 w-3.5 text-slate-400" />
-            {formatSalary(job.salaryMin, job.salaryMax)}
-          </span>
-          {job.employmentType && (
-            <span className="text-slate-500">
-              {EMPLOYMENT_LABEL[job.employmentType] ?? job.employmentType}
+            <span className="inline-flex items-center gap-1.5">
+              <Wallet className="h-3.5 w-3.5 text-slate-400" />
+              {formatSalary(job.salaryMin, job.salaryMax)}
             </span>
-          )}
-        </div>
-
-        {job.skills.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {job.skills
-              .map((s) => plainLabel(s))
-              .filter(Boolean)
-              .slice(0, 5)
-              .map((s) => (
-              <Badge key={s} tone="green">
-                {s}
-              </Badge>
-            ))}
-            {job.skills.length > 5 && (
-              <span className="text-[11px] font-medium text-slate-400">
-                +{job.skills.length - 5}
+            {job.employmentType && (
+              <span className="text-slate-500">
+                {EMPLOYMENT_LABEL[job.employmentType] ?? job.employmentType}
               </span>
             )}
           </div>
-        )}
 
-        <p className="mt-3 text-[11px] text-slate-400">Tạo ngày {created}</p>
+          {job.skills.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {job.skills
+                .map((s) => plainLabel(s))
+                .filter(Boolean)
+                .slice(0, 5)
+                .map((s) => (
+                  <Badge key={s} tone="green">
+                    {s}
+                  </Badge>
+                ))}
+              {job.skills.length > 5 && (
+                <span className="text-[11px] font-medium text-slate-400">
+                  +{job.skills.length - 5}
+                </span>
+              )}
+            </div>
+          )}
+
+          <p className="mt-3 text-[11px] text-slate-400">Tạo ngày {created}</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-5 lg:w-[22rem] lg:shrink-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+          <ResultStat icon={<Users className="h-3.5 w-3.5" />} label="Hồ sơ" value={result.applications} />
+          <ResultStat icon={<Search className="h-3.5 w-3.5" />} label="Sàng lọc" value={result.screening} />
+          <ResultStat icon={<CalendarDays className="h-3.5 w-3.5" />} label="Phỏng vấn" value={result.interviews} />
+          <ResultStat icon={<FileText className="h-3.5 w-3.5" />} label="Đề nghị" value={result.offers} />
+          <ResultStat icon={<UserCheck className="h-3.5 w-3.5" />} label="Nhận việc" value={result.hires} hired />
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3.5">
@@ -456,6 +495,51 @@ function JobManageCard({
   );
 }
 
+function JobThumb({ job }: { job: JobListItem }) {
+  const [failed, setFailed] = useState(false);
+  const showLogo = Boolean(job.companyHasLogo && job.companyId && !failed);
+  return (
+    <div className="hidden h-[4.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-brand-50 ring-1 ring-brand-100 sm:block">
+      {showLogo ? (
+        <img
+          src={`${apiPublicBase()}/companies/${job.companyId}/logo`}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-brand-600">
+          <Building2 className="h-6 w-6" />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ResultStat({
+  icon,
+  label,
+  value,
+  hired,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  hired?: boolean;
+}) {
+  return (
+    <div className="text-center">
+      <span className="mx-auto flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+        {icon}
+      </span>
+      <p className={clsx('mt-1.5 text-lg font-bold tabular-nums', hired ? 'text-emerald-700' : 'text-[#E8872A]')}>
+        {value}
+      </p>
+      <p className="text-[11px] text-slate-500">{label}</p>
+    </div>
+  );
+}
+
 function ActionChip({
   children,
   onClick,
@@ -479,33 +563,26 @@ function ActionChip({
   return <span className={className}>{children}</span>;
 }
 
-const STAT_TONE = {
-  navy: 'bg-brand-50 text-brand-700',
-  green: 'bg-[#D1FAE5] text-[#059669]',
-  accent: 'bg-accent-50 text-accent-700',
-  amber: 'bg-accent-100 text-accent-700',
-} as const;
-
 function StatCard({
+  icon,
   label,
   value,
   tone,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: number;
-  tone: keyof typeof STAT_TONE;
+  tone: string;
 }) {
   return (
-    <div className="brand-panel p-4">
-      <span
-        className={clsx(
-          'inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold',
-          STAT_TONE[tone],
-        )}
-      >
-        {label}
-      </span>
-      <p className="mt-3 text-[1.5rem] font-extrabold tracking-tight text-slate-900">{value}</p>
+    <div className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.28)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.4)]">
+      <div className="flex items-center gap-2.5">
+        <span className={clsx('flex h-9 w-9 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>
+          {icon}
+        </span>
+        <p className="text-sm font-medium text-slate-500">{label}</p>
+      </div>
+      <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
     </div>
   );
 }

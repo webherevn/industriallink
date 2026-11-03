@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, ChevronLeft, MessageCircle, Minus, Search, Send, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, IdCard, MessageCircle, MessageSquare, Minus, Paperclip, Plus, Search, Send, Smile, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
@@ -148,6 +148,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
 
   const active = list.find((t) => t.connectionId === activeId) ?? null;
   const unread = list.reduce((sum, t) => sum + t.unread, 0);
+  const recruiterView = pathname.startsWith('/recruiter');
 
   function pick(thread: ConnectionChatThread) {
     setActiveId(thread.connectionId);
@@ -198,23 +199,27 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         >
           <aside
             className={clsx(
-              'min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-slate-100 bg-white lg:flex lg:w-[300px]',
+              'min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-slate-100 bg-white lg:flex lg:w-[272px]',
               activeId ? 'hidden lg:flex' : 'flex',
             )}
           >
-            <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-3">
-              <MessageCircle className="h-4 w-4 text-accent-500" />
-              <p className="min-w-0 flex-1 text-sm font-semibold text-brand-700">Tin nhắn</p>
-              {!embedded && (
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-brand-700 lg:hidden"
-                  aria-label="Đóng chat"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+            <div className="border-b border-slate-100 px-4 pb-0 pt-3">
+              <div className="flex items-center gap-2">
+                <p className="inline-flex min-w-0 flex-1 items-center gap-2 border-b-2 border-accent-500 pb-2.5 text-sm font-semibold text-brand-800">
+                  <MessageCircle className="h-4 w-4 text-accent-500" />
+                  Tin nhắn
+                </p>
+                {!embedded && (
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="mb-2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-brand-700 lg:hidden"
+                    aria-label="Đóng chat"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="px-3 pt-3">
               <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
@@ -261,11 +266,16 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                       type="button"
                       onClick={() => pick(thread)}
                       className={clsx(
-                        'flex w-full items-start gap-2.5 border-b border-slate-100 px-3 py-2.5 text-left',
+                        'flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition duration-200',
                         selected ? 'bg-accent-50' : 'hover:bg-slate-50',
                       )}
                     >
-                      <PeerMark name={thread.peerName} />
+                      <span className="relative">
+                        <PeerMark name={thread.peerName} />
+                        {thread.unread > 0 && (
+                          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                        )}
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
                           <span className="truncate text-[13px] font-semibold text-brand-700">
@@ -300,7 +310,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
 
           <section
             className={clsx(
-              'min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#F4F7FB]',
+              'min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white',
               activeId ? 'flex' : 'hidden lg:flex',
             )}
           >
@@ -342,15 +352,12 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                 </button>
               )}
             </div>
-            <div ref={scroller} className="min-h-0 flex-1 basis-0 space-y-2 overflow-y-auto px-3 py-3">
-              {!activeId && (
-                <p className="pt-16 text-center text-sm text-slate-400">
-                  Chọn một người ở danh sách để trao đổi.
-                </p>
-              )}
+            <div ref={scroller} className="relative flex min-h-0 flex-1 basis-0 flex-col overflow-y-auto px-3 py-3">
+              {!activeId && <EmptyThread recruiter={recruiterView} />}
               {activeId && messages.isLoading && (
                 <p className="text-center text-xs text-slate-400">Đang tải tin nhắn…</p>
               )}
+              <div className="space-y-2">
               {activeId &&
                 (messages.data ?? []).map((m) => (
                   <div key={m.id} className={clsx('flex', m.mine ? 'justify-end' : 'justify-start')}>
@@ -369,29 +376,35 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                     </div>
                   </div>
                 ))}
+              </div>
               {activeId && !messages.isLoading && (messages.data ?? []).length === 0 && (
                 <p className="text-center text-xs text-slate-400">Hãy gửi lời chào đầu tiên.</p>
               )}
             </div>
             <form
-              className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2.5"
+              className="flex items-center gap-2 border-t border-slate-100 bg-white px-3 py-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 publish(draft.trim());
               }}
             >
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={2000}
-                disabled={!activeId}
-                placeholder={activeId ? 'Nhập tin nhắn…' : 'Chọn hội thoại để nhắn'}
-                className="h-10 min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand-300 focus:bg-white disabled:opacity-60"
-              />
+              <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 focus-within:border-brand-300 focus-within:bg-white">
+                <Plus className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                <input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  maxLength={2000}
+                  disabled={!activeId}
+                  placeholder={activeId ? 'Nhập tin nhắn…' : 'Chọn hội thoại để nhắn...'}
+                  className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400 disabled:opacity-60"
+                />
+                <Smile className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                <Paperclip className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+              </div>
               <button
                 type="submit"
                 disabled={!activeId || draft.trim().length === 0}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E8872A] text-white transition hover:brightness-105 disabled:opacity-50"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E8872A] text-white shadow-sm transition duration-200 hover:bg-accent-600 active:scale-95 disabled:opacity-50"
                 aria-label="Gửi"
               >
                 <Send className="h-4 w-4" />
@@ -399,13 +412,11 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
             </form>
           </section>
 
-          <aside className="hidden min-h-0 w-[268px] shrink-0 flex-col overflow-hidden border-l border-slate-100 bg-white xl:flex">
+          <aside className="hidden min-h-0 w-[256px] shrink-0 flex-col overflow-hidden border-l border-slate-100 bg-white lg:flex">
             {active ? (
               <ProfilePane thread={active} />
             ) : (
-              <p className="px-4 py-8 text-center text-xs text-slate-400">
-                Hồ sơ hiện khi bạn mở một hội thoại.
-              </p>
+              <EmptyProfile recruiter={recruiterView} />
             )}
           </aside>
         </div>
@@ -426,6 +437,60 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
           )}
         </button>
       )}
+    </div>
+  );
+}
+
+function EmptyThread({ recruiter }: { recruiter: boolean }) {
+  return (
+    <div className="relative flex min-h-full flex-1 flex-col items-center justify-center px-6 pb-8 text-center">
+      <div className="relative mb-5">
+        <span className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-3xl bg-brand-50 text-brand-700">
+          <MessageCircle className="h-9 w-9" />
+        </span>
+        <span className="absolute -right-3 -top-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-accent-500 shadow-sm ring-1 ring-accent-100">
+          <MessageSquare className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="text-base font-bold text-brand-800">Chọn một người ở danh sách để trao đổi</p>
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+        {recruiter
+          ? 'Bắt đầu cuộc trò chuyện với ứng viên để trao đổi thông tin tuyển dụng, lịch phỏng vấn và các nội dung liên quan.'
+          : 'Bắt đầu cuộc trò chuyện với nhà tuyển dụng để trao đổi thông tin việc làm, lịch phỏng vấn và các nội dung liên quan.'}
+      </p>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-8 bottom-6 h-16 rounded-full bg-gradient-to-r from-brand-100/80 via-white to-accent-100/90 blur-2xl"
+      />
+    </div>
+  );
+}
+
+function EmptyProfile({ recruiter }: { recruiter: boolean }) {
+  const items = recruiter
+    ? ['Xem thông tin ứng viên', 'Trao đổi trực tiếp', 'Gửi thông tin tuyển dụng', 'Thống nhất lịch phỏng vấn']
+    : ['Xem thông tin nhà tuyển dụng', 'Trao đổi trực tiếp', 'Nhận thông tin việc làm', 'Thống nhất lịch phỏng vấn'];
+  return (
+    <div className="flex h-full flex-col items-center px-4 py-8 text-center">
+      <div className="relative">
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+          <IdCard className="h-8 w-8" />
+        </span>
+        <span className="absolute -bottom-1 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent-500 text-white shadow-sm">
+          <Search className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-4 text-sm font-semibold leading-snug text-brand-800">
+        Hồ sơ hiện khi bạn mở một hội thoại.
+      </p>
+      <ul className="mt-5 w-full space-y-2.5 text-left">
+        {items.map((item) => (
+          <li key={item} className="flex items-start gap-2 text-[13px] leading-5 text-slate-600">
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent-500" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

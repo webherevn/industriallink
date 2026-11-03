@@ -28,6 +28,7 @@ import {
   resolveJobLevel,
   type GenerateJobDraftResponse,
   type JobListItem,
+  type JobRecruitmentResult,
   type JobPositionCount,
   type JobPositionStatsView,
   type JobSalesCriteria,
@@ -796,7 +797,12 @@ export class JobService {
     });
     await backfillMissingJobSlugs(this.prisma, jobs);
     await backfillMissingCompanySlugs(this.prisma, jobs.map((j) => j.company));
-    return jobs.map((j) => this.toListItem(j, company.companyName));
+    const recruitment = await this.recruitmentByJob(jobs.map((job) => job.id));
+    return jobs.map((j) =>
+      this.toListItem(j, company.companyName, {
+        recruitment: recruitment.get(j.id) ?? emptyRecruitment(),
+      }),
+    );
   }
 
   async listBookmarkedJobs(user: AuthenticatedUser): Promise<JobListItem[]> {
@@ -1128,7 +1134,7 @@ export class JobService {
       publishedAt?: Date | null;
     },
     companyName: string,
-    extras?: { isBookmarked?: boolean; planCode?: string | null },
+    extras?: { isBookmarked?: boolean; planCode?: string | null; recruitment?: JobRecruitmentResult },
   ): JobListItem {
     const publishedAt = job.publishedAt ?? null;
     const isNew = publishedAt
@@ -1161,7 +1167,29 @@ export class JobService {
       isNew,
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
       ...(extras?.planCode != null ? { planCode: extras.planCode } : {}),
+      ...(extras?.recruitment ? { recruitment: extras.recruitment } : {}),
     };
+  }
+
+  private async recruitmentByJob(jobIds: string[]): Promise<Map<string, JobRecruitmentResult>> {
+    const map = new Map<string, JobRecruitmentResult>();
+    if (jobIds.length === 0) return map;
+    const rows = await this.prisma.application.groupBy({
+      by: ['jobId', 'status'],
+      where: { isDeleted: false, jobId: { in: jobIds } },
+      _count: { _all: true },
+    });
+    for (const row of rows) {
+      const current = map.get(row.jobId) ?? emptyRecruitment();
+      const count = row._count._all;
+      current.applications += count;
+      if (row.status === 'screening') current.screening += count;
+      if (row.status === 'interview') current.interviews += count;
+      if (row.status === 'offer') current.offers += count;
+      if (row.status === 'hired') current.hires += count;
+      map.set(row.jobId, current);
+    }
+    return map;
   }
 
   /** Gói còn hạn. Hết hạn hoặc chưa gán thì tính là Khám phá. */
@@ -1265,6 +1293,10 @@ function popularKeywords(rows: Array<{ title: string }>, limit: number): string[
     .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title, 'vi'))
     .slice(0, limit)
     .map((item) => item.title);
+}
+
+function emptyRecruitment(): JobRecruitmentResult {
+  return { applications: 0, screening: 0, interviews: 0, offers: 0, hires: 0 };
 }
 
 function aggregateJobTitles(

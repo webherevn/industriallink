@@ -2,8 +2,20 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Check, Copy, Link2 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import {
+  CalendarDays,
+  Check,
+  ClipboardList,
+  Coins,
+  Copy,
+  FileText,
+  Laptop,
+  Layers,
+  Link2,
+  Megaphone,
+  Percent,
+} from 'lucide-react';
+import { FormEvent, useMemo, useState, type ReactNode } from 'react';
 import type { CrmCommissionEntryView, CrmReferralSignupView, CrmWalletTxnView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Card, Input } from '@/components/ui';
@@ -48,18 +60,15 @@ export function RecruiterPartnerPanel() {
   return (
     <RecruiterShell>
       <div className="ntd-form recruiter-dash space-y-5">
-        <div className="animate-soft-rise overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm">
-          <div className="h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-accent-500" />
-          <div className="flex items-start gap-3 p-5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-              <Link2 className="h-5 w-5" />
-            </span>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">Cộng tác viên</h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Một tài khoản một mã. Hoa hồng ghi khi nhà tuyển dụng đăng ký qua link và thanh toán gói trong 14 ngày.
-              </p>
-            </div>
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-sm ring-1 ring-slate-200">
+            <Link2 className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-brand-800">Cộng tác viên</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Một tài khoản một mã. Hoa hồng ghi khi nhà tuyển dụng đăng ký qua link và thanh toán gói trong 14 ngày.
+            </p>
           </div>
         </div>
 
@@ -67,14 +76,12 @@ export function RecruiterPartnerPanel() {
         {mine.isError ? <Card className="p-5 text-sm text-rose-600">Không tải được mã giới thiệu.</Card> : null}
 
         {mine.data && !partner ? (
-          <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
-            <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
-              <h2 className="text-sm font-bold text-brand-700">Đăng ký làm cộng tác viên</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã. Không tạo mã thứ hai cho tài khoản này.
-              </p>
-            </div>
-            <form onSubmit={onSubmit} className="flex flex-col gap-3 p-5 sm:max-w-xl sm:flex-row sm:items-center">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+            <h2 className="text-sm font-bold text-brand-800">Đăng ký làm cộng tác viên</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã. Không tạo mã thứ hai cho tài khoản này.
+            </p>
+            <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:max-w-xl sm:flex-row sm:items-center">
               <Input
                 placeholder="Số điện thoại"
                 value={phone}
@@ -85,74 +92,120 @@ export function RecruiterPartnerPanel() {
                 {register.isPending ? 'Đang tạo mã…' : 'Đăng ký'}
               </Button>
             </form>
-            {error ? <p className="px-5 pb-5 text-sm text-rose-600">{error}</p> : null}
-          </Card>
+            {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+          </section>
         ) : null}
 
         {partner && mine.data ? (
           <>
-            <Card className="overflow-hidden border-brand-100 p-0 shadow-md animate-soft-rise">
-              <div className="flex flex-wrap items-end justify-between gap-6 bg-gradient-to-br from-brand-800 via-brand-600 to-[#1a4a7a] p-6 text-white">
+            <section className="brand-hero-surface relative rounded-2xl p-5 sm:p-6">
+              <div className="relative grid items-center gap-5 lg:grid-cols-[minmax(0,16rem)_1px_minmax(0,1fr)]">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">Số dư ví hoa hồng</p>
-                  <p className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{formatVnd(partner.walletBalanceVnd)}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Số dư ví hoa hồng</p>
+                  <p className="mt-2 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                    {formatVnd(partner.walletBalanceVnd)}
+                  </p>
                   <p className="mt-2 text-sm text-white/75">
-                    Mã {partner.code} · {partner.name}
+                    Mã {partner.code} - {partner.name}
                   </p>
                 </div>
-                <p className="max-w-xs text-sm leading-relaxed text-white/70">
-                  Số dư trên inlink, tự cộng khi khách thanh toán gói. Kỳ đã chốt vẫn nằm trong ví. Kế toán ghi đã chi vào ngày {mine.data.payoutDay ?? 10} hàng tháng.
-                </p>
+                <div className="hidden h-16 bg-white/20 lg:block" />
+                <div className="flex items-center justify-between gap-4">
+                  <p className="max-w-sm text-sm leading-relaxed text-white/75">
+                    Số dư trên inlink, tự cộng khi khách thanh toán gói. Kỳ đã chốt vẫn nằm trong ví. Kế toán ghi đã chi vào ngày {mine.data.payoutDay ?? 10} hàng tháng.
+                  </p>
+                  <WalletMark />
+                </div>
               </div>
-            </Card>
+            </section>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Stat label="Số khoản" value={String(entries.length)} hint="Mỗi đơn đã thanh toán một dòng" />
-              <Stat label="Tháng này" value={formatVnd(monthTotal)} hint={`${monthEntries.length} khoản đã cộng vào ví`} />
               <Stat
+                icon={<Layers className="h-5 w-5" />}
+                tone="bg-brand-50 text-brand-700"
+                label="Số khoản"
+                value={String(entries.length)}
+                hint="Mỗi đơn đã thanh toán một dòng"
+              />
+              <Stat
+                icon={<CalendarDays className="h-5 w-5" />}
+                tone="bg-accent-50 text-accent-700"
+                label="Tháng này"
+                value={formatVnd(monthTotal)}
+                hint={`${monthEntries.length} khoản đã cộng vào ví`}
+                valueClass="text-[#E8872A]"
+              />
+              <Stat
+                icon={<Percent className="h-5 w-5" />}
+                tone="bg-emerald-50 text-emerald-700"
                 label="Tỷ lệ đang áp dụng"
                 value={mine.data.commissionPercent == null ? 'Chưa đặt' : `${mine.data.commissionPercent}%`}
                 hint="Tỷ lệ trên từng dòng là tỷ lệ lúc khách trả"
+                valueClass="text-emerald-600"
               />
-              <Stat label="Mã số thuế đã khóa" value={`${partner.claims.length}/30`} hint="Mỗi mã số thuế một cộng tác viên" />
+              <Stat
+                icon={<FileText className="h-5 w-5" />}
+                tone="bg-[#e7eef8] text-brand-700"
+                label="Mã số thuế đã khóa"
+                value={`${partner.claims.length}/30`}
+                hint="Mỗi mã số thuế một cộng tác viên"
+              />
             </div>
 
             <WalletStatement rows={mine.data.walletTxns ?? []} />
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
-                <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
-                  <h2 className="text-sm font-bold text-brand-700">Link giới thiệu</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {partner.phone}. Gửi link này. Cookie giữ 14 ngày, lần bấm sau thay mã và tính lại 14 ngày.
-                  </p>
+              <section className="rounded-2xl border border-accent-100 bg-white p-5 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                    <Link2 className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-bold text-brand-800">Link giới thiệu</h2>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                      {partner.phone}. Gửi link này. Cookie giữ 14 ngày, lần bấm sau thay mã và tính lại 14 ngày.
+                    </p>
+                  </div>
                 </div>
-                <div className="p-5">
-                <label className="block text-xs font-medium text-slate-500" htmlFor="referral-link">
+                <label className="mt-4 block text-xs font-medium text-slate-500" htmlFor="referral-link">
                   Bảng giá
                 </label>
                 <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    id="referral-link"
-                    readOnly
-                    value={partner.referralUrl}
-                  />
-                  <Button type="button" variant="outline" onClick={() => void copyLink(partner.referralUrl)}>
+                  <Input id="referral-link" readOnly value={partner.referralUrl} />
+                  <Button type="button" variant="outline" className="shrink-0 whitespace-nowrap" onClick={() => void copyLink(partner.referralUrl)}>
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     {copied ? 'Đã chép' : 'Chép link'}
                   </Button>
                 </div>
+              </section>
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700">
+                        i
+                      </span>
+                      <h2 className="text-sm font-bold text-brand-800">Khi nào có hoa hồng</h2>
+                    </div>
+                    <ol className="mt-4 space-y-3">
+                      {[
+                        'Khách mở link, rồi đăng ký tài khoản nhà tuyển dụng.',
+                        'Trong 14 ngày kể từ lần bấm, khách thanh toán gói tin hoặc gói Săn có giá.',
+                        'Gói Khám phá 0 đồng và nạp Credit không tạo khoản.',
+                        'Dòng hiện ở lịch sử bên dưới, trạng thái chờ đối soát.',
+                      ].map((step, index) => (
+                        <li key={step} className="flex items-start gap-3 text-sm text-slate-600">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-500 text-xs font-bold text-white">
+                            {index + 1}
+                          </span>
+                          <span className="pt-0.5">{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                  <CalendarDays aria-hidden className="mt-8 hidden h-16 w-16 shrink-0 text-accent-200 lg:block" strokeWidth={1.1} />
                 </div>
-              </Card>
-              <Card className="border-brand-100 p-5 animate-soft-rise">
-                <h2 className="text-sm font-bold text-brand-700">Khi nào có hoa hồng</h2>
-                <ol className="mt-3 space-y-2 text-sm text-slate-600">
-                  <li>1. Khách mở link, rồi đăng ký tài khoản nhà tuyển dụng.</li>
-                  <li>2. Trong 14 ngày kể từ lần bấm, khách thanh toán gói tin hoặc gói Săn có giá.</li>
-                  <li>3. Gói Khám phá 0 đồng và nạp Credit không tạo khoản.</li>
-                  <li>4. Dòng hiện ở lịch sử bên dưới, trạng thái chờ đối soát.</li>
-                </ol>
-              </Card>
+              </section>
             </div>
 
             <Signups rows={partner.signups} />
@@ -165,21 +218,55 @@ export function RecruiterPartnerPanel() {
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Stat({
+  icon,
+  tone,
+  label,
+  value,
+  hint,
+  valueClass = 'text-brand-800',
+}: {
+  icon: ReactNode;
+  tone: string;
+  label: string;
+  value: string;
+  hint: string;
+  valueClass?: string;
+}) {
   return (
-    <Card className="border-brand-100 p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-2 text-xl font-bold text-slate-900">{value}</p>
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200">
+      <span className={clsx('flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>
+        {icon}
+      </span>
+      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
+      <p className={clsx('mt-1 text-3xl font-bold tabular-nums tracking-tight', valueClass)}>{value}</p>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">{hint}</p>
-    </Card>
+      <span aria-hidden className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80" />
+    </div>
+  );
+}
+
+function WalletMark() {
+  return (
+    <div aria-hidden className="relative hidden h-28 w-40 shrink-0 sm:block">
+      <Laptop className="absolute bottom-1 left-1 h-16 w-16 text-white/80" strokeWidth={1.15} />
+      <span className="absolute left-7 top-2 flex h-11 w-14 items-center justify-center rounded-xl bg-white text-sm font-black tracking-tight text-brand-800 shadow-lg">
+        iL
+      </span>
+      <Megaphone className="absolute right-1 top-0 h-9 w-9 -rotate-12 text-white" strokeWidth={1.4} />
+      <Coins className="absolute bottom-5 right-7 h-7 w-7 text-accent-300" />
+      <span className="absolute bottom-1 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-accent-500 text-white shadow">
+        <Percent className="h-4 w-4" />
+      </span>
+    </div>
   );
 }
 
 function Signups({ rows }: { rows: CrmReferralSignupView[] }) {
   return (
-    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
-      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
-        <h2 className="text-sm font-bold text-brand-700">Đã đăng ký, chưa thanh toán</h2>
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-bold text-brand-800">Đã đăng ký, chưa thanh toán</h2>
         <p className="mt-1 text-sm text-slate-500">
           {rows.length} nhà tuyển dụng mở link và tạo tài khoản. Hoa hồng chỉ ghi sau khi họ thanh toán gói có giá.
         </p>
@@ -196,7 +283,7 @@ function Signups({ rows }: { rows: CrmReferralSignupView[] }) {
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -217,10 +304,10 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
   }, [entries, filter, query]);
 
   return (
-    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
-      <div className="flex flex-col gap-3 border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Lịch sử hoa hồng</h2>
+          <h2 className="text-base font-semibold text-brand-800">Lịch sử hoa hồng</h2>
           <p className="mt-1 text-sm text-slate-500">{rows.length} dòng đang hiện. Chỉ đơn đã thanh toán.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -306,19 +393,29 @@ function History({ entries }: { entries: CrmCommissionEntryView[] }) {
           </table>
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
 function WalletStatement({ rows }: { rows: CrmWalletTxnView[] }) {
   return (
-    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
-      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
-        <h2 className="text-base font-semibold text-slate-900">Sao kê ví</h2>
-        <p className="mt-1 text-sm text-slate-500">Cộng khi khách thanh toán gói. Trừ khi kế toán ghi đã chi. Không phải ví MoMo.</p>
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <ClipboardList className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 className="text-base font-semibold text-brand-800">Sao kê ví</h2>
+          <p className="mt-1 text-sm text-slate-500">Cộng khi khách thanh toán gói. Trừ khi kế toán ghi đã chi. Không phải ví MoMo.</p>
+        </div>
       </div>
       {rows.length === 0 ? (
-        <p className="px-4 py-8 text-sm text-slate-500">Chưa có dòng nào trong ví.</p>
+        <div className="flex flex-col items-center px-4 py-10 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-400">
+            <FileText className="h-8 w-8" strokeWidth={1.4} />
+          </span>
+          <p className="mt-3 text-sm text-slate-500">Chưa có dòng nào trong ví.</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
@@ -346,7 +443,7 @@ function WalletStatement({ rows }: { rows: CrmWalletTxnView[] }) {
           </table>
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -378,9 +475,9 @@ function TaxLock({
   }
 
   return (
-    <Card className="overflow-hidden border-brand-100 p-0 animate-soft-rise">
-      <div className="border-b border-brand-50 bg-gradient-to-r from-brand-50 via-white to-accent-50/60 px-5 py-3">
-        <h2 className="text-sm font-bold text-brand-700">Mã số thuế đã khóa</h2>
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-bold text-brand-800">Mã số thuế đã khóa</h2>
         <p className="mt-0.5 text-xs text-slate-500">
           Khóa mã số thuế của công ty bạn giới thiệu, 10 hoặc 13 số. Mã đó không về cộng tác viên khác. Tối đa 30 mã.
         </p>
@@ -408,7 +505,7 @@ function TaxLock({
       </form>
       {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
       </div>
-    </Card>
+    </section>
   );
 }
 

@@ -51,6 +51,7 @@ import {
   type JobListItem,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CopilotRobot } from '@/components/copilot-robot';
 import { ProfileOpenLink } from '@/components/starter-profile-lock';
 import { ApiError } from '@/lib/api';
 import { listMyJobs } from '@/lib/jobs';
@@ -874,24 +875,32 @@ export function SearchPageClient() {
   return (
     <AppShell>
       <div className="animate-soft-rise space-y-4 pb-24 lg:pb-10">
-        <header>
-          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-            <span className="brand-accent-dot" />
-            Tìm ứng viên AI
-            {matching && (
-              <span className="inline-flex items-center gap-1 normal-case tracking-normal text-amber-700">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                đang chấm matching
-              </span>
-            )}
-          </p>
-          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-[1.35rem]">
-            Tìm kiếm ứng viên thông minh theo nhu cầu doanh nghiệp
-          </h1>
-          <div className="brand-accent-bar mt-2" />
-          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-slate-500">
-            Chọn tin, bấm Tìm ngay — xếp ứng viên theo engine Kinh doanh hoặc Kỹ thuật của đúng tin đó.
-          </p>
+        <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-5 py-5 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_16px_36px_-20px_rgba(7,35,72,0.28)] sm:px-6">
+          <div className="pointer-events-none absolute -right-2 bottom-0 top-0 hidden w-44 items-end justify-center lg:flex">
+            <CopilotRobot className="w-36" />
+          </div>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-8 top-0 h-40 w-56 rounded-full bg-accent-100/70 blur-3xl"
+          />
+          <div className="relative max-w-2xl">
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
+              <span className="h-4 w-1 rounded-full bg-accent-500" />
+              Tìm ứng viên AI
+              {matching && (
+                <span className="inline-flex items-center gap-1 normal-case tracking-normal text-amber-700">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  đang chấm matching
+                </span>
+              )}
+            </p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800 sm:text-[1.7rem] sm:leading-snug">
+              Tìm kiếm ứng viên thông minh theo nhu cầu doanh nghiệp
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
+              Chọn tin, bấm Tìm ngay — xếp ứng viên theo engine Kinh doanh hoặc Kỹ thuật của đúng tin đó.
+            </p>
+          </div>
         </header>
 
         <section aria-labelledby="jd-heading">
@@ -922,17 +931,16 @@ export function SearchPageClient() {
           )}
 
           {(jobsQuery.isLoading || jdList.length > 0) && !jobsForbidden && (
-            <div className="relative overflow-hidden rounded-2xl border border-[#FFD0A3]/80 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-              <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-amber-400/80 via-[#E8872A] to-amber-300/70" />
-              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100/80 px-4 pb-3 pt-4 sm:px-5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF8F1] text-[#E8872A]">
-                  <Target className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04),0_16px_36px_-20px_rgba(7,35,72,0.28)]">
+              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                  <Target className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 id="jd-heading" className="text-[15px] font-semibold tracking-tight text-slate-900">
+                  <h2 id="jd-heading" className="text-sm font-semibold tracking-tight text-brand-800 sm:text-[15px]">
                     Chọn tin để tìm kiếm ứng viên phù hợp nhất
                   </h2>
-                  <p className="mt-0.5 text-[12px] text-slate-400">
+                  <p className="mt-0.5 text-xs text-slate-500">
                     {jobsQuery.isLoading
                       ? 'Đang tải tin…'
                       : `${jdList.length} tin đã đăng · engine theo khối của tin`}
@@ -945,7 +953,7 @@ export function SearchPageClient() {
                       value={jobQuery}
                       onChange={(e) => setJobQuery(e.target.value)}
                       placeholder="Lọc tên tin, mã…"
-                      className="w-full rounded-lg border border-slate-200/80 bg-[#F8FAFC] py-1.5 pl-8 pr-2.5 text-[13px] outline-none focus:border-[#E8872A]/40 focus:bg-white focus:ring-2 focus:ring-[#E8872A]/10"
+                      className="w-full rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-[13px] outline-none transition focus:border-accent-300 focus:bg-white focus:ring-2 focus:ring-accent-100"
                     />
                   </div>
                 )}
@@ -953,7 +961,7 @@ export function SearchPageClient() {
                   type="button"
                   disabled={!selectedJobId || matching}
                   onClick={() => runMatch(selectedJobId)}
-                  className="hidden shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-[#0b3164] active:scale-[0.98] disabled:opacity-40 sm:inline-flex"
+                  className="hidden shrink-0 items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-brand-700 active:scale-95 disabled:opacity-40 sm:inline-flex"
                 >
                   {matching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                   {matching ? 'Đang khớp…' : 'Tìm ngay'}
@@ -985,27 +993,27 @@ export function SearchPageClient() {
                         aria-checked={selected}
                         onClick={() => selectJob(job.id)}
                         className={clsx(
-                          'flex w-full items-center gap-3 px-4 py-2.5 text-left transition sm:px-5',
-                          selected ? 'bg-[#FFF8F1]' : 'hover:bg-slate-50/80',
+                          'group flex w-full items-center gap-3 px-4 py-3 text-left transition duration-200 sm:px-5',
+                          selected ? 'bg-accent-50' : 'hover:bg-slate-50',
                         )}
                       >
                         <span
                           className={clsx(
-                            'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition',
+                            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition duration-200',
                             selected
-                              ? 'border-[#E8872A] bg-[#E8872A]'
-                              : 'border-slate-300 bg-white',
+                              ? 'bg-accent-500 text-white'
+                              : 'bg-slate-100 text-slate-500 group-hover:bg-accent-50 group-hover:text-accent-600',
                           )}
                           aria-hidden
                         >
-                          {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                          <Briefcase className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-2">
+                          <span className="flex min-w-0 items-baseline gap-2">
                             <span
                               className={clsx(
-                                'truncate text-[13px] tracking-tight',
-                                selected ? 'font-semibold text-slate-900' : 'font-medium text-slate-700',
+                                'truncate text-sm tracking-tight',
+                                selected ? 'font-semibold text-brand-800' : 'font-medium text-slate-700',
                               )}
                             >
                               {job.title}
@@ -1016,19 +1024,21 @@ export function SearchPageClient() {
                           </span>
                         </span>
                         {track && (
-                          <span className="hidden shrink-0 text-[11px] font-medium text-slate-500 sm:inline">
+                          <span className="hidden shrink-0 items-center gap-1.5 text-xs text-slate-500 md:inline-flex">
+                            <Briefcase className="h-3.5 w-3.5 text-slate-400" />
                             {formatJobTrack(track)}
                           </span>
                         )}
-                        <span className="hidden min-w-0 max-w-[7.5rem] truncate text-[12px] text-slate-400 md:inline">
-                          {job.location ?? '—'}
+                        <span className="hidden min-w-0 max-w-[9rem] items-center gap-1.5 truncate text-xs text-slate-500 lg:inline-flex">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{job.location ?? '—'}</span>
                         </span>
                         <span
                           className={clsx(
-                            'shrink-0 text-[11px] font-medium',
+                            'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold',
                             job.status === JobStatus.Published
-                              ? 'text-emerald-600'
-                              : 'text-amber-600',
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-amber-50 text-amber-700',
                           )}
                         >
                           {job.status === JobStatus.Published ? 'Đang tuyển' : 'Tạm dừng'}
@@ -1095,16 +1105,16 @@ export function SearchPageClient() {
           <button
             type="button"
             onClick={() => setFiltersOpen((v) => !v)}
-            className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 text-left transition hover:bg-slate-50 sm:px-3.5"
+            className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.35)] sm:px-5"
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 ring-1 ring-slate-200/80">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+              <SlidersHorizontal className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 id="optional-filter-heading" className="text-[13px] font-medium text-slate-600">
+              <h2 id="optional-filter-heading" className="text-sm font-semibold text-brand-800">
                 Bộ lọc tuỳ chọn
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-xs text-slate-500">
                 Tìm toàn mạng lưới — chỉ hiện kết quả khi chọn điều kiện
               </p>
             </div>
@@ -1494,7 +1504,7 @@ export function SearchPageClient() {
             type="button"
             disabled={!selectedJobId || matching}
             onClick={() => runMatch(selectedJobId)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-3.5 py-2 text-[13px] font-medium text-white disabled:opacity-40"
+            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-brand-700 active:scale-95 disabled:opacity-40"
           >
             {matching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Tìm ngay

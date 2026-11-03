@@ -1,12 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, Link2, MapPin, User } from 'lucide-react';
+import clsx from 'clsx';
+import { Briefcase, CalendarDays, Check, Layers, Link2, MapPin, User, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { InterviewStatus, InterviewType, type InterviewView } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { Badge, Button, Card, Select } from '@/components/ui';
+import { Badge, Button, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { INTERVIEW_STATUS_LABEL, INTERVIEW_TYPE_LABEL } from '@/lib/format';
 import { getInterviewStats, listInterviews, updateInterview } from '@/lib/interviews';
@@ -124,25 +125,30 @@ export default function RecruiterCalendarPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-            <span className="brand-accent-dot" />
+          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
+            <span className="h-4 w-1 rounded-full bg-accent-500" />
             Tuyển dụng
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Lịch phỏng vấn</h1>
-          <div className="brand-accent-bar mt-2" />
-          <p className="mt-2 text-sm text-slate-500">
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800">Lịch phỏng vấn</h1>
+          <p className="mt-1 text-sm text-slate-500">
             Đặt lịch HR / chuyên môn, theo dõi và cập nhật trạng thái.
           </p>
         </div>
-        <Link href="/recruiter/inbox">
-          <Button variant="outline">Chọn ứng viên từ hộp thư</Button>
+        <Link
+          href="/recruiter/inbox"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-sm transition duration-200 hover:border-brand-200 hover:bg-brand-50"
+        >
+          <Users className="h-4 w-4" />
+          Chọn ứng viên từ hộp thư
         </Link>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <StatCard
+          icon={<CalendarDays className="h-5 w-5" />}
+          tone="bg-brand-50 text-brand-700"
           label="PV hôm nay"
           value={stats?.todayCount ?? 0}
           hint={
@@ -154,6 +160,8 @@ export default function RecruiterCalendarPage() {
           onClick={() => pickFocus('all')}
         />
         <StatCard
+          icon={<User className="h-5 w-5" />}
+          tone="bg-accent-50 text-accent-700"
           label="PV HR hôm nay"
           value={stats?.byType.hr ?? 0}
           hint="Loại HR"
@@ -161,6 +169,8 @@ export default function RecruiterCalendarPage() {
           onClick={() => pickFocus('hr')}
         />
         <StatCard
+          icon={<Layers className="h-5 w-5" />}
+          tone="bg-emerald-50 text-emerald-700"
           label="PV chuyên môn hôm nay"
           value={stats?.byType.technical ?? 0}
           hint="Loại Chuyên môn"
@@ -172,41 +182,51 @@ export default function RecruiterCalendarPage() {
         Bấm một ô để xem đúng các buổi đã lên lịch trong số đó.
       </p>
 
-      <div className="brand-panel mt-5 grid gap-3 p-3 sm:grid-cols-2 lg:max-w-3xl lg:grid-cols-[220px_minmax(0,1fr)]">
-        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
-          Khoảng thời gian
-          <Select
-            value={String(range)}
-            onChange={(e) => {
-              setRange(Number(e.target.value));
-              setFocus(null);
-            }}
-            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
-            size="sm"
-          >
-            <option value="7">7 ngày tới</option>
-            <option value="14">14 ngày tới</option>
-            <option value="30">30 ngày tới</option>
-          </Select>
+      <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)] sm:grid-cols-2 lg:max-w-3xl">
+        <label className="flex min-w-0 items-center gap-3 text-[12px] font-semibold text-slate-500">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+            <CalendarDays className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            Khoảng thời gian
+            <Select
+              value={String(range)}
+              onChange={(e) => {
+                setRange(Number(e.target.value));
+                setFocus(null);
+              }}
+              className="mt-1.5 border-slate-200 bg-white"
+              size="sm"
+            >
+              <option value="7">7 ngày tới</option>
+              <option value="14">14 ngày tới</option>
+              <option value="30">30 ngày tới</option>
+            </Select>
+          </span>
         </label>
-        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
-          Tin tuyển dụng
-          <Select
-            value={jobId}
-            onChange={(e) => {
-              setJobId(e.target.value);
-              setFocus(null);
-            }}
-            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
-            size="sm"
-          >
-            <option value="all">Tất cả tin tuyển dụng</option>
-            {(jobs ?? []).map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.title}
-              </option>
-            ))}
-          </Select>
+        <label className="flex min-w-0 items-center gap-3 border-slate-100 text-[12px] font-semibold text-slate-500 sm:border-l sm:pl-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
+            <Briefcase className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            Tin tuyển dụng
+            <Select
+              value={jobId}
+              onChange={(e) => {
+                setJobId(e.target.value);
+                setFocus(null);
+              }}
+              className="mt-1.5 border-slate-200 bg-white"
+              size="sm"
+            >
+              <option value="all">Tất cả tin tuyển dụng</option>
+              {(jobs ?? []).map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                </option>
+              ))}
+            </Select>
+          </span>
         </label>
       </div>
 
@@ -234,22 +254,33 @@ export default function RecruiterCalendarPage() {
       )}
 
       {!listLoading && grouped.length === 0 && (
-        <Card className="mt-6 text-center">
-          <CalendarDays className="mx-auto h-10 w-10 text-slate-300" />
-          {focus ? (
-            <p className="mt-3 text-slate-600">Không có buổi đã lên lịch trong mục này hôm nay.</p>
-          ) : (
-            <>
-              <p className="mt-3 text-slate-600">Chưa có lịch phỏng vấn trong khoảng này.</p>
-              <p className="mt-1 text-sm text-slate-400">
-                Mở Kanban tin tuyển dụng → chọn ứng viên → Đặt lịch PV.
-              </p>
-              <Link href="/jobs/manage" className="mt-4 inline-block">
-                <Button>Quản lý tin tuyển dụng</Button>
-              </Link>
-            </>
-          )}
-        </Card>
+        <div className="mt-5 flex flex-col items-center gap-6 rounded-2xl border border-slate-200/80 bg-white px-6 py-10 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_16px_36px_-20px_rgba(7,35,72,0.22)] sm:flex-row sm:px-10">
+          <span className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl bg-brand-50 text-brand-700">
+            <CalendarDays className="h-12 w-12" />
+            <span className="absolute -right-1 -top-1 flex h-8 w-8 items-center justify-center rounded-full bg-accent-500 text-white shadow-sm">
+              <Check className="h-4 w-4" />
+            </span>
+          </span>
+          <div className="text-center sm:text-left">
+            {focus ? (
+              <p className="text-lg font-bold text-brand-800">Không có buổi đã lên lịch trong mục này hôm nay.</p>
+            ) : (
+              <>
+                <p className="text-lg font-bold text-brand-800">Chưa có lịch phỏng vấn trong khoảng này.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Mở Kanban tin tuyển dụng → chọn ứng viên → Đặt lịch PV.
+                </p>
+                <Link
+                  href="/jobs/manage"
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-accent-600"
+                >
+                  <Briefcase className="h-4 w-4" />
+                  Quản lý tin tuyển dụng
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       <div className="mt-6 space-y-6">
@@ -277,12 +308,16 @@ export default function RecruiterCalendarPage() {
 }
 
 function StatCard({
+  icon,
+  tone,
   label,
   value,
   hint,
   active,
   onClick,
 }: {
+  icon: ReactNode;
+  tone: string;
   label: string;
   value: number;
   hint: string;
@@ -294,13 +329,18 @@ function StatCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`brand-panel w-full p-4 text-left transition hover:border-accent-300 ${
-        active ? 'ring-2 ring-brand-600' : ''
-      }`}
+      className={clsx(
+        'group relative w-full overflow-hidden rounded-2xl border bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5',
+        active ? 'border-brand-600 ring-2 ring-brand-600' : 'border-slate-200/80 hover:border-brand-200',
+      )}
     >
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-extrabold text-slate-900">{value}</p>
-      <p className="mt-1 text-[11px] font-medium text-accent-600">{hint}</p>
+      <span className={clsx('flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>
+        {icon}
+      </span>
+      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
+      <p className="mt-1 text-xs font-medium text-accent-600">{hint}</p>
+      <span aria-hidden className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80" />
     </button>
   );
 }
@@ -318,7 +358,7 @@ function InterviewCard({
 }) {
   const scheduled = interview.status === InterviewStatus.Scheduled;
   return (
-    <li className="brand-panel brand-card-accent list-none p-4 transition hover:border-accent-300">
+    <li className="list-none rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.3)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

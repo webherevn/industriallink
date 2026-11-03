@@ -97,7 +97,7 @@ export default function RecruiterBillingCreditsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
             Số dư Credit
           </p>
-          <p className="mt-2 text-5xl font-bold tracking-tight">
+          <p className="mt-2 text-5xl font-bold tracking-tight text-[#E8872A]">
             {balanceLoading ? '—' : fmtCredit(balance?.balance ?? 0)}
           </p>
           <p className="mt-1 text-sm text-white/70">credit</p>
@@ -105,7 +105,7 @@ export default function RecruiterBillingCreditsPage() {
             <div className="mt-4 flex flex-wrap gap-6 border-t border-white/20 pt-4">
               <div>
                 <p className="text-[11px] text-white/50">Đã cấp</p>
-                <p className="text-sm font-semibold">{fmtCredit(balance?.lifetimeGranted ?? 0)}</p>
+                <p className="text-sm font-semibold text-[#E8872A]">{fmtCredit(balance?.lifetimeGranted ?? 0)}</p>
               </div>
               <div>
                 <p className="text-[11px] text-white/50">Đã tiêu</p>
@@ -139,7 +139,7 @@ export default function RecruiterBillingCreditsPage() {
                 <p className="text-[11px] font-semibold text-slate-500">
                   {ACTION_LABEL[item.action] ?? item.action}
                 </p>
-                <p className="mt-1 text-lg font-bold text-slate-800">{fmtCredit(item.total)}</p>
+                <p className="mt-1 text-lg font-bold text-[#E8872A]">{fmtCredit(item.total)}</p>
               </Card>
             ))}
           </div>
@@ -228,7 +228,7 @@ export default function RecruiterBillingCreditsPage() {
                               {isPositive ? '+' : ''}{fmtCredit(tx.creditDelta)}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-xs text-slate-600">{fmtCredit(tx.balanceAfter)}</td>
+                          <td className="px-4 py-2 text-xs font-semibold text-[#E8872A]">{fmtCredit(tx.balanceAfter)}</td>
                           <td className="px-4 py-2">
                             <span
                               className={clsx(

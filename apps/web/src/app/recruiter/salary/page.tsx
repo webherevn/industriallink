@@ -219,9 +219,9 @@ export default function MarketSalaryPage() {
               {location ? <span className="text-xs text-accent-100">{location}</span> : null}
             </div>
             <p className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
-              {trieu(focus.salaryMin)}
+              <span className="text-[#E8872A]">{trieu(focus.salaryMin)}</span>
               <span className="mx-1 text-white/50">–</span>
-              {trieu(focus.salaryMax)}
+              <span className="text-[#E8872A]">{trieu(focus.salaryMax)}</span>
               <span className="ml-2 text-lg font-semibold text-white/70">triệu/tháng</span>
             </p>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -271,7 +271,7 @@ export default function MarketSalaryPage() {
                       <RangeBar row={row} scale={scale} active={active} tone={paint.bar} />
                     </span>
                   </span>
-                  <span className="text-sm font-semibold tabular-nums text-slate-800 sm:text-right">
+                  <span className="text-sm font-semibold tabular-nums text-[#E8872A] sm:text-right">
                     {trieu(row.salaryMin)}–{trieu(row.salaryMax)}
                     <span className="block text-[11px] font-medium text-slate-400">triệu/tháng</span>
                   </span>
@@ -300,7 +300,7 @@ export default function MarketSalaryPage() {
               </ul>
               <p className="mt-4 text-xs leading-relaxed text-slate-500">{focus.notes}</p>
               <p className="mt-3 text-[11px] font-semibold text-slate-400">
-                Độ tin cậy tham chiếu {Math.round(focus.confidence * 100)}%
+                Độ tin cậy tham chiếu <span className="text-[#E8872A]">{Math.round(focus.confidence * 100)}%</span>
               </p>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div
@@ -367,7 +367,7 @@ function Stat({ label, value, hint, tone }: { label: string; value: string; hint
   return (
     <div className={clsx('rounded-xl px-3 py-2.5 backdrop-blur-sm', tone)}>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">{label}</p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums">{value}</p>
+      <p className="mt-0.5 text-lg font-bold tabular-nums text-[#E8872A]">{value}</p>
       <p className="text-[11px] text-white/70">{hint}</p>
     </div>
   );

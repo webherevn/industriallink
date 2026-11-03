@@ -6,12 +6,15 @@ import clsx from 'clsx';
 import {
   ArrowDownRight,
   ArrowUpRight,
+  BarChart3,
   Briefcase,
   Building2,
   CalendarDays,
   Clock,
   FileText,
+  Filter,
   Minus,
+  Search,
   Target,
   UserCheck,
   Users,
@@ -68,14 +71,14 @@ export default function RecruiterReportPage() {
               Hồ sơ nhận trong kỳ, phễu trạng thái hiện tại và hiệu suất từng tin.
             </p>
           </div>
-          <div className="flex rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
+          <div className="flex rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200">
             {PERIODS.map((period) => (
               <button
                 key={period.days}
                 type="button"
                 onClick={() => setDays(period.days)}
                 className={clsx(
-                  'rounded-lg px-3 py-1.5 text-sm font-semibold transition',
+                  'rounded-full px-3.5 py-1.5 text-sm font-semibold transition duration-200 active:scale-95',
                   days === period.days
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100',
@@ -125,16 +128,28 @@ function ReportBody({
 
   return (
     <div className={clsx('mt-5 space-y-4', refreshing && 'opacity-80')}>
-      <section className="brand-hero-surface rounded-2xl p-5 sm:p-6">
+      <section className="group brand-hero-surface relative rounded-2xl p-5 sm:p-6">
+        <div className="pointer-events-none absolute -right-2 bottom-0 top-0 hidden w-56 items-center justify-end pr-6 opacity-[0.18] transition duration-700 ease-out group-hover:scale-110 group-hover:opacity-30 lg:flex">
+          <Search className="h-36 w-36" strokeWidth={1.1} />
+        </div>
         <div className="relative animate-soft-rise">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-white/80">
-              {report.companyName ?? 'Công ty'} · {report.days === 365 ? '12 tháng' : `${report.days} ngày`} qua
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-base font-semibold">{report.companyName ?? 'Công ty'}</p>
+                <p className="text-xs text-white/65">
+                  Báo cáo trong {report.days === 365 ? '12 tháng' : `${report.days} ngày`} qua
+                </p>
+              </div>
+            </div>
             <p className="text-xs text-white/60">Cập nhật {updated}</p>
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <HeroStat
+              icon={<UserCheck className="h-4 w-4" />}
               label="Tỷ lệ nhận việc"
               value={report.conversionPct == null ? '—' : `${formatNum(report.conversionPct)}%`}
               hint={
@@ -144,16 +159,19 @@ function ReportBody({
               }
             />
             <HeroStat
+              icon={<Clock className="h-4 w-4" />}
               label="Thời gian tuyển"
               value={report.avgTimeToHireDays == null ? '—' : `${formatNum(report.avgTimeToHireDays)} ngày`}
               hint="Từ lúc nộp đến lúc chốt trong kỳ"
             />
             <HeroStat
+              icon={<Target className="h-4 w-4" />}
               label="Điểm khớp trung bình"
               value={report.avgMatchScore == null ? '—' : `${formatNum(report.avgMatchScore)}%`}
               hint="Hồ sơ mới có điểm khớp"
             />
             <HeroStat
+              icon={<Briefcase className="h-4 w-4" />}
               label="Tin đang mở"
               value={String(report.openJobs)}
               hint="Tin đang tuyển lúc này"
@@ -165,6 +183,7 @@ function ReportBody({
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Kpi
           icon={<Users className="h-4 w-4" />}
+          tone="bg-brand-50 text-brand-700"
           label="Hồ sơ mới"
           value={report.applications}
           hint={<Delta current={report.applications} previous={report.applicationsPrev} />}
@@ -172,6 +191,7 @@ function ReportBody({
         />
         <Kpi
           icon={<FileText className="h-4 w-4" />}
+          tone="bg-[#e7eef8] text-brand-600"
           label="Đang xử lý"
           value={inPipeline}
           hint={<span>Sàng lọc, phỏng vấn và đề nghị</span>}
@@ -179,6 +199,7 @@ function ReportBody({
         />
         <Kpi
           icon={<CalendarDays className="h-4 w-4" />}
+          tone="bg-accent-50 text-accent-700"
           label="Lịch phỏng vấn"
           value={report.interviewSessions}
           hint={<span>{report.interviews} hồ sơ đang ở bước phỏng vấn</span>}
@@ -186,6 +207,7 @@ function ReportBody({
         />
         <Kpi
           icon={<Briefcase className="h-4 w-4" />}
+          tone="bg-accent-100 text-accent-700"
           label="Đề nghị"
           value={report.offers}
           hint={<span>{report.offersSent} đề nghị đã gửi trong kỳ</span>}
@@ -193,6 +215,7 @@ function ReportBody({
         />
         <Kpi
           icon={<UserCheck className="h-4 w-4" />}
+          tone="bg-emerald-50 text-emerald-700"
           label="Nhận việc"
           value={report.hires}
           hint={<span>Hồ sơ mới đã chuyển sang nhận việc</span>}
@@ -200,6 +223,7 @@ function ReportBody({
         />
         <Kpi
           icon={<Clock className="h-4 w-4" />}
+          tone="bg-rose-50 text-rose-600"
           label="Từ chối / rút"
           value={report.rejected + report.withdrawn}
           hint={
@@ -212,70 +236,83 @@ function ReportBody({
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <Panel className="p-5" delay="80ms">
-          <div className="flex items-center justify-between gap-3">
+        <Panel className="p-5 transition duration-300 hover:shadow-[0_16px_36px_-18px_rgba(7,35,72,0.42)]" delay="80ms">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <Filter className="h-4 w-4" />
+            </span>
             <div>
               <h2 className="text-base font-bold text-brand-800">Phễu hồ sơ</h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 Trạng thái hiện tại của hồ sơ nộp trong kỳ.
               </p>
             </div>
-            <Target className="h-4 w-4 text-accent-500" />
           </div>
-          <ol className="mt-5 space-y-3.5">
+          <ol className="mt-5 space-y-3">
             {report.funnel.map((step, index) => {
               const share = report.applications
                 ? Math.round((step.count / report.applications) * 100)
                 : 0;
               return (
-                <li key={step.key}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-                    <span className="font-medium text-slate-700">{step.label}</span>
-                    <span className="tabular-nums text-slate-500">
-                      <span className="font-semibold text-brand-800">{step.count}</span>
-                      <span className="ml-1 text-xs">{share}%</span>
-                    </span>
-                  </div>
+                <li key={step.key} className="group -mx-2 grid grid-cols-[6.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 rounded-xl px-2 py-1.5 transition duration-200 hover:bg-slate-50">
+                  <span className="text-sm font-medium text-slate-700">{step.label}</span>
                   <GrowBar
                     pct={report.applications ? (step.count / funnelMax) * 100 : 0}
                     className={FUNNEL_BAR[index] ?? 'bg-brand-600'}
                     delay={index * 70}
                   />
+                  <span className="text-right text-sm tabular-nums text-slate-500">
+                    <span className="font-semibold text-[#E8872A]">{step.count}</span>
+                    <span className="ml-1 text-xs">({share}%)</span>
+                  </span>
                 </li>
               );
             })}
           </ol>
         </Panel>
 
-        <Panel className="p-5" delay="140ms">
-          <div>
-            <h2 className="text-base font-bold text-brand-800">Hồ sơ theo thời gian</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Hồ sơ mới theo ngày nộp. Nhận việc theo ngày chốt.
-            </p>
+        <Panel className="p-5 transition duration-300 hover:shadow-[0_16px_36px_-18px_rgba(232,135,42,0.28)]" delay="140ms">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-50 text-accent-700">
+                <BarChart3 className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-base font-bold text-brand-800">Hồ sơ theo thời gian</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Hồ sơ mới theo ngày nộp. Nhận việc theo ngày chốt.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-brand-600" />
+                Hồ sơ mới
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-accent-500" />
+                Nhận việc
+              </span>
+            </div>
           </div>
           <TrendChart points={report.trend} />
-          <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-brand-600" />
-              Hồ sơ mới
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-accent-500" />
-              Nhận việc
-            </span>
-          </div>
         </Panel>
       </section>
 
       <Panel className="overflow-hidden" delay="180ms">
         <div className="flex items-center justify-between gap-3 px-5 py-4">
-          <div>
-            <h2 className="text-base font-bold text-brand-800">Hiệu suất theo tin</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Tối đa 12 tin có nhiều hồ sơ mới nhất trong kỳ.</p>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <FileText className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-brand-800">Hiệu suất theo tin</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Tối đa 12 tin có nhiều hồ sơ mới nhất trong kỳ.</p>
+            </div>
           </div>
-          <Link href="/jobs/manage" className="text-sm font-semibold text-brand-600 hover:text-brand-800">
+          <Link href="/jobs/manage" className="group inline-flex items-center gap-1 text-sm font-semibold text-brand-600 transition duration-200 hover:text-brand-800">
             Quản lý tin
+            <span className="transition duration-200 group-hover:translate-x-0.5">→</span>
           </Link>
         </div>
         {report.jobs.length === 0 ? (
@@ -298,26 +335,33 @@ function ReportBody({
               </thead>
               <tbody>
                 {report.jobs.map((job) => (
-                  <tr key={job.jobId} className="border-t border-slate-100 transition hover:bg-brand-50/60">
+                  <tr key={job.jobId} className="group border-t border-slate-100 transition duration-200 hover:bg-brand-50/60">
                     <td className="px-5 py-3">
-                      <Link href={`/jobs/${job.jobId}/applicants`} className="font-semibold text-brand-800 hover:underline">
-                        {formatJobTitle(job.title)}
-                      </Link>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {JOB_STATUS_LABEL[job.status] ?? job.status}
-                        {job.location ? ` · ${job.location}` : ''}
-                      </p>
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 transition duration-200 group-hover:scale-110 group-hover:bg-brand-100">
+                          <Briefcase className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="min-w-0">
+                          <Link href={`/jobs/${job.jobId}/applicants`} className="font-semibold text-brand-800 hover:underline">
+                            {formatJobTitle(job.title)}
+                          </Link>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {JOB_STATUS_LABEL[job.status] ?? job.status}
+                            {job.location ? ` · ${job.location}` : ''}
+                          </p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-3 text-right font-semibold tabular-nums text-slate-800">
+                    <td className="px-3 py-3 text-right font-semibold tabular-nums text-[#E8872A]">
                       {job.applications}
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">{job.screening}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">{job.interviews}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">{job.offers}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-[#E8872A]">{job.screening}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-[#E8872A]">{job.interviews}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-[#E8872A]">{job.offers}</td>
                     <td className="px-3 py-3 text-right font-semibold tabular-nums text-emerald-700">
                       {job.hires}
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-slate-600">
+                    <td className="px-5 py-3 text-right font-semibold tabular-nums text-[#E8872A]">
                       {job.avgMatchScore == null ? '—' : `${formatNum(job.avgMatchScore)}%`}
                     </td>
                   </tr>
@@ -343,7 +387,7 @@ function Panel({
   return (
     <div
       className={clsx(
-        'animate-soft-rise rounded-xl border border-slate-200 bg-white shadow-sm',
+        'animate-soft-rise rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.28)]',
         className,
       )}
       style={delay ? { animationDelay: delay } : undefined}
@@ -353,41 +397,63 @@ function Panel({
   );
 }
 
-function HeroStat({ label, value, hint }: { label: string; value: string; hint: string }) {
+function HeroStat({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  hint: string;
+}) {
   return (
-    <div>
-      <p className="text-xs font-medium text-white/70">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-white/65">{hint}</p>
+    <div className="group/stat -mx-2 flex gap-3 rounded-xl px-2 py-2 transition duration-300 hover:bg-white/10">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/80 ring-1 ring-white/10 transition duration-300 group-hover/stat:scale-110 group-hover/stat:bg-white/20 group-hover/stat:text-white">
+        {icon}
+      </span>
+      <div>
+        <p className="text-xs font-medium text-white/70">{label}</p>
+        <p className="mt-1 text-3xl font-bold tracking-tight text-[#E8872A]">{value}</p>
+        <p className="mt-1 text-xs text-white/65">{hint}</p>
+      </div>
     </div>
   );
 }
 
 function Kpi({
   icon,
+  tone,
   label,
   value,
   hint,
   delay,
 }: {
   icon: ReactNode;
+  tone: string;
   label: string;
   value: number;
   hint: ReactNode;
   delay: string;
 }) {
   return (
-    <Panel className="p-4" delay={delay}>
-      <div className="flex items-center justify-between">
+    <Panel
+      className="group relative overflow-hidden p-4 transition duration-300 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.45)]"
+      delay={delay}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={clsx('flex h-9 w-9 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>{icon}</span>
         <p className="text-sm font-medium text-slate-500">{label}</p>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-          {icon}
-        </span>
       </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-brand-800">
+      <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">
         <RisingNumber value={value} />
       </p>
       <div className="mt-1 text-xs text-slate-500">{hint}</div>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80 transition duration-500 ease-out group-hover:scale-125 group-hover:bg-accent-50"
+      />
     </Panel>
   );
 }
@@ -440,7 +506,7 @@ function GrowBar({ pct, className, delay }: { pct: number; className: string; de
   return (
     <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
       <div
-        className={clsx('h-full rounded-full transition-all duration-700 ease-out', className)}
+        className={clsx('h-full rounded-full transition-all duration-700 ease-out group-hover:brightness-110', className)}
         style={{ width: `${width}%` }}
       />
     </div>
@@ -519,9 +585,27 @@ function TrendChart({ points }: { points: RecruitmentReportView['trend'] }) {
       {showDots
         ? points.map((point, index) => (
             <g key={point.key}>
-              <circle cx={xAt(index)} cy={yAt(point.applications)} r="3" fill="#072348" />
+              <circle
+                cx={xAt(index)}
+                cy={yAt(point.applications)}
+                r="3"
+                fill="#072348"
+                className="origin-center transition-transform duration-200 hover:scale-150"
+                style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+              >
+                <title>{`${point.label}: ${point.applications} hồ sơ mới`}</title>
+              </circle>
               {point.hires > 0 ? (
-                <circle cx={xAt(index)} cy={yAt(point.hires)} r="3" fill="#E8872A" />
+                <circle
+                  cx={xAt(index)}
+                  cy={yAt(point.hires)}
+                  r="3"
+                  fill="#E8872A"
+                  className="origin-center transition-transform duration-200 hover:scale-150"
+                  style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                >
+                  <title>{`${point.label}: ${point.hires} nhận việc`}</title>
+                </circle>
               ) : null}
             </g>
           ))

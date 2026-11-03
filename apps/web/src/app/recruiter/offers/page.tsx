@@ -1,13 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Gift } from 'lucide-react';
+import { Briefcase, ClipboardList, Mail, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { OfferStatus, type OfferView } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { StartOnboardingModal } from '@/components/start-onboarding-modal';
-import { Badge, Button, Card, Select } from '@/components/ui';
+import { Badge, Button, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { OFFER_STATUS_LABEL } from '@/lib/format';
 import { listMyJobs } from '@/lib/jobs';
@@ -55,57 +55,68 @@ export default function RecruiterOffersPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-            <span className="brand-accent-dot" />
+          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
+            <span className="h-4 w-1 rounded-full bg-accent-500" />
             Tuyển dụng
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-            Đề nghị tuyển dụng
-          </h1>
-          <div className="brand-accent-bar mt-2" />
-          <p className="mt-2 text-sm text-slate-500">
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800">Đề nghị tuyển dụng</h1>
+          <p className="mt-1 text-sm text-slate-500">
             Gửi đề nghị làm việc + email, theo dõi phản hồi ứng viên.
           </p>
         </div>
-        <Link href="/recruiter/inbox">
-          <Button variant="outline">Chọn ứng viên từ hộp thư</Button>
+        <Link
+          href="/recruiter/inbox"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-sm transition duration-200 hover:border-brand-200 hover:bg-brand-50"
+        >
+          <Users className="h-4 w-4" />
+          Chọn ứng viên từ hộp thư
         </Link>
       </div>
 
-      <div className="brand-panel mt-5 grid gap-3 p-3 sm:grid-cols-2 lg:max-w-3xl">
-        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
-          Tin tuyển dụng
-          <Select
-            value={jobId}
-            onChange={(e) => setJobId(e.target.value)}
-            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
-            size="sm"
-          >
-            <option value="all">Tất cả tin</option>
-            {(jobs ?? []).map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.title}
-              </option>
-            ))}
-          </Select>
+      <div className="mt-5 grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)] sm:grid-cols-2 lg:max-w-3xl">
+        <label className="flex min-w-0 items-center gap-3 text-[12px] font-semibold text-slate-500">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+            <Briefcase className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            Tin tuyển dụng
+            <Select
+              value={jobId}
+              onChange={(e) => setJobId(e.target.value)}
+              className="mt-1.5 border-slate-200 bg-white"
+              size="sm"
+            >
+              <option value="all">Tất cả tin</option>
+              {(jobs ?? []).map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                </option>
+              ))}
+            </Select>
+          </span>
         </label>
-        <label className="block min-w-0 text-[12px] font-semibold text-slate-500">
-          Trạng thái đề nghị
-          <Select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="mt-1.5 border-slate-200 bg-[#FFFBF7]"
-            size="sm"
-          >
-            <option value="all">Mọi trạng thái</option>
-            {Object.values(OfferStatus).map((s) => (
-              <option key={s} value={s}>
-                {OFFER_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </Select>
+        <label className="flex min-w-0 items-center gap-3 border-slate-100 text-[12px] font-semibold text-slate-500 sm:border-l sm:pl-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
+            <Mail className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            Trạng thái đề nghị
+            <Select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="mt-1.5 border-slate-200 bg-white"
+              size="sm"
+            >
+              <option value="all">Mọi trạng thái</option>
+              {Object.values(OfferStatus).map((s) => (
+                <option key={s} value={s}>
+                  {OFFER_STATUS_LABEL[s]}
+                </option>
+              ))}
+            </Select>
+          </span>
         </label>
       </div>
 
@@ -117,16 +128,27 @@ export default function RecruiterOffersPage() {
       )}
 
       {!isLoading && (offers?.length ?? 0) === 0 && (
-        <Card className="mt-6 text-center">
-          <Gift className="mx-auto h-10 w-10 text-slate-300" />
-          <p className="mt-3 text-slate-600">Chưa có đề nghị làm việc nào.</p>
-          <p className="mt-1 text-sm text-slate-400">
-            Trên bảng quy trình, mở thẻ ứng viên → «Gửi đề nghị».
-          </p>
-          <Link href="/jobs/manage" className="mt-4 inline-block">
-            <Button>Quản lý tin tuyển dụng</Button>
-          </Link>
-        </Card>
+        <div className="mt-5 flex flex-col items-center gap-6 rounded-2xl border border-slate-200/80 bg-white px-6 py-10 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_16px_36px_-20px_rgba(7,35,72,0.22)] sm:flex-row sm:px-10">
+          <span className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl bg-accent-50 text-accent-600">
+            <ClipboardList className="h-12 w-12" />
+            <span className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-sm">
+              <Mail className="h-4 w-4" />
+            </span>
+          </span>
+          <div className="text-center sm:text-left">
+            <p className="text-lg font-bold text-brand-800">Chưa có đề nghị làm việc nào.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Trên bảng quy trình, mở thẻ ứng viên → «Gửi đề nghị».
+            </p>
+            <Link
+              href="/jobs/manage"
+              className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-accent-600"
+            >
+              <Briefcase className="h-4 w-4" />
+              Quản lý tin tuyển dụng
+            </Link>
+          </div>
+        </div>
       )}
 
       <ul className="mt-6 space-y-3">
@@ -189,7 +211,7 @@ function OfferCard({
   const pending = offer.status === OfferStatus.Pending;
   const accepted = offer.status === OfferStatus.Accepted;
   return (
-    <li className="brand-panel brand-card-accent list-none p-4 transition hover:border-accent-300">
+    <li className="list-none rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.3)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

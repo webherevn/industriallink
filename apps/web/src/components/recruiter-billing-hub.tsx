@@ -150,7 +150,7 @@ export function RecruiterBillingHub() {
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
               Số dư Credit
             </p>
-            <p className="mt-2 text-4xl font-bold tracking-tight">
+            <p className="mt-2 text-4xl font-bold tracking-tight text-[#E8872A]">
               {isLoading ? '—' : fmtCredit(credits?.balance ?? 0)}
             </p>
             <p className="mt-1 text-sm text-white/70">

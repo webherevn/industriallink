@@ -127,6 +127,17 @@ export interface JobListItem {
   moderationStatus?: JobModerationStatus;
   /** Chỉ có khi ứng viên đã đăng nhập và đã lưu tin. */
   isBookmarked?: boolean;
+  /** Kết quả tuyển dụng hiện tại. Chỉ có ở danh sách tin của nhà tuyển dụng. */
+  recruitment?: JobRecruitmentResult;
+}
+
+/** Số hồ sơ theo trạng thái hiện tại của một tin. */
+export interface JobRecruitmentResult {
+  applications: number;
+  screening: number;
+  interviews: number;
+  offers: number;
+  hires: number;
 }
 
 /** Tham số lọc danh sách tin công khai. */
