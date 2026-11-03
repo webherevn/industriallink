@@ -4,11 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertCircle,
-  BadgeCheck,
-  Bell,
-  Bookmark,
   Briefcase,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -16,18 +12,11 @@ import {
   ClipboardList,
   Eye,
   FileText,
-  Gift,
-  Headphones,
-  LayoutDashboard,
   MapPin,
   Percent,
   Search,
-  Send,
-  Settings2,
   Sparkles,
   Target,
-  UserPlus,
-  UserRound,
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -37,14 +26,13 @@ import {
   type ApplicationView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { ProfileAvatar } from '@/components/profile-avatar';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { PaginationBar } from '@/components/pagination-bar';
-import { fetchMe, logout } from '@/lib/auth';
+import { fetchMe } from '@/lib/auth';
 import { getApplicationDetail, myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
 import { APPLICATION_STATUS_LABEL, formatSalary } from '@/lib/format';
-import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
-import { useRouter } from 'next/navigation';
+import { formatMatchPct } from '@/lib/match-percent';
 
 type FilterTab = 'all' | 'processing' | 'interview' | 'offer' | 'rejected' | 'hired';
 type SortMode = 'newest' | 'oldest' | 'match';
@@ -94,15 +82,15 @@ function formatDateTime(iso: string): string {
 function statusBadgeClass(status: ApplicationStatus): string {
   switch (status) {
     case ApplicationStatus.Applied:
-      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+      return 'bg-brand-50 text-brand-700 ring-brand-100';
     case ApplicationStatus.Screening:
-      return 'bg-sky-50 text-sky-700 ring-sky-200';
+      return 'bg-accent-50 text-accent-700 ring-accent-100';
     case ApplicationStatus.Interview:
-      return 'bg-violet-50 text-violet-700 ring-violet-200';
+      return 'bg-brand-50 text-brand-700 ring-brand-100';
     case ApplicationStatus.Offer:
-      return 'bg-orange-50 text-orange-700 ring-orange-200';
+      return 'bg-accent-50 text-accent-700 ring-accent-100';
     case ApplicationStatus.Hired:
-      return 'bg-teal-50 text-teal-700 ring-teal-200';
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
     case ApplicationStatus.Rejected:
     case ApplicationStatus.Withdrawn:
       return 'bg-slate-100 text-slate-600 ring-slate-200';
@@ -111,49 +99,7 @@ function statusBadgeClass(status: ApplicationStatus): string {
   }
 }
 
-function matchTone(score: number): string {
-  if (score >= 80) return 'text-amber-600';
-  if (score >= 55) return 'text-amber-500';
-  return 'text-slate-500';
-}
-
-function NavItem({
-  href,
-  label,
-  icon: Icon,
-  active,
-  badge,
-}: {
-  href: string;
-  label: string;
-  icon: typeof Target;
-  active?: boolean;
-  badge?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={clsx('progress-nav-item', active && 'progress-nav-item-active')}
-    >
-      <Icon
-        className={clsx(
-          'h-4 w-4 shrink-0',
-          active ? 'text-brand-500' : 'text-slate-400',
-        )}
-        strokeWidth={1.75}
-      />
-      <span className="flex-1 truncate">{label}</span>
-      {badge && (
-        <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-          {badge}
-        </span>
-      )}
-    </Link>
-  );
-}
-
 export default function ApplicationsPage() {
-  const router = useRouter();
   const [tab, setTab] = useState<FilterTab>('all');
   const [sort, setSort] = useState<SortMode>('newest');
   const [q, setQ] = useState('');
@@ -266,133 +212,16 @@ export default function ApplicationsPage() {
 
   const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
 
-  async function onLogout() {
-    await logout();
-    router.replace('/login');
-  }
-
   return (
     <AppShell wide>
       <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
-        {/* Left */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-4 space-y-3 animate-soft-rise">
-            <div className="progress-card p-5">
-              <div className="flex flex-col items-center text-center">
-                <ProfileAvatar
-                  displayName={displayName}
-                  email={me?.email}
-                  hasAvatar={Boolean(candidate?.hasAvatar)}
-                  size="card"
-                  editable={false}
-                  className="transition-transform duration-300 hover:scale-105"
-                />
-                <p className="mt-3 text-[15px] font-bold text-slate-900">{displayName}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {candidate?.profile?.currentPosition ?? 'Chưa cập nhật vị trí'}
-                </p>
-              </div>
-              {typeof candidate?.profileCompletion === 'number' && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-[11px] text-slate-500">
-                    <span>Hoàn thiện hồ sơ</span>
-                    <span className="font-bold text-brand-600">
-                      {candidate.profileCompletion}%
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-brand-500 transition-all duration-500"
-                      style={{ width: `${candidate.profileCompletion}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              <Link
-                href="/profile"
-                className="progress-btn mt-4 w-full border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
-              >
-                Xem hồ sơ của tôi
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-
-            <div className="progress-card p-3">
-              <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                Cá nhân
-              </p>
-              <nav className="space-y-0.5">
-                <NavItem href="/dashboard" label="Tổng quan" icon={LayoutDashboard} />
-                <NavItem href="/profile" label="Hồ sơ của tôi" icon={UserRound} />
-                <NavItem href="/upload" label="CV & Thư xin việc" icon={FileText} />
-                <NavItem href="/profile?tab=skills" label="Kỹ năng & Chứng chỉ" icon={BadgeCheck} />
-                <NavItem href="/viec-lam?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
-              </nav>
-
-              <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                Hoạt động
-              </p>
-              <nav className="space-y-0.5">
-                <NavItem
-                  href="/applications"
-                  label="Đơn ứng tuyển"
-                  icon={ClipboardList}
-                  active
-                />
-                <NavItem href="/progress" label="Tiến trình" icon={Target} />
-                <NavItem href="/viec-lam?tab=applied" label="Việc đã ứng tuyển" icon={Send} />
-                <NavItem href="/progress#interviews" label="Lịch phỏng vấn" icon={CalendarDays} />
-                <NavItem href="/progress#offers" label="Đề nghị làm việc" icon={Gift} />
-                <NavItem href="/progress#onboarding" label="Quá trình nhận việc" icon={UserPlus} />
-              </nav>
-
-              <div className="mt-3 space-y-0.5 border-t border-slate-100 pt-3">
-                <NavItem
-                  href="/recommended"
-                  label="Gợi ý việc làm AI"
-                  icon={Sparkles}
-                  badge="NEW"
-                />
-                <NavItem href="/notifications" label="Thông báo" icon={Bell} />
-              </div>
-
-              <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                Cài đặt
-              </p>
-              <nav className="space-y-0.5">
-                <NavItem href="/account" label="Tài khoản & Bảo mật" icon={Settings2} />
-              </nav>
-
-              <button
-                type="button"
-                onClick={onLogout}
-                className="progress-nav-item mt-1 w-full text-left text-slate-500"
-              >
-                Đăng xuất
-              </button>
-            </div>
-
-            <div className="progress-card p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-                  <Headphones className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">Bạn cần hỗ trợ?</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                    Tra cứu mã đơn hoặc lịch sử trạng thái khi cần đối chiếu với nhà tuyển dụng.
-                  </p>
-                </div>
-              </div>
-              <a
-                href="mailto:support@inlink.vn"
-                className="progress-btn mt-3 w-full border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
-              >
-                Liên hệ hỗ trợ
-              </a>
-            </div>
-          </div>
-        </aside>
+        <CandidateSidebar
+          displayName={displayName}
+          email={me?.email}
+          hasAvatar={Boolean(candidate?.hasAvatar)}
+          position={candidate?.profile?.currentPosition}
+          profileCompletion={candidate?.profileCompletion}
+        />
 
         {/* Center — danh sách đơn + lịch sử */}
         <section className="min-w-0 animate-soft-rise [animation-delay:60ms]">
@@ -409,52 +238,32 @@ export default function ApplicationsPage() {
             <span className="font-medium text-slate-600">Đơn ứng tuyển</span>
           </nav>
 
-          <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="text-[26px] font-bold tracking-tight text-slate-900">
-                Đơn ứng tuyển của tôi
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Quản lý hồ sơ đã nộp, mã đơn và lịch sử trạng thái từng vị trí
-              </p>
+          <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
+                <FileText className="h-5 w-5" />
+              </span>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-brand-800">Đơn ứng tuyển của tôi</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Quản lý hồ sơ đã nộp, mã đơn và lịch sử trạng thái từng vị trí.
+                </p>
+              </div>
             </div>
             <Link
               href="/progress"
-              className="progress-btn border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+              className="inline-flex items-center gap-1.5 rounded-full border border-accent-200 bg-accent-50 px-4 py-2 text-sm font-semibold text-accent-700 transition hover:bg-accent-100"
             >
               <Target className="h-3.5 w-3.5" />
               Xem tiến trình
             </Link>
           </div>
 
-          {/* Stats */}
-          <div className="progress-card mt-5 p-4 sm:p-5">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCell
-                icon={<ClipboardList className="h-4 w-4" />}
-                iconClass="bg-amber-50 text-amber-600"
-                label="Tổng đơn"
-                value={counts.total}
-              />
-              <StatCell
-                icon={<Briefcase className="h-4 w-4" />}
-                iconClass="bg-sky-50 text-sky-600"
-                label="Đang xử lý"
-                value={counts.processing}
-              />
-              <StatCell
-                icon={<AlertCircle className="h-4 w-4" />}
-                iconClass="bg-violet-50 text-violet-600"
-                label="Cần theo dõi"
-                value={counts.interview + counts.offer}
-              />
-              <StatCell
-                icon={<CheckCircle2 className="h-4 w-4" />}
-                iconClass="bg-teal-50 text-teal-600"
-                label="Đã nhận việc"
-                value={counts.hired}
-              />
-            </div>
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCell icon={<ClipboardList className="h-4 w-4" />} iconClass="bg-accent-50 text-accent-700" label="Tổng đơn" value={counts.total} />
+            <StatCell icon={<Briefcase className="h-4 w-4" />} iconClass="bg-brand-50 text-brand-700" label="Đang xử lý" value={counts.processing} />
+            <StatCell icon={<AlertCircle className="h-4 w-4" />} iconClass="bg-accent-50 text-accent-700" label="Cần theo dõi" value={counts.interview + counts.offer} />
+            <StatCell icon={<CheckCircle2 className="h-4 w-4" />} iconClass="bg-emerald-50 text-emerald-700" label="Đã nhận việc" value={counts.hired} />
           </div>
 
           {/* Search + tabs */}
@@ -468,7 +277,7 @@ export default function ApplicationsPage() {
                   setPage(1);
                 }}
                 placeholder="Tìm theo vị trí, công ty hoặc mã đơn…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-amber-200 focus:border-amber-300 focus:ring-2 focus:ring-amber-100"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-brand-200 focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
               />
             </label>
             <div className="relative">
@@ -520,13 +329,13 @@ export default function ApplicationsPage() {
                 }}
                 className={clsx(
                   'relative px-3.5 py-2.5 text-[13px] font-semibold transition-colors duration-200',
-                  tab === t.id ? 'text-amber-700' : 'text-slate-500 hover:text-slate-800',
+                  tab === t.id ? 'text-accent-600' : 'text-slate-500 hover:text-slate-800',
                 )}
               >
                 {t.label} ({t.count})
                 <span
                   className={clsx(
-                    'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-amber-500 transition-all duration-200',
+                    'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-accent-500 transition-all duration-200',
                     tab === t.id ? 'scale-x-100 opacity-100' : 'scale-x-50 opacity-0',
                   )}
                 />
@@ -590,28 +399,34 @@ export default function ApplicationsPage() {
 
         {/* Right — ngữ cảnh & CTA */}
         <aside className="space-y-4 animate-soft-rise [animation-delay:120ms]">
-          <div className="progress-card overflow-hidden p-0">
-            <div className="bg-gradient-to-br from-amber-500 to-amber-600 px-4 py-4 text-white">
-              <p className="text-xs font-medium text-amber-100">Độ phù hợp AI trung bình</p>
-              <p className="mt-1 text-3xl font-bold tracking-tight">
-                {avgMatch != null ? `${avgMatch}%` : '—'}
-              </p>
-              <p className="mt-1 text-[11px] text-amber-100">
-                Trên {apps.filter((a) => a.matchScore != null).length} đơn có điểm khớp
-              </p>
+          <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-accent-500 to-[#d06f18] p-4 text-white shadow-[0_12px_28px_-16px_rgba(232,135,42,0.8)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-white/80">Độ phù hợp AI trung bình</p>
+                <p className="mt-1 text-4xl font-bold tracking-tight">
+                  {avgMatch != null ? `${avgMatch}%` : '—'}
+                </p>
+                <p className="mt-1 text-[11px] text-white/80">
+                  Trên {apps.filter((a) => a.matchScore != null).length} đơn có điểm khớp
+                </p>
+              </div>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
+                <Target className="h-5 w-5" />
+              </span>
             </div>
-            <div className="space-y-2 p-4">
+            <div className="mt-4 space-y-2">
               <Link
                 href="/recommended"
-                className="progress-btn w-full bg-brand-600 text-white hover:bg-brand-700"
+                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-800 text-sm font-semibold text-white transition hover:bg-brand-700"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Xem gợi ý AI
               </Link>
               <Link
                 href="/viec-lam"
-                className="progress-btn w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-white/40 bg-white/15 text-sm font-semibold text-white transition hover:bg-white/25"
               >
+                <Search className="h-3.5 w-3.5" />
                 Tìm thêm việc
               </Link>
             </div>
@@ -620,7 +435,7 @@ export default function ApplicationsPage() {
           <div className="progress-card p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-900">Cần chú ý</h2>
-              <Eye className="h-4 w-4 text-violet-500" />
+              <Eye className="h-4 w-4 text-brand-500" />
             </div>
             {needsAttention.length === 0 ? (
               <p className="mt-3 text-xs leading-relaxed text-slate-500">
@@ -688,7 +503,7 @@ export default function ApplicationsPage() {
                 từng mốc NTD đã cập nhật.
               </li>
               <li className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
                 Dùng mã đơn khi liên hệ hỗ trợ hoặc nhà tuyển dụng.
               </li>
               <li className="flex gap-2">
@@ -719,19 +534,10 @@ function StatCell({
   value: number;
 }) {
   return (
-    <div className="group flex items-center gap-2.5 rounded-xl px-1 py-1 transition-colors duration-200 hover:bg-slate-50/80">
-      <div
-        className={clsx(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105',
-          iconClass,
-        )}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-[11px] text-slate-500">{label}</p>
-        <p className="text-xl font-bold tabular-nums tracking-tight text-slate-900">{value}</p>
-      </div>
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)]">
+      <div className={clsx('flex h-9 w-9 items-center justify-center rounded-xl', iconClass)}>{icon}</div>
+      <p className="mt-2 truncate text-[12px] text-slate-500">{label}</p>
+      <p className="text-2xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
     </div>
   );
 }
@@ -800,11 +606,9 @@ function ApplicationRecordCard({
 
               <div className="flex shrink-0 flex-col items-end gap-2">
                 {app.matchScore != null ? (
-                  <div className="text-right">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                      Phù hợp AI
-                    </p>
-                    <p className={clsx('text-lg font-bold tabular-nums', matchBadgeTone(app.matchScore))}>
+                  <div className="rounded-xl bg-accent-50 px-3 py-2 text-right">
+                    <p className="text-[10px] font-medium text-slate-500">Phù hợp AI</p>
+                    <p className="text-lg font-bold tabular-nums text-[#E8872A]">
                       {formatMatchPct(app.matchScore)}%
                     </p>
                   </div>
@@ -817,8 +621,9 @@ function ApplicationRecordCard({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Link
                 href={`/jobs/${app.jobId}`}
-                className="progress-btn border border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-700"
               >
+                <Eye className="h-3.5 w-3.5" />
                 Xem tin tuyển dụng
               </Link>
               <Link

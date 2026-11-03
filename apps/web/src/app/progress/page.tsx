@@ -3,9 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  BadgeCheck,
-  Bell,
-  Bookmark,
   Briefcase,
   CalendarDays,
   Check,
@@ -13,17 +10,10 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
-  FileText,
   Gift,
-  Headphones,
-  LayoutDashboard,
   MapPin,
-  Settings2,
-  Sparkles,
-  Send,
   Target,
   UserPlus,
-  UserRound,
   Users,
   Wallet,
   X,
@@ -41,16 +31,15 @@ import {
   type OnboardingView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { ProfileAvatar } from '@/components/profile-avatar';
+import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { PaginationBar } from '@/components/pagination-bar';
-import { fetchMe, logout } from '@/lib/auth';
+import { fetchMe } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
 import { APPLICATION_STATUS_LABEL, formatSalary, formatVndAmount, INTERVIEW_TYPE_LABEL } from '@/lib/format';
 import { listMyInterviews } from '@/lib/interviews';
 import { listMyOffers, respondToOffer } from '@/lib/offers';
 import { listMyOnboardings } from '@/lib/onboarding';
-import { useRouter } from 'next/navigation';
 
 type FilterTab = 'all' | 'processing' | 'interview' | 'offer' | 'hired' | 'rejected';
 type SortMode = 'newest' | 'oldest';
@@ -201,52 +190,7 @@ function parseChecklist(raw: string | null): { label: string; done: boolean }[] 
   });
 }
 
-function NavItem({
-  href,
-  label,
-  icon: Icon,
-  active,
-  badge,
-  badgeTone = 'brand',
-}: {
-  href: string;
-  label: string;
-  icon: typeof Target;
-  active?: boolean;
-  badge?: string;
-  badgeTone?: 'brand' | 'red';
-}) {
-  return (
-    <Link
-      href={href}
-      className={clsx('progress-nav-item', active && 'progress-nav-item-active')}
-    >
-      <Icon
-        className={clsx(
-          'h-4 w-4 shrink-0 transition-colors duration-200',
-          active ? 'text-brand-500' : 'text-slate-400 group-hover:text-slate-500',
-        )}
-        strokeWidth={1.75}
-      />
-      <span className="flex-1 truncate">{label}</span>
-      {badge && (
-        <span
-          className={clsx(
-            'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase',
-            badgeTone === 'red'
-              ? 'bg-rose-500 text-white'
-              : 'bg-amber-500 text-white',
-          )}
-        >
-          {badge}
-        </span>
-      )}
-    </Link>
-  );
-}
-
 export default function ProgressPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<FilterTab>('all');
   const [sort, setSort] = useState<SortMode>('newest');
@@ -432,135 +376,16 @@ export default function ProgressPage() {
 
   const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
 
-  async function onLogout() {
-    await logout();
-    router.replace('/login');
-  }
-
   return (
     <AppShell wide>
       <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
-        {/* Left */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-4 space-y-3 animate-soft-rise">
-            <div className="progress-card p-5">
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                <ProfileAvatar
-                  displayName={displayName}
-                  email={me?.email}
-                  hasAvatar={Boolean(candidate?.hasAvatar)}
-                  size="card"
-                  editable={false}
-                  className="transition-transform duration-300 hover:scale-105"
-                />
-                </div>
-                <p className="mt-3 text-[15px] font-bold text-slate-900">{displayName}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {candidate?.profile?.currentPosition ?? 'Chưa cập nhật vị trí'}
-                </p>
-              </div>
-              {typeof candidate?.profileCompletion === 'number' && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-[11px] text-slate-500">
-                    <span>Hoàn thiện hồ sơ</span>
-                    <span className="font-bold text-brand-600">
-                      {candidate.profileCompletion}%
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-brand-500 transition-all duration-500 ease-soft"
-                      style={{ width: `${candidate.profileCompletion}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              <Link
-                href="/profile"
-                className="progress-btn mt-4 w-full border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
-              >
-                Xem hồ sơ của tôi
-                <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
-            </div>
-
-            <div className="progress-card p-3">
-              <p className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                Cá nhân
-              </p>
-              <nav className="space-y-0.5">
-                <NavItem href="/dashboard" label="Tổng quan" icon={LayoutDashboard} />
-                <NavItem href="/profile" label="Hồ sơ của tôi" icon={UserRound} />
-                <NavItem href="/upload" label="CV & Thư xin việc" icon={FileText} />
-                <NavItem href="/profile?tab=skills" label="Kỹ năng & Chứng chỉ" icon={BadgeCheck} />
-                <NavItem href="/viec-lam?tab=saved" label="Việc làm đã lưu" icon={Bookmark} />
-              </nav>
-
-              <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                Hoạt động
-              </p>
-              <nav className="space-y-0.5">
-                <NavItem href="/applications" label="Đơn ứng tuyển" icon={ClipboardList} />
-                <NavItem href="/progress" label="Tiến trình" icon={Target} active />
-                <NavItem href="/viec-lam?tab=applied" label="Việc đã ứng tuyển" icon={Send} />
-                <NavItem href="/progress#interviews" label="Lịch phỏng vấn" icon={CalendarDays} />
-                <NavItem href="/progress#offers" label="Đề nghị làm việc" icon={Gift} />
-                <NavItem
-                  href="/progress#onboarding"
-                  label="Quá trình nhận việc"
-                  icon={UserPlus}
-                />
-              </nav>
-
-              <div className="mt-3 space-y-0.5 border-t border-slate-100 pt-3">
-                <NavItem
-                  href="/recommended"
-                  label="Gợi ý việc làm AI"
-                  icon={Sparkles}
-                  badge="NEW"
-                />
-                <NavItem href="/notifications" label="Thông báo" icon={Bell} />
-              </div>
-
-              <p className="mb-1 mt-4 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                Cài đặt
-              </p>
-              <nav className="space-y-0.5">
-                <NavItem href="/account" label="Tài khoản & Bảo mật" icon={Settings2} />
-                <NavItem href="/account" label="Cài đặt thông báo" icon={Bell} />
-              </nav>
-
-              <button
-                type="button"
-                onClick={onLogout}
-                className="progress-nav-item mt-1 w-full text-left text-slate-500"
-              >
-                Đăng xuất
-              </button>
-            </div>
-
-            <div className="progress-card p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-                  <Headphones className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">Bạn cần hỗ trợ?</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                    Đội ngũ inlink sẵn sàng hỗ trợ bạn theo dõi tiến trình ứng tuyển.
-                  </p>
-                </div>
-              </div>
-              <a
-                href="mailto:support@inlink.vn"
-                className="progress-btn mt-3 w-full border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
-              >
-                Liên hệ hỗ trợ
-              </a>
-            </div>
-          </div>
-        </aside>
+        <CandidateSidebar
+          displayName={displayName}
+          email={me?.email}
+          hasAvatar={Boolean(candidate?.hasAvatar)}
+          position={candidate?.profile?.currentPosition}
+          profileCompletion={candidate?.profileCompletion}
+        />
 
         {/* Center */}
         <section className="min-w-0 animate-soft-rise [animation-delay:60ms]">

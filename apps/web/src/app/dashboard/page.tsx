@@ -27,6 +27,7 @@ import {
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
+import { CopilotRobot } from '@/components/copilot-robot';
 import { myApplications } from '@/lib/applications';
 import { fetchMe } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
@@ -165,6 +166,7 @@ export default function DashboardPage() {
 
   const doneSteps = checklist.filter((step) => step.done).length;
   const pipelineMax = Math.max(1, ...counts.pipeline.map((step) => step.count));
+  const weekDelta = useMemo(() => applicationWeekDelta(apps), [apps]);
 
   if (isLoading && !candidate) {
     return (
@@ -185,39 +187,41 @@ export default function DashboardPage() {
         />
 
         <div className="min-w-0 space-y-4">
-          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 via-brand-600 to-brand-500 p-5 text-white shadow-xl shadow-brand-700/15 sm:p-6">
-            <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-accent-400/30 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-14 left-10 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
-            <div className="relative flex flex-wrap items-end justify-between gap-4 animate-soft-rise">
+          <section className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
+                  <span className="h-4 w-1 rounded-full bg-accent-500" />
                   Tổng quan
                 </p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight">
-                  {greeting()}, {firstName(displayName)}
+                <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800">
+                  {greeting()}, {firstName(displayName)}!
                 </h1>
-                <p className="mt-1 max-w-xl text-sm text-white/75">
+                <p className="mt-1 max-w-xl text-sm text-slate-500">
                   {candidate?.profile?.currentPosition
-                    ? `${candidate.profile.currentPosition} · theo dõi đơn, lịch và việc phù hợp.`
+                    ? `${candidate.profile.currentPosition} · Theo dõi đơn, lịch và việc phù hợp.`
                     : 'Theo dõi đơn ứng tuyển, lịch phỏng vấn và việc làm phù hợp.'}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/viec-lam"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-brand-800 transition hover:bg-accent-50"
-                >
-                  <Briefcase className="h-4 w-4" />
-                  Tìm việc
-                </Link>
-                <Link
-                  href="/recommended"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3.5 py-2 text-sm font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/25"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Gợi ý AI
-                </Link>
+              <div className="hidden w-28 shrink-0 lg:block" aria-hidden>
+                <CopilotRobot />
               </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/viec-lam"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-sm transition hover:border-brand-200 hover:bg-brand-50"
+              >
+                <Briefcase className="h-4 w-4" />
+                Tìm việc
+              </Link>
+              <Link
+                href="/recommended"
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600"
+              >
+                <Sparkles className="h-4 w-4" />
+                Gợi ý AI
+              </Link>
             </div>
           </section>
 
@@ -225,34 +229,39 @@ export default function DashboardPage() {
             <Stat
               href="/applications"
               icon={<ClipboardList className="h-4 w-4" />}
+              tone="bg-accent-50 text-accent-700"
+              wave="bg-accent-100/80"
               label="Đơn đang xử lý"
               value={counts.open}
-              hint={`${apps.length} đơn đã nộp`}
-              delay="0ms"
+              hint={weekDeltaHint(weekDelta)}
+              hintClass={weekDelta > 0 ? 'text-emerald-600' : 'text-slate-500'}
             />
             <Stat
               href="/progress#interviews"
               icon={<CalendarDays className="h-4 w-4" />}
+              tone="bg-brand-50 text-brand-700"
+              wave="bg-brand-100/70"
               label="Phỏng vấn sắp tới"
               value={upcoming.length}
               hint="Lịch còn hiệu lực"
-              delay="60ms"
             />
             <Stat
               href="/progress#offers"
               icon={<Gift className="h-4 w-4" />}
+              tone="bg-accent-50 text-accent-700"
+              wave="bg-rose-100/70"
               label="Đề nghị chờ trả lời"
               value={pendingOffers.length}
               hint="Cần phản hồi"
-              delay="120ms"
             />
             <Stat
               href="/viec-lam?tab=saved"
               icon={<Bookmark className="h-4 w-4" />}
+              tone="bg-[#e7eef8] text-brand-700"
+              wave="bg-brand-100/70"
               label="Việc đã lưu"
               value={bookmarks?.length ?? 0}
               hint={`${notifications?.unreadCount ?? 0} thông báo chưa đọc`}
-              delay="180ms"
             />
           </section>
 
@@ -279,6 +288,9 @@ export default function DashboardPage() {
                           href={jobPublicPath(job)}
                           className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-brand-50/50"
                         >
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-[11px] font-bold text-brand-700">
+                            {companyMark(job.companyName)}
+                          </span>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-brand-800">
                               {formatJobTitle(job.title)}
@@ -288,7 +300,7 @@ export default function DashboardPage() {
                               {job.location ? ` · ${job.location}` : ''}
                             </p>
                           </div>
-                          <span className="shrink-0 rounded-full bg-accent-50 px-2 py-0.5 text-[11px] font-semibold text-accent-700 ring-1 ring-accent-100">
+                          <span className="shrink-0 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-semibold text-[#E8872A]">
                             {formatMatchPct(job.match.score)}%
                           </span>
                         </Link>
@@ -326,13 +338,13 @@ export default function DashboardPage() {
                 <div className="px-5 pb-1">
                   <div className="flex items-center justify-between text-xs text-slate-500">
                     <span>Mức hoàn thiện</span>
-                    <span className="font-bold text-brand-700">
+                    <span className="font-bold text-[#E8872A]">
                       {candidate?.profileCompletion ?? 0}%
                     </span>
                   </div>
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-brand-600 transition-all duration-700"
+                      className="h-full rounded-full bg-accent-500 transition-all duration-700"
                       style={{ width: `${candidate?.profileCompletion ?? 0}%` }}
                     />
                   </div>
@@ -356,20 +368,26 @@ export default function DashboardPage() {
                     </li>
                   ))}
                 </ul>
-                <div className="px-5 py-3">
+                <div className="px-5 py-4">
                   <Link
                     href="/profile"
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-800"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-accent-600 hover:text-accent-700"
                   >
                     <UserRound className="h-4 w-4" />
                     Xem hồ sơ
+                    <ChevronRight className="h-4 w-4" />
                   </Link>
                 </div>
               </Panel>
 
               <Panel title="Lịch sắp tới" href="/progress#interviews" action="Xem tiến trình" delay="160ms">
                 {upcoming.length === 0 && pendingOffers.length === 0 ? (
-                  <p className="px-5 py-6 text-sm text-slate-500">Chưa có lịch phỏng vấn hay đề nghị mới.</p>
+                  <div className="flex flex-col items-center px-5 py-8 text-center">
+                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-400">
+                      <CalendarDays className="h-7 w-7" strokeWidth={1.4} />
+                    </span>
+                    <p className="mt-3 text-sm text-slate-500">Chưa có lịch phỏng vấn hay đề nghị mới.</p>
+                  </div>
                 ) : (
                   <ul className="divide-y divide-slate-100">
                     {upcoming.map((item) => (
@@ -450,32 +468,34 @@ export default function DashboardPage() {
 function Stat({
   href,
   icon,
+  tone,
+  wave,
   label,
   value,
   hint,
-  delay,
+  hintClass = 'text-slate-500',
 }: {
   href: string;
   icon: ReactNode;
+  tone: string;
+  wave: string;
   label: string;
   value: number;
   hint: string;
-  delay: string;
+  hintClass?: string;
 }) {
   return (
     <Link
       href={href}
-      className="progress-card animate-soft-rise p-4"
-      style={{ animationDelay: delay }}
+      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200"
     >
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-          {icon}
-        </span>
-      </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{hint}</p>
+      <span className={clsx('flex h-10 w-10 items-center justify-center rounded-xl transition group-hover:scale-110', tone)}>
+        {icon}
+      </span>
+      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
+      <p className={clsx('mt-1 text-xs font-medium', hintClass)}>{hint}</p>
+      <span aria-hidden className={clsx('pointer-events-none absolute -bottom-6 -right-3 h-14 w-24 rounded-full', wave)} />
     </Link>
   );
 }
@@ -485,7 +505,6 @@ function Panel({
   hint,
   href,
   action,
-  delay,
   children,
 }: {
   title: string;
@@ -496,10 +515,7 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section
-      className="animate-soft-rise overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-      style={delay ? { animationDelay: delay } : undefined}
-    >
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04)]">
       <div className="flex items-start justify-between gap-3 px-5 py-4">
         <div>
           <h2 className="text-base font-bold text-brand-800">{title}</h2>
@@ -551,7 +567,7 @@ function Empty({ text, href, action }: { text: string; href: string; action: str
 function statusClass(status: ApplicationStatus): string {
   switch (status) {
     case ApplicationStatus.Interview:
-      return 'bg-violet-50 text-violet-700';
+      return 'bg-brand-50 text-brand-700';
     case ApplicationStatus.Offer:
       return 'bg-accent-50 text-accent-700';
     case ApplicationStatus.Hired:
@@ -560,7 +576,7 @@ function statusClass(status: ApplicationStatus): string {
     case ApplicationStatus.Withdrawn:
       return 'bg-slate-100 text-slate-600';
     case ApplicationStatus.Screening:
-      return 'bg-sky-50 text-sky-700';
+      return 'bg-accent-50 text-accent-700';
     default:
       return 'bg-brand-50 text-brand-700';
   }
@@ -570,6 +586,29 @@ function interviewTypeLabel(type: InterviewType): string {
   if (type === InterviewType.Hr) return 'Phỏng vấn HR';
   if (type === InterviewType.Technical) return 'Phỏng vấn chuyên môn';
   return 'Phỏng vấn';
+}
+
+function companyMark(name: string): string {
+  const words = name.trim().split(/\s+/).filter((part) => part.length > 1);
+  const letters = words.slice(0, 2).map((part) => part[0]).join('');
+  return (letters || name.slice(0, 2)).toUpperCase();
+}
+
+function applicationWeekDelta(apps: ApplicationView[]): number {
+  const now = Date.now();
+  const week = 7 * 24 * 60 * 60 * 1000;
+  const thisWeek = apps.filter((row) => now - new Date(row.createdAt).getTime() < week).length;
+  const prevWeek = apps.filter((row) => {
+    const age = now - new Date(row.createdAt).getTime();
+    return age >= week && age < week * 2;
+  }).length;
+  return thisWeek - prevWeek;
+}
+
+function weekDeltaHint(delta: number): string {
+  if (delta > 0) return `+${delta} so với tuần trước`;
+  if (delta < 0) return `${delta} so với tuần trước`;
+  return 'Không đổi so với tuần trước';
 }
 
 function greeting(): string {
