@@ -168,7 +168,7 @@ export function AdminHomepageHeroPage() {
           <Field label="Dòng nhỏ phía trên">
             <Input value={form.eyebrow} onChange={(event) => patch({ eyebrow: event.target.value })} />
           </Field>
-          <Field label="Tiêu đề" hint="Mỗi dòng một hàng. Cụm tô cam phải nằm đúng trong tiêu đề.">
+          <Field label="Tiêu đề" description="Mỗi dòng một hàng. Cụm tô cam phải nằm đúng trong tiêu đề.">
             <textarea
               className="cms-field-control min-h-[96px]"
               value={form.title}
@@ -239,7 +239,7 @@ export function AdminHomepageHeroPage() {
                   <Input value={person.score} onChange={(event) => patchPerson(index, { score: event.target.value })} />
                 </Field>
               </div>
-              <Field label="Dòng phụ" hint="Xuống dòng để tách chức danh và số năm.">
+              <Field label="Dòng phụ" description="Xuống dòng để tách chức danh và số năm.">
                 <textarea
                   className="cms-field-control min-h-[72px]"
                   value={person.detail}
