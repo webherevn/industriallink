@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, Check, ChevronLeft, IdCard, MessageCircle, MessageSquare, Minus, Paperclip, Plus, Search, Send, Smile, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, IdCard, Info, MapPin, MessageCircle, MessageSquare, Minus, Paperclip, Plus, Search, Send, Smile, User, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
@@ -243,13 +243,16 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                     type="button"
                     onClick={() => setFolder(id)}
                     className={clsx(
-                      'rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                      'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition duration-200',
                       folder === id
                         ? 'bg-brand-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
                     )}
                   >
                     {label}
+                    {id === 'unread' && unread > 0 && folder !== id && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -336,9 +339,10 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
               {active?.profile?.path && (
                 <Link
                   href={active.profile.path}
-                  className="shrink-0 rounded-full border border-brand-200 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 xl:hidden"
+                  className="shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-brand-700"
+                  aria-label="Thông tin hồ sơ"
                 >
-                  Xem hồ sơ
+                  <Info className="h-4 w-4" />
                 </Link>
               )}
               {!embedded && (
@@ -352,34 +356,59 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
                 </button>
               )}
             </div>
-            <div ref={scroller} className="relative flex min-h-0 flex-1 basis-0 flex-col overflow-y-auto px-3 py-3">
+            <div ref={scroller} className="relative flex min-h-0 flex-1 basis-0 flex-col overflow-y-auto bg-[linear-gradient(180deg,#fff_0%,#f8fafc_100%)] px-4 py-3">
               {!activeId && <EmptyThread recruiter={recruiterView} />}
               {activeId && messages.isLoading && (
                 <p className="text-center text-xs text-slate-400">Đang tải tin nhắn…</p>
               )}
-              <div className="space-y-2">
+              <div className="relative z-[1] space-y-3">
               {activeId &&
-                (messages.data ?? []).map((m) => (
-                  <div key={m.id} className={clsx('flex', m.mine ? 'justify-end' : 'justify-start')}>
-                    <div
-                      className={clsx(
-                        'max-w-[78%] rounded-2xl px-3 py-2 text-[13px] leading-snug shadow-sm',
-                        m.mine
-                          ? 'rounded-br-md bg-[#072348] text-white'
-                          : 'rounded-bl-md border border-slate-200 bg-white text-slate-800',
+                (messages.data ?? []).map((m, index, all) => {
+                  const prev = all[index - 1];
+                  const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+                  return (
+                    <div key={m.id}>
+                      {showDay && (
+                        <p className="py-1 text-center">
+                          <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-400 ring-1 ring-slate-100">
+                            {dayLabel(m.createdAt)}
+                          </span>
+                        </p>
                       )}
-                    >
-                      <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                      <p className={clsx('mt-1 text-[10px]', m.mine ? 'text-white/60' : 'text-slate-400')}>
-                        {formatClock(m.createdAt)}
-                      </p>
+                      <div className={clsx('flex', m.mine ? 'justify-end' : 'justify-start')}>
+                        <div className="max-w-[78%]">
+                          <div
+                            className={clsx(
+                              'rounded-2xl px-3.5 py-2 text-[13px] leading-snug',
+                              m.mine
+                                ? 'rounded-br-md bg-brand-800 text-white'
+                                : 'rounded-bl-md bg-slate-100 text-slate-800',
+                            )}
+                          >
+                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                          </div>
+                          <p
+                            className={clsx(
+                              'mt-1 flex items-center gap-1 text-[10px] text-slate-400',
+                              m.mine ? 'justify-end' : 'justify-start',
+                            )}
+                          >
+                            {formatClock(m.createdAt)}
+                            {m.mine && <Check className="h-3 w-3" />}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {activeId && !messages.isLoading && (messages.data ?? []).length === 0 && (
-                <p className="text-center text-xs text-slate-400">Hãy gửi lời chào đầu tiên.</p>
+                <p className="relative z-[1] text-center text-xs text-slate-400">Hãy gửi lời chào đầu tiên.</p>
               )}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-[radial-gradient(120%_80%_at_50%_100%,rgba(7,35,72,0.08),transparent_70%)]"
+              />
             </div>
             <form
               className="flex items-center gap-2 border-t border-slate-100 bg-white px-3 py-3"
@@ -754,30 +783,38 @@ function ProfilePane({ thread }: { thread: ConnectionChatThread }) {
   const facts = (profile?.facts ?? []).filter((fact) => briefLabels.includes(fact.label)).slice(0, 2);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
-        <PeerPhoto name={thread.peerName} companyId={profile?.logoCompanyId ?? null} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 text-center">
+        <div className="flex justify-center">
+          <PeerPhoto name={thread.peerName} companyId={profile?.logoCompanyId ?? null} />
+        </div>
         {kindLabel && (
-          <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{kindLabel}</p>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{kindLabel}</p>
         )}
-        <p className={clsx('text-sm font-semibold text-brand-700', kindLabel ? 'mt-0.5' : 'mt-3')}>{thread.peerName}</p>
+        <p className={clsx('text-base font-bold text-brand-800', kindLabel ? 'mt-1' : 'mt-4')}>{thread.peerName}</p>
         <p className="mt-0.5 text-xs text-slate-500">{profile?.headline ?? thread.peerHint ?? 'Đối tác kết nối'}</p>
         {facts.length > 0 && (
-          <dl className="mt-4 space-y-2">
+          <dl className="mt-6 space-y-4 text-left">
             {facts.map((fact) => (
               <div key={fact.label}>
-                <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{fact.label}</dt>
-                <dd className="mt-0.5 text-xs leading-snug text-slate-700">{fact.value}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{fact.label}</dt>
+                <dd className="mt-1 flex items-start gap-1.5 text-sm leading-snug text-slate-700">
+                  {fact.label === 'Khu vực' || fact.label === 'Địa điểm' ? (
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  ) : null}
+                  <span>{fact.value}</span>
+                </dd>
               </div>
             ))}
           </dl>
         )}
       </div>
       {profile?.path && (
-        <div className="border-t border-slate-100 px-4 py-3">
+        <div className="px-4 py-4">
           <Link
             href={profile.path}
-            className="flex h-9 items-center justify-center rounded-lg bg-brand-600 text-xs font-semibold text-white hover:bg-brand-700"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-600 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
+            <User className="h-4 w-4" />
             Xem hồ sơ
           </Link>
         </div>
@@ -816,6 +853,18 @@ function formatClock(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function dayLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (sameDay) return 'Hôm nay';
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function dayKey(iso: string): string {

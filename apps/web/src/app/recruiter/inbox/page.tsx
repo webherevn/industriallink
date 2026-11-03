@@ -4,26 +4,27 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   ArrowRight,
-  Briefcase,
   Clock3,
   Filter,
   Inbox,
+  Mail,
   Search,
   Sparkles,
   UserRound,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ApplicationStatus,
   formatJobTitle,
   type InboxApplicantView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import { CopilotRobot } from '@/components/copilot-robot';
 import { Badge, Button, Input } from '@/components/ui';
 import { APPLICATION_STATUS_LABEL, interviewMarkText, statusTone } from '@/lib/format';
-import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
+import { formatMatchPct } from '@/lib/match-percent';
 import { listInbox } from '@/lib/recruiter';
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
@@ -36,9 +37,12 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: ApplicationStatus.Rejected, label: 'Từ chối' },
 ];
 
+type InboxSort = 'match' | 'new';
+
 export default function RecruiterInboxPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [q, setQ] = useState('');
+  const [sort, setSort] = useState<InboxSort>('match');
   const { data, isLoading } = useQuery({
     queryKey: ['recruiter-inbox'],
     queryFn: () => listInbox(100),
@@ -77,77 +81,67 @@ export default function RecruiterInboxPage() {
       });
     }
     return [...list].sort((a, b) => {
+      if (sort === 'new') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
       const scoreDiff = (b.matchScore ?? -1) - (a.matchScore ?? -1);
       if (scoreDiff !== 0) return scoreDiff;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [data, statusFilter, q]);
+  }, [data, statusFilter, q, sort]);
 
   return (
     <AppShell>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-            <span className="brand-accent-dot" />
-            Tuyển dụng
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-            Hộp thư ứng viên
-          </h1>
-          <div className="brand-accent-bar mt-2" />
-          <p className="mt-2 max-w-xl text-sm text-slate-500">
-            Theo dõi và xử lý toàn bộ hồ sơ ứng tuyển — ưu tiên điểm phù hợp AI cao.
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-4">
+          <div>
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
+              <span className="h-4 w-1 rounded-full bg-accent-500" />
+              Tuyển dụng
+            </p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800">Hộp thư ứng viên</h1>
+            <p className="mt-1 max-w-xl text-sm text-slate-500">
+              Theo dõi và xử lý toàn bộ hồ sơ ứng tuyển — ưu tiên điểm phù hợp AI cao.
+            </p>
+          </div>
+          <div className="hidden w-24 shrink-0 lg:block" aria-hidden>
+            <CopilotRobot />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/recruiter/email">
-            <Button variant="outline">Gửi email hàng loạt</Button>
+          <Link
+            href="/recruiter/email"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-sm transition duration-200 hover:border-brand-200 hover:bg-brand-50"
+          >
+            <Mail className="h-4 w-4" />
+            Gửi email hàng loạt
           </Link>
-          <Link href="/search">
-            <Button>
-              <Sparkles className="h-4 w-4 text-accent-300" />
-              Tìm ứng viên AI
-            </Button>
+          <Link
+            href="/search"
+            className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-brand-700"
+          >
+            <Sparkles className="h-4 w-4" />
+            Tìm ứng viên AI
           </Link>
         </div>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          icon={<Users className="h-4 w-4" />}
-          label="Tổng hồ sơ"
-          value={stats.total}
-          tone="blue"
-        />
-        <StatCard
-          icon={<Clock3 className="h-4 w-4" />}
-          label="Mới 24 giờ"
-          value={stats.newToday}
-          tone="teal"
-        />
-        <StatCard
-          icon={<Filter className="h-4 w-4" />}
-          label="Đang sàng lọc"
-          value={stats.screening}
-          tone="amber"
-        />
-        <StatCard
-          icon={<Sparkles className="h-4 w-4" />}
-          label="Phù hợp ≥ 60%"
-          value={stats.highMatch}
-          tone="green"
-        />
+        <StatCard icon={<Users className="h-5 w-5" />} label="Tổng hồ sơ" value={stats.total} tone="bg-brand-50 text-brand-700" />
+        <StatCard icon={<Clock3 className="h-5 w-5" />} label="Mới 24 giờ" value={stats.newToday} tone="bg-accent-50 text-accent-700" />
+        <StatCard icon={<Filter className="h-5 w-5" />} label="Đang sàng lọc" value={stats.screening} tone="bg-[#e7eef8] text-brand-700" />
+        <StatCard icon={<Sparkles className="h-5 w-5" />} label="Phù hợp ≥ 60%" value={stats.highMatch} tone="bg-emerald-50 text-emerald-700" />
       </div>
 
-      <div className="brand-panel mt-5 p-4">
-        <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-2">
-          <div className="relative min-w-0">
+      <div className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)] sm:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="relative min-w-0 xl:max-w-md xl:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Tìm theo tên, tin tuyển dụng, kỹ năng..."
-              className="w-full border-accent-200 bg-[#FFFBF7] pl-9"
+              className="w-full border-slate-200 bg-slate-50 pl-9"
             />
           </div>
           <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -159,10 +153,10 @@ export default function RecruiterInboxPage() {
                   type="button"
                   onClick={() => setStatusFilter(f.value)}
                   className={clsx(
-                    'rounded-full px-3 py-1.5 text-[12px] font-semibold transition',
+                    'rounded-full px-3 py-1.5 text-[12px] font-semibold transition duration-200',
                     active
-                      ? 'bg-brand-600 text-white shadow-sm ring-2 ring-accent-300/70'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                      ? 'bg-brand-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100',
                   )}
                 >
                   {f.label}
@@ -173,13 +167,21 @@ export default function RecruiterInboxPage() {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <p className="text-sm text-slate-500">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-slate-500">
           {isLoading ? 'Đang tải…' : `${filtered.length} hồ sơ`}
         </p>
-        {!isLoading && filtered.length > 0 && (
-          <p className="text-[12px] text-slate-400">Sắp xếp theo độ phù hợp AI</p>
-        )}
+        <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
+          Sắp xếp theo
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value as InboxSort)}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800"
+          >
+            <option value="match">Độ phù hợp AI</option>
+            <option value="new">Mới nhất</option>
+          </select>
+        </label>
       </div>
 
       <div className="mt-3 space-y-3">
@@ -237,29 +239,37 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
     year: 'numeric',
   });
 
+  const strong = scoreValue(a.matchScore) >= 60;
+  const meta = [
+    a.jobTitle,
+    a.currentPosition ? formatJobTitle(a.currentPosition) : '',
+    a.industry ?? '',
+    ...a.matchedSkills.slice(0, 3),
+  ].filter(Boolean);
+
   return (
-    <article className="brand-panel brand-card-accent group p-4 transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5">
+    <article className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3.5">
-          <div className="relative shrink-0">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#DBEAFE] to-[#93C5FD] text-sm font-bold text-[#1D4ED8] ring-2 ring-white">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <div className="flex w-14 shrink-0 flex-col items-center">
+            <div
+              className={clsx(
+                'flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-bold',
+                strong ? 'bg-emerald-50 text-emerald-700' : 'bg-accent-50 text-accent-700',
+              )}
+            >
               {initials || 'UV'}
             </div>
             {a.matchScore != null && (
-              <span
-                className={clsx(
-                  'absolute -bottom-1 -right-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold shadow',
-                  matchBadgeTone(a.matchScore),
-                )}
-              >
+              <p className={clsx('mt-1 text-xs font-bold tabular-nums', strong ? 'text-emerald-600' : 'text-[#E8872A]')}>
                 {formatMatchPct(a.matchScore)}%
-              </span>
+              </p>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-[15px] font-semibold text-slate-900">
+              <h2 className="truncate text-[15px] font-bold uppercase tracking-wide text-brand-800">
                 {a.displayName}
               </h2>
               <Badge tone={statusTone(a.status)}>{APPLICATION_STATUS_LABEL[a.status]}</Badge>
@@ -268,79 +278,46 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
                   {interviewMarkText(mark)}
                 </Badge>
               ))}
-              {a.matchScore != null && a.matchScore >= 60 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              {strong && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-accent-50 px-2 py-0.5 text-[11px] font-semibold text-accent-700">
                   <Sparkles className="h-3 w-3" /> Ưu tiên
                 </span>
               )}
             </div>
-
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-slate-500">
-              <span className="inline-flex items-center gap-1 font-medium text-slate-700">
-                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-                {a.jobTitle}
-              </span>
-              {a.currentPosition && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span>{formatJobTitle(a.currentPosition)}</span>
-                </>
-              )}
-              {a.industry && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span>{a.industry}</span>
-                </>
-              )}
+            <p className="mt-1 truncate text-[13px] text-slate-500">
+              {meta.join(' · ')}
+              {a.matchedSkills.length > 3 ? ` · +${a.matchedSkills.length - 3}` : ''}
             </p>
-
-            {a.matchedSkills.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {a.matchedSkills.slice(0, 6).map((s) => (
-                  <Badge key={s} tone="green">
-                    {s}
-                  </Badge>
-                ))}
-                {a.matchedSkills.length > 6 && (
-                  <span className="text-[11px] font-medium text-slate-400">
-                    +{a.matchedSkills.length - 6}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-end xl:flex-row">
-          <p className="text-[11px] text-slate-400 sm:order-first lg:order-none xl:mr-1">
-            {timeLabel}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/candidates/${a.candidateId}`}>
-              <Button className="h-9 bg-accent-500 px-3.5 text-[13px] hover:bg-accent-600">
-                <UserRound className="h-4 w-4" />
-                Xem hồ sơ
-              </Button>
-            </Link>
-            <Link href={`/jobs/${a.jobId}/applicants`}>
-              <Button variant="outline" className="h-9 px-3.5 text-[13px]">
-                Quy trình
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </Link>
-          </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+          <p className="mr-1 text-[12px] text-slate-400">{timeLabel}</p>
+          <Link
+            href={`/candidates/${a.candidateId}`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-700"
+          >
+            <UserRound className="h-4 w-4" />
+            Xem hồ sơ
+          </Link>
+          <Link
+            href={`/jobs/${a.jobId}/applicants`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-brand-800 transition hover:border-brand-200 hover:bg-brand-50"
+          >
+            Quy trình
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
       </div>
     </article>
   );
 }
 
-const STAT_TONE = {
-  blue: 'bg-brand-50 text-brand-700',
-  teal: 'bg-accent-50 text-accent-700',
-  amber: 'bg-accent-100 text-accent-700',
-  green: 'bg-[#D1FAE5] text-[#059669]',
-} as const;
+function scoreValue(value: number | null | undefined): number {
+  if (value == null || Number.isNaN(value)) return 0;
+  const numeric = value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, numeric));
+}
 
 function StatCard({
   icon,
@@ -348,23 +325,19 @@ function StatCard({
   value,
   tone,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: number;
-  tone: keyof typeof STAT_TONE;
+  tone: string;
 }) {
   return (
-    <div className="brand-panel p-4">
-      <div
-        className={clsx(
-          'flex h-9 w-9 items-center justify-center rounded-full',
-          STAT_TONE[tone],
-        )}
-      >
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200">
+      <span className={clsx('flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>
         {icon}
-      </div>
-      <p className="mt-3 text-[12px] font-medium text-slate-500">{label}</p>
-      <p className="mt-0.5 text-[1.5rem] font-extrabold tracking-tight text-slate-900">{value}</p>
+      </span>
+      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
+      <span aria-hidden className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80" />
     </div>
   );
 }
