@@ -1266,6 +1266,8 @@ model CmsHomepageSettings {
   robotsMaxImagePreview Boolean @default(true) @map("robots_max_image_preview")
   /// JSON-LD tùy biến. Null = không xuất schema tùy biến.
   customSchema   String? @map("custom_schema") @db.Text
+  /// Banner hero trang chủ. Null = dùng mẫu mặc định.
+  hero           Json?   @map("hero")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

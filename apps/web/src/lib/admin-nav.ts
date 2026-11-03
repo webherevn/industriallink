@@ -57,7 +57,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { href: '/admin/seo/links', label: 'Link nội bộ', icon: Link2 },
       { href: '/admin/seo/semantic', label: 'AI Overviews', icon: Sparkles },
       { href: '/admin/seo/vitals', label: 'Core Web Vitals', icon: Gauge },
-      { href: '/admin/homepage', label: 'SEO trang chủ', icon: Home },
+      { href: '/admin/homepage/hero', label: 'Trang chủ', icon: Home, superAdminOnly: true },
+      { href: '/admin/homepage', label: 'SEO trang chủ', icon: Search },
     ],
   },
   {

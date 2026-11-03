@@ -172,12 +172,14 @@ function JobsPageInner({
   heroHeading,
   heroHeadingAccent,
   heroSubtitle,
+  leading,
 }: {
   initialJobs?: JobListItem[];
   forcedIndustry?: string;
   heroHeading?: string;
   heroHeadingAccent?: string | null;
   heroSubtitle?: string | null;
+  leading?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -519,7 +521,9 @@ function JobsPageInner({
     (tab === 'applied' && appsLoading);
 
   return (
-    <AppShell wide flush allowGuest>
+    <AppShell wide flush allowGuest bleed={Boolean(leading)}>
+      {leading}
+      <div className={leading ? 'mx-auto w-full max-w-[1280px] px-4 sm:px-6' : 'contents'}>
       {/* Hero — full-bleed trong vùng content */}
       <section className="relative mt-4 overflow-hidden rounded-2xl border border-sky-100/80 bg-[#E8F1FB]">
         <div
@@ -1139,6 +1143,7 @@ function JobsPageInner({
           </div>
         </aside>
       </div>
+      </div>
     </AppShell>
   );
 }
@@ -1527,12 +1532,14 @@ export function JobsListingClient({
   heroHeading,
   heroHeadingAccent,
   heroSubtitle,
+  leading,
 }: {
   initialJobs?: JobListItem[];
   forcedIndustry?: string;
   heroHeading?: string;
   heroHeadingAccent?: string | null;
   heroSubtitle?: string | null;
+  leading?: React.ReactNode;
 }) {
   return (
     <Suspense
@@ -1548,6 +1555,7 @@ export function JobsListingClient({
         heroHeading={heroHeading}
         heroHeadingAccent={heroHeadingAccent}
         heroSubtitle={heroSubtitle}
+        leading={leading}
       />
     </Suspense>
   );

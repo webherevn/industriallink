@@ -1,4 +1,5 @@
 import { CmsContentStatus, CmsContentType } from './enums';
+import type { HomepageHeroContent } from './homepage-hero';
 
 export interface CmsFaqItem {
   question: string;
@@ -357,6 +358,8 @@ export interface CmsHomepageSettingsView {
   robotsMaxImagePreview: boolean;
   /** JSON-LD tùy biến cho trang chủ. Rỗng = không thêm schema. */
   customSchema: string | null;
+  /** Banner đầu trang chủ. */
+  hero: HomepageHeroContent;
   updatedAt: string;
 }
 

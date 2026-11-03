@@ -33,6 +33,7 @@ import { UpdateCmsPostStatusDto } from './dto/update-cms-post-status.dto';
 import { UpsertCmsAuthorProfileDto, AssignCmsAuthorProfileDto } from './dto/upsert-cms-author-profile.dto';
 import { UpsertCmsCategoryDto } from './dto/upsert-cms-category.dto';
 import { UpsertCmsFooterSettingsDto } from './dto/upsert-cms-footer.dto';
+import { SaveHomepageHeroDto } from './dto/save-homepage-hero.dto';
 import { UpsertCmsHomepageSettingsDto } from './dto/upsert-cms-homepage.dto';
 import { UpsertCmsPostDto } from './dto/upsert-cms-post.dto';
 import { UpsertCmsRedirectDto } from './dto/upsert-cms-redirect.dto';
@@ -310,6 +311,16 @@ export class CmsAdminController {
     @Body() dto: UpsertCmsHomepageSettingsDto,
   ) {
     return this.cms.saveHomepageSettings(user, dto);
+  }
+
+  @Put('homepage/hero')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu banner hero trang chủ' })
+  saveHomepageHero(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SaveHomepageHeroDto,
+  ) {
+    return this.cms.saveHomepageHero(user, dto);
   }
 
   @Get('robots')

@@ -3,6 +3,8 @@ import { CmsCustomSchemaScripts } from '@/components/cms-custom-schema';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { cmsRobotsMeta, formatCmsSeoTitle } from '@/lib/cms-seo';
 import { isQueryVariant, parentCanonicalMetadata } from '@/lib/listing-seo';
+import { normalizeHomepageHero } from '@industriallink/contracts';
+import { HomeHero } from '@/components/home-hero';
 import { fetchPublicCmsHomepage } from '@/lib/public-cms-api';
 import { fetchPublishedJobs } from '@/lib/public-job-api';
 import { siteUrl } from '@/lib/public-paths';
@@ -59,7 +61,7 @@ export async function generateMetadata({
   };
 }
 
-/** Tạm: trang chủ = giao diện việc làm. Thiết kế homepage riêng sẽ thay sau. */
+/** Trang chủ: banner hero, phần việc làm phía dưới giữ đến khi làm các khối tiếp theo. */
 export default async function HomePage() {
   const [jobs, home] = await Promise.all([
     fetchPublishedJobs(),
@@ -75,6 +77,7 @@ export default async function HomePage() {
         heroHeading={home?.heading}
         heroHeadingAccent={home?.headingAccent}
         heroSubtitle={home?.subtitle}
+        leading={<HomeHero hero={normalizeHomepageHero(home?.hero)} />}
       />
     </>
   );

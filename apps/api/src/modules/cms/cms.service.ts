@@ -16,6 +16,7 @@ import {
   cmsPostPublicPath,
   nextUniqueSlug,
   parseCustomSchemaInput,
+  normalizeHomepageHero,
   toSeoSlug,
   type CmsAuthorProfileView,
   type CmsAuthorSocial,
@@ -1311,6 +1312,7 @@ export class CmsService {
       robotsFollow: true,
       robotsMaxImagePreview: true,
       customSchema: null,
+      hero: normalizeHomepageHero(null),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -1330,6 +1332,7 @@ export class CmsService {
     robotsFollow: boolean;
     robotsMaxImagePreview: boolean;
     customSchema: string | null;
+    hero: unknown;
     updatedAt: Date;
   }): CmsHomepageSettingsView {
     return {
@@ -1347,6 +1350,7 @@ export class CmsService {
       robotsFollow: row.robotsFollow,
       robotsMaxImagePreview: row.robotsMaxImagePreview,
       customSchema: row.customSchema,
+      hero: normalizeHomepageHero(row.hero),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -1392,6 +1396,27 @@ export class CmsService {
       where: { tenantId: 'default' },
       create: { tenantId: 'default', ...data },
       update: data,
+    });
+    return this.mapHomepageSettings(row);
+  }
+
+  async saveHomepageHero(
+    user: AuthenticatedUser,
+    input: unknown,
+  ): Promise<CmsHomepageSettingsView> {
+    const hero = normalizeHomepageHero(input);
+    const row = await this.prisma.cmsHomepageSettings.upsert({
+      where: { tenantId: 'default' },
+      create: {
+        tenantId: 'default',
+        heading: 'Tìm đúng cơ hội trong ngành công nghiệp',
+        hero: hero as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+      update: {
+        hero: hero as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
     });
     return this.mapHomepageSettings(row);
   }
