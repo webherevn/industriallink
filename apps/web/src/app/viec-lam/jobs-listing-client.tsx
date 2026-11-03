@@ -57,7 +57,7 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct } from '@/lib/match-percent';
-import { composeJobBoard, listingTier } from '@/lib/job-listing-board';
+import { composeJobBoard, LISTING_ROTATE_MS, listingTier } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
 type TabId = 'all' | 'saved' | 'applied';
@@ -186,6 +186,7 @@ function JobsPageInner({
   const queryClient = useQueryClient();
   const [filterMode, setFilterMode] = useState<FilterMode>('regular');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [listAi, setListAi] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [draftKeyword, setDraftKeyword] = useState(searchParams.get('keyword') ?? '');
 
@@ -209,11 +210,22 @@ function JobsPageInner({
   const byPlace = searchParams.get('place') === '1';
   const pageRaw = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
+    let timer = 0;
+    const tick = () => setNow(new Date());
+    tick();
+    const arm = () => {
+      const delay = LISTING_ROTATE_MS - (Date.now() % LISTING_ROTATE_MS);
+      timer = window.setTimeout(() => {
+        tick();
+        arm();
+      }, delay);
+    };
+    arm();
+    return () => window.clearTimeout(timer);
   }, []);
+  const boardNow = now ?? new Date(0);
 
   const listQuery: ListPublishedJobsQuery = useMemo(() => {
     const q: ListPublishedJobsQuery = {};
@@ -461,23 +473,30 @@ function JobsPageInner({
   );
 
   const usingAi = filterMode === 'ai' && tab === 'all';
+  const boardLeaving = usingAi !== listAi;
+  useEffect(() => {
+    if (!boardLeaving) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = window.setTimeout(() => setListAi(usingAi), reduce ? 0 : 240);
+    return () => window.clearTimeout(timer);
+  }, [boardLeaving, usingAi]);
   const jobBoard = useMemo(
-    () => (tab === 'all' && !usingAi ? composeJobBoard(allJobs, page - 1, now) : null),
-    [tab, usingAi, allJobs, page, now],
+    () => (tab === 'all' && !listAi ? composeJobBoard(allJobs, page - 1, boardNow) : null),
+    [tab, listAi, allJobs, page, boardNow],
   );
   const pageSize = tab === 'applied' ? APPLIED_PAGE_SIZE : JOB_PAGE_SIZE;
   const totalItems =
-    tab === 'applied' ? allApplications.length : usingAi ? rankedAi.length : allJobs.length;
+    tab === 'applied' ? allApplications.length : listAi ? rankedAi.length : allJobs.length;
   const totalPages =
-    tab === 'all' && !usingAi
+    tab === 'all' && !listAi
       ? (jobBoard?.totalPages ?? 1)
       : Math.max(1, Math.ceil(totalItems / pageSize) || 1);
   const currentPage = Math.min(page, totalPages);
   const pageOffset = (currentPage - 1) * pageSize;
-  const displayJobs = usingAi
+  const displayJobs = listAi
     ? rankedAi.slice(pageOffset, pageOffset + pageSize)
     : tab === 'all'
-      ? (jobBoard && currentPage === page ? jobBoard.page : composeJobBoard(allJobs, currentPage - 1, now).page)
+      ? (jobBoard && currentPage === page ? jobBoard.page : composeJobBoard(allJobs, currentPage - 1, boardNow).page)
       : allJobs.slice(pageOffset, pageOffset + pageSize);
   const displayApplications = allApplications.slice(
     (currentPage - 1) * APPLIED_PAGE_SIZE,
@@ -493,8 +512,8 @@ function JobsPageInner({
   };
 
   const loading =
-    (usingAi && matchesLoading && rankedAi.length === 0) ||
-    (tab === 'all' && filterMode === 'regular' && isLoading) ||
+    (listAi && matchesLoading && rankedAi.length === 0) ||
+    (tab === 'all' && !listAi && isLoading) ||
     (tab === 'saved' && bookmarksLoading) ||
     (tab === 'applied' && appsLoading);
 
@@ -609,17 +628,18 @@ function JobsPageInner({
         </div>
       </section>
 
-      {/* Lọc thường: 3 cột. Lọc AI: bỏ cột lọc để hai cột tin rộng hơn. */}
-      <div
-        className={clsx(
-          'mt-6 grid min-w-0 gap-5 pb-10 transition-[grid-template-columns] duration-300',
-          filtersOpen
-            ? 'lg:grid-cols-[240px_minmax(0,1fr)_260px]'
-            : 'lg:grid-cols-[minmax(0,1fr)_280px]',
-        )}
-      >
-        {filtersOpen && (
-        <aside className="order-1 min-w-0 lg:order-1">
+      {/* Lọc thường xổ bộ lọc. Lọc AI thu bộ lọc. Cả hai trượt, không nhảy. */}
+      <div className="mt-6 flex min-w-0 flex-col gap-5 pb-10 lg:flex-row lg:items-start">
+        <aside
+          aria-hidden={!filtersOpen}
+          className={clsx(
+            'order-1 min-w-0 shrink-0 overflow-hidden transition-[width,max-height,opacity,margin] duration-500 ease-soft motion-reduce:transition-none lg:max-h-none',
+            filtersOpen
+              ? 'max-h-[2400px] opacity-100 lg:w-[240px]'
+              : 'pointer-events-none -mb-5 max-h-0 opacity-0 lg:mb-0 lg:-mr-5 lg:w-0',
+          )}
+        >
+        <div className="w-full lg:w-[240px]">
           <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-slate-900">Bộ lọc tìm kiếm</h2>
@@ -737,14 +757,21 @@ function JobsPageInner({
               ))}
             </Select>
           </div>
+        </div>
         </aside>
-        )}
 
         {/* List */}
-        <section id="job-results" className="order-2 min-w-0 scroll-mt-24 lg:order-2">
+        <section id="job-results" className="order-2 min-w-0 flex-1 scroll-mt-24 lg:order-2">
           <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-b border-slate-200">
             <div className="flex min-w-0 flex-wrap items-end gap-2">
-              <div className="mb-2 flex items-center gap-2">
+              <div className="relative mb-2 grid shrink-0 grid-cols-2 rounded-xl bg-white p-1 ring-1 ring-slate-200">
+                <span
+                  aria-hidden
+                  className={clsx(
+                    'pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%-4px)] rounded-lg bg-[#072348] shadow-sm transition-transform duration-500 ease-soft motion-reduce:transition-none',
+                    filterMode === 'ai' && 'translate-x-full',
+                  )}
+                />
                 <button
                   type="button"
                   onClick={() => {
@@ -757,10 +784,8 @@ function JobsPageInner({
                     setParams({ page: null });
                   }}
                   className={clsx(
-                    'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition',
-                    filterMode === 'regular'
-                      ? 'bg-[#072348] text-white shadow-sm'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                    'relative z-10 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-300 ease-soft',
+                    filterMode === 'regular' ? 'text-white' : 'text-slate-600 hover:text-slate-900',
                   )}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
@@ -769,15 +794,14 @@ function JobsPageInner({
                 <button
                   type="button"
                   onClick={() => {
+                    if (filterMode === 'ai') return;
                     setFilterMode('ai');
                     setFiltersOpen(false);
                     setFilterParams({ tab: 'all' });
                   }}
                   className={clsx(
-                    'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition',
-                    filterMode === 'ai'
-                      ? 'bg-[#072348] text-white shadow-sm'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                    'relative z-10 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-300 ease-soft',
+                    filterMode === 'ai' ? 'text-white' : 'text-slate-600 hover:text-slate-900',
                   )}
                 >
                   <Sparkles className="h-4 w-4" />
@@ -790,7 +814,7 @@ function JobsPageInner({
                   {
                     id: 'all' as const,
                     label: 'Tất cả việc làm',
-                    count: usingAi ? rankedAi.length : jobs?.length,
+                    count: listAi ? rankedAi.length : jobs?.length,
                   },
                   {
                     id: 'saved' as const,
@@ -882,23 +906,30 @@ function JobsPageInner({
           )}
 
           {!loading && tab !== 'applied' && (
-            <>
-              {usingAi && rankedAi.length > 0 && (
+            <div
+              className={clsx(
+                'transition-[opacity,transform] duration-500 ease-soft motion-reduce:transition-none',
+                boardLeaving
+                  ? 'pointer-events-none translate-y-2 opacity-0'
+                  : 'translate-y-0 opacity-100',
+              )}
+            >
+              {listAi && rankedAi.length > 0 && (
                 <p className="mt-3 text-xs text-slate-500">
                   Việc làm AI chọn theo mức phù hợp hồ sơ, xếp từ cao xuống thấp.
                 </p>
               )}
               <ul
                 className={clsx(
-                  'mt-4 grid grid-cols-1 items-stretch gap-3 rounded-2xl bg-[#eef3f8] p-3 ring-1 ring-slate-200/80 sm:grid-cols-2',
+                  'mt-4 grid grid-cols-1 items-stretch gap-3 rounded-2xl bg-[#eef3f8] p-3 ring-1 ring-slate-200/80 transition-[padding,gap] duration-500 ease-soft motion-reduce:transition-none sm:grid-cols-2',
                   !filtersOpen && 'sm:gap-4 sm:p-4',
                 )}
               >
-                {(usingAi ? rankedAi : allJobs).length === 0 && (
+                {(listAi ? rankedAi : allJobs).length === 0 && (
                   <li className="col-span-full">
                     <EmptyState
                       text={
-                        usingAi
+                        listAi
                           ? 'Chưa có việc làm AI gợi ý. Đăng nhập và cập nhật hồ sơ để xem tin khớp với bạn.'
                           : tab === 'saved'
                             ? 'Chưa có việc làm đã lưu.'
@@ -924,7 +955,7 @@ function JobsPageInner({
                   />
                 ))}
               </ul>
-              {(usingAi ? rankedAi : allJobs).length > 0 && (
+              {(listAi ? rankedAi : allJobs).length > 0 && (
                 <PaginationBar
                   page={currentPage}
                   totalPages={totalPages}
@@ -938,12 +969,17 @@ function JobsPageInner({
                   onChange={goToPage}
                 />
               )}
-            </>
+            </div>
           )}
         </section>
 
         {/* Right widgets */}
-        <aside className="order-3 min-w-0 space-y-4 lg:order-3">
+        <aside
+          className={clsx(
+            'order-3 w-full min-w-0 shrink-0 space-y-4 transition-[width] duration-500 ease-soft motion-reduce:transition-none lg:w-[280px]',
+            filtersOpen && 'lg:w-[260px]',
+          )}
+        >
           <div className="overflow-hidden rounded-xl border border-amber-100/90 bg-gradient-to-br from-amber-50/50 via-white to-white p-4 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-amber-400 text-white shadow-md shadow-amber-500/20">
@@ -1307,7 +1343,7 @@ function JobCard({
     <li className="flex min-w-0">
       <article
         className={clsx(
-          'flex h-full w-full rounded-xl border transition hover:-translate-y-0.5 hover:shadow-lg',
+          'flex h-full w-full rounded-xl border transition-[padding,gap,transform,box-shadow] duration-500 ease-soft hover:-translate-y-0.5 hover:shadow-lg hover:duration-200 motion-reduce:transition-none',
           spacious ? 'gap-3.5 p-4' : 'gap-3 p-3',
           tone.card,
         )}

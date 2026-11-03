@@ -5,9 +5,8 @@ const PAID_SLOTS = 4;
 /** Hàng cuối: Khám phá. */
 const STARTER_SLOTS = 2;
 
-const WORK_START_MIN = 8 * 60;
-const WORK_END_MIN = 17 * 60;
-const DAY_MIN = 24 * 60;
+/** Mỗi nhóm đổi bộ tin đang đứng ở trang đầu theo nhịp này. */
+export const LISTING_ROTATE_MS = 10_000;
 
 type Tier = 'spotlight' | 'paid' | 'starter';
 
@@ -18,37 +17,18 @@ export function listingTier(planCode: string | null | undefined): Tier {
   return 'starter';
 }
 
-function vnMinutes(now: Date): number {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now);
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
-  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
-  return hour * 60 + minute;
+function rotationTick(now: Date): number {
+  return Math.floor(now.getTime() / LISTING_ROTATE_MS);
 }
 
 /**
- * Vị trí bắt đầu trong vòng xoay.
- * 08:00–17:00 chạy hết một vòng, 17:00–08:00 chạy hết một vòng nữa.
- * Mỗi tin đứng ở trang đầu đúng cùng số bước, nên thời gian hiện bằng nhau và giờ làm được ưu tiên.
+ * Xoay đúng một nhóm.
+ * Mỗi 10 giây, cửa sổ trang đầu của nhóm nhảy đúng số ô của nhóm đó.
+ * Hết một vòng, mỗi tin đứng ở trang đầu cùng số nhịp, không phụ thuộc nhóm nhiều hay ít tin.
  */
-export function fairStepIndex(jobCount: number, slots: number, now: Date): number {
-  if (jobCount <= slots) return 0;
-  const mins = vnMinutes(now);
-  const inWork = mins >= WORK_START_MIN && mins < WORK_END_MIN;
-  const progress = inWork
-    ? (mins - WORK_START_MIN) / (WORK_END_MIN - WORK_START_MIN)
-    : (mins >= WORK_END_MIN ? mins - WORK_END_MIN : mins + (DAY_MIN - WORK_END_MIN)) /
-      (DAY_MIN - (WORK_END_MIN - WORK_START_MIN));
-  return Math.min(jobCount - 1, Math.floor(progress * jobCount));
-}
-
 function rotateTier<T>(jobs: T[], slots: number, now: Date): T[] {
   if (jobs.length <= slots) return jobs.slice();
-  const offset = fairStepIndex(jobs.length, slots, now) % jobs.length;
+  const offset = (rotationTick(now) * slots) % jobs.length;
   return jobs.slice(offset).concat(jobs.slice(0, offset));
 }
 
