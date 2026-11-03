@@ -287,16 +287,16 @@ nav[aria-label='Menu chính'] > a.px-3 {
     transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
   .progress-nav-item:hover {
-    @apply bg-slate-50 text-slate-900;
-  }
-  .progress-nav-item:hover::before {
-    @apply h-4 opacity-100;
+    @apply bg-slate-100 text-slate-900;
   }
   .progress-nav-item-active {
-    @apply bg-brand-50 text-brand-600;
+    @apply bg-brand-600 text-white shadow-sm;
   }
   .progress-nav-item-active::before {
-    @apply h-5 opacity-100;
+    @apply h-5 w-1 rounded-r-full bg-accent-400 opacity-100;
+  }
+  .progress-nav-item-active:hover {
+    @apply bg-brand-600 text-white;
   }
   .progress-btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200;

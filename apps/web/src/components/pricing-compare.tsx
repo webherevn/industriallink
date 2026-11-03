@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import clsx from 'clsx';
-import { Check, Coins, Package, Shield, X } from 'lucide-react';
+import { BarChart3, Check, X } from 'lucide-react';
 import type {
   BillingCompareTable,
   BillingCreditTopupView,
@@ -493,7 +493,7 @@ function CompareFlag({ yes, compact = false }: { yes: boolean; compact?: boolean
       {yes ? (
         <Check className={compact ? 'h-3.5 w-3.5 shrink-0 text-emerald-500' : 'h-4 w-4 text-emerald-500'} aria-hidden="true" />
       ) : (
-        <X className={compact ? 'h-3.5 w-3.5 shrink-0 text-slate-300' : 'h-4 w-4 text-slate-300'} aria-hidden="true" />
+        <X className={compact ? 'h-3.5 w-3.5 shrink-0 text-rose-500' : 'h-4 w-4 text-rose-500'} aria-hidden="true" />
       )}
       <span className="sr-only">{yes ? 'Có hỗ trợ' : 'Không hỗ trợ'}</span>
     </span>
@@ -531,8 +531,8 @@ function CompareMatrix({
             </caption>
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="px-4 py-3 text-left font-semibold text-slate-600" scope="col">
-                  Chỉ số
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500" scope="col">
+                  Tiêu chí
                 </th>
                 {columns.map((col) => (
                   <th
@@ -540,10 +540,10 @@ function CompareMatrix({
                     scope="col"
                     className={clsx(
                       'px-4 py-3 text-center',
-                      col.featured ? 'bg-amber-50 text-[#072348]' : 'text-slate-600',
+                      col.featured ? 'bg-accent-50 text-accent-700' : 'text-slate-600',
                     )}
                   >
-                    <span className="font-bold">{col.name}</span>
+                    <span className="text-xs font-bold uppercase tracking-wide">{col.name}</span>
                   </th>
                 ))}
               </tr>
@@ -563,7 +563,7 @@ function CompareMatrix({
                   {row.cells.map((cell, ci) => (
                     <td
                       key={columns[ci]?.id ?? ci}
-                      className={clsx('px-4 py-3 text-center', featured[ci] ? 'bg-amber-50/50' : '')}
+                      className={clsx('px-4 py-3 text-center', featured[ci] ? 'bg-accent-50/70' : '')}
                     >
                       <CompareCellView cell={cell} />
                     </td>
@@ -582,17 +582,17 @@ function CompareMatrix({
             className={clsx(
               'rounded-2xl border p-5',
               col.featured
-                ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-400'
+                ? 'border-accent-200 bg-accent-50/70'
                 : 'border-slate-200 bg-white',
             )}
           >
             <h3 className="text-base font-bold text-[#072348]">{col.name}</h3>
             <div className="mt-3 space-y-1.5">
-              {rows.map((row) => {
+              {rows.map((row, rowIndex) => {
                 const cell = row.cells[idx];
                 if (!cell) return null;
                 return (
-                  <div key={row.label} className="flex items-start justify-between gap-3 text-xs">
+                  <div key={row.autoKey ?? `${row.label}-${rowIndex}`} className="flex items-start justify-between gap-3 text-xs">
                     <span className="text-slate-500">{row.label}</span>
                     {cell.kind === 'flag' ? (
                       <CompareFlag yes={cell.yes} compact />
@@ -625,12 +625,14 @@ export function CompareSection({
   topups,
   currency,
   page,
+  flush = false,
 }: {
   platformPlans: BillingPlatformPlanView[];
   sourcingPlans: BillingSourcingPlanView[];
   topups: BillingCreditTopupView[];
   currency: BillingCurrencyDisplay;
   page: BillingPageContentView;
+  flush?: boolean;
 }) {
   const [tab, setTab] = useState<CompareTab>('platform');
   const platform = platformPlans.filter((p) => p.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -638,9 +640,9 @@ export function CompareSection({
   const credit = topups.filter((t) => t.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
 
   const tabs = [
-    ['platform', page.platformTitle, Package],
-    ['sourcing', page.sourcingTitle, Shield],
-    ['credit', page.creditTitle, Coins],
+    ['platform', page.platformTitle],
+    ['sourcing', page.sourcingTitle],
+    ['credit', page.creditTitle],
   ] as const;
 
   const saved = page.compareTables ?? null;
@@ -673,37 +675,35 @@ export function CompareSection({
   ].map((panel, index) => ({ ...panel, id: (['platform', 'sourcing', 'credit'] as const)[index] }));
 
   return (
-    <section id="compare" aria-labelledby="compare-title" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mb-8 text-center">
-          <h2 id="compare-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
+    <section id="compare" aria-labelledby="compare-title" className={flush ? 'scroll-mt-20' : 'scroll-mt-20 bg-slate-50 py-14 sm:py-20'}>
+      <div className={flush ? 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6' : 'mx-auto max-w-6xl px-4 sm:px-6'}>
+        <div className="mb-6 text-center">
+          <h2 id="compare-title" className="inline-flex items-center justify-center gap-2 text-2xl font-bold text-brand-800">
+            <BarChart3 className="h-5 w-5 text-[#E8872A]" aria-hidden="true" />
             {page.compareTitle}
             <span className="sr-only">{PRICING_HEADING_CONTEXT}</span>
           </h2>
           <p className="mt-2 text-sm text-slate-500">{page.compareSubtitle}</p>
         </div>
 
-        <div className="mb-6 flex justify-center">
-          <div className="flex rounded-xl bg-white p-1 ring-1 ring-slate-200" role="tablist" aria-label="So sánh theo nhóm gói">
-            {tabs.map(([id, label, Icon]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => setTab(id)}
-                className={clsx(
-                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition',
-                  tab === id
-                    ? 'bg-[#072348] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900',
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+        <div className="mb-6 flex flex-wrap justify-center gap-2" role="tablist" aria-label="So sánh theo nhóm gói">
+          {tabs.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={clsx(
+                'rounded-full px-4 py-2 text-sm font-semibold transition',
+                tab === id
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-800',
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {panels.map((panel) => (

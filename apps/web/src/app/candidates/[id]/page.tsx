@@ -114,29 +114,33 @@ function Section({
 
 function CompletionRing({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, Math.round(value)));
-  const radius = 26;
+  const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (pct / 100) * circumference;
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-3 py-2 ring-1 ring-accent-100">
-      <div className="text-right">
-        <p className="text-[11px] font-medium text-slate-500">Hồ sơ hoàn thiện</p>
-        <p className="text-xl font-bold tabular-nums text-[#E8872A]">{pct}%</p>
+    <div className="flex shrink-0 items-center gap-3">
+      <p className="max-w-[4.5rem] text-right text-[11px] font-medium leading-tight text-slate-500">
+        Hồ sơ hoàn thiện
+      </p>
+      <div className="relative h-[76px] w-[76px]">
+        <svg viewBox="0 0 72 72" className="h-full w-full -rotate-90" aria-hidden>
+          <circle cx="36" cy="36" r={radius} fill="none" stroke="#F4E4D4" strokeWidth="7" />
+          <circle
+            cx="36"
+            cy="36"
+            r={radius}
+            fill="none"
+            stroke="#E8872A"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-[15px] font-bold tabular-nums text-[#E8872A]">
+          {pct}%
+        </span>
       </div>
-      <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90" aria-hidden>
-        <circle cx="32" cy="32" r={radius} fill="none" className="stroke-slate-100" strokeWidth="6" />
-        <circle
-          cx="32"
-          cy="32"
-          r={radius}
-          fill="none"
-          stroke="#E8872A"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
     </div>
   );
 }
@@ -287,22 +291,21 @@ export default function CandidateDetailPage() {
         {data && (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0 space-y-4">
-              <header className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-                <div className="bg-gradient-to-r from-white via-accent-50/50 to-white px-5 py-5 sm:px-6">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-600 text-xl font-bold text-white">
+              <header className="rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm sm:px-6">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-white">
                       {data.displayName.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight text-brand-800">
+                        <h1 className="text-xl font-extrabold uppercase tracking-wide text-brand-800">
                           {data.displayName}
                         </h1>
                         <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500">
                           {data.code}
                         </span>
                       </div>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
                         <span className="inline-flex items-center gap-1.5">
                           <Briefcase className="h-3.5 w-3.5 text-slate-400" />
                           {profile?.currentPosition
@@ -353,7 +356,6 @@ export default function CandidateDetailPage() {
                       </div>
                     </div>
                     <CompletionRing value={data.profileCompletion} />
-                  </div>
                 </div>
               </header>
 

@@ -5,17 +5,19 @@ import clsx from 'clsx';
 import {
   ArrowRight,
   Banknote,
+  Briefcase,
   Coins,
   CreditCard,
   History,
   Sparkles,
+  Target,
+  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { ComponentType } from 'react';
 import type { BillingPlatformPlanView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
-import { Card } from '@/components/ui';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { ApiError } from '@/lib/api';
 import { fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
@@ -55,16 +57,17 @@ export function RecruiterBillingHub() {
 
   return (
     <RecruiterShell>
-      <div className="recruiter-dash space-y-6">
-        <div className="recruiter-dash-rise">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-600">
-            Billing
-          </p>
-          <h1 className="cms-page-title mt-1.5">Gói & Credit</h1>
-          <div className="brand-accent-bar mt-2" />
-          <p className="cms-page-subtitle mt-2">
-            Xem gói đang dùng, số dư Credit và nạp thêm khi cần.
-          </p>
+      <div className="space-y-5">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
+            <Wallet className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-brand-800">Gói & Credit</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Xem gói đang dùng, số dư Credit và nạp thêm khi cần.
+            </p>
+          </div>
         </div>
 
         {requested ? (
@@ -78,15 +81,18 @@ export function RecruiterBillingHub() {
         ) : null}
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Gói nền tảng
-            </p>
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                <Briefcase className="h-4 w-4" />
+              </span>
+              <p className="text-sm font-bold text-brand-800">Gói nền tảng</p>
+            </div>
             {isLoading ? (
-              <div className="recruiter-dash-skel mt-3 h-16" />
+              <div className="mt-4 h-16 animate-pulse rounded-xl bg-slate-100" />
             ) : isError ? (
               <>
-                <p className="mt-2 text-lg font-semibold text-slate-800">Không tải được gói</p>
+                <p className="mt-3 text-lg font-semibold text-slate-800">Không tải được gói</p>
                 <p className="mt-1 text-sm text-slate-500">
                   {error instanceof ApiError
                     ? error.message
@@ -102,9 +108,9 @@ export function RecruiterBillingHub() {
               </>
             ) : planName ? (
               <>
-                <p className="mt-2 text-2xl font-bold text-[#072348]">{planName}</p>
+                <p className="mt-3 text-2xl font-bold text-brand-800">{planName}</p>
                 {plan ? (
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm leading-relaxed text-slate-500">
                   {plan.planCode === 'KHAM_PHA'
                     ? `Dùng thử ${fmtDate(plan.startsAt)} → ${fmtDate(plan.endsAt)}. Hết hạn Credit về 0, gói mở lại sau 30 ngày.`
                     : plan.planCode === 'ENTERPRISE'
@@ -113,26 +119,28 @@ export function RecruiterBillingHub() {
                   {!plan.isActive ? ' · đã tắt' : ''}
                 </p>
                 ) : null}
-                {entitlements?.jobDisplayDays != null ? (
-                  <p className="mt-1 text-sm text-slate-500">
-                    Tin đăng hiển thị <strong>{entitlements.jobDisplayDays} ngày</strong>
-                  </p>
-                ) : null}
-                <p className="mt-3 text-sm text-slate-600">
-                  Đăng tin:{' '}
-                  <strong>
-                    {entitlements?.jobPostQuota == null
-                      ? 'Không giới hạn'
-                      : `${entitlements.jobsUsed}/${entitlements.jobPostQuota} lượt`}
-                  </strong>
-                  {entitlements?.jobsRemaining != null ? (
-                    <span className="text-slate-500"> · còn {entitlements.jobsRemaining}</span>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {entitlements?.jobDisplayDays != null ? (
+                    <Metric label="Tin hiển thị" value={`${entitlements.jobDisplayDays} ngày`} />
                   ) : null}
-                </p>
+                  <Metric
+                    label="Đăng tin"
+                    value={
+                      entitlements?.jobPostQuota == null
+                        ? 'Không giới hạn'
+                        : `${entitlements.jobsUsed}/${entitlements.jobPostQuota}`
+                    }
+                    hint={
+                      entitlements?.jobsRemaining != null
+                        ? `còn ${entitlements.jobsRemaining}`
+                        : undefined
+                    }
+                  />
+                </div>
               </>
             ) : (
               <>
-                <p className="mt-2 text-lg font-semibold text-slate-800">Đang gán gói Khám phá</p>
+                <p className="mt-3 text-lg font-semibold text-slate-800">Đang gán gói Khám phá</p>
                 <p className="mt-1 text-sm text-slate-500">
                   Tài khoản NTD mới mặc định nhận gói Khám phá. Tải lại trang nếu chưa thấy.
                 </p>
@@ -144,38 +152,63 @@ export function RecruiterBillingHub() {
             >
               Xem bảng giá <ArrowRight className="h-3.5 w-3.5" />
             </Link>
-          </Card>
+          </section>
 
-          <Card className="brand-hero-surface p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
-              Số dư Credit
-            </p>
-            <p className="mt-2 text-4xl font-bold tracking-tight text-[#E8872A]">
-              {isLoading ? '—' : fmtCredit(credits?.balance ?? 0)}
-            </p>
-            <p className="mt-1 text-sm text-white/70">
-              {entitlements?.creditQuota != null
-                ? `Gói tặng ${fmtCredit(entitlements.creditQuota)} · `
-                : ''}
-              đã cấp {fmtCredit(credits?.lifetimeGranted ?? 0)} · đã dùng{' '}
-              {fmtCredit(credits?.lifetimeConsumed ?? 0)}
-            </p>
-          </Card>
+          <section className="brand-hero-surface rounded-2xl p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
+                  Số dư Credit
+                </p>
+                <p className="mt-2 text-5xl font-bold tracking-tight text-[#E8872A]">
+                  {isLoading ? '—' : fmtCredit(credits?.balance ?? 0)}
+                </p>
+                <p className="mt-1 text-sm text-white/70">
+                  {entitlements?.creditQuota != null
+                    ? `Gói tặng ${fmtCredit(entitlements.creditQuota)} · `
+                    : ''}
+                  đã cấp {fmtCredit(credits?.lifetimeGranted ?? 0)} · đã dùng{' '}
+                  {fmtCredit(credits?.lifetimeConsumed ?? 0)}
+                </p>
+              </div>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-500 text-white">
+                <Coins className="h-6 w-6" />
+              </span>
+            </div>
+            <Link
+              href="/recruiter/billing/topup"
+              className="mt-5 inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-semibold text-brand-800 transition hover:bg-accent-50"
+            >
+              Nạp Credit <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </section>
         </div>
 
-        <Card className="p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Gói Săn nhân sự
-          </p>
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+              <Target className="h-4 w-4" />
+            </span>
+            <p className="text-sm font-bold text-brand-800">Gói Săn nhân sự</p>
+          </div>
           {sourcing?.planName ? (
             <>
-              <p className="mt-2 text-xl font-bold text-[#072348]">{sourcing.planName}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                Vị trí {sourcing.positionsUsed}/{sourcing.positionQuota ?? '∞'} · Đợt tìm{' '}
-                {sourcing.searchRoundsUsed}/{sourcing.searchRoundQuota ?? '∞'} · Shortlist{' '}
-                {sourcing.shortlistsUsed}/{sourcing.shortlistQuota ?? '∞'}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-3 text-xl font-bold text-brand-800">{sourcing.planName}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <Metric
+                  label="Vị trí"
+                  value={`${sourcing.positionsUsed}/${sourcing.positionQuota ?? '∞'}`}
+                />
+                <Metric
+                  label="Đợt tìm"
+                  value={`${sourcing.searchRoundsUsed}/${sourcing.searchRoundQuota ?? '∞'}`}
+                />
+                <Metric
+                  label="Shortlist"
+                  value={`${sourcing.shortlistsUsed}/${sourcing.shortlistQuota ?? '∞'}`}
+                />
+              </div>
+              <p className="mt-3 text-sm text-slate-500">
                 Hạn đến {fmtDate(sourcing.assignment?.endsAt ?? null)}. Không gia hạn thì gói Săn tắt khi hết hạn.
               </p>
               <Link
@@ -187,7 +220,7 @@ export function RecruiterBillingHub() {
             </>
           ) : (
             <>
-              <p className="mt-2 text-lg font-semibold text-slate-800">Chưa gán gói Săn</p>
+              <p className="mt-3 text-lg font-semibold text-slate-800">Chưa gán gói Săn</p>
               <p className="mt-1 text-sm text-slate-500">
                 Chọn gói trên bảng giá. Hạn mức lấy đúng số SuperAdmin — không gồm Credit.
               </p>
@@ -199,7 +232,7 @@ export function RecruiterBillingHub() {
               </Link>
             </>
           )}
-        </Card>
+        </section>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <HubLink
@@ -234,18 +267,18 @@ function RequestedPlanBanner({
   isCurrent: boolean;
 }) {
   return (
-    <Card
+    <div
       className={clsx(
-        'flex items-start gap-3 p-4 text-sm',
+        'flex items-start gap-3 rounded-2xl border p-4 text-sm',
         isCurrent
           ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
-          : 'border-amber-200 bg-amber-50/70 text-amber-950',
+          : 'border-accent-200 bg-accent-50/80 text-brand-800',
       )}
     >
       {isCurrent ? (
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
       ) : (
-        <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+        <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
       )}
       <div>
         <p className="font-semibold">
@@ -259,13 +292,13 @@ function RequestedPlanBanner({
         {!isCurrent ? (
           <Link
             href={`/recruiter/billing/upgrade?plan=${encodeURIComponent(plan.code)}`}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent-800 hover:underline"
           >
             Đi tới thanh toán <ArrowRight className="h-3 w-3" />
           </Link>
         ) : null}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -279,15 +312,15 @@ function RequestedSourcingBanner({
   isCurrent: boolean;
 }) {
   return (
-    <Card
+    <div
       className={clsx(
-        'flex items-start gap-3 p-4 text-sm',
+        'flex items-start gap-3 rounded-2xl border p-4 text-sm',
         isCurrent
           ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
-          : 'border-amber-200 bg-amber-50/70 text-amber-950',
+          : 'border-accent-200 bg-accent-50/80 text-brand-800',
       )}
     >
-      <Banknote className="mt-0.5 h-4 w-4 shrink-0" />
+      <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
       <div>
         <p className="font-semibold">
           {isCurrent ? `Bạn đang dùng gói Săn ${planName}` : `Bạn chọn gói Săn ${planName}`}
@@ -295,7 +328,7 @@ function RequestedSourcingBanner({
         {!isCurrent ? (
           <Link
             href={`/recruiter/billing/sourcing?plan=${encodeURIComponent(planCode)}`}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent-800 hover:underline"
           >
             Đi tới thanh toán <ArrowRight className="h-3 w-3" />
           </Link>
@@ -308,7 +341,17 @@ function RequestedSourcingBanner({
           </Link>
         )}
       </div>
-    </Card>
+    </div>
+  );
+}
+
+function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 px-3 py-2">
+      <p className="text-[11px] font-medium text-slate-500">{label}</p>
+      <p className="mt-0.5 text-sm font-bold text-brand-800">{value}</p>
+      {hint ? <p className="text-[11px] text-slate-500">{hint}</p> : null}
+    </div>
   );
 }
 
@@ -326,11 +369,18 @@ function HubLink({
   return (
     <Link
       href={href}
-      className="block rounded-2xl bg-white p-4 ring-1 ring-slate-200 transition hover:bg-[#FFF8F1] hover:ring-[#FFD0A3]"
+      className="group flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-accent-200 hover:bg-accent-50/40"
     >
-      <Icon className="h-5 w-5 text-accent-600" />
-      <p className="mt-2 text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{desc}</p>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold text-brand-800">{title}</span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-accent-600" />
+        </span>
+        <span className="mt-0.5 block text-xs text-slate-500">{desc}</span>
+      </span>
     </Link>
   );
 }

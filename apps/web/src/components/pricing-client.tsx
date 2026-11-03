@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Banknote,
   BarChart3,
+  Building2,
   Check,
   ChevronDown,
   Coins,
@@ -443,39 +444,46 @@ function SectionNav({
   embedded?: boolean;
 }) {
   if (isRecruiter && !embedded) return null;
+  const tabs = (
+    [
+      ['platform', page.platformTitle, Package],
+      ['sourcing', page.sourcingTitle, Shield],
+      ['credit', page.creditTitle, Coins],
+    ] as const
+  ).map(([id, label, Icon]) => (
+    <button
+      key={id}
+      type="button"
+      aria-pressed={tab === id}
+      onClick={() => onTabChange(id)}
+      className={clsx(
+        'flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition',
+        tab === id
+          ? 'bg-brand-600 text-white shadow-sm'
+          : embedded
+            ? 'border border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-800'
+            : 'text-slate-600 hover:text-slate-900',
+      )}
+    >
+      {embedded ? null : <Icon className="h-3.5 w-3.5" />}
+      {label}
+    </button>
+  ));
+  if (embedded) {
+    return (
+      <nav className="flex flex-wrap gap-2" aria-label="Chuyển tab bảng giá">
+        {tabs}
+      </nav>
+    );
+  }
   return (
     <nav
-      className={clsx(
-        'z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md',
-        embedded ? 'rounded-2xl' : 'sticky top-[57px]',
-      )}
+      className="sticky top-[57px] z-20 border-b border-slate-200 bg-white/90 backdrop-blur-md"
       aria-label="Chuyển tab bảng giá"
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-        <div className="flex rounded-xl bg-slate-100 p-1">
-          {(
-            [
-              ['platform', page.platformTitle, Package],
-              ['sourcing', page.sourcingTitle, Shield],
-              ['credit', page.creditTitle, Coins],
-            ] as const
-          ).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={tab === id}
-              onClick={() => onTabChange(id)}
-              className={clsx(
-                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition',
-                tab === id
-                  ? 'bg-white text-[#072348] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
+        <div className="flex rounded-full bg-slate-100 p-1">
+          {tabs}
         </div>
         {!embedded ? (
           <a
@@ -781,24 +789,29 @@ function LaunchCountdown({ note }: { note: string }) {
     { label: 'Giây', value: Math.floor((left % 60_000) / 1000) },
   ];
   return (
-    <div className="mx-auto mt-4 max-w-3xl rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50 px-4 py-4 shadow-[0_10px_30px_-18px_rgba(190,18,60,0.65)]">
-      <p className="text-sm font-semibold text-rose-800">{note}</p>
-      <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.18em] text-rose-500">
+    <div className="mx-auto mt-5 max-w-4xl rounded-2xl bg-gradient-to-r from-accent-500 to-[#d06f18] px-4 py-4 text-white shadow-[0_14px_30px_-18px_rgba(232,135,42,0.85)]">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+          Khuyến mãi hot
+        </span>
+        <p className="text-sm font-semibold">{note}</p>
+      </div>
+      <p className="mt-3 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
         Kết thúc sau
       </p>
       <div className="mt-2 flex justify-center gap-2 sm:gap-3">
         {parts.map((part) => (
-          <div key={part.label} className="min-w-[4.5rem] rounded-xl bg-[#072348] px-2 py-2.5 text-white shadow-md sm:min-w-[5.75rem]">
-            <p className="text-3xl font-black tabular-nums leading-none sm:text-4xl">
-              {String(part.value).padStart(2, '0')}
+          <div key={part.label} className="min-w-[4.25rem] rounded-xl bg-white px-2 py-2 text-brand-800 shadow-sm sm:min-w-[5.25rem]">
+            <p className="text-2xl font-black tabular-nums leading-none text-[#E8872A] sm:text-3xl">
+              {part.label === 'Ngày' ? String(part.value) : String(part.value).padStart(2, '0')}
             </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               {part.label}
             </p>
           </div>
         ))}
       </div>
-      <p className="mt-2 text-xs text-rose-700/80">Đến 23/10/2027</p>
+      <p className="mt-2 text-center text-xs text-white/80">Đến 23/10/2027</p>
     </div>
   );
 }
@@ -934,11 +947,12 @@ function PlatformPlanCard({
   const ctaClass = clsx(
     'inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
     featured
-      ? 'bg-[#E8872A] text-white shadow-[0_10px_20px_-10px_rgba(232,135,42,0.9)] hover:bg-[#d9781f]'
-      : isFree
-        ? 'bg-slate-100 text-slate-800 hover:bg-slate-200'
-        : 'bg-[#072348] text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.7)] hover:bg-[#0d3b80]',
+      ? 'bg-accent-500 text-white shadow-[0_10px_20px_-10px_rgba(232,135,42,0.9)] hover:bg-accent-600'
+      : isEnterprise
+        ? 'border border-slate-200 bg-white text-brand-800 hover:bg-slate-50'
+        : 'bg-brand-600 text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.7)] hover:bg-brand-700',
   );
+  const Mark = isEnterprise ? Building2 : isFree ? Sparkles : Building2;
 
   return (
     <div
@@ -946,18 +960,30 @@ function PlatformPlanCard({
         'relative flex min-w-0 flex-col rounded-2xl border bg-white transition',
         roomy ? 'p-6 sm:p-7' : 'p-5',
         featured
-          ? 'z-10 border-amber-200 bg-gradient-to-b from-amber-50/90 via-white to-white shadow-[0_22px_44px_-24px_rgba(232,135,42,0.65)]'
-          : 'border-slate-200/90 shadow-[0_10px_28px_-18px_rgba(7,35,72,0.35)] hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-20px_rgba(7,35,72,0.4)]',
+          ? 'z-10 border-accent-200 bg-gradient-to-b from-accent-50 via-white to-white shadow-[0_22px_44px_-24px_rgba(232,135,42,0.65)]'
+          : 'border-slate-200/90 shadow-[0_10px_28px_-18px_rgba(7,35,72,0.28)]',
       )}
     >
       {featured ? (
-        <span className="absolute -top-3.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[#072348] px-3 py-1 text-[11px] font-semibold tracking-wide text-white shadow-[0_8px_18px_-8px_rgba(7,35,72,0.7)]">
-          <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
+        <span className="absolute -top-3 right-4 inline-flex items-center gap-1 rounded-full bg-accent-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+          <Star className="h-3 w-3 fill-white" />
           Gói phổ biến
         </span>
       ) : null}
 
-      <h3 className={clsx('font-bold tracking-tight text-[#072348]', roomy ? 'text-2xl' : 'text-lg')}>{plan.name}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className={clsx('font-bold uppercase tracking-tight text-brand-800', roomy ? 'text-2xl' : 'text-lg')}>
+          {plan.name}
+        </h3>
+        <span
+          className={clsx(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            featured ? 'bg-accent-100 text-accent-700' : 'bg-brand-50 text-brand-600',
+          )}
+        >
+          <Mark className="h-5 w-5" />
+        </span>
+      </div>
       <p className="mt-1 line-clamp-2 min-h-10 text-[13px] leading-5 text-slate-500">
         {pricingPlatformFact(plan).description || '\u00a0'}
       </p>
@@ -1024,31 +1050,25 @@ function PlatformPlanCard({
         </Link>
       )}
 
-      <ul className="mt-5 border-t border-slate-100 pt-2">
+      <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4">
         {rows.map((row, index) => (
           <li
             key={`${index}-${row.label}`}
             aria-disabled={row.included ? undefined : true}
-            className="flex h-10 items-center gap-2.5 border-b border-slate-100/80 last:border-0"
+            className="flex items-start gap-2"
           >
-            <span
-              className={clsx(
-                'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
-                row.included ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-300',
-              )}
-              aria-hidden="true"
-            >
+            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
               {row.included ? (
-                <Check className="h-3 w-3" strokeWidth={2.6} />
+                <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.6} />
               ) : (
-                <X className="h-3 w-3" strokeWidth={2.6} />
+                <X className="h-3.5 w-3.5 text-rose-500" strokeWidth={2.6} />
               )}
             </span>
             <span
               title={row.label}
               className={clsx(
-                'min-w-0 truncate text-[13px] leading-5',
-                row.included ? 'font-medium text-slate-800' : 'text-slate-400 line-through decoration-slate-300',
+                'min-w-0 text-[13px] leading-5',
+                row.included ? 'font-medium text-slate-700' : 'text-slate-400',
               )}
             >
               <span className="sr-only">{row.included ? 'Bao gồm: ' : 'Không bao gồm: '}</span>
@@ -1127,26 +1147,26 @@ function SourcingPlanCard({
   return (
     <div
       className={clsx(
-        'relative flex min-w-0 flex-col rounded-2xl bg-white p-6 ring-1 transition',
+        'relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition',
         featured
-          ? 'ring-2 ring-amber-400 shadow-xl shadow-amber-500/10'
-          : 'ring-slate-200 hover:shadow-md hover:ring-slate-300'
+          ? 'border-accent-200 bg-gradient-to-b from-accent-50 via-white to-white shadow-[0_22px_44px_-24px_rgba(232,135,42,0.65)]'
+          : 'border-slate-200 shadow-[0_10px_28px_-18px_rgba(7,35,72,0.28)]'
       )}
     >
       {featured ? (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#072348] shadow-md">
-          <Star className="h-2.5 w-2.5 fill-current" /> Đề xuất
+        <span className="absolute -top-3 right-4 inline-flex items-center gap-1 rounded-full bg-accent-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+          <Star className="h-3 w-3 fill-white" /> Đề xuất
         </span>
       ) : null}
 
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
+          <h3 className="text-lg font-bold uppercase tracking-tight text-brand-800">{plan.name}</h3>
           {plan.description ? (
             <p className="mt-1 text-xs leading-relaxed text-slate-500">{normalizePricingBrand(plan.description)}</p>
           ) : null}
         </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
           <Shield className="h-4 w-4" />
         </div>
       </div>
@@ -1189,13 +1209,13 @@ function SourcingPlanCard({
               aria-disabled={line.included ? undefined : true}
               className={clsx(
                 'flex items-center gap-1.5 text-[12px]',
-                line.included ? 'text-slate-700' : 'text-slate-400 line-through'
+                line.included ? 'text-slate-700' : 'text-slate-400'
               )}
             >
               {line.included ? (
                 <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
               ) : (
-                <X className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden="true" />
+                <X className="h-3.5 w-3.5 shrink-0 text-rose-500" aria-hidden="true" />
               )}
               <span>
                 <span className="sr-only">{line.included ? 'Bao gồm: ' : 'Không bao gồm: '}</span>
@@ -1209,10 +1229,10 @@ function SourcingPlanCard({
       <Link
         href={planCtaHref(plan.code)}
         className={clsx(
-          'mt-5 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
+          'mt-5 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
           featured
-            ? 'bg-amber-500 text-[#072348] hover:bg-amber-400'
-            : 'bg-[#072348] text-white hover:bg-[#0d3b80]'
+            ? 'bg-accent-500 text-white shadow-[0_10px_20px_-10px_rgba(232,135,42,0.9)] hover:bg-accent-600'
+            : 'bg-brand-600 text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.7)] hover:bg-brand-700'
         )}
       >
         {planCtaHref(plan.code).startsWith('/recruiter') ? 'Thanh toán' : 'Chọn gói'}{' '}
@@ -1230,24 +1250,11 @@ function PlanStatGrid({
   ariaLabel: string;
 }) {
   return (
-    <div
-      className="mt-4 grid grid-cols-2 overflow-hidden rounded-xl bg-[#f6f8fb] ring-1 ring-[#072348]/10"
-      aria-label={ariaLabel}
-    >
-      {items.map((stat, index) => (
-        <div
-          key={stat.label}
-          title={stat.hint}
-          className={clsx(
-            'flex items-center justify-between gap-2 px-3 py-2.5',
-            index % 2 === 0 && 'border-r border-[#072348]/10',
-            index < items.length - 2 && 'border-b border-[#072348]/10',
-          )}
-        >
-          <span className="min-w-0 text-[12px] leading-4 text-slate-500">{stat.label}</span>
-          <span className="shrink-0 text-lg font-bold tabular-nums leading-none text-[#072348]">
-            {stat.value}
-          </span>
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={ariaLabel}>
+      {items.map((stat) => (
+        <div key={stat.label} title={stat.hint} className="rounded-xl bg-slate-50 px-2 py-2.5 text-center">
+          <p className="text-[10px] font-medium leading-4 text-slate-500">{stat.label}</p>
+          <p className="mt-1 text-lg font-bold tabular-nums leading-none text-brand-800">{stat.value}</p>
         </div>
       ))}
     </div>
@@ -1306,21 +1313,23 @@ function CreditTopupCard({
   return (
     <div
       className={clsx(
-        'relative flex min-w-0 flex-col rounded-2xl bg-white p-6 ring-1 transition',
+        'relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition',
         featured
-          ? 'ring-2 ring-amber-400 shadow-xl shadow-amber-500/10'
-          : 'ring-slate-200 hover:shadow-md hover:ring-slate-300'
+          ? 'border-accent-200 bg-gradient-to-b from-accent-50 via-white to-white shadow-[0_22px_44px_-24px_rgba(232,135,42,0.65)]'
+          : 'border-slate-200 shadow-[0_10px_28px_-18px_rgba(7,35,72,0.28)]'
       )}
     >
       {topup.badge || featured ? (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#072348] shadow-md">
+        <span className="absolute -top-3 right-4 inline-flex items-center gap-1 rounded-full bg-accent-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
           {topup.badge ?? 'Phổ biến'}
         </span>
       ) : null}
 
-      <div className="flex items-center gap-2">
-        <Coins className="h-5 w-5 text-amber-600" />
-        <h3 className="text-lg font-bold text-slate-900">{topup.name}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-bold uppercase tracking-tight text-brand-800">{topup.name}</h3>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-700">
+          <Coins className="h-4 w-4" />
+        </span>
       </div>
       <p className="mt-1 text-xs text-slate-500">{topup.creditCount} lượt mở hồ sơ</p>
 
@@ -1341,10 +1350,10 @@ function CreditTopupCard({
       <Link
         href={topupCtaHref(topup.id)}
         className={clsx(
-          'mt-5 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
+          'mt-5 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
           featured
-            ? 'bg-amber-500 text-[#072348] hover:bg-amber-400'
-            : 'bg-[#072348] text-white hover:bg-[#0d3b80]'
+            ? 'bg-accent-500 text-white shadow-[0_10px_20px_-10px_rgba(232,135,42,0.9)] hover:bg-accent-600'
+            : 'bg-brand-600 text-white shadow-[0_10px_20px_-12px_rgba(7,35,72,0.7)] hover:bg-brand-700'
         )}
       >
         Mua ngay <ArrowRight className="h-3.5 w-3.5" />
@@ -1694,6 +1703,7 @@ export function PricingClient({
           topups={resolved.creditTopups}
           currency={cur}
           page={page}
+          flush
         />
       </div>
     );

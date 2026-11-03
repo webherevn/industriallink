@@ -60,16 +60,15 @@ function NavItem({
       href={href}
       className={clsx('progress-nav-item', active && 'progress-nav-item-active')}
     >
-      <Icon
-        className={clsx(
-          'h-4 w-4 shrink-0',
-          active ? 'text-brand-500' : 'text-slate-400',
-        )}
-        strokeWidth={1.75}
-      />
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
       <span className="flex-1 truncate">{label}</span>
       {badge && (
-        <span className="rounded bg-brand-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+        <span
+          className={clsx(
+            'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase',
+            active ? 'bg-accent-400 text-white' : 'bg-brand-600 text-white',
+          )}
+        >
           {badge}
         </span>
       )}
