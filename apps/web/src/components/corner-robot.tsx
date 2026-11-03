@@ -9,6 +9,8 @@ import { tokenStore } from '@/lib/api';
 import { fetchMySupportChat, fetchSupportPrompts, sendSupportChat } from '@/lib/support-chat';
 
 const ROTATE_MS = 3500;
+const IDLE_MS = 10_000;
+const SLIDE_MS = 4500;
 
 function shortName(displayName?: string | null): string {
   const token = displayName?.trim().split(/\s+/).filter(Boolean).slice(-1)[0];
@@ -35,8 +37,27 @@ export function CornerRobot({ name }: { name?: string | null }) {
   const [hintHidden, setHintHidden] = useState(false);
   const [draft, setDraft] = useState('');
   const [hasToken, setHasToken] = useState(false);
+  const [centered, setCentered] = useState(false);
+  const [shift, setShift] = useState(0);
+  const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const dock = useRef<HTMLDivElement>(null);
+  const centeredRef = useRef(false);
+  const openRef = useRef(false);
+  openRef.current = open;
+
+  const restingShift = () => {
+    const el = dock.current;
+    if (!el) return 0;
+    const previous = el.style.transform;
+    el.style.transition = 'none';
+    el.style.transform = 'translateX(0px)';
+    const rect = el.getBoundingClientRect();
+    const delta = Math.round(window.innerWidth / 2 - (rect.left + rect.width / 2));
+    el.style.transform = previous;
+    el.style.transition = '';
+    return delta;
+  };
   const qc = useQueryClient();
   const prompts = useQuery({
     queryKey: ['support-chat-prompts'],
@@ -60,6 +81,68 @@ export function CornerRobot({ name }: { name?: string | null }) {
     }, ROTATE_MS);
     return () => window.clearInterval(id);
   }, [lines.length, open, hintHidden]);
+
+  const slideReady = useRef(false);
+  useEffect(() => {
+    if (!slideReady.current) {
+      slideReady.current = true;
+      return;
+    }
+    const id = window.setTimeout(() => setRunning(false), SLIDE_MS);
+    return () => window.clearTimeout(id);
+  }, [centered]);
+
+  useEffect(() => {
+    if (open) {
+      if (centeredRef.current) setRunning(true);
+      centeredRef.current = false;
+      setCentered(false);
+      return;
+    }
+    let timer = 0;
+    const arm = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (openRef.current) return;
+        setShift(restingShift());
+        centeredRef.current = true;
+        setRunning(true);
+        setCentered(true);
+      }, IDLE_MS);
+    };
+    const retreat = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && dock.current?.contains(target)) return;
+      window.clearTimeout(timer);
+      if (centeredRef.current) {
+        centeredRef.current = false;
+        setRunning(true);
+        setCentered(false);
+      }
+      arm();
+    };
+    const onResize = () => {
+      if (!centeredRef.current) return;
+      setShift(restingShift());
+    };
+    arm();
+    const opts = { capture: true, passive: true } as const;
+    window.addEventListener('scroll', retreat, opts);
+    window.addEventListener('wheel', retreat, opts);
+    window.addEventListener('pointerdown', retreat, opts);
+    window.addEventListener('keydown', retreat, opts);
+    window.addEventListener('touchstart', retreat, opts);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('scroll', retreat, opts);
+      window.removeEventListener('wheel', retreat, opts);
+      window.removeEventListener('pointerdown', retreat, opts);
+      window.removeEventListener('keydown', retreat, opts);
+      window.removeEventListener('touchstart', retreat, opts);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open]);
 
   useEffect(() => {
     const el = dock.current;
@@ -112,7 +195,12 @@ export function CornerRobot({ name }: { name?: string | null }) {
   return (
     <div
       ref={dock}
-      className="pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end"
+      className="pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end transition-transform motion-reduce:transition-none"
+      style={{
+        transform: `translateX(${centered ? shift : 0}px)`,
+        transitionDuration: `${SLIDE_MS}ms`,
+        transitionTimingFunction: 'cubic-bezier(0.45, 0.02, 0.18, 1)',
+      }}
     >
       {open && (
         <div className="chat-pop pointer-events-auto mb-3 flex h-[min(68vh,440px)] w-[min(100vw-2rem,340px)] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_22px_50px_-16px_rgba(7,35,72,0.55)] ring-1 ring-[#072348]/10">
@@ -191,7 +279,7 @@ export function CornerRobot({ name }: { name?: string | null }) {
 
       <div className="flex items-end gap-2">
         {!open && !hintHidden && lines.length > 0 && (
-          <div className="pointer-events-auto relative mb-10 max-w-[240px]">
+          <div className="pointer-events-auto relative mb-6 max-w-[220px]">
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -217,10 +305,10 @@ export function CornerRobot({ name }: { name?: string | null }) {
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          className="corner-robot-float pointer-events-auto relative w-[92px] shrink-0 cursor-pointer sm:w-[112px]"
+          className="corner-robot-float pointer-events-auto relative w-[68px] shrink-0 cursor-pointer sm:w-[80px]"
           aria-label={open ? 'Đóng chat inlink' : 'Mở chat inlink'}
         >
-          <CopilotRobot />
+          <CopilotRobot running={running} className={running && !centered ? '-scale-x-100' : undefined} />
           {!open && unread > 0 && (
             <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
               {unread > 9 ? '9+' : unread}

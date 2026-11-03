@@ -476,7 +476,7 @@ export default function RecruiterDashboardPage() {
               </div>
             </div>
 
-            <div className="relative hidden w-[148px] shrink-0 self-end pb-2 sm:block lg:w-[180px]">
+            <div className="relative hidden w-[112px] shrink-0 self-end pb-2 sm:block lg:w-[128px]">
               <CopilotRobot className="h-auto w-full" />
             </div>
           </div>
