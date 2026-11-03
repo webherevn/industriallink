@@ -1010,7 +1010,7 @@ export class JobService {
         positions: aggregateJobTitles(rows, 10),
       }))
       .sort((a, b) => a.industry.localeCompare(b.industry, 'vi'));
-    return { popular, byIndustry };
+    return { popular, keywords: popularKeywords(jobs, 6), byIndustry };
   }
 
   async getJob(ref: string, user?: AuthenticatedUser): Promise<JobView> {
@@ -1239,6 +1239,32 @@ function skillViews<T extends { name: string }>(skills: T[]): T[] {
     out.push({ ...skill, name });
   }
   return out;
+}
+
+const KEYWORD_SPLIT = /\s+[/|]\s+/;
+const TITLE_ROLE = /\s+[–—-]\s+/;
+
+/** Cụm ngắn lặp trong tiêu đề tin, để gợi ý tìm kiếm. */
+function popularKeywords(rows: Array<{ title: string }>, limit: number): string[] {
+  const map = new Map<string, { title: string; count: number }>();
+  for (const row of rows) {
+    const cleaned = row.title.replace(/\s+/g, ' ').trim();
+    const role = cleaned.split(TITLE_ROLE)[0]?.trim() ?? '';
+    const parts = role
+      .split(KEYWORD_SPLIT)
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 3 && part.length <= 42);
+    for (const part of parts) {
+      const key = part.toLocaleLowerCase('vi');
+      const prev = map.get(key);
+      if (prev) prev.count += 1;
+      else map.set(key, { title: part, count: 1 });
+    }
+  }
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title, 'vi'))
+    .slice(0, limit)
+    .map((item) => item.title);
 }
 
 function aggregateJobTitles(

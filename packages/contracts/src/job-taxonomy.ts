@@ -555,13 +555,3 @@ export const SALARY_PRESETS: SalaryPreset[] = [
   { label: '30 – 50 triệu', min: '30000000', max: '50000000' },
   { label: 'Tuỳ chỉnh', min: '__custom__', max: '__custom__' },
 ];
-
-/** Từ khóa phổ biến trên hero tìm việc (gợi ý nhanh). */
-export const POPULAR_JOB_KEYWORDS = [
-  'Kỹ sư kinh doanh',
-  'Kỹ sư PLC',
-  'Kỹ sư điều hòa',
-  'Kỹ sư dịch vụ',
-  'Kỹ sư tự động hóa',
-  'Kỹ sư cơ khí',
-] as const;

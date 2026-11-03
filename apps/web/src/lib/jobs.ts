@@ -49,6 +49,7 @@ export async function fetchJobPositionStats(): Promise<JobPositionStatsView> {
   const data = await apiRequest<JobPositionStatsView>('/jobs/stats/positions');
   return {
     popular: asArray(data?.popular),
+    keywords: asArray(data?.keywords).filter((item): item is string => typeof item === 'string' && item.trim().length > 0),
     byIndustry: asArray<JobPositionStatsView['byIndustry'][number]>(data?.byIndustry).map((group) => ({
       ...group,
       positions: asArray(group.positions),

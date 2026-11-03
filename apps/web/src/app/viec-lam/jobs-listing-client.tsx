@@ -26,7 +26,6 @@ import {
   JobLevelCode,
   JobStatus,
   JobTrack,
-  POPULAR_JOB_KEYWORDS,
   SALARY_BANDS_VND,
   SALARY_PRESETS,
   TECHNICAL_DESIRED_POSITIONS,
@@ -443,6 +442,7 @@ function JobsPageInner({
       .slice(0, 5)
       .map(([label, count]) => ({ label, count }));
   }, [jobs, positionStats]);
+  const popularKeywords = positionStats?.keywords ?? [];
 
   const salaryHighlight = useMemo(() => {
     const level = JobLevelCode.SalesStaff;
@@ -608,9 +608,10 @@ function JobsPageInner({
             </button>
           </form>
 
+          {popularKeywords.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">Từ khóa phổ biến:</span>
-            {POPULAR_JOB_KEYWORDS.map((kw) => (
+            {popularKeywords.map((kw) => (
               <button
                 key={kw}
                 type="button"
@@ -626,6 +627,7 @@ function JobsPageInner({
               </button>
             ))}
           </div>
+          )}
         </div>
       </section>
 
@@ -636,30 +638,30 @@ function JobsPageInner({
           className={clsx(
             'order-1 min-w-0 shrink-0 overflow-hidden transition-[width,max-height,opacity,margin] duration-500 ease-soft motion-reduce:transition-none lg:max-h-none',
             filtersOpen
-              ? 'max-h-[2400px] opacity-100 lg:w-[240px]'
+              ? 'max-h-[2400px] opacity-100 lg:w-[288px]'
               : 'pointer-events-none -mb-5 max-h-0 opacity-0 lg:mb-0 lg:-mr-5 lg:w-0',
           )}
         >
-        <div className="w-full lg:w-[240px]">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-slate-900">Bộ lọc tìm kiếm</h2>
-              <button
-                type="button"
-                className={clsx(
-                  'text-xs font-medium text-amber-600 hover:underline',
-                  !hasActiveFilters && 'invisible lg:visible lg:opacity-40',
-                )}
-                onClick={clearFilters}
-              >
-                Xóa tất cả
-              </button>
+        <div className="w-full lg:w-[288px]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="mb-3.5 flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-semibold tracking-tight text-[#072348]">Bộ lọc tìm kiếm</h2>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  className="text-[11px] font-semibold text-[#E8872A] hover:underline"
+                  onClick={clearFilters}
+                >
+                  Xóa tất cả
+                </button>
+              ) : null}
             </div>
 
             <FieldLabel>Ngành nghề</FieldLabel>
             <IndustryPicker
               variant="field"
               className="mb-3"
+              triggerClassName="!h-9 !rounded-lg !border-slate-300 !bg-white !px-3 !py-0 !text-[13px] !leading-5"
               value={{ industry, subIndustry, role: roleFilter }}
               onChange={(next) =>
                 setFilterParams({
@@ -687,11 +689,11 @@ function JobsPageInner({
 
             <FieldLabel>Vị trí ứng tuyển</FieldLabel>
             <Select
+              size="sm"
               value={desiredPosition}
               onChange={(e) =>
                 setFilterParams({ desiredPosition: e.target.value || null, tab: 'all' })
               }
-              className="mb-4 h-10 rounded-xl border-slate-200 bg-slate-50/80 py-2 text-sm"
             >
               <option value="">Chọn vị trí</option>
               <optgroup label="Khối Kinh doanh">
@@ -711,13 +713,21 @@ function JobsPageInner({
             </Select>
 
             <SectionTitle>Khối / cấp bậc</SectionTitle>
-            {Object.values(JobTrack).map((track) => (
-              <details key={track} open className="group mb-1">
-                <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                  {JOB_TRACK_LABEL[track]}
-                  <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition group-open:rotate-180" />
+            <div className="rounded-xl bg-slate-50 p-1">
+            {Object.values(JobTrack).map((track) => {
+              const selected = CAREER_LADDERS[track].filter((code) => jobLevels.includes(code)).length;
+              return (
+              <details key={track} open className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-1 rounded-lg px-2 py-1.5 text-[13px] font-semibold text-[#072348] hover:bg-white [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0 flex-1">{JOB_TRACK_LABEL[track]}</span>
+                  {selected > 0 ? (
+                    <span className="rounded-full bg-[#072348] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                      {selected}
+                    </span>
+                  ) : null}
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400 transition duration-300 group-open:rotate-180" />
                 </summary>
-                <ul className="mb-1 space-y-0.5 pl-1">
+                <ul className="space-y-0.5 pb-1">
                   {CAREER_LADDERS[track].map((code) => (
                     <li key={code}>
                       <FilterCheck
@@ -729,10 +739,12 @@ function JobsPageInner({
                   ))}
                 </ul>
               </details>
-            ))}
+              );
+            })}
+            </div>
 
             <SectionTitle>Kinh nghiệm</SectionTitle>
-            <ul className="space-y-0.5">
+            <ul className="space-y-0.5 rounded-xl bg-slate-50 p-1">
               {EXPERIENCE_OPTIONS.map((band) => (
                 <li key={band}>
                   <FilterCheck
@@ -744,11 +756,11 @@ function JobsPageInner({
               ))}
             </ul>
 
-            <SectionTitle className="mt-3">Mức lương</SectionTitle>
+            <SectionTitle>Mức lương</SectionTitle>
             <Select
+              size="sm"
               value={salaryPreset}
               onChange={(e) => setFilterParams({ salary: e.target.value || null, tab: 'all' })}
-              className="h-10 rounded-xl border-slate-200 bg-slate-50/80 py-2 text-sm"
             >
               <option value="">Chọn mức lương</option>
               {SALARY_PRESETS.filter((p) => p.label !== 'Tuỳ chỉnh').map((p) => (
@@ -1132,7 +1144,11 @@ function JobsPageInner({
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
-  return <p className="mb-1.5 text-[12px] font-semibold text-slate-500">{children}</p>;
+  return (
+    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      {children}
+    </p>
+  );
 }
 
 function FilterCheck({
@@ -1147,21 +1163,21 @@ function FilterCheck({
   return (
     <label
       className={clsx(
-        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition',
-        checked ? 'bg-brand-50 font-medium text-brand-800' : 'text-slate-600 hover:bg-slate-50',
+        'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] leading-5 transition',
+        checked ? 'bg-white font-medium text-[#072348] shadow-sm' : 'text-slate-600 hover:bg-white/80',
       )}
     >
       <input type="checkbox" className="sr-only" checked={checked} onChange={onChange} />
       <span
         aria-hidden
         className={clsx(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition',
-          checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300 bg-white',
+          'flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[4px] border transition',
+          checked ? 'border-[#072348] bg-[#072348] text-white' : 'border-slate-300 bg-white',
         )}
       >
         {checked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
       </span>
-      {label}
+      <span className="whitespace-nowrap">{label}</span>
     </label>
   );
 }
@@ -1176,7 +1192,7 @@ function SectionTitle({
   return (
     <p
       className={clsx(
-        'mb-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-800',
+        'mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400',
         className,
       )}
     >

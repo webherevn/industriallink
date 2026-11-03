@@ -362,6 +362,9 @@ describe('JobService', () => {
       const service = buildService({ job: { findMany } });
       const result = await service.listPublishedPositionStats();
       expect(result.popular[0]).toEqual({ title: 'Kỹ sư PLC / Tự động hóa', count: 2 });
+      expect(result.keywords[0]).toBe('Kỹ sư PLC');
+      expect(result.keywords).toEqual(expect.arrayContaining(['Kỹ sư PLC', 'Tự động hóa', 'Kỹ sư kinh doanh']));
+      expect(result.keywords).not.toContain('Máy nén khí');
       expect(result.byIndustry).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

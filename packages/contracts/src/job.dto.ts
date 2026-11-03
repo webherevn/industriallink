@@ -159,6 +159,8 @@ export interface JobPositionCount {
 /** Thống kê vị trí đang tuyển — lấy từ tin published trên nền tảng. */
 export interface JobPositionStatsView {
   popular: JobPositionCount[];
+  /** Cụm tìm kiếm lặp lại trong tiêu đề tin, xếp theo số tin. */
+  keywords: string[];
   byIndustry: Array<{
     industry: string;
     positions: JobPositionCount[];

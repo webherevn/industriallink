@@ -37,6 +37,8 @@ type Props = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Lớp thêm cho nút bấm, để khớp ô chọn cạnh đó. */
+  triggerClassName?: string;
   /** `bar` = thanh tìm việc; `field` = bộ lọc / form. */
   variant?: 'bar' | 'field';
 };
@@ -51,6 +53,7 @@ export function IndustryPicker({
   placeholder = 'Tất cả ngành nghề',
   disabled = false,
   className,
+  triggerClassName,
   variant = 'field',
 }: Props) {
   const panelId = useId();
@@ -174,10 +177,12 @@ export function IndustryPicker({
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((v) => !v)}
         className={clsx(
-          'flex h-12 w-full items-center gap-1.5 bg-transparent px-3.5 text-left text-sm outline-none',
-          variant === 'field' &&
-            'h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 hover:border-slate-300',
+          'flex w-full items-center gap-1.5 bg-transparent text-left outline-none',
+          variant === 'field'
+            ? 'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm hover:border-slate-300'
+            : 'h-12 px-3.5 text-sm',
           disabled && 'cursor-not-allowed opacity-60',
+          triggerClassName,
         )}
       >
         <span
