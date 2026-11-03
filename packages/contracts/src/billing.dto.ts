@@ -178,7 +178,7 @@ export interface AdminUpdatePageContentRequest {
   howSteps?: BillingPageTextItem[];
   faqItems?: BillingPageFaqItem[];
   trustItems?: BillingPageTextItem[];
-  /** Null để trả bảng so sánh về dạng tự sinh. */
+  /** Null để trang bảng giá dùng lại bảng tính từ gói. */
   compareTables?: BillingCompareTables | null;
 }
 

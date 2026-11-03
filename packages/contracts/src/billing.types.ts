@@ -523,25 +523,15 @@ export interface BillingPageFaqItem {
   a: string;
 }
 
-/** Ô trong bảng so sánh khi SuperAdmin tự nhập. */
-export interface BillingCompareCell {
-  /** Mã gói nền tảng, mã gói Săn, hoặc `credit-{số lượt}`. */
-  code: string;
-  kind: 'text' | 'flag';
-  text: string;
-  yes: boolean;
-}
-
+/** Một dòng trong bảng so sánh tĩnh. `cells` thẳng hàng với `columns`. */
 export interface BillingCompareRow {
   label: string;
-  /** auto: chữ/✓✗ lấy từ giá và hạn mức. custom: dùng cells. */
-  mode: 'auto' | 'custom';
-  autoKey: string | null;
-  cells: BillingCompareCell[];
+  cells: string[];
 }
 
+/** Bảng so sánh do SuperAdmin nhập chữ. Không đọc giá hay hạn mức của gói. */
 export interface BillingCompareTable {
-  /** Để trống thì trang bảng giá giữ câu gợi ý tự sinh. */
+  columns: string[];
   insight: string;
   rows: BillingCompareRow[];
 }
@@ -613,7 +603,7 @@ export interface BillingPageContentView {
   howSteps: BillingPageTextItem[];
   faqItems: BillingPageFaqItem[];
   trustItems: BillingPageTextItem[];
-  /** Null = bảng so sánh tự sinh từ gói. Có giá trị = SuperAdmin đã lưu cấu trúc bảng. */
+  /** Null = trang bảng giá vẫn dùng bảng tính từ gói. Có giá trị = đúng chữ đã lưu, không đổi theo gói. */
   compareTables: BillingCompareTables | null;
   updatedAt: string;
 }

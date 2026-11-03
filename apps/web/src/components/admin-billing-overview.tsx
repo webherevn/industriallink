@@ -48,7 +48,7 @@ const HUB = [
     href: '/admin/billing/compare',
     icon: FileText,
     title: 'Bảng so sánh gói',
-    desc: 'Sửa dòng, chữ và dấu có/không trên bảng so sánh. Giá và hạn mức vẫn theo từng gói.',
+    desc: 'Bảng chữ tĩnh. Sửa cột, dòng và ô theo ý, không lấy giá hay hạn mức từ gói.',
   },
   {
     href: '/admin/billing/settings',

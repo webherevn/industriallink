@@ -455,31 +455,36 @@ export function creditInsight(topups: BillingCreditTopupView[]): string {
   return `Mua nhiều thì rẻ hơn: ${cheapest.name} thấp hơn ${pct}% / lượt so với ${dearest.name}. Không tự động trừ thêm khi hết Credit.`;
 }
 
-function applySavedRows(
-  columns: { code: string }[],
-  computed: CompareRow[],
+function staticCell(text: string): CompareCell {
+  const value = text.trim();
+  if (value === 'Có' || value === '✓') return { kind: 'flag', yes: true };
+  if (value === 'Không' || value === '✗') return { kind: 'flag', yes: false };
+  return { kind: 'text', text: value || '—' };
+}
+
+function panelFromSaved(
   saved: BillingCompareTable | null | undefined,
-): CompareRow[] {
-  if (!saved) return computed;
-  const byKey = new Map(computed.filter((row) => row.autoKey).map((row) => [row.autoKey as string, row]));
-  return saved.rows.flatMap((row) => {
-    if (row.mode === 'auto' && row.autoKey && byKey.has(row.autoKey)) {
-      const built = byKey.get(row.autoKey)!;
-      return [{ ...built, label: row.label.trim() || built.label }];
-    }
-    if (row.mode === 'auto') return [];
-    return [
-      {
-        label: row.label,
-        cells: columns.map((col) => {
-          const cell = row.cells.find((item) => item.code === col.code);
-          if (!cell) return { kind: 'text' as const, text: '—' };
-          if (cell.kind === 'flag') return { kind: 'flag' as const, yes: cell.yes };
-          return { kind: 'text' as const, text: cell.text || '—' };
-        }),
-      },
-    ];
-  });
+  fallback: {
+    columns: { id: string; code: string; name: string; featured: boolean }[];
+    rows: CompareRow[];
+    insight: string;
+  },
+) {
+  if (!saved || saved.columns.length === 0) return { ...fallback, custom: false };
+  return {
+    columns: saved.columns.map((name, index) => ({
+      id: `c-${index}`,
+      code: `c-${index}`,
+      name,
+      featured: false,
+    })),
+    rows: saved.rows.map((row) => ({
+      label: row.label,
+      cells: saved.columns.map((_, index) => staticCell(row.cells[index] ?? '')),
+    })),
+    insight: saved.insight.trim(),
+    custom: true,
+  };
 }
 
 function CompareFlag({ yes, compact = false }: { yes: boolean; compact?: boolean }) {
@@ -639,16 +644,8 @@ export function CompareSection({
   ] as const;
 
   const saved = page.compareTables ?? null;
-  type ComparePanel = {
-    id: CompareTab;
-    columns: { id: string; code: string; name: string; featured: boolean }[];
-    rows: CompareRow[];
-    insight: string;
-    custom: boolean;
-  };
-  const panels: ComparePanel[] = ([
-    {
-      id: 'platform',
+  const panels = [
+    panelFromSaved(saved?.platform, {
       columns: platform.map((p) => ({
         id: p.id,
         code: p.code,
@@ -657,17 +654,13 @@ export function CompareSection({
       })),
       rows: buildPlatformRows(platform, currency),
       insight: platformInsight(platform),
-      custom: Boolean(saved?.platform),
-    },
-    {
-      id: 'sourcing',
+    }),
+    panelFromSaved(saved?.sourcing, {
       columns: sourcing.map((p) => ({ id: p.id, code: p.code, name: p.name, featured: p.isFeatured })),
       rows: buildSourcingRows(sourcing, currency),
       insight: sourcingInsight(sourcing),
-      custom: Boolean(saved?.sourcing),
-    },
-    {
-      id: 'credit',
+    }),
+    panelFromSaved(saved?.credit, {
       columns: credit.map((t) => ({
         id: t.id,
         code: creditColumnCode(t),
@@ -676,17 +669,8 @@ export function CompareSection({
       })),
       rows: buildCreditRows(credit, currency),
       insight: creditInsight(credit),
-      custom: Boolean(saved?.credit),
-    },
-  ] as ComparePanel[]).map((panel) => {
-    const table = saved?.[panel.id] ?? null;
-    const insight = table?.insight.trim() ? table.insight.trim() : panel.insight;
-    return {
-      ...panel,
-      rows: applySavedRows(panel.columns, panel.rows, table),
-      insight,
-    };
-  });
+    }),
+  ].map((panel, index) => ({ ...panel, id: (['platform', 'sourcing', 'credit'] as const)[index] }));
 
   return (
     <section id="compare" aria-labelledby="compare-title" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
@@ -730,7 +714,9 @@ export function CompareSection({
               </p>
             ) : null}
             {panel.columns.length === 0 ? (
-              <p className="text-center text-sm text-slate-500">Chưa có gói đang bật để so sánh.</p>
+              <p className="text-center text-sm text-slate-500">
+                {panel.custom ? 'Chưa có nội dung so sánh.' : 'Chưa có gói đang bật để so sánh.'}
+              </p>
             ) : (
               <>
                 <CompareMatrix
@@ -740,7 +726,7 @@ export function CompareSection({
                 />
                 <p className="mt-4 text-center text-[11px] text-slate-400">
                   {panel.custom
-                    ? 'Dòng “Theo dữ liệu gói” vẫn đổi theo giá, hạn mức và quyền đang bật. Dòng tự nhập giữ nguyên chữ SuperAdmin đã lưu.'
+                    ? 'Nội dung bảng là chữ đã lưu, không đổi khi sửa giá hoặc hạn mức gói.'
                     : '✓ / ✗ lấy từ giá, hạn mức và quyền đang bật của từng gói — đổi cấu hình SuperAdmin là bảng đổi theo.'}
                 </p>
               </>

@@ -50,7 +50,6 @@ import type {
   BillingCompareTables,
   BillingCompareTable,
   BillingCompareRow,
-  BillingCompareCell,
   RecruiterBillingEntitlements,
 } from '@industriallink/contracts';
 import {
@@ -1478,15 +1477,24 @@ export class BillingService {
     const rec = raw as Record<string, unknown>;
     const insight = String(rec.insight ?? '').trim();
     if (insight.length > 600) throw new BadRequestException(`Câu gợi ý ${label} quá dài`);
+    if (!Array.isArray(rec.columns)) throw new BadRequestException(`compareTables.${label}.columns phải là mảng`);
+    if (rec.columns.length > 12) throw new BadRequestException(`Bảng ${label} tối đa 12 cột`);
+    const columns = rec.columns.map((col, i) => {
+      const name = String(col ?? '').trim();
+      if (!name) throw new BadRequestException(`Cột ${label}[${i}] cần có tên`);
+      if (name.length > 80) throw new BadRequestException(`Tên cột ${label}[${i}] quá dài`);
+      return name;
+    });
     if (!Array.isArray(rec.rows)) throw new BadRequestException(`compareTables.${label}.rows phải là mảng`);
     if (rec.rows.length > 40) throw new BadRequestException(`Bảng ${label} tối đa 40 dòng`);
     return {
+      columns,
       insight,
-      rows: rec.rows.map((row, i) => this.parseCompareRow(row, `${label}[${i}]`)),
+      rows: rec.rows.map((row, i) => this.parseCompareRow(row, columns.length, `${label}[${i}]`)),
     };
   }
 
-  private parseCompareRow(raw: unknown, label: string): BillingCompareRow {
+  private parseCompareRow(raw: unknown, columnCount: number, label: string): BillingCompareRow {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       throw new BadRequestException(`${label} không hợp lệ`);
     }
@@ -1494,32 +1502,13 @@ export class BillingService {
     const rowLabel = String(rec.label ?? '').trim();
     if (!rowLabel) throw new BadRequestException(`${label}.label là bắt buộc`);
     if (rowLabel.length > 160) throw new BadRequestException(`${label}.label quá dài`);
-    const mode = rec.mode === 'custom' ? 'custom' : rec.mode === 'auto' ? 'auto' : null;
-    if (!mode) throw new BadRequestException(`${label}.mode không hợp lệ`);
-    const autoKeyRaw = rec.autoKey == null ? '' : String(rec.autoKey).trim();
-    if (autoKeyRaw.length > 80) throw new BadRequestException(`${label}.autoKey quá dài`);
-    if (!Array.isArray(rec.cells)) throw new BadRequestException(`${label}.cells phải là mảng`);
-    if (rec.cells.length > 16) throw new BadRequestException(`${label} quá nhiều cột`);
-    return {
-      label: rowLabel,
-      mode,
-      autoKey: autoKeyRaw || null,
-      cells: rec.cells.map((cell, i) => this.parseCompareCell(cell, `${label}.cells[${i}]`)),
-    };
-  }
-
-  private parseCompareCell(raw: unknown, label: string): BillingCompareCell {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      throw new BadRequestException(`${label} không hợp lệ`);
-    }
-    const rec = raw as Record<string, unknown>;
-    const code = String(rec.code ?? '').trim();
-    if (!code || code.length > 80) throw new BadRequestException(`${label}.code không hợp lệ`);
-    const kind = rec.kind === 'flag' ? 'flag' : rec.kind === 'text' ? 'text' : null;
-    if (!kind) throw new BadRequestException(`${label}.kind không hợp lệ`);
-    const text = String(rec.text ?? '').trim();
-    if (text.length > 240) throw new BadRequestException(`${label}.text quá dài`);
-    return { code, kind, text, yes: rec.yes === true };
+    const cellsRaw = Array.isArray(rec.cells) ? rec.cells : [];
+    const cells = Array.from({ length: columnCount }, (_, i) => {
+      const text = String(cellsRaw[i] ?? '').trim();
+      if (text.length > 240) throw new BadRequestException(`${label}.cells[${i}] quá dài`);
+      return text;
+    });
+    return { label: rowLabel, cells };
   }
 
   private asCompareTables(raw: unknown): BillingCompareTables | null {

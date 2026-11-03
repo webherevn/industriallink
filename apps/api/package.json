@@ -4,7 +4,7 @@
   "private": true,
   "description": "IndustrialLink Backend API (Modular Monolith)",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",

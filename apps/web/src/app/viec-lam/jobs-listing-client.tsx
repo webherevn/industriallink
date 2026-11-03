@@ -3,8 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  Bookmark,
   Briefcase,
-  Heart,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -24,6 +24,7 @@ import {
   JOB_LEVEL_LABEL,
   JOB_TRACK_LABEL,
   JobLevelCode,
+  JobStatus,
   JobTrack,
   POPULAR_JOB_KEYWORDS,
   SALARY_BANDS_VND,
@@ -37,7 +38,7 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { IndustryPicker } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
-import { Badge, Button, Input, Select } from '@/components/ui';
+import { Badge, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
 import { tokenStore } from '@/lib/api';
 import { getMyCandidate } from '@/lib/candidate';
@@ -136,6 +137,36 @@ function scrollToJobResults() {
   });
 }
 
+/** Tin AI gợi ý không đủ field của thẻ danh sách — ghép với tin đã tải nếu có. */
+function matchToJob(match: JobMatchView, known?: JobListItem): JobListItem {
+  if (known) return known;
+  return {
+    id: match.jobId,
+    slug: match.slug,
+    code: match.code,
+    title: match.title,
+    companyId: match.companyId,
+    companySlug: match.companySlug,
+    companyName: match.companyName,
+    industry: match.industry,
+    subIndustry: null,
+    jobLevel: match.jobLevel,
+    location: match.location,
+    employmentType: null,
+    experienceBand: match.experienceBand,
+    salaryMin: match.salaryMin,
+    salaryMax: match.salaryMax,
+    status: JobStatus.Published,
+    jobTrack: null,
+    skills: match.skills ?? [],
+    createdAt: match.publishedAt ?? '',
+    publishedAt: match.publishedAt,
+    isNew: false,
+  };
+}
+
+type FilterMode = 'regular' | 'ai';
+
 function JobsPageInner({
   initialJobs,
   forcedIndustry,
@@ -153,6 +184,7 @@ function JobsPageInner({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const [filterMode, setFilterMode] = useState<FilterMode>('regular');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [draftKeyword, setDraftKeyword] = useState(searchParams.get('keyword') ?? '');
@@ -291,21 +323,23 @@ function JobsPageInner({
     staleTime: 60_000,
   });
 
+  const loggedIn = typeof window !== 'undefined' && Boolean(tokenStore.get());
+
   const { data: bookmarks, isLoading: bookmarksLoading } = useQuery({
     queryKey: ['job-bookmarks'],
     queryFn: listBookmarkedJobs,
     retry: false,
-    enabled: tab === 'saved',
+    enabled: loggedIn,
   });
 
   const { data: applications, isLoading: appsLoading } = useQuery({
     queryKey: ['my-applications'],
     queryFn: myApplications,
     retry: false,
-    enabled: tab === 'applied',
+    enabled: loggedIn,
   });
 
-  const { data: matches } = useQuery({
+  const { data: matches, isLoading: matchesLoading } = useQuery({
     queryKey: ['jobs-match-preview'],
     queryFn: recommendedJobs,
     retry: false,
@@ -317,12 +351,51 @@ function JobsPageInner({
     return map;
   }, [matches]);
 
+  const jobById = useMemo(() => {
+    const map = new Map<string, JobListItem>();
+    for (const job of initialJobs ?? []) map.set(job.id, job);
+    for (const job of jobs ?? []) map.set(job.id, job);
+    return map;
+  }, [initialJobs, jobs]);
+
+  const rankedAi = useMemo(
+    () =>
+      [...(matches ?? [])]
+        .sort(
+          (a, b) =>
+            b.match.score - a.match.score ||
+            postedTime(b.publishedAt) - postedTime(a.publishedAt),
+        )
+        .map((match) => matchToJob(match, jobById.get(match.jobId))),
+    [matches, jobById],
+  );
+
+  const savedIdSet = useMemo(
+    () => new Set((bookmarks ?? []).map((job) => job.id)),
+    [bookmarks],
+  );
+
   const bookmarkMutation = useMutation({
     mutationFn: async ({ id, saved }: { id: string; saved: boolean }) => {
       if (saved) await removeJobBookmark(id);
       else await addJobBookmark(id);
     },
-    onSuccess: () => {
+    onMutate: async ({ id, saved }) => {
+      await queryClient.cancelQueries({ queryKey: ['job-bookmarks'] });
+      const previous = queryClient.getQueryData<JobListItem[]>(['job-bookmarks']);
+      queryClient.setQueryData<JobListItem[]>(['job-bookmarks'], (current) => {
+        const list = current ?? [];
+        if (saved) return list.filter((job) => job.id !== id);
+        if (list.some((job) => job.id === id)) return list;
+        const job = jobById.get(id);
+        return job ? [{ ...job, isBookmarked: true }, ...list] : list;
+      });
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['job-bookmarks'], context.previous);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['job-bookmarks'] });
     },
@@ -387,20 +460,23 @@ function JobsPageInner({
       : postedTime(b.createdAt) - postedTime(a.createdAt),
   );
 
+  const usingAi = filterMode === 'ai' && tab === 'all';
   const jobBoard = useMemo(
-    () => (tab === 'all' ? composeJobBoard(allJobs, page - 1, now) : null),
-    [tab, allJobs, page, now],
+    () => (tab === 'all' && !usingAi ? composeJobBoard(allJobs, page - 1, now) : null),
+    [tab, usingAi, allJobs, page, now],
   );
   const pageSize = tab === 'applied' ? APPLIED_PAGE_SIZE : JOB_PAGE_SIZE;
-  const totalItems = tab === 'applied' ? allApplications.length : allJobs.length;
+  const totalItems =
+    tab === 'applied' ? allApplications.length : usingAi ? rankedAi.length : allJobs.length;
   const totalPages =
-    tab === 'all'
+    tab === 'all' && !usingAi
       ? (jobBoard?.totalPages ?? 1)
       : Math.max(1, Math.ceil(totalItems / pageSize) || 1);
   const currentPage = Math.min(page, totalPages);
   const pageOffset = (currentPage - 1) * pageSize;
-  const displayJobs =
-    tab === 'all'
+  const displayJobs = usingAi
+    ? rankedAi.slice(pageOffset, pageOffset + pageSize)
+    : tab === 'all'
       ? (jobBoard && currentPage === page ? jobBoard.page : composeJobBoard(allJobs, currentPage - 1, now).page)
       : allJobs.slice(pageOffset, pageOffset + pageSize);
   const displayApplications = allApplications.slice(
@@ -417,7 +493,8 @@ function JobsPageInner({
   };
 
   const loading =
-    (tab === 'all' && isLoading) ||
+    (usingAi && matchesLoading && rankedAi.length === 0) ||
+    (tab === 'all' && filterMode === 'regular' && isLoading) ||
     (tab === 'saved' && bookmarksLoading) ||
     (tab === 'applied' && appsLoading);
 
@@ -459,6 +536,7 @@ function JobsPageInner({
             className="relative z-20 mt-6 flex flex-col gap-0 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80 sm:flex-row sm:items-stretch"
             onSubmit={(e) => {
               e.preventDefault();
+              setFilterMode('regular');
               setFilterParams({ keyword: draftKeyword.trim() || null, tab: 'all' });
               scrollToJobResults();
             }}
@@ -476,14 +554,15 @@ function JobsPageInner({
               <IndustryPicker
                 variant="bar"
                 value={{ industry, subIndustry, role: roleFilter }}
-                onChange={(next) =>
+                onChange={(next) => {
+                  setFilterMode('regular');
                   setFilterParams({
                     industry: next.industry || null,
                     subIndustry: next.subIndustry || null,
                     role: next.role || null,
                     tab: 'all',
-                  })
-                }
+                  });
+                }}
               />
             </div>
             <div className="relative border-b border-slate-100 sm:w-[200px] sm:border-b-0 sm:border-r">
@@ -492,12 +571,13 @@ function JobsPageInner({
                 variant="bar"
                 value={locations}
                 placeholder="Tất cả địa điểm"
-                onChange={(next) =>
+                onChange={(next) => {
+                  setFilterMode('regular');
                   setFilterParams({
                     locations: next.length ? next.join(',') : null,
                     location: null,
-                  })
-                }
+                  });
+                }}
               />
             </div>
             <button
@@ -516,6 +596,7 @@ function JobsPageInner({
                 type="button"
                 className="rounded-full border border-amber-200/80 bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
                 onClick={() => {
+                  setFilterMode('regular');
                   setDraftKeyword(kw);
                   setFilterParams({ keyword: kw, tab: 'all' });
                   scrollToJobResults();
@@ -528,21 +609,18 @@ function JobsPageInner({
         </div>
       </section>
 
-      {/* 3 cột — mobile: kết quả trước; desktop: lọc | list | widget */}
-      <div className="mt-6 grid min-w-0 gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_260px]">
-        {/* Filters */}
-        <aside
-          className={clsx(
-            'min-w-0 lg:order-1',
-            filtersOpen ? 'order-1' : 'order-2',
-          )}
-        >
-          <div
-            className={clsx(
-              'rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm',
-              !filtersOpen && 'hidden lg:block',
-            )}
-          >
+      {/* Lọc thường: 3 cột. Lọc AI: bỏ cột lọc để hai cột tin rộng hơn. */}
+      <div
+        className={clsx(
+          'mt-6 grid min-w-0 gap-5 pb-10 transition-[grid-template-columns] duration-300',
+          filtersOpen
+            ? 'lg:grid-cols-[240px_minmax(0,1fr)_260px]'
+            : 'lg:grid-cols-[minmax(0,1fr)_280px]',
+        )}
+      >
+        {filtersOpen && (
+        <aside className="order-1 min-w-0 lg:order-1">
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-slate-900">Bộ lọc tìm kiếm</h2>
               <button
@@ -660,47 +738,69 @@ function JobsPageInner({
             </Select>
           </div>
         </aside>
+        )}
 
         {/* List */}
-        <section
-          id="job-results"
-          className={clsx(
-            'min-w-0 scroll-mt-24 lg:order-2',
-            filtersOpen ? 'order-2' : 'order-1',
-          )}
-        >
-          <div className="mb-3 flex items-center justify-between lg:hidden">
-            <Button
-              variant="outline"
-              className="text-sm"
-              onClick={() => setFiltersOpen((v) => !v)}
-            >
-              <SlidersHorizontal className="h-4 w-4" /> Bộ lọc
-            </Button>
-            {hasActiveFilters && (
-              <button
-                type="button"
-                className="text-sm text-amber-600 hover:text-amber-700"
-                onClick={clearFilters}
-              >
-                Xóa tất cả
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200">
+        <section id="job-results" className="order-2 min-w-0 scroll-mt-24 lg:order-2">
+          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-b border-slate-200">
+            <div className="flex min-w-0 flex-wrap items-end gap-2">
+              <div className="mb-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (filterMode === 'regular') {
+                      setFiltersOpen((open) => !open);
+                      return;
+                    }
+                    setFilterMode('regular');
+                    setFiltersOpen(true);
+                    setParams({ page: null });
+                  }}
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition',
+                    filterMode === 'regular'
+                      ? 'bg-[#072348] text-white shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                  )}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Lọc thường
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterMode('ai');
+                    setFiltersOpen(false);
+                    setFilterParams({ tab: 'all' });
+                  }}
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition',
+                    filterMode === 'ai'
+                      ? 'bg-[#072348] text-white shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                  )}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Lọc bằng AI
+                </button>
+              </div>
             <div className="flex gap-0 overflow-x-auto">
               {(
                 [
                   {
                     id: 'all' as const,
                     label: 'Tất cả việc làm',
-                    count: jobs?.length,
+                    count: usingAi ? rankedAi.length : jobs?.length,
                   },
-                  { id: 'saved' as const, label: 'Việc làm đã lưu', count: undefined },
+                  {
+                    id: 'saved' as const,
+                    label: 'Việc làm đã lưu',
+                    count: bookmarks?.length ?? 0,
+                  },
                   {
                     id: 'applied' as const,
                     label: 'Việc làm đã ứng tuyển',
-                    count: applications?.length,
+                    count: applications?.length ?? 0,
                   },
                 ] as const
               ).map((t) => (
@@ -730,10 +830,12 @@ function JobsPageInner({
                 </button>
               ))}
             </div>
+            </div>
             <div className="flex items-center gap-2 pb-2.5">
               <select
                 value={byPlace ? 'place' : sort}
                 onChange={(e) => {
+                  setFilterMode('regular');
                   const value = e.target.value;
                   if (value === 'place') {
                     setFilterParams({ place: '1', province: null, sort: null });
@@ -781,14 +883,26 @@ function JobsPageInner({
 
           {!loading && tab !== 'applied' && (
             <>
-              <ul className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-[#eef3f8] p-3 ring-1 ring-slate-200/80">
-                {allJobs.length === 0 && (
-                  <li className="col-span-2">
+              {usingAi && rankedAi.length > 0 && (
+                <p className="mt-3 text-xs text-slate-500">
+                  Việc làm AI chọn theo mức phù hợp hồ sơ, xếp từ cao xuống thấp.
+                </p>
+              )}
+              <ul
+                className={clsx(
+                  'mt-4 grid grid-cols-1 items-stretch gap-3 rounded-2xl bg-[#eef3f8] p-3 ring-1 ring-slate-200/80 sm:grid-cols-2',
+                  !filtersOpen && 'sm:gap-4 sm:p-4',
+                )}
+              >
+                {(usingAi ? rankedAi : allJobs).length === 0 && (
+                  <li className="col-span-full">
                     <EmptyState
                       text={
-                        tab === 'saved'
-                          ? 'Chưa có việc làm đã lưu.'
-                          : 'Chưa có tin tuyển dụng phù hợp bộ lọc.'
+                        usingAi
+                          ? 'Chưa có việc làm AI gợi ý. Đăng nhập và cập nhật hồ sơ để xem tin khớp với bạn.'
+                          : tab === 'saved'
+                            ? 'Chưa có việc làm đã lưu.'
+                            : 'Chưa có tin tuyển dụng phù hợp bộ lọc.'
                       }
                     />
                   </li>
@@ -797,18 +911,20 @@ function JobsPageInner({
                   <JobCard
                     key={job.id}
                     job={job}
+                    spacious={!filtersOpen}
+                    saved={bookmarks ? savedIdSet.has(job.id) : Boolean(job.isBookmarked)}
                     match={matchByJobId.get(job.id)}
                     busy={bookmarkMutation.isPending}
                     onToggleBookmark={() =>
                       bookmarkMutation.mutate({
                         id: job.id,
-                        saved: Boolean(job.isBookmarked) || tab === 'saved',
+                        saved: bookmarks ? savedIdSet.has(job.id) : Boolean(job.isBookmarked),
                       })
                     }
                   />
                 ))}
               </ul>
-              {allJobs.length > 0 && (
+              {(usingAi ? rankedAi : allJobs).length > 0 && (
                 <PaginationBar
                   page={currentPage}
                   totalPages={totalPages}
@@ -1174,30 +1290,37 @@ function JobCard({
   job,
   match,
   busy,
+  saved,
+  spacious = false,
   onToggleBookmark,
 }: {
   job: JobListItem;
   match?: JobMatchView;
   busy: boolean;
+  saved: boolean;
+  spacious?: boolean;
   onToggleBookmark: () => void;
 }) {
-  const saved = Boolean(job.isBookmarked);
   const tone = TIER_STYLE[listingTier(job.planCode)];
 
   return (
-    <li className="min-w-0">
+    <li className="flex min-w-0">
       <article
         className={clsx(
-          'flex h-full gap-3 rounded-xl border p-3 transition hover:-translate-y-0.5 hover:shadow-lg',
+          'flex h-full w-full rounded-xl border transition hover:-translate-y-0.5 hover:shadow-lg',
+          spacious ? 'gap-3.5 p-4' : 'gap-3 p-3',
           tone.card,
         )}
       >
         <CompanyMark job={job} markClass={tone.mark} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-start gap-2">
+          <div className="flex min-h-10 items-start gap-2">
             <Link
               href={jobPublicPath(job)}
-              className="line-clamp-2 min-w-0 flex-1 text-[13px] font-semibold leading-5 text-brand-700 hover:text-accent-600"
+              className={clsx(
+                'line-clamp-2 min-h-10 min-w-0 flex-1 font-semibold leading-5 text-brand-700 hover:text-accent-600',
+                spacious ? 'text-sm' : 'text-[13px]',
+              )}
             >
               {job.title}
             </Link>
@@ -1251,11 +1374,11 @@ function JobCard({
               className={clsx(
                 'ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-white transition',
                 saved
-                  ? 'border-accent-200 text-accent-500'
-                  : 'border-slate-200 text-slate-400 hover:border-accent-200 hover:text-accent-500',
+                  ? 'border-brand-200 text-brand-500'
+                  : 'border-slate-200 text-slate-400 hover:border-brand-200 hover:text-brand-500',
               )}
             >
-              <Heart className={clsx('h-3.5 w-3.5', saved && 'fill-current')} />
+              <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} strokeWidth={1.75} />
             </button>
           </div>
         </div>

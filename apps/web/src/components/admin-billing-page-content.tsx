@@ -578,7 +578,7 @@ export function AdminBillingPageContent() {
                 <Input value={form.howFooter} onChange={(e) => patch('howFooter', e.target.value)} />
               </Field>
               <p className="text-sm text-slate-600">
-                Từng dòng trong bảng so sánh gói chỉnh ở{' '}
+                Bảng so sánh là nội dung tĩnh, sửa riêng ở{' '}
                 <Link href="/admin/billing/compare" className="font-semibold text-brand-700 underline">
                   Bảng so sánh gói
                 </Link>

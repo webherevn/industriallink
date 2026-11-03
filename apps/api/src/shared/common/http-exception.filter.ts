@@ -50,9 +50,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = `Lỗi dữ liệu (${exception.code})`;
       }
     } else if (exception instanceof Prisma.PrismaClientValidationError) {
-      // Thường do Prisma Client chưa generate lại sau khi đổi schema
-      const detail = exception.message.split('\n').find((l) => l.trim()) || exception.message;
-      message = `Dữ liệu không hợp lệ với schema hiện tại (${detail.slice(0, 180)})`;
+      const lines = exception.message
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      const detail =
+        lines.find((line) =>
+          /unknown argument|argument `|needs at least|invalid value|is missing/i.test(line),
+        ) ??
+        lines[0] ??
+        'Prisma Client chưa khớp schema';
+      message = `Dữ liệu không hợp lệ với schema hiện tại (${detail.slice(0, 220)})`;
     }
 
     if (status >= 500) {
