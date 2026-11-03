@@ -56,7 +56,7 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
-import { formatMatchPct } from '@/lib/match-percent';
+import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { composeJobBoard, LISTING_ROTATE_MS, listingTier } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
@@ -370,17 +370,18 @@ function JobsPageInner({
     return map;
   }, [initialJobs, jobs]);
 
-  const rankedAi = useMemo(
-    () =>
-      [...(matches ?? [])]
-        .sort(
-          (a, b) =>
-            b.match.score - a.match.score ||
-            postedTime(b.publishedAt) - postedTime(a.publishedAt),
-        )
-        .map((match) => matchToJob(match, jobById.get(match.jobId))),
-    [matches, jobById],
-  );
+  const rankedAi = useMemo(() => {
+    const list = [...(matches ?? [])]
+      .map((match) => matchToJob(match, jobById.get(match.jobId)))
+      .filter((job) => !byPlace || locationMatchesProfile(job.location, provinces));
+    list.sort((a, b) =>
+      sort === 'salary'
+        ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
+          postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt)
+        : postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt),
+    );
+    return list;
+  }, [matches, jobById, sort, byPlace, provinces]);
 
   const savedIdSet = useMemo(
     () => new Set((bookmarks ?? []).map((job) => job.id)),
@@ -859,7 +860,6 @@ function JobsPageInner({
               <select
                 value={byPlace ? 'place' : sort}
                 onChange={(e) => {
-                  setFilterMode('regular');
                   const value = e.target.value;
                   if (value === 'place') {
                     setFilterParams({ place: '1', province: null, sort: null });
@@ -916,7 +916,11 @@ function JobsPageInner({
             >
               {listAi && rankedAi.length > 0 && (
                 <p className="mt-3 text-xs text-slate-500">
-                  Việc làm AI chọn theo mức phù hợp hồ sơ, xếp từ cao xuống thấp.
+                  {byPlace
+                    ? 'Việc làm AI khớp hồ sơ, trong địa điểm bạn đã chọn.'
+                    : sort === 'salary'
+                      ? 'Việc làm AI khớp hồ sơ, xếp theo lương cao nhất.'
+                      : 'Việc làm AI khớp hồ sơ, xếp theo tin mới nhất.'}
                 </p>
               )}
               <ul
@@ -930,7 +934,9 @@ function JobsPageInner({
                     <EmptyState
                       text={
                         listAi
-                          ? 'Chưa có việc làm AI gợi ý. Đăng nhập và cập nhật hồ sơ để xem tin khớp với bạn.'
+                          ? byPlace && (matches?.length ?? 0) > 0
+                            ? 'Chưa có việc làm AI gợi ý đúng địa điểm hồ sơ của bạn.'
+                            : 'Chưa có việc làm AI gợi ý. Đăng nhập và cập nhật hồ sơ để xem tin khớp với bạn.'
                           : tab === 'saved'
                             ? 'Chưa có việc làm đã lưu.'
                             : 'Chưa có tin tuyển dụng phù hợp bộ lọc.'
@@ -945,6 +951,7 @@ function JobsPageInner({
                     spacious={!filtersOpen}
                     saved={bookmarks ? savedIdSet.has(job.id) : Boolean(job.isBookmarked)}
                     match={matchByJobId.get(job.id)}
+                    matchRing={listAi}
                     busy={bookmarkMutation.isPending}
                     onToggleBookmark={() =>
                       bookmarkMutation.mutate({
@@ -1322,12 +1329,61 @@ function CompanyMark({ job, markClass }: { job: JobListItem; markClass: string }
   );
 }
 
+function matchRingLabel(score: number): string {
+  if (score >= 90) return 'Rất phù hợp';
+  if (score >= 80) return 'Phù hợp cao';
+  if (score >= 55) return 'Phù hợp';
+  return 'Cân nhắc';
+}
+
+/** Vòng tỉ lệ giống thẻ Gợi ý AI, thu vừa cột tin. */
+function MatchPctRing({ score }: { score: number }) {
+  const radius = 18;
+  const turn = 2 * Math.PI * radius;
+  const filled = Math.min(1, Math.max(0, score / 100));
+  const color = matchRingColor(score);
+  return (
+    <div className="flex w-14 shrink-0 flex-col items-center self-center">
+      <div className="relative flex h-12 w-12 items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 rounded-full bg-amber-400/25 blur-[8px]" aria-hidden />
+        <div className="relative h-11 w-11 rounded-full bg-gradient-to-br from-amber-50 to-white p-px shadow-sm ring-1 ring-amber-200/80">
+          <svg viewBox="0 0 44 44" className="h-full w-full -rotate-90">
+            <circle cx="22" cy="22" r={radius} fill="none" stroke="#fde68a" strokeWidth="4.5" />
+            <circle
+              cx="22"
+              cy="22"
+              r={radius}
+              fill="none"
+              stroke={color}
+              strokeWidth="4.5"
+              strokeLinecap="round"
+              strokeDasharray={turn}
+              strokeDashoffset={turn * (1 - filled)}
+            />
+          </svg>
+          <span
+            className="absolute inset-0 flex items-center justify-center text-[11px] font-extrabold leading-none tracking-tight"
+            style={{ color }}
+          >
+            {formatMatchPct(score)}
+            <span className="text-[8px] font-bold">%</span>
+          </span>
+        </div>
+      </div>
+      <p className="mt-0.5 text-center text-[9px] font-semibold leading-tight" style={{ color }}>
+        {matchRingLabel(score)}
+      </p>
+    </div>
+  );
+}
+
 function JobCard({
   job,
   match,
   busy,
   saved,
   spacious = false,
+  matchRing = false,
   onToggleBookmark,
 }: {
   job: JobListItem;
@@ -1335,6 +1391,7 @@ function JobCard({
   busy: boolean;
   saved: boolean;
   spacious?: boolean;
+  matchRing?: boolean;
   onToggleBookmark: () => void;
 }) {
   const tone = TIER_STYLE[listingTier(job.planCode)];
@@ -1397,7 +1454,7 @@ function JobCard({
               <MapPin className="h-3.5 w-3.5 shrink-0 text-accent-500" />
               <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
             </span>
-            {match && (
+            {match && !matchRing && (
               <span className="shrink-0 text-[11px] font-semibold text-brand-600">
                 {formatMatchPct(match.match.score)}%
               </span>
@@ -1418,6 +1475,7 @@ function JobCard({
             </button>
           </div>
         </div>
+        {match && matchRing ? <MatchPctRing score={match.match.score} /> : null}
       </article>
     </li>
   );
