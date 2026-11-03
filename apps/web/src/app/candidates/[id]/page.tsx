@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
+  Award,
+  ClipboardList,
   Bookmark,
   BookmarkCheck,
   Briefcase,
@@ -10,16 +12,20 @@ import {
   Check,
   Copy,
   Languages,
+  Link2,
   Loader2,
   Lock,
   Mail,
   MapPin,
+  MessageCircle,
+  Package,
   Phone,
   Plane,
   Sparkles,
+  Tag,
   Target,
-  MessageCircle,
   UserPlus,
+  Users,
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -78,20 +84,75 @@ function ChipList({ items, empty = 'Chưa cập nhật' }: { items?: string[]; e
 function Section({
   title,
   icon: Icon,
+  iconClass = 'bg-accent-50 text-accent-600',
+  extra,
   children,
 }: {
   title: string;
   icon?: React.ComponentType<{ className?: string }>;
+  iconClass?: string;
+  extra?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="progress-card space-y-3 p-5">
-      <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-        {Icon && <Icon className="h-4 w-4 text-brand-600" />}
-        {title}
-      </h2>
-      {children}
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="flex items-center gap-2.5 text-sm font-bold text-brand-800">
+          {Icon && (
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
+              <Icon className="h-4 w-4" />
+            </span>
+          )}
+          {title}
+        </h2>
+        {extra}
+      </div>
+      <div className="mt-3">{children}</div>
     </section>
+  );
+}
+
+function CompletionRing({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round(value)));
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-3 py-2 ring-1 ring-accent-100">
+      <div className="text-right">
+        <p className="text-[11px] font-medium text-slate-500">Hồ sơ hoàn thiện</p>
+        <p className="text-xl font-bold tabular-nums text-[#E8872A]">{pct}%</p>
+      </div>
+      <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90" aria-hidden>
+        <circle cx="32" cy="32" r={radius} fill="none" className="stroke-slate-100" strokeWidth="6" />
+        <circle
+          cx="32"
+          cy="32"
+          r={radius}
+          fill="none"
+          stroke="#E8872A"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+    </div>
+  );
+}
+
+function SalesMark() {
+  return (
+    <div className="relative hidden h-24 w-32 shrink-0 sm:block" aria-hidden>
+      <div className="absolute bottom-1 left-1 flex items-end gap-1.5">
+        <span className="h-7 w-3.5 rounded-t-md bg-accent-200" />
+        <span className="h-11 w-3.5 rounded-t-md bg-accent-300" />
+        <span className="h-16 w-3.5 rounded-t-md bg-accent-500" />
+      </div>
+      <span className="absolute right-0 top-1 flex h-10 w-10 items-center justify-center rounded-full bg-accent-500 text-white shadow-md shadow-accent-500/30">
+        <Target className="h-5 w-5" />
+      </span>
+    </div>
   );
 }
 
@@ -226,23 +287,23 @@ export default function CandidateDetailPage() {
         {data && (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0 space-y-4">
-              <header className="progress-card overflow-hidden">
-                <div className="bg-gradient-to-br from-brand-50 via-white to-sky-50/50 px-5 py-6 sm:px-7">
-                  <div className="flex flex-wrap items-start gap-4">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-xl font-bold text-white shadow-md shadow-brand-500/30">
+              <header className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                <div className="bg-gradient-to-r from-white via-accent-50/50 to-white px-5 py-5 sm:px-6">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-600 text-xl font-bold text-white">
                       {data.displayName.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                        <h1 className="text-2xl font-bold tracking-tight text-brand-800">
                           {data.displayName}
                         </h1>
-                        <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500">
                           {data.code}
                         </span>
                       </div>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
-                        <span className="inline-flex items-center gap-1">
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+                        <span className="inline-flex items-center gap-1.5">
                           <Briefcase className="h-3.5 w-3.5 text-slate-400" />
                           {profile?.currentPosition
                             ? formatJobTitle(profile.currentPosition)
@@ -260,12 +321,12 @@ export default function CandidateDetailPage() {
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {profile?.jobLevel && (
-                          <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                          <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
                             {formatJobLevel(profile.jobLevel)}
                           </span>
                         )}
                         {sales?.b2bExperienceBand && (
-                          <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                             Kinh nghiệm B2B{' '}
                             {B2B_EXPERIENCE_BAND_LABEL[
                               sales.b2bExperienceBand as B2bExperienceBand
@@ -273,7 +334,7 @@ export default function CandidateDetailPage() {
                           </span>
                         )}
                         {sales?.jobReadiness && (
-                          <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                             {JOB_READINESS_LABEL[sales.jobReadiness as JobReadiness] ??
                               sales.jobReadiness}
                           </span>
@@ -284,21 +345,14 @@ export default function CandidateDetailPage() {
                           Currently data.aiProfile.aiScore is a profile-analysis score, not a job-match score.
                         */}
                         {data.aiProfile?.aiScore != null && (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-50 px-2.5 py-1 text-xs font-semibold text-accent-700">
                             <Sparkles className="h-3 w-3" />
                             AI {Math.round(data.aiProfile.aiScore)}
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        Hồ sơ
-                      </p>
-                      <p className="text-2xl font-bold tabular-nums text-brand-600">
-                        {data.profileCompletion}%
-                      </p>
-                    </div>
+                    <CompletionRing value={data.profileCompletion} />
                   </div>
                 </div>
               </header>
@@ -338,8 +392,8 @@ export default function CandidateDetailPage() {
                 </Section>
               )}
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Section title="Ngành đã làm" icon={Target}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Section title="Ngành đã làm" icon={Briefcase} iconClass="bg-accent-50 text-accent-600">
                   <ChipList
                     items={
                       profile?.industriesExperienced?.length
@@ -350,116 +404,121 @@ export default function CandidateDetailPage() {
                     }
                   />
                 </Section>
-                <Section title="Khu vực / thị trường" icon={MapPin}>
+                <Section title="Khu vực / thị trường" icon={MapPin} iconClass="bg-brand-50 text-brand-600">
                   <ChipList items={sales?.marketsCovered} />
                 </Section>
-                <Section title="Sản phẩm đã bán">
+                <Section title="Sản phẩm đã bán" icon={Package} iconClass="bg-accent-50 text-accent-600">
                   <ChipList items={sales?.productsSold} />
                 </Section>
-                <Section title="Tệp khách hàng">
+                <Section title="Tệp khách hàng" icon={Users} iconClass="bg-brand-50 text-brand-600">
                   <ChipList items={sales?.customerSegments} />
                 </Section>
               </div>
 
-              <Section title="Kinh doanh B2B — đánh giá nâng cao">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      Phong cách & hành vi Sales
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-slate-800">
-                      {sales?.salesBehavior ||
-                        (sales?.customerDevStyle
-                          ? (CUSTOMER_DEV_STYLE_LABEL[
-                              sales.customerDevStyle as CustomerDevStyle
-                            ] ?? sales.customerDevStyle)
-                          : '—')}
-                    </p>
+              <Section title="Kinh doanh B2B — đánh giá nâng cao" icon={Target} iconClass="bg-accent-50 text-accent-600">
+                <div className="flex items-center gap-4">
+                  <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        Phong cách & hành vi Sales
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-800">
+                        {sales?.salesBehavior ||
+                          (sales?.customerDevStyle
+                            ? (CUSTOMER_DEV_STYLE_LABEL[
+                                sales.customerDevStyle as CustomerDevStyle
+                              ] ?? sales.customerDevStyle)
+                            : '—')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        Loại thương vụ
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-800">
+                        {sales?.dealType
+                          ? (DEAL_TYPE_LABEL[sales.dealType as DealType] ?? sales.dealType)
+                          : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        Doanh số gần nhất
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-800">
+                        {money(sales?.latestRevenue) ?? '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        % KPI
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-800">
+                        {sales?.kpiAchievementPct != null
+                          ? `${Math.round(sales.kpiAchievementPct)}%`
+                          : '—'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      Loại thương vụ
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-slate-800">
-                      {sales?.dealType
-                        ? (DEAL_TYPE_LABEL[sales.dealType as DealType] ?? sales.dealType)
-                        : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      Doanh số gần nhất
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-slate-800">
-                      {money(sales?.latestRevenue) ?? '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      % KPI
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-slate-800">
-                      {sales?.kpiAchievementPct != null
-                        ? `${Math.round(sales.kpiAchievementPct)}%`
-                        : '—'}
-                    </p>
-                  </div>
+                  <SalesMark />
                 </div>
                 {sales?.salesHighlights && (
-                  <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     {sales.salesHighlights}
                   </p>
                 )}
               </Section>
 
-              <Section title="Điều kiện bổ sung">
-                <div className="grid gap-3 sm:grid-cols-2">
+              <Section title="Điều kiện bổ sung" icon={ClipboardList} iconClass="bg-brand-50 text-brand-600">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="flex items-start gap-2 text-sm text-slate-700">
-                    <Languages className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <Languages className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                         Ngoại ngữ
                       </p>
-                      <ChipList items={sales?.languages} empty="Chưa cập nhật" />
+                      <div className="mt-1">
+                        <ChipList items={sales?.languages} empty="Chưa cập nhật" />
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2 text-sm text-slate-700">
-                    <p className="inline-flex items-center gap-1.5">
-                      <Car className="h-4 w-4 text-slate-400" />
-                      Bằng B2:{' '}
-                      <span className="font-semibold">
-                        {sales?.hasB2License == null
-                          ? '—'
-                          : sales.hasB2License
-                            ? 'Có'
-                            : 'Không'}
-                      </span>
-                    </p>
-                    <p className="inline-flex items-center gap-1.5">
-                      <Plane className="h-4 w-4 text-slate-400" />
-                      Đi công tác:{' '}
-                      <span className="font-semibold">
-                        {sales?.willingToTravel == null
-                          ? '—'
-                          : sales.willingToTravel
-                            ? 'Sẵn sàng'
-                            : 'Không'}
-                      </span>
-                    </p>
-                    <p className="inline-flex items-center gap-1.5">
-                      <Wallet className="h-4 w-4 text-slate-400" />
-                      Thu nhập kỳ vọng:{' '}
-                      <span className="font-semibold">
-                        {sales?.expectedSalaryMin || sales?.expectedSalaryMax
-                          ? `${money(sales.expectedSalaryMin) ?? '?'} – ${money(sales.expectedSalaryMax) ?? '?'}`
-                          : '—'}
-                      </span>
-                    </p>
-                  </div>
+                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                    <Car className="h-4 w-4 shrink-0 text-slate-400" />
+                    Bằng B2:{' '}
+                    <span className={sales?.hasB2License ? 'font-semibold text-emerald-600' : 'font-semibold'}>
+                      {sales?.hasB2License == null ? '—' : sales.hasB2License ? 'Có' : 'Không'}
+                    </span>
+                  </p>
+                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                    <Plane className="h-4 w-4 shrink-0 text-slate-400" />
+                    Đi công tác:{' '}
+                    <span className={sales?.willingToTravel ? 'font-semibold text-emerald-600' : 'font-semibold'}>
+                      {sales?.willingToTravel == null
+                        ? '—'
+                        : sales.willingToTravel
+                          ? 'Sẵn sàng'
+                          : 'Không'}
+                    </span>
+                  </p>
+                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                    <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
+                    Thu nhập kỳ vọng:{' '}
+                    <span
+                      className={
+                        sales?.expectedSalaryMin || sales?.expectedSalaryMax
+                          ? 'font-semibold text-emerald-600'
+                          : 'font-semibold'
+                      }
+                    >
+                      {sales?.expectedSalaryMin || sales?.expectedSalaryMax
+                        ? `${money(sales.expectedSalaryMin) ?? '?'} – ${money(sales.expectedSalaryMax) ?? '?'}`
+                        : '—'}
+                    </span>
+                  </p>
                 </div>
               </Section>
 
-              <Section title="Kỹ năng">
+              <Section title="Kỹ năng" icon={Award} iconClass="bg-accent-50 text-accent-600">
                 <ChipList items={data.skills.map((s) => s.name)} empty="Chưa có kỹ năng" />
               </Section>
 
@@ -497,11 +556,18 @@ export default function CandidateDetailPage() {
 
             {/* Sidebar — kiểu TopCV */}
             <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-900">Thông tin liên hệ</p>
-                <ul className="mt-3 space-y-2.5">
-                  <li className="flex items-start gap-2">
-                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                <p className="flex items-center gap-2 text-sm font-bold text-brand-800">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                    <Phone className="h-4 w-4" />
+                  </span>
+                  Thông tin liên hệ
+                </p>
+                <ul className="mt-4 space-y-3">
+                  <li className="flex items-start gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-50 text-accent-600">
+                      <Mail className="h-4 w-4" />
+                    </span>
                     <div className="min-w-0">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
                         Email
@@ -518,8 +584,10 @@ export default function CandidateDetailPage() {
                       )}
                     </div>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                  <li className="flex items-start gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                      <Phone className="h-4 w-4" />
+                    </span>
                     <div className="min-w-0">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
                         Điện thoại
@@ -539,8 +607,13 @@ export default function CandidateDetailPage() {
                 </ul>
               </div>
 
-              <div className="rounded-xl border border-emerald-100 bg-gradient-to-b from-emerald-50/80 to-white p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-900">Yêu cầu kết nối ứng viên</p>
+              <div className="rounded-2xl border border-accent-200 bg-gradient-to-b from-accent-50/80 to-white p-4 shadow-sm">
+                <p className="flex items-center gap-2 text-sm font-bold text-brand-800">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-accent-600 ring-1 ring-accent-100">
+                    <Link2 className="h-4 w-4" />
+                  </span>
+                  Yêu cầu kết nối ứng viên
+                </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
                   Bạn cần gửi yêu cầu và được ứng viên đồng ý để kết nối và liên hệ với ứng viên.
                 </p>
@@ -553,7 +626,7 @@ export default function CandidateDetailPage() {
 
                 {unlocked ? (
                   <div className="mt-3 space-y-2">
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-100/80 px-3 py-2 text-xs font-semibold text-emerald-800">
+                    <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
                       <Check className="h-4 w-4" />
                       Đã kết nối — có thể liên hệ trực tiếp
                     </div>
@@ -561,7 +634,7 @@ export default function CandidateDetailPage() {
                       <button
                         type="button"
                         onClick={() => openConnectionChat(data.connection!.id)}
-                        className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#072348] text-sm font-semibold text-white hover:bg-[#0d3b80]"
+                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-semibold text-white hover:bg-brand-700"
                       >
                         <MessageCircle className="h-4 w-4" />
                         Nhắn tin
@@ -591,7 +664,7 @@ export default function CandidateDetailPage() {
                     type="button"
                     onClick={() => connectMutation.mutate()}
                     disabled={connectMutation.isPending}
-                    className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+                    className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
                   >
                     {connectMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -611,12 +684,12 @@ export default function CandidateDetailPage() {
                 )}
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                 <button
                   type="button"
                   onClick={() => shortlistMutation.mutate()}
                   disabled={shortlistMutation.isPending}
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60"
                 >
                   {data.isShortlisted ? (
                     <>
@@ -632,15 +705,20 @@ export default function CandidateDetailPage() {
                 </button>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-900">Mã ứng viên</p>
-                <div className="mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-700 ring-1 ring-slate-200">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                <p className="flex items-center gap-2 text-sm font-bold text-brand-800">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                    <Tag className="h-4 w-4" />
+                  </span>
+                  Mã ứng viên
+                </p>
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 font-mono text-xs text-slate-700 ring-1 ring-slate-200">
                   <span className="min-w-0 flex-1 truncate">{data.code}</span>
                 </div>
                 <button
                   type="button"
                   onClick={copyCode}
-                  className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   {copied ? (
                     <>
