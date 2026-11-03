@@ -17,6 +17,7 @@ import {
   nextUniqueSlug,
   parseCustomSchemaInput,
   normalizeHomepageHero,
+  normalizeHomepageReasons,
   toSeoSlug,
   type CmsAuthorProfileView,
   type CmsAuthorSocial,
@@ -1313,6 +1314,7 @@ export class CmsService {
       robotsMaxImagePreview: true,
       customSchema: null,
       hero: normalizeHomepageHero(null),
+      reasons: normalizeHomepageReasons(null),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -1335,6 +1337,7 @@ export class CmsService {
     hero: unknown;
     updatedAt: Date;
   }): CmsHomepageSettingsView {
+    const stored = row.hero && typeof row.hero === 'object' ? (row.hero as { reasons?: unknown }) : {};
     return {
       heading: row.heading,
       headingAccent: row.headingAccent,
@@ -1351,6 +1354,7 @@ export class CmsService {
       robotsMaxImagePreview: row.robotsMaxImagePreview,
       customSchema: row.customSchema,
       hero: normalizeHomepageHero(row.hero),
+      reasons: normalizeHomepageReasons(stored.reasons),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -1405,16 +1409,49 @@ export class CmsService {
     input: unknown,
   ): Promise<CmsHomepageSettingsView> {
     const hero = normalizeHomepageHero(input);
+    const current = await this.prisma.cmsHomepageSettings.findUnique({
+      where: { tenantId: 'default' },
+      select: { hero: true },
+    });
+    const kept = current?.hero && typeof current.hero === 'object' ? (current.hero as { reasons?: unknown }).reasons : null;
+    const payload = { ...hero, reasons: normalizeHomepageReasons(kept) };
     const row = await this.prisma.cmsHomepageSettings.upsert({
       where: { tenantId: 'default' },
       create: {
         tenantId: 'default',
         heading: 'Tìm đúng cơ hội trong ngành công nghiệp',
-        hero: hero as unknown as Prisma.InputJsonValue,
+        hero: payload as unknown as Prisma.InputJsonValue,
         updatedBy: user.id,
       },
       update: {
-        hero: hero as unknown as Prisma.InputJsonValue,
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+    });
+    return this.mapHomepageSettings(row);
+  }
+
+  async saveHomepageReasons(
+    user: AuthenticatedUser,
+    input: unknown,
+  ): Promise<CmsHomepageSettingsView> {
+    const reasons = normalizeHomepageReasons(input);
+    const current = await this.prisma.cmsHomepageSettings.findUnique({
+      where: { tenantId: 'default' },
+      select: { hero: true },
+    });
+    const hero = normalizeHomepageHero(current?.hero);
+    const payload = { ...hero, reasons };
+    const row = await this.prisma.cmsHomepageSettings.upsert({
+      where: { tenantId: 'default' },
+      create: {
+        tenantId: 'default',
+        heading: 'Tìm đúng cơ hội trong ngành công nghiệp',
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+      update: {
+        hero: payload as unknown as Prisma.InputJsonValue,
         updatedBy: user.id,
       },
     });

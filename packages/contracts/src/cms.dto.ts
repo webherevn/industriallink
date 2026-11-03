@@ -1,5 +1,6 @@
 import { CmsContentStatus, CmsContentType } from './enums';
 import type { HomepageHeroContent } from './homepage-hero';
+import type { HomepageReasonsContent } from './homepage-reasons';
 
 export interface CmsFaqItem {
   question: string;
@@ -360,6 +361,8 @@ export interface CmsHomepageSettingsView {
   customSchema: string | null;
   /** Banner đầu trang chủ. */
   hero: HomepageHeroContent;
+  /** Khối lý do ngay dưới danh sách việc làm. */
+  reasons: HomepageReasonsContent;
   updatedAt: string;
 }
 

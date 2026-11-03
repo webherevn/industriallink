@@ -1267,6 +1267,7 @@ model CmsHomepageSettings {
   /// JSON-LD tùy biến. Null = không xuất schema tùy biến.
   customSchema   String? @map("custom_schema") @db.Text
   /// Banner hero trang chủ. Null = dùng mẫu mặc định.
+  /// Khối «Vì sao chọn inlink» nằm trong cùng JSON, khóa reasons.
   hero           Json?   @map("hero")
 
   createdAt DateTime @default(now()) @map("created_at")

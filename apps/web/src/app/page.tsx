@@ -3,8 +3,9 @@ import { CmsCustomSchemaScripts } from '@/components/cms-custom-schema';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { cmsRobotsMeta, formatCmsSeoTitle } from '@/lib/cms-seo';
 import { isQueryVariant, parentCanonicalMetadata } from '@/lib/listing-seo';
-import { normalizeHomepageHero } from '@industriallink/contracts';
+import { normalizeHomepageHero, normalizeHomepageReasons } from '@industriallink/contracts';
 import { HomeHero } from '@/components/home-hero';
+import { HomeReasons } from '@/components/home-reasons';
 import { fetchPublicCmsHomepage } from '@/lib/public-cms-api';
 import { fetchPublishedJobs } from '@/lib/public-job-api';
 import { siteUrl } from '@/lib/public-paths';
@@ -78,6 +79,7 @@ export default async function HomePage() {
         heroHeadingAccent={home?.headingAccent}
         heroSubtitle={home?.subtitle}
         leading={<HomeHero hero={normalizeHomepageHero(home?.hero)} />}
+        trailing={<HomeReasons reasons={normalizeHomepageReasons(home?.reasons)} />}
       />
     </>
   );

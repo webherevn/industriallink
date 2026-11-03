@@ -43,6 +43,7 @@ export * from './seo-slug';
 export * from './public-job-path';
 export * from './job-posting-schema';
 export * from './homepage-hero';
+export * from './homepage-reasons';
 export * from './cms.dto';
 export * from './cms-media.dto';
 export * from './cms-robots';

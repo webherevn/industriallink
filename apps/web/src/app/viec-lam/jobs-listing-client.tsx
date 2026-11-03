@@ -173,6 +173,7 @@ function JobsPageInner({
   heroHeadingAccent,
   heroSubtitle,
   leading,
+  trailing,
 }: {
   initialJobs?: JobListItem[];
   forcedIndustry?: string;
@@ -180,6 +181,7 @@ function JobsPageInner({
   heroHeadingAccent?: string | null;
   heroSubtitle?: string | null;
   leading?: React.ReactNode;
+  trailing?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1144,6 +1146,7 @@ function JobsPageInner({
         </aside>
       </div>
       </div>
+      {trailing}
     </AppShell>
   );
 }
@@ -1533,6 +1536,7 @@ export function JobsListingClient({
   heroHeadingAccent,
   heroSubtitle,
   leading,
+  trailing,
 }: {
   initialJobs?: JobListItem[];
   forcedIndustry?: string;
@@ -1540,6 +1544,7 @@ export function JobsListingClient({
   heroHeadingAccent?: string | null;
   heroSubtitle?: string | null;
   leading?: React.ReactNode;
+  trailing?: React.ReactNode;
 }) {
   return (
     <Suspense
@@ -1556,6 +1561,7 @@ export function JobsListingClient({
         heroHeadingAccent={heroHeadingAccent}
         heroSubtitle={heroSubtitle}
         leading={leading}
+        trailing={trailing}
       />
     </Suspense>
   );

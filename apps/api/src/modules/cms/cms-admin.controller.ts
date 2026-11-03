@@ -34,6 +34,7 @@ import { UpsertCmsAuthorProfileDto, AssignCmsAuthorProfileDto } from './dto/upse
 import { UpsertCmsCategoryDto } from './dto/upsert-cms-category.dto';
 import { UpsertCmsFooterSettingsDto } from './dto/upsert-cms-footer.dto';
 import { SaveHomepageHeroDto } from './dto/save-homepage-hero.dto';
+import { SaveHomepageReasonsDto } from './dto/save-homepage-reasons.dto';
 import { UpsertCmsHomepageSettingsDto } from './dto/upsert-cms-homepage.dto';
 import { UpsertCmsPostDto } from './dto/upsert-cms-post.dto';
 import { UpsertCmsRedirectDto } from './dto/upsert-cms-redirect.dto';
@@ -321,6 +322,16 @@ export class CmsAdminController {
     @Body() dto: SaveHomepageHeroDto,
   ) {
     return this.cms.saveHomepageHero(user, dto);
+  }
+
+  @Put('homepage/reasons')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu khối vì sao chọn inlink' })
+  saveHomepageReasons(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SaveHomepageReasonsDto,
+  ) {
+    return this.cms.saveHomepageReasons(user, dto);
   }
 
   @Get('robots')

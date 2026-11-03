@@ -14,6 +14,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { CmsMediaPicker } from '@/components/cms-media-library';
 import { Button, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { AdminHomepageReasonsForm } from '@/components/admin-homepage-reasons';
 import { getCmsHomepageAdmin, saveHomepageHeroAdmin, uploadCmsMedia } from '@/lib/admin-cms';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
@@ -148,10 +149,10 @@ export function AdminHomepageHeroPage() {
     <AdminShell>
       <div className="admin-dash-rise">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8872A]">Trang chủ</p>
-        <h1 className="cms-page-title mt-1.5">Banner hero</h1>
+        <h1 className="cms-page-title mt-1.5">Trang chủ</h1>
         <div className="brand-accent-bar mt-2" />
         <p className="cms-page-subtitle max-w-xl">
-          Sửa chữ và ảnh banner đầu trang chủ. Phần bên dưới banner giữ nguyên cho đến khi làm tiếp.
+          Sửa banner đầu trang và khối lý do ngay dưới danh sách việc làm.
         </p>
       </div>
 
@@ -327,6 +328,8 @@ export function AdminHomepageHeroPage() {
           setSlot(null);
         }}
       />
+
+      <AdminHomepageReasonsForm initial={query.data?.reasons ?? null} />
     </AdminShell>
   );
 }
