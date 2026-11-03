@@ -137,6 +137,14 @@ nav[aria-label='Menu chính'] > a.px-3 {
   animation: corner-robot-float 3.2s ease-in-out infinite;
   transform-origin: center bottom;
 }
+.corner-robot-slide {
+  transition: transform 5s cubic-bezier(0.42, 0, 0.58, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .corner-robot-slide {
+    transition: none;
+  }
+}
 .corner-robot-bubble {
   animation: copilot-answer-in 0.28s ease-out both;
 }

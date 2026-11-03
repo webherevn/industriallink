@@ -7,7 +7,7 @@ const HELLO_FRAMES = ['/robot-il-hello-0.png', '/robot-il-hello-1.png', '/robot-
 const RUN_FRAMES = ['/robot-il-run-0.png', '/robot-il-run-1.png', '/robot-il-run-2.png'] as const;
 /** Đúng nhịp delay trong file GIF gốc (đơn vị gốc là 1/100 giây). */
 const HELLO_MS = 700;
-const RUN_MS = 600;
+const RUN_MS = 1100;
 
 export function CopilotRobot({ className, running = false }: { className?: string; running?: boolean }) {
   const frames = running ? RUN_FRAMES : HELLO_FRAMES;

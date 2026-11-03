@@ -10,7 +10,7 @@ import { fetchMySupportChat, fetchSupportPrompts, sendSupportChat } from '@/lib/
 
 const ROTATE_MS = 3500;
 const IDLE_MS = 10_000;
-const SLIDE_MS = 4500;
+const SLIDE_MS = 5000;
 
 function shortName(displayName?: string | null): string {
   const token = displayName?.trim().split(/\s+/).filter(Boolean).slice(-1)[0];
@@ -49,14 +49,11 @@ export function CornerRobot({ name }: { name?: string | null }) {
   const restingShift = () => {
     const el = dock.current;
     if (!el) return 0;
-    const previous = el.style.transform;
-    el.style.transition = 'none';
-    el.style.transform = 'translateX(0px)';
     const rect = el.getBoundingClientRect();
-    const delta = Math.round(window.innerWidth / 2 - (rect.left + rect.width / 2));
-    el.style.transform = previous;
-    el.style.transition = '';
-    return delta;
+    const transform = getComputedStyle(el).transform;
+    const currentX = transform && transform !== 'none' ? new DOMMatrix(transform).m41 : 0;
+    const restingCenter = rect.left - currentX + rect.width / 2;
+    return Math.round(window.innerWidth / 2 - restingCenter);
   };
   const qc = useQueryClient();
   const prompts = useQuery({
@@ -195,12 +192,8 @@ export function CornerRobot({ name }: { name?: string | null }) {
   return (
     <div
       ref={dock}
-      className="pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end transition-transform motion-reduce:transition-none"
-      style={{
-        transform: `translateX(${centered ? shift : 0}px)`,
-        transitionDuration: `${SLIDE_MS}ms`,
-        transitionTimingFunction: 'cubic-bezier(0.45, 0.02, 0.18, 1)',
-      }}
+      className="corner-robot-slide pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end"
+      style={{ transform: `translateX(${centered ? shift : 0}px)` }}
     >
       {open && (
         <div className="chat-pop pointer-events-auto mb-3 flex h-[min(68vh,440px)] w-[min(100vw-2rem,340px)] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_22px_50px_-16px_rgba(7,35,72,0.55)] ring-1 ring-[#072348]/10">
