@@ -148,11 +148,11 @@ export function HomeHero({ hero }: { hero: HomepageHeroContent }) {
   return (
     <section className="overflow-hidden bg-white">
       <div className="mx-auto grid max-w-[1240px] items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-2 lg:py-6">
-        <div className="max-w-[540px]">
+        <div className="home-reasons-head max-w-[540px]">
           <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#16325c]">
             {hero.eyebrow}
           </p>
-          <span className="mt-2 block h-1 w-10 rounded-full bg-[#E8872A]" aria-hidden />
+          <span className="home-reasons-mark mt-2 block h-1 w-10 origin-left rounded-full bg-[#E8872A]" aria-hidden />
           <h1 className="mt-4 text-[2rem] font-extrabold leading-[1.12] tracking-tight text-[#072348] sm:text-[2.7rem] lg:text-[3.05rem]">
             {accentTitle(hero.title, hero.titleAccent)}
           </h1>
@@ -160,17 +160,17 @@ export function HomeHero({ hero }: { hero: HomepageHeroContent }) {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
               href={hero.primaryHref}
-              className="inline-flex min-h-[64px] min-w-[210px] flex-col justify-center rounded-2xl bg-[#E8872A] px-5 py-3 text-white shadow-[0_12px_24px_-12px_rgba(232,135,42,0.9)] transition hover:bg-[#d06f18]"
+              className="group inline-flex min-h-[64px] min-w-[210px] flex-col justify-center rounded-2xl bg-[#E8872A] px-5 py-3 text-white shadow-[0_12px_24px_-12px_rgba(232,135,42,0.9)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#d06f18]"
             >
               <span className="flex items-center gap-2 text-[15px] font-bold">
                 {hero.primaryLabel}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </span>
               <span className="text-[12px] font-medium text-white/85">{hero.primaryHint}</span>
             </Link>
             <Link
               href={hero.secondaryHref}
-              className="inline-flex min-h-[64px] min-w-[210px] flex-col justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[#072348] shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex min-h-[64px] min-w-[210px] flex-col justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[#072348] shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
             >
               <span className="text-[15px] font-bold">{hero.secondaryLabel}</span>
               <span className="text-[12px] font-medium text-slate-500">{hero.secondaryHint}</span>
@@ -178,7 +178,7 @@ export function HomeHero({ hero }: { hero: HomepageHeroContent }) {
           </div>
         </div>
 
-        <div className="relative min-h-[280px] lg:min-h-[540px]">
+        <div className="home-reasons-item relative min-h-[280px] lg:min-h-[540px]" style={{ animationDelay: '120ms' }}>
           {image ? (
             <img
               src={image}
@@ -191,7 +191,7 @@ export function HomeHero({ hero }: { hero: HomepageHeroContent }) {
           <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-16 bg-gradient-to-r from-white to-transparent lg:block" />
           <div className="relative grid gap-3 p-3 sm:grid-cols-2 lg:absolute lg:inset-x-2 lg:bottom-3 lg:p-0">
             {leadPerson ? (
-              <article className="rounded-2xl bg-white p-3.5 shadow-[0_16px_40px_-20px_rgba(7,35,72,0.45)] ring-1 ring-slate-100">
+              <article className="home-hero-float-card rounded-2xl bg-white p-3.5 shadow-[0_16px_40px_-20px_rgba(7,35,72,0.45)] ring-1 ring-slate-100">
                 <p className="mb-3 flex items-center gap-2 text-[13px] font-bold text-[#072348]">
                   <UserRound className="h-4 w-4 text-[#3b6ea5]" />
                   {hero.candidatesTitle}
@@ -207,7 +207,10 @@ export function HomeHero({ hero }: { hero: HomepageHeroContent }) {
               </article>
             ) : null}
             {leadJob ? (
-              <article className="rounded-2xl bg-white p-3.5 shadow-[0_16px_40px_-20px_rgba(7,35,72,0.45)] ring-1 ring-slate-100">
+              <article
+                className="home-hero-float-card rounded-2xl bg-white p-3.5 shadow-[0_16px_40px_-20px_rgba(7,35,72,0.45)] ring-1 ring-slate-100"
+                style={{ animationDelay: '0.8s' }}
+              >
                 <p className="mb-3 flex items-center gap-2 text-[13px] font-bold text-[#072348]">
                   <Building2 className="h-4 w-4 text-[#3b6ea5]" />
                   {hero.jobsTitle}

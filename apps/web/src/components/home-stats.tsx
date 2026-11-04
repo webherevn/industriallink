@@ -66,8 +66,15 @@ export function HomeStats({ stats }: { stats: HomepageStatsContent }) {
           {items.map((item, index) => {
             const image = resolveCmsAssetUrl(item.imageUrl);
             return (
-              <li key={`${item.icon}-${index}`} className="flex items-center gap-3.5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center text-[#F08A24]">
+              <li
+                key={`${item.icon}-${index}`}
+                className="home-stat-item flex items-center gap-3.5"
+                style={{ animationDelay: `${100 + index * 90}ms` }}
+              >
+                <span
+                  className="home-stat-icon flex h-11 w-11 shrink-0 items-center justify-center text-[#F08A24]"
+                  style={{ animationDelay: `${index * 0.4}s` }}
+                >
                   {image ? (
                     <img src={image} alt="" className="h-9 w-9 object-contain" />
                   ) : (

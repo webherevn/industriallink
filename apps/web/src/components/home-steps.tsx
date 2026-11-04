@@ -1,24 +1,6 @@
 import type { HomepageStepIcon, HomepageStepsContent } from '@industriallink/contracts';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
-function accentTitle(title: string, accent: string) {
-  const needle = accent.trim();
-  const at = needle ? title.indexOf(needle) : -1;
-  if (at < 0) return title;
-  return (
-    <>
-      {title.slice(0, at)}
-      <span className="relative inline-block">
-        {needle}
-        <span className="absolute left-0 right-0 top-full mt-1.5 flex justify-center">
-          <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" aria-hidden />
-        </span>
-      </span>
-      {title.slice(at + needle.length)}
-    </>
-  );
-}
-
 function StepGlyph({ icon }: { icon: HomepageStepIcon }) {
   const stroke = {
     fill: 'none',
@@ -63,7 +45,7 @@ function StepGlyph({ icon }: { icon: HomepageStepIcon }) {
 
 function StepArrow() {
   return (
-    <svg viewBox="0 0 36 16" className="h-4 w-9 text-[#F08A24]" aria-hidden>
+    <svg viewBox="0 0 36 16" className="home-step-arrow h-4 w-9 text-[#F08A24]" aria-hidden>
       <path d="M0 8h28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M24 3.5 31 8l-7 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -81,10 +63,13 @@ export function HomeSteps({ steps }: { steps: HomepageStepsContent }) {
         <div className="home-reasons-head text-center">
           <h2
             id="home-steps-title"
-            className="pb-3 text-[1.75rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.15rem]"
+            className="text-[1.75rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.15rem]"
           >
-            {accentTitle(steps.title, steps.titleAccent)}
+            {steps.title}
           </h2>
+          <span className="mt-2.5 flex justify-center" aria-hidden>
+            <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" />
+          </span>
           <p className="mx-auto mt-3 max-w-2xl text-[15px] text-[#5c6b7d] sm:text-base">{steps.subtitle}</p>
         </div>
         <ol className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-12 lg:mt-14 lg:grid-cols-4 lg:gap-6">
@@ -111,7 +96,10 @@ export function HomeSteps({ steps }: { steps: HomepageStepsContent }) {
                       </span>
                     )}
                   </span>
-                  <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#F08A24] text-[13px] font-bold text-white shadow-sm">
+                  <span
+                    className="home-step-badge absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#F08A24] text-[13px] font-bold text-white shadow-sm"
+                    style={{ animationDelay: `${index * 0.35}s` }}
+                  >
                     {index + 1}
                   </span>
                 </span>

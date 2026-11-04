@@ -2,24 +2,6 @@ import type { HomepageSolutionIcon, HomepageSolutionsContent } from '@industrial
 import Link from 'next/link';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
-function accentTitle(title: string, accent: string) {
-  const needle = accent.trim();
-  const at = needle ? title.indexOf(needle) : -1;
-  if (at < 0) return title;
-  return (
-    <>
-      {title.slice(0, at)}
-      <span className="relative inline-block">
-        {needle}
-        <span className="absolute left-0 right-0 top-full mt-1.5 flex justify-center">
-          <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" aria-hidden />
-        </span>
-      </span>
-      {title.slice(at + needle.length)}
-    </>
-  );
-}
-
 function SolutionGlyph({ icon }: { icon: HomepageSolutionIcon }) {
   const stroke = {
     fill: 'none',
@@ -56,7 +38,7 @@ function SolutionGlyph({ icon }: { icon: HomepageSolutionIcon }) {
 
 function ArrowButton({ href, label }: { href: string; label: string }) {
   const className =
-    'absolute bottom-5 right-5 flex h-9 w-9 items-center justify-center rounded-full bg-[#F08A24] text-white shadow-[0_8px_16px_-10px_rgba(240,138,36,0.9)] transition hover:bg-[#e07b16]';
+    'home-solution-arrow absolute bottom-5 right-5 flex h-9 w-9 items-center justify-center rounded-full bg-[#F08A24] text-white shadow-[0_8px_16px_-10px_rgba(240,138,36,0.9)] transition hover:bg-[#e07b16]';
   const icon = (
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
       <path d="M5 12h12M13 7l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -85,10 +67,13 @@ export function HomeSolutions({ solutions }: { solutions: HomepageSolutionsConte
         <div className="home-reasons-head text-center">
           <h2
             id="home-solutions-title"
-            className="pb-3 text-[1.75rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.15rem]"
+            className="text-[1.75rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.15rem]"
           >
-            {accentTitle(solutions.title, solutions.titleAccent)}
+            {solutions.title}
           </h2>
+          <span className="mt-2.5 flex justify-center" aria-hidden>
+            <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" />
+          </span>
           <p className="mx-auto mt-3 max-w-3xl text-[15px] leading-relaxed text-[#5c6b7d] sm:text-base">{solutions.subtitle}</p>
         </div>
         <ul className="mt-10 grid grid-cols-1 gap-5 lg:mt-12 lg:grid-cols-3 lg:gap-6">
@@ -100,9 +85,12 @@ export function HomeSolutions({ solutions }: { solutions: HomepageSolutionsConte
                 className="home-reasons-item h-full"
                 style={{ animationDelay: `${120 + index * 100}ms` }}
               >
-                <article className="relative flex h-full flex-col rounded-[22px] border border-[#e6eef6] bg-white px-6 pb-16 pt-6 shadow-[0_16px_36px_-26px_rgba(18,49,92,0.55)]">
+                <article className="home-solution-card relative flex h-full flex-col rounded-[22px] border border-[#e6eef6] bg-white px-6 pb-16 pt-6 shadow-[0_16px_36px_-26px_rgba(18,49,92,0.55)]">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center text-[#F08A24]">
+                    <span
+                      className="home-reasons-glyph flex h-10 w-10 shrink-0 items-center justify-center text-[#F08A24]"
+                      style={{ animationDelay: `${index * 0.4}s` }}
+                    >
                       {image ? <img src={image} alt="" className="h-8 w-8 object-contain" /> : <SolutionGlyph icon={item.icon} />}
                     </span>
                     <h3 className="text-[1.15rem] font-extrabold tracking-tight text-[#12315c]">{item.title}</h3>

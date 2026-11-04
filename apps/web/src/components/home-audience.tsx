@@ -27,6 +27,7 @@ function ScoreRing({ score }: { score: string }) {
           strokeLinecap="round"
           strokeDasharray={length}
           strokeDashoffset={length * (1 - percent / 100)}
+          className="home-score-arc"
         />
       </svg>
       <span className="absolute text-[11px] font-extrabold text-[#2faf5a]">{score}</span>
@@ -36,9 +37,9 @@ function ScoreRing({ score }: { score: string }) {
 
 function ActionLink({ href, label }: { href: string; label: string }) {
   const className =
-    'inline-flex items-center gap-2 rounded-full bg-[#F08A24] px-5 py-2.5 text-sm font-bold text-white shadow-[0_10px_20px_-12px_rgba(240,138,36,0.95)] transition hover:bg-[#e07b16]';
+    'group inline-flex items-center gap-2 rounded-full bg-[#F08A24] px-5 py-2.5 text-sm font-bold text-white shadow-[0_10px_20px_-12px_rgba(240,138,36,0.95)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#e07b16]';
   const icon = (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+    <svg viewBox="0 0 24 24" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden>
       <path d="M5 12h12M13 7l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -111,23 +112,27 @@ export function HomeAudience({ audience }: { audience: HomepageAudienceContent }
           </ul>
         </div>
 
-        <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
-          <div className="overflow-hidden rounded-[28px] bg-[#e7f1fa] lg:ml-10 lg:h-[500px]">
+        <div className="home-reasons-item relative mx-auto w-full max-w-[560px] lg:max-w-none" style={{ animationDelay: '120ms' }}>
+          <div className="group overflow-hidden rounded-[28px] bg-[#e7f1fa] lg:ml-10 lg:h-[500px]">
             {photo ? (
-              <img src={photo} alt="" className="h-72 w-full object-cover object-[center_18%] sm:h-96 lg:h-full" />
+              <img
+                src={photo}
+                alt=""
+                className="h-72 w-full object-cover object-[center_18%] transition-transform duration-700 group-hover:scale-[1.03] sm:h-96 lg:h-full"
+              />
             ) : (
-              <div className="h-72 sm:h-96 lg:h-full">
+              <div className="h-72 transition-transform duration-700 group-hover:scale-[1.02] sm:h-96 lg:h-full">
                 <PortraitFallback />
               </div>
             )}
           </div>
-          <aside className="relative z-10 -mt-16 ml-auto mr-3 w-[min(100%-1.5rem,320px)] rounded-[22px] bg-white p-4 shadow-[0_18px_40px_-24px_rgba(18,49,92,0.55)] sm:mr-0 sm:p-5 lg:absolute lg:right-0 lg:top-8 lg:mt-0 lg:w-[300px]">
+          <aside className="home-audience-card relative z-10 -mt-16 ml-auto mr-3 w-[min(100%-1.5rem,320px)] rounded-[22px] bg-white p-4 shadow-[0_18px_40px_-24px_rgba(18,49,92,0.55)] sm:mr-0 sm:p-5 lg:absolute lg:right-0 lg:top-8 lg:mt-0 lg:w-[300px]">
             <p className="text-[13px] font-semibold text-[#7d8b9a]">{audience.cardTitle}</p>
             <ul className="mt-3 divide-y divide-[#eef2f6]">
               {audience.jobs.map((job, index) => {
                 const avatar = resolveCmsAssetUrl(job.avatarUrl);
                 return (
-                  <li key={`${job.title}-${index}`} className="flex items-center gap-3 py-3 first:pt-1 last:pb-1">
+                  <li key={`${job.title}-${index}`} className="home-audience-row flex items-center gap-3 py-3 first:pt-1 last:pb-1">
                     {avatar ? (
                       <img src={avatar} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
                     ) : (

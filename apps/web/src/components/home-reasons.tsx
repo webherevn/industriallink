@@ -1,24 +1,6 @@
 import type { HomepageReasonIcon, HomepageReasonsContent } from '@industriallink/contracts';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
-function accentTitle(title: string, accent: string) {
-  const needle = accent.trim();
-  const at = needle ? title.indexOf(needle) : -1;
-  if (at < 0) return title;
-  return (
-    <>
-      {title.slice(0, at)}
-      <span className="relative inline-block">
-        {needle}
-        <span className="absolute left-0 right-0 top-full mt-1.5 flex justify-center">
-          <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" aria-hidden />
-        </span>
-      </span>
-      {title.slice(at + needle.length)}
-    </>
-  );
-}
-
 function ReasonGlyph({ icon }: { icon: HomepageReasonIcon }) {
   const stroke = {
     fill: 'none',
@@ -86,10 +68,13 @@ export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
         <div className="home-reasons-head text-center">
           <h2
             id="home-reasons-title"
-            className="pb-3 text-[1.85rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.35rem]"
+            className="text-[1.85rem] font-extrabold tracking-tight text-[#0c2f57] sm:text-[2.35rem]"
           >
-            {accentTitle(reasons.title, reasons.titleAccent)}
+            {reasons.title}
           </h2>
+          <span className="mt-2.5 flex justify-center" aria-hidden>
+            <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" />
+          </span>
           <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-[#5c6b7d] sm:text-base">
             {reasons.subtitle}
           </p>
