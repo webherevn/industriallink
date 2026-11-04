@@ -15,6 +15,9 @@ import { CmsMediaPicker } from '@/components/cms-media-library';
 import { Button, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { AdminHomepageReasonsForm } from '@/components/admin-homepage-reasons';
+import { AdminHomepageAudienceForm } from '@/components/admin-homepage-audience';
+import { AdminHomepageSolutionsForm } from '@/components/admin-homepage-solutions';
+import { AdminHomepageStatsForm } from '@/components/admin-homepage-stats';
 import { AdminHomepageStepsForm } from '@/components/admin-homepage-steps';
 import { getCmsHomepageAdmin, saveHomepageHeroAdmin, uploadCmsMedia } from '@/lib/admin-cms';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
@@ -166,6 +169,15 @@ export function AdminHomepageHeroPage() {
         </a>
         <a href="#home-admin-steps" className="rounded-full border border-[#cfe0f5] bg-[#f4f8fc] px-3 py-1.5 text-xs font-semibold text-[#1e4e8c]">
           3. Cách hoạt động
+        </a>
+        <a href="#home-admin-stats" className="rounded-full border border-[#c9ead8] bg-[#f3fbf6] px-3 py-1.5 text-xs font-semibold text-[#1d7a45]">
+          4. Số liệu
+        </a>
+        <a href="#home-admin-solutions" className="rounded-full border border-[#ddd4f5] bg-[#f7f4fd] px-3 py-1.5 text-xs font-semibold text-[#5b3cc4]">
+          5. Giải pháp
+        </a>
+        <a href="#home-admin-audience" className="rounded-full border border-[#f6d0dc] bg-[#fff5f8] px-3 py-1.5 text-xs font-semibold text-[#b4234c]">
+          6. Ứng viên
         </a>
       </nav>
 
@@ -358,6 +370,24 @@ export function AdminHomepageHeroPage() {
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1e4e8c]">Mục riêng · AI Matching hoạt động như thế nào</p>
         <p className="mt-1 text-xs text-slate-500">Hiện ngay dưới «Vì sao chọn inlink». Nút lưu của mục này không đụng hai mục trên.</p>
         <AdminHomepageStepsForm initial={query.data?.steps ?? null} />
+      </section>
+
+      <section id="home-admin-stats" className="mt-8 scroll-mt-24 rounded-2xl border border-[#c9ead8] bg-[#f3fbf6] p-4 sm:p-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1d7a45]">Mục riêng · Số liệu</p>
+        <p className="mt-1 text-xs text-slate-500">Thanh 4 ô ngay dưới «AI Matching hoạt động như thế nào». Nút lưu của mục này không đụng các mục trên.</p>
+        <AdminHomepageStatsForm initial={query.data?.stats ?? null} />
+      </section>
+
+      <section id="home-admin-solutions" className="mt-8 scroll-mt-24 rounded-2xl border border-[#ddd4f5] bg-[#f7f4fd] p-4 sm:p-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5b3cc4]">Mục riêng · Giải pháp cho doanh nghiệp</p>
+        <p className="mt-1 text-xs text-slate-500">Ba thẻ ngay dưới thanh số liệu. Nút lưu của mục này không đụng các mục trên.</p>
+        <AdminHomepageSolutionsForm initial={query.data?.solutions ?? null} />
+      </section>
+
+      <section id="home-admin-audience" className="mt-8 scroll-mt-24 rounded-2xl border border-[#f6d0dc] bg-[#fff5f8] p-4 sm:p-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#b4234c]">Mục riêng · Dành cho ứng viên</p>
+        <p className="mt-1 text-xs text-slate-500">Khối ảnh và việc gợi ý ngay dưới giải pháp doanh nghiệp. Nút lưu của mục này không đụng các mục trên.</p>
+        <AdminHomepageAudienceForm initial={query.data?.audience ?? null} />
       </section>
     </AdminShell>
   );

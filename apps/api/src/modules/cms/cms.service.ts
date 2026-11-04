@@ -19,6 +19,9 @@ import {
   normalizeHomepageHero,
   normalizeHomepageReasons,
   normalizeHomepageSteps,
+  normalizeHomepageStats,
+  normalizeHomepageSolutions,
+  normalizeHomepageAudience,
   toSeoSlug,
   type CmsAuthorProfileView,
   type CmsAuthorSocial,
@@ -1317,6 +1320,9 @@ export class CmsService {
       hero: normalizeHomepageHero(null),
       reasons: normalizeHomepageReasons(null),
       steps: normalizeHomepageSteps(null),
+      stats: normalizeHomepageStats(null),
+      solutions: normalizeHomepageSolutions(null),
+      audience: normalizeHomepageAudience(null),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -1339,7 +1345,7 @@ export class CmsService {
     hero: unknown;
     updatedAt: Date;
   }): CmsHomepageSettingsView {
-    const stored = row.hero && typeof row.hero === 'object' ? (row.hero as { reasons?: unknown; steps?: unknown }) : {};
+    const stored = row.hero && typeof row.hero === 'object' ? (row.hero as { reasons?: unknown; steps?: unknown; stats?: unknown; solutions?: unknown; audience?: unknown }) : {};
     return {
       heading: row.heading,
       headingAccent: row.headingAccent,
@@ -1358,6 +1364,9 @@ export class CmsService {
       hero: normalizeHomepageHero(row.hero),
       reasons: normalizeHomepageReasons(stored.reasons),
       steps: normalizeHomepageSteps(stored.steps),
+      stats: normalizeHomepageStats(stored.stats),
+      solutions: normalizeHomepageSolutions(stored.solutions),
+      audience: normalizeHomepageAudience(stored.audience),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -1408,10 +1417,10 @@ export class CmsService {
   }
 
   /** Các khối trang chủ nằm chung JSON hero, mỗi khóa một mục. */
-  private homepageBlocks(hero: unknown): { reasons?: unknown; steps?: unknown } {
+  private homepageBlocks(hero: unknown): { reasons?: unknown; steps?: unknown; stats?: unknown; solutions?: unknown; audience?: unknown } {
     if (!hero || typeof hero !== 'object') return {};
-    const row = hero as { reasons?: unknown; steps?: unknown };
-    return { reasons: row.reasons, steps: row.steps };
+    const row = hero as { reasons?: unknown; steps?: unknown; stats?: unknown; solutions?: unknown; audience?: unknown };
+    return { reasons: row.reasons, steps: row.steps, stats: row.stats, solutions: row.solutions, audience: row.audience };
   }
 
   async saveHomepageHero(
@@ -1428,6 +1437,9 @@ export class CmsService {
       ...hero,
       reasons: normalizeHomepageReasons(kept.reasons),
       steps: normalizeHomepageSteps(kept.steps),
+      stats: normalizeHomepageStats(kept.stats),
+      solutions: normalizeHomepageSolutions(kept.solutions),
+      audience: normalizeHomepageAudience(kept.audience),
     };
     const row = await this.prisma.cmsHomepageSettings.upsert({
       where: { tenantId: 'default' },
@@ -1456,7 +1468,14 @@ export class CmsService {
     });
     const kept = this.homepageBlocks(current?.hero);
     const hero = normalizeHomepageHero(current?.hero);
-    const payload = { ...hero, reasons, steps: normalizeHomepageSteps(kept.steps) };
+    const payload = {
+      ...hero,
+      reasons,
+      steps: normalizeHomepageSteps(kept.steps),
+      stats: normalizeHomepageStats(kept.stats),
+      solutions: normalizeHomepageSolutions(kept.solutions),
+      audience: normalizeHomepageAudience(kept.audience),
+    };
     const row = await this.prisma.cmsHomepageSettings.upsert({
       where: { tenantId: 'default' },
       create: {
@@ -1484,7 +1503,119 @@ export class CmsService {
     });
     const kept = this.homepageBlocks(current?.hero);
     const hero = normalizeHomepageHero(current?.hero);
-    const payload = { ...hero, reasons: normalizeHomepageReasons(kept.reasons), steps };
+    const payload = {
+      ...hero,
+      reasons: normalizeHomepageReasons(kept.reasons),
+      steps,
+      stats: normalizeHomepageStats(kept.stats),
+      solutions: normalizeHomepageSolutions(kept.solutions),
+      audience: normalizeHomepageAudience(kept.audience),
+    };
+    const row = await this.prisma.cmsHomepageSettings.upsert({
+      where: { tenantId: 'default' },
+      create: {
+        tenantId: 'default',
+        heading: 'Tìm đúng cơ hội trong ngành công nghiệp',
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+      update: {
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+    });
+    return this.mapHomepageSettings(row);
+  }
+
+  async saveHomepageStats(
+    user: AuthenticatedUser,
+    input: unknown,
+  ): Promise<CmsHomepageSettingsView> {
+    const stats = normalizeHomepageStats(input);
+    const current = await this.prisma.cmsHomepageSettings.findUnique({
+      where: { tenantId: 'default' },
+      select: { hero: true },
+    });
+    const kept = this.homepageBlocks(current?.hero);
+    const hero = normalizeHomepageHero(current?.hero);
+    const payload = {
+      ...hero,
+      reasons: normalizeHomepageReasons(kept.reasons),
+      steps: normalizeHomepageSteps(kept.steps),
+      stats,
+      solutions: normalizeHomepageSolutions(kept.solutions),
+      audience: normalizeHomepageAudience(kept.audience),
+    };
+    const row = await this.prisma.cmsHomepageSettings.upsert({
+      where: { tenantId: 'default' },
+      create: {
+        tenantId: 'default',
+        heading: 'Tìm đúng cơ hội trong ngành công nghiệp',
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+      update: {
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+    });
+    return this.mapHomepageSettings(row);
+  }
+
+  async saveHomepageSolutions(
+    user: AuthenticatedUser,
+    input: unknown,
+  ): Promise<CmsHomepageSettingsView> {
+    const solutions = normalizeHomepageSolutions(input);
+    const current = await this.prisma.cmsHomepageSettings.findUnique({
+      where: { tenantId: 'default' },
+      select: { hero: true },
+    });
+    const kept = this.homepageBlocks(current?.hero);
+    const hero = normalizeHomepageHero(current?.hero);
+    const payload = {
+      ...hero,
+      reasons: normalizeHomepageReasons(kept.reasons),
+      steps: normalizeHomepageSteps(kept.steps),
+      stats: normalizeHomepageStats(kept.stats),
+      solutions,
+      audience: normalizeHomepageAudience(kept.audience),
+    };
+    const row = await this.prisma.cmsHomepageSettings.upsert({
+      where: { tenantId: 'default' },
+      create: {
+        tenantId: 'default',
+        heading: 'Tìm đúng cơ hội trong ngành công nghiệp',
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+      update: {
+        hero: payload as unknown as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+    });
+    return this.mapHomepageSettings(row);
+  }
+
+  async saveHomepageAudience(
+    user: AuthenticatedUser,
+    input: unknown,
+  ): Promise<CmsHomepageSettingsView> {
+    const audience = normalizeHomepageAudience(input);
+    const current = await this.prisma.cmsHomepageSettings.findUnique({
+      where: { tenantId: 'default' },
+      select: { hero: true },
+    });
+    const kept = this.homepageBlocks(current?.hero);
+    const hero = normalizeHomepageHero(current?.hero);
+    const payload = {
+      ...hero,
+      reasons: normalizeHomepageReasons(kept.reasons),
+      steps: normalizeHomepageSteps(kept.steps),
+      stats: normalizeHomepageStats(kept.stats),
+      solutions: normalizeHomepageSolutions(kept.solutions),
+      audience,
+    };
     const row = await this.prisma.cmsHomepageSettings.upsert({
       where: { tenantId: 'default' },
       create: {

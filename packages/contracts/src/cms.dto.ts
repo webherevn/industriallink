@@ -2,6 +2,9 @@ import { CmsContentStatus, CmsContentType } from './enums';
 import type { HomepageHeroContent } from './homepage-hero';
 import type { HomepageReasonsContent } from './homepage-reasons';
 import type { HomepageStepsContent } from './homepage-steps';
+import type { HomepageStatsContent } from './homepage-stats';
+import type { HomepageSolutionsContent } from './homepage-solutions';
+import type { HomepageAudienceContent } from './homepage-audience';
 
 export interface CmsFaqItem {
   question: string;
@@ -366,6 +369,12 @@ export interface CmsHomepageSettingsView {
   reasons: HomepageReasonsContent;
   /** Khối 4 bước ngay dưới «Vì sao chọn inlink». */
   steps: HomepageStepsContent;
+  /** Thanh số liệu ngay dưới khối cách hoạt động. */
+  stats: HomepageStatsContent;
+  /** Ba thẻ giải pháp ngay dưới thanh số liệu. */
+  solutions: HomepageSolutionsContent;
+  /** Khối dành cho ứng viên, ngay dưới giải pháp doanh nghiệp. */
+  audience: HomepageAudienceContent;
   updatedAt: string;
 }
 

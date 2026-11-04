@@ -22,6 +22,7 @@ import {
 } from '@industriallink/contracts';
 import { applicationStatusLabel } from '../../shared/domain/application-status.label';
 import { createDomainEvent } from '../../shared/domain/domain-event';
+import { isVnDeadlineStillOpen } from '../../shared/domain/vn-date.util';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { AuditService } from '../../shared/infrastructure/audit.service';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
@@ -86,13 +87,8 @@ export class ApplicationService {
     if (job.status !== JobStatus.Published) {
       throw new BadRequestException('Tin tuyển dụng chưa mở nhận hồ sơ');
     }
-    if (job.deadline) {
-      const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(
-        new Date(),
-      );
-      if (job.deadline.toISOString().slice(0, 10) < todayVn) {
-        throw new BadRequestException('Tin tuyển dụng đã hết hạn hiển thị');
-      }
+    if (!isVnDeadlineStillOpen(job.deadline)) {
+      throw new BadRequestException('Tin tuyển dụng đã hết hạn hiển thị');
     }
 
     const existing = await this.prisma.application.findUnique({

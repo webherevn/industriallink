@@ -3,9 +3,12 @@ import { CmsCustomSchemaScripts } from '@/components/cms-custom-schema';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { cmsRobotsMeta, formatCmsSeoTitle } from '@/lib/cms-seo';
 import { isQueryVariant, parentCanonicalMetadata } from '@/lib/listing-seo';
-import { normalizeHomepageHero, normalizeHomepageReasons, normalizeHomepageSteps } from '@industriallink/contracts';
+import { normalizeHomepageAudience, normalizeHomepageHero, normalizeHomepageReasons, normalizeHomepageSolutions, normalizeHomepageStats, normalizeHomepageSteps } from '@industriallink/contracts';
+import { HomeAudience } from '@/components/home-audience';
 import { HomeHero } from '@/components/home-hero';
 import { HomeReasons } from '@/components/home-reasons';
+import { HomeSolutions } from '@/components/home-solutions';
+import { HomeStats } from '@/components/home-stats';
 import { HomeSteps } from '@/components/home-steps';
 import { fetchPublicCmsHomepage } from '@/lib/public-cms-api';
 import { fetchPublishedJobs } from '@/lib/public-job-api';
@@ -84,6 +87,9 @@ export default async function HomePage() {
           <>
             <HomeReasons reasons={normalizeHomepageReasons(home?.reasons)} />
             <HomeSteps steps={normalizeHomepageSteps(home?.steps)} />
+            <HomeStats stats={normalizeHomepageStats(home?.stats)} />
+            <HomeSolutions solutions={normalizeHomepageSolutions(home?.solutions)} />
+            <HomeAudience audience={normalizeHomepageAudience(home?.audience)} />
           </>
         }
       />

@@ -36,6 +36,9 @@ import { UpsertCmsFooterSettingsDto } from './dto/upsert-cms-footer.dto';
 import { SaveHomepageHeroDto } from './dto/save-homepage-hero.dto';
 import { SaveHomepageReasonsDto } from './dto/save-homepage-reasons.dto';
 import { SaveHomepageStepsDto } from './dto/save-homepage-steps.dto';
+import { SaveHomepageStatsDto } from './dto/save-homepage-stats.dto';
+import { SaveHomepageSolutionsDto } from './dto/save-homepage-solutions.dto';
+import { SaveHomepageAudienceDto } from './dto/save-homepage-audience.dto';
 import { UpsertCmsHomepageSettingsDto } from './dto/upsert-cms-homepage.dto';
 import { UpsertCmsPostDto } from './dto/upsert-cms-post.dto';
 import { UpsertCmsRedirectDto } from './dto/upsert-cms-redirect.dto';
@@ -343,6 +346,36 @@ export class CmsAdminController {
     @Body() dto: SaveHomepageStepsDto,
   ) {
     return this.cms.saveHomepageSteps(user, dto);
+  }
+
+  @Put('homepage/stats')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu thanh số liệu trang chủ' })
+  saveHomepageStats(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SaveHomepageStatsDto,
+  ) {
+    return this.cms.saveHomepageStats(user, dto);
+  }
+
+  @Put('homepage/solutions')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu khối giải pháp doanh nghiệp trên trang chủ' })
+  saveHomepageSolutions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SaveHomepageSolutionsDto,
+  ) {
+    return this.cms.saveHomepageSolutions(user, dto);
+  }
+
+  @Put('homepage/audience')
+  @Roles(UserRole.SuperAdmin)
+  @ApiOperation({ summary: 'Lưu khối dành cho ứng viên trên trang chủ' })
+  saveHomepageAudience(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SaveHomepageAudienceDto,
+  ) {
+    return this.cms.saveHomepageAudience(user, dto);
   }
 
   @Get('robots')

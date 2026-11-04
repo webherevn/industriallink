@@ -17,6 +17,7 @@ describe('JobService', () => {
   const billing = {
     assertJobQuota: jest.fn().mockResolvedValue(undefined),
     getJobDisplayDays: jest.fn().mockResolvedValue(14),
+    getJobDeadlineCeiling: jest.fn().mockResolvedValue(new Date('2026-07-15T00:00:00.000Z')),
   };
   const ai = {
     embed: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
@@ -36,6 +37,8 @@ describe('JobService', () => {
     billing.assertJobQuota.mockClear();
     billing.getJobDisplayDays.mockClear();
     billing.getJobDisplayDays.mockResolvedValue(14);
+    billing.getJobDeadlineCeiling.mockClear();
+    billing.getJobDeadlineCeiling.mockResolvedValue(new Date('2026-07-15T00:00:00.000Z'));
     ai.embed.mockClear();
     ai.generateJobDraft.mockClear();
     ai.parseJobDescription.mockClear();
@@ -320,6 +323,7 @@ describe('JobService', () => {
       const prisma = {
         job: { findMany },
         jobBookmark: { findMany: jest.fn().mockResolvedValue([]) },
+        billingCompanyPlan: { findMany: jest.fn().mockResolvedValue([]) },
       };
       const service = buildService(prisma);
 

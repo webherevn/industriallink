@@ -68,25 +68,43 @@ export class MatchingService {
     private readonly companies: CompanyService,
   ) {}
 
-  /** Văn bản đại diện hồ sơ ứng viên để so khớp ngữ nghĩa. */
+  /** Văn bản đại diện hồ sơ ứng viên để so khớp ngữ nghĩa (tách theo nhánh Sales / Kỹ thuật). */
   private buildCandidateText(candidate: CandidateWithSales): string {
     const b2b = toB2bCandidateFromRecords({
       profile: candidate.profile,
       experiences: candidate.experiences,
       skills: candidate.skills.map((s) => s.name),
     });
+    const isTechnical = candidateMatchTrack(candidate) === 'technical';
     return [
       candidate.displayName,
       ...(b2b.jobTitles ?? []),
       ...(b2b.industriesExperienced ?? []),
-      `Sản phẩm: ${(b2b.productsSold ?? []).join(', ')}`,
-      `Tệp KH: ${(b2b.customerSegments ?? []).join(', ')}`,
-      `Thị trường: ${(b2b.marketsCovered ?? []).join(', ')}`,
-      `Loại hình: ${(b2b.dealTypes ?? []).join(', ')}`,
-      `Giai đoạn: ${(b2b.sellingStages ?? []).join(', ')}`,
-      `Công việc KT: ${(b2b.technicalWorkTypes ?? []).join(', ')}`,
-      b2b.technicalAutonomyLevel != null ? `Tự chủ mức ${b2b.technicalAutonomyLevel}` : '',
-      b2b.salesHighlights,
+      ...(isTechnical
+        ? [
+            (b2b.productsSold ?? []).length ? `Thiết bị: ${(b2b.productsSold ?? []).join(', ')}` : '',
+            (b2b.customerSegments ?? []).length
+              ? `Môi trường: ${(b2b.customerSegments ?? []).join(', ')}`
+              : '',
+            (b2b.technicalWorkTypes ?? []).length
+              ? `Công việc KT: ${(b2b.technicalWorkTypes ?? []).join(', ')}`
+              : '',
+            b2b.technicalAutonomyLevel != null ? `Tự chủ mức ${b2b.technicalAutonomyLevel}` : '',
+          ]
+        : [
+            (b2b.productsSold ?? []).length ? `Sản phẩm: ${(b2b.productsSold ?? []).join(', ')}` : '',
+            (b2b.customerSegments ?? []).length
+              ? `Tệp KH: ${(b2b.customerSegments ?? []).join(', ')}`
+              : '',
+            (b2b.marketsCovered ?? []).length
+              ? `Thị trường: ${(b2b.marketsCovered ?? []).join(', ')}`
+              : '',
+            (b2b.dealTypes ?? []).length ? `Loại hình: ${(b2b.dealTypes ?? []).join(', ')}` : '',
+            (b2b.sellingStages ?? []).length
+              ? `Giai đoạn: ${(b2b.sellingStages ?? []).join(', ')}`
+              : '',
+            b2b.salesHighlights,
+          ]),
       `Kỹ năng: ${(b2b.skills ?? []).join(', ')}`,
     ]
       .filter(Boolean)
@@ -321,16 +339,26 @@ export class MatchingService {
       poolIds.add(a.candidateId);
     }
 
-    // 2) Semantic recall (tuỳ chọn) — chỉ để mở rộng pool, không phải điểm cuối
+    // 2) Semantic recall (tuỳ chọn) — chỉ lấy ứng viên đúng nhánh (Sales ↔ Sales, KT ↔ KT)
     try {
       const vector = await this.ai.embed(buildJobText(job, job.skills.map((s) => s.name)));
       const literal = `[${vector.join(',')}]`;
-      const rows = await this.prisma.$queryRaw<{ candidate_id: string }[]>`
-        SELECT candidate_id
-        FROM candidate.candidate_search_index
-        WHERE tenant_id = ${user.tenantId} AND embedding IS NOT NULL
-        ORDER BY embedding <=> ${literal}::vector
-        LIMIT ${CANDIDATE_POOL}`;
+      const rows = jobTrack
+        ? await this.prisma.$queryRaw<{ candidate_id: string }[]>`
+            SELECT csi.candidate_id
+            FROM candidate.candidate_search_index csi
+            INNER JOIN candidate.candidate_profile cp ON cp.candidate_id = csi.candidate_id
+            WHERE csi.tenant_id = ${user.tenantId}
+              AND csi.embedding IS NOT NULL
+              AND cp.job_track = ${jobTrack}
+            ORDER BY csi.embedding <=> ${literal}::vector
+            LIMIT ${CANDIDATE_POOL}`
+        : await this.prisma.$queryRaw<{ candidate_id: string }[]>`
+            SELECT candidate_id
+            FROM candidate.candidate_search_index
+            WHERE tenant_id = ${user.tenantId} AND embedding IS NOT NULL
+            ORDER BY embedding <=> ${literal}::vector
+            LIMIT ${CANDIDATE_POOL}`;
       for (const r of rows) {
         poolIds.add(r.candidate_id);
         if (poolIds.size >= CANDIDATE_POOL) break;

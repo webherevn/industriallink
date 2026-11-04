@@ -10,6 +10,7 @@ import {
   candidateLocationLabel,
   toB2bCandidateFromRecords,
 } from '../recruitment/matching.util';
+import { candidateMatchTrack } from '../recruitment/match-track.util';
 
 function splitCsv(value?: string | string[]): string[] {
   if (!value) return [];
@@ -43,32 +44,53 @@ export class SearchService {
     if (!candidate) return;
 
     const p = candidate.profile;
-    const searchText = [
+    const track = candidateMatchTrack(candidate);
+    const isTechnical = track === 'technical';
+
+    const commonParts = [
       candidate.displayName,
       p?.currentPosition,
+      ...(p?.desiredPositions ?? []),
       p?.industry,
       ...(p?.industriesExperienced ?? []),
       ...candidate.experiences.flatMap((e) => [e.jobTitle, ...(e.industries ?? [])]),
       p?.specialization,
       p?.summary,
-      ...(p?.productsSold ?? []),
-      ...candidate.experiences.flatMap((e) => e.productsSold),
-      ...(p?.customerSegments ?? []),
-      ...candidate.experiences.flatMap((e) => e.customerSegments),
-      ...(p?.marketsCovered ?? []),
-      ...candidate.experiences.flatMap((e) => e.marketsCovered),
-      p?.salesHighlights,
-      p?.customerDevStyle,
-      p?.dealType,
-      ...candidate.experiences.map((e) => e.dealType).filter(Boolean),
-      ...(p?.sellingStages ?? []),
-      ...candidate.experiences.flatMap((e) => e.sellingStages),
+      p?.currentCity,
+      ...(p?.desiredLocations ?? []),
+      p?.educationLevel,
+      p?.educationMajor,
       p?.jobReadiness,
       ...(p?.languages ?? []),
       candidate.skills.map((s) => s.name).join(', '),
-    ]
-      .filter(Boolean)
-      .join('. ');
+    ];
+
+    const trackSpecificParts = isTechnical
+      ? [
+          `Thiết bị: ${[...(p?.productsSold ?? []), ...candidate.experiences.flatMap((e) => e.productsSold)].filter(Boolean).join(', ')}`,
+          `Môi trường: ${[...(p?.customerSegments ?? []), ...(p?.desiredWorkEnvironments ?? []), ...candidate.experiences.flatMap((e) => e.customerSegments)].filter(Boolean).join(', ')}`,
+          `Công việc KT: ${[...(p?.technicalWorkTypes ?? []), ...candidate.experiences.flatMap((e) => e.sellingStages)].filter(Boolean).join(', ')}`,
+          ...(p?.brandsTechnologies ?? []),
+          ...candidate.experiences.flatMap((e) => e.brandsTechnologies ?? []),
+          ...(p?.technicalTools ?? []),
+          ...(p?.certificates ?? []),
+          ...(p?.documentLiteracy ?? []),
+          p?.systemScaleNote,
+          p?.shiftFlexibility,
+          p?.technicalAutonomyLevel != null ? `Tự chủ mức ${p.technicalAutonomyLevel}` : '',
+        ]
+      : [
+          `Sản phẩm: ${[...(p?.productsSold ?? []), ...candidate.experiences.flatMap((e) => e.productsSold)].filter(Boolean).join(', ')}`,
+          `Tệp KH: ${[...(p?.customerSegments ?? []), ...candidate.experiences.flatMap((e) => e.customerSegments)].filter(Boolean).join(', ')}`,
+          `Thị trường: ${[...(p?.marketsCovered ?? []), ...candidate.experiences.flatMap((e) => e.marketsCovered)].filter(Boolean).join(', ')}`,
+          p?.salesHighlights,
+          p?.customerDevStyle,
+          p?.dealType,
+          ...candidate.experiences.map((e) => e.dealType).filter(Boolean),
+          `Giai đoạn: ${[...(p?.sellingStages ?? []), ...candidate.experiences.flatMap((e) => e.sellingStages)].filter(Boolean).join(', ')}`,
+        ];
+
+    const searchText = [...commonParts, ...trackSpecificParts].filter(Boolean).join('. ');
 
     await this.prisma.candidateSearchIndex.upsert({
       where: { candidateId },

@@ -18,6 +18,7 @@ import {
   type BillingPageContent,
 } from '@prisma/client';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { addVnCalendarDays, toVnCalendarDate } from '../../shared/domain/vn-date.util';
 import { applyPublicVatCopy, vatPercentOrEmpty } from '../crm/commission-notices';
 import type { AppConfig } from '../../config/configuration';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
@@ -716,7 +717,8 @@ export class BillingService {
   }
 
   /**
-   * Mốc muộn nhất của hạn tin. Khám phá không được vượt ngày kết thúc gói.
+   * Mốc muộn nhất của hạn tin (ngày dương lịch theo giờ Việt Nam, chuẩn hoá `00:00:00.000Z` cho cột `@db.Date`).
+   * Khám phá không được vượt ngày kết thúc gói.
    * Gói tin đăng khác chỉ theo số ngày hiển thị, không có hạn gói.
    */
   async getJobDeadlineCeiling(companyId: string, from = new Date()): Promise<Date | null> {
@@ -726,9 +728,10 @@ export class BillingService {
       include: { plan: { select: { code: true, durationDays: true } } },
     });
     const days = row?.plan?.durationDays;
-    const fromDays = days != null && days > 0 ? addUtcDays(from, days) : null;
+    const fromDays = days != null && days > 0 ? addVnCalendarDays(from, days) : null;
     if (row?.plan?.code === STARTER_PLAN_CODE && row.endsAt) {
-      if (!fromDays || row.endsAt.getTime() < fromDays.getTime()) return row.endsAt;
+      const endsAtVnDate = toVnCalendarDate(row.endsAt);
+      if (!fromDays || endsAtVnDate.getTime() < fromDays.getTime()) return endsAtVnDate;
     }
     return fromDays;
   }

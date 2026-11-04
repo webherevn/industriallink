@@ -227,6 +227,33 @@ export async function saveHomepageReasonsAdmin(
   );
 }
 
+export async function saveHomepageAudienceAdmin(
+  body: import('@industriallink/contracts').HomepageAudienceContent,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsHomepageSettingsView>(
+    '/admin/cms/homepage/audience',
+    { method: 'PUT', body },
+  );
+}
+
+export async function saveHomepageSolutionsAdmin(
+  body: import('@industriallink/contracts').HomepageSolutionsContent,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsHomepageSettingsView>(
+    '/admin/cms/homepage/solutions',
+    { method: 'PUT', body },
+  );
+}
+
+export async function saveHomepageStatsAdmin(
+  body: import('@industriallink/contracts').HomepageStatsContent,
+) {
+  return apiRequest<import('@industriallink/contracts').CmsHomepageSettingsView>(
+    '/admin/cms/homepage/stats',
+    { method: 'PUT', body },
+  );
+}
+
 export async function saveHomepageStepsAdmin(
   body: import('@industriallink/contracts').HomepageStepsContent,
 ) {

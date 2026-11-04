@@ -2,16 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DomainEvents, JobStatus } from '@industriallink/contracts';
 import { createDomainEvent } from '../../shared/domain/domain-event';
+import { VN_TIME_ZONE, toVnCalendarDate, vnDateString } from '../../shared/domain/vn-date.util';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 
-const VN_TZ = 'Asia/Ho_Chi_Minh';
 const BATCH = 500;
 
 /**
  * Tự đóng tin đang công khai đã qua hạn nộp (deadline là ngày cuối còn nhận hồ sơ, giờ VN).
- * Chạy mỗi giờ để không bỏ sót nếu API tắt đúng lúc nửa đêm; idempotent.
+ * Chạy đầu mỗi giờ (bao gồm đúng 00:00:00 nửa đêm giờ VN) để không bỏ sót nếu API tắt đúng lúc nửa đêm; idempotent.
  */
 @Injectable()
 export class JobExpiryService {
@@ -23,10 +23,10 @@ export class JobExpiryService {
     private readonly indexing: GoogleIndexingService,
   ) {}
 
-  @Cron('0 5 * * * *', { timeZone: VN_TZ })
-  async closeExpiredJobs(): Promise<number> {
-    const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: VN_TZ }).format(new Date());
-    const cutoff = new Date(`${todayVn}T00:00:00.000Z`);
+  @Cron('0 0 * * * *', { timeZone: VN_TIME_ZONE })
+  async closeExpiredJobs(now: Date = new Date()): Promise<number> {
+    const todayVn = vnDateString(now);
+    const cutoff = toVnCalendarDate(now);
 
     const expired = await this.prisma.job.findMany({
       where: { isDeleted: false, status: JobStatus.Published, deadline: { lt: cutoff } },

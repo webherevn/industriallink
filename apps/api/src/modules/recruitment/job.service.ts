@@ -47,6 +47,11 @@ import {
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 import type { Job, JobSkill, Prisma } from '@prisma/client';
 import { createDomainEvent } from '../../shared/domain/domain-event';
+import {
+  isVnDeadlineStillOpen,
+  toVnCalendarDate,
+  vnDateString,
+} from '../../shared/domain/vn-date.util';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { AuditService } from '../../shared/infrastructure/audit.service';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
@@ -89,24 +94,23 @@ type JobWithRelations = Job & {
   };
 };
 
-/** Hạn tin không vượt mốc trần của gói đang gán. */
+/** Hạn tin không vượt mốc trần của gói đang gán (so sánh theo ngày dương lịch giờ VN). */
 function clampJobDeadline(requested: Date | null, ceiling: Date | null): Date | null {
-  if (!requested) return ceiling;
-  if (!ceiling) return requested;
-  return requested.getTime() <= ceiling.getTime() ? requested : ceiling;
+  const reqDate = requested ? toVnCalendarDate(requested) : null;
+  const ceilDate = ceiling ? toVnCalendarDate(ceiling) : null;
+  if (!reqDate) return ceilDate;
+  if (!ceilDate) return reqDate;
+  return reqDate.getTime() <= ceilDate.getTime() ? reqDate : ceilDate;
 }
 
 function publicDeadlineWhere(now = new Date()): Prisma.JobWhereInput {
-  const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
   return {
-    OR: [{ deadline: null }, { deadline: { gte: new Date(`${todayVn}T00:00:00.000Z`) } }],
+    OR: [{ deadline: null }, { deadline: { gte: toVnCalendarDate(now) } }],
   };
 }
 
 function jobDeadlineStillOpen(deadline: Date | null, now = new Date()): boolean {
-  if (!deadline) return true;
-  const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
-  return deadline.toISOString().slice(0, 10) >= todayVn;
+  return isVnDeadlineStillOpen(deadline, now);
 }
 
 const JD_UPLOAD_MIME = new Set([
@@ -502,7 +506,7 @@ export class JobService {
         headcount: dto.headcount ?? 1,
         deadline: await this.resolveJobDeadline(
           company.companyId,
-          dto.deadline ? new Date(dto.deadline) : null,
+          dto.deadline ? toVnCalendarDate(dto.deadline) : null,
           new Date(),
         ),
         experienceBand: dto.experienceBand ?? null,
@@ -636,7 +640,7 @@ export class JobService {
         headcount: dto.headcount ?? 1,
         deadline: await this.resolveJobDeadline(
           owned.companyId,
-          dto.deadline ? new Date(dto.deadline) : owned.deadline,
+          dto.deadline ? toVnCalendarDate(dto.deadline) : owned.deadline,
           owned.publishedAt ?? new Date(),
         ),
         experienceBand: dto.experienceBand ?? null,
@@ -1108,7 +1112,7 @@ export class JobService {
       employmentType: (job.employmentType as EmploymentType | null) ?? null,
       location: job.location,
       headcount: job.headcount,
-      deadline: job.deadline ? job.deadline.toISOString().slice(0, 10) : null,
+      deadline: job.deadline ? vnDateString(job.deadline) : null,
       experienceBand: job.experienceBand,
       salaryMin: job.salaryMin,
       salaryMax: job.salaryMax,
