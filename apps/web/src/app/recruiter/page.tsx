@@ -854,7 +854,7 @@ function KpiCard({
         </span>
       </div>
       <p className="mt-3 text-[12px] font-medium leading-snug text-slate-500">{label}</p>
-      <p className="mt-1 text-[1.65rem] font-extrabold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-1 text-[1.65rem] font-extrabold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
       <p
         className={clsx(
           'mt-1 text-[11px] font-medium',

@@ -141,7 +141,7 @@ export function RecruiterPartnerPanel() {
                 label="Tỷ lệ đang áp dụng"
                 value={mine.data.commissionPercent == null ? 'Chưa đặt' : `${mine.data.commissionPercent}%`}
                 hint="Tỷ lệ trên từng dòng là tỷ lệ lúc khách trả"
-                valueClass="text-emerald-600"
+                valueClass="text-[#E8872A]"
               />
               <Stat
                 icon={<FileText className="h-5 w-5" />}
@@ -224,7 +224,7 @@ function Stat({
   label,
   value,
   hint,
-  valueClass = 'text-brand-800',
+  valueClass = 'text-[#E8872A]',
 }: {
   icon: ReactNode;
   tone: string;

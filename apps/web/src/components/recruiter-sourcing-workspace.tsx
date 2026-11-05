@@ -518,7 +518,7 @@ function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitle
                   <Icon className="h-3.5 w-3.5" />
                 </span>
               </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-[#072348]">{left}</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-[#E8872A]">{left}</p>
               <p className="text-[11px] text-slate-400">{fmtQuota(r.used, r.quota, r.remaining)}</p>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e8eef6]">
                 <div

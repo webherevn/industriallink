@@ -336,7 +336,7 @@ function StatCard({
         {icon}
       </span>
       <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
+      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
       <span aria-hidden className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80" />
     </div>
   );
