@@ -133,7 +133,7 @@ export function KanbanBoard({
                   )}
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-slate-100 pt-2">
                     <Link
-                      href={`/candidates/${a.candidateId}`}
+                      href={`/candidates/${a.candidateId}${a.matchScore != null ? `?match=${formatMatchPct(a.matchScore)}` : ''}`}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-800 hover:text-brand-700"
                       onClick={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}

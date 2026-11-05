@@ -294,7 +294,7 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
         <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
           <p className="mr-1 text-[12px] text-slate-400">{timeLabel}</p>
           <Link
-            href={`/candidates/${a.candidateId}`}
+            href={`/candidates/${a.candidateId}${a.matchScore != null ? `?match=${formatMatchPct(a.matchScore)}` : ''}`}
             className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-700"
           >
             <UserRound className="h-4 w-4" />

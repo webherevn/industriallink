@@ -112,15 +112,25 @@ function Section({
   );
 }
 
-function CompletionRing({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, Math.round(value)));
+function parseMatchValue(raw: string | number | null | undefined): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const str = String(raw).trim();
+  const n = Number(str);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const pct = n > 0 && n <= 1 && (str.includes('.') || n < 1) ? n * 100 : n;
+  return Math.max(0, Math.min(100, pct));
+}
+
+function CompletionRing({ value }: { value: number | null }) {
+  const pct = value != null ? Math.max(0, Math.min(100, Math.round(value * 10) / 10)) : 0;
+  const display = value != null ? `${Number(pct.toFixed(1))}%` : '—';
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (pct / 100) * circumference;
   return (
     <div className="flex shrink-0 items-center gap-3">
       <p className="max-w-[4.5rem] text-right text-[11px] font-medium leading-tight text-slate-500">
-        Hồ sơ hoàn thiện
+        Tỉ lệ phù hợp
       </p>
       <div className="relative h-[76px] w-[76px]">
         <svg viewBox="0 0 72 72" className="h-full w-full -rotate-90" aria-hidden>
@@ -137,8 +147,8 @@ function CompletionRing({ value }: { value: number }) {
             strokeDashoffset={offset}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-[15px] font-bold tabular-nums text-[#E8872A]">
-          {pct}%
+        <span className="absolute inset-0 flex items-center justify-center text-[14px] font-bold tabular-nums text-[#E8872A]">
+          {display}
         </span>
       </div>
     </div>
@@ -356,7 +366,9 @@ export default function CandidateDetailPage() {
                         )}
                       </div>
                     </div>
-                    <CompletionRing value={data.profileCompletion} />
+                    <CompletionRing
+                      value={parseMatchValue(matchScore) ?? parseMatchValue(data.matchScore)}
+                    />
                 </div>
               </header>
 

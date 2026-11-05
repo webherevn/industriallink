@@ -24,6 +24,8 @@ export interface RecruiterCandidateView extends CandidateView {
   emailMasked: string | null;
   connection: ConnectionView | null;
   isShortlisted: boolean;
+  /** Điểm phù hợp với JD của công ty (0–100). */
+  matchScore?: number | null;
 }
 
 export interface CreateConnectionRequest {

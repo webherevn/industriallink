@@ -132,7 +132,7 @@ export function RecruiterSourcingActivate() {
               ) : null}
               <p className="mt-1 text-xs text-slate-500">
                 Phí dịch vụ 30 ngày
-                {plan.creditQuota != null ? ` · gồm ${plan.creditQuota} lượt mở hồ sơ` : ''}
+                {plan.creditQuota != null ? ` · gồm ${plan.creditQuota} Credit` : ''}
               </p>
               {plan.feeVnd === '0' ? null : (
                 <VatPayLines

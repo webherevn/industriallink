@@ -173,14 +173,14 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
       included: canOpen,
       label:
         enterprise || credits == null
-          ? 'Lượt mở hồ sơ theo hợp đồng'
+          ? 'Credit mở hồ sơ theo hợp đồng'
           : credits > 0
             ? monthly
-              ? `${credits} lượt mở hồ sơ / tháng`
-              : `${credits} lượt mở hồ sơ tiềm năng`
-            : 'Lượt mở hồ sơ tiềm năng',
+              ? `${credits} Credit mở hồ sơ / tháng`
+              : `${credits} Credit mở hồ sơ tiềm năng`
+            : 'Credit mở hồ sơ tiềm năng',
     },
-    { included: plus, label: 'Thêm lượt mở so với Tin đăng' },
+    { included: plus, label: 'Thêm Credit so với Tin đăng' },
     {
       included:
         canOpen &&
@@ -203,21 +203,24 @@ export function displayFeatureLines(plan: BillingPlatformPlanView): PlatformFeat
   if (!saved) return platformFeatureRows(plan);
   const openCost = actionCost(plan, 'view_profile');
   const highMatchCost = actionCost(plan, 'view_profile_high_match');
-  if (
+  const hasDual =
     openCost != null &&
     openCost > 0 &&
     highMatchCost != null &&
     highMatchCost > 0 &&
-    highMatchCost !== openCost
-  ) {
-    const dualLabel = `Mở hồ sơ: < 80% Matching tốn ${openCost} Credit, ≥ 80% tốn ${highMatchCost} Credit`;
-    return saved.map((line) =>
-      /^Mỗi lượt mở hồ sơ tốn \d+ Credit$/i.test(line.label.trim())
-        ? { ...line, label: dualLabel }
-        : line,
-    );
-  }
-  return saved;
+    highMatchCost !== openCost;
+  const dualLabel = `Mở hồ sơ: < 80% Matching tốn ${openCost} Credit, ≥ 80% tốn ${highMatchCost} Credit`;
+  return saved.map((line) => {
+    const trimmed = line.label.trim();
+    if (hasDual && /^Mỗi lượt mở hồ sơ tốn \d+ Credit$/i.test(trimmed)) {
+      return { ...line, label: dualLabel };
+    }
+    const normalized = trimmed
+      .replace(/(\d+)\s*lượt mở(\s*hồ sơ)?/gi, '$1 Credit mở hồ sơ')
+      .replace(/^Lượt mở hồ sơ/i, 'Credit mở hồ sơ')
+      .replace(/^Thêm (\d+\s*)?lượt(\s*mở)? so với Tin đăng$/i, 'Thêm $1Credit so với Tin đăng');
+    return normalized !== trimmed ? { ...line, label: normalized } : line;
+  });
 }
 
 export type PlatformHighlightStat = { label: string; value: string; hint?: string };
@@ -242,7 +245,7 @@ export function platformHighlightStats(plan: BillingPlatformPlanView): PlatformH
     highMatchCost !== openCost;
   return [
     { label: 'Số tin', ...jobs },
-    { label: 'Lượt mở', ...opens },
+    { label: 'Credit', ...opens },
     { label: 'Số ngày', ...days },
     {
       label: 'Credit/lượt',
@@ -269,9 +272,10 @@ export function platformJobCountLabel(plan: BillingPlatformPlanView): string {
 }
 
 function alignPlatformCounts(text: string, plan: BillingPlatformPlanView): string {
-  let out = text;
+  let out = text.replace(/(\d+)\s*lượt mở(\s*hồ sơ)?/gi, '$1 Credit');
   const jobs = plan.code === 'ENTERPRISE' ? null : plan.jobPostQuota;
   const days = plan.durationDays;
+  const credits = plan.creditQuota;
   if (jobs != null) {
     out = out.replace(/(\d+)\s*(tin|jd)\b/gi, (full, count: string, unit: string) => {
       if (Number(count) === jobs) return full;
@@ -284,12 +288,17 @@ function alignPlatformCounts(text: string, plan: BillingPlatformPlanView): strin
       Number(count) === days ? full : `${days} ngày`,
     );
   }
+  if (credits != null) {
+    out = out.replace(/(\d+)\s*credit\b/gi, (full, count: string) =>
+      Number(count) === credits ? full : `${credits} Credit`,
+    );
+  }
   return out;
 }
 
 function fallbackPlatformDescription(plan: BillingPlatformPlanView): string {
   if (plan.code === 'ENTERPRISE' || plan.jobPostQuota == null) {
-    return 'Báo giá riêng. Hạn mức tin và lượt mở theo hợp đồng.';
+    return 'Báo giá riêng. Hạn mức tin và Credit theo hợp đồng.';
   }
   const days = plan.durationDays ? ` trong ${plan.durationDays} ngày` : '';
   if (plan.code === 'KHAM_PHA') {
@@ -298,12 +307,12 @@ function fallbackPlatformDescription(plan: BillingPlatformPlanView): string {
   if (plan.billingUnit === 'per_month') {
     const credits =
       plan.creditQuota == null
-        ? 'lượt mở theo hợp đồng'
-        : `${plan.creditQuota} lượt mở hồ sơ dùng chung mỗi tháng`;
+        ? 'Credit theo hợp đồng'
+        : `${plan.creditQuota} Credit dùng chung mỗi tháng`;
     return `${platformJobSentence(plan)}${days}, ${credits}.`;
   }
   const credits =
-    plan.creditQuota == null ? '' : `, ${plan.creditQuota} lượt mở hồ sơ tiềm năng`;
+    plan.creditQuota == null ? '' : `, ${plan.creditQuota} Credit`;
   return `${plan.jobPostQuota} tin${days}${credits}.`;
 }
 

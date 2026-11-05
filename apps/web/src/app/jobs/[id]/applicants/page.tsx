@@ -208,7 +208,7 @@ export default function ApplicantsPage() {
             <p className="text-sm text-slate-400">Chưa tìm thấy ứng viên phù hợp trong hệ thống.</p>
           )}
           {suggested?.map((c) => (
-            <Link key={c.candidateId} href={`/candidates/${c.candidateId}`} className="block">
+            <Link key={c.candidateId} href={`/candidates/${c.candidateId}?match=${formatMatchPct(c.match.score)}`} className="block">
               <Card className="transition hover:border-brand-200 hover:shadow-md">
                 <div className="flex items-center justify-between gap-4">
                   <div>

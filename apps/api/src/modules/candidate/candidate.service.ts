@@ -21,6 +21,8 @@ import {
   normalizeIndustries,
   normalizeIndustry,
   parseEducationDegree,
+  shouldUseSalesMatchEngine,
+  shouldUseTechnicalMatchEngine,
   suggestionFillRatio,
   weightedSuggestionPercent,
   type CandidateView,
@@ -60,6 +62,13 @@ import { mergeCvDraftViews, profileSourceToCvDraft } from './merge-cv-draft';
 import { ExtractTextError, extractResumeText } from './resume/extract-text.util';
 import { candidateAcceptsOutreachEmail } from './outreach-email';
 import { RESUME_PARSE_QUEUE_TOKEN, type ResumeParseJobData } from './resume/queue.constants';
+import {
+  buildB2bExplanation,
+  jobToB2bMatchInput,
+  toB2bCandidateFromRecords,
+} from '../recruitment/matching.util';
+import { explainSalesJobCandidate } from '../recruitment/sales-match-explain';
+import { explainTechnicalJobCandidate } from '../recruitment/technical-match-explain';
 
 function escapeHtml(value: string): string {
   return value
@@ -604,6 +613,11 @@ export class CandidateService {
     }
 
     const applied = await this.hasAppliedToCompany(companyId, candidateId);
+    const resolvedMatchScore = await this.resolveRecruiterMatchScore(
+      companyId,
+      candidate,
+      matchScore,
+    );
     await this.assertStarterCanOpenProfile(companyId, applied);
     await this.chargeProfileView({
       tenantId: user.tenantId,
@@ -613,7 +627,7 @@ export class CandidateService {
       actorEmail: user.email ?? undefined,
       applied,
       fromSourcing: source === 'sourcing',
-      matchScore,
+      matchScore: resolvedMatchScore != null ? String(resolvedMatchScore) : matchScore,
     });
 
     return {
@@ -625,6 +639,7 @@ export class CandidateService {
       emailMasked: maskEmail(rawEmail),
       connection: connection ? this.toConnectionView(connection) : null,
       isShortlisted: Boolean(shortlist),
+      matchScore: resolvedMatchScore,
     };
   }
 
@@ -1710,6 +1725,73 @@ export class CandidateService {
     const pct =
       n > 0 && n <= 1 && (str.includes('.') || n < 1) ? Math.round(n * 100) : Math.round(n);
     return Math.max(0, Math.min(100, pct));
+  }
+
+  private async resolveRecruiterMatchScore(
+    companyId: string,
+    candidate: {
+      id: string;
+      displayName: string;
+      profile: Parameters<typeof toB2bCandidateFromRecords>[0]['profile'];
+      skills: { name: string }[];
+      experiences?: Parameters<typeof toB2bCandidateFromRecords>[0]['experiences'];
+    },
+    rawQueryScore?: string,
+  ): Promise<number | null> {
+    if (rawQueryScore !== undefined && rawQueryScore !== null && rawQueryScore.trim() !== '') {
+      const str = rawQueryScore.trim();
+      const n = Number(str);
+      if (Number.isFinite(n) && n >= 0) {
+        const pct = n > 0 && n <= 1 && (str.includes('.') || n < 1) ? n * 100 : n;
+        return Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+      }
+    }
+
+    const appRow = await this.prisma.application.findFirst({
+      where: {
+        candidateId: candidate.id,
+        isDeleted: false,
+        job: { companyId, isDeleted: false },
+        matchScore: { not: null },
+      },
+      orderBy: [{ matchScore: 'desc' }, { updatedAt: 'desc' }],
+      select: { matchScore: true },
+    });
+    if (appRow?.matchScore != null && Number.isFinite(appRow.matchScore)) {
+      const raw = appRow.matchScore;
+      const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
+      return Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+    }
+
+    const jobs = await this.prisma.job.findMany({
+      where: { companyId, isDeleted: false },
+      include: { skills: true },
+      orderBy: [{ updatedAt: 'desc' }],
+      take: 5,
+    });
+    if (jobs.length === 0) return null;
+
+    let best: number | null = null;
+    for (const job of jobs) {
+      const exp = shouldUseTechnicalMatchEngine(job)
+        ? explainTechnicalJobCandidate(job, candidate)
+        : shouldUseSalesMatchEngine(job)
+          ? explainSalesJobCandidate(job, candidate)
+          : buildB2bExplanation({
+              semantic: 0,
+              candidate: toB2bCandidateFromRecords({
+                profile: candidate.profile,
+                experiences: candidate.experiences,
+                skills: candidate.skills.map((s) => s.name),
+              }),
+              job: jobToB2bMatchInput(job),
+            });
+      const raw = exp.score;
+      const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
+      const rounded = Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+      if (best === null || rounded > best) best = rounded;
+    }
+    return best;
   }
 
   /**
