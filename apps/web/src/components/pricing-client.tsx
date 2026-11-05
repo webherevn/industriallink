@@ -1191,7 +1191,11 @@ function SourcingPlanCard({
         ariaLabel="Thông số gói săn"
         items={[
           { label: 'Vị trí', value: plan.positionQuota == null ? '∞' : String(plan.positionQuota) },
-          { label: 'Lượt mở', value: plan.creditQuota == null ? '∞' : String(plan.creditQuota) },
+          {
+            label: 'Credit',
+            value: plan.creditQuota == null ? '∞' : String(plan.creditQuota),
+            hint: '< 80% Matching: 1 Credit · ≥ 80% Matching: 2 Credit',
+          },
           { label: 'Điều chỉnh', value: plan.revisionQuota == null ? '∞' : String(plan.revisionQuota) },
           { label: 'Báo cáo', value: plan.searchRoundQuota == null ? '∞' : String(plan.searchRoundQuota) },
         ]}

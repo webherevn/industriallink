@@ -22,6 +22,8 @@ export function policyCostForAction(
   switch (action) {
     case 'view_profile':
       return policy.costPerProfile;
+    case 'view_profile_high_match':
+      return policy.costPerHighMatchProfile ?? 2;
     case 'reopen_profile':
       return policy.costPerReopen;
     case 'view_applicant':

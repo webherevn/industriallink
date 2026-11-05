@@ -68,7 +68,7 @@ export function AdminBillingSettings() {
             <li>4. Không thu tiền chỉ để xem tổng số Matching.</li>
             <li>5. Không định giá ứng viên theo % Matching.</li>
             <li>6. Không tiêu Credit với ứng viên đã ứng tuyển.</li>
-            <li>7. Một hồ sơ mở một lần = một Credit; mở lại không tính thêm.</li>
+            <li>7. Một hồ sơ mở một lần (&lt; 80% = 1 Credit, ≥ 80% = 2 Credit); mở lại không tính thêm.</li>
             <li>8. Không tự động mua Credit / trừ tiền.</li>
             <li>9. Không trộn phí Săn với Credit.</li>
             <li>10. Giá và quota V1 luôn là giả thuyết cần kiểm chứng.</li>
@@ -136,7 +136,7 @@ function PolicyForm({
     <Card className="p-5">
       <h2 className="text-sm font-bold text-slate-900">Quy tắc trừ Credit</h2>
       <p className="mt-0.5 text-xs text-slate-500">
-        Áp dụng cho mọi tài khoản. Mặc định V1: mở hồ sơ tiềm năng = 1; còn lại = 0.
+        Áp dụng cho mọi tài khoản. Mặc định: mở hồ sơ tiềm năng &lt; 80% Matching = 1 Credit, ≥ 80% Matching = 2 Credit; còn lại = 0.
       </p>
 
       {banner ? (
@@ -154,7 +154,20 @@ function PolicyForm({
       ) : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Field1 label="Mở hồ sơ tiềm năng" k="costPerProfile" description="V1 = 1" min={0} max={10} />
+        <Field1
+          label="Mở hồ sơ tiềm năng (< 80% Matching)"
+          k="costPerProfile"
+          description="Mặc định = 1 Credit"
+          min={0}
+          max={10}
+        />
+        <Field1
+          label="Mở hồ sơ tiềm năng (≥ 80% Matching)"
+          k="costPerHighMatchProfile"
+          description="Mặc định = 2 Credit"
+          min={0}
+          max={10}
+        />
         <Field1 label="Mở lại hồ sơ đã mở" k="costPerReopen" description="V1 = 0" min={0} max={10} />
         <Field1 label="Xem ứng viên đã ứng tuyển" k="costPerApplicant" description="V1 = 0" min={0} max={10} />
         <Field1 label="Liên hệ UV tiềm năng" k="costPerContactPotential" description="V1 = 0" min={0} max={10} />

@@ -40,9 +40,16 @@ function fmtQuota(used: number, quota: number | null, remaining: number | null) 
 }
 
 function usageLabel(kind: string) {
-  if (kind === 'profile_open') return 'Lượt mở';
+  if (kind === 'profile_open') return 'Credit';
   if (kind === 'search_round') return 'Báo cáo';
   return SOURCING_QUOTA_LABELS[kind as SourcingQuotaKind] ?? kind;
+}
+
+function openUsageCreditCount(note: string | null | undefined): number {
+  if (!note?.startsWith('open:')) return 1;
+  const parts = note.split(':');
+  const n = parts.length >= 3 ? Number(parts[2]) : 1;
+  return Number.isInteger(n) && n > 0 ? n : 1;
 }
 
 function cycleEnded(endsAt: string | null | undefined) {
@@ -312,7 +319,10 @@ export function RecruiterSourcingWorkspace() {
                       <span className="min-w-0">
                         <strong className="text-[#072348]">{usageLabel(u.kind)}</strong>
                         {u.note?.startsWith('open:') ? (
-                          <span className="text-slate-500"> · Mở hồ sơ</span>
+                          <span className="text-slate-500">
+                            {' '}
+                            · Mở hồ sơ (-{openUsageCreditCount(u.note)} Credit)
+                          </span>
                         ) : u.note ? (
                           <span className="text-slate-500"> · {u.note}</span>
                         ) : null}
@@ -415,7 +425,7 @@ function HuntList({
           {results.map((row, index) => (
             <li key={row.candidateId} className="animate-soft-rise" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
               <ProfileOpenLink
-                href={`/candidates/${row.candidateId}?from=sourcing`}
+                href={`/candidates/${row.candidateId}?from=sourcing&match=${formatMatchPct(row.match.score)}`}
                 potential={!row.applied}
                 className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4"
               >
@@ -475,7 +485,7 @@ function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitle
     icon: typeof Briefcase;
   }[] = [
     { label: 'Vị trí', used: e.positionsUsed, quota: e.positionQuota, remaining: e.positionsRemaining, icon: Briefcase },
-    { label: 'Lượt mở', used: e.profileOpensUsed, quota: e.creditQuota, remaining: e.profileOpensRemaining, icon: Eye },
+    { label: 'Credit', used: e.profileOpensUsed, quota: e.creditQuota, remaining: e.profileOpensRemaining, icon: Eye },
     { label: 'Báo cáo', used: e.searchRoundsUsed, quota: e.searchRoundQuota, remaining: e.searchRoundsRemaining, icon: FileSearch },
     { label: 'Điều chỉnh', used: e.revisionsUsed, quota: e.revisionQuota, remaining: e.revisionsRemaining, icon: RefreshCw },
     { label: 'Shortlist', used: e.shortlistsUsed, quota: e.shortlistQuota, remaining: e.shortlistsRemaining, icon: ListChecks },

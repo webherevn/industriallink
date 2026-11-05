@@ -6,6 +6,7 @@
 /** Hành động trừ Credit có thể cấu hình theo từng gói (không gồm grant/adjust thủ công). */
 export type BillingPlanBillableAction =
   | 'view_profile'
+  | 'view_profile_high_match'
   | 'reopen_profile'
   | 'view_applicant'
   | 'contact_potential'
@@ -14,6 +15,7 @@ export type BillingPlanBillableAction =
 
 export const BILLING_PLAN_BILLABLE_ACTIONS: readonly BillingPlanBillableAction[] = [
   'view_profile',
+  'view_profile_high_match',
   'reopen_profile',
   'view_applicant',
   'contact_potential',
@@ -22,7 +24,8 @@ export const BILLING_PLAN_BILLABLE_ACTIONS: readonly BillingPlanBillableAction[]
 ] as const;
 
 export const BILLING_PLAN_ACTION_LABELS: Record<BillingPlanBillableAction, string> = {
-  view_profile: 'Mở hồ sơ tiềm năng',
+  view_profile: 'Mở hồ sơ tiềm năng (< 80% Matching)',
+  view_profile_high_match: 'Mở hồ sơ tiềm năng (≥ 80% Matching)',
   reopen_profile: 'Mở lại hồ sơ đã xem',
   view_applicant: 'Xem ứng viên đã ứng tuyển',
   contact_potential: 'Liên hệ ứng viên tiềm năng',
@@ -184,6 +187,7 @@ export interface BillingCreditPolicyView {
   id: string;
   scope: string;
   costPerProfile: number;
+  costPerHighMatchProfile: number;
   costPerReopen: number;
   costPerApplicant: number;
   costPerContactPotential: number;
@@ -236,6 +240,7 @@ export type CreditTransactionType = 'deduct' | 'grant' | 'topup' | 'refund' | 'a
 /** Hành động gây ra giao dịch Credit. */
 export type CreditAction =
   | 'view_profile'
+  | 'view_profile_high_match'
   | 'reopen_profile'
   | 'view_applicant'
   | 'contact_potential'

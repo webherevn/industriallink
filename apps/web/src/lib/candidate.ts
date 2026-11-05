@@ -164,8 +164,13 @@ export async function updateMyProfile(
 export async function getCandidateById(
   candidateId: string,
   source?: 'sourcing',
+  matchScore?: string | null,
 ): Promise<RecruiterCandidateView> {
-  const query = source === 'sourcing' ? '?source=sourcing' : '';
+  const params = new URLSearchParams();
+  if (source === 'sourcing') params.set('source', 'sourcing');
+  if (matchScore != null && matchScore.trim() !== '') params.set('matchScore', matchScore.trim());
+  const qs = params.toString();
+  const query = qs ? `?${qs}` : '';
   return normalizeCandidate(
     await apiRequest<RecruiterCandidateView>(`/candidates/${candidateId}${query}`),
   );

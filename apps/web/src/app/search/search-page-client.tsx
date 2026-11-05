@@ -358,7 +358,7 @@ function ResultCard({
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <ProfileOpenLink
-        href={`/candidates/${result.candidateId}`}
+        href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
         potential={!result.applied}
         className="absolute inset-0 z-0 cursor-pointer rounded-xl border-0 bg-transparent p-0"
         ariaLabel={`Xem hồ sơ ${result.displayName}`}

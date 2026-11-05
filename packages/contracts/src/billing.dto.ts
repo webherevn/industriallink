@@ -91,6 +91,7 @@ export interface AdminUpdateCreditTopupRequest extends Partial<AdminCreateCredit
 
 export interface AdminUpdateCreditPolicyRequest {
   costPerProfile?: number;
+  costPerHighMatchProfile?: number;
   costPerReopen?: number;
   costPerApplicant?: number;
   costPerContactPotential?: number;

@@ -138,8 +138,8 @@ export function AdminBillingSourcingPlans() {
             <h1 className="cms-page-title mt-1.5">Gói Săn nhân sự</h1>
             <div className="brand-accent-bar mt-2" />
             <p className="cms-page-subtitle mt-2">
-              Vị trí, lượt mở, báo cáo, shortlist và điều chỉnh ở đây là hạn mức của gói NTD đang dùng.
-              Đổi số thì trang Săn tính lại ngay. Lượt mở không cộng vào ví Credit.
+              Vị trí, Credit mở hồ sơ, báo cáo, shortlist và điều chỉnh ở đây là hạn mức của gói NTD đang dùng.
+              Đổi số thì trang Săn tính lại ngay. Credit gói Săn trừ theo tỉ lệ Matching (&lt; 80% = 1 Credit, ≥ 80% = 2 Credit).
             </p>
           </div>
           <div className="flex gap-2">
@@ -210,7 +210,7 @@ export function AdminBillingSourcingPlans() {
                         Vị trí: <strong>{p.positionQuota ?? '∞'}</strong>
                       </span>
                       <span>
-                        Lượt mở: <strong>{p.creditQuota ?? '∞'}</strong>
+                        Credit: <strong>{p.creditQuota ?? '∞'}</strong>
                       </span>
                       <span>
                         Báo cáo: <strong>{p.searchRoundQuota ?? '∞'}</strong>
@@ -393,7 +393,10 @@ function EditModal({
               }
             />
           </Field>
-          <Field label="Lượt mở hồ sơ" description="Hạn mức gói đang dùng. Trang Săn tính còn lại theo số này.">
+          <Field
+            label="Credit mở hồ sơ"
+            description="Hạn mức Credit gói Săn (< 80% trừ 1 Credit, ≥ 80% trừ 2 Credit). Trang Săn tính còn lại theo số này."
+          >
             <Input
               type="number"
               value={form.creditQuota ?? ''}

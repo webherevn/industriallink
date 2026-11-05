@@ -28,7 +28,8 @@ import {
 import type { AdminCreditAdjustRequest, BillingCreditAccountView } from '@industriallink/contracts';
 
 const ACTION_LABEL: Record<string, string> = {
-  view_profile: 'Mở hồ sơ',
+  view_profile: 'Mở hồ sơ (<80%)',
+  view_profile_high_match: 'Mở hồ sơ (≥80%)',
   reopen_profile: 'Mở lại',
   view_applicant: 'Xem ứng viên',
   contact_potential: 'Liên hệ tiềm năng',
@@ -42,6 +43,7 @@ const ACTION_LABEL: Record<string, string> = {
 
 const ACTION_COLOR: Record<string, string> = {
   view_profile: 'bg-blue-100 text-blue-700',
+  view_profile_high_match: 'bg-amber-100 text-amber-800',
   reopen_profile: 'bg-amber-100 text-amber-700',
   view_applicant: 'bg-indigo-100 text-indigo-700',
   contact_potential: 'bg-purple-100 text-purple-700',

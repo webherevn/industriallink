@@ -191,8 +191,9 @@ export class CandidateController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Query('source') source?: string,
+    @Query('matchScore') matchScore?: string,
   ) {
-    return this.candidates.getCandidateForRecruiter(user, id, source);
+    return this.candidates.getCandidateForRecruiter(user, id, source, matchScore);
   }
 
   @Post(':id/connection')

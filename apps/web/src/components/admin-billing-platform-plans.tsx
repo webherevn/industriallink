@@ -57,16 +57,18 @@ function costsFromPolicy(policy?: BillingCreditPolicyView | null): AdminPlanActi
     action,
     cost:
       action === 'view_profile'
-        ? (policy?.costPerProfile ?? 0)
-        : action === 'reopen_profile'
-          ? (policy?.costPerReopen ?? 0)
-          : action === 'view_applicant'
-            ? (policy?.costPerApplicant ?? 0)
-            : action === 'contact_potential'
-              ? (policy?.costPerContactPotential ?? 0)
-              : action === 'contact_applicant'
-                ? (policy?.costPerContactApplicant ?? 0)
-                : (policy?.costPerMatchSummary ?? 0),
+        ? (policy?.costPerProfile ?? 1)
+        : action === 'view_profile_high_match'
+          ? (policy?.costPerHighMatchProfile ?? 2)
+          : action === 'reopen_profile'
+            ? (policy?.costPerReopen ?? 0)
+            : action === 'view_applicant'
+              ? (policy?.costPerApplicant ?? 0)
+              : action === 'contact_potential'
+                ? (policy?.costPerContactPotential ?? 0)
+                : action === 'contact_applicant'
+                  ? (policy?.costPerContactApplicant ?? 0)
+                  : (policy?.costPerMatchSummary ?? 0),
     isActive: true,
   }));
 }
@@ -344,7 +346,13 @@ function PlanRow({
             Credit: <strong>{plan.creditQuota ?? '—'}</strong>
           </span>
           <span>
-            Mở hồ sơ: <strong>{costOf(plan, 'view_profile')}</strong> cr
+            Mở hồ sơ:{' '}
+            <strong>
+              {costOf(plan, 'view_profile') === costOf(plan, 'view_profile_high_match')
+                ? costOf(plan, 'view_profile')
+                : `${costOf(plan, 'view_profile')}–${costOf(plan, 'view_profile_high_match')}`}
+            </strong>{' '}
+            cr
           </span>
           <span>
             Sort: <strong>{plan.sortOrder}</strong>

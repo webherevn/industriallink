@@ -13,7 +13,8 @@ import {
 } from '@/lib/recruiter-billing';
 
 const ACTION_LABEL: Record<string, string> = {
-  view_profile: 'Mở hồ sơ',
+  view_profile: 'Mở hồ sơ (<80%)',
+  view_profile_high_match: 'Mở hồ sơ (≥80%)',
   reopen_profile: 'Mở lại',
   view_applicant: 'Xem ứng viên',
   contact_potential: 'Liên hệ tiềm năng',
@@ -26,6 +27,7 @@ const ACTION_LABEL: Record<string, string> = {
 
 const ACTION_COLOR: Record<string, string> = {
   view_profile: 'bg-brand-50 text-brand-700',
+  view_profile_high_match: 'bg-accent-50 text-accent-700',
   reopen_profile: 'bg-accent-50 text-accent-700',
   view_applicant: 'bg-brand-50 text-brand-700',
   contact_potential: 'bg-accent-50 text-accent-700',

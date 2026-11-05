@@ -72,8 +72,10 @@ import {
 import { SourcingService } from './sourcing.service';
 
 type PlatformPlanWithCosts = BillingPlatformPlan & { actionCosts?: BillingPlanActionCost[] };
+type CreditPolicyWithHighMatch = BillingCreditPolicy & { costPerHighMatchProfile?: number };
 
 const POLICY_SCOPE = 'default';
+const HIGH_MATCH_POLICY_SCOPE = 'high_match';
 const CURRENCY_SCOPE = 'default';
 const PAGE_SCOPE = 'default';
 
@@ -1243,10 +1245,30 @@ export class BillingService {
     if (input.inactiveDays !== undefined) data.inactiveDays = input.inactiveDays;
     if (input.allowRefund !== undefined) data.allowRefund = input.allowRefund;
 
-    const after = await this.prisma.billingCreditPolicy.update({
+    const updatedBase = await this.prisma.billingCreditPolicy.update({
       where: { id: before.id },
       data,
     });
+    let nextHighMatchCost = before.costPerHighMatchProfile ?? 2;
+    if (input.costPerHighMatchProfile !== undefined) {
+      const updatedHigh = await this.prisma.billingCreditPolicy.upsert({
+        where: { scope: HIGH_MATCH_POLICY_SCOPE },
+        create: {
+          scope: HIGH_MATCH_POLICY_SCOPE,
+          costPerProfile: input.costPerHighMatchProfile,
+          updatedBy: actor.id,
+        },
+        update: {
+          costPerProfile: input.costPerHighMatchProfile,
+          updatedBy: actor.id,
+        },
+      });
+      nextHighMatchCost = updatedHigh.costPerProfile;
+    }
+    const after: CreditPolicyWithHighMatch = {
+      ...updatedBase,
+      costPerHighMatchProfile: nextHighMatchCost,
+    };
     await this.writeAudit(
       actor,
       'credit_policy',
@@ -1397,10 +1419,22 @@ export class BillingService {
   // =========================================================================
   // HELPERS
   // =========================================================================
-  private async ensureCreditPolicy(): Promise<BillingCreditPolicy> {
-    const existing = await this.prisma.billingCreditPolicy.findUnique({ where: { scope: POLICY_SCOPE } });
-    if (existing) return existing;
-    return this.prisma.billingCreditPolicy.create({ data: { scope: POLICY_SCOPE } });
+  private async ensureCreditPolicy(): Promise<CreditPolicyWithHighMatch> {
+    const [existing, highMatch] = await Promise.all([
+      this.prisma.billingCreditPolicy.findUnique({ where: { scope: POLICY_SCOPE } }),
+      this.prisma.billingCreditPolicy.findUnique({ where: { scope: HIGH_MATCH_POLICY_SCOPE } }),
+    ]);
+    const base =
+      existing ?? (await this.prisma.billingCreditPolicy.create({ data: { scope: POLICY_SCOPE } }));
+    const high =
+      highMatch ??
+      (await this.prisma.billingCreditPolicy.create({
+        data: { scope: HIGH_MATCH_POLICY_SCOPE, costPerProfile: 2 },
+      }));
+    return {
+      ...base,
+      costPerHighMatchProfile: high.costPerProfile,
+    };
   }
 
   private async ensureCurrencyConfig(): Promise<BillingCurrencyConfig> {
@@ -1805,11 +1839,12 @@ export class BillingService {
     };
   }
 
-  private mapCreditPolicy(p: BillingCreditPolicy): BillingCreditPolicyView {
+  private mapCreditPolicy(p: CreditPolicyWithHighMatch): BillingCreditPolicyView {
     return {
       id: p.id,
       scope: p.scope,
       costPerProfile: p.costPerProfile,
+      costPerHighMatchProfile: p.costPerHighMatchProfile ?? 2,
       costPerReopen: p.costPerReopen,
       costPerApplicant: p.costPerApplicant,
       costPerContactPotential: p.costPerContactPotential,
@@ -1884,9 +1919,10 @@ export class BillingService {
       isFeatured: t.isFeatured,
     };
   }
-  private diffPolicy(p: BillingCreditPolicy): Record<string, unknown> {
+  private diffPolicy(p: CreditPolicyWithHighMatch): Record<string, unknown> {
     return {
       costPerProfile: p.costPerProfile,
+      costPerHighMatchProfile: p.costPerHighMatchProfile ?? 2,
       costPerReopen: p.costPerReopen,
       costPerApplicant: p.costPerApplicant,
       costPerContactPotential: p.costPerContactPotential,

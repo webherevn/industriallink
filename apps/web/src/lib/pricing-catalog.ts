@@ -77,6 +77,12 @@ export function normalizePricingConfig(config: BillingPublicConfig): BillingPubl
       ...plan,
       description: pricingPlatformFact(plan).description,
     })),
+    sourcingPlans: branded.sourcingPlans.map((plan) => ({
+      ...plan,
+      description: plan.description
+        ? plan.description.replace(/(\d+)\s*lượt mở(\s*hồ sơ)?/gi, '$1 Credit')
+        : plan.description,
+    })),
   };
 }
 
@@ -143,7 +149,14 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
   const days = plan.durationDays;
   const credits = plan.creditQuota;
   const openCost = actionCost(plan, 'view_profile');
+  const highMatchCost = actionCost(plan, 'view_profile_high_match');
   const canOpen = enterprise || credits == null || credits > 0;
+  const openCostLabel =
+    openCost != null && openCost > 0
+      ? highMatchCost != null && highMatchCost > 0 && highMatchCost !== openCost
+        ? `Mở hồ sơ: < 80% Matching tốn ${openCost} Credit, ≥ 80% tốn ${highMatchCost} Credit`
+        : `Mỗi lượt mở hồ sơ tốn ${openCost} Credit`
+      : 'Mở hồ sơ tiềm năng không tốn Credit';
 
   return [
     { included: true, label: platformJobSentence(plan) },
@@ -169,11 +182,10 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
     },
     { included: plus, label: 'Thêm lượt mở so với Tin đăng' },
     {
-      included: canOpen && (openCost == null || openCost > 0),
-      label:
-        openCost != null && openCost > 0
-          ? `Mỗi lượt mở hồ sơ tốn ${openCost} Credit`
-          : 'Mở hồ sơ tiềm năng không tốn Credit',
+      included:
+        canOpen &&
+        (openCost == null || openCost > 0 || (highMatchCost != null && highMatchCost > 0)),
+      label: openCostLabel,
     },
     { included: !free, label: 'Hồ sơ ứng tuyển không tốn lượt' },
     { included: true, label: 'Tổng Matching không tốn lượt' },
@@ -187,7 +199,25 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
 
 /** Dòng đang hiện trên thẻ: bản đã lưu, hoặc dòng mặc định. */
 export function displayFeatureLines(plan: BillingPlatformPlanView): PlatformFeatureLine[] {
-  return readPlatformFeatureLines(plan.features) ?? platformFeatureRows(plan);
+  const saved = readPlatformFeatureLines(plan.features);
+  if (!saved) return platformFeatureRows(plan);
+  const openCost = actionCost(plan, 'view_profile');
+  const highMatchCost = actionCost(plan, 'view_profile_high_match');
+  if (
+    openCost != null &&
+    openCost > 0 &&
+    highMatchCost != null &&
+    highMatchCost > 0 &&
+    highMatchCost !== openCost
+  ) {
+    const dualLabel = `Mở hồ sơ: < 80% Matching tốn ${openCost} Credit, ≥ 80% tốn ${highMatchCost} Credit`;
+    return saved.map((line) =>
+      /^Mỗi lượt mở hồ sơ tốn \d+ Credit$/i.test(line.label.trim())
+        ? { ...line, label: dualLabel }
+        : line,
+    );
+  }
+  return saved;
 }
 
 export type PlatformHighlightStat = { label: string; value: string; hint?: string };
@@ -204,14 +234,30 @@ export function platformHighlightStats(plan: BillingPlatformPlanView): PlatformH
   const opens = quotaStat(plan.creditQuota, 'HĐ', 'Theo hợp đồng');
   const days = quotaStat(plan.durationDays, enterprise ? 'HĐ' : '∞', enterprise ? 'Theo hợp đồng' : 'Không giới hạn');
   const openCost = actionCost(plan, 'view_profile');
+  const highMatchCost = actionCost(plan, 'view_profile_high_match');
+  const hasTieredCost =
+    openCost != null &&
+    highMatchCost != null &&
+    highMatchCost > 0 &&
+    highMatchCost !== openCost;
   return [
     { label: 'Số tin', ...jobs },
     { label: 'Lượt mở', ...opens },
     { label: 'Số ngày', ...days },
     {
       label: 'Credit/lượt',
-      value: openCost == null ? '—' : String(openCost),
-      hint: openCost == null ? 'Chưa đặt' : 'Credit cho mỗi lượt mở hồ sơ',
+      value:
+        openCost == null
+          ? '—'
+          : hasTieredCost
+            ? `${openCost}–${highMatchCost}`
+            : String(openCost),
+      hint:
+        openCost == null
+          ? 'Chưa đặt'
+          : hasTieredCost
+            ? `< 80% Matching: ${openCost} Credit · ≥ 80% Matching: ${highMatchCost} Credit`
+            : 'Credit cho mỗi lượt mở hồ sơ',
     },
   ];
 }

@@ -248,9 +248,9 @@ export default function RecruiterDashboardPage() {
             : 'Kỹ sư PLC đạt độ khớp cao — dùng AI xếp hạng để ưu tiên hồ sơ',
         cta: 'Xem hồ sơ',
         href: featured
-          ? `/candidates/${featured.candidateId}`
+          ? `/candidates/${featured.candidateId}?match=${formatMatchPct(featured.score)}`
           : top
-            ? `/candidates/${top.candidateId}`
+            ? `/candidates/${top.candidateId}${top.matchScore != null ? `?match=${formatMatchPct(top.matchScore)}` : ''}`
             : '/search',
         potential: Boolean(featured && !featured.applied),
       },
@@ -689,7 +689,7 @@ export default function RecruiterDashboardPage() {
             {topCandidates.map((a, idx) => (
               <li key={a.applicationId}>
                 <Link
-                  href={`/candidates/${a.candidateId}`}
+                  href={`/candidates/${a.candidateId}${a.matchScore != null ? `?match=${formatMatchPct(a.matchScore)}` : ''}`}
                   className="flex items-center gap-2.5 rounded-xl px-1 py-1 transition hover:bg-slate-50"
                 >
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">

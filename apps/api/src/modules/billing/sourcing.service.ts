@@ -343,13 +343,14 @@ export class SourcingService {
 
   /**
    * Hồ sơ mở khi công ty đang có gói Săn còn hạn.
-   * included / repeat: trừ vào creditQuota của gói, không trừ ví Credit.
-   * skip: không còn lượt của gói, người gọi trừ ví (top-up hoặc gói tin).
+   * included / repeat: trừ vào creditQuota của gói (< 80% = 1 Credit, ≥ 80% = 2 Credit), không trừ ví Credit.
+   * skip: không còn đủ Credit của gói, người gọi trừ ví (top-up hoặc gói tin).
    */
   async coverIncludedOpen(input: {
     companyId: string;
     candidateId: string;
     actorUserId?: string;
+    cost?: number;
   }): Promise<'included' | 'repeat' | 'skip'> {
     const assignment = await this.settleExpiredPlan(input.companyId);
     if (!assignment?.plan || !assignment.isActive || !this.cycleOpen(assignment.endsAt)) {
@@ -358,28 +359,26 @@ export class SourcingService {
     const quota = assignment.plan.creditQuota;
     if (quota != null && quota <= 0) return 'skip';
 
-    const marker = `open:${input.candidateId}`;
+    const cost = input.cost != null && input.cost > 0 ? Math.floor(input.cost) : 1;
+    const prefix = `open:${input.candidateId}`;
+    const marker = cost > 1 ? `${prefix}:${cost}` : prefix;
     return this.prisma.$transaction(async (tx) => {
-      const already = await tx.billingSourcingUsage.findFirst({
+      const openRows = await tx.billingSourcingUsage.findMany({
         where: {
           assignmentId: assignment.id,
           kind: 'profile_open',
-          note: marker,
           createdAt: { gte: assignment.startsAt },
         },
-        select: { id: true },
+        select: { id: true, note: true },
       });
+      const already = openRows.some(
+        (r) => r.note === prefix || Boolean(r.note && r.note.startsWith(`${prefix}:`)),
+      );
       if (already) return 'repeat';
 
       if (quota != null) {
-        const used = await tx.billingSourcingUsage.count({
-          where: {
-            assignmentId: assignment.id,
-            kind: 'profile_open',
-            createdAt: { gte: assignment.startsAt },
-          },
-        });
-        if (used >= quota) return 'skip';
+        const used = openRows.reduce((sum, r) => sum + this.parseOpenUsageCost(r.note), 0);
+        if (used + cost > quota) return 'skip';
       }
 
       await tx.billingSourcingUsage.create({
@@ -465,10 +464,22 @@ export class SourcingService {
     return !endsAt || endsAt.getTime() >= Date.now();
   }
 
-  private countIncludedOpens(assignmentId: string, startsAt: Date): Promise<number> {
-    return this.prisma.billingSourcingUsage.count({
+  private parseOpenUsageCost(note: string | null | undefined): number {
+    if (!note) return 1;
+    const parts = note.split(':');
+    if (parts.length >= 3) {
+      const parsed = Number(parts[2]);
+      if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    }
+    return 1;
+  }
+
+  private async countIncludedOpens(assignmentId: string, startsAt: Date): Promise<number> {
+    const rows = await this.prisma.billingSourcingUsage.findMany({
       where: { assignmentId, kind: 'profile_open', createdAt: { gte: startsAt } },
+      select: { note: true },
     });
+    return rows.reduce((sum, r) => sum + this.parseOpenUsageCost(r.note), 0);
   }
 
   private toEntitlements(

@@ -16,8 +16,14 @@ import { BillingService } from './billing.service';
 import { policyCostForAction } from './billing-action-cost';
 
 const POLICY_SCOPE = 'default';
+const HIGH_MATCH_POLICY_SCOPE = 'high_match';
 
-const PROFILE_VIEW_ACTIONS = new Set(['view_profile', 'view_applicant', 'reopen_profile']);
+const PROFILE_VIEW_ACTIONS = new Set([
+  'view_profile',
+  'view_profile_high_match',
+  'view_applicant',
+  'reopen_profile',
+]);
 
 function isProfileViewAction(action: string): boolean {
   return PROFILE_VIEW_ACTIONS.has(action);
@@ -238,12 +244,16 @@ export class CreditService {
    * Trả về null nếu chưa có policy.
    */
   async getPolicySnapshot(tenantId: string): Promise<BillingCreditPolicyView | null> {
-    const p = await this.prisma.billingCreditPolicy.findUnique({ where: { scope: POLICY_SCOPE } });
+    const [p, high] = await Promise.all([
+      this.prisma.billingCreditPolicy.findUnique({ where: { scope: POLICY_SCOPE } }),
+      this.prisma.billingCreditPolicy.findUnique({ where: { scope: HIGH_MATCH_POLICY_SCOPE } }),
+    ]);
     if (!p) return null;
     return {
       id: p.id,
       scope: p.scope,
       costPerProfile: p.costPerProfile,
+      costPerHighMatchProfile: high?.costPerProfile ?? 2,
       costPerReopen: p.costPerReopen,
       costPerApplicant: p.costPerApplicant,
       costPerContactPotential: p.costPerContactPotential,
@@ -328,7 +338,9 @@ export class CreditService {
           const existing = await tx.billingCreditTransaction.findFirst({
             where: {
               companyId: input.companyId,
-              action: input.action,
+              action: isProfileViewAction(input.action)
+                ? { in: [...PROFILE_VIEW_ACTIONS] }
+                : input.action,
               candidateId: input.candidateId,
             },
             orderBy: { createdAt: 'asc' },

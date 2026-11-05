@@ -555,6 +555,7 @@ export class CandidateService {
     user: AuthenticatedUser,
     candidateId: string,
     source?: string,
+    matchScore?: string,
   ): Promise<RecruiterCandidateView> {
     const { companyId } = await this.companies.requireUserCompany(user.id);
     const candidate = await this.prisma.candidate.findFirst({
@@ -612,6 +613,7 @@ export class CandidateService {
       actorEmail: user.email ?? undefined,
       applied,
       fromSourcing: source === 'sourcing',
+      matchScore,
     });
 
     return {
@@ -1699,9 +1701,19 @@ export class CandidateService {
     return Boolean(row);
   }
 
+  private normalizeMatchScorePct(raw?: string | number | null): number | null {
+    if (raw === undefined || raw === null || raw === '') return null;
+    const str = String(raw).trim();
+    const n = Number(str);
+    if (!Number.isFinite(n) || n < 0) return null;
+    const pct =
+      n > 0 && n <= 1 && (str.includes('.') || n < 1) ? Math.round(n * 100) : Math.round(n);
+    return Math.max(0, Math.min(100, pct));
+  }
+
   /**
-   * Mở từ danh sách Săn: trừ lượt mở của gói. Hết lượt thì trừ Credit ví.
-   * Mở từ Tìm ứng viên AI và các mục khác: chỉ trừ Credit ví, không đụng lượt Săn.
+   * Mở từ danh sách Săn: trừ Credit của gói Săn (< 80% = 1, ≥ 80% = 2). Hết hạn mức gói Săn thì trừ Credit ví.
+   * Mở từ Tìm ứng viên AI và các mục khác: chỉ trừ Credit ví (< 80% = 1, ≥ 80% = 2), không đụng gói Săn.
    */
   private async chargeProfileView(input: {
     tenantId: string;
@@ -1711,9 +1723,22 @@ export class CandidateService {
     actorEmail?: string;
     applied: boolean;
     fromSourcing: boolean;
+    matchScore?: string;
   }): Promise<void> {
-    const action = input.applied ? 'view_applicant' : 'view_profile';
-    if (!input.fromSourcing) {
+    const matchPct = this.normalizeMatchScorePct(input.matchScore);
+    const isHighMatch = matchPct != null && matchPct >= 80;
+    const action: CreditAction = input.applied
+      ? 'view_applicant'
+      : isHighMatch
+        ? 'view_profile_high_match'
+        : 'view_profile';
+    const note = input.applied
+      ? undefined
+      : matchPct != null
+        ? `Mở hồ sơ tiềm năng (Matching ${matchPct}% — ${isHighMatch ? '≥ 80%' : '< 80%'})`
+        : 'Mở hồ sơ tiềm năng (< 80% Matching)';
+
+    if (!input.fromSourcing || input.applied) {
       await this.chargeCredit({
         tenantId: input.tenantId,
         companyId: input.companyId,
@@ -1721,6 +1746,7 @@ export class CandidateService {
         candidateId: input.candidateId,
         actorUserId: input.actorUserId,
         actorEmail: input.actorEmail,
+        note,
         oncePerCandidate: true,
       });
       return;
@@ -1730,16 +1756,22 @@ export class CandidateService {
       where: {
         companyId: input.companyId,
         candidateId: input.candidateId,
-        action: { in: ['view_profile', 'view_applicant', 'reopen_profile'] },
+        action: {
+          in: ['view_profile', 'view_profile_high_match', 'view_applicant', 'reopen_profile'],
+        },
       },
       select: { id: true },
     });
     if (seen) return;
 
+    const resolved = await this.credit.resolveActionCost(input.companyId, action).catch(() => null);
+    const openCost = resolved?.cost ?? (isHighMatch ? 2 : 1);
+
     const cover = await this.sourcing.coverIncludedOpen({
       companyId: input.companyId,
       candidateId: input.candidateId,
       actorUserId: input.actorUserId,
+      cost: openCost > 0 ? openCost : 1,
     });
     if (cover === 'included' || cover === 'repeat') {
       await this.credit.rememberCoveredProfileView({
@@ -1759,6 +1791,7 @@ export class CandidateService {
       candidateId: input.candidateId,
       actorUserId: input.actorUserId,
       actorEmail: input.actorEmail,
+      note,
       oncePerCandidate: true,
     });
   }
@@ -1770,6 +1803,7 @@ export class CandidateService {
     candidateId: string;
     actorUserId: string;
     actorEmail?: string;
+    note?: string;
     oncePerCandidate?: boolean;
   }): Promise<void> {
     try {

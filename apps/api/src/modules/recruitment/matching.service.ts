@@ -299,12 +299,13 @@ export class MatchingService {
         companyId,
         assignmentId: entitlements.assignment.id,
         kind: 'profile_open',
-        note: { in: ranked.map((row) => `open:${row.candidateId}`) },
       },
       select: { note: true },
     });
     const openedIds = new Set(
-      opened.flatMap((row) => (row.note?.startsWith('open:') ? [row.note.slice(5)] : [])),
+      opened.flatMap((row) =>
+        row.note?.startsWith('open:') ? [row.note.slice(5).split(':')[0]] : [],
+      ),
     );
     return ranked.map((row) => ({
       ...row,
@@ -452,7 +453,9 @@ export class MatchingService {
       where: {
         companyId,
         candidateId: { in: candidateIds },
-        action: { in: ['view_profile', 'view_applicant', 'reopen_profile'] },
+        action: {
+          in: ['view_profile', 'view_profile_high_match', 'view_applicant', 'reopen_profile'],
+        },
       },
       select: { candidateId: true },
       distinct: ['candidateId'],

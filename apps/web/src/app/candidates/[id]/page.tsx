@@ -175,13 +175,14 @@ export default function CandidateDetailPage() {
   const searchParams = useSearchParams();
   const id = params.id;
   const fromSourcing = searchParams.get('from') === 'sourcing';
+  const matchScore = searchParams.get('match');
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['candidate', id, fromSourcing ? 'sourcing' : 'credit'],
-    queryFn: () => getCandidateById(id, fromSourcing ? 'sourcing' : undefined),
+    queryKey: ['candidate', id, fromSourcing ? 'sourcing' : 'credit', matchScore ?? ''],
+    queryFn: () => getCandidateById(id, fromSourcing ? 'sourcing' : undefined, matchScore),
     enabled: Boolean(id),
     retry: false,
   });
