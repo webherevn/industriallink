@@ -1677,15 +1677,16 @@ export class CandidateService {
     };
   }
 
-  /** Gói Khám phá chỉ mở hồ sơ đã nộp ứng tuyển. Hồ sơ tiềm năng phải nâng cấp. */
+  /** Gói Khám phá (khi không có gói Săn còn hạn) chỉ mở hồ sơ đã nộp ứng tuyển. Hồ sơ tiềm năng phải nâng cấp. */
   private async assertStarterCanOpenProfile(companyId: string, applied: boolean): Promise<void> {
     if (applied) return;
     const plan = await this.billing.ensureCompanyPlan(companyId);
     if (plan?.planCode !== 'KHAM_PHA') return;
+    if (await this.billing.hasActiveSourcingPlan(companyId)) return;
     throw new ForbiddenException({
       code: 'STARTER_PROFILE_LOCKED',
       message:
-        'Hãy nâng cấp gói để xem ngay hồ sơ ứng viên tiềm năng phù hợp nhất công ty bạn',
+        'Hãy nâng cấp gói Tin đăng hoặc gói Săn nhân sự để xem ngay hồ sơ ứng viên tiềm năng và sử dụng tiếp Credit của bạn',
     });
   }
 

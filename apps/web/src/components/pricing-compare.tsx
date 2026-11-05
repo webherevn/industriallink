@@ -452,7 +452,7 @@ export function creditInsight(topups: BillingCreditTopupView[]): string {
   const max = Number(BigInt(dearest.unitPriceVnd));
   const min = Number(BigInt(cheapest.unitPriceVnd));
   const pct = max > 0 ? Math.round(((max - min) / max) * 100) : 0;
-  return `Mua nhiều thì rẻ hơn: ${cheapest.name} thấp hơn ${pct}% / lượt so với ${dearest.name}. Không tự động trừ thêm khi hết Credit.`;
+  return `Mua nhiều thì rẻ hơn: ${cheapest.name} thấp hơn ${pct}% / lượt so với ${dearest.name}. Credit mua từ Top-up có giá trị vô thời hạn, được bảo lưu khi hết hạn gói.`;
 }
 
 function staticCell(text: string): CompareCell {

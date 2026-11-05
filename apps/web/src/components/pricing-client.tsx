@@ -1335,7 +1335,7 @@ function CreditTopupCard({
           <Coins className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-500">{topup.creditCount} lượt mở hồ sơ</p>
+      <p className="mt-1 text-xs text-slate-500">{topup.creditCount} lượt mở hồ sơ · Vô thời hạn</p>
 
       <div className="mt-4 min-w-0">
         <PlanPrice value={topup.priceVnd} currency={currency} />

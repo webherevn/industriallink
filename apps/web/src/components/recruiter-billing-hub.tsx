@@ -112,10 +112,10 @@ export function RecruiterBillingHub() {
                 {plan ? (
                 <p className="mt-1 text-sm leading-relaxed text-slate-500">
                   {plan.planCode === 'KHAM_PHA'
-                    ? `Dùng thử ${fmtDate(plan.startsAt)} → ${fmtDate(plan.endsAt)}. Hết hạn Credit về 0, gói mở lại sau 30 ngày.`
+                    ? `Dùng thử ${fmtDate(plan.startsAt)} → ${fmtDate(plan.endsAt)}. Hết hạn gói mở lại sau 30 ngày (Credit Top-up được bảo lưu vô thời hạn).`
                     : plan.planCode === 'ENTERPRISE'
                       ? `Theo hợp đồng${plan.endsAt ? ` · đến ${fmtDate(plan.endsAt)}` : ''}`
-                      : `Hạn gói đến ${fmtDate(plan.endsAt)}. Không gia hạn thì về Khám phá, Credit về 0.`}
+                      : `Hạn gói đến ${fmtDate(plan.endsAt)}. Hết hạn chuyển về Khám phá (chỉ hết hạn Credit tặng kèm gói, Credit Top-up được bảo lưu vô thời hạn).`}
                   {!plan.isActive ? ' · đã tắt' : ''}
                 </p>
                 ) : null}

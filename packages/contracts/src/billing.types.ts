@@ -636,7 +636,7 @@ export const DEFAULT_BILLING_PAGE_FEATURES: BillingPageTextItem[] = [
   },
   {
     title: 'Top-up Credit linh hoạt',
-    desc: 'Mua Credit theo nhu cầu thực tế. Đơn giá giảm khi mua nhiều. Không hết hạn khi tài khoản còn hoạt động.',
+    desc: 'Mua Credit theo nhu cầu thực tế. Đơn giá giảm khi mua nhiều. Credit mua thêm có giá trị vô thời hạn, được bảo lưu ngay cả khi hết hạn gói.',
   },
 ];
 
@@ -666,7 +666,7 @@ export const DEFAULT_BILLING_PAGE_FAQ: BillingPageFaqItem[] = [
   },
   {
     q: 'Credit mua thêm có hết hạn không?',
-    a: 'Theo chính sách hiện tại, Credit không hết hạn khi tài khoản còn hoạt động. Chúng tôi sẽ thông báo trước 30 ngày nếu có thay đổi.',
+    a: 'Không. Credit mua từ gói Top-up có giá trị vô thời hạn và được bảo lưu trong ví ngay cả khi gói Tin đăng hoặc gói Săn nhân sự hết hạn. Bạn chỉ cần đăng ký lại gói Tin đăng hoặc gói Săn để tiếp tục sử dụng số Credit đang còn.',
   },
   {
     q: 'Phí Săn nhân sự có bao gồm Credit không?',
@@ -727,7 +727,7 @@ export const DEFAULT_BILLING_PAGE_CONTENT: BillingPageContentView = {
   sourcingTitle: 'Gói Săn nhân sự',
   sourcingSubtitle: 'Đội ngũ inlink trực tiếp tìm kiếm, sàng lọc và đánh giá ứng viên theo JD của bạn.',
   creditTitle: 'Top-up Credit',
-  creditSubtitle: 'Mua thêm lượt mở hồ sơ tiềm năng. Đơn giá giảm khi mua nhiều.',
+  creditSubtitle: 'Mua thêm lượt mở hồ sơ tiềm năng. Đơn giá giảm khi mua nhiều · Credit Top-up vô thời hạn.',
   featuresTitle: 'Tính năng nổi bật',
   featuresSubtitle: 'Tất cả công cụ bạn cần để tuyển dụng công nghiệp hiệu quả.',
   compareTitle: 'So sánh gói',

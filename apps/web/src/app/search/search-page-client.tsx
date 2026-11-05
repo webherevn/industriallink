@@ -7,6 +7,7 @@ import {
   Briefcase,
   Car,
   ChevronDown,
+  Coins,
   Languages,
   Loader2,
   MapPin,
@@ -351,6 +352,8 @@ function ResultCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const criteria = (result.criteria ?? []).filter((c) => c.score != null);
+  const scorePct = result.score <= 1 ? result.score * 100 : result.score;
+  const creditCost = scorePct >= 80 ? 2 : 1;
 
   return (
     <article
@@ -418,9 +421,24 @@ function ResultCard({
                 ) : null}
               </p>
             </div>
-            <span className={clsx('rounded-lg px-2.5 py-1 text-[11px] font-bold ring-1', matchBadgeTone(result.score))}>
-              Phù hợp {formatMatchPct(result.score)}%
-            </span>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <span className={clsx('rounded-lg px-2.5 py-1 text-[11px] font-bold ring-1', matchBadgeTone(result.score))}>
+                Phù hợp {formatMatchPct(result.score)}%
+              </span>
+              <span
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
+                title={
+                  creditCost === 2
+                    ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
+                    : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
+                }
+              >
+                <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                <span>
+                  <span className="text-[#E8872A]">{creditCost}</span> Credit
+                </span>
+              </span>
+            </div>
           </div>
 
           {result.reason && (

@@ -71,7 +71,7 @@ export function RecruiterTopup() {
           <h1 className="cms-page-title mt-1.5">Mua thêm Credit</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle mt-2">
-            Chọn gói Top-up và thanh toán. Credit được cộng khi thanh toán thành công.
+            Chọn gói Top-up và thanh toán. Credit mua thêm có giá trị vô thời hạn (được bảo lưu ngay cả khi hết hạn gói).
             {pub?.vatPercent == null
               ? ' Thuế suất chưa đặt, thanh toán bằng giá niêm yết.'
               : ` Giá chưa gồm VAT. Thanh toán cộng thêm ${pub.vatPercent}%.`}
@@ -249,7 +249,7 @@ function TopupCard({
         <span className="text-sm font-semibold text-slate-500">credit</span>
       </div>
       <p className="mt-0.5 text-[11px] text-slate-500">
-        ≈ {formatPrice(Number(topup.unitPriceVnd))}/credit
+        ≈ {formatPrice(Number(topup.unitPriceVnd))}/credit · Vô thời hạn
       </p>
 
       <div className="mt-4 flex items-baseline gap-1.5 border-t border-slate-100 pt-3">

@@ -512,7 +512,7 @@ export class BillingService {
         await this.safeBackfillPlanGrant(companyId, existing);
         return this.mapCompanyPlan(existing);
       }
-      await this.zeroStarterCredit(companyId, cycleEnd, existing.plan.name);
+      await this.zeroStarterCredit(companyId, existing.startsAt, cycleEnd, existing.plan.name);
       return this.provisionStarterPlan(companyId, {
         renew: true,
         note: `Về gói Khám phá vì ${existing.plan.name} hết hạn và không gia hạn`,
@@ -534,7 +534,7 @@ export class BillingService {
         await this.safeBackfillPlanGrant(companyId, existing);
         return this.mapCompanyPlan(existing);
       }
-      await this.zeroStarterCredit(companyId, cycleEnd, 'Khám phá');
+      await this.zeroStarterCredit(companyId, existing.startsAt, cycleEnd, 'Khám phá');
       const restartAt = addUtcDays(cycleEnd, TRIAL_COOLDOWN_DAYS);
       if (now < restartAt) {
         if (!existing.endsAt || existing.endsAt.getTime() !== cycleEnd.getTime()) {
@@ -667,9 +667,26 @@ export class BillingService {
       : 0;
     const jobsRemaining = quota == null ? null : Math.max(0, quota - jobsUsed);
 
-    const policy = await this.ensureCreditPolicy();
-    const actionCosts = assignment?.plan
-      ? defaultActionCostRows(this.mapCreditPolicy(policy)).map((fallback) => {
+    const [policy, sourcing] = await Promise.all([
+      this.ensureCreditPolicy(),
+      this.sourcing.getEntitlements(companyId).catch((err) => {
+        this.logger.error(
+          `Đọc entitlements Săn thất bại cho ${companyId}: ${String(err)}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+        return this.sourcing.emptyEntitlements();
+      }),
+    ]);
+    const hasActiveSourcing = Boolean(
+      sourcing.assignment?.isActive &&
+        (!sourcing.assignment.endsAt ||
+          new Date(sourcing.assignment.endsAt).getTime() >= Date.now()),
+    );
+    const usePolicyCostsOnly =
+      !assignment?.plan || (assignment.plan.code === STARTER_PLAN_CODE && hasActiveSourcing);
+    const actionCosts = usePolicyCostsOnly
+      ? defaultActionCostRows(this.mapCreditPolicy(policy))
+      : defaultActionCostRows(this.mapCreditPolicy(policy)).map((fallback) => {
           const row = assignment.plan.actionCosts?.find((c) => c.action === fallback.action);
           if (!row) return fallback;
           return {
@@ -677,8 +694,7 @@ export class BillingService {
             cost: row.cost,
             isActive: row.isActive,
           };
-        })
-      : defaultActionCostRows(this.mapCreditPolicy(policy));
+        });
 
     return {
       plan: planView ?? (assignment?.plan ? this.mapCompanyPlan(assignment) : null),
@@ -697,13 +713,7 @@ export class BillingService {
       jobDisplayDays: assignment?.plan?.durationDays ?? null,
       actionCosts,
       enforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
-      sourcing: await this.sourcing.getEntitlements(companyId).catch((err) => {
-        this.logger.error(
-          `Đọc entitlements Săn thất bại cho ${companyId}: ${String(err)}`,
-          err instanceof Error ? err.stack : undefined,
-        );
-        return this.sourcing.emptyEntitlements();
-      }),
+      sourcing,
     };
   }
 
@@ -750,9 +760,17 @@ export class BillingService {
     return null;
   }
 
+  async hasActiveSourcingPlan(companyId: string): Promise<boolean> {
+    const s = await this.sourcing.getEntitlements(companyId).catch(() => null);
+    const assign = s?.assignment;
+    if (!assign?.isActive) return false;
+    if (assign.endsAt && new Date(assign.endsAt).getTime() < Date.now()) return false;
+    return true;
+  }
+
   /**
-   * Khám phá được mua Top-up trong 14 ngày. Hết hạn thì không bán thêm
-   * cho đến khi đủ 30 ngày và gói được mở lại, hoặc họ chuyển sang gói tin đăng.
+   * Khám phá được mua Top-up trong 14 ngày (hoặc khi có gói Săn còn hạn). Hết hạn thì không bán thêm
+   * cho đến khi đủ 30 ngày và gói được mở lại, hoặc họ chuyển sang gói tin đăng / gói Săn.
    */
   async assertStarterTopupAllowed(companyId: string): Promise<void> {
     await this.ensureCompanyPlan(companyId);
@@ -765,23 +783,33 @@ export class BillingService {
       row.endsAt ??
       (row.plan.code === STARTER_PLAN_CODE ? addUtcDays(row.startsAt, STARTER_CYCLE_DAYS) : null);
     if (!cycleEnd || new Date() < cycleEnd) return;
+    if (await this.hasActiveSourcingPlan(companyId)) return;
     if (row.plan.code === STARTER_PLAN_CODE) {
       throw new BadRequestException(
-        'Gói Khám phá chỉ mua thêm Credit trong 14 ngày dùng thử. Hết hạn thì Credit về 0.',
+        'Gói Khám phá đã hết hạn 14 ngày dùng thử. Hãy nâng cấp gói Tin đăng hoặc gói Săn nhân sự để nạp thêm và sử dụng Credit.',
       );
     }
     throw new BadRequestException(
-      'Gói đã hết hạn và tài khoản đã về gói Khám phá. Hãy gia hạn gói tin đăng để mua thêm Credit.',
+      'Gói đã hết hạn và tài khoản đã về gói Khám phá. Hãy gia hạn gói Tin đăng hoặc gói Săn nhân sự để nạp thêm và sử dụng Credit.',
     );
   }
 
-  /** Đưa Credit về 0 khi hết hạn Khám phá, hoặc khi gói tin đăng hết hạn và về Khám phá. */
-  private async zeroStarterCredit(companyId: string, cycleEnd: Date, planName: string): Promise<void> {
+  /**
+   * Khi hết hạn gói nền tảng: chỉ thu hồi phần Credit được tặng kèm gói (plan_grant) chưa dùng hết trong chu kỳ đó.
+   * Toàn bộ Credit mua từ gói Top-up (type = 'topup') và cấp thủ công được bảo lưu vô thời hạn.
+   */
+  private async zeroStarterCredit(
+    companyId: string,
+    cycleStart: Date,
+    cycleEnd: Date,
+    planName: string,
+  ): Promise<void> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { tenantId: true },
     });
     if (!company) return;
+    const windowStart = new Date(cycleStart.getTime() - 60_000);
     await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string; balance: number }>>`
         SELECT id, balance FROM billing.billing_credit_account
@@ -791,9 +819,54 @@ export class BillingService {
       const account = locked[0];
       const balance = Number(account?.balance ?? 0);
       if (!account || !Number.isFinite(balance) || balance <= 0) return;
+
+      const alreadyReset = await tx.billingCreditTransaction.findFirst({
+        where: {
+          companyId,
+          action: 'trial_reset',
+          createdAt: { gte: windowStart },
+        },
+        select: { id: true, metadata: true },
+      });
+      if (
+        alreadyReset &&
+        (alreadyReset.metadata as { cycleEnd?: string } | null)?.cycleEnd === cycleEnd.toISOString()
+      ) {
+        return;
+      }
+
+      const [grantedAgg, consumedAgg] = await Promise.all([
+        tx.billingCreditTransaction.aggregate({
+          where: {
+            companyId,
+            action: 'plan_grant',
+            creditDelta: { gt: 0 },
+            createdAt: { gte: windowStart, lte: cycleEnd },
+          },
+          _sum: { creditDelta: true },
+        }),
+        tx.billingCreditTransaction.aggregate({
+          where: {
+            companyId,
+            type: 'deduct',
+            enforced: true,
+            creditDelta: { lt: 0 },
+            createdAt: { gte: windowStart },
+          },
+          _sum: { creditDelta: true },
+        }),
+      ]);
+
+      const grantedInCycle = Number(grantedAgg._sum.creditDelta ?? 0);
+      const consumedInCycle = Math.abs(Number(consumedAgg._sum.creditDelta ?? 0));
+      const unusedPlanGrant = Math.max(0, grantedInCycle - consumedInCycle);
+      const expireAmount = Math.min(balance, unusedPlanGrant);
+      if (expireAmount <= 0) return;
+
+      const newBalance = balance - expireAmount;
       await tx.billingCreditAccount.update({
         where: { id: account.id },
-        data: { balance: 0, lastActivityAt: new Date() },
+        data: { balance: newBalance, lastActivityAt: new Date() },
       });
       await tx.billingCreditTransaction.create({
         data: {
@@ -802,12 +875,18 @@ export class BillingService {
           accountId: account.id,
           type: 'adjustment',
           action: 'trial_reset',
-          creditDelta: -balance,
-          balanceAfter: 0,
+          creditDelta: -expireAmount,
+          balanceAfter: newBalance,
           costPerUnit: 0,
           quantity: 1,
-          note: `Reset Credit gói ${planName} vì đã quá hạn và không gia hạn`,
-          metadata: { cycleEnd: cycleEnd.toISOString(), source: 'trial_reset' },
+          note: `Thu hồi ${expireAmount} Credit tặng kèm gói ${planName} hết hạn (bảo lưu Credit Top-up)`,
+          metadata: {
+            cycleStart: cycleStart.toISOString(),
+            cycleEnd: cycleEnd.toISOString(),
+            grantedInCycle,
+            consumedInCycle,
+            source: 'trial_reset',
+          },
           enforced: true,
         },
       });
@@ -1007,6 +1086,19 @@ export class BillingService {
 
     if (!active || !assignment) {
       return { cost: fallback, allowed: true, source: 'policy', planId: null, planCode: null };
+    }
+
+    if (
+      assignment.plan.code === STARTER_PLAN_CODE &&
+      (await this.hasActiveSourcingPlan(companyId))
+    ) {
+      return {
+        cost: fallback,
+        allowed: true,
+        source: 'policy',
+        planId: assignment.planId,
+        planCode: assignment.plan.code,
+      };
     }
 
     const row = assignment.plan.actionCosts?.find((c) => c.action === action);

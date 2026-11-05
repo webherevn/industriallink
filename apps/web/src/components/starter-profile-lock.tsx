@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
 export const STARTER_PROFILE_LOCK_MESSAGE =
-  'Hãy nâng cấp gói để xem ngay hồ sơ ứng viên tiềm năng phù hợp nhất công ty bạn';
+  'Hãy nâng cấp gói Tin đăng hoặc gói Săn nhân sự để xem ngay hồ sơ ứng viên tiềm năng và sử dụng tiếp Credit của bạn';
 
 export function useIsStarterPlan(): boolean {
   const { data } = useQuery({
@@ -18,7 +18,12 @@ export function useIsStarterPlan(): boolean {
     retry: false,
   });
   const code = data?.planCode ?? data?.plan?.planCode ?? null;
-  return code === 'KHAM_PHA';
+  const sourcingAssign = data?.sourcing?.assignment;
+  const hasActiveSourcing = Boolean(
+    sourcingAssign?.isActive &&
+      (!sourcingAssign.endsAt || new Date(sourcingAssign.endsAt).getTime() >= Date.now()),
+  );
+  return code === 'KHAM_PHA' && !hasActiveSourcing;
 }
 
 export function StarterProfileLockDialog({
@@ -92,7 +97,7 @@ export function StarterProfileLockDialog({
   );
 }
 
-/** Hồ sơ đã ứng tuyển mở bình thường. Hồ sơ tiềm năng trên gói Khám phá hiện popup nâng cấp. */
+/** Hồ sơ đã ứng tuyển mở bình thường. Hồ sơ tiềm năng trên gói Khám phá (chưa có gói Săn nhân sự) hiện popup nâng cấp. */
 export function ProfileOpenLink({
   href,
   potential,
