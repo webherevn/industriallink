@@ -283,14 +283,20 @@ export function SourcingProgressReportModal({
     (entitlements.searchRoundsRemaining === null || entitlements.searchRoundsRemaining > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs sm:p-6">
-      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 p-3 backdrop-blur-xs sm:p-5"
+      onClick={onClose}
+    >
+      <div
+        className="relative flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#d7e3f2] bg-white shadow-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4 sm:px-6">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#E8872A]">
               Báo cáo tiến độ & Khuyến nghị hành động chuyên sâu
             </p>
-            <h3 className="mt-0.5 text-xl font-bold text-[#072348]">
+            <h3 className="mt-0.5 text-lg font-extrabold text-[#072348] sm:text-xl">
               {engagementTitle || 'Báo cáo hiệu quả Săn nhân sự'}
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
@@ -298,7 +304,7 @@ export function SourcingProgressReportModal({
               {entitlements.planName}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => window.print()}
@@ -310,14 +316,16 @@ export function SourcingProgressReportModal({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+              title="Đóng báo cáo"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setTab('live')}
@@ -482,6 +490,7 @@ export function SourcingProgressReportModal({
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -627,11 +636,17 @@ export function SourcingJdRevisionModal({
   const [initialTech, setInitialTech] = useState<JdTechnicalFormState>(emptyJdTechnicalForm);
   const [hydratedId, setHydratedId] = useState<string | null>(null);
   const [showFullJd, setShowFullJd] = useState(false);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const [errText, setErrText] = useState<string | null>(null);
 
   const isSales = job ? trackFromJob(job) === JobTrack.Sales : true;
 
   useEffect(() => {
+    if (!open) {
+      setConfirmDiscardOpen(false);
+      setErrText(null);
+      return;
+    }
     if (!job || hydratedId === job.id) return;
     const s = jobViewToForm(job);
     const t = jobViewToTechnicalForm(job);
@@ -640,7 +655,7 @@ export function SourcingJdRevisionModal({
     setInitialSales(s);
     setInitialTech(t);
     setHydratedId(job.id);
-  }, [job, hydratedId]);
+  }, [open, job, hydratedId]);
 
   const aiDiagnostics = useMemo(() => {
     const highCount = allResults.filter((r) => (r.match.score <= 1 ? r.match.score * 100 : r.match.score) >= 80).length;
@@ -666,6 +681,30 @@ export function SourcingJdRevisionModal({
     () => (isSales ? buildSalesDiffNotes(initialSales, salesForm) : buildTechDiffNotes(initialTech, techForm)),
     [isSales, initialSales, salesForm, initialTech, techForm],
   );
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (diffItems.length > 0) return true;
+    return isSales
+      ? JSON.stringify(salesForm) !== JSON.stringify(initialSales)
+      : JSON.stringify(techForm) !== JSON.stringify(initialTech);
+  }, [diffItems.length, isSales, salesForm, initialSales, techForm, initialTech]);
+
+  const handleRequestClose = () => {
+    if (reviseMutation.isPending) return;
+    if (hasUnsavedChanges) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleConfirmDiscard = () => {
+    setSalesForm(initialSales);
+    setTechForm(initialTech);
+    setConfirmDiscardOpen(false);
+    setErrText(null);
+    onClose();
+  };
 
   const currentExp = isSales ? salesForm.experienceBand : techForm.experienceBand;
   const relaxedExp = currentExp ? EXP_RELAX_MAP[currentExp] : undefined;
@@ -729,30 +768,33 @@ export function SourcingJdRevisionModal({
         diffItems.length > 0
           ? diffItems.join('; ')
           : 'Cập nhật mô tả & tối ưu trọng số tiêu chí JD';
-      await consumeRecruiterSourcing({
+      const updatedWs = await consumeRecruiterSourcing({
         kind: 'revision',
         engagementId,
         jobId,
         note: `Điều chỉnh Tin Săn «${isSales ? salesForm.title : techForm.title}»: ${changeSummary}`,
       });
-      await sourcingCandidatesForJob(jobId, true);
-      const refreshedWs = await qc.fetchQuery({
-        queryKey: ['recruiter-sourcing'],
-      });
-      return refreshedWs as RecruiterSourcingWorkspace;
+      return { updatedWs, changeSummary };
     },
-    onSuccess: (ws) => {
+    onSuccess: ({ updatedWs, changeSummary }) => {
       setErrText(null);
+      setConfirmDiscardOpen(false);
       setInitialSales(salesForm);
       setInitialTech(techForm);
+      // Tự động đóng popup ngay lập tức khi NTD bấm Lưu thành công
+      onClose();
+      onWorkspaceUpdated(
+        updatedWs,
+        `Đã áp dụng điều chỉnh (${changeSummary}) và đang cập nhật đợt quét ứng viên mới!`,
+      );
       void qc.invalidateQueries({ queryKey: ['job', jobId] });
       void qc.invalidateQueries({ queryKey: ['my-jobs'] });
-      void qc.invalidateQueries({ queryKey: ['sourcing-hunt', jobId] });
-      onWorkspaceUpdated(
-        ws,
-        `Đã lưu điều chỉnh (${diffItems.length > 0 ? diffItems.join(', ') : 'tiêu chí JD'}) và quét lại ứng viên ngay lập tức!`,
-      );
-      onClose();
+      if (jobId) {
+        void sourcingCandidatesForJob(jobId, true).then(() => {
+          void qc.invalidateQueries({ queryKey: ['sourcing-hunt', jobId] });
+          void qc.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
+        });
+      }
     },
     onError: (err) => {
       setErrText(err instanceof ApiError ? err.message : 'Không lưu được điều chỉnh tiêu chí JD');
@@ -766,124 +808,142 @@ export function SourcingJdRevisionModal({
   const fixedTitle = isSales ? salesForm.title : techForm.position || techForm.title;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs sm:p-6">
-      <div className="relative max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#E8872A]">
-              Smart Tuning Panel · Tối ưu & Điều chỉnh Tiêu chí Săn
-            </p>
-            <h3 className="mt-0.5 text-xl font-bold text-[#072348]">
-              Điều chỉnh tiêu chí Tin Săn · Còn {revisionsRemaining ?? '∞'} lượt
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 p-3 backdrop-blur-xs sm:p-5"
+      onClick={handleRequestClose}
+    >
+      {/* Khung Modal bo tròn 4 góc đều nhau (overflow-hidden giữ bo góc không bị thanh cuộn cắt mất) */}
+      <div
+        className="relative flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#d7e3f2] bg-white shadow-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        {/* HEADER CỐ ĐỊNH + NÚT X GÓC PHẢI DỄ BẤM */}
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200/80 bg-white px-5 py-4 sm:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#E8872A] ring-1 ring-amber-200">
+                <Sparkles className="h-3 w-3" />
+                Smart Tuning Panel
+              </span>
+              <span className="inline-flex items-center rounded-full bg-[#072348] px-2.5 py-0.5 text-[10px] font-bold text-white">
+                Còn {revisionsRemaining ?? '∞'} lượt điều chỉnh
+              </span>
+            </div>
+            <h3 className="mt-1.5 text-lg font-extrabold text-[#072348] sm:text-xl">
+              Tối ưu & Điều chỉnh tiêu chí Tin Săn
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Áp dụng gợi ý AI 1-Click hoặc tinh chỉnh 5 Van tiêu chí săn dưới đây — hệ thống sẽ ghi nhận chi tiết thay
-              đổi vào Lịch sử và chạy quét lại danh sách ứng viên ngay lập tức.
+              Áp dụng nhanh gợi ý AI 1-Click hoặc tinh chỉnh 5 Van tiêu chí săn bên dưới — hệ thống tự động ghi vào
+              Lịch sử và quét lại ứng viên ngay.
             </p>
           </div>
+
           <button
             type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+            onClick={handleRequestClose}
+            title="Đóng cửa sổ điều chỉnh"
+            aria-label="Đóng cửa sổ điều chỉnh"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {/* NỘI DUNG CUỘN BÊN TRONG */}
         {!jobId ? (
-          <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
-            Tin Săn này chưa gắn JD. Hãy tạo hoặc gắn JD trước khi điều chỉnh tiêu chí.
+          <div className="p-6">
+            <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+              Tin Săn này chưa gắn JD. Hãy tạo hoặc gắn JD trước khi điều chỉnh tiêu chí.
+            </div>
           </div>
         ) : isLoading ? (
-          <div className="mt-6 flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Đang tải tiêu chí JD hiện tại...
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
+            <Loader2 className="h-5 w-5 animate-spin text-[#E8872A]" /> Đang tải tiêu chí JD hiện tại...
           </div>
         ) : (
-          <div className="mt-5 space-y-5">
+          <div className="flex-1 space-y-4 overflow-y-auto bg-[#f4f7fb]/60 px-5 py-4 sm:px-6 sm:py-5">
             {/* Banner Khóa Vị Trí Gốc */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d7e3f2] bg-[#f4f7fb] px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#072348] text-white">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d7e3f2] bg-white px-4 py-3 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#072348] text-white">
                   <Lock className="h-4 w-4" />
                 </span>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-500">Vị trí săn cố định:</span>
+                    <span className="text-xs font-medium text-slate-500">Vị trí săn cố định:</span>
                     <span className="text-sm font-extrabold text-[#072348]">{fixedTitle || job?.title}</span>
-                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#E8872A] ring-1 ring-[#d7e3f2]">
+                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-[#E8872A] ring-1 ring-amber-200/80">
                       {isSales ? 'Khối Kinh doanh B2B' : 'Khối Kỹ thuật & Công nghiệp'}
                     </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    Theo quy tắc gói Săn Nhân Sự 01 vị trí, chức danh tuyển dụng gốc được khóa cố định để đảm bảo tính
-                    liên tục của phễu ứng viên.
+                    Chức danh gốc được khóa cố định theo quy định gói Săn 01 vị trí để bảo toàn phễu ứng viên.
                   </p>
                 </div>
               </div>
             </div>
 
             {/* PHẦN 1: ĐỀ XUẤT ĐIỀU CHỈNH TỰ ĐỘNG TỪ AI INLINK (1-CLICK ÁP DỤNG) */}
-            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-4">
+            <div className="rounded-2xl border border-amber-200/90 bg-white p-4 shadow-2xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="flex items-center gap-2 text-sm font-extrabold text-[#072348]">
+                <h4 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#072348] sm:text-sm">
                   <Sparkles className="h-4 w-4 text-[#E8872A]" />
-                  Phần 1 — Đề xuất điều chỉnh tự động từ AI inlink (1-Click Áp Dụng)
+                  Phần 1 · Đề xuất điều chỉnh tự động từ AI inlink (1-Click)
                 </h4>
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-amber-200">
-                  Hiện có {aiDiagnostics.highCount} UV khớp ≥80% · {aiDiagnostics.medCount} UV tiệm cận 60–79%
+                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
+                  {aiDiagnostics.highCount} UV khớp ≥80% · {aiDiagnostics.medCount} UV tiệm cận 60–79%
                 </span>
               </div>
               {aiDiagnostics.topMissing.length > 0 ? (
-                <p className="mt-1.5 text-xs text-slate-600">
-                  Điểm nghẽn tiêu chí phổ biến nhất trên tệp ứng viên hiện tại:{' '}
+                <p className="mt-1 text-xs text-slate-600">
+                  Điểm nghẽn tiêu chí phổ biến nhất:{' '}
                   <span className="font-semibold text-[#072348]">{aiDiagnostics.topMissing.join(' · ')}</span>
                 </p>
               ) : null}
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
                 {/* Gợi ý 1: Nới kinh nghiệm */}
-                <div className="flex flex-col justify-between rounded-xl border border-amber-200/80 bg-white p-3 shadow-2xs">
+                <div className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-[#f8fafc] p-3">
                   <div>
                     <p className="text-xs font-bold text-[#072348]">1. Nới bậc kinh nghiệm (-1 bậc)</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
                       Hạ yêu cầu từ{' '}
-                      <span className="font-semibold">
+                      <span className="font-semibold text-slate-800">
                         {currentExp ? EXPERIENCE_LABEL[currentExp] : 'Mức hiện tại'}
                       </span>{' '}
                       xuống{' '}
                       <span className="font-semibold text-[#E8872A]">
                         {relaxedExp ? EXPERIENCE_LABEL[relaxedExp] : EXPERIENCE_LABEL[ExperienceBand.From1To3]}
                       </span>{' '}
-                      để đẩy nhóm UV 65–79% lên ngưỡng Khớp cao ≥80%.
+                      để đẩy nhóm UV 65–79% lên ngưỡng ≥80%.
                     </p>
                   </div>
                   <button
                     type="button"
                     disabled={lockedDisabled || currentExp === ExperienceBand.None}
                     onClick={applyRelaxExperience}
-                    className="mt-2.5 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#0b3162] disabled:opacity-40"
+                    className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#0b3162] disabled:opacity-40"
                   >
                     <Sparkles className="h-3 w-3 text-[#E8872A]" />
-                    {currentExp === ExperienceBand.None ? 'Đã ở mức mở rộng nhất' : 'Áp dụng nới kinh nghiệm'}
+                    {currentExp === ExperienceBand.None ? 'Đã mở rộng tối đa' : 'Áp dụng nới kinh nghiệm'}
                   </button>
                 </div>
 
                 {/* Gợi ý 2: Nâng trần ngân sách lương +20% */}
-                <div className="flex flex-col justify-between rounded-xl border border-amber-200/80 bg-white p-3 shadow-2xs">
+                <div className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-[#f8fafc] p-3">
                   <div>
-                    <p className="text-xs font-bold text-[#072348]">2. Nâng trần ngân sách lương (+20%)</p>
+                    <p className="text-xs font-bold text-[#072348]">2. Nâng trần ngân sách (+20%)</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
                       Nâng trần lương tối đa lên{' '}
                       <span className="font-semibold text-[#E8872A]">{formatVndAmount(boostedSalaryMax)}</span> để thu
-                      hút nhóm ứng viên Senior/Key Account đang kỳ vọng cao hơn trần hiện tại.
+                      hút nhóm ứng viên Senior/Key Account.
                     </p>
                   </div>
                   <button
                     type="button"
                     disabled={lockedDisabled}
                     onClick={applyBoostSalary}
-                    className="mt-2.5 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#0b3162] disabled:opacity-40"
+                    className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#0b3162] disabled:opacity-40"
                   >
                     <TrendingUp className="h-3 w-3 text-[#E8872A]" />
                     Áp dụng nâng trần +20%
@@ -891,12 +951,12 @@ export function SourcingJdRevisionModal({
                 </div>
 
                 {/* Gợi ý 3: Nới lọc cứng & điều kiện phụ */}
-                <div className="flex flex-col justify-between rounded-xl border border-amber-200/80 bg-white p-3 shadow-2xs">
+                <div className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-[#f8fafc] p-3">
                   <div>
-                    <p className="text-xs font-bold text-[#072348]">3. Mở rộng ngành gần & điều kiện phụ</p>
+                    <p className="text-xs font-bold text-[#072348]">3. Mở rộng ngành & điều kiện phụ</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
                       {isSales
-                        ? 'Tắt lọc cứng ngành tuyệt đối và gỡ yêu cầu bắt buộc bằng lái/công tác để mở rộng tệp B2B tương đương.'
+                        ? 'Tắt lọc cứng ngành tuyệt đối và gỡ yêu cầu bắt buộc bằng lái/công tác để mở rộng tệp B2B.'
                         : 'Giảm 1 bậc tự chủ yêu cầu và gỡ điều kiện bắt buộc bằng lái/ca kíp để mở rộng tệp kỹ sư.'}
                     </p>
                   </div>
@@ -904,7 +964,7 @@ export function SourcingJdRevisionModal({
                     type="button"
                     disabled={lockedDisabled}
                     onClick={applyRelaxAuxiliary}
-                    className="mt-2.5 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#0b3162] disabled:opacity-40"
+                    className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#0b3162] disabled:opacity-40"
                   >
                     <RefreshCw className="h-3 w-3 text-[#E8872A]" />
                     Áp dụng mở rộng tệp săn
@@ -914,24 +974,26 @@ export function SourcingJdRevisionModal({
             </div>
 
             {/* PHẦN 2: BẢNG CHỈNH NHANH "5 VAN TIÊU CHÍ SĂN" */}
-            <fieldset disabled={lockedDisabled} className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-extrabold uppercase tracking-wide text-[#072348]">
-                  Phần 2 — Bảng chỉnh nhanh «5 Van Tiêu Chí Săn»
+            <fieldset disabled={lockedDisabled} className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-1 px-0.5">
+                <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348] sm:text-sm">
+                  Phần 2 · Bảng chỉnh nhanh «5 Van Tiêu Chí Săn»
                 </h4>
-                <span className="text-xs text-slate-500">Chỉnh trực tiếp các tiêu chí tác động đến thuật toán Matching</span>
+                <span className="text-[11px] text-slate-500">
+                  Tinh chỉnh trực tiếp các tiêu chí tác động đến điểm số Matching
+                </span>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-3 lg:grid-cols-2">
                 {/* VAN 1: NGÂN SÁCH LƯƠNG */}
-                <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    🎛️ Van 1 · Ngân sách Lương (VNĐ/tháng)
+                    Van 1 · Ngân sách Lương (VNĐ/tháng)
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    Mức lương quyết định trực tiếp điểm khớp thu nhập kỳ vọng của ứng viên.
+                    Quyết định trực tiếp điểm khớp thu nhập kỳ vọng của ứng viên.
                   </p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-[11px] font-semibold text-slate-600">Lương tối thiểu</label>
                       <MoneyInput
@@ -962,14 +1024,14 @@ export function SourcingJdRevisionModal({
                 </div>
 
                 {/* VAN 2: CẤP BẬC & BỀ DÀY KINH NGHIỆM */}
-                <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    🎛️ Van 2 · Cấp bậc & Bề dày kinh nghiệm
+                    Van 2 · Cấp bậc & Bề dày kinh nghiệm
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    Điều chỉnh độ mở về thâm niên để cân bằng giữa chất lượng và số lượng hồ sơ.
+                    Điều chỉnh độ mở về thâm niên để cân bằng giữa chất lượng và độ rộng tệp hồ sơ.
                   </p>
-                  <div className="mt-3 space-y-2.5">
+                  <div className="mt-3 space-y-2">
                     <Select
                       value={isSales ? salesForm.jobLevel : techForm.jobLevel}
                       onChange={(e) => {
@@ -1002,10 +1064,10 @@ export function SourcingJdRevisionModal({
                                 : setTechForm((p) => ({ ...p, experienceBand: band }))
                             }
                             className={clsx(
-                              'rounded-lg border px-2.5 py-1 text-xs font-semibold transition',
+                              'rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition',
                               active
                                 ? 'border-[#072348] bg-[#072348] text-white'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white',
                             )}
                           >
                             {EXPERIENCE_LABEL[band]}
@@ -1017,9 +1079,9 @@ export function SourcingJdRevisionModal({
                 </div>
 
                 {/* VAN 3: KHU VỰC & ĐỊA ĐIỂM SĂN */}
-                <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    🎛️ Van 3 · Khu vực & Địa điểm săn
+                    Van 3 · Khu vực & Địa điểm săn
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     Thêm các tỉnh/KCN lân cận để bắt trọn ứng viên sẵn sàng di chuyển hoặc phụ trách vùng.
@@ -1056,7 +1118,7 @@ export function SourcingJdRevisionModal({
                                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                                   active
                                     ? 'border-[#072348] bg-[#072348] text-white'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                                 )}
                               >
                                 {m}
@@ -1085,7 +1147,7 @@ export function SourcingJdRevisionModal({
                                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                                   active
                                     ? 'border-[#072348] bg-[#072348] text-white'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                                 )}
                               >
                                 {env}
@@ -1099,14 +1161,14 @@ export function SourcingJdRevisionModal({
                 </div>
 
                 {/* VAN 4: TIÊU CHÍ CHUYÊN MÔN CỐT LÕI */}
-                <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    🎛️ Van 4 · Tiêu chí Chuyên môn cốt lõi
+                    Van 4 · Tiêu chí Chuyên môn cốt lõi
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     {isSales
-                      ? 'Tinh chỉnh chế độ lọc ngành, tệp khách hàng mục tiêu và mô hình bán hàng.'
-                      : 'Tinh chỉnh mức độ tự chủ công việc (1–5) và nhóm nghiệp vụ kỹ thuật.'}
+                      ? 'Chế độ lọc ngành, tệp khách hàng mục tiêu và mô hình bán hàng.'
+                      : 'Mức độ tự chủ công việc (1–5) và nhóm nghiệp vụ kỹ thuật.'}
                   </p>
                   {isSales ? (
                     <div className="mt-3 space-y-2.5">
@@ -1128,7 +1190,7 @@ export function SourcingJdRevisionModal({
                                 'rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition',
                                 salesForm.industryHardMode === val
                                   ? 'border-[#072348] bg-[#072348] text-white'
-                                  : 'border-slate-200 bg-white text-slate-700',
+                                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white',
                               )}
                             >
                               {label}
@@ -1154,8 +1216,8 @@ export function SourcingJdRevisionModal({
                                 className={clsx(
                                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                                   active
-                                    ? 'border-[#E8872A] bg-amber-50 text-[#072348] font-bold'
-                                    : 'border-slate-200 bg-white text-slate-600',
+                                    ? 'border-[#E8872A] bg-amber-50 font-bold text-[#072348]'
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                                 )}
                               >
                                 {seg}
@@ -1183,7 +1245,7 @@ export function SourcingJdRevisionModal({
                                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                                   active
                                     ? 'border-[#072348] bg-[#072348] text-white'
-                                    : 'border-slate-200 bg-white text-slate-600',
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                                 )}
                               >
                                 {DEAL_TYPE_LABEL[dt]}
@@ -1209,7 +1271,7 @@ export function SourcingJdRevisionModal({
                                   'rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition',
                                   active
                                     ? 'border-[#072348] bg-[#072348] text-white'
-                                    : 'border-slate-200 bg-white text-slate-700',
+                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white',
                                 )}
                               >
                                 {opt.value}. {opt.label}
@@ -1236,8 +1298,8 @@ export function SourcingJdRevisionModal({
                                 className={clsx(
                                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                                   active
-                                    ? 'border-[#E8872A] bg-amber-50 text-[#072348] font-bold'
-                                    : 'border-slate-200 bg-white text-slate-600',
+                                    ? 'border-[#E8872A] bg-amber-50 font-bold text-[#072348]'
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                                 )}
                               >
                                 {wt}
@@ -1252,9 +1314,9 @@ export function SourcingJdRevisionModal({
               </div>
 
               {/* VAN 5: ĐIỀU KIỆN PHỤ (NGOẠI NGỮ, BẰNG LÁI, CÔNG TÁC / LÀM CA) */}
-              <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4">
+              <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                  🎛️ Van 5 · Điều kiện phụ (Ngoại ngữ · Bằng lái · Tần suất công tác / Ca kíp)
+                  Van 5 · Điều kiện phụ (Ngoại ngữ · Bằng lái · Tần suất công tác / Ca kíp)
                 </p>
                 <p className="mt-0.5 text-[11px] text-slate-500">
                   Bỏ bớt các điều kiện phụ không thực sự bắt buộc sẽ giúp tăng đáng kể điểm tổng cho ứng viên giỏi
@@ -1280,7 +1342,7 @@ export function SourcingJdRevisionModal({
                               'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                               active
                                 ? 'border-[#072348] bg-[#072348] text-white'
-                                : 'border-slate-200 bg-white text-slate-600',
+                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                             )}
                           >
                             {lang}
@@ -1314,7 +1376,7 @@ export function SourcingJdRevisionModal({
                               'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                               active
                                 ? 'border-[#072348] bg-[#072348] text-white'
-                                : 'border-slate-200 bg-white text-slate-600',
+                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                             )}
                           >
                             {lic}
@@ -1342,7 +1404,7 @@ export function SourcingJdRevisionModal({
                               'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                               active
                                 ? 'border-[#072348] bg-[#072348] text-white'
-                                : 'border-slate-200 bg-white text-slate-600',
+                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                             )}
                           >
                             {TRAVEL_ABILITY_LABEL[tr]}
@@ -1367,7 +1429,7 @@ export function SourcingJdRevisionModal({
                                   'rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition',
                                   active
                                     ? 'border-[#072348] bg-[#072348] text-white'
-                                    : 'border-slate-200 bg-white text-slate-600',
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white',
                                 )}
                               >
                                 {sh.label}
@@ -1383,27 +1445,27 @@ export function SourcingJdRevisionModal({
             </fieldset>
 
             {/* Nút mở rộng chỉnh sửa toàn bộ JD chi tiết (vẫn khóa Vị trí tuyển dụng) */}
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5">
+            <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-bold text-[#072348]">
-                    Chỉnh sửa nâng cao: Sản phẩm/Thiết bị cụ thể & Nội dung mô tả JD
+                    Chỉnh sửa nâng cao: Danh mục Sản phẩm/Thiết bị & Nội dung mô tả JD
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Mở biểu mẫu đầy đủ nếu bạn muốn cập nhật thêm danh mục thiết bị/sản phẩm, chứng chỉ hoặc mô tả công
-                    việc (Vị trí gốc vẫn được khóa cố định).
+                    Mở biểu mẫu đầy đủ nếu muốn cập nhật thêm thiết bị/sản phẩm, chứng chỉ hoặc mô tả công việc (Vị trí
+                    gốc vẫn khóa cố định).
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowFullJd((v) => !v)}
-                  className="rounded-xl border border-[#072348]/20 bg-white px-3 py-1.5 text-xs font-bold text-[#072348] transition hover:bg-[#072348] hover:text-white"
+                  className="rounded-xl border border-[#072348]/20 bg-[#f4f7fb] px-3 py-1.5 text-xs font-bold text-[#072348] transition hover:bg-[#072348] hover:text-white"
                 >
                   {showFullJd ? 'Thu gọn biểu mẫu đầy đủ' : 'Mở biểu mẫu JD chi tiết'}
                 </button>
               </div>
               {showFullJd ? (
-                <div className="mt-4 border-t border-slate-200 pt-4">
+                <div className="mt-4 border-t border-slate-100 pt-4">
                   {isSales ? (
                     <JdSalesForm
                       form={salesForm}
@@ -1424,57 +1486,111 @@ export function SourcingJdRevisionModal({
                 </div>
               ) : null}
             </div>
+          </div>
+        )}
 
-            {/* PHẦN 3: TÓM TẮT THAY ĐỔI GHI VÀO LỊCH SỬ */}
-            <div className="rounded-2xl border border-[#d7e3f2] bg-[#f4f7fb] px-4 py-3 text-xs">
-              <p className="font-bold text-[#072348]">
-                Phần 3 — Nhật ký thay đổi sẽ lưu vào mục LỊCH SỬ & Quét lại ngay:
-              </p>
-              {diffItems.length > 0 ? (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {diffItems.map((item, idx) => (
-                    <span
-                      key={idx}
-                      className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-[#072348] ring-1 ring-[#d7e3f2]"
-                    >
-                      ✓ {item}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-1 text-slate-500">
-                  Chưa có thay đổi nào so với JD hiện tại. Hãy bấm 1-Click Áp Dụng ở Phần 1 hoặc chỉnh các Van tiêu chí
-                  ở Phần 2.
-                </p>
-              )}
-            </div>
-
+        {/* FOOTER CỐ ĐỊNH GỌN GÀNG + NHẬT KÝ THAY ĐỔI */}
+        {jobId && !isLoading ? (
+          <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-3.5 sm:px-6">
             {errText ? (
-              <p className="flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              <p className="mb-2.5 flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {errText}
               </p>
             ) : null}
 
-            <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white/95 pt-4 backdrop-blur-xs">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Hủy
-              </Button>
-              <Button
-                type="button"
-                disabled={lockedDisabled}
-                onClick={() => reviseMutation.mutate()}
-              >
-                {reviseMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
+                {diffItems.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-[#072348]">Thay đổi chờ áp dụng:</span>
+                    {diffItems.map((item, idx) => (
+                      <span
+                        key={idx}
+                        className="rounded-lg bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-[#072348] ring-1 ring-amber-200"
+                      >
+                        ✓ {item}
+                      </span>
+                    ))}
+                  </div>
                 ) : (
-                  <Save className="h-4 w-4" />
+                  <p className="text-xs text-slate-500">
+                    Chưa có thay đổi nào so với JD hiện tại. Hãy chọn gợi ý AI hoặc chỉnh các Van tiêu chí ở trên.
+                  </p>
                 )}
-                Lưu điều chỉnh & Quét lại ứng viên ngay (-1 lượt Điều chỉnh)
-              </Button>
+              </div>
+
+              <div className="flex shrink-0 items-center justify-end gap-2.5">
+                <Button type="button" variant="outline" onClick={handleRequestClose}>
+                  Hủy
+                </Button>
+                <Button
+                  type="button"
+                  disabled={lockedDisabled}
+                  onClick={() => reviseMutation.mutate()}
+                >
+                  {reviseMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Lưu điều chỉnh & Quét lại ngay (-1 lượt)
+                </Button>
+              </div>
             </div>
           </div>
-        )}
+        ) : null}
+
+        {/* HỘP THOẠI XÁC NHẬN KHI BẤM X / HUỶ MÀ CHƯA LƯU ĐIỀU CHỈNH */}
+        {confirmDiscardOpen ? (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-[#E8872A]">
+                  <AlertCircle className="h-5 w-5" />
+                </span>
+                <div>
+                  <h4 className="text-base font-extrabold text-[#072348]">
+                    Điều chỉnh chưa được áp dụng
+                  </h4>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                    Bạn đã thay đổi tiêu chí săn nhưng chưa bấm lưu áp dụng. Bạn có muốn huỷ các điều chỉnh vừa thực
+                    hiện không?
+                  </p>
+                  {diffItems.length > 0 ? (
+                    <div className="mt-2.5 flex flex-wrap gap-1">
+                      {diffItems.map((item, i) => (
+                        <span
+                          key={i}
+                          className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDiscardOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Tiếp tục điều chỉnh
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDiscard}
+                  className="rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
+                >
+                  Có, huỷ điều chỉnh
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
