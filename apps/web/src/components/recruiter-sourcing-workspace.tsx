@@ -189,7 +189,10 @@ export function RecruiterSourcingWorkspace() {
     () => (data?.engagements ?? []).filter((eng) => Boolean(eng.jobId)),
     [data?.engagements],
   );
-  const selected = activeId ?? validEngagements[0]?.id ?? null;
+  const selected =
+    activeId && validEngagements.some((eng) => eng.id === activeId)
+      ? activeId
+      : validEngagements[0]?.id ?? null;
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
   const selectedEngagement = validEngagements.find((eng) => eng.id === selected) ?? null;
@@ -360,49 +363,48 @@ export function RecruiterSourcingWorkspace() {
                     lịch phỏng vấn ngay tại chỗ
                   </p>
                 </div>
-                {selectedEngagement ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={ended}
-                      onClick={() => setReportModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3 py-2 text-xs font-semibold text-[#072348] transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40"
-                    >
-                      <FileSearch className="h-3.5 w-3.5 text-[#E8872A]" />
-                      Báo cáo tiến độ & AI
-                      {e!.searchRoundsRemaining != null ? ` · còn ${e!.searchRoundsRemaining}` : ''}
-                    </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={ended || !selectedEngagement}
+                    onClick={() => setReportModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3.5 py-2 text-xs font-bold text-[#072348] shadow-2xs transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40"
+                  >
+                    <FileSearch className="h-3.5 w-3.5 text-[#E8872A]" />
+                    Báo cáo{e!.searchRoundsRemaining != null ? ` · ${e!.searchRoundsRemaining}` : ''}
+                  </button>
 
-                    <button
-                      type="button"
-                      disabled={ended || !huntJobId || (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)}
-                      onClick={() => setRevisionModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3 py-2 text-xs font-semibold text-[#072348] transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 text-[#E8872A]" />
-                      Điều chỉnh tiêu chí JD
-                      {e!.revisionsRemaining != null ? ` · còn ${e!.revisionsRemaining}` : ''}
-                    </button>
+                  <button
+                    type="button"
+                    disabled={ended || !shortlistInScope || !selectedEngagement}
+                    onClick={() =>
+                      setSelectedRoundId((prev) => (prev === 'shortlist' ? 'all' : 'shortlist'))
+                    }
+                    className={clsx(
+                      'inline-flex items-center justify-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-bold shadow-2xs transition',
+                      selectedRoundId === 'shortlist'
+                        ? 'border-indigo-600 bg-indigo-600 text-white'
+                        : 'border-[#d7e3f2] bg-[#f7f9fc] text-[#072348] hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40',
+                    )}
+                  >
+                    <ListChecks className="h-3.5 w-3.5 text-[#E8872A]" />
+                    Shortlist · {e!.shortlistsRemaining ?? '∞'}
+                  </button>
 
-                    <button
-                      type="button"
-                      disabled={ended || !shortlistInScope}
-                      onClick={() =>
-                        setSelectedRoundId((prev) => (prev === 'shortlist' ? 'all' : 'shortlist'))
-                      }
-                      className={clsx(
-                        'inline-flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-semibold transition',
-                        selectedRoundId === 'shortlist'
-                          ? 'border-indigo-600 bg-indigo-600 text-white'
-                          : 'border-[#d7e3f2] bg-[#f7f9fc] text-[#072348] hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white',
-                      )}
-                    >
-                      <ListChecks className="h-3.5 w-3.5" />
-                      Đã Shortlist ({engagementShortlistedIds.length}
-                      {e!.shortlistQuota != null ? `/${e!.shortlistQuota}` : ''})
-                    </button>
-                  </div>
-                ) : null}
+                  <button
+                    type="button"
+                    disabled={
+                      ended ||
+                      !huntJobId ||
+                      (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)
+                    }
+                    onClick={() => setRevisionModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#E8872A]/40 bg-gradient-to-r from-[#072348] to-[#0d356c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-40"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 text-[#E8872A]" />
+                    Điều chỉnh tin săn{e!.revisionsRemaining != null ? ` · ${e!.revisionsRemaining}` : ''}
+                  </button>
+                </div>
               </div>
 
               {validEngagements.length === 0 ? (
@@ -430,51 +432,97 @@ export function RecruiterSourcingWorkspace() {
                     const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
                     const slCount = (data?.shortlistedByEngagement?.[eng.id] ?? []).length;
                     const deadlineBadge = formatRemainingDaysFromStart(eng.createdAt);
+                    const linkedJobTitle = (jobs ?? []).find((j) => j.id === eng.jobId)?.title;
                     return (
-                      <button
+                      <div
                         key={eng.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => {
                           setActiveId(eng.id);
                           setSelectedRoundId('all');
                         }}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.preventDefault();
+                            setActiveId(eng.id);
+                            setSelectedRoundId('all');
+                          }
+                        }}
                         className={clsx(
-                          'flex flex-col justify-between gap-2 rounded-2xl border p-3.5 text-left transition',
+                          'group flex cursor-pointer flex-col justify-between gap-2.5 rounded-2xl border p-4 text-left transition',
                           isActive
                             ? 'border-[#072348] bg-[#072348] text-white shadow-md'
                             : 'border-[#d7e3f2] bg-[#f8fafc] text-slate-800 hover:-translate-y-0.5 hover:border-[#52749a] hover:bg-white',
                         )}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="line-clamp-1 font-bold">{eng.title}</span>
-                          <span
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="line-clamp-1 text-sm font-extrabold">{eng.title}</span>
+                            <span
+                              className={clsx(
+                                'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold',
+                                isActive
+                                  ? 'bg-[#E8872A] text-white'
+                                  : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
+                              )}
+                            >
+                              {STATUS_LABEL[eng.status] ?? eng.status}
+                            </span>
+                          </div>
+                          <p
                             className={clsx(
-                              'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                              isActive ? 'bg-[#E8872A] text-white' : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
+                              'mt-1 line-clamp-1 text-[11px]',
+                              isActive ? 'text-white/75' : 'text-slate-500',
                             )}
                           >
-                            {STATUS_LABEL[eng.status] ?? eng.status}
-                          </span>
+                            JD: {linkedJobTitle ?? eng.title}
+                          </p>
                         </div>
+
                         <div
                           className={clsx(
-                            'flex flex-wrap items-center justify-between gap-2 text-[11px]',
-                            isActive ? 'text-white/80' : 'text-slate-500',
+                            'flex flex-wrap items-center justify-between gap-2 border-t pt-2.5 text-[11px]',
+                            isActive ? 'border-white/15 text-white/85' : 'border-slate-200/80 text-slate-500',
                           )}
                         >
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {deadlineBadge ?? 'Bảo lưu 45 ngày'}
-                          </span>
-                          <span className="inline-flex items-center gap-2 font-semibold">
+                          <div className="flex flex-wrap items-center gap-2 font-medium">
                             <span className="inline-flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {roundCount} đợt
+                              <Clock className="h-3 w-3 text-[#E8872A]" />
+                              {roundCount} đợt quét
                             </span>
-                            {slCount > 0 ? <span>· ★ {slCount} Shortlist</span> : null}
-                          </span>
+                            <span>·</span>
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {deadlineBadge ?? 'Bảo lưu 45 ngày'}
+                            </span>
+                            {slCount > 0 ? <span>· ★ {slCount}</span> : null}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={
+                              ended ||
+                              !eng.jobId ||
+                              (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)
+                            }
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              setActiveId(eng.id);
+                              setRevisionModalOpen(true);
+                            }}
+                            className={clsx(
+                              'inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-bold transition disabled:opacity-40',
+                              isActive
+                                ? 'bg-white text-[#072348] shadow-2xs hover:bg-amber-50'
+                                : 'border border-[#072348]/20 bg-white text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white',
+                            )}
+                          >
+                            <RefreshCw className="h-3 w-3 text-[#E8872A]" />
+                            Điều chỉnh
+                          </button>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
