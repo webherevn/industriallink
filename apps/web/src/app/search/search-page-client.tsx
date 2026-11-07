@@ -364,85 +364,53 @@ function ResultCard({
       <div className="relative z-10 flex items-start gap-3 sm:gap-4">
         <ScoreRing score={result.score} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="truncate text-base font-bold text-slate-900">
-                {result.displayName}
-              </h3>
-              {(result.viewed || result.applied) && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {result.viewed && (
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                      Đã xem
-                    </span>
-                  )}
-                  {result.applied && (
-                    <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                      Đã ứng tuyển
-                    </span>
-                  )}
-                </div>
-              )}
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-500">
-                <span>
-                  {result.currentPosition
-                    ? formatJobTitle(result.currentPosition)
-                    : 'Chưa cập nhật vị trí'}
-                </span>
-                {result.industry && (
-                  <>
-                    <span className="text-slate-300">·</span>
-                    <span>{result.industry}</span>
-                  </>
-                )}
-                <span className="text-slate-300">·</span>
-                <span
-                  className={clsx(
-                    'inline-flex items-center gap-1 font-medium',
-                    result.location ? 'text-slate-700' : 'text-slate-400',
-                  )}
-                >
-                  <MapPin className="h-3.5 w-3.5 text-[#E8872A]" />
-                  {result.location ?? 'Chưa có địa điểm'}
-                </span>
-                {result.code ? (
-                  <>
-                    <span className="text-slate-300">·</span>
-                    <span className="font-mono text-xs text-slate-400">{result.code}</span>
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-2.5 sm:gap-3">
-              <div className="flex flex-col items-end gap-1.5">
-                <span className={clsx('rounded-lg px-2.5 py-1 text-[11px] font-bold ring-1', matchBadgeTone(result.score))}>
-                  Phù hợp {formatMatchPct(result.score)}%
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)]"
-                  title={
-                    creditCost === 2
-                      ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
-                      : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
-                  }
-                >
-                  <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
-                  <span>
-                    <span className="text-[#E8872A]">{creditCost}</span> Credit
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-bold text-slate-900">
+              {result.displayName}
+            </h3>
+            {(result.viewed || result.applied) && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {result.viewed && (
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                    Đã xem
                   </span>
-                </span>
+                )}
+                {result.applied && (
+                  <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    Đã ứng tuyển
+                  </span>
+                )}
               </div>
-
-              <ProfileOpenLink
-                href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
-                potential={!result.applied}
-                ariaLabel={`Xem hồ sơ ${result.displayName}`}
-                className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#072348] px-3.5 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0d3b80] hover:shadow-md"
+            )}
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-500">
+              <span>
+                {result.currentPosition
+                  ? formatJobTitle(result.currentPosition)
+                  : 'Chưa cập nhật vị trí'}
+              </span>
+              {result.industry && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span>{result.industry}</span>
+                </>
+              )}
+              <span className="text-slate-300">·</span>
+              <span
+                className={clsx(
+                  'inline-flex items-center gap-1 font-medium',
+                  result.location ? 'text-slate-700' : 'text-slate-400',
+                )}
               >
-                <Eye className="h-4 w-4 text-[#E8872A]" />
-                <span>Xem hồ sơ</span>
-              </ProfileOpenLink>
-            </div>
+                <MapPin className="h-3.5 w-3.5 text-[#E8872A]" />
+                {result.location ?? 'Chưa có địa điểm'}
+              </span>
+              {result.code ? (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="font-mono text-xs text-slate-400">{result.code}</span>
+                </>
+              ) : null}
+            </p>
           </div>
 
           {result.reason && (
@@ -513,6 +481,39 @@ function ResultCard({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="flex min-w-[108px] shrink-0 flex-col items-stretch gap-1.5">
+          <span
+            className={clsx(
+              'inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-[11px] font-bold tabular-nums ring-1',
+              matchBadgeTone(result.score),
+            )}
+          >
+            Phù hợp {formatMatchPct(result.score)}%
+          </span>
+          <span
+            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)]"
+            title={
+              creditCost === 2
+                ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
+                : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
+            }
+          >
+            <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+            <span>
+              <span className="text-[#E8872A]">{creditCost}</span> Credit
+            </span>
+          </span>
+          <ProfileOpenLink
+            href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
+            potential={!result.applied}
+            ariaLabel={`Xem hồ sơ ${result.displayName}`}
+            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-2.5 text-[11px] font-bold text-white shadow-2xs transition hover:bg-[#0d3b80]"
+          >
+            <Eye className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+            <span>Xem hồ sơ</span>
+          </ProfileOpenLink>
         </div>
       </div>
     </article>
