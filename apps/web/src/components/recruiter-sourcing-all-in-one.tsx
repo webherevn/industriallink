@@ -823,18 +823,18 @@ export function SourcingJdRevisionModal({
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#E8872A] ring-1 ring-amber-200">
                 <Sparkles className="h-3 w-3" />
-                Smart Tuning Panel
+                Tối ưu tiêu chí tuyển dụng
               </span>
               <span className="inline-flex items-center rounded-full bg-[#072348] px-2.5 py-0.5 text-[10px] font-bold text-white">
                 Còn {revisionsRemaining ?? '∞'} lượt điều chỉnh
               </span>
             </div>
             <h3 className="mt-1.5 text-lg font-extrabold text-[#072348] sm:text-xl">
-              Tối ưu & Điều chỉnh tiêu chí Tin Săn
+              Điều chỉnh tiêu chí Tin Săn
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Áp dụng nhanh gợi ý AI 1-Click hoặc tinh chỉnh 5 Van tiêu chí săn bên dưới — hệ thống tự động ghi vào
-              Lịch sử và quét lại ứng viên ngay.
+              Chọn gợi ý tối ưu từ AI hoặc chỉnh sửa trực tiếp các nhóm tiêu chí tuyển dụng bên dưới — hệ thống tự động
+              ghi nhận lịch sử và quét lại ứng viên ngay.
             </p>
           </div>
 
@@ -888,7 +888,7 @@ export function SourcingJdRevisionModal({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-[#072348] sm:text-sm">
                   <Sparkles className="h-4 w-4 text-[#E8872A]" />
-                  Phần 1 · Đề xuất điều chỉnh tự động từ AI inlink (1-Click)
+                  Gợi ý tối ưu tiêu chí từ AI inlink
                 </h4>
                 <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
                   {aiDiagnostics.highCount} UV khớp ≥80% · {aiDiagnostics.medCount} UV tiệm cận 60–79%
@@ -973,22 +973,22 @@ export function SourcingJdRevisionModal({
               </div>
             </div>
 
-            {/* PHẦN 2: BẢNG CHỈNH NHANH "5 VAN TIÊU CHÍ SĂN" */}
+            {/* TIÊU CHÍ TUYỂN DỤNG TRỌNG TÂM */}
             <fieldset disabled={lockedDisabled} className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-1 px-0.5">
                 <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348] sm:text-sm">
-                  Phần 2 · Bảng chỉnh nhanh «5 Van Tiêu Chí Săn»
+                  Tiêu chí tuyển dụng & Độ phủ ứng viên
                 </h4>
                 <span className="text-[11px] text-slate-500">
-                  Tinh chỉnh trực tiếp các tiêu chí tác động đến điểm số Matching
+                  Chỉnh sửa trực tiếp các tiêu chí quyết định độ phù hợp hồ sơ
                 </span>
               </div>
 
               <div className="grid gap-3 lg:grid-cols-2">
-                {/* VAN 1: NGÂN SÁCH LƯƠNG */}
+                {/* MỨC THU NHẬP & NGÂN SÁCH LƯƠNG */}
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Van 1 · Ngân sách Lương (VNĐ/tháng)
+                    Mức thu nhập & Ngân sách lương (VNĐ/tháng)
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     Quyết định trực tiếp điểm khớp thu nhập kỳ vọng của ứng viên.
@@ -1023,10 +1023,10 @@ export function SourcingJdRevisionModal({
                   </div>
                 </div>
 
-                {/* VAN 2: CẤP BẬC & BỀ DÀY KINH NGHIỆM */}
+                {/* CẤP BẬC & KINH NGHIỆM YÊU CẦU */}
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Van 2 · Cấp bậc & Bề dày kinh nghiệm
+                    Cấp bậc & Kinh nghiệm yêu cầu
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     Điều chỉnh độ mở về thâm niên để cân bằng giữa chất lượng và độ rộng tệp hồ sơ.
@@ -1078,10 +1078,10 @@ export function SourcingJdRevisionModal({
                   </div>
                 </div>
 
-                {/* VAN 3: KHU VỰC & ĐỊA ĐIỂM SĂN */}
+                {/* KHU VỰC LÀM VIỆC & THỊ TRƯỜNG PHỤ TRÁCH */}
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Van 3 · Khu vực & Địa điểm săn
+                    Khu vực làm việc & Địa bàn phụ trách
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     Thêm các tỉnh/KCN lân cận để bắt trọn ứng viên sẵn sàng di chuyển hoặc phụ trách vùng.
@@ -1160,10 +1160,10 @@ export function SourcingJdRevisionModal({
                   </div>
                 </div>
 
-                {/* VAN 4: TIÊU CHÍ CHUYÊN MÔN CỐT LÕI */}
+                {/* TIÊU CHÍ CHUYÊN MÔN TRỌNG TÂM */}
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Van 4 · Tiêu chí Chuyên môn cốt lõi
+                    Yêu cầu chuyên môn trọng tâm
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     {isSales
@@ -1313,10 +1313,10 @@ export function SourcingJdRevisionModal({
                 </div>
               </div>
 
-              {/* VAN 5: ĐIỀU KIỆN PHỤ (NGOẠI NGỮ, BẰNG LÁI, CÔNG TÁC / LÀM CA) */}
+              {/* ĐIỀU KIỆN BỔ TRỢ */}
               <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                  Van 5 · Điều kiện phụ (Ngoại ngữ · Bằng lái · Tần suất công tác / Ca kíp)
+                  Điều kiện bổ trợ (Ngoại ngữ · Giấy phép lái xe · Công tác)
                 </p>
                 <p className="mt-0.5 text-[11px] text-slate-500">
                   Bỏ bớt các điều kiện phụ không thực sự bắt buộc sẽ giúp tăng đáng kể điểm tổng cho ứng viên giỏi
@@ -1515,7 +1515,8 @@ export function SourcingJdRevisionModal({
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    Chưa có thay đổi nào so với JD hiện tại. Hãy chọn gợi ý AI hoặc chỉnh các Van tiêu chí ở trên.
+                    Chưa có thay đổi nào so với JD hiện tại. Bạn có thể chọn gợi ý tối ưu hoặc chỉnh sửa các tiêu chí ở
+                    trên.
                   </p>
                 )}
               </div>
