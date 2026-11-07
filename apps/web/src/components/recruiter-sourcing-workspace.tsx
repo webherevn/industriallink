@@ -41,7 +41,7 @@ import {
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { addCandidateShortlist } from '@/lib/candidate';
+import { addCandidateShortlist, removeCandidateShortlist } from '@/lib/candidate';
 import { listMyJobs } from '@/lib/jobs';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
@@ -160,26 +160,40 @@ export function RecruiterSourcingWorkspace() {
   const quickShortlist = useMutation({
     mutationFn: async (cand: CandidateMatchView) => {
       if (!selected) throw new Error('Chưa chọn vị trí Săn');
+      const currentlyShortlisted = engagementShortlistedIds.includes(cand.candidateId);
+      if (currentlyShortlisted) {
+        await removeCandidateShortlist(cand.candidateId).catch(() => null);
+        const ws = await consumeRecruiterSourcing({
+          kind: 'shortlist',
+          engagementId: selected,
+          jobId: huntJobId ?? undefined,
+          note: `unshortlist:${cand.candidateId}:${cand.displayName}`,
+        });
+        return { ws, removed: true };
+      }
       await addCandidateShortlist(cand.candidateId).catch(() => null);
-      return consumeRecruiterSourcing({
+      const ws = await consumeRecruiterSourcing({
         kind: 'shortlist',
         engagementId: selected,
         jobId: huntJobId ?? undefined,
         note: `shortlist:${cand.candidateId}:${cand.displayName}`,
       });
+      return { ws, removed: false };
     },
-    onSuccess: (ws, cand) => {
+    onSuccess: ({ ws, removed }, cand) => {
       void qc.setQueryData(['recruiter-sourcing'], ws);
       void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
       setBanner({
         tone: 'ok',
-        text: `Đã đưa ứng viên «${cand.displayName}» vào danh sách Shortlist!`,
+        text: removed
+          ? `Đã bỏ ứng viên «${cand.displayName}» khỏi danh sách Shortlist.`
+          : `Đã đưa ứng viên «${cand.displayName}» vào danh sách Shortlist!`,
       });
     },
     onError: (err) =>
       setBanner({
         tone: 'err',
-        text: err instanceof ApiError ? err.message : 'Không đưa được vào Shortlist',
+        text: err instanceof ApiError ? err.message : 'Không cập nhật được Shortlist',
       }),
   });
 
@@ -364,39 +378,66 @@ export function RecruiterSourcingWorkspace() {
               onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
             />
 
-            {/* TỔNG QUAN HIỆU QUẢ TIN SĂN ĐANG CHỌN (ĐƯA TỪ BÁO CÁO RA NGOÀI TRANG CHÍNH) */}
+            {/* TỔNG QUAN HIỆU QUẢ TIN SĂN ĐANG CHỌN (ĐỒNG BỘ CSS VỚI HỘP THƯ ỨNG VIÊN) */}
             {selectedEngagement ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-xs">
-                  <p className="text-[11px] font-semibold text-slate-500">Đợt quét 2h/lần</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#072348]">
-                    {engagementScanRounds.length}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-xs">
-                  <p className="text-[11px] font-semibold text-slate-500">Tổng phù hợp</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#072348]">
-                    {allResults.length}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 shadow-xs">
-                  <p className="text-[11px] font-semibold text-amber-900">Khớp cao ≥ 80%</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#E8872A]">
-                    {highMatchCount}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-xs">
-                  <p className="text-[11px] font-semibold text-slate-500">Đã mở hồ sơ</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#072348]">
-                    {openedCount}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 shadow-xs">
-                  <p className="text-[11px] font-semibold text-emerald-900">Nộp ứng tuyển</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-emerald-700">
-                    {appliedCandidates.length}
-                  </p>
-                </div>
+                {[
+                  {
+                    label: 'Đợt quét 2h/lần',
+                    value: engagementScanRounds.length,
+                    icon: Clock,
+                    tone: 'bg-brand-50 text-brand-700',
+                  },
+                  {
+                    label: 'Tổng phù hợp',
+                    value: allResults.length,
+                    icon: Users,
+                    tone: 'bg-[#e7eef8] text-brand-700',
+                  },
+                  {
+                    label: 'Khớp cao ≥ 80%',
+                    value: highMatchCount,
+                    icon: Sparkles,
+                    tone: 'bg-accent-50 text-accent-700',
+                  },
+                  {
+                    label: 'Đã mở hồ sơ',
+                    value: openedCount,
+                    icon: Eye,
+                    tone: 'bg-brand-50 text-brand-700',
+                  },
+                  {
+                    label: 'Nộp ứng tuyển',
+                    value: appliedCandidates.length,
+                    icon: CheckCircle2,
+                    tone: 'bg-emerald-50 text-emerald-700',
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.label}
+                      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200"
+                    >
+                      <span
+                        className={clsx(
+                          'flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110',
+                          item.tone,
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <p className="mt-3 text-sm font-medium text-slate-500">{item.label}</p>
+                      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">
+                        {item.value}
+                      </p>
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
 
@@ -1016,13 +1057,13 @@ function AppliedCandidatesColumn({
 
                   <button
                     type="button"
-                    disabled={isShortlisted || !canShortlist}
+                    disabled={!isShortlisted && !canShortlist}
                     onClick={() => onQuickShortlist(row)}
-                    title={isShortlisted ? 'Đã trong Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                    title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
                     className={clsx(
                       'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
                       isShortlisted
-                        ? 'bg-indigo-50 text-indigo-700'
+                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
                         : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
                     )}
                   >
@@ -1288,13 +1329,13 @@ function PotentialCandidatesColumn({
 
                   <button
                     type="button"
-                    disabled={isShortlisted || !canShortlist}
+                    disabled={!isShortlisted && !canShortlist}
                     onClick={() => onQuickShortlist(row)}
-                    title={isShortlisted ? 'Đã trong Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                    title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
                     className={clsx(
                       'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
                       isShortlisted
-                        ? 'bg-indigo-50 text-indigo-700'
+                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
                         : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
                     )}
                   >
@@ -1338,6 +1379,7 @@ function QuotaGrid({
     quota: number | null;
     remaining: number | null;
     icon: typeof Briefcase;
+    tone: string;
     actionHint?: string;
     onClick?: () => void;
   }[] = [
@@ -1347,6 +1389,7 @@ function QuotaGrid({
       quota: e.positionQuota,
       remaining: e.positionsRemaining,
       icon: Briefcase,
+      tone: 'bg-brand-50 text-brand-700',
       actionHint: onOpenPosition ? 'Bấm để tạo Tin Săn' : undefined,
       onClick: onOpenPosition,
     },
@@ -1356,16 +1399,8 @@ function QuotaGrid({
       quota: e.creditQuota,
       remaining: e.profileOpensRemaining,
       icon: Eye,
+      tone: 'bg-accent-50 text-accent-700',
       actionHint: 'Ưu tiên trừ trước ví lẻ',
-    },
-    {
-      label: 'Báo cáo',
-      used: e.searchRoundsUsed,
-      quota: e.searchRoundQuota,
-      remaining: e.searchRoundsRemaining,
-      icon: FileSearch,
-      actionHint: onOpenReport ? 'Xem phễu & khuyến nghị AI →' : undefined,
-      onClick: onOpenReport,
     },
     {
       label: 'Điều chỉnh',
@@ -1373,6 +1408,7 @@ function QuotaGrid({
       quota: e.revisionQuota,
       remaining: e.revisionsRemaining,
       icon: RefreshCw,
+      tone: 'bg-[#e7eef8] text-brand-700',
       actionHint: onOpenRevision ? 'Sửa tiêu chí JD & quét lại →' : undefined,
       onClick: onOpenRevision,
     },
@@ -1382,8 +1418,19 @@ function QuotaGrid({
       quota: e.shortlistQuota,
       remaining: e.shortlistsRemaining,
       icon: ListChecks,
+      tone: 'bg-indigo-50 text-indigo-700',
       actionHint: onFilterShortlist ? 'Lọc ứng viên đã Shortlist →' : undefined,
       onClick: onFilterShortlist,
+    },
+    {
+      label: 'Báo cáo',
+      used: e.searchRoundsUsed,
+      quota: e.searchRoundQuota,
+      remaining: e.searchRoundsRemaining,
+      icon: FileSearch,
+      tone: 'bg-emerald-50 text-emerald-700',
+      actionHint: onOpenReport ? 'Xem phễu & khuyến nghị AI →' : undefined,
+      onClick: onOpenReport,
     },
   ];
   const ended = cycleEnded(e.assignment?.endsAt);
@@ -1401,7 +1448,7 @@ function QuotaGrid({
               : null}
         </p>
       ) : null}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {rows.map((r) => {
           const Icon = r.icon;
           const left = r.quota == null ? '∞' : String(r.remaining ?? 0);
@@ -1412,27 +1459,38 @@ function QuotaGrid({
               type={r.onClick ? 'button' : undefined}
               onClick={r.onClick}
               className={clsx(
-                'rounded-2xl border border-[#d7e3f2] bg-white p-3.5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md',
-                r.onClick && 'cursor-pointer hover:border-[#072348]',
+                'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200',
+                r.onClick && 'cursor-pointer',
               )}
             >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{r.label}</p>
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-[#f4f7fb] text-[#072348]">
-                  <Icon className="h-3.5 w-3.5" />
+              <div className="flex items-start justify-between gap-2">
+                <span
+                  className={clsx(
+                    'flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110',
+                    r.tone,
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                  {fmtQuota(r.used, r.quota, r.remaining)}
                 </span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-[#E8872A]">{left}</p>
-              <p className="text-[11px] text-slate-400">{fmtQuota(r.used, r.quota, r.remaining)}</p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e8eef6]">
+              <p className="mt-3 text-sm font-medium text-slate-500">{r.label}</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{left}</p>
+              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-[#e8eef6]">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#072348] to-[#E8872A] transition-all duration-700"
                   style={{ width: `${quotaFill(r.used, r.quota)}%` }}
                 />
               </div>
               {r.actionHint ? (
-                <p className="mt-1.5 text-[10px] font-semibold text-[#072348]/75">{r.actionHint}</p>
+                <p className="relative z-10 mt-1.5 text-[11px] font-semibold text-[#072348]/80">{r.actionHint}</p>
               ) : null}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80"
+              />
             </Tag>
           );
         })}

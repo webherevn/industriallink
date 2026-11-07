@@ -337,7 +337,9 @@ export class SourcingService {
       this.assertScope(assignment.plan, kind);
       const entitlements = this.toEntitlements(assignment);
       const remaining = this.remainingFor(kind, entitlements);
-      if (remaining !== null && remaining <= 0) {
+      const isUnshortlist =
+        kind === 'shortlist' && Boolean(input.note?.startsWith('unshortlist:'));
+      if (!isUnshortlist && remaining !== null && remaining <= 0) {
         throw new ForbiddenException({
           code: 'SOURCING_QUOTA_EXCEEDED',
           message: `Gói ${assignment.plan.name} đã hết ${SOURCING_QUOTA_LABELS[kind].toLowerCase()}. Hãy nâng cấp gói Săn.`,
@@ -408,6 +410,29 @@ export class SourcingService {
           });
         }
         if (kind === 'shortlist') {
+          if (input.note?.startsWith('unshortlist:')) {
+            const parts = input.note.split(':');
+            const candidateId = parts[1]?.trim();
+            if (candidateId) {
+              const deleted = await tx.billingSourcingUsage.deleteMany({
+                where: {
+                  companyId,
+                  assignmentId: assignment.id,
+                  engagementId: engagement.id,
+                  kind: 'shortlist',
+                  note: { startsWith: `shortlist:${candidateId}:` },
+                },
+              });
+              if (deleted.count > 0) {
+                const nextUsed = Math.max(0, assignment.shortlistsUsed - deleted.count);
+                await tx.billingCompanySourcingPlan.update({
+                  where: { id: assignment.id },
+                  data: { shortlistsUsed: nextUsed, updatedBy: actorId },
+                });
+              }
+            }
+            return;
+          }
           if (input.note?.startsWith('shortlist:')) {
             const parts = input.note.split(':');
             const candidateId = parts[1]?.trim();
