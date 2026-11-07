@@ -443,6 +443,24 @@ export interface RecruiterSourcingWorkspace {
   engagements: RecruiterSourcingEngagementView[];
   usages: RecruiterSourcingUsageView[];
   scanRounds?: RecruiterSourcingScanRoundView[];
+  shortlistedByEngagement?: Record<string, string[]>;
+  reports?: RecruiterSourcingReportView[];
+}
+export interface RecruiterSourcingReportView {
+  id: string;
+  engagementId: string | null;
+  jobId: string | null;
+  reportNumber: number;
+  title: string;
+  totalScanned: number;
+  highMatchCount: number;
+  mediumMatchCount: number;
+  openedCount: number;
+  shortlistedCount: number;
+  appliedCount: number;
+  bottlenecks: string[];
+  recommendations: string[];
+  createdAt: string;
 }
 
 export interface RecruiterBillingEntitlements {

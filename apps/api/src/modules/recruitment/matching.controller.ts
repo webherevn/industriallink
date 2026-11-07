@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -34,8 +34,8 @@ export class MatchingController {
   @Get('jobs/:id/sourcing-candidates')
   @Roles(...RECRUITER_ROLES)
   @ApiOperation({ summary: 'Danh sách ứng viên iLink săn cho vị trí trong gói Săn' })
-  sourcingCandidates(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.matching.candidatesForSourcing(user, id);
+  sourcingCandidates(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Query('rescan') rescan?: string) {
+    return this.matching.candidatesForSourcing(user, id, rescan === '1');
   }
 
   @Get('recommended-jobs')

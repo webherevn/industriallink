@@ -21,6 +21,7 @@ import {
   type RecruiterSourcingEntitlements,
   type RecruiterSourcingScanCandidateItem,
   type RecruiterSourcingScanRoundView,
+  type RecruiterSourcingReportView,
   type RecruiterSourcingUsageView,
   type RecruiterSourcingWorkspace,
   type SourcingQuotaKind,
@@ -114,11 +115,29 @@ export class SourcingService {
       .filter((u) => u.kind === 'auto_scan' && u.engagementId)
       .map((u) => this.parseScanRound(u))
       .filter((r): r is RecruiterSourcingScanRoundView => r !== null);
+    const reports = usages
+      .filter((u) => u.kind === 'search_round' && u.note?.startsWith('report:'))
+      .map((u) => this.parseReport(u))
+      .filter((r): r is RecruiterSourcingReportView => r !== null);
+    const shortlistedByEngagement: Record<string, string[]> = {};
+    for (const u of usages) {
+      if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('shortlist:')) {
+        const parts = u.note.split(':');
+        const cid = parts[1]?.trim();
+        if (cid) {
+          const list = shortlistedByEngagement[u.engagementId] ?? [];
+          if (!list.includes(cid)) list.push(cid);
+          shortlistedByEngagement[u.engagementId] = list;
+        }
+      }
+    }
     return {
       entitlements,
       engagements: engagements.map((e) => this.mapEngagement(e)),
       usages: usages.map((u) => this.mapUsage(u)),
       scanRounds,
+      shortlistedByEngagement,
+      reports,
     };
   }
 
@@ -345,6 +364,23 @@ export class SourcingService {
           });
         }
         if (kind === 'shortlist') {
+          if (input.note?.startsWith('shortlist:')) {
+            const parts = input.note.split(':');
+            const candidateId = parts[1]?.trim();
+            if (candidateId) {
+              const dup = await tx.billingSourcingUsage.findFirst({
+                where: {
+                  assignmentId: assignment.id,
+                  engagementId: engagement.id,
+                  kind: 'shortlist',
+                  note: { startsWith: `shortlist:${candidateId}:` },
+                },
+              });
+              if (dup) {
+                return;
+              }
+            }
+          }
           await tx.billingSourcingEngagement.update({
             where: { id: engagement.id },
             data: { status: 'shortlisted' },
@@ -591,6 +627,15 @@ export class SourcingService {
         const mailBadge = parsed.emailSent ? ' · Đã gửi thông báo Email' : '';
         displayNote = `Đợt tìm #${parsed.roundNumber} · ${parsed.totalMatched} ứng viên phù hợp${newBadge}${mailBadge}`;
       }
+    } else if (u.kind === 'shortlist' && u.note?.startsWith('shortlist:')) {
+      const parts = u.note.split(':');
+      const candName = parts.slice(2).join(':').trim() || 'Ứng viên';
+      displayNote = `Đưa ứng viên «${candName}» vào Shortlist`;
+    } else if (u.kind === 'search_round' && u.note?.startsWith('report:')) {
+      const parsed = this.parseReport(u);
+      if (parsed) {
+        displayNote = `Báo cáo tiến độ #${parsed.reportNumber} · ${parsed.title} (${parsed.highMatchCount} ứng viên ≥80%, ${parsed.shortlistedCount} Shortlist)`;
+      }
     }
     return {
       id: u.id,
@@ -631,6 +676,37 @@ export class SourcingService {
         emailSent: Boolean(raw.emailSent),
         createdAt: u.createdAt.toISOString(),
         candidates,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private parseReport(u: {
+    id: string;
+    engagementId: string | null;
+    jobId: string | null;
+    note: string | null;
+    createdAt: Date;
+  }): RecruiterSourcingReportView | null {
+    if (!u.note?.startsWith('report:')) return null;
+    try {
+      const raw = JSON.parse(u.note.slice('report:'.length)) as Partial<RecruiterSourcingReportView>;
+      return {
+        id: u.id,
+        engagementId: u.engagementId,
+        jobId: u.jobId,
+        reportNumber: typeof raw.reportNumber === 'number' && raw.reportNumber > 0 ? raw.reportNumber : 1,
+        title: raw.title || 'Báo cáo tiến độ Săn nhân sự',
+        totalScanned: Number(raw.totalScanned ?? 0),
+        highMatchCount: Number(raw.highMatchCount ?? 0),
+        mediumMatchCount: Number(raw.mediumMatchCount ?? 0),
+        openedCount: Number(raw.openedCount ?? 0),
+        shortlistedCount: Number(raw.shortlistedCount ?? 0),
+        appliedCount: Number(raw.appliedCount ?? 0),
+        bottlenecks: Array.isArray(raw.bottlenecks) ? raw.bottlenecks : [],
+        recommendations: Array.isArray(raw.recommendations) ? raw.recommendations : [],
+        createdAt: u.createdAt.toISOString(),
       };
     } catch {
       return null;

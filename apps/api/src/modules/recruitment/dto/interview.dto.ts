@@ -16,7 +16,19 @@ import {
 export class CreateInterviewDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
-  applicationId!: string;
+  @IsOptional()
+  @IsUUID()
+  applicationId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  candidateId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  jobId?: string;
 
   @ApiProperty({ enum: InterviewType, example: InterviewType.Hr })
   @IsEnum(InterviewType)

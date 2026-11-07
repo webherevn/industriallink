@@ -1,7 +1,9 @@
 import { InterviewStatus, InterviewType } from './enums';
 
 export interface CreateInterviewRequest {
-  applicationId: string;
+  applicationId?: string;
+  candidateId?: string;
+  jobId?: string;
   type: InterviewType;
   scheduledAt: string;
   durationMinutes?: number;

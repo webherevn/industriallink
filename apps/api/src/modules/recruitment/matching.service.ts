@@ -275,7 +275,11 @@ export class MatchingService {
    * iLink săn ứng viên cho vị trí đã gắn trong gói Săn.
    * Không trừ Credit xem matching — phí nằm trong gói. Mở hồ sơ mới trừ lượt mở.
    */
-  async candidatesForSourcing(user: AuthenticatedUser, jobId: string): Promise<CandidateMatchView[]> {
+  async candidatesForSourcing(
+    user: AuthenticatedUser,
+    jobId: string,
+    forceNewRound = false,
+  ): Promise<CandidateMatchView[]> {
     const { companyId } = await this.companies.requireUserCompany(user.id);
     const entitlements = await this.sourcing.getEntitlements(companyId);
     const endsAt = entitlements.assignment?.endsAt;
@@ -307,8 +311,9 @@ export class MatchingService {
         kind: 'auto_scan',
       },
     });
-    if (existingScans === 0) {
-      await this.recordSourcingScanRound(linked, ranked, 'initial', user.id).catch((err) => {
+    if (existingScans === 0 || forceNewRound) {
+      const trigger = existingScans === 0 ? 'initial' : 'manual';
+      await this.recordSourcingScanRound(linked, ranked, trigger, user.id).catch((err) => {
         this.logger.warn(`Không lưu được đợt quét đầu tiên cho vị trí ${linked.id}: ${String(err)}`);
       });
     }

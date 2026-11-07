@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertTriangle,
+  BookmarkCheck,
   Briefcase,
+  Calendar,
   CheckCircle2,
   Clock,
   Eye,
@@ -31,10 +33,15 @@ import {
 } from '@industriallink/contracts';
 import { JdSalesCreateFlow } from '@/app/jobs/new/sales-create-flow';
 import { JdTechnicalCreateFlow } from '@/app/jobs/new/technical-create-flow';
+import {
+  SourcingCandidateDrawer,
+  SourcingJdRevisionModal,
+  SourcingProgressReportModal,
+} from '@/components/recruiter-sourcing-all-in-one';
 import { RecruiterShell } from '@/components/recruiter-shell';
-import { ProfileOpenLink } from '@/components/starter-profile-lock';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { addCandidateShortlist } from '@/lib/candidate';
 import { listMyJobs } from '@/lib/jobs';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
@@ -77,10 +84,20 @@ function formatScanRoundTime(iso: string) {
   return `${hh}:${mm} ${dd}/${mo}`;
 }
 
+function formatRemainingDaysFromStart(createdAtIso: string | null | undefined): string {
+  if (!createdAtIso) return 'Bảo lưu 45 ngày';
+  const deadlineMs = new Date(createdAtIso).getTime() + 45 * 24 * 60 * 60 * 1000;
+  const diffMs = deadlineMs - Date.now();
+  const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+  const dateLabel = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(new Date(deadlineMs));
+  if (days <= 0) return `Hết hạn (${dateLabel})`;
+  return `Bảo lưu còn ${days} ngày (${dateLabel})`;
+}
+
 const STATUS_LABEL: Record<string, string> = {
   open: 'Đang săn 2h/lần',
   in_progress: 'Đang săn 2h/lần',
-  shortlisted: 'Đã shortlist',
+  shortlisted: 'Đã có Shortlist',
   closed: 'Đã đóng',
 };
 
@@ -93,6 +110,9 @@ export function RecruiterSourcingWorkspace() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'select' | 'create'>('select');
   const [createTrack, setCreateTrack] = useState<JobTrack>(JobTrack.Sales);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [drawerCandidate, setDrawerCandidate] = useState<CandidateMatchView | null>(null);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const syncedScanEngagementsRef = useRef<Set<string>>(new Set());
 
@@ -136,6 +156,32 @@ export function RecruiterSourcingWorkspace() {
       setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Không trừ được hạn mức' }),
   });
 
+  const quickShortlist = useMutation({
+    mutationFn: async (cand: CandidateMatchView) => {
+      if (!selected) throw new Error('Chưa chọn vị trí Săn');
+      await addCandidateShortlist(cand.candidateId).catch(() => null);
+      return consumeRecruiterSourcing({
+        kind: 'shortlist',
+        engagementId: selected,
+        jobId: huntJobId ?? undefined,
+        note: `shortlist:${cand.candidateId}:${cand.displayName}`,
+      });
+    },
+    onSuccess: (ws, cand) => {
+      void qc.setQueryData(['recruiter-sourcing'], ws);
+      void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+      setBanner({
+        tone: 'ok',
+        text: `Đã đưa ứng viên «${cand.displayName}» vào danh sách Shortlist!`,
+      });
+    },
+    onError: (err) =>
+      setBanner({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không đưa được vào Shortlist',
+      }),
+  });
+
   const e = data?.entitlements;
   const hasPlan = Boolean(e?.assignment?.isActive);
   const ended = cycleEnded(e?.assignment?.endsAt);
@@ -151,6 +197,16 @@ export function RecruiterSourcingWorkspace() {
         .filter((r) => r.engagementId === selected)
         .sort((a, b) => b.roundNumber - a.roundNumber),
     [data?.scanRounds, selected],
+  );
+
+  const engagementShortlistedIds = useMemo<string[]>(
+    () => (selected ? data?.shortlistedByEngagement?.[selected] ?? [] : []),
+    [data?.shortlistedByEngagement, selected],
+  );
+
+  const engagementReports = useMemo(
+    () => (data?.reports ?? []).filter((r) => !selected || r.engagementId === selected),
+    [data?.reports, selected],
   );
 
   const hunt = useQuery({
@@ -191,7 +247,9 @@ export function RecruiterSourcingWorkspace() {
           <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
           <div className="relative flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">Săn nhân sự</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+                Săn nhân sự · All-in-One
+              </p>
               <h1 className="mt-1.5 text-2xl font-bold uppercase tracking-tight sm:text-3xl">
                 {hasPlan && e?.planName ? e.planName : 'Gói Săn & hạn mức'}
               </h1>
@@ -199,7 +257,7 @@ export function RecruiterSourcingWorkspace() {
                 {hasPlan
                   ? ended
                     ? 'Kỳ gói đã kết thúc.'
-                    : 'iLink đối chiếu ứng viên theo tin bạn gắn và xếp danh sách phù hợp.'
+                    : 'iLink đối chiếu ứng viên theo tin bạn gắn, tự động quét 2h/lần và xử lý tuyển dụng từ A–Z ngay tại đây.'
                   : 'Kích hoạt gói để iLink săn ứng viên cho vị trí đang tuyển.'}
               </p>
             </div>
@@ -271,7 +329,20 @@ export function RecruiterSourcingWorkspace() {
           </section>
         ) : (
           <>
-            <QuotaGrid entitlements={e!} />
+            <QuotaGrid
+              entitlements={e!}
+              onOpenPosition={
+                canOpenMorePositions
+                  ? () => {
+                      setModalMode('select');
+                      setCreateModalOpen(true);
+                    }
+                  : undefined
+              }
+              onOpenReport={selected ? () => setReportModalOpen(true) : undefined}
+              onOpenRevision={selected && huntJobId ? () => setRevisionModalOpen(true) : undefined}
+              onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
+            />
 
             {/* DANH SÁCH TIN SĂN */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
@@ -280,32 +351,52 @@ export function RecruiterSourcingWorkspace() {
                   <h2 className="text-lg font-extrabold uppercase tracking-tight text-slate-900">
                     DANH SÁCH TIN SĂN
                   </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Danh sách tin săn của bạn</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Danh sách tin săn của bạn · Bấm vào ứng viên bên dưới để xem đối chiếu JD, mở liên hệ, kết nối & đặt
+                    lịch phỏng vấn ngay tại chỗ
+                  </p>
                 </div>
                 {selectedEngagement ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <UseBtn
-                      kind="search_round"
-                      label="Báo cáo"
-                      icon={FileSearch}
-                      disabled={ended || !selected || consume.isPending}
-                      remaining={e!.searchRoundsRemaining}
-                      onClick={() => selected && consume.mutate({ kind: 'search_round', engagementId: selected })}
-                    />
-                    <UseBtn
-                      kind="shortlist"
-                      icon={ListChecks}
-                      disabled={ended || !shortlistInScope || !selected || consume.isPending}
-                      remaining={shortlistInScope ? e!.shortlistsRemaining : null}
-                      onClick={() => selected && consume.mutate({ kind: 'shortlist', engagementId: selected })}
-                    />
-                    <UseBtn
-                      kind="revision"
-                      icon={RefreshCw}
-                      disabled={ended || !selected || consume.isPending}
-                      remaining={e!.revisionsRemaining}
-                      onClick={() => selected && consume.mutate({ kind: 'revision', engagementId: selected })}
-                    />
+                    <button
+                      type="button"
+                      disabled={ended}
+                      onClick={() => setReportModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3 py-2 text-xs font-semibold text-[#072348] transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40"
+                    >
+                      <FileSearch className="h-3.5 w-3.5 text-[#E8872A]" />
+                      Báo cáo tiến độ & AI
+                      {e!.searchRoundsRemaining != null ? ` · còn ${e!.searchRoundsRemaining}` : ''}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={ended || !huntJobId || (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)}
+                      onClick={() => setRevisionModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3 py-2 text-xs font-semibold text-[#072348] transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 text-[#E8872A]" />
+                      Điều chỉnh tiêu chí JD
+                      {e!.revisionsRemaining != null ? ` · còn ${e!.revisionsRemaining}` : ''}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={ended || !shortlistInScope}
+                      onClick={() =>
+                        setSelectedRoundId((prev) => (prev === 'shortlist' ? 'all' : 'shortlist'))
+                      }
+                      className={clsx(
+                        'inline-flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-semibold transition',
+                        selectedRoundId === 'shortlist'
+                          ? 'border-indigo-600 bg-indigo-600 text-white'
+                          : 'border-[#d7e3f2] bg-[#f7f9fc] text-[#072348] hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white',
+                      )}
+                    >
+                      <ListChecks className="h-3.5 w-3.5" />
+                      Đã Shortlist ({engagementShortlistedIds.length}
+                      {e!.shortlistQuota != null ? `/${e!.shortlistQuota}` : ''})
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -332,8 +423,9 @@ export function RecruiterSourcingWorkspace() {
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                   {(data?.engagements ?? []).map((eng) => {
                     const isActive = selected === eng.id;
-                    const attachedJob = (jobs ?? []).find((j) => j.id === eng.jobId);
                     const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
+                    const slCount = (data?.shortlistedByEngagement?.[eng.id] ?? []).length;
+                    const deadlineBadge = formatRemainingDaysFromStart(eng.createdAt);
                     return (
                       <button
                         key={eng.id}
@@ -363,15 +455,19 @@ export function RecruiterSourcingWorkspace() {
                         <div
                           className={clsx(
                             'flex flex-wrap items-center justify-between gap-2 text-[11px]',
-                            isActive ? 'text-white/75' : 'text-slate-500',
+                            isActive ? 'text-white/80' : 'text-slate-500',
                           )}
                         >
-                          <span>
-                            {attachedJob ? `JD: ${attachedJob.title}` : 'Chưa gắn JD'}
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {deadlineBadge ?? 'Bảo lưu 45 ngày'}
                           </span>
-                          <span className="inline-flex items-center gap-1 font-semibold">
-                            <Clock className="h-3 w-3" />
-                            {roundCount} đợt quét
+                          <span className="inline-flex items-center gap-2 font-semibold">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {roundCount} đợt
+                            </span>
+                            {slCount > 0 ? <span>· ★ {slCount} Shortlist</span> : null}
                           </span>
                         </div>
                       </button>
@@ -394,6 +490,10 @@ export function RecruiterSourcingWorkspace() {
                     : null
                 }
                 results={appliedCandidates}
+                shortlistedIds={engagementShortlistedIds}
+                shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
+                onSelectCandidate={setDrawerCandidate}
+                onQuickShortlist={(row) => quickShortlist.mutate(row)}
                 ready={Boolean(huntJobId) && !ended}
               />
 
@@ -409,8 +509,12 @@ export function RecruiterSourcingWorkspace() {
                 }
                 results={potentialCandidates}
                 scanRounds={engagementScanRounds}
+                shortlistedIds={engagementShortlistedIds}
+                shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
                 selectedRoundId={selectedRoundId}
                 onSelectRound={setSelectedRoundId}
+                onSelectCandidate={setDrawerCandidate}
+                onQuickShortlist={(row) => quickShortlist.mutate(row)}
                 ready={Boolean(huntJobId) && !ended}
               />
             </div>
@@ -594,6 +698,71 @@ export function RecruiterSourcingWorkspace() {
           </div>
         </div>
       ) : null}
+
+      {/* MODAL BÁO CÁO TIẾN ĐỘ & KHUYẾN NGHỊ AI */}
+      {hasPlan && e ? (
+        <SourcingProgressReportModal
+          open={reportModalOpen}
+          onClose={() => setReportModalOpen(false)}
+          engagementId={selected}
+          engagementTitle={selectedEngagement?.title ?? ''}
+          jobId={huntJobId}
+          entitlements={e}
+          allResults={allResults}
+          scanRounds={engagementScanRounds}
+          shortlistedIds={engagementShortlistedIds}
+          savedReports={engagementReports}
+          onWorkspaceUpdated={(ws, msg) => {
+            void qc.setQueryData(['recruiter-sourcing'], ws);
+            void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+            setBanner({ tone: 'ok', text: msg });
+          }}
+        />
+      ) : null}
+
+      {/* MODAL ĐIỀU CHỈNH TIÊU CHÍ JD TẠI CHỖ */}
+      {hasPlan && e ? (
+        <SourcingJdRevisionModal
+          open={revisionModalOpen}
+          onClose={() => setRevisionModalOpen(false)}
+          engagementId={selected}
+          jobId={huntJobId}
+          revisionsRemaining={e.revisionsRemaining}
+          onWorkspaceUpdated={(ws, msg) => {
+            void qc.setQueryData(['recruiter-sourcing'], ws);
+            void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+            setBanner({ tone: 'ok', text: msg });
+          }}
+        />
+      ) : null}
+
+      {/* DRAWER XỬ LÝ ỨNG VIÊN ALL-IN-ONE */}
+      {hasPlan && e ? (
+        <SourcingCandidateDrawer
+          candidateRow={drawerCandidate}
+          onClose={() => setDrawerCandidate(null)}
+          engagementId={selected}
+          engagementTitle={selectedEngagement?.title ?? ''}
+          jobId={huntJobId}
+          entitlements={e}
+          isShortlisted={
+            drawerCandidate ? engagementShortlistedIds.includes(drawerCandidate.candidateId) : false
+          }
+          onShortlistSuccess={(ws, candName) => {
+            void qc.setQueryData(['recruiter-sourcing'], ws);
+            void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+            setBanner({
+              tone: 'ok',
+              text: `Đã đưa ứng viên «${candName}» vào danh sách Shortlist!`,
+            });
+          }}
+          onProfileUnlocked={() => {
+            void qc.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
+            void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+            void qc.invalidateQueries({ queryKey: ['sourcing-hunt', huntJobId] });
+          }}
+        />
+      ) : null}
     </RecruiterShell>
   );
 }
@@ -636,12 +805,20 @@ function AppliedCandidatesColumn({
   loading,
   error,
   results,
+  shortlistedIds,
+  shortlistRemaining,
+  onSelectCandidate,
+  onQuickShortlist,
   ready,
 }: {
   jobTitle?: string;
   loading: boolean;
   error: string | null;
   results: CandidateMatchView[];
+  shortlistedIds: string[];
+  shortlistRemaining: number | null;
+  onSelectCandidate: (row: CandidateMatchView) => void;
+  onQuickShortlist: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
   return (
@@ -681,51 +858,78 @@ function AppliedCandidatesColumn({
         </div>
       ) : (
         <ul className="mt-4 grid gap-3">
-          {results.map((row, index) => (
-            <li
-              key={row.candidateId}
-              className="animate-soft-rise"
-              style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-            >
-              <ProfileOpenLink
-                href={`/candidates/${row.candidateId}?from=sourcing&match=${formatMatchPct(row.match.score)}`}
-                potential={false}
-                className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4"
+          {results.map((row, index) => {
+            const isShortlisted = shortlistedIds.includes(row.candidateId);
+            const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
+            return (
+              <li
+                key={row.candidateId}
+                className="animate-soft-rise"
+                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
               >
-                <ScoreRing score={row.match.score} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
-                      {row.displayName}
-                    </span>
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      Đã ứng tuyển
-                    </span>
-                    {row.viewed ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                        Đã xem
+                <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => onSelectCandidate(row)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                  >
+                    <ScoreRing score={row.match.score} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
+                          {row.displayName}
+                        </span>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          Đã ứng tuyển
+                        </span>
+                        {isShortlisted ? (
+                          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                            ★ Đã Shortlist
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
-                    {row.industry ? ` · ${row.industry}` : ''}
-                    {' · '}
-                    <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
-                      <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
-                      {row.location ?? 'Chưa có địa điểm'}
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
+                        {row.industry ? ` · ${row.industry}` : ''}
+                        {' · '}
+                        <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
+                          <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
+                          {row.location ?? 'Chưa có địa điểm'}
+                        </span>
+                      </span>
+                      {row.match.reason ? (
+                        <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
+                          {row.match.reason}
+                        </span>
+                      ) : null}
+                      <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
+                        Xem đối chiếu JD · Liên hệ · Đặt lịch PV →
+                      </span>
                     </span>
-                  </span>
-                  {row.match.reason ? (
-                    <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                      {row.match.reason}
-                    </span>
-                  ) : null}
-                  <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">Xem hồ sơ</span>
-                </span>
-              </ProfileOpenLink>
-            </li>
-          ))}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isShortlisted || !canShortlist}
+                    onClick={() => onQuickShortlist(row)}
+                    title={isShortlisted ? 'Đã trong Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                    className={clsx(
+                      'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                      isShortlisted
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                    )}
+                  >
+                    {isShortlisted ? (
+                      <BookmarkCheck className="h-3.5 w-3.5" />
+                    ) : (
+                      '+ Shortlist'
+                    )}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -738,8 +942,12 @@ function PotentialCandidatesColumn({
   error,
   results,
   scanRounds,
+  shortlistedIds,
+  shortlistRemaining,
   selectedRoundId,
   onSelectRound,
+  onSelectCandidate,
+  onQuickShortlist,
   ready,
 }: {
   jobTitle?: string;
@@ -747,12 +955,19 @@ function PotentialCandidatesColumn({
   error: string | null;
   results: CandidateMatchView[];
   scanRounds: RecruiterSourcingScanRoundView[];
+  shortlistedIds: string[];
+  shortlistRemaining: number | null;
   selectedRoundId: string;
   onSelectRound: (id: string) => void;
+  onSelectCandidate: (row: CandidateMatchView) => void;
+  onQuickShortlist: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
   const activeRound = useMemo(
-    () => (selectedRoundId === 'all' ? null : scanRounds.find((r) => r.id === selectedRoundId) ?? null),
+    () =>
+      selectedRoundId === 'all' || selectedRoundId === 'shortlist'
+        ? null
+        : scanRounds.find((r) => r.id === selectedRoundId) ?? null,
     [scanRounds, selectedRoundId],
   );
 
@@ -763,6 +978,9 @@ function PotentialCandidatesColumn({
   }, [activeRound, scanRounds]);
 
   const filteredResults = useMemo(() => {
+    if (selectedRoundId === 'shortlist') {
+      return results.filter((r) => shortlistedIds.includes(r.candidateId));
+    }
     if (!activeRound) return results;
     const roundCandidateMap = new Map(activeRound.candidates.map((c) => [c.candidateId, c]));
     return results
@@ -773,7 +991,12 @@ function PotentialCandidatesColumn({
         if (bNew !== aNew) return bNew - aNew;
         return b.match.score - a.match.score;
       });
-  }, [activeRound, results]);
+  }, [activeRound, results, selectedRoundId, shortlistedIds]);
+
+  const shortlistedPotentialCount = useMemo(
+    () => results.filter((r) => shortlistedIds.includes(r.candidateId)).length,
+    [results, shortlistedIds],
+  );
 
   return (
     <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
@@ -795,8 +1018,8 @@ function PotentialCandidatesColumn({
         ) : null}
       </div>
 
-      {/* Thanh chọn các đợt tìm kiếm 2 giờ/lần */}
-      {ready && scanRounds.length > 0 ? (
+      {/* Thanh chọn các đợt tìm kiếm 2 giờ/lần + bộ lọc Shortlist */}
+      {ready && (scanRounds.length > 0 || shortlistedPotentialCount > 0) ? (
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
             <span className="inline-flex items-center gap-1 font-medium text-[#072348]">
@@ -816,6 +1039,18 @@ function PotentialCandidatesColumn({
               )}
             >
               Tất cả phù hợp ({results.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectRound('shortlist')}
+              className={clsx(
+                'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition',
+                selectedRoundId === 'shortlist'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100',
+              )}
+            >
+              ★ Đã Shortlist ({shortlistedPotentialCount})
             </button>
             {scanRounds.map((round) => {
               const active = selectedRoundId === round.id;
@@ -868,7 +1103,9 @@ function PotentialCandidatesColumn({
       ) : filteredResults.length === 0 ? (
         <div className="mt-4 flex flex-1 flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
           <p className="text-xs text-slate-500">
-            Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.
+            {selectedRoundId === 'shortlist'
+              ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm «+ Shortlist» trên thẻ ứng viên để lưu vào đây.'
+              : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
           </p>
         </div>
       ) : (
@@ -876,62 +1113,92 @@ function PotentialCandidatesColumn({
           {filteredResults.map((row, index) => {
             const creditCost = potentialOpenCreditCost(row.match.score);
             const isNewlyDiscovered = latestRoundNewSet.has(row.candidateId);
+            const isShortlisted = shortlistedIds.includes(row.candidateId);
+            const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
             return (
               <li
                 key={row.candidateId}
                 className="animate-soft-rise"
                 style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
               >
-                <ProfileOpenLink
-                  href={`/candidates/${row.candidateId}?from=sourcing&match=${formatMatchPct(row.match.score)}`}
-                  potential
-                  className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4"
-                >
-                  <ScoreRing score={row.match.score} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
-                        {row.displayName}
+                <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
+                  <button
+                    type="button"
+                    onClick={() => onSelectCandidate(row)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                  >
+                    <ScoreRing score={row.match.score} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
+                          {row.displayName}
+                        </span>
+                        {isNewlyDiscovered ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-amber-300">
+                            Mới phát hiện
+                          </span>
+                        ) : null}
+                        {isShortlisted ? (
+                          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                            ★ Đã Shortlist
+                          </span>
+                        ) : null}
+                        {row.viewed ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                            Đã xem
+                          </span>
+                        ) : (
+                          <span
+                            className={clsx(
+                              'rounded-full px-2 py-0.5 text-[10px] font-bold ring-1',
+                              creditCost === 2
+                                ? 'bg-orange-50 text-[#c96a12] ring-orange-200'
+                                : 'bg-sky-50 text-[#072348] ring-sky-200',
+                            )}
+                          >
+                            {creditCost} Credit
+                          </span>
+                        )}
                       </span>
-                      {isNewlyDiscovered ? (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-amber-300">
-                          Mới phát hiện
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
+                        {row.industry ? ` · ${row.industry}` : ''}
+                        {' · '}
+                        <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
+                          <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
+                          {row.location ?? 'Chưa có địa điểm'}
+                        </span>
+                      </span>
+                      {row.match.reason ? (
+                        <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
+                          {row.match.reason}
                         </span>
                       ) : null}
-                      {row.viewed ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                          Đã xem
-                        </span>
-                      ) : (
-                        <span
-                          className={clsx(
-                            'rounded-full px-2 py-0.5 text-[10px] font-bold ring-1',
-                            creditCost === 2
-                              ? 'bg-orange-50 text-[#c96a12] ring-orange-200'
-                              : 'bg-sky-50 text-[#072348] ring-sky-200',
-                          )}
-                        >
-                          {creditCost} Credit
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
-                      {row.industry ? ` · ${row.industry}` : ''}
-                      {' · '}
-                      <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
-                        <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
-                        {row.location ?? 'Chưa có địa điểm'}
+                      <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
+                        Xem đối chiếu JD · Mở liên hệ · Đặt lịch PV →
                       </span>
                     </span>
-                    {row.match.reason ? (
-                      <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                        {row.match.reason}
-                      </span>
-                    ) : null}
-                    <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">Xem hồ sơ</span>
-                  </span>
-                </ProfileOpenLink>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isShortlisted || !canShortlist}
+                    onClick={() => onQuickShortlist(row)}
+                    title={isShortlisted ? 'Đã trong Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                    className={clsx(
+                      'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                      isShortlisted
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                    )}
+                  >
+                    {isShortlisted ? (
+                      <BookmarkCheck className="h-3.5 w-3.5" />
+                    ) : (
+                      '+ Shortlist'
+                    )}
+                  </button>
+                </div>
               </li>
             );
           })}
@@ -946,19 +1213,72 @@ function quotaFill(used: number, quota: number | null) {
   return Math.max(0, Math.min(100, (used / quota) * 100));
 }
 
-function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitlements }) {
+function QuotaGrid({
+  entitlements: e,
+  onOpenPosition,
+  onOpenReport,
+  onOpenRevision,
+  onFilterShortlist,
+}: {
+  entitlements: RecruiterSourcingEntitlements;
+  onOpenPosition?: () => void;
+  onOpenReport?: () => void;
+  onOpenRevision?: () => void;
+  onFilterShortlist?: () => void;
+}) {
   const rows: {
     label: string;
     used: number;
     quota: number | null;
     remaining: number | null;
     icon: typeof Briefcase;
+    actionHint?: string;
+    onClick?: () => void;
   }[] = [
-    { label: 'Vị trí', used: e.positionsUsed, quota: e.positionQuota, remaining: e.positionsRemaining, icon: Briefcase },
-    { label: 'Credit', used: e.profileOpensUsed, quota: e.creditQuota, remaining: e.profileOpensRemaining, icon: Eye },
-    { label: 'Báo cáo', used: e.searchRoundsUsed, quota: e.searchRoundQuota, remaining: e.searchRoundsRemaining, icon: FileSearch },
-    { label: 'Điều chỉnh', used: e.revisionsUsed, quota: e.revisionQuota, remaining: e.revisionsRemaining, icon: RefreshCw },
-    { label: 'Shortlist', used: e.shortlistsUsed, quota: e.shortlistQuota, remaining: e.shortlistsRemaining, icon: ListChecks },
+    {
+      label: 'Vị trí',
+      used: e.positionsUsed,
+      quota: e.positionQuota,
+      remaining: e.positionsRemaining,
+      icon: Briefcase,
+      actionHint: onOpenPosition ? 'Bấm để tạo Tin Săn' : undefined,
+      onClick: onOpenPosition,
+    },
+    {
+      label: 'Credit',
+      used: e.profileOpensUsed,
+      quota: e.creditQuota,
+      remaining: e.profileOpensRemaining,
+      icon: Eye,
+      actionHint: 'Ưu tiên trừ trước ví lẻ',
+    },
+    {
+      label: 'Báo cáo',
+      used: e.searchRoundsUsed,
+      quota: e.searchRoundQuota,
+      remaining: e.searchRoundsRemaining,
+      icon: FileSearch,
+      actionHint: onOpenReport ? 'Xem phễu & khuyến nghị AI →' : undefined,
+      onClick: onOpenReport,
+    },
+    {
+      label: 'Điều chỉnh',
+      used: e.revisionsUsed,
+      quota: e.revisionQuota,
+      remaining: e.revisionsRemaining,
+      icon: RefreshCw,
+      actionHint: onOpenRevision ? 'Sửa tiêu chí JD & quét lại →' : undefined,
+      onClick: onOpenRevision,
+    },
+    {
+      label: 'Shortlist',
+      used: e.shortlistsUsed,
+      quota: e.shortlistQuota,
+      remaining: e.shortlistsRemaining,
+      icon: ListChecks,
+      actionHint: onFilterShortlist ? 'Lọc ứng viên đã Shortlist →' : undefined,
+      onClick: onFilterShortlist,
+    },
   ];
   const ended = cycleEnded(e.assignment?.endsAt);
   const endLabel = e.assignment?.endsAt
@@ -979,10 +1299,16 @@ function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitle
         {rows.map((r) => {
           const Icon = r.icon;
           const left = r.quota == null ? '∞' : String(r.remaining ?? 0);
+          const Tag = r.onClick ? 'button' : 'div';
           return (
-            <div
+            <Tag
               key={r.label}
-              className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              type={r.onClick ? 'button' : undefined}
+              onClick={r.onClick}
+              className={clsx(
+                'rounded-2xl border border-[#d7e3f2] bg-white p-3.5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md',
+                r.onClick && 'cursor-pointer hover:border-[#072348]',
+              )}
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{r.label}</p>
@@ -998,7 +1324,10 @@ function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitle
                   style={{ width: `${quotaFill(r.used, r.quota)}%` }}
                 />
               </div>
-            </div>
+              {r.actionHint ? (
+                <p className="mt-1.5 text-[10px] font-semibold text-[#072348]/75">{r.actionHint}</p>
+              ) : null}
+            </Tag>
           );
         })}
       </div>
@@ -1017,35 +1346,5 @@ function QuotaGrid({ entitlements: e }: { entitlements: RecruiterSourcingEntitle
         </div>
       ) : null}
     </section>
-  );
-}
-
-function UseBtn({
-  kind,
-  label,
-  icon: Icon,
-  disabled,
-  remaining,
-  onClick,
-}: {
-  kind: SourcingQuotaKind;
-  label?: string;
-  icon: typeof FileSearch;
-  disabled: boolean;
-  remaining: number | null;
-  onClick: () => void;
-}) {
-  const out = remaining !== null && remaining <= 0;
-  return (
-    <button
-      type="button"
-      disabled={disabled || out}
-      onClick={onClick}
-      className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3 py-2 text-xs font-semibold text-[#072348] transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label ?? SOURCING_QUOTA_LABELS[kind]}
-      {out ? ' · hết' : remaining != null ? ` · ${remaining}` : ''}
-    </button>
   );
 }

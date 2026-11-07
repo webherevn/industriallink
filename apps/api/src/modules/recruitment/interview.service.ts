@@ -58,13 +58,45 @@ export class InterviewService {
     correlationId: string,
   ): Promise<InterviewView> {
     const company = await this.companies.requireUserCompany(user.id);
-    const application = await this.prisma.application.findUnique({
-      where: { id: dto.applicationId },
+    let application = await this.prisma.application.findUnique({
+      where: { id: dto.applicationId ?? '00000000-0000-0000-0000-000000000000' },
       include: {
         job: { select: { id: true, title: true, companyId: true } },
         candidate: { select: { id: true, displayName: true, userId: true } },
       },
     });
+
+    if (!application && dto.candidateId && dto.jobId) {
+      application = await this.prisma.application.findFirst({
+        where: { jobId: dto.jobId, candidateId: dto.candidateId, isDeleted: false },
+        include: {
+          job: { select: { id: true, title: true, companyId: true } },
+          candidate: { select: { id: true, displayName: true, userId: true } },
+        },
+      });
+      if (!application) {
+        const job = await this.prisma.job.findFirst({
+          where: { id: dto.jobId, companyId: company.companyId, isDeleted: false },
+          select: { id: true },
+        });
+        if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+        const appCode = await this.codeGen.next('APP');
+        application = await this.prisma.application.create({
+          data: {
+            code: appCode,
+            tenantId: user.tenantId,
+            jobId: dto.jobId,
+            candidateId: dto.candidateId,
+            status: ApplicationStatus.Interview,
+            coverLetter: 'Mời phỏng vấn trực tiếp từ trang Săn nhân sự inlink',
+          },
+          include: {
+            job: { select: { id: true, title: true, companyId: true } },
+            candidate: { select: { id: true, displayName: true, userId: true } },
+          },
+        });
+      }
+    }
 
     if (!application || application.isDeleted) {
       throw new NotFoundException('Không tìm thấy hồ sơ ứng tuyển');

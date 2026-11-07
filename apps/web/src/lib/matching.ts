@@ -22,9 +22,13 @@ function withMatch<T extends { match?: MatchExplanation }>(row: T): T {
   return next;
 }
 
-export async function sourcingCandidatesForJob(jobId: string): Promise<CandidateMatchView[]> {
+export async function sourcingCandidatesForJob(
+  jobId: string,
+  rescan?: boolean,
+): Promise<CandidateMatchView[]> {
+  const qs = rescan ? '?rescan=1' : '';
   return asArray<CandidateMatchView>(
-    await apiRequest(`/matching/jobs/${jobId}/sourcing-candidates`),
+    await apiRequest(`/matching/jobs/${jobId}/sourcing-candidates${qs}`),
   ).map(withMatch);
 }
 
