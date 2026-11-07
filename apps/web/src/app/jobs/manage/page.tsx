@@ -10,6 +10,8 @@ import {
   Eye,
   FileText,
   Laptop,
+  Lock,
+  Sparkles,
   MapPin,
   Pause,
   Pencil,
@@ -370,6 +372,12 @@ function JobManageCard({
               {job.title}
             </Link>
             <Badge tone={badge.tone}>{badge.label}</Badge>
+            {job.isSourcingActive && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-xs font-bold text-[#072348] shadow-2xs">
+                <Sparkles className="h-3 w-3 text-[#E8872A]" />
+                Đang hoạt động săn tin
+              </span>
+            )}
             {job.isNew && <Badge tone="accent">Mới</Badge>}
           </div>
 
@@ -435,12 +443,30 @@ function JobManageCard({
             Xem
           </span>
         </Link>
-        <Link href={`/jobs/${job.id}/edit`}>
+        {job.isSourcingActive ? (
+          <>
+            <span
+              className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 text-[12px] font-medium text-slate-400"
+              title="Tin đang hoạt động săn tin nên không thể chỉnh sửa tại mục Tin tuyển dụng"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Đã khoá sửa
+            </span>
+            <Link href="/recruiter/sourcing">
+              <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-3 text-[12px] font-bold text-[#072348] transition hover:border-[#E8872A] hover:bg-[#FFEEDB]">
+                <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
+                Quản lý tại Săn nhân sự
+              </span>
+            </Link>
+          </>
+        ) : (
+          <Link href={`/jobs/${job.id}/edit`}>
           <ActionChip>
             <Pencil className="h-3.5 w-3.5" />
             Sửa
           </ActionChip>
         </Link>
+        )}
         <Link href={`/jobs/${job.id}/applicants`}>
           <ActionChip>
             <Users className="h-3.5 w-3.5" />
@@ -454,7 +480,9 @@ function JobManageCard({
           </ActionChip>
         </Link>
 
-        <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:inline-block" aria-hidden />
+        {!job.isSourcingActive && (
+          <div className="contents">
+            <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:inline-block" aria-hidden />
 
         {job.status === JobStatus.Draft && !inReview && (
           <ActionChip onClick={onPublish} disabled={busy}>
@@ -490,6 +518,8 @@ function JobManageCard({
         >
           <Trash2 className="h-4 w-4" />
         </button>
+      </div>
+        )}
       </div>
     </article>
   );

@@ -99,6 +99,7 @@ export default function EditJobPage() {
             onClick={() => saveMutation.mutate()}
             disabled={
               saveMutation.isPending ||
+              Boolean(job?.isSourcingActive) ||
               !hydrated ||
               (isSales
                 ? salesForm.title.trim().length < 3 || !salesForm.jobLevel
@@ -126,7 +127,32 @@ export default function EditJobPage() {
           </div>
         )}
 
-        {hydrated && isSales && (
+        {job?.isSourcingActive && (
+          <div className="rounded-2xl border border-[#FFD0A3] bg-[#FFF8F1] p-5 text-sm text-[#072348] shadow-xs">
+            <p className="text-base font-bold text-[#072348]">
+              Tin tuyển dụng này đang hoạt động săn tin
+            </p>
+            <p className="mt-1 text-slate-600">
+              Tin đăng đã chuyển sang chế độ <strong>Săn nhân sự</strong> sẽ được khóa cố định tại mục Tin tuyển dụng để đảm bảo tính đồng nhất của phễu ứng viên. Để điều chỉnh tiêu chí săn, vui lòng thao tác tại mục <strong>Săn nhân sự</strong>.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/recruiter/sourcing"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#072348] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0b3162]"
+              >
+                Mở mục Săn nhân sự →
+              </Link>
+              <Link
+                href="/jobs/manage"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Quay lại Tin tuyển dụng
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {hydrated && !job?.isSourcingActive && isSales && (
           <div className="space-y-4 pb-10">
             {saveMutation.isError && (
               <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -164,7 +190,7 @@ export default function EditJobPage() {
           </div>
         )}
 
-        {hydrated && !isSales && (
+        {hydrated && !job?.isSourcingActive && !isSales && (
           <div className="space-y-4 pb-10">
             {saveMutation.isError && (
               <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">

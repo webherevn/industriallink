@@ -1039,6 +1039,12 @@ export function SearchPageClient() {
                             <span className="hidden shrink-0 font-mono text-[11px] text-slate-400 sm:inline">
                               {job.code}
                             </span>
+                            {job.isSourcingActive && (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2 py-0.5 text-[10px] font-bold text-[#072348]">
+                                <Sparkles className="h-2.5 w-2.5 text-[#E8872A]" />
+                                Đang hoạt động săn tin
+                              </span>
+                            )}
                           </span>
                         </span>
                         {track && (

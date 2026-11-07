@@ -105,6 +105,30 @@ export class SourcingService {
         include: { plan: true },
       });
     }
+    const activeEngagements = await this.prisma.billingSourcingEngagement.findMany({
+      where: { companyId, assignmentId: row.id, jobId: { not: null }, status: { not: 'closed' } },
+      select: { jobId: true },
+    });
+    const activeJobIds = activeEngagements.map((e) => e.jobId).filter((id): id is string => Boolean(id));
+    if (activeJobIds.length > 0) {
+      await this.prisma.job.updateMany({
+        where: {
+          id: { in: activeJobIds },
+          companyId,
+          isDeleted: false,
+          OR: [
+            { status: { not: 'published' } },
+            { moderationStatus: { not: 'approved' } },
+            { publishedAt: null },
+          ],
+        },
+        data: {
+          status: 'published',
+          moderationStatus: 'approved',
+          publishedAt: new Date(),
+        },
+      });
+    }
     const opensUsed = await this.countIncludedOpens(row.id, row.startsAt);
     return this.toEntitlements(row, opensUsed);
   }
@@ -334,7 +358,7 @@ export class SourcingService {
         }
         const existingJob = await tx.job.findFirst({
           where: { id: validJobId, companyId, isDeleted: false },
-          select: { id: true, title: true, deadline: true, status: true },
+          select: { id: true, title: true, deadline: true, status: true, publishedAt: true },
         });
         if (!existingJob) {
           throw new NotFoundException('Không tìm thấy tin tuyển dụng (JD) đã chọn.');
@@ -350,6 +374,8 @@ export class SourcingService {
           data: {
             deadline: preservedDeadline,
             status: 'published',
+            moderationStatus: 'approved',
+            publishedAt: existingJob.publishedAt ?? new Date(),
           },
         });
         const title = linkedJobTitle || input.title?.trim() || 'Tin Săn tuyển dụng';

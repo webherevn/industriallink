@@ -318,6 +318,11 @@ export class CreateJobDto {
   @Type(() => JobTechnicalCriteriaDto)
   technicalCriteria?: JobTechnicalCriteriaDto;
 
+  @ApiPropertyOptional({ default: false, description: 'true khi lưu từ modal Điều chỉnh Tin Săn' })
+  @IsOptional()
+  @IsBoolean()
+  fromSourcingRevision?: boolean;
+
   @ApiPropertyOptional({ default: false, description: 'true để đăng công khai ngay' })
   @IsOptional()
   @IsBoolean()

@@ -222,28 +222,51 @@ export class MatchingService {
     if (job.companyId !== companyId) {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
-    try {
-      await this.credit.consumeAction({
-        tenantId: user.tenantId,
-        companyId,
-        action: 'view_match_summary',
-        jobId: job.id,
-        actorUserId: user.id,
-        actorEmail: user.email ?? undefined,
-        oncePerJob: true,
-      });
-    } catch (err) {
-      if (err instanceof ForbiddenException) throw err;
-      if (
-        err instanceof BadRequestException &&
-        typeof err.getResponse() === 'object' &&
-        (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
-      ) {
-        throw err;
+    const entitlements = await this.sourcing.getEntitlements(companyId);
+    const endsAt = entitlements.assignment?.endsAt;
+    const hasSourcingPlan = Boolean(
+      entitlements.assignment?.isActive && (!endsAt || new Date(endsAt).getTime() >= Date.now()),
+    );
+    if (!hasSourcingPlan) {
+      try {
+        await this.credit.consumeAction({
+          tenantId: user.tenantId,
+          companyId,
+          action: 'view_match_summary',
+          jobId: job.id,
+          actorUserId: user.id,
+          actorEmail: user.email ?? undefined,
+          oncePerJob: true,
+        });
+      } catch (err) {
+        if (err instanceof ForbiddenException) throw err;
+        if (
+          err instanceof BadRequestException &&
+          typeof err.getResponse() === 'object' &&
+          (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
+        ) {
+          throw err;
+        }
+        this.logger.warn(`Failed to record credit ledger for view_match_summary: ${String(err)}`);
       }
-      this.logger.warn(`Failed to record credit ledger for view_match_summary: ${String(err)}`);
     }
-    return this.rankJobCandidates(user, jobId);
+    const ranked = await this.rankJobCandidates(user, jobId);
+    if (!hasSourcingPlan || ranked.length === 0) return ranked;
+    const assignmentId = entitlements.assignment?.id;
+    if (!assignmentId) return ranked;
+    const opened = await this.prisma.billingSourcingUsage.findMany({
+      where: { companyId, assignmentId, kind: 'profile_open' },
+      select: { note: true },
+    });
+    const openedIds = new Set(
+      opened.flatMap((row) =>
+        row.note?.startsWith('open:') ? [row.note.slice(5).split(':')[0]] : [],
+      ),
+    );
+    return ranked.map((row) => ({
+      ...row,
+      viewed: row.viewed || openedIds.has(row.candidateId),
+    }));
   }
 
   /**

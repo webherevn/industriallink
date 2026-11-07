@@ -466,6 +466,8 @@ export class JobService {
     await this.billing.assertJobQuota(company.companyId);
     const code = await this.codeGen.next('JOB');
 
+
+
     const skillData = await this.skillRows(dto.skills);
 
     const track = resolveCreateJobTrack(dto);
@@ -606,6 +608,17 @@ export class JobService {
     const id = owned.id;
     // Sửa tin đang công khai → gỡ khỏi public và kiểm duyệt lại nội dung mới.
     const wasPublished = owned.status === JobStatus.Published;
+    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+      where: { jobId: id, companyId: owned.companyId, status: { not: 'closed' } },
+      select: { id: true },
+    });
+    if (sourcingEngagement && !dto.fromSourcingRevision) {
+      throw new BadRequestException(
+        'Tin tuyển dụng này đang hoạt động săn tin nên không thể chỉnh sửa tại mục Tin tuyển dụng. Vui lòng điều chỉnh tại mục Săn nhân sự.',
+      );
+    }
+
+
 
     const skillData = await this.skillRows(dto.skills);
 
@@ -620,10 +633,6 @@ export class JobService {
     if (dto.technicalCriteria && existingTech?.position?.trim()) {
       dto.technicalCriteria.position = existingTech.position;
     }
-    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
-      where: { jobId: id, companyId: owned.companyId, status: { not: 'closed' } },
-      select: { id: true },
-    });
     const shouldReModerate = wasPublished && !sourcingEngagement;
 
     const track = resolveCreateJobTrack(dto);
@@ -703,6 +712,15 @@ export class JobService {
     correlationId: string,
   ): Promise<JobView> {
     const job = await this.requireOwnedJob(user, jobId);
+    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+      where: { jobId: job.id, companyId: job.companyId, status: { not: 'closed' } },
+      select: { id: true },
+    });
+    if (sourcingEngagement) {
+      throw new BadRequestException(
+        'Tin tuyển dụng này đang hoạt động săn tin nên không thể đổi trạng thái tại mục Tin tuyển dụng.',
+      );
+    }
     const allowed = new Set([
       JobStatus.Draft,
       JobStatus.Published,
@@ -754,6 +772,20 @@ export class JobService {
     jobId: string,
     correlationId: string,
   ): Promise<{ message: string }> {
+    const jobForSourcingCheck = await this.requireOwnedJob(user, jobId);
+    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+      where: {
+        jobId: jobForSourcingCheck.id,
+        companyId: jobForSourcingCheck.companyId,
+        status: { not: 'closed' },
+      },
+      select: { id: true },
+    });
+    if (sourcingEngagement) {
+      throw new BadRequestException(
+        'Tin tuyển dụng này đang hoạt động săn tin nên không thể xoá tại mục Tin tuyển dụng.',
+      );
+    }
     const job = await this.requireOwnedJob(user, jobId);
     await this.prisma.job.update({
       where: { id: job.id },
@@ -816,7 +848,25 @@ export class JobService {
     });
     await backfillMissingJobSlugs(this.prisma, jobs);
     await backfillMissingCompanySlugs(this.prisma, jobs.map((j) => j.company));
-    const recruitment = await this.recruitmentByJob(jobs.map((job) => job.id));
+    const [recruitment, activeSourcingRows] = await Promise.all([
+      this.recruitmentByJob(jobs.map((job) => job.id)),
+      this.prisma.billingSourcingEngagement.findMany({
+        where: { companyId: company.companyId, jobId: { not: null }, status: { not: 'closed' } },
+        select: { jobId: true },
+      }),
+    ]);
+    const sourcingJobIds = new Set(
+      activeSourcingRows.map((r) => r.jobId).filter((id): id is string => Boolean(id)),
+    );
+    return jobs.map((j) =>
+      this.toListItem(j, company.companyName, {
+        recruitment: recruitment.get(j.id) ?? emptyRecruitment(),
+        isSourcingActive: sourcingJobIds.has(j.id),
+      }),
+    );
+  }
+
+  private unusedListMyJobsFallback(jobs: any[], company: any, recruitment: any) {
     return jobs.map((j) =>
       this.toListItem(j, company.companyName, {
         recruitment: recruitment.get(j.id) ?? emptyRecruitment(),
@@ -1042,6 +1092,13 @@ export class JobService {
     const job = await this.findJobByRef(ref);
     const withSlug = await this.ensureJobSlug(job);
     const view = this.toView(withSlug);
+    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+      where: { jobId: job.id, companyId: job.companyId, status: { not: 'closed' } },
+      select: { id: true },
+    });
+    if (sourcingEngagement) {
+      view.isSourcingActive = true;
+    }
     if (!(await this.canSeeModerationDetails(user, job.companyId))) {
       delete view.aiRiskScore;
       delete view.aiReason;
@@ -1153,7 +1210,12 @@ export class JobService {
       publishedAt?: Date | null;
     },
     companyName: string,
-    extras?: { isBookmarked?: boolean; planCode?: string | null; recruitment?: JobRecruitmentResult },
+    extras?: {
+      isBookmarked?: boolean;
+      planCode?: string | null;
+      recruitment?: JobRecruitmentResult;
+      isSourcingActive?: boolean;
+    },
   ): JobListItem {
     const publishedAt = job.publishedAt ?? null;
     const isNew = publishedAt
@@ -1187,6 +1249,7 @@ export class JobService {
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
       ...(extras?.planCode != null ? { planCode: extras.planCode } : {}),
       ...(extras?.recruitment ? { recruitment: extras.recruitment } : {}),
+      ...(extras?.isSourcingActive ? { isSourcingActive: true } : {}),
     };
   }
 

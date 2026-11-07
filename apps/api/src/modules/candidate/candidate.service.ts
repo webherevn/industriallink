@@ -1821,7 +1821,7 @@ export class CandidateService {
         ? `Mở hồ sơ tiềm năng (Matching ${matchPct}% — ${isHighMatch ? '≥ 80%' : '< 80%'})`
         : 'Mở hồ sơ tiềm năng (< 80% Matching)';
 
-    if (!input.fromSourcing || input.applied) {
+    if (input.applied) {
       await this.chargeCredit({
         tenantId: input.tenantId,
         companyId: input.companyId,

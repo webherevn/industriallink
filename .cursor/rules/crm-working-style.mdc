@@ -1,0 +1,15 @@
+---
+description: Cách sửa CRM inlink — giữ style, không đụng phần ngoài yêu cầu, ranh giới marketing và thanh toán
+alwaysApply: true
+---
+
+# CRM inlink
+
+- Giữ style CRM đang có: `CrmFrame`, `crm-surface`, `crmButtonClass`, `crmActionClass`, `CrmSelect`, nền lavender. Không dựng hệ giao diện mới.
+- Chỉ sửa đúng phần được yêu cầu. Không xóa, không viết lại code không liên quan.
+- CRM không tạo đơn, không bật gói, không cộng Credit. Doanh thu gói tin và gói Săn là đơn đã trả, giá lớn hơn 0, chưa VAT. Bước Đã chốt không phải doanh thu. Công nợ chỉ có ở hợp đồng Enterprise: báo giá ghi giá trị và các đợt theo %, chốt tờ mới thành khoản phải thu. Ghi đã thu không bật gói.
+- Marketing đang tạm dừng. Giữ kế hoạch kênh, chiến dịch, chi phí, ROI. Chỉ code tiếp khi được yêu cầu.
+- Sidebar Kinh doanh: Tiềm năng, Khách hàng, Cơ hội, Báo giá, Đơn hàng, Doanh số, Báo cáo. Tiềm năng là lead. Cơ hội là bảng deal. Đơn hàng chỉ đọc đơn đã trả, không tạo đơn.
+- SuperAdmin đặt ngân sách và ghi chi phí. Sale thấy chiến dịch của mình và gắn cơ hội của mình.
+- Kênh chuẩn gồm Web, Zalo, Sự kiện, Cộng tác viên, Facebook, Instagram, TikTok, LinkedIn, X, YouTube. Thêm kênh bằng dữ liệu, không hard-code thêm mạng vào logic.
+- Tiền là số nguyên VND. Cookie chiến dịch và cookie cộng tác viên là hai việc riêng. Hoa hồng không cộng vào chi phí marketing.

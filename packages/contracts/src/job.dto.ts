@@ -36,6 +36,8 @@ export interface CreateJobRequest {
   /** 23 trường matching Kỹ thuật (nhóm B/C + ngành đa chọn) — JSON. */
   technicalCriteria?: JobTechnicalCriteria;
   /** true để đăng công khai ngay; false để lưu nháp. */
+  /** true khi điều chỉnh tiêu chí săn từ bảng Điều chỉnh Tin Săn (/recruiter/sourcing). */
+  fromSourcingRevision?: boolean;
   publish?: boolean;
 }
 
@@ -91,6 +93,8 @@ export interface JobView {
   aiRiskScore?: number | null;
   aiReason?: string | null;
   aiSuggestedAction?: JobModerationAction | null;
+  /** Tin đang hoạt động trong gói Săn nhân sự (không cho sửa ở mục Tin tuyển dụng). */
+  isSourcingActive?: boolean;
   /** Chỉ có khi ứng viên đang đăng nhập xem: đã ứng tuyển hay chưa. */
   hasApplied?: boolean;
 }
@@ -127,6 +131,8 @@ export interface JobListItem {
   moderationStatus?: JobModerationStatus;
   /** Chỉ có khi ứng viên đã đăng nhập và đã lưu tin. */
   isBookmarked?: boolean;
+  /** Tin đang hoạt động trong gói Săn nhân sự (hiển thị nhãn "Đang hoạt động săn tin" và khóa sửa ở Tin tuyển dụng). */
+  isSourcingActive?: boolean;
   /** Kết quả tuyển dụng hiện tại. Chỉ có ở danh sách tin của nhà tuyển dụng. */
   recruitment?: JobRecruitmentResult;
 }

@@ -113,6 +113,7 @@ export function RecruiterSourcingWorkspace() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
   const [drawerCandidate, setDrawerCandidate] = useState<CandidateMatchView | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const syncedScanEngagementsRef = useRef<Set<string>>(new Set());
 
@@ -243,6 +244,18 @@ export function RecruiterSourcingWorkspace() {
     () => allResults.filter((r) => !r.applied),
     [allResults],
   );
+  const highMatchCount = useMemo(
+    () =>
+      allResults.filter((r) => {
+        const pct = r.match.score <= 1 ? r.match.score * 100 : r.match.score;
+        return pct >= 80;
+      }).length,
+    [allResults],
+  );
+  const openedCount = useMemo(
+    () => allResults.filter((r) => r.viewed || r.applied).length,
+    [allResults],
+  );
 
   const canOpenMorePositions =
     hasPlan && !ended && (e?.positionsRemaining === null || (e?.positionsRemaining ?? 0) > 0);
@@ -351,6 +364,42 @@ export function RecruiterSourcingWorkspace() {
               onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
             />
 
+            {/* TỔNG QUAN HIỆU QUẢ TIN SĂN ĐANG CHỌN (ĐƯA TỪ BÁO CÁO RA NGOÀI TRANG CHÍNH) */}
+            {selectedEngagement ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-xs">
+                  <p className="text-[11px] font-semibold text-slate-500">Đợt quét 2h/lần</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#072348]">
+                    {engagementScanRounds.length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-xs">
+                  <p className="text-[11px] font-semibold text-slate-500">Tổng phù hợp</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#072348]">
+                    {allResults.length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 shadow-xs">
+                  <p className="text-[11px] font-semibold text-amber-900">Khớp cao ≥ 80%</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#E8872A]">
+                    {highMatchCount}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#d7e3f2] bg-white p-3.5 shadow-xs">
+                  <p className="text-[11px] font-semibold text-slate-500">Đã mở hồ sơ</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-[#072348]">
+                    {openedCount}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 shadow-xs">
+                  <p className="text-[11px] font-semibold text-emerald-900">Nộp ứng tuyển</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-emerald-700">
+                    {appliedCandidates.length}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             {/* DANH SÁCH TIN SĂN */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -359,51 +408,9 @@ export function RecruiterSourcingWorkspace() {
                     DANH SÁCH TIN SĂN
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Danh sách tin săn của bạn · Bấm vào ứng viên bên dưới để xem đối chiếu JD, mở liên hệ, kết nối & đặt
-                    lịch phỏng vấn ngay tại chỗ
+                    Danh sách tin săn của bạn · Bấm vào ứng viên bên dưới để mở liên hệ, kết nối & đặt lịch phỏng vấn
+                    ngay tại chỗ
                   </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={ended || !selectedEngagement}
-                    onClick={() => setReportModalOpen(true)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#d7e3f2] bg-[#f7f9fc] px-3.5 py-2 text-xs font-bold text-[#072348] shadow-2xs transition hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40"
-                  >
-                    <FileSearch className="h-3.5 w-3.5 text-[#E8872A]" />
-                    Báo cáo{e!.searchRoundsRemaining != null ? ` · ${e!.searchRoundsRemaining}` : ''}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={ended || !shortlistInScope || !selectedEngagement}
-                    onClick={() =>
-                      setSelectedRoundId((prev) => (prev === 'shortlist' ? 'all' : 'shortlist'))
-                    }
-                    className={clsx(
-                      'inline-flex items-center justify-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-bold shadow-2xs transition',
-                      selectedRoundId === 'shortlist'
-                        ? 'border-indigo-600 bg-indigo-600 text-white'
-                        : 'border-[#d7e3f2] bg-[#f7f9fc] text-[#072348] hover:-translate-y-0.5 hover:border-[#072348] hover:bg-white disabled:opacity-40',
-                    )}
-                  >
-                    <ListChecks className="h-3.5 w-3.5 text-[#E8872A]" />
-                    Shortlist · {e!.shortlistsRemaining ?? '∞'}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={
-                      ended ||
-                      !huntJobId ||
-                      (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)
-                    }
-                    onClick={() => setRevisionModalOpen(true)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-[#E8872A]/40 bg-gradient-to-r from-[#072348] to-[#0d356c] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-40"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 text-[#E8872A]" />
-                    Điều chỉnh tin săn{e!.revisionsRemaining != null ? ` · ${e!.revisionsRemaining}` : ''}
-                  </button>
                 </div>
               </div>
 
@@ -459,16 +466,6 @@ export function RecruiterSourcingWorkspace() {
                         <div>
                           <div className="flex items-start justify-between gap-2">
                             <span className="line-clamp-1 text-sm font-extrabold">{eng.title}</span>
-                            <span
-                              className={clsx(
-                                'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold',
-                                isActive
-                                  ? 'bg-[#E8872A] text-white'
-                                  : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
-                              )}
-                            >
-                              {STATUS_LABEL[eng.status] ?? eng.status}
-                            </span>
                           </div>
                           <p
                             className={clsx(
@@ -571,38 +568,106 @@ export function RecruiterSourcingWorkspace() {
               />
             </div>
 
-            {/* LỊCH SỬ */}
+            {/* LỊCH SỬ (PHÂN TRANG 7 MỤC / TRANG) */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#072348]">LỊCH SỬ</p>
-              {(data?.usages ?? []).length === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">Chưa có lần sử dụng.</p>
-              ) : (
-                <ul className="mt-3 space-y-2">
-                  {(data?.usages ?? []).map((u) => (
-                    <li
-                      key={u.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl bg-[#f7f9fc] px-3.5 py-2.5 text-sm"
-                    >
-                      <span className="min-w-0">
-                        <strong className="text-[#072348]">{usageLabel(u.kind)}</strong>
-                        {u.note?.startsWith('open:') ? (
-                          <span className="text-slate-500">
-                            {' '}
-                            · Mở hồ sơ (-{openUsageCreditCount(u.note)} Credit)
-                          </span>
-                        ) : u.note ? (
-                          <span className="text-slate-500"> · {u.note}</span>
+              {(() => {
+                const allUsages = data?.usages ?? [];
+                const pageSize = 7;
+                const totalPages = Math.max(1, Math.ceil(allUsages.length / pageSize));
+                const safePage = Math.min(Math.max(1, historyPage), totalPages);
+                const pageItems = allUsages.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-[#072348]">
+                        LỊCH SỬ HOẠT ĐỘNG ({allUsages.length})
+                      </p>
+                      {allUsages.length > pageSize ? (
+                        <span className="text-xs font-medium text-slate-500">
+                          Trang {safePage} / {totalPages}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {allUsages.length === 0 ? (
+                      <p className="mt-3 text-sm text-slate-500">Chưa có lần sử dụng.</p>
+                    ) : (
+                      <>
+                        <ul className="mt-3 space-y-2">
+                          {pageItems.map((u) => (
+                            <li
+                              key={u.id}
+                              className="flex items-center justify-between gap-3 rounded-2xl bg-[#f7f9fc] px-3.5 py-2.5 text-sm"
+                            >
+                              <span className="min-w-0">
+                                <strong className="text-[#072348]">{usageLabel(u.kind)}</strong>
+                                {u.note?.startsWith('open:') ? (
+                                  <span className="text-slate-500">
+                                    {' '}
+                                    · Mở hồ sơ (-{openUsageCreditCount(u.note)} Credit)
+                                  </span>
+                                ) : u.note ? (
+                                  <span className="text-slate-500"> · {u.note}</span>
+                                ) : null}
+                              </span>
+                              <span className="shrink-0 text-xs text-slate-400">
+                                {new Intl.DateTimeFormat('vi-VN', {
+                                  dateStyle: 'short',
+                                  timeStyle: 'short',
+                                }).format(new Date(u.createdAt))}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+
+                        {totalPages > 1 ? (
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                            <span className="text-xs text-slate-500">
+                              Hiển thị {(safePage - 1) * pageSize + 1}–
+                              {Math.min(safePage * pageSize, allUsages.length)} trên tổng số{' '}
+                              {allUsages.length} lịch sử
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={safePage <= 1}
+                                onClick={() => setHistoryPage(safePage - 1)}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                              >
+                                ← Trước
+                              </button>
+                              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((p) => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => setHistoryPage(p)}
+                                  className={clsx(
+                                    'inline-flex h-8 min-w-8 items-center justify-center rounded-xl px-2.5 text-xs font-bold transition',
+                                    p === safePage
+                                      ? 'bg-[#072348] text-white shadow-xs'
+                                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                                  )}
+                                >
+                                  {p}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                disabled={safePage >= totalPages}
+                                onClick={() => setHistoryPage(safePage + 1)}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                              >
+                                Sau →
+                              </button>
+                            </div>
+                          </div>
                         ) : null}
-                      </span>
-                      <span className="shrink-0 text-xs text-slate-400">
-                        {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(
-                          new Date(u.createdAt),
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </section>
           </>
         )}
@@ -1372,20 +1437,6 @@ function QuotaGrid({
           );
         })}
       </div>
-      {(e.scopeItems?.length ? e.scopeItems.filter((line) => line.included) : []).length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {(e.scopeItems ?? [])
-            .filter((line) => line.included)
-            .map((line) => (
-              <span
-                key={line.code}
-                className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-[#072348] shadow-2xs ring-1 ring-[#d7e3f2]"
-              >
-                {line.label}
-              </span>
-            ))}
-        </div>
-      ) : null}
     </section>
   );
 }

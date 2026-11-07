@@ -354,34 +354,6 @@ export function SourcingProgressReportModal({
 
         {tab === 'live' ? (
           <div className="mt-5 space-y-5">
-            {/* Phễu số liệu */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-3">
-                <p className="text-[11px] font-semibold text-slate-500">Đợt quét 2h/lần</p>
-                <p className="mt-1 text-xl font-extrabold text-[#072348]">{scanRounds.length}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-3">
-                <p className="text-[11px] font-semibold text-slate-500">Tổng phù hợp</p>
-                <p className="mt-1 text-xl font-extrabold text-[#072348]">{analytics.totalMatched}</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
-                <p className="text-[11px] font-semibold text-amber-900">Khớp cao ≥ 80%</p>
-                <p className="mt-1 text-xl font-extrabold text-[#E8872A]">{analytics.highMatchCount}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-3">
-                <p className="text-[11px] font-semibold text-slate-500">Đã mở hồ sơ</p>
-                <p className="mt-1 text-xl font-extrabold text-[#072348]">{analytics.openedCount}</p>
-              </div>
-              <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3">
-                <p className="text-[11px] font-semibold text-indigo-900">Đã Shortlist</p>
-                <p className="mt-1 text-xl font-extrabold text-indigo-700">{analytics.shortlistedCount}</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3">
-                <p className="text-[11px] font-semibold text-emerald-900">Nộp ứng tuyển</p>
-                <p className="mt-1 text-xl font-extrabold text-emerald-700">{analytics.appliedCount}</p>
-              </div>
-            </div>
-
             {/* Phân tích điểm nghẽn & tiêu chí */}
             <div className="rounded-2xl border border-[#d7e3f2] bg-[#f8fafc] p-4">
               <h4 className="flex items-center gap-2 text-sm font-bold text-[#072348]">
@@ -759,10 +731,10 @@ export function SourcingJdRevisionModal({
       if (!jobId || !engagementId) throw new Error('Chưa có JD gắn với Tin Săn này');
       if (isSales) {
         const { publish: _publish, ...payload } = formToCreateJobRequest(salesForm, false);
-        await updateJob(jobId, payload);
+        await updateJob(jobId, { ...payload, fromSourcingRevision: true });
       } else {
         const { publish: _publish, ...payload } = formToCreateTechnicalJobRequest(techForm, false);
-        await updateJob(jobId, payload);
+        await updateJob(jobId, { ...payload, fromSourcingRevision: true });
       }
       const changeSummary =
         diffItems.length > 0
@@ -1632,7 +1604,16 @@ export function SourcingCandidateDrawer({
   const [interviewMode, setInterviewMode] = useState<'online' | 'onsite'>('online');
   const [interviewLocation, setInterviewLocation] = useState('');
   const [interviewNote, setInterviewNote] = useState('');
+  const [expandedExp, setExpandedExp] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    const isOpen = Boolean(candidateRow);
+    window.dispatchEvent(new CustomEvent('inlink-candidate-drawer', { detail: { open: isOpen } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('inlink-candidate-drawer', { detail: { open: false } }));
+    };
+  }, [candidateRow]);
 
   useEffect(() => {
     if (!candidateRow) return;
@@ -1641,6 +1622,7 @@ export function SourcingCandidateDrawer({
       `Chào ${candidateRow.displayName}, công ty chúng tôi đang tuyển vị trí «${engagementTitle}» rất phù hợp với kinh nghiệm của bạn trên inlink. Mong được kết nối trao đổi thêm cùng bạn!`,
     );
     setShowInterviewForm(false);
+    setExpandedExp(false);
     setFeedback(null);
   }, [candidateRow, engagementTitle]);
 
@@ -1768,42 +1750,105 @@ export function SourcingCandidateDrawer({
 
   if (!candidateRow) return null;
 
-  const ringColor = matchRingColor(candidateRow.match.score);
+  const rawScore = candidateRow.match.score <= 1 ? candidateRow.match.score * 100 : candidateRow.match.score;
+  const clampedPct = Math.max(0, Math.min(100, rawScore));
+  const ringRadius = 26;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference * (1 - clampedPct / 100);
+  const ringStroke = clampedPct >= 80 ? '#34d399' : clampedPct >= 65 ? '#fbbf24' : '#fb923c';
   const connectionStatus = detail?.connection?.status ?? null;
   const connectionId = detail?.connection?.id ?? null;
+
+  const experiences = detail?.experiences ?? [];
+  const EXPERIENCE_WORD_LIMIT = 140;
+  let totalExpWords = 0;
+  for (const exp of experiences) {
+    const text = `${exp.jobTitle ?? ''} ${exp.companyName ?? ''} ${exp.highlights ?? ''}`.trim();
+    totalExpWords += text ? text.split(/\s+/).length : 0;
+  }
+  const shouldTruncateExp = totalExpWords > EXPERIENCE_WORD_LIMIT;
+  let remainingWords = EXPERIENCE_WORD_LIMIT;
+  const visibleExperiences = expandedExp || !shouldTruncateExp
+    ? experiences.map((exp) => ({ ...exp, truncatedHighlights: exp.highlights }))
+    : experiences.reduce<Array<(typeof experiences)[number] & { truncatedHighlights: string | null }>>((acc, exp) => {
+        if (remainingWords <= 0) return acc;
+        const headerWords = `${exp.jobTitle ?? ''} ${exp.companyName ?? ''}`.trim().split(/\s+/).filter(Boolean).length;
+        remainingWords = Math.max(0, remainingWords - headerWords);
+        if (!exp.highlights) {
+          acc.push({ ...exp, truncatedHighlights: null });
+          return acc;
+        }
+        const words = exp.highlights.trim().split(/\s+/);
+        if (words.length <= remainingWords) {
+          remainingWords -= words.length;
+          acc.push({ ...exp, truncatedHighlights: exp.highlights });
+        } else if (remainingWords > 0) {
+          const sliced = `${words.slice(0, remainingWords).join(' ')}...`;
+          remainingWords = 0;
+          acc.push({ ...exp, truncatedHighlights: sliced });
+        }
+        return acc;
+      }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-xs">
       <div className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden bg-white shadow-2xl">
         {/* Header cố định */}
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-[#072348] px-5 py-4 text-white sm:px-6">
-          <div className="flex items-center gap-3.5">
-            <div
-              className="flex h-13 w-13 shrink-0 flex-col items-center justify-center rounded-2xl bg-white/10 ring-2"
-              style={{ borderColor: ringColor }}
-            >
-              <span className="text-sm font-extrabold text-amber-300">{pctStr}%</span>
-              <span className="text-[9px] uppercase tracking-wider text-white/75">Phù hợp</span>
+          <div className="flex items-center gap-4">
+            {/* Vòng tròn tỉ lệ % thiết kế chuẩn SVG Gauge */}
+            <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#041730]/80 shadow-[0_0_20px_rgba(232,135,42,0.22)] ring-1 ring-white/15">
+              <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90" aria-hidden>
+                <circle
+                  cx="32"
+                  cy="32"
+                  r={ringRadius}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.14)"
+                  strokeWidth="4.5"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r={ringRadius}
+                  fill="none"
+                  stroke={ringStroke}
+                  strokeWidth="4.5"
+                  strokeLinecap="round"
+                  strokeDasharray={ringCircumference}
+                  strokeDashoffset={ringOffset}
+                  className="transition-[stroke-dashoffset] duration-500 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-[13px] font-black leading-none tracking-tight text-amber-300">
+                  {pctStr}
+                  <span className="text-[10px] font-extrabold">%</span>
+                </span>
+                <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-white/80">
+                  Phù hợp
+                </span>
+              </div>
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-lg font-bold text-white">{candidateRow.displayName}</h3>
                 {candidateRow.applied ? (
-                  <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold text-emerald-200 ring-1 ring-emerald-300/40">
+                  <span className="rounded-full bg-emerald-400/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-200 ring-1 ring-emerald-300/40">
                     Đã nộp đơn
                   </span>
                 ) : (
-                  <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-300/40">
+                  <span className="rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-300/40">
                     Ứng viên inlink săn
                   </span>
                 )}
                 {isShortlisted ? (
-                  <span className="rounded-full bg-indigo-400/25 px-2 py-0.5 text-[10px] font-bold text-indigo-100 ring-1 ring-indigo-300/40">
+                  <span className="rounded-full bg-indigo-400/25 px-2.5 py-0.5 text-[10px] font-bold text-indigo-100 ring-1 ring-indigo-300/40">
                     ★ Đã Shortlist
                   </span>
                 ) : null}
               </div>
-              <p className="mt-0.5 text-xs text-white/80">
+              <p className="mt-1 text-xs leading-relaxed text-white/80">
                 {candidateRow.currentPosition
                   ? formatJobTitle(candidateRow.currentPosition)
                   : 'Chưa cập nhật vị trí'}
@@ -1815,49 +1860,27 @@ export function SourcingCandidateDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Thanh công cụ All-in-One cố định ngay dưới Header */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-[#f8fafc] px-5 py-2.5 sm:px-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={
-                isShortlisted ||
-                shortlistMutation.isPending ||
-                (entitlements.shortlistsRemaining !== null && entitlements.shortlistsRemaining <= 0)
-              }
-              onClick={() => shortlistMutation.mutate()}
-              className={clsx(
-                'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition',
-                isShortlisted
-                  ? 'bg-indigo-100 text-indigo-800'
-                  : 'bg-[#072348] text-white hover:bg-[#0d3b80] disabled:opacity-45',
-              )}
-            >
-              {shortlistMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : isShortlisted ? (
-                <BookmarkCheck className="h-3.5 w-3.5" />
-              ) : (
-                <ListChecks className="h-3.5 w-3.5" />
-              )}
-              {isShortlisted
-                ? 'Đã trong Shortlist'
-                : `+ Đưa vào Shortlist (Còn ${entitlements.shortlistsRemaining ?? '∞'})`}
-            </button>
-
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-[#f8fafc] px-5 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => setShowInterviewForm((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#d7e3f2] bg-white px-3 py-1.5 text-xs font-bold text-[#072348] transition hover:border-[#072348]"
+              className={clsx(
+                'inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold shadow-sm transition active:scale-[0.99]',
+                showInterviewForm
+                  ? 'bg-[#072348] text-white ring-2 ring-[#E8872A]/50'
+                  : 'bg-[#E8872A] text-white shadow-[#E8872A]/25 hover:bg-[#d6761b]',
+              )}
             >
-              <Calendar className="h-3.5 w-3.5 text-[#E8872A]" />
-              Đặt lịch phỏng vấn
+              <Calendar className="h-3.5 w-3.5" />
+              {showInterviewForm ? 'Đang mở lịch phỏng vấn' : 'Đặt lịch phỏng vấn'}
             </button>
           </div>
 
@@ -1965,59 +1988,7 @@ export function SourcingCandidateDrawer({
             </div>
           ) : null}
 
-          {/* 1. Đánh giá Matching theo JD */}
-          <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
-            <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-              1. Đối chiếu mức độ phù hợp với JD ({pctStr}%)
-            </h4>
-            {candidateRow.match.reason ? (
-              <p className="mt-2 text-xs leading-relaxed text-slate-700">{candidateRow.match.reason}</p>
-            ) : null}
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-emerald-50/70 p-3">
-                <p className="text-[11px] font-bold text-emerald-900">
-                  ✓ Điểm mạnh khớp JD ({(candidateRow.match.matchedSkills ?? []).length})
-                </p>
-                {(candidateRow.match.matchedSkills ?? []).length > 0 ? (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {(candidateRow.match.matchedSkills ?? []).map((s) => (
-                      <span
-                        key={s}
-                        className="rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-200"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-[11px] text-slate-500">Đang tổng hợp theo kinh nghiệm tổng quát.</p>
-                )}
-              </div>
-
-              <div className="rounded-xl bg-amber-50/70 p-3">
-                <p className="text-[11px] font-bold text-amber-900">
-                  ! Điểm cần lưu ý / Kiểm tra khi PV ({(candidateRow.match.missingSkills ?? []).length})
-                </p>
-                {(candidateRow.match.missingSkills ?? []).length > 0 ? (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {(candidateRow.match.missingSkills ?? []).map((s) => (
-                      <span
-                        key={s}
-                        className="rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-[11px] text-emerald-700">Đáp ứng đầy đủ các tiêu chí chính của JD.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Mở khóa hồ sơ & Liên hệ / Kết nối ứng viên */}
+          {/* Mở khóa hồ sơ & Liên hệ / Kết nối ứng viên */}
           {!unlocked ? (
             <div className="rounded-2xl border-2 border-[#E8872A]/40 bg-gradient-to-br from-amber-50/90 to-white p-5">
               <div className="flex items-start gap-3">
@@ -2151,27 +2122,36 @@ export function SourcingCandidateDrawer({
                 </div>
               </div>
 
-              {/* Kinh nghiệm làm việc */}
-              {(detail.experiences ?? []).length > 0 ? (
+              {/* Kinh nghiệm làm việc (rút gọn 140 từ + nút Xem thêm) */}
+              {experiences.length > 0 ? (
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4">
                   <h4 className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-[#072348]">
                     <Briefcase className="h-3.5 w-3.5 text-[#E8872A]" />
-                    Kinh nghiệm làm việc ({detail.experiences.length})
+                    Kinh nghiệm làm việc ({experiences.length})
                   </h4>
                   <div className="mt-3 space-y-3">
-                    {detail.experiences.map((exp) => (
+                    {visibleExperiences.map((exp) => (
                       <div key={exp.id} className="border-l-2 border-[#d7e3f2] pl-3">
                         <p className="text-xs font-bold text-slate-900">
                           {exp.jobTitle} · <span className="font-semibold text-[#072348]">{exp.companyName}</span>
                         </p>
-                        {exp.highlights ? (
+                        {exp.truncatedHighlights ? (
                           <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-600">
-                            {exp.highlights}
+                            {exp.truncatedHighlights}
                           </p>
                         ) : null}
                       </div>
                     ))}
                   </div>
+                  {shouldTruncateExp ? (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedExp((v) => !v)}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3.5 py-1.5 text-xs font-bold text-[#072348] transition hover:border-[#E8872A] hover:bg-[#FFEEDB]"
+                    >
+                      {expandedExp ? 'Thu gọn kinh nghiệm làm việc ↑' : 'Xem thêm toàn bộ kinh nghiệm làm việc ↓'}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </>

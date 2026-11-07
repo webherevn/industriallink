@@ -26,6 +26,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
   const [folder, setFolder] = useState<'all' | 'unread'>('all');
   const [hasToken, setHasToken] = useState(false);
   const [dockHeight, setDockHeight] = useState(128);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const viewing = embedded || open;
 
@@ -39,7 +40,16 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
       if (typeof height === 'number') setDockHeight(height);
     }
     window.addEventListener('inlink-support-dock', onDock);
-    return () => window.removeEventListener('inlink-support-dock', onDock);
+    window.addEventListener('inlink-support-dock', onDock);
+    function onDrawer(event: Event) {
+      const isOpen = Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open);
+      setDrawerOpen(isOpen);
+    }
+    window.addEventListener('inlink-candidate-drawer', onDrawer);
+    return () => {
+      window.removeEventListener('inlink-support-dock', onDock);
+      window.removeEventListener('inlink-candidate-drawer', onDrawer);
+    };
   }, []);
 
   const threads = useQuery({
@@ -174,6 +184,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         sendError={send.isError}
         scroller={scroller}
         dockHeight={dockHeight}
+        drawerOpen={drawerOpen}
       />
     );
   }
@@ -541,6 +552,7 @@ function MessengerDock({
   sendError,
   scroller,
   dockHeight,
+  drawerOpen = false,
 }: {
   open: boolean;
   onOpen: () => void;
@@ -558,6 +570,7 @@ function MessengerDock({
   sendError: boolean;
   scroller: RefObject<HTMLDivElement | null>;
   dockHeight: number;
+  drawerOpen?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const shown = useMemo(() => {
@@ -571,8 +584,19 @@ function MessengerDock({
 
   return (
     <div
-      className="pointer-events-none fixed right-4 z-40 flex flex-col items-end"
-      style={{ bottom: dockHeight + 36 }}
+      className={clsx(
+        'pointer-events-none fixed flex flex-col items-end transition-all duration-200',
+        drawerOpen ? 'z-[60] left-4 sm:left-auto' : 'right-4 z-40',
+      )}
+      style={
+        drawerOpen
+          ? {
+              bottom: 24,
+              right: 'min(calc(42rem + 1rem), calc(100vw - 23.5rem))',
+            }
+          : { bottom: dockHeight + 36 }
+      }
+      title={drawerOpen ? 'Khung chat với ứng viên' : undefined}
     >
       {open && (
         <div
