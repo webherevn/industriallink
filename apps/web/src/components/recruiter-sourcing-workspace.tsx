@@ -1237,18 +1237,7 @@ function PotentialCandidatesColumn({
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                             Đã xem
                           </span>
-                        ) : (
-                          <span
-                            className={clsx(
-                              'rounded-full px-2 py-0.5 text-[10px] font-bold ring-1',
-                              creditCost === 2
-                                ? 'bg-orange-50 text-[#c96a12] ring-orange-200'
-                                : 'bg-sky-50 text-[#072348] ring-sky-200',
-                            )}
-                          >
-                            {creditCost} Credit
-                          </span>
-                        )}
+                        ) : null}
                       </span>
                       <span className="mt-0.5 block text-xs text-slate-500">
                         {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
@@ -1270,24 +1259,40 @@ function PotentialCandidatesColumn({
                     </span>
                   </button>
 
-                  <button
-                    type="button"
-                    disabled={!isShortlisted && !canShortlist}
-                    onClick={() => onQuickShortlist(row)}
-                    title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
-                    className={clsx(
-                      'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
-                      isShortlisted
-                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                        : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
-                    )}
-                  >
-                    {isShortlisted ? (
-                      <BookmarkCheck className="h-3.5 w-3.5" />
-                    ) : (
-                      '+ Shortlist'
-                    )}
-                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
+                      title={
+                        creditCost === 2
+                          ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
+                          : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
+                      }
+                    >
+                      <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                      <span>
+                        <span className="text-[#E8872A]">{creditCost}</span> Credit
+                      </span>
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={!isShortlisted && !canShortlist}
+                      onClick={() => onQuickShortlist(row)}
+                      title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                      className={clsx(
+                        'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                        isShortlisted
+                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                      )}
+                    >
+                      {isShortlisted ? (
+                        <BookmarkCheck className="h-3.5 w-3.5" />
+                      ) : (
+                        '+ Shortlist'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </li>
             );
