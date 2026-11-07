@@ -185,10 +185,14 @@ export function RecruiterSourcingWorkspace() {
   const e = data?.entitlements;
   const hasPlan = Boolean(e?.assignment?.isActive);
   const ended = cycleEnded(e?.assignment?.endsAt);
-  const selected = activeId ?? data?.engagements[0]?.id ?? null;
+  const validEngagements = useMemo(
+    () => (data?.engagements ?? []).filter((eng) => Boolean(eng.jobId)),
+    [data?.engagements],
+  );
+  const selected = activeId ?? validEngagements[0]?.id ?? null;
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
-  const selectedEngagement = (data?.engagements ?? []).find((eng) => eng.id === selected) ?? null;
+  const selectedEngagement = validEngagements.find((eng) => eng.id === selected) ?? null;
   const huntJobId = selectedEngagement?.jobId ?? null;
 
   const engagementScanRounds = useMemo(
@@ -401,7 +405,7 @@ export function RecruiterSourcingWorkspace() {
                 ) : null}
               </div>
 
-              {(data?.engagements ?? []).length === 0 ? (
+              {validEngagements.length === 0 ? (
                 <div className="mt-4 flex flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
                   <Sparkles className="h-6 w-6 text-[#E8872A]" />
                   <p className="mt-2 text-sm font-medium text-slate-600">Danh sách tin săn hiển thị ở đây</p>
@@ -421,7 +425,7 @@ export function RecruiterSourcingWorkspace() {
                 </div>
               ) : (
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {(data?.engagements ?? []).map((eng) => {
+                  {validEngagements.map((eng) => {
                     const isActive = selected === eng.id;
                     const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
                     const slCount = (data?.shortlistedByEngagement?.[eng.id] ?? []).length;
@@ -622,18 +626,6 @@ export function RecruiterSourcingWorkspace() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Tên vị trí hiển thị trong danh sách Tin Săn
-                  </label>
-                  <Input
-                    className="mt-1.5"
-                    placeholder="Mặc định lấy theo tiêu đề JD đã chọn"
-                    value={title}
-                    onChange={(ev) => setTitle(ev.target.value)}
-                  />
-                </div>
-
                 <div className="flex flex-col gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
                   <button
                     type="button"
@@ -645,13 +637,13 @@ export function RecruiterSourcingWorkspace() {
                   </button>
 
                   <Button
-                    disabled={consume.isPending || (!jobId && !title.trim())}
+                    disabled={consume.isPending || !jobId}
                     onClick={() => {
                       const selectedJob = (jobs ?? []).find((j) => j.id === jobId);
                       consume.mutate({
                         kind: 'position',
-                        jobId: jobId || undefined,
-                        title: title.trim() || selectedJob?.title || undefined,
+                        jobId,
+                        title: selectedJob?.title || undefined,
                       });
                     }}
                   >

@@ -87,8 +87,24 @@ export class SourcingService {
   }
 
   async getEntitlements(companyId: string): Promise<RecruiterSourcingEntitlements> {
-    const row = await this.settleExpiredPlan(companyId);
+    let row = await this.settleExpiredPlan(companyId);
     if (!row?.plan || !row.isActive) return this.emptyEntitlements();
+    const orphanCount = await this.prisma.billingSourcingEngagement.count({
+      where: { companyId, assignmentId: row.id, jobId: null },
+    });
+    if (orphanCount > 0) {
+      await this.prisma.billingSourcingEngagement.deleteMany({
+        where: { companyId, assignmentId: row.id, jobId: null },
+      });
+      const validPositions = await this.prisma.billingSourcingEngagement.count({
+        where: { companyId, assignmentId: row.id, jobId: { not: null } },
+      });
+      row = await this.prisma.billingCompanySourcingPlan.update({
+        where: { id: row.id },
+        data: { positionsUsed: validPositions },
+        include: { plan: true },
+      });
+    }
     const opensUsed = await this.countIncludedOpens(row.id, row.startsAt);
     return this.toEntitlements(row, opensUsed);
   }
@@ -101,7 +117,7 @@ export class SourcingService {
     }
     const [engagements, usages] = await Promise.all([
       this.prisma.billingSourcingEngagement.findMany({
-        where: { companyId, assignmentId },
+        where: { companyId, assignmentId, jobId: { not: null } },
         orderBy: { createdAt: 'desc' },
         take: 50,
       }),
@@ -311,30 +327,32 @@ export class SourcingService {
 
       if (kind === 'position') {
         const validJobId = input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null;
-        let linkedJobTitle: string | null = null;
-        if (validJobId) {
-          const existingJob = await tx.job.findFirst({
-            where: { id: validJobId, companyId, isDeleted: false },
-            select: { id: true, title: true, deadline: true, status: true },
-          });
-          if (existingJob) {
-            linkedJobTitle = existingJob.title;
-            const baseDate =
-              existingJob.deadline && existingJob.deadline.getTime() > Date.now()
-                ? existingJob.deadline
-                : new Date();
-            const preservedDeadline = addUtcDays(baseDate, 45);
-            await tx.job.update({
-              where: { id: existingJob.id },
-              data: {
-                deadline: preservedDeadline,
-                status: 'published',
-              },
-            });
-          }
+        if (!validJobId) {
+          throw new BadRequestException(
+            'Vui lòng chọn một tin tuyển dụng (JD) có sẵn hoặc tạo JD mới để kích hoạt Tin Săn.',
+          );
         }
-        const title =
-          input.title?.trim() || linkedJobTitle || (validJobId ? 'Vị trí theo tin đăng' : 'Vị trí Săn mới');
+        const existingJob = await tx.job.findFirst({
+          where: { id: validJobId, companyId, isDeleted: false },
+          select: { id: true, title: true, deadline: true, status: true },
+        });
+        if (!existingJob) {
+          throw new NotFoundException('Không tìm thấy tin tuyển dụng (JD) đã chọn.');
+        }
+        const linkedJobTitle = existingJob.title;
+        const baseDate =
+          existingJob.deadline && existingJob.deadline.getTime() > Date.now()
+            ? existingJob.deadline
+            : new Date();
+        const preservedDeadline = addUtcDays(baseDate, 45);
+        await tx.job.update({
+          where: { id: existingJob.id },
+          data: {
+            deadline: preservedDeadline,
+            status: 'published',
+          },
+        });
+        const title = linkedJobTitle || input.title?.trim() || 'Tin Săn tuyển dụng';
         const engagement = await tx.billingSourcingEngagement.create({
           data: {
             companyId,
