@@ -143,6 +143,7 @@ export function JdSalesForm({
   uncertainKeys = [],
   disabled,
   showProgress = false,
+  lockPosition = false,
 }: {
   form: JdSalesFormState;
   onChange: (patch: Partial<JdSalesFormState>) => void;
@@ -150,6 +151,7 @@ export function JdSalesForm({
   disabled?: boolean;
   /** Thẻ tiến độ trên trang sửa tin. Bấm mục thiếu để mở đúng ô. */
   showProgress?: boolean;
+  lockPosition?: boolean;
 }) {
   const uncertain = new Set(uncertainKeys);
   const openJobFit = formHasJobFit(form);
@@ -213,10 +215,18 @@ export function JdSalesForm({
           />
           <Input
             value={form.title}
-            onChange={(e) => onChange({ title: e.target.value })}
+            onChange={(e) => !lockPosition && onChange({ title: e.target.value })}
+            disabled={lockPosition}
+            readOnly={lockPosition}
             placeholder="VD: Nhân viên kinh doanh thiết bị công nghiệp"
             size="sm"
           />
+          {lockPosition ? (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-amber-700">
+              <span>🔒</span>
+              <span>Vị trí tuyển dụng đã cố định sau khi đăng tin — không thể thay đổi sang vị trí khác.</span>
+            </p>
+          ) : (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {JD_SALES_TITLE_OPTIONS.map((opt) => (
               <button
@@ -239,6 +249,7 @@ export function JdSalesForm({
               </button>
             ))}
           </div>
+          )}
         </div>
 
         <div>

@@ -611,6 +611,21 @@ export class JobService {
 
     await this.prisma.jobSkill.deleteMany({ where: { jobId: id } });
 
+    const lockedTitle = owned.title?.trim() ? owned.title : dto.title;
+    dto.title = lockedTitle;
+    const existingTech =
+      owned.technicalCriteria != null
+        ? normalizeJobTechnicalCriteria(owned.technicalCriteria)
+        : null;
+    if (dto.technicalCriteria && existingTech?.position?.trim()) {
+      dto.technicalCriteria.position = existingTech.position;
+    }
+    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+      where: { jobId: id, companyId: owned.companyId, status: { not: 'closed' } },
+      select: { id: true },
+    });
+    const shouldReModerate = wasPublished && !sourcingEngagement;
+
     const track = resolveCreateJobTrack(dto);
     assertTechnicalLevelFitsPosition(dto, track);
     const inferredLevel = dto.jobLevel ?? inferJobLevelFromTitle(dto.title, track);
@@ -638,7 +653,7 @@ export class JobService {
         employmentType: dto.employmentType ?? null,
         location: dto.location ?? null,
         headcount: dto.headcount ?? 1,
-        deadline: await this.resolveJobDeadline(
+        deadline: sourcingEngagement && owned.deadline ? owned.deadline : await this.resolveJobDeadline(
           owned.companyId,
           dto.deadline ? toVnCalendarDate(dto.deadline) : owned.deadline,
           owned.publishedAt ?? new Date(),
@@ -647,7 +662,7 @@ export class JobService {
         salaryMin: dto.salaryMin ?? null,
         salaryMax: dto.salaryMax ?? null,
         updatedBy: user.id,
-        ...(wasPublished
+        ...(shouldReModerate
           ? { status: JobStatus.Draft, moderationStatus: JobModerationStatus.Pending }
           : {}),
         skills: {
@@ -657,7 +672,7 @@ export class JobService {
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
     });
 
-    if (wasPublished) {
+    if (shouldReModerate) {
       await this.enqueueModeration(updated.id, updated.tenantId, correlationId);
       this.events.publish(
         createDomainEvent({

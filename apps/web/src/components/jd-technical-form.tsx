@@ -149,6 +149,7 @@ export function JdTechnicalForm({
   uncertainKeys = [],
   disabled,
   showProgress = false,
+  lockPosition = false,
 }: {
   form: JdTechnicalFormState;
   onChange: (patch: Partial<JdTechnicalFormState>) => void;
@@ -156,6 +157,7 @@ export function JdTechnicalForm({
   disabled?: boolean;
   /** Thẻ tiến độ trên trang sửa tin. Bấm mục thiếu để mở đúng ô. */
   showProgress?: boolean;
+  lockPosition?: boolean;
 }) {
   const uncertain = new Set(uncertainKeys);
   const openJobFit = formHasTechnicalJobFit(form);
@@ -217,7 +219,7 @@ export function JdTechnicalForm({
           />
           <TechnicalPositionSelect
             value={form.position}
-            disabled={disabled}
+            disabled={Boolean(disabled || lockPosition)}
             onChange={(position) => {
               const titleFollowsPosition =
                 Boolean(position.trim()) && (!form.title.trim() || form.title === form.position);
@@ -228,7 +230,7 @@ export function JdTechnicalForm({
             }}
           />
           <p className="mt-1 text-xs text-slate-500">
-            Dùng để chấm điểm matching với vị trí ứng viên đã làm / muốn ứng tuyển.
+            {lockPosition ? '🔒 Vị trí tuyển dụng đã cố định sau khi đăng tin — không thể thay đổi sang vị trí khác.' : 'Dùng để chấm điểm matching với vị trí ứng viên đã làm / muốn ứng tuyển.'}
           </p>
         </div>
 
@@ -255,7 +257,9 @@ export function JdTechnicalForm({
           <NumberedFieldLabel title="Tiêu đề tin" />
           <Input
             value={form.title}
-            onChange={(e) => onChange({ title: e.target.value })}
+            onChange={(e) => !lockPosition && onChange({ title: e.target.value })}
+            disabled={lockPosition}
+            readOnly={lockPosition}
             placeholder="VD: Tuyển Kỹ sư tự động hóa PLC Siemens – KCN VSIP"
             size="sm"
           />

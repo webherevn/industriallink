@@ -720,6 +720,7 @@ export function RecruiterSourcingWorkspace() {
           engagementId={selected}
           jobId={huntJobId}
           revisionsRemaining={e.revisionsRemaining}
+          allResults={allResults}
           onWorkspaceUpdated={(ws, msg) => {
             void qc.setQueryData(['recruiter-sourcing'], ws);
             void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });

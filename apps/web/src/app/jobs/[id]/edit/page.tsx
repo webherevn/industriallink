@@ -138,6 +138,7 @@ export default function EditJobPage() {
             <JdSalesForm
               form={salesForm}
               showProgress
+              lockPosition
               onChange={(patch) => setSalesForm((prev) => ({ ...prev, ...patch }))}
             />
             <div className="flex justify-end gap-2 pt-2">
@@ -175,6 +176,7 @@ export default function EditJobPage() {
             <JdTechnicalForm
               form={techForm}
               showProgress
+              lockPosition
               onChange={(patch) => setTechForm((prev) => ({ ...prev, ...patch }))}
             />
             <div className="flex justify-end gap-2 pt-2">
