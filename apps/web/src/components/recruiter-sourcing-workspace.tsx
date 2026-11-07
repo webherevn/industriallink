@@ -12,6 +12,7 @@ import {
   Coins,
   Eye,
   FileSearch,
+  Headphones,
   ListChecks,
   Loader2,
   MapPin,
@@ -29,6 +30,7 @@ import {
   formatJobTitle,
   type CandidateMatchView,
   type RecruiterSourcingEntitlements,
+  type RecruiterSourcingOutreachItem,
   type RecruiterSourcingScanRoundView,
   type SourcingQuotaKind,
 } from '@industriallink/contracts';
@@ -42,7 +44,7 @@ import {
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { addCandidateShortlist, removeCandidateShortlist } from '@/lib/candidate';
+import { addCandidateShortlist, getCandidateById, removeCandidateShortlist } from '@/lib/candidate';
 import { listMyJobs } from '@/lib/jobs';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
@@ -198,6 +200,39 @@ export function RecruiterSourcingWorkspace() {
       }),
   });
 
+  const quickOutreach = useMutation({
+    mutationFn: async (cand: CandidateMatchView) => {
+      if (!selected) throw new Error('Chưa chọn vị trí Săn');
+      const cleanName = cand.displayName.replace(/:/g, ' ');
+      const ws = await consumeRecruiterSourcing({
+        kind: 'shortlist',
+        engagementId: selected,
+        jobId: huntJobId ?? undefined,
+        note: `outreach:${cand.candidateId}:${cleanName}:Nhờ CSKH Inlink liên hệ kết nối & thẩm định ứng viên`,
+      });
+      await getCandidateById(
+        cand.candidateId,
+        'sourcing',
+        formatMatchPct(cand.match.score),
+      ).catch(() => null);
+      return ws;
+    },
+    onSuccess: (ws, cand) => {
+      void qc.setQueryData(['recruiter-sourcing'], ws);
+      void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+      void qc.invalidateQueries({ queryKey: ['sourcing-hunt', huntJobId] });
+      setBanner({
+        tone: 'ok',
+        text: `Đã bàn giao ứng viên «${cand.displayName}» cho đội ngũ CSKH Inlink liên hệ kết nối & mở khóa hồ sơ!`,
+      });
+    },
+    onError: (err) =>
+      setBanner({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không giao được ứng viên cho Inlink liên hệ',
+      }),
+  });
+
   const e = data?.entitlements;
   const hasPlan = Boolean(e?.assignment?.isActive);
   const ended = cycleEnded(e?.assignment?.endsAt);
@@ -211,6 +246,10 @@ export function RecruiterSourcingWorkspace() {
       : validEngagements[0]?.id ?? null;
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
+  const hasOutreach =
+    scope.includes('outreach') ||
+    e?.planCode === 'SAN_CHUYEN_SAU' ||
+    (e?.outreachQuota != null && e.outreachQuota > 0);
   const selectedEngagement = validEngagements.find((eng) => eng.id === selected) ?? null;
   const huntJobId = selectedEngagement?.jobId ?? null;
 
@@ -225,6 +264,16 @@ export function RecruiterSourcingWorkspace() {
   const engagementShortlistedIds = useMemo<string[]>(
     () => (selected ? data?.shortlistedByEngagement?.[selected] ?? [] : []),
     [data?.shortlistedByEngagement, selected],
+  );
+
+  const engagementOutreachList = useMemo<RecruiterSourcingOutreachItem[]>(
+    () => (selected ? data?.outreachByEngagement?.[selected] ?? [] : []),
+    [data?.outreachByEngagement, selected],
+  );
+
+  const engagementOutreachIds = useMemo<string[]>(
+    () => engagementOutreachList.map((o) => o.candidateId),
+    [engagementOutreachList],
   );
 
   const engagementReports = useMemo(
@@ -366,6 +415,7 @@ export function RecruiterSourcingWorkspace() {
           <>
             <QuotaGrid
               entitlements={e!}
+              hasOutreach={hasOutreach}
               scanRoundsCount={engagementScanRounds.length}
               totalMatchedCount={allResults.length}
               highMatchCount={highMatchCount}
@@ -382,6 +432,7 @@ export function RecruiterSourcingWorkspace() {
               onOpenReport={selected ? () => setReportModalOpen(true) : undefined}
               onOpenRevision={selected && huntJobId ? () => setRevisionModalOpen(true) : undefined}
               onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
+              onFilterOutreach={selected && hasOutreach ? () => setSelectedRoundId('outreach') : undefined}
             />
 
             {/* DANH SÁCH TIN SĂN */}
@@ -544,10 +595,16 @@ export function RecruiterSourcingWorkspace() {
                 scanRounds={engagementScanRounds}
                 shortlistedIds={engagementShortlistedIds}
                 shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
+                hasOutreach={hasOutreach}
+                outreachIds={engagementOutreachIds}
+                outreachQuota={e!.outreachQuota ?? e!.shortlistQuota ?? 15}
+                outreachRemaining={e!.outreachRemaining ?? e!.shortlistsRemaining ?? 15}
+                outreachPending={quickOutreach.isPending}
                 selectedRoundId={selectedRoundId}
                 onSelectRound={setSelectedRoundId}
                 onSelectCandidate={setDrawerCandidate}
                 onQuickShortlist={(row) => quickShortlist.mutate(row)}
+                onQuickOutreach={(row) => quickOutreach.mutate(row)}
                 ready={Boolean(huntJobId) && !ended}
               />
             </div>
@@ -838,12 +895,26 @@ export function RecruiterSourcingWorkspace() {
           isShortlisted={
             drawerCandidate ? engagementShortlistedIds.includes(drawerCandidate.candidateId) : false
           }
+          outreachItem={
+            drawerCandidate
+              ? engagementOutreachList.find((o) => o.candidateId === drawerCandidate.candidateId) ?? null
+              : null
+          }
           onShortlistSuccess={(ws, candName) => {
             void qc.setQueryData(['recruiter-sourcing'], ws);
             void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
             setBanner({
               tone: 'ok',
               text: `Đã đưa ứng viên «${candName}» vào danh sách Shortlist!`,
+            });
+          }}
+          onOutreachSuccess={(ws, candName) => {
+            void qc.setQueryData(['recruiter-sourcing'], ws);
+            void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+            void qc.invalidateQueries({ queryKey: ['sourcing-hunt', huntJobId] });
+            setBanner({
+              tone: 'ok',
+              text: `Đã bàn giao ứng viên «${candName}» cho đội ngũ CSKH Inlink liên hệ kết nối & mở khóa hồ sơ!`,
             });
           }}
           onProfileUnlocked={() => {
@@ -1034,10 +1105,16 @@ function PotentialCandidatesColumn({
   scanRounds,
   shortlistedIds,
   shortlistRemaining,
+  hasOutreach,
+  outreachIds,
+  outreachQuota,
+  outreachRemaining,
+  outreachPending,
   selectedRoundId,
   onSelectRound,
   onSelectCandidate,
   onQuickShortlist,
+  onQuickOutreach,
   ready,
 }: {
   jobTitle?: string;
@@ -1047,15 +1124,21 @@ function PotentialCandidatesColumn({
   scanRounds: RecruiterSourcingScanRoundView[];
   shortlistedIds: string[];
   shortlistRemaining: number | null;
+  hasOutreach: boolean;
+  outreachIds: string[];
+  outreachQuota: number | null;
+  outreachRemaining: number | null;
+  outreachPending: boolean;
   selectedRoundId: string;
   onSelectRound: (id: string) => void;
   onSelectCandidate: (row: CandidateMatchView) => void;
   onQuickShortlist: (row: CandidateMatchView) => void;
+  onQuickOutreach: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
   const activeRound = useMemo(
     () =>
-      selectedRoundId === 'all' || selectedRoundId === 'shortlist'
+      selectedRoundId === 'all' || selectedRoundId === 'shortlist' || selectedRoundId === 'outreach'
         ? null
         : scanRounds.find((r) => r.id === selectedRoundId) ?? null,
     [scanRounds, selectedRoundId],
@@ -1071,6 +1154,9 @@ function PotentialCandidatesColumn({
     if (selectedRoundId === 'shortlist') {
       return results.filter((r) => shortlistedIds.includes(r.candidateId));
     }
+    if (selectedRoundId === 'outreach') {
+      return results.filter((r) => outreachIds.includes(r.candidateId));
+    }
     if (!activeRound) return results;
     const roundCandidateMap = new Map(activeRound.candidates.map((c) => [c.candidateId, c]));
     return results
@@ -1081,11 +1167,16 @@ function PotentialCandidatesColumn({
         if (bNew !== aNew) return bNew - aNew;
         return b.match.score - a.match.score;
       });
-  }, [activeRound, results, selectedRoundId, shortlistedIds]);
+  }, [activeRound, outreachIds, results, selectedRoundId, shortlistedIds]);
 
   const shortlistedPotentialCount = useMemo(
     () => results.filter((r) => shortlistedIds.includes(r.candidateId)).length,
     [results, shortlistedIds],
+  );
+
+  const outreachedPotentialCount = useMemo(
+    () => results.filter((r) => outreachIds.includes(r.candidateId)).length,
+    [outreachIds, results],
   );
 
   return (
@@ -1108,8 +1199,8 @@ function PotentialCandidatesColumn({
         ) : null}
       </div>
 
-      {/* Thanh chọn các đợt tìm kiếm 2 giờ/lần + bộ lọc Shortlist */}
-      {ready && (scanRounds.length > 0 || shortlistedPotentialCount > 0) ? (
+      {/* Thanh chọn các đợt tìm kiếm 2 giờ/lần + bộ lọc Shortlist + Giao Inlink liên hệ */}
+      {ready && (scanRounds.length > 0 || shortlistedPotentialCount > 0 || hasOutreach || outreachedPotentialCount > 0) ? (
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
             <span className="inline-flex items-center gap-1 font-medium text-[#072348]">
@@ -1130,6 +1221,24 @@ function PotentialCandidatesColumn({
             >
               Tất cả phù hợp ({results.length})
             </button>
+            {hasOutreach || outreachedPotentialCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => onSelectRound('outreach')}
+                className={clsx(
+                  'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition',
+                  selectedRoundId === 'outreach'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/80 hover:bg-emerald-100',
+                )}
+              >
+                <Headphones className="h-3 w-3" />
+                <span>
+                  Đã giao Inlink ({outreachedPotentialCount}
+                  {outreachQuota != null ? `/${outreachQuota}` : ''})
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => onSelectRound('shortlist')}
@@ -1193,9 +1302,11 @@ function PotentialCandidatesColumn({
       ) : filteredResults.length === 0 ? (
         <div className="mt-4 flex flex-1 flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
           <p className="text-xs text-slate-500">
-            {selectedRoundId === 'shortlist'
-              ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm «+ Shortlist» trên thẻ ứng viên để lưu vào đây.'
-              : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
+            {selectedRoundId === 'outreach'
+              ? 'Chưa có ứng viên nào được giao cho Inlink liên hệ. Bấm «Giao Inlink» trên thẻ ứng viên hoặc trong chi tiết hồ sơ để bàn giao cho đội ngũ CSKH Inlink.'
+              : selectedRoundId === 'shortlist'
+                ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm «+ Shortlist» trên thẻ ứng viên để lưu vào đây.'
+                : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
           </p>
         </div>
       ) : (
@@ -1204,7 +1315,9 @@ function PotentialCandidatesColumn({
             const creditCost = potentialOpenCreditCost(row.match.score);
             const isNewlyDiscovered = latestRoundNewSet.has(row.candidateId);
             const isShortlisted = shortlistedIds.includes(row.candidateId);
+            const isOutreached = outreachIds.includes(row.candidateId);
             const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
+            const canOutreach = outreachRemaining === null || outreachRemaining > 0;
             return (
               <li
                 key={row.candidateId}
@@ -1228,12 +1341,18 @@ function PotentialCandidatesColumn({
                             Mới phát hiện
                           </span>
                         ) : null}
+                        {isOutreached ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                            <Headphones className="h-2.5 w-2.5" />
+                            Inlink đang liên hệ
+                          </span>
+                        ) : null}
                         {isShortlisted ? (
                           <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
                             ★ Đã Shortlist
                           </span>
                         ) : null}
-                        {row.viewed ? (
+                        {row.viewed || isOutreached ? (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                             Đã xem
                           </span>
@@ -1274,24 +1393,48 @@ function PotentialCandidatesColumn({
                       </span>
                     </span>
 
-                    <button
-                      type="button"
-                      disabled={!isShortlisted && !canShortlist}
-                      onClick={() => onQuickShortlist(row)}
-                      title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
-                      className={clsx(
-                        'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
-                        isShortlisted
-                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
-                      )}
-                    >
-                      {isShortlisted ? (
-                        <BookmarkCheck className="h-3.5 w-3.5" />
-                      ) : (
-                        '+ Shortlist'
-                      )}
-                    </button>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {hasOutreach ? (
+                        <button
+                          type="button"
+                          disabled={isOutreached || !canOutreach || outreachPending}
+                          onClick={() => onQuickOutreach(row)}
+                          title={
+                            isOutreached
+                              ? 'Đã bàn giao cho đội ngũ CSKH Inlink liên hệ & mở khóa hồ sơ'
+                              : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
+                          }
+                          className={clsx(
+                            'inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                            isOutreached
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90'
+                              : 'border border-[#072348]/20 bg-[#f4f8fd] text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-40',
+                          )}
+                        >
+                          <Headphones className="h-3 w-3 text-[#E8872A]" />
+                          <span>{isOutreached ? 'Đã giao Inlink' : 'Giao Inlink'}</span>
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        disabled={!isShortlisted && !canShortlist}
+                        onClick={() => onQuickShortlist(row)}
+                        title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                        className={clsx(
+                          'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                          isShortlisted
+                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                        )}
+                      >
+                        {isShortlisted ? (
+                          <BookmarkCheck className="h-3.5 w-3.5" />
+                        ) : (
+                          '+ Shortlist'
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </li>
@@ -1305,6 +1448,7 @@ function PotentialCandidatesColumn({
 
 function QuotaGrid({
   entitlements: e,
+  hasOutreach,
   scanRoundsCount,
   totalMatchedCount,
   highMatchCount,
@@ -1314,8 +1458,10 @@ function QuotaGrid({
   onOpenReport,
   onOpenRevision,
   onFilterShortlist,
+  onFilterOutreach,
 }: {
   entitlements: RecruiterSourcingEntitlements;
+  hasOutreach: boolean;
   scanRoundsCount: number;
   totalMatchedCount: number;
   highMatchCount: number;
@@ -1325,7 +1471,12 @@ function QuotaGrid({
   onOpenReport?: () => void;
   onOpenRevision?: () => void;
   onFilterShortlist?: () => void;
+  onFilterOutreach?: () => void;
 }) {
+  const outreachQ = e.outreachQuota ?? e.shortlistQuota;
+  const outreachU = e.outreachUsed ?? e.shortlistsUsed;
+  const outreachR = e.outreachRemaining ?? e.shortlistsRemaining;
+
   const rows: {
     label: string;
     value: string | number;
@@ -1362,13 +1513,25 @@ function QuotaGrid({
       onClick: onOpenRevision,
     },
     {
-      label: 'Shortlist',
-      value: e.shortlistQuota == null ? '∞' : String(e.shortlistsRemaining ?? 0),
-      badge: fmtQuota(e.shortlistsUsed, e.shortlistQuota, e.shortlistsRemaining),
-      icon: ListChecks,
+      label: hasOutreach ? 'Giao Inlink liên hệ' : 'Shortlist',
+      value: hasOutreach
+        ? outreachQ == null
+          ? '∞'
+          : String(outreachR ?? 0)
+        : e.shortlistQuota == null
+          ? '∞'
+          : String(e.shortlistsRemaining ?? 0),
+      badge: hasOutreach
+        ? fmtQuota(outreachU, outreachQ ?? 15, outreachR ?? 0)
+        : fmtQuota(e.shortlistsUsed, e.shortlistQuota, e.shortlistsRemaining),
+      icon: hasOutreach ? Headphones : ListChecks,
       tone: 'bg-indigo-50 text-indigo-700',
-      actionHint: onFilterShortlist ? 'Lọc ứng viên đã Shortlist' : undefined,
-      onClick: onFilterShortlist,
+      actionHint: hasOutreach
+        ? 'Lọc ứng viên đã giao Inlink liên hệ'
+        : onFilterShortlist
+          ? 'Lọc ứng viên đã Shortlist'
+          : undefined,
+      onClick: hasOutreach ? onFilterOutreach : onFilterShortlist,
     },
     {
       label: 'Đợt quét 2h/lần',

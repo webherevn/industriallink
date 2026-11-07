@@ -11,6 +11,7 @@ import {
   Download,
   ExternalLink,
   FileBarChart2,
+  Headphones,
   ListChecks,
   Loader2,
   Lock,
@@ -53,6 +54,7 @@ import {
   formatJobTitle,
   type CandidateMatchView,
   type RecruiterSourcingEntitlements,
+  type RecruiterSourcingOutreachItem,
   type RecruiterSourcingReportView,
   type RecruiterSourcingScanRoundView,
   type RecruiterSourcingWorkspace,
@@ -2400,7 +2402,9 @@ export function SourcingCandidateDrawer({
   jobId,
   entitlements,
   isShortlisted,
+  outreachItem,
   onShortlistSuccess,
+  onOutreachSuccess,
   onProfileUnlocked,
 }: {
   candidateRow: CandidateMatchView | null;
@@ -2410,7 +2414,9 @@ export function SourcingCandidateDrawer({
   jobId: string | null;
   entitlements: RecruiterSourcingEntitlements;
   isShortlisted: boolean;
+  outreachItem?: RecruiterSourcingOutreachItem | null;
   onShortlistSuccess: (ws: RecruiterSourcingWorkspace, candidateName: string) => void;
+  onOutreachSuccess?: (ws: RecruiterSourcingWorkspace, candidateName: string) => void;
   onProfileUnlocked: () => void;
 }) {
   const qc = useQueryClient();
@@ -2418,6 +2424,8 @@ export function SourcingCandidateDrawer({
   const [unlocked, setUnlocked] = useState(false);
   const [connectMessage, setConnectMessage] = useState('');
   const [showInterviewForm, setShowInterviewForm] = useState(false);
+  const [showOutreachForm, setShowOutreachForm] = useState(false);
+  const [outreachNote, setOutreachNote] = useState('');
   const [interviewAt, setInterviewAt] = useState('');
   const [interviewType, setInterviewType] = useState<InterviewType>(InterviewType.Hr);
   const [interviewMode, setInterviewMode] = useState<'online' | 'onsite'>('online');
@@ -2425,6 +2433,18 @@ export function SourcingCandidateDrawer({
   const [interviewNote, setInterviewNote] = useState('');
   const [expandedExp, setExpandedExp] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  const hasOutreach = useMemo(() => {
+    const scope = entitlements.serviceScope ?? [];
+    return (
+      scope.includes('outreach') ||
+      entitlements.planCode === 'SAN_CHUYEN_SAU' ||
+      (entitlements.outreachQuota != null && entitlements.outreachQuota > 0)
+    );
+  }, [entitlements.outreachQuota, entitlements.planCode, entitlements.serviceScope]);
+  const outreachQuota = entitlements.outreachQuota ?? entitlements.shortlistQuota ?? 15;
+  const outreachRemaining = entitlements.outreachRemaining ?? entitlements.shortlistsRemaining ?? outreachQuota;
+  const isOutreached = Boolean(outreachItem);
 
   useEffect(() => {
     const isOpen = Boolean(candidateRow);
@@ -2436,14 +2456,18 @@ export function SourcingCandidateDrawer({
 
   useEffect(() => {
     if (!candidateRow) return;
-    setUnlocked(Boolean(candidateRow.viewed || candidateRow.applied));
+    setUnlocked(Boolean(candidateRow.viewed || candidateRow.applied || outreachItem));
     setConnectMessage(
       `Chào ${candidateRow.displayName}, công ty chúng tôi đang tuyển vị trí «${engagementTitle}» rất phù hợp với kinh nghiệm của bạn trên inlink. Mong được kết nối trao đổi thêm cùng bạn!`,
     );
+    setOutreachNote(
+      `Nhờ CSKH Inlink liên hệ ứng viên ${candidateRow.displayName} cho vị trí «${engagementTitle}», thẩm định nhu cầu chuyển việc & mức lương kỳ vọng giúp doanh nghiệp.`,
+    );
     setShowInterviewForm(false);
+    setShowOutreachForm(false);
     setExpandedExp(false);
     setFeedback(null);
-  }, [candidateRow, engagementTitle]);
+  }, [candidateRow, engagementTitle, outreachItem]);
 
   const pctStr = candidateRow ? formatMatchPct(candidateRow.match.score) : '0';
   const creditCost = candidateRow ? potentialCreditCost(candidateRow.match.score) : 1;
@@ -2510,6 +2534,45 @@ export function SourcingCandidateDrawer({
       setFeedback({
         tone: 'err',
         text: err instanceof ApiError ? err.message : 'Không đưa được vào Shortlist',
+      });
+    },
+  });
+
+  const outreachMutation = useMutation({
+    mutationFn: async () => {
+      if (!candidateRow || !engagementId) throw new Error('Chưa chọn vị trí Săn');
+      const cleanName = candidateRow.displayName.replace(/:/g, ' ');
+      const cleanNote = outreachNote.trim().replace(/:/g, ' -');
+      const ws = await consumeRecruiterSourcing({
+        kind: 'shortlist',
+        engagementId,
+        jobId: jobId ?? undefined,
+        note: `outreach:${candidateRow.candidateId}:${cleanName}:${cleanNote}`,
+      });
+      const detailRes = await getCandidateById(candidateRow.candidateId, 'sourcing', pctStr).catch(
+        () => null,
+      );
+      return { ws, detailRes };
+    },
+    onSuccess: ({ ws, detailRes }) => {
+      setUnlocked(true);
+      setShowOutreachForm(false);
+      if (detailRes && candidateRow) {
+        qc.setQueryData(['sourcing-candidate-drawer', candidateRow.candidateId, true], detailRes);
+      }
+      onProfileUnlocked();
+      if (candidateRow) {
+        onOutreachSuccess?.(ws, candidateRow.displayName);
+      }
+      setFeedback({
+        tone: 'ok',
+        text: `Đã bàn giao «${candidateRow?.displayName}» cho đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa toàn bộ hồ sơ!`,
+      });
+    },
+    onError: (err) => {
+      setFeedback({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không giao được ứng viên cho Inlink liên hệ',
       });
     },
   });
@@ -2666,6 +2729,12 @@ export function SourcingCandidateDrawer({
                     ★ Đã Shortlist
                   </span>
                 ) : null}
+                {isOutreached ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/25 px-2.5 py-0.5 text-[10px] font-bold text-emerald-100 ring-1 ring-emerald-300/50">
+                    <Headphones className="h-3 w-3" />
+                    Inlink đang liên hệ
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1 text-xs leading-relaxed text-white/80">
                 {candidateRow.currentPosition
@@ -2687,10 +2756,43 @@ export function SourcingCandidateDrawer({
 
         {/* Thanh công cụ All-in-One cố định ngay dưới Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-[#f8fafc] px-5 py-3 sm:px-6">
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {hasOutreach ? (
+              isOutreached ? (
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs">
+                  <Headphones className="h-3.5 w-3.5 text-emerald-600" />
+                  Đã giao Inlink liên hệ · Đội CSKH đang tiếp cận
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  disabled={outreachMutation.isPending || (outreachRemaining != null && outreachRemaining <= 0)}
+                  onClick={() => {
+                    setShowInterviewForm(false);
+                    setShowOutreachForm((v) => !v);
+                  }}
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45',
+                    showOutreachForm
+                      ? 'bg-[#072348] text-white ring-2 ring-[#E8872A]/60'
+                      : 'bg-gradient-to-r from-[#072348] to-[#0f3b74] text-white hover:from-[#0a2f5e] hover:to-[#134688]',
+                  )}
+                >
+                  <Headphones className="h-3.5 w-3.5 text-amber-300" />
+                  <span>Giao Inlink liên hệ</span>
+                  <span className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-200">
+                    Còn {outreachRemaining ?? 0}/{outreachQuota}
+                  </span>
+                </button>
+              )
+            ) : null}
+
             <button
               type="button"
-              onClick={() => setShowInterviewForm((v) => !v)}
+              onClick={() => {
+                setShowOutreachForm(false);
+                setShowInterviewForm((v) => !v);
+              }}
               className={clsx(
                 'inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold shadow-sm transition active:scale-[0.99]',
                 showInterviewForm
@@ -2730,6 +2832,101 @@ export function SourcingCandidateDrawer({
                 <AlertCircle className="h-4 w-4 shrink-0" />
               )}
               {feedback.text}
+            </div>
+          ) : null}
+
+          {/* Trạng thái ứng viên đã bàn giao cho đội ngũ CSKH Inlink */}
+          {isOutreached && outreachItem ? (
+            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-white p-4">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                  <Headphones className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-emerald-950">
+                      Đội ngũ CSKH Inlink đang liên hệ & kết nối ứng viên này cho bạn
+                    </h4>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Đã bàn giao lúc{' '}
+                      {new Intl.DateTimeFormat('vi-VN', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      }).format(new Date(outreachItem.createdAt))}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                    Hồ sơ và thông tin liên hệ của ứng viên đã được mở khóa hoàn toàn. Chuyên viên CSKH Inlink sẽ chủ động gọi điện thẩm định nhu cầu ứng tuyển, mức lương kỳ vọng và cập nhật kết quả kết nối cho doanh nghiệp.
+                  </p>
+                  {outreachItem.note ? (
+                    <p className="mt-1.5 rounded-xl bg-white/80 px-3 py-1.5 text-[11px] text-slate-700 ring-1 ring-emerald-200/70">
+                      <strong className="text-[#072348]">Ghi chú bàn giao CSKH:</strong> {outreachItem.note}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Form xác nhận Giao Inlink liên hệ */}
+          {showOutreachForm && !isOutreached ? (
+            <div className="rounded-2xl border-2 border-[#072348]/20 bg-gradient-to-br from-[#f4f8fd] to-white p-4 space-y-3 shadow-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#072348] text-amber-300">
+                    <Headphones className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
+                      Giao đội ngũ CSKH Inlink liên hệ & mở khóa ứng viên
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Sử dụng 1 lượt trong hạn mức{' '}
+                      <strong className="text-[#E8872A]">
+                        {outreachRemaining ?? 0}/{outreachQuota} ứng viên tiềm năng
+                      </strong>{' '}
+                      của gói Tin săn Chuyên sâu (tự động mở khóa toàn bộ hồ sơ & liên hệ).
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOutreachForm(false)}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                >
+                  Đóng
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700">
+                  Lời nhắn / Yêu cầu thẩm định gửi đội ngũ CSKH Inlink (mức lương, thời gian đi làm, câu hỏi sàng lọc...)
+                </label>
+                <textarea
+                  rows={2}
+                  value={outreachNote}
+                  onChange={(e) => setOutreachNote(e.target.value)}
+                  placeholder="Nhập yêu cầu cụ thể để CSKH Inlink trao đổi khi gọi cho ứng viên..."
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#072348]"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <span className="text-[11px] text-slate-500">
+                  ✓ Tự động mở khóa SĐT & Email · ✓ CSKH Inlink gọi thẩm định & kết nối trực tiếp
+                </span>
+                <Button
+                  disabled={outreachMutation.isPending}
+                  onClick={() => outreachMutation.mutate()}
+                >
+                  {outreachMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Headphones className="h-4 w-4" />
+                  )}
+                  Xác nhận giao Inlink liên hệ (-1 lượt)
+                </Button>
+              </div>
             </div>
           ) : null}
 
@@ -2824,18 +3021,31 @@ export function SourcingCandidateDrawer({
                     <strong>ưu tiên trừ trực tiếp từ {entitlements.profileOpensRemaining ?? 0} Credit có sẵn trong Gói Săn</strong>{' '}
                     của bạn mà không làm tốn ví Credit mua lẻ.
                   </p>
-                  <Button
-                    className="mt-3"
-                    disabled={unlockMutation.isPending}
-                    onClick={() => unlockMutation.mutate()}
-                  >
-                    {unlockMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Mở khóa Hồ sơ & Liên hệ ngay (-{creditCost} Credit Gói Săn)
-                  </Button>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      disabled={unlockMutation.isPending}
+                      onClick={() => unlockMutation.mutate()}
+                    >
+                      {unlockMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      Mở khóa Hồ sơ & Liên hệ ngay (-{creditCost} Credit Gói Săn)
+                    </Button>
+
+                    {hasOutreach && !isOutreached ? (
+                      <button
+                        type="button"
+                        disabled={outreachMutation.isPending || (outreachRemaining != null && outreachRemaining <= 0)}
+                        onClick={() => setShowOutreachForm(true)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#072348]/25 bg-white px-3.5 py-2 text-xs font-bold text-[#072348] shadow-2xs transition hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-45"
+                      >
+                        <Headphones className="h-3.5 w-3.5 text-[#E8872A]" />
+                        Giao Inlink liên hệ & Mở khóa (Còn {outreachRemaining ?? 0}/{outreachQuota})
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>

@@ -216,7 +216,7 @@ export function AdminBillingSourcingPlans() {
                         Báo cáo: <strong>{p.searchRoundQuota ?? '∞'}</strong>
                       </span>
                       <span>
-                        Shortlist: <strong>{p.shortlistQuota ?? '∞'}</strong>
+                        Giao Inlink liên hệ / Shortlist: <strong>{p.shortlistQuota ?? '∞'}</strong>
                       </span>
                       <span>
                         Điều chỉnh: <strong>{p.revisionQuota ?? '∞'}</strong>
@@ -375,7 +375,10 @@ function EditModal({
               }
             />
           </Field>
-          <Field label="Shortlist">
+          <Field
+            label="Giao Inlink liên hệ / Shortlist"
+            description="Số ứng viên NTD giao CSKH Inlink liên hệ & mở khóa (mặc định 15 cho gói Chuyên sâu)"
+          >
             <Input
               type="number"
               value={form.shortlistQuota ?? ''}

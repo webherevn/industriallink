@@ -19,6 +19,7 @@ import {
   type RecruiterConsumeSourcingRequest,
   type RecruiterSourcingEngagementView,
   type RecruiterSourcingEntitlements,
+  type RecruiterSourcingOutreachItem,
   type RecruiterSourcingScanCandidateItem,
   type RecruiterSourcingScanRoundView,
   type RecruiterSourcingReportView,
@@ -83,6 +84,9 @@ export class SourcingService {
       shortlistsRemaining: 0,
       revisionsRemaining: 0,
       profileOpensRemaining: 0,
+      outreachQuota: 0,
+      outreachUsed: 0,
+      outreachRemaining: 0,
     };
   }
 
@@ -129,8 +133,11 @@ export class SourcingService {
         },
       });
     }
-    const opensUsed = await this.countIncludedOpens(row.id, row.startsAt);
-    return this.toEntitlements(row, opensUsed);
+    const [opensUsed, outreachUsed] = await Promise.all([
+      this.countIncludedOpens(row.id, row.startsAt),
+      this.countOutreachUsed(row.id, row.startsAt),
+    ]);
+    return this.toEntitlements(row, opensUsed, outreachUsed);
   }
 
   async getWorkspace(companyId: string): Promise<RecruiterSourcingWorkspace> {
@@ -160,6 +167,7 @@ export class SourcingService {
       .map((u) => this.parseReport(u))
       .filter((r): r is RecruiterSourcingReportView => r !== null);
     const shortlistedByEngagement: Record<string, string[]> = {};
+    const outreachByEngagement: Record<string, RecruiterSourcingOutreachItem[]> = {};
     for (const u of usages) {
       if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('shortlist:')) {
         const parts = u.note.split(':');
@@ -169,6 +177,23 @@ export class SourcingService {
           if (!list.includes(cid)) list.push(cid);
           shortlistedByEngagement[u.engagementId] = list;
         }
+      } else if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('outreach:')) {
+        const parts = u.note.split(':');
+        const cid = parts[1]?.trim();
+        const cname = parts[2]?.trim() || 'Ứng viên';
+        const cnote = parts.slice(3).join(':').trim() || null;
+        if (cid) {
+          const list = outreachByEngagement[u.engagementId] ?? [];
+          if (!list.some((item) => item.candidateId === cid)) {
+            list.push({
+              candidateId: cid,
+              candidateName: cname,
+              note: cnote,
+              createdAt: u.createdAt.toISOString(),
+            });
+          }
+          outreachByEngagement[u.engagementId] = list;
+        }
       }
     }
     return {
@@ -177,6 +202,7 @@ export class SourcingService {
       usages: usages.map((u) => this.mapUsage(u)),
       scanRounds,
       shortlistedByEngagement,
+      outreachByEngagement,
       reports,
     };
   }
@@ -339,7 +365,11 @@ export class SourcingService {
       const remaining = this.remainingFor(kind, entitlements);
       const isUnshortlist =
         kind === 'shortlist' && Boolean(input.note?.startsWith('unshortlist:'));
-      if (!isUnshortlist && remaining !== null && remaining <= 0) {
+      const isOutreach =
+        kind === 'shortlist' && Boolean(input.note?.startsWith('outreach:'));
+      const isBookmarkShortlist =
+        kind === 'shortlist' && Boolean(input.note?.startsWith('shortlist:'));
+      if (!isUnshortlist && !isOutreach && !isBookmarkShortlist && remaining !== null && remaining <= 0) {
         throw new ForbiddenException({
           code: 'SOURCING_QUOTA_EXCEEDED',
           message: `Gói ${assignment.plan.name} đã hết ${SOURCING_QUOTA_LABELS[kind].toLowerCase()}. Hãy nâng cấp gói Săn.`,
@@ -432,6 +462,74 @@ export class SourcingService {
               }
             }
             return;
+          }
+          if (input.note?.startsWith('outreach:')) {
+            const scopeCodes = includedScopeCodes(parseSourcingScope(assignment.plan.serviceScope));
+            const hasOutreach =
+              scopeCodes.includes('outreach') ||
+              assignment.plan.code === 'SAN_CHUYEN_SAU' ||
+              (assignment.plan.shortlistQuota != null && assignment.plan.shortlistQuota > 0);
+            if (!hasOutreach) {
+              throw new ForbiddenException({
+                code: 'SOURCING_OUTREACH_FORBIDDEN',
+                message:
+                  'Gói hiện tại không bao gồm tính năng Giao Inlink liên hệ ứng viên. Vui lòng nâng cấp lên gói Tin săn Chuyên sâu.',
+              });
+            }
+            const parts = input.note.split(':');
+            const candidateId = parts[1]?.trim();
+            if (candidateId) {
+              const dup = await tx.billingSourcingUsage.findFirst({
+                where: {
+                  assignmentId: assignment.id,
+                  engagementId: engagement.id,
+                  kind: 'shortlist',
+                  note: { startsWith: `outreach:${candidateId}:` },
+                },
+              });
+              if (dup) {
+                return;
+              }
+            }
+            const outreachQuota = assignment.plan.shortlistQuota ?? 15;
+            const usedOutreach = await tx.billingSourcingUsage.count({
+              where: {
+                assignmentId: assignment.id,
+                kind: 'shortlist',
+                note: { startsWith: 'outreach:' },
+                createdAt: { gte: assignment.startsAt },
+              },
+            });
+            if (usedOutreach >= outreachQuota) {
+              throw new ForbiddenException({
+                code: 'SOURCING_OUTREACH_QUOTA_EXCEEDED',
+                message: `Gói ${assignment.plan.name} đã dùng hết ${outreachQuota}/${outreachQuota} lượt Giao Inlink liên hệ ứng viên.`,
+              });
+            }
+            if (candidateId) {
+              const openPrefix = `open:${candidateId}`;
+              const alreadyOpened = await tx.billingSourcingUsage.findFirst({
+                where: {
+                  assignmentId: assignment.id,
+                  kind: 'profile_open',
+                  createdAt: { gte: assignment.startsAt },
+                  OR: [{ note: openPrefix }, { note: { startsWith: `${openPrefix}:` } }],
+                },
+              });
+              if (!alreadyOpened) {
+                await tx.billingSourcingUsage.create({
+                  data: {
+                    companyId,
+                    assignmentId: assignment.id,
+                    engagementId: engagement.id,
+                    kind: 'profile_open',
+                    jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
+                    note: `${openPrefix}:0`,
+                    createdBy: actorId,
+                  },
+                });
+              }
+            }
           }
           if (input.note?.startsWith('shortlist:')) {
             const parts = input.note.split(':');
@@ -606,7 +704,7 @@ export class SourcingService {
     const parts = note.split(':');
     if (parts.length >= 3) {
       const parsed = Number(parts[2]);
-      if (Number.isInteger(parsed) && parsed > 0) return parsed;
+      if (Number.isInteger(parsed) && parsed >= 0) return parsed;
     }
     return 1;
   }
@@ -619,18 +717,37 @@ export class SourcingService {
     return rows.reduce((sum, r) => sum + this.parseOpenUsageCost(r.note), 0);
   }
 
+  private async countOutreachUsed(assignmentId: string, startsAt: Date): Promise<number> {
+    return this.prisma.billingSourcingUsage.count({
+      where: {
+        assignmentId,
+        kind: 'shortlist',
+        note: { startsWith: 'outreach:' },
+        createdAt: { gte: startsAt },
+      },
+    });
+  }
+
   private toEntitlements(
     row: BillingCompanySourcingPlan & { plan: BillingSourcingPlan },
     profileOpensUsed = 0,
+    outreachUsed = 0,
   ): RecruiterSourcingEntitlements {
     const plan = row.plan;
     const scopeItems = parseSourcingScope(plan.serviceScope);
+    const scopeCodes = includedScopeCodes(scopeItems);
+    const hasOutreach =
+      scopeCodes.includes('outreach') ||
+      plan.code === 'SAN_CHUYEN_SAU' ||
+      (plan.shortlistQuota != null && plan.shortlistQuota > 0);
+    const outreachQuota = hasOutreach ? (plan.shortlistQuota ?? 15) : 0;
+    const outreachRemaining = hasOutreach ? Math.max(0, outreachQuota - outreachUsed) : 0;
     return {
       assignment: this.mapAssignment(row),
       planCode: plan.code,
       planName: plan.name,
       feeVnd: plan.feeVnd.toString(),
-      serviceScope: includedScopeCodes(scopeItems),
+      serviceScope: scopeCodes,
       scopeItems,
       positionQuota: plan.positionQuota,
       searchRoundQuota: plan.searchRoundQuota,
@@ -647,6 +764,9 @@ export class SourcingService {
       shortlistsRemaining: this.remaining(plan.shortlistQuota, row.shortlistsUsed),
       revisionsRemaining: this.remaining(plan.revisionQuota, row.revisionsUsed),
       profileOpensRemaining: this.remaining(plan.creditQuota, profileOpensUsed),
+      outreachQuota,
+      outreachUsed,
+      outreachRemaining,
     };
   }
 
@@ -696,6 +816,11 @@ export class SourcingService {
         const mailBadge = parsed.emailSent ? ' · Đã gửi thông báo Email' : '';
         displayNote = `Đợt tìm #${parsed.roundNumber} · ${parsed.totalMatched} ứng viên phù hợp${newBadge}${mailBadge}`;
       }
+    } else if (u.kind === 'shortlist' && u.note?.startsWith('outreach:')) {
+      const parts = u.note.split(':');
+      const candName = parts[2]?.trim() || 'Ứng viên';
+      const customNote = parts.slice(3).join(':').trim();
+      displayNote = `Giao Inlink liên hệ · Ứng viên «${candName}»${customNote ? ` (${customNote})` : ''} — Đội CSKH Inlink tiếp nhận liên hệ & mở khóa hồ sơ`;
     } else if (u.kind === 'shortlist' && u.note?.startsWith('shortlist:')) {
       const parts = u.note.split(':');
       const candName = parts.slice(2).join(':').trim() || 'Ứng viên';

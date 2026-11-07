@@ -396,6 +396,10 @@ export interface RecruiterSourcingEntitlements {
   shortlistsRemaining: number | null;
   revisionsRemaining: number | null;
   profileOpensRemaining: number | null;
+  /** Hạn mức giao Inlink liên hệ ứng viên (đọc từ cài đặt trong Admin, VD: 15 ở gói Chuyên sâu). */
+  outreachQuota?: number | null;
+  outreachUsed?: number;
+  outreachRemaining?: number | null;
 }
 
 export interface RecruiterSourcingEngagementView {
@@ -438,12 +442,20 @@ export interface RecruiterSourcingUsageView {
   createdAt: string;
 }
 
+export interface RecruiterSourcingOutreachItem {
+  candidateId: string;
+  candidateName: string;
+  note: string | null;
+  createdAt: string;
+}
+
 export interface RecruiterSourcingWorkspace {
   entitlements: RecruiterSourcingEntitlements;
   engagements: RecruiterSourcingEngagementView[];
   usages: RecruiterSourcingUsageView[];
   scanRounds?: RecruiterSourcingScanRoundView[];
   shortlistedByEngagement?: Record<string, string[]>;
+  outreachByEngagement?: Record<string, RecruiterSourcingOutreachItem[]>;
   reports?: RecruiterSourcingReportView[];
 }
 export interface RecruiterSourcingReportView {
