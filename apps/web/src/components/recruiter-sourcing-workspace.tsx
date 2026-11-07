@@ -9,6 +9,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Coins,
   Eye,
   FileSearch,
   ListChecks,
@@ -365,6 +366,11 @@ export function RecruiterSourcingWorkspace() {
           <>
             <QuotaGrid
               entitlements={e!}
+              scanRoundsCount={engagementScanRounds.length}
+              totalMatchedCount={allResults.length}
+              highMatchCount={highMatchCount}
+              openedCount={openedCount}
+              appliedCount={appliedCandidates.length}
               onOpenPosition={
                 canOpenMorePositions
                   ? () => {
@@ -377,69 +383,6 @@ export function RecruiterSourcingWorkspace() {
               onOpenRevision={selected && huntJobId ? () => setRevisionModalOpen(true) : undefined}
               onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
             />
-
-            {/* TỔNG QUAN HIỆU QUẢ TIN SĂN ĐANG CHỌN (ĐỒNG BỘ CSS VỚI HỘP THƯ ỨNG VIÊN) */}
-            {selectedEngagement ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                {[
-                  {
-                    label: 'Đợt quét 2h/lần',
-                    value: engagementScanRounds.length,
-                    icon: Clock,
-                    tone: 'bg-brand-50 text-brand-700',
-                  },
-                  {
-                    label: 'Tổng phù hợp',
-                    value: allResults.length,
-                    icon: Users,
-                    tone: 'bg-[#e7eef8] text-brand-700',
-                  },
-                  {
-                    label: 'Khớp cao ≥ 80%',
-                    value: highMatchCount,
-                    icon: Sparkles,
-                    tone: 'bg-accent-50 text-accent-700',
-                  },
-                  {
-                    label: 'Đã mở hồ sơ',
-                    value: openedCount,
-                    icon: Eye,
-                    tone: 'bg-brand-50 text-brand-700',
-                  },
-                  {
-                    label: 'Nộp ứng tuyển',
-                    value: appliedCandidates.length,
-                    icon: CheckCircle2,
-                    tone: 'bg-emerald-50 text-emerald-700',
-                  },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.label}
-                      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200"
-                    >
-                      <span
-                        className={clsx(
-                          'flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110',
-                          item.tone,
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <p className="mt-3 text-sm font-medium text-slate-500">{item.label}</p>
-                      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">
-                        {item.value}
-                      </p>
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
 
             {/* DANH SÁCH TIN SĂN */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
@@ -973,7 +916,7 @@ function AppliedCandidatesColumn({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
-            ỨNG VIÊN NỘP HỒ SƠ ỨNG TUYỂN
+            Danh sách ứng viên ứng tuyển
           </h3>
           <p className="mt-0.5 text-xs text-slate-500">
             Danh sách ứng viên đã nộp hồ sơ ứng tuyển của bạn
@@ -1355,19 +1298,24 @@ function PotentialCandidatesColumn({
   );
 }
 
-function quotaFill(used: number, quota: number | null) {
-  if (quota == null || quota <= 0) return quota == null ? 100 : 0;
-  return Math.max(0, Math.min(100, (used / quota) * 100));
-}
-
 function QuotaGrid({
   entitlements: e,
+  scanRoundsCount,
+  totalMatchedCount,
+  highMatchCount,
+  openedCount,
+  appliedCount,
   onOpenPosition,
   onOpenReport,
   onOpenRevision,
   onFilterShortlist,
 }: {
   entitlements: RecruiterSourcingEntitlements;
+  scanRoundsCount: number;
+  totalMatchedCount: number;
+  highMatchCount: number;
+  openedCount: number;
+  appliedCount: number;
   onOpenPosition?: () => void;
   onOpenReport?: () => void;
   onOpenRevision?: () => void;
@@ -1375,9 +1323,8 @@ function QuotaGrid({
 }) {
   const rows: {
     label: string;
-    used: number;
-    quota: number | null;
-    remaining: number | null;
+    value: string | number;
+    badge?: string;
     icon: typeof Briefcase;
     tone: string;
     actionHint?: string;
@@ -1385,9 +1332,8 @@ function QuotaGrid({
   }[] = [
     {
       label: 'Vị trí',
-      used: e.positionsUsed,
-      quota: e.positionQuota,
-      remaining: e.positionsRemaining,
+      value: e.positionQuota == null ? '∞' : String(e.positionsRemaining ?? 0),
+      badge: fmtQuota(e.positionsUsed, e.positionQuota, e.positionsRemaining),
       icon: Briefcase,
       tone: 'bg-brand-50 text-brand-700',
       actionHint: onOpenPosition ? 'Bấm để tạo Tin Săn' : undefined,
@@ -1395,41 +1341,67 @@ function QuotaGrid({
     },
     {
       label: 'Credit',
-      used: e.profileOpensUsed,
-      quota: e.creditQuota,
-      remaining: e.profileOpensRemaining,
-      icon: Eye,
+      value: e.creditQuota == null ? '∞' : String(e.profileOpensRemaining ?? 0),
+      badge: fmtQuota(e.profileOpensUsed, e.creditQuota, e.profileOpensRemaining),
+      icon: Coins,
       tone: 'bg-accent-50 text-accent-700',
       actionHint: 'Ưu tiên trừ trước ví lẻ',
     },
     {
       label: 'Điều chỉnh',
-      used: e.revisionsUsed,
-      quota: e.revisionQuota,
-      remaining: e.revisionsRemaining,
+      value: e.revisionQuota == null ? '∞' : String(e.revisionsRemaining ?? 0),
+      badge: fmtQuota(e.revisionsUsed, e.revisionQuota, e.revisionsRemaining),
       icon: RefreshCw,
       tone: 'bg-[#e7eef8] text-brand-700',
-      actionHint: onOpenRevision ? 'Sửa tiêu chí JD & quét lại →' : undefined,
+      actionHint: onOpenRevision ? 'Sửa tiêu chí JD & quét lại' : undefined,
       onClick: onOpenRevision,
     },
     {
       label: 'Shortlist',
-      used: e.shortlistsUsed,
-      quota: e.shortlistQuota,
-      remaining: e.shortlistsRemaining,
+      value: e.shortlistQuota == null ? '∞' : String(e.shortlistsRemaining ?? 0),
+      badge: fmtQuota(e.shortlistsUsed, e.shortlistQuota, e.shortlistsRemaining),
       icon: ListChecks,
       tone: 'bg-indigo-50 text-indigo-700',
-      actionHint: onFilterShortlist ? 'Lọc ứng viên đã Shortlist →' : undefined,
+      actionHint: onFilterShortlist ? 'Lọc ứng viên đã Shortlist' : undefined,
       onClick: onFilterShortlist,
     },
     {
+      label: 'Đợt quét 2h/lần',
+      value: scanRoundsCount,
+      icon: Clock,
+      tone: 'bg-brand-50 text-brand-700',
+    },
+    {
+      label: 'Tổng phù hợp',
+      value: totalMatchedCount,
+      icon: Users,
+      tone: 'bg-[#e7eef8] text-brand-700',
+    },
+    {
+      label: 'Khớp cao ≥ 80%',
+      value: highMatchCount,
+      icon: Sparkles,
+      tone: 'bg-accent-50 text-accent-700',
+    },
+    {
+      label: 'Đã mở hồ sơ',
+      value: openedCount,
+      icon: Eye,
+      tone: 'bg-brand-50 text-brand-700',
+    },
+    {
+      label: 'Nộp ứng tuyển',
+      value: appliedCount,
+      icon: CheckCircle2,
+      tone: 'bg-emerald-50 text-emerald-700',
+    },
+    {
       label: 'Báo cáo',
-      used: e.searchRoundsUsed,
-      quota: e.searchRoundQuota,
-      remaining: e.searchRoundsRemaining,
+      value: e.searchRoundQuota == null ? '∞' : String(e.searchRoundsRemaining ?? 0),
+      badge: fmtQuota(e.searchRoundsUsed, e.searchRoundQuota, e.searchRoundsRemaining),
       icon: FileSearch,
       tone: 'bg-emerald-50 text-emerald-700',
-      actionHint: onOpenReport ? 'Xem phễu & khuyến nghị AI →' : undefined,
+      actionHint: onOpenReport ? 'Xem phễu & khuyến nghị AI' : undefined,
       onClick: onOpenReport,
     },
   ];
@@ -1451,13 +1423,13 @@ function QuotaGrid({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {rows.map((r) => {
           const Icon = r.icon;
-          const left = r.quota == null ? '∞' : String(r.remaining ?? 0);
           const Tag = r.onClick ? 'button' : 'div';
           return (
             <Tag
               key={r.label}
               type={r.onClick ? 'button' : undefined}
               onClick={r.onClick}
+              title={r.actionHint}
               className={clsx(
                 'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200',
                 r.onClick && 'cursor-pointer',
@@ -1472,21 +1444,14 @@ function QuotaGrid({
                 >
                   <Icon className="h-5 w-5" />
                 </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                  {fmtQuota(r.used, r.quota, r.remaining)}
-                </span>
+                {r.badge ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    {r.badge}
+                  </span>
+                ) : null}
               </div>
               <p className="mt-3 text-sm font-medium text-slate-500">{r.label}</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{left}</p>
-              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-[#e8eef6]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#072348] to-[#E8872A] transition-all duration-700"
-                  style={{ width: `${quotaFill(r.used, r.quota)}%` }}
-                />
-              </div>
-              {r.actionHint ? (
-                <p className="relative z-10 mt-1.5 text-[11px] font-semibold text-[#072348]/80">{r.actionHint}</p>
-              ) : null}
+              <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{r.value}</p>
               <span
                 aria-hidden
                 className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80"
