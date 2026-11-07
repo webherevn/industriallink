@@ -722,9 +722,12 @@ export class BillingService {
     await this.ensureCompanyPlan(companyId);
     const row = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
-      include: { plan: { select: { durationDays: true } } },
+      include: { plan: { select: { code: true, durationDays: true } } },
     });
     const days = row?.plan?.durationDays;
+    if (row?.plan?.code === STARTER_PLAN_CODE && (await this.hasActiveSourcingPlan(companyId))) {
+      return Math.max(days ?? 0, 30);
+    }
     return days != null && days > 0 ? days : null;
   }
 
@@ -739,6 +742,9 @@ export class BillingService {
       where: { companyId },
       include: { plan: { select: { code: true, durationDays: true } } },
     });
+    if (row?.plan?.code === STARTER_PLAN_CODE && (await this.hasActiveSourcingPlan(companyId))) {
+      return addVnCalendarDays(from, 30);
+    }
     const days = row?.plan?.durationDays;
     const fromDays = days != null && days > 0 ? addVnCalendarDays(from, days) : null;
     if (row?.plan?.code === STARTER_PLAN_CODE && row.endsAt) {
@@ -895,6 +901,13 @@ export class BillingService {
 
   async assertJobQuota(companyId: string): Promise<void> {
     const e = await this.getEntitlements(companyId);
+    const hasSourcingQuota = Boolean(
+      e.sourcing?.assignment?.isActive &&
+        (!e.sourcing.assignment.endsAt ||
+          new Date(e.sourcing.assignment.endsAt).getTime() >= Date.now()) &&
+        (e.sourcing.positionsRemaining == null || e.sourcing.positionsRemaining > 0),
+    );
+    if (hasSourcingQuota) return;
     if (
       e.planCode === STARTER_PLAN_CODE &&
       e.plan?.endsAt &&

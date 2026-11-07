@@ -408,9 +408,30 @@ export interface RecruiterSourcingEngagementView {
   createdAt: string;
 }
 
+export type SourcingUsageKind = SourcingQuotaKind | 'profile_open' | 'auto_scan';
+
+export interface RecruiterSourcingScanCandidateItem {
+  candidateId: string;
+  score: number;
+  isNew: boolean;
+}
+
+export interface RecruiterSourcingScanRoundView {
+  id: string;
+  engagementId: string;
+  jobId: string | null;
+  roundNumber: number;
+  trigger: 'initial' | 'cron' | 'manual';
+  totalMatched: number;
+  newCount: number;
+  emailSent: boolean;
+  createdAt: string;
+  candidates: RecruiterSourcingScanCandidateItem[];
+}
+
 export interface RecruiterSourcingUsageView {
   id: string;
-  kind: SourcingQuotaKind;
+  kind: SourcingUsageKind;
   engagementId: string | null;
   jobId: string | null;
   note: string | null;
@@ -421,6 +442,7 @@ export interface RecruiterSourcingWorkspace {
   entitlements: RecruiterSourcingEntitlements;
   engagements: RecruiterSourcingEngagementView[];
   usages: RecruiterSourcingUsageView[];
+  scanRounds?: RecruiterSourcingScanRoundView[];
 }
 
 export interface RecruiterBillingEntitlements {

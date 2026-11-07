@@ -19,9 +19,12 @@ import {
   type RecruiterConsumeSourcingRequest,
   type RecruiterSourcingEngagementView,
   type RecruiterSourcingEntitlements,
+  type RecruiterSourcingScanCandidateItem,
+  type RecruiterSourcingScanRoundView,
   type RecruiterSourcingUsageView,
   type RecruiterSourcingWorkspace,
   type SourcingQuotaKind,
+  type SourcingUsageKind,
   type BillingCompanySourcingPlanView,
 } from '@industriallink/contracts';
 import { looksLikeUuid } from '@industriallink/contracts';
@@ -93,7 +96,7 @@ export class SourcingService {
     const entitlements = await this.getEntitlements(companyId);
     const assignmentId = entitlements.assignment?.id;
     if (!assignmentId) {
-      return { entitlements, engagements: [], usages: [] };
+      return { entitlements, engagements: [], usages: [], scanRounds: [] };
     }
     const [engagements, usages] = await Promise.all([
       this.prisma.billingSourcingEngagement.findMany({
@@ -104,13 +107,18 @@ export class SourcingService {
       this.prisma.billingSourcingUsage.findMany({
         where: { companyId, assignmentId },
         orderBy: { createdAt: 'desc' },
-        take: 80,
+        take: 120,
       }),
     ]);
+    const scanRounds = usages
+      .filter((u) => u.kind === 'auto_scan' && u.engagementId)
+      .map((u) => this.parseScanRound(u))
+      .filter((r): r is RecruiterSourcingScanRoundView => r !== null);
     return {
       entitlements,
       engagements: engagements.map((e) => this.mapEngagement(e)),
       usages: usages.map((u) => this.mapUsage(u)),
+      scanRounds,
     };
   }
 
@@ -283,12 +291,36 @@ export class SourcingService {
       let engagementId = input.engagementId ?? null;
 
       if (kind === 'position') {
-        const title = input.title?.trim() || (input.jobId ? 'Vị trí theo tin đăng' : 'Vị trí Săn mới');
+        const validJobId = input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null;
+        let linkedJobTitle: string | null = null;
+        if (validJobId) {
+          const existingJob = await tx.job.findFirst({
+            where: { id: validJobId, companyId, isDeleted: false },
+            select: { id: true, title: true, deadline: true, status: true },
+          });
+          if (existingJob) {
+            linkedJobTitle = existingJob.title;
+            const baseDate =
+              existingJob.deadline && existingJob.deadline.getTime() > Date.now()
+                ? existingJob.deadline
+                : new Date();
+            const preservedDeadline = addUtcDays(baseDate, 45);
+            await tx.job.update({
+              where: { id: existingJob.id },
+              data: {
+                deadline: preservedDeadline,
+                status: 'published',
+              },
+            });
+          }
+        }
+        const title =
+          input.title?.trim() || linkedJobTitle || (validJobId ? 'Vị trí theo tin đăng' : 'Vị trí Săn mới');
         const engagement = await tx.billingSourcingEngagement.create({
           data: {
             companyId,
             assignmentId: assignment.id,
-            jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
+            jobId: validJobId,
             title,
             status: 'open',
             createdBy: actorId,
@@ -550,14 +582,59 @@ export class SourcingService {
     note: string | null;
     createdAt: Date;
   }): RecruiterSourcingUsageView {
+    let displayNote = u.note;
+    if (u.kind === 'auto_scan' && u.note) {
+      const parsed = this.parseScanRound(u);
+      if (parsed) {
+        const newBadge =
+          parsed.newCount > 0 ? ` (+${parsed.newCount} ứng viên mới)` : ' (chưa có ứng viên mới)';
+        const mailBadge = parsed.emailSent ? ' · Đã gửi thông báo Email' : '';
+        displayNote = `Đợt tìm #${parsed.roundNumber} · ${parsed.totalMatched} ứng viên phù hợp${newBadge}${mailBadge}`;
+      }
+    }
     return {
       id: u.id,
-      kind: u.kind as SourcingQuotaKind,
+      kind: u.kind as SourcingUsageKind,
       engagementId: u.engagementId,
       jobId: u.jobId,
-      note: u.note,
+      note: displayNote,
       createdAt: u.createdAt.toISOString(),
     };
+  }
+
+  private parseScanRound(u: {
+    id: string;
+    engagementId: string | null;
+    jobId: string | null;
+    note: string | null;
+    createdAt: Date;
+  }): RecruiterSourcingScanRoundView | null {
+    if (!u.engagementId || !u.note) return null;
+    try {
+      const raw = JSON.parse(u.note) as {
+        roundNumber?: number;
+        trigger?: 'initial' | 'cron' | 'manual';
+        totalMatched?: number;
+        newCount?: number;
+        emailSent?: boolean;
+        candidates?: RecruiterSourcingScanCandidateItem[];
+      };
+      const candidates = Array.isArray(raw.candidates) ? raw.candidates : [];
+      return {
+        id: u.id,
+        engagementId: u.engagementId,
+        jobId: u.jobId,
+        roundNumber: typeof raw.roundNumber === 'number' && raw.roundNumber > 0 ? raw.roundNumber : 1,
+        trigger: raw.trigger ?? 'cron',
+        totalMatched: typeof raw.totalMatched === 'number' ? raw.totalMatched : candidates.length,
+        newCount: typeof raw.newCount === 'number' ? raw.newCount : 0,
+        emailSent: Boolean(raw.emailSent),
+        createdAt: u.createdAt.toISOString(),
+        candidates,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private async writeAudit(

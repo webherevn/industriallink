@@ -17,6 +17,7 @@ import {
   JOB_LEVEL_LABEL,
   JobTrack,
   type JdSalesFieldKey,
+  type JobView,
 } from '@industriallink/contracts';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { AppShell } from '@/components/app-shell';
@@ -61,10 +62,16 @@ export function JdSalesCreateFlow({
   onSwitchTrack,
   initialForm,
   copiedTitle,
+  embedded = false,
+  onCreated,
+  onCancel,
 }: {
   onSwitchTrack: (track: JobTrack) => void;
   initialForm?: JdSalesFormState;
   copiedTitle?: string;
+  embedded?: boolean;
+  onCreated?: (job: JobView) => void;
+  onCancel?: () => void;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(initialForm ? 2 : 1);
@@ -119,7 +126,13 @@ export function JdSalesCreateFlow({
 
   const saveMutation = useMutation({
     mutationFn: (publish: boolean) => createJob(formToCreateJobRequest(form, publish)),
-    onSuccess: () => router.push('/jobs/manage'),
+    onSuccess: (job) => {
+      if (onCreated) {
+        onCreated(job);
+      } else {
+        router.push('/jobs/manage');
+      }
+    },
   });
 
   const analyzing = fileMutation.isPending || textMutation.isPending;
@@ -130,7 +143,7 @@ export function JdSalesCreateFlow({
     Boolean(form.jobLevel);
 
   return (
-    <AppShell>
+    <AppShellOrDiv embedded={embedded}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
@@ -372,11 +385,11 @@ export function JdSalesCreateFlow({
                   Quay lại
                 </Button>
               ) : (
-                <Link href="/recruiter">
+                <CancelOrLink onCancel={onCancel}>
                   <Button type="button" variant="ghost">
                     Hủy
                   </Button>
-                </Link>
+                </CancelOrLink>
               )}
             </div>
             <div className="flex items-center gap-3">
@@ -394,7 +407,7 @@ export function JdSalesCreateFlow({
                   disabled={busy || !canPublish}
                   onClick={() => saveMutation.mutate(true)}
                 >
-                  {saveMutation.isPending ? 'Đang đăng...' : 'Đăng tin'}
+                  {saveMutation.isPending ? 'Đang đăng...' : embedded ? 'Đăng & Tạo Tin Săn' : 'Đăng tin'}
                 </Button>
               )}
             </div>
@@ -427,8 +440,24 @@ export function JdSalesCreateFlow({
           </div>
         </aside>
       </div>
-    </AppShell>
+    </AppShellOrDiv>
   );
+}
+
+function AppShellOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
+  if (embedded) return <div>{children}</div>;
+  return <AppShell>{children}</AppShell>;
+}
+
+function CancelOrLink({ onCancel, children }: { onCancel?: () => void; children: React.ReactNode }) {
+  if (onCancel) {
+    return (
+      <Button type="button" variant="ghost" onClick={onCancel}>
+        Quay lại chọn tin
+      </Button>
+    );
+  }
+  return <Link href="/recruiter">{children}</Link>;
 }
 
 function PreviewBlock({ title, body }: { title: string; body: string }) {

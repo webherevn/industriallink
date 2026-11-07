@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import {
   JobStatus,
   looksLikeUuid,
@@ -8,10 +9,12 @@ import {
   type JobMatchView,
   type MatchExplanation,
   type OpenJobMatchBoard,
+  type RecruiterSourcingScanCandidateItem,
 } from '@industriallink/contracts';
 import { CreditService } from '../billing/credit.service';
 import { SourcingService } from '../billing/sourcing.service';
 import { CompanyService } from '../company/company.service';
+import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import {
   backfillMissingCompanySlugs,
@@ -66,6 +69,7 @@ export class MatchingService {
     private readonly credit: CreditService,
     private readonly sourcing: SourcingService,
     private readonly companies: CompanyService,
+    private readonly notifications: NotificationService,
   ) {}
 
   /** Văn bản đại diện hồ sơ ứng viên để so khớp ngữ nghĩa (tách theo nhánh Sales / Kỹ thuật). */
@@ -284,7 +288,7 @@ export class MatchingService {
     }
     const linked = await this.prisma.billingSourcingEngagement.findFirst({
       where: { companyId, jobId, assignmentId: entitlements.assignment.id },
-      select: { id: true },
+      select: { id: true, companyId: true, assignmentId: true, jobId: true, title: true },
     });
     if (!linked) {
       throw new ForbiddenException({
@@ -293,6 +297,22 @@ export class MatchingService {
       });
     }
     const ranked = await this.rankJobCandidates(user, jobId);
+
+    // Nếu vị trí Săn vừa tạo chưa có đợt quét nào thì ghi nhận ngay Đợt tìm kiếm #1
+    const existingScans = await this.prisma.billingSourcingUsage.count({
+      where: {
+        companyId,
+        assignmentId: entitlements.assignment.id,
+        engagementId: linked.id,
+        kind: 'auto_scan',
+      },
+    });
+    if (existingScans === 0) {
+      await this.recordSourcingScanRound(linked, ranked, 'initial', user.id).catch((err) => {
+        this.logger.warn(`Không lưu được đợt quét đầu tiên cho vị trí ${linked.id}: ${String(err)}`);
+      });
+    }
+
     if (ranked.length === 0) return ranked;
     const opened = await this.prisma.billingSourcingUsage.findMany({
       where: {
@@ -313,13 +333,267 @@ export class MatchingService {
     }));
   }
 
+  /**
+   * Lịch quét tự động 2 giờ/lần trong giờ hành chính (08:00, 10:00, 12:00, 14:00, 16:00, 18:00, Thứ 2 – Thứ 7, giờ VN).
+   * Tự động đối chiếu toàn bộ ứng viên theo JD Sales B2B / Kỹ thuật của các vị trí Săn đang mở.
+   */
+  @Cron('0 0 8,10,12,14,16,18 * * 1-6', { timeZone: 'Asia/Ho_Chi_Minh' })
+  async runScheduledSourcingScans(): Promise<void> {
+    const now = new Date();
+    const activeEngagements = await this.prisma.billingSourcingEngagement.findMany({
+      where: {
+        status: { not: 'closed' },
+        jobId: { not: null },
+        assignment: {
+          isActive: true,
+          OR: [{ endsAt: null }, { endsAt: { gte: now } }],
+        },
+      },
+      select: {
+        id: true,
+        companyId: true,
+        assignmentId: true,
+        jobId: true,
+        title: true,
+      },
+    });
+
+    for (const eng of activeEngagements) {
+      if (!eng.jobId) continue;
+      try {
+        const company = await this.prisma.company.findUnique({
+          where: { id: eng.companyId },
+          select: { id: true, tenantId: true, name: true },
+        });
+        if (!company) continue;
+        const ranked = await this.rankJobCandidatesByCompany(
+          eng.companyId,
+          company.tenantId,
+          eng.jobId,
+        );
+        await this.recordSourcingScanRound(eng, ranked, 'cron');
+      } catch (err) {
+        this.logger.warn(
+          `Quét Săn tự động 2h/lần lỗi cho engagement=${eng.id}: ${String(err)}`,
+        );
+      }
+    }
+  }
+
+  private async recordSourcingScanRound(
+    engagement: {
+      id: string;
+      companyId: string;
+      assignmentId: string;
+      jobId: string | null;
+      title: string;
+    },
+    ranked: CandidateMatchView[],
+    trigger: 'initial' | 'cron' | 'manual',
+    actorUserId?: string,
+  ): Promise<void> {
+    const potentialRows = ranked
+      .filter((r) => !r.applied)
+      .sort((a, b) => b.match.score - a.match.score);
+
+    const prevUsageRows = await this.prisma.billingSourcingUsage.findMany({
+      where: {
+        companyId: engagement.companyId,
+        assignmentId: engagement.assignmentId,
+        engagementId: engagement.id,
+        kind: 'auto_scan',
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { note: true },
+    });
+
+    const prevBestScore = new Map<string, number>();
+    for (const row of prevUsageRows) {
+      if (!row.note) continue;
+      try {
+        const parsed = JSON.parse(row.note) as {
+          candidates?: { candidateId: string; score: number }[];
+        };
+        for (const c of parsed.candidates ?? []) {
+          const prev = prevBestScore.get(c.candidateId);
+          if (prev === undefined || c.score > prev) {
+            prevBestScore.set(c.candidateId, c.score);
+          }
+        }
+      } catch {
+        // Bỏ qua dòng không phải JSON
+      }
+    }
+
+    const roundNumber = prevUsageRows.length + 1;
+    const candidates: RecruiterSourcingScanCandidateItem[] = potentialRows.map((row) => {
+      const raw = row.match.score <= 1 ? row.match.score * 100 : row.match.score;
+      const score = Math.round(Math.max(0, Math.min(100, raw)) * 10) / 10;
+      const prev = prevBestScore.get(row.candidateId);
+      const isNew = prev === undefined || score - prev >= 1;
+      return {
+        candidateId: row.candidateId,
+        score,
+        isNew,
+      };
+    });
+
+    const newItems = candidates.filter((c) => c.isNew);
+    let emailSent = false;
+
+    if (trigger === 'cron' && newItems.length > 0) {
+      emailSent = await this.notifyRecruiterNewSourcingMatches(
+        engagement,
+        roundNumber,
+        potentialRows.filter((r) => newItems.some((n) => n.candidateId === r.candidateId)),
+      );
+    }
+
+    const payload = {
+      roundNumber,
+      trigger,
+      totalMatched: candidates.length,
+      newCount: newItems.length,
+      emailSent,
+      candidates,
+    };
+
+    await this.prisma.billingSourcingUsage.create({
+      data: {
+        companyId: engagement.companyId,
+        assignmentId: engagement.assignmentId,
+        engagementId: engagement.id,
+        jobId: engagement.jobId,
+        kind: 'auto_scan',
+        note: JSON.stringify(payload),
+        createdBy: actorUserId && looksLikeUuid(actorUserId) ? actorUserId : null,
+      },
+    });
+  }
+
+  private async notifyRecruiterNewSourcingMatches(
+    engagement: {
+      id: string;
+      companyId: string;
+      title: string;
+    },
+    roundNumber: number,
+    newMatches: CandidateMatchView[],
+  ): Promise<boolean> {
+    if (newMatches.length === 0) return false;
+    const company = await this.prisma.company.findUnique({
+      where: { id: engagement.companyId },
+      include: {
+        members: {
+          include: {
+            user: { select: { id: true, email: true, displayName: true } },
+          },
+        },
+      },
+    });
+    if (!company) return false;
+
+    const recipients = new Map<string, { userId: string; email: string | null }>();
+    for (const m of company.members) {
+      if (m.user) {
+        recipients.set(m.user.id, { userId: m.user.id, email: m.user.email });
+      }
+    }
+    if (company.createdBy && !recipients.has(company.createdBy)) {
+      const creator = await this.prisma.user.findUnique({
+        where: { id: company.createdBy },
+        select: { id: true, email: true },
+      });
+      if (creator) recipients.set(creator.id, { userId: creator.id, email: creator.email });
+    }
+
+    const topLines = newMatches.slice(0, 5).map((m) => {
+      const pct = Math.round((m.match.score <= 1 ? m.match.score * 100 : m.match.score) * 10) / 10;
+      return `• ${m.displayName} — Phù hợp ${pct}%${m.currentPosition ? ` (${m.currentPosition})` : ''}`;
+    });
+
+    const subject = `[inlink Săn nhân sự] +${newMatches.length} ứng viên phù hợp mới cho «${engagement.title}» (Đợt #${roundNumber})`;
+    const text = [
+      `Xin chào ${company.name},`,
+      '',
+      `Hệ thống Săn nhân sự tự động (2 giờ/lần) của inlink vừa hoàn tất Đợt tìm kiếm #${roundNumber} cho vị trí «${engagement.title}» và phát hiện ${newMatches.length} ứng viên tiềm năng mới phù hợp:`,
+      '',
+      ...topLines,
+      '',
+      'Xem chi tiết danh sách ứng viên tại mục Săn nhân sự trên inlink (/recruiter/sourcing).',
+    ].join('\n');
+
+    const htmlList = newMatches
+      .slice(0, 5)
+      .map((m) => {
+        const pct = Math.round((m.match.score <= 1 ? m.match.score * 100 : m.match.score) * 10) / 10;
+        return `<li><strong>${m.displayName}</strong> — Phù hợp <strong>${pct}%</strong>${m.currentPosition ? ` (${m.currentPosition})` : ''}</li>`;
+      })
+      .join('');
+    const html = [
+      `<p>Xin chào <strong>${company.name}</strong>,</p>`,
+      `<p>Hệ thống Săn nhân sự tự động (2 giờ/lần) của <strong>inlink</strong> vừa hoàn tất <strong>Đợt tìm kiếm #${roundNumber}</strong> cho vị trí «<strong>${engagement.title}</strong>» và phát hiện <strong>${newMatches.length} ứng viên tiềm năng mới</strong>:</p>`,
+      `<ul>${htmlList}</ul>`,
+      `<p>Truy cập mục <strong>Săn nhân sự</strong> trên inlink để xem chi tiết từng đợt tìm kiếm và mở hồ sơ ứng viên.</p>`,
+    ].join('');
+
+    let sentAny = false;
+    for (const r of recipients.values()) {
+      await this.notifications
+        .createInApp({
+          tenantId: company.tenantId,
+          userId: r.userId,
+          type: 'sourcing.new_matches',
+          title: `+${newMatches.length} ứng viên tiềm năng mới (Đợt #${roundNumber})`,
+          body: `Vị trí «${engagement.title}» vừa có ${newMatches.length} ứng viên phù hợp mới từ đợt quét tự động.`,
+          link: '/recruiter/sourcing',
+          entityType: 'sourcing_engagement',
+          entityId: engagement.id,
+        })
+        .catch(() => undefined);
+
+      if (r.email) {
+        await this.notifications.emailSafe({
+          to: r.email,
+          subject,
+          text,
+          html,
+        });
+        sentAny = true;
+      }
+    }
+
+    // Hook sẵn sàng kết nối Zalo ZNS trong tương lai
+    this.notifyZaloSourcingPlaceholder(company.id, engagement.title, roundNumber, newMatches.length);
+    return sentAny;
+  }
+
+  private notifyZaloSourcingPlaceholder(
+    companyId: string,
+    title: string,
+    roundNumber: number,
+    newCount: number,
+  ): void {
+    this.logger.debug(
+      `[Zalo Hook Placeholder] company=${companyId} title="${title}" round=#${roundNumber} newMatches=${newCount}`,
+    );
+  }
+
   private async rankJobCandidates(user: AuthenticatedUser, jobId: string): Promise<CandidateMatchView[]> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    return this.rankJobCandidatesByCompany(companyId, user.tenantId, jobId);
+  }
+
+  private async rankJobCandidatesByCompany(
+    companyId: string,
+    tenantId: string,
+    jobId: string,
+  ): Promise<CandidateMatchView[]> {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
       include: { skills: true },
     });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
-    const { companyId } = await this.companies.requireUserCompany(user.id);
     if (job.companyId !== companyId) {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
@@ -349,7 +623,7 @@ export class MatchingService {
             SELECT csi.candidate_id
             FROM candidate.candidate_search_index csi
             INNER JOIN candidate.candidate_profile cp ON cp.candidate_id = csi.candidate_id
-            WHERE csi.tenant_id = ${user.tenantId}
+            WHERE csi.tenant_id = ${tenantId}
               AND csi.embedding IS NOT NULL
               AND cp.job_track = ${jobTrack}
             ORDER BY csi.embedding <=> ${literal}::vector
@@ -357,7 +631,7 @@ export class MatchingService {
         : await this.prisma.$queryRaw<{ candidate_id: string }[]>`
             SELECT candidate_id
             FROM candidate.candidate_search_index
-            WHERE tenant_id = ${user.tenantId} AND embedding IS NOT NULL
+            WHERE tenant_id = ${tenantId} AND embedding IS NOT NULL
             ORDER BY embedding <=> ${literal}::vector
             LIMIT ${CANDIDATE_POOL}`;
       for (const r of rows) {
@@ -383,7 +657,7 @@ export class MatchingService {
     if (poolIds.size < CANDIDATE_POOL) {
       const recent = await this.prisma.candidate.findMany({
         where: {
-          tenantId: user.tenantId,
+          tenantId,
           isDeleted: false,
           profile: jobTrack ? { is: { jobTrack } } : { isNot: null },
           ...(poolIds.size > 0 ? { id: { notIn: [...poolIds] } } : {}),
