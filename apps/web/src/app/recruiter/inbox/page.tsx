@@ -24,7 +24,7 @@ import { AppShell } from '@/components/app-shell';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { Badge, Button, Input } from '@/components/ui';
 import { APPLICATION_STATUS_LABEL, interviewMarkText, statusTone } from '@/lib/format';
-import { formatMatchPct } from '@/lib/match-percent';
+import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { listInbox } from '@/lib/recruiter';
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
@@ -221,15 +221,45 @@ export default function RecruiterInboxPage() {
   );
 }
 
-function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
-  const initials = a.displayName
-    .split(' ')
-    .slice(-2)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+function ScoreRing({ score }: { score: number | null | undefined }) {
+  const numeric = scoreValue(score);
+  const safe = Math.min(1, Math.max(0, numeric / 100));
+  const pct = formatMatchPct(score ?? 0);
+  const r = 18;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - safe);
+  const ringColor = matchRingColor(score ?? 0);
+  return (
+    <div className="relative h-12 w-12 shrink-0">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
+        <circle cx="22" cy="22" r={r} fill="none" stroke="#fde68a" strokeWidth="3.5" />
+        <circle
+          cx="22"
+          cy="22"
+          r={r}
+          fill="none"
+          stroke={ringColor}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          className="transition-[stroke-dashoffset] duration-700 ease-soft"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className="text-[12px] font-extrabold leading-none tracking-tight tabular-nums"
+          style={{ color: ringColor }}
+        >
+          {pct}
+          <span className="text-[9px] font-bold opacity-80">%</span>
+        </span>
+      </div>
+    </div>
+  );
+}
 
+function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
   const when = new Date(a.createdAt);
   const timeLabel = when.toLocaleString('vi-VN', {
     hour: '2-digit',
@@ -251,21 +281,7 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
     <article className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3.5">
-          <div className="flex w-14 shrink-0 flex-col items-center">
-            <div
-              className={clsx(
-                'flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-bold',
-                strong ? 'bg-emerald-50 text-emerald-700' : 'bg-accent-50 text-accent-700',
-              )}
-            >
-              {initials || 'UV'}
-            </div>
-            {a.matchScore != null && (
-              <p className={clsx('mt-1 text-xs font-bold tabular-nums', strong ? 'text-emerald-600' : 'text-[#E8872A]')}>
-                {formatMatchPct(a.matchScore)}%
-              </p>
-            )}
-          </div>
+          <ScoreRing score={a.matchScore} />
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
