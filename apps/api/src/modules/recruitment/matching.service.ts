@@ -35,11 +35,11 @@ import { explainSalesJobCandidate } from './sales-match-explain';
 import { explainTechnicalJobCandidate } from './technical-match-explain';
 import { plainLabel } from './html.util';
 
-const MATCH_LIMIT = 20;
+const MATCH_LIMIT = 80;
 /** Pool ứng viên đưa vào engine Sales/Kỹ thuật khi matching theo JD. */
-const CANDIDATE_POOL = 80;
+const CANDIDATE_POOL = 160;
 /** Điểm tối thiểu (0–100) để hiện trong kết quả mạng lưới. */
-const MIN_ENGINE_SCORE = 1;
+const MIN_ENGINE_SCORE = 0;
 
 const CANDIDATE_MATCH_INCLUDE = {
   profile: true,
@@ -454,7 +454,7 @@ export class MatchingService {
     }
 
     const roundNumber = prevUsageRows.length + 1;
-    const candidates: RecruiterSourcingScanCandidateItem[] = potentialRows.map((row) => {
+    const allScoredCandidates: RecruiterSourcingScanCandidateItem[] = potentialRows.map((row) => {
       const raw = row.match.score <= 1 ? row.match.score * 100 : row.match.score;
       const score = Math.round(Math.max(0, Math.min(100, raw)) * 10) / 10;
       const prev = prevBestScore.get(row.candidateId);
@@ -465,6 +465,24 @@ export class MatchingService {
         isNew,
       };
     });
+
+    // Mỗi đợt quét lấy dao động 10–15 ứng viên tiềm năng (ưu tiên ứng viên mới + điểm phù hợp cao)
+    const targetBatchSize = 10 + ((roundNumber * 3 + engagement.id.charCodeAt(0)) % 6); // 10..15
+    let candidates: RecruiterSourcingScanCandidateItem[];
+    if (allScoredCandidates.length <= targetBatchSize) {
+      candidates = allScoredCandidates;
+    } else {
+      const freshOnes = allScoredCandidates.filter((c) => c.isNew);
+      const seenOnes = allScoredCandidates.filter((c) => !c.isNew);
+      const offset = ((roundNumber - 1) * 5) % Math.max(1, seenOnes.length);
+      const rotatedSeen = [...seenOnes.slice(offset), ...seenOnes.slice(0, offset)];
+      candidates = [...freshOnes, ...rotatedSeen]
+        .slice(0, targetBatchSize)
+        .sort((a, b) => {
+          if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
+          return b.score - a.score;
+        });
+    }
 
     const newItems = candidates.filter((c) => c.isNew);
     let emailSent = false;
@@ -697,6 +715,22 @@ export class MatchingService {
       for (const c of recent) poolIds.add(c.id);
     }
 
+    // Nếu số ứng viên tiềm năng cùng nhánh quá ít (< 15), bổ sung thêm ứng viên trong mạng lưới cùng tenant
+    const nonAppliedCount = [...poolIds].filter((id) => !appliedIds.has(id)).length;
+    if (nonAppliedCount < 15) {
+      const fallbackCandidates = await this.prisma.candidate.findMany({
+        where: {
+          tenantId,
+          isDeleted: false,
+          ...(poolIds.size > 0 ? { id: { notIn: [...poolIds] } } : {}),
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 15 - nonAppliedCount,
+        select: { id: true },
+      });
+      for (const c of fallbackCandidates) poolIds.add(c.id);
+    }
+
     if (poolIds.size === 0) return [];
 
     const candidates = await this.prisma.candidate.findMany({
@@ -706,9 +740,17 @@ export class MatchingService {
 
     // Điểm cuối = engine Sales / Kỹ thuật (explainPair), không dùng điểm embedding.
     // Ứng viên đã nộp vào tin luôn giữ lại để NTD thấy đủ hồ sơ ứng tuyển.
-    const eligible = candidates.filter(
+    let eligible = candidates.filter(
       (c) => appliedIds.has(c.id) || sameMatchTrack(jobTrack, candidateMatchTrack(c)),
     );
+    const eligiblePotentialCount = eligible.filter((c) => !appliedIds.has(c.id)).length;
+    if (eligiblePotentialCount < 15 && candidates.length > eligible.length) {
+      const eligibleIdSet = new Set(eligible.map((c) => c.id));
+      const extras = candidates
+        .filter((c) => !eligibleIdSet.has(c.id))
+        .slice(0, 15 - eligiblePotentialCount);
+      eligible = [...eligible, ...extras];
+    }
     const scored = eligible.map((c) => {
       const explanation = this.explainPair(0, job, c);
       return {

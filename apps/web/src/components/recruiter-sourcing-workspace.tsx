@@ -961,6 +961,8 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
+const CANDIDATE_PAGE_SIZE = 6;
+
 function AppliedCandidatesColumn({
   jobTitle,
   loading,
@@ -982,6 +984,19 @@ function AppliedCandidatesColumn({
   onQuickShortlist: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [jobTitle, results.length]);
+
+  const totalPages = Math.max(1, Math.ceil(results.length / CANDIDATE_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pagedResults = useMemo(
+    () => results.slice((safePage - 1) * CANDIDATE_PAGE_SIZE, safePage * CANDIDATE_PAGE_SIZE),
+    [results, safePage],
+  );
+
   return (
     <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
       <div className="flex items-start justify-between gap-3">
@@ -1018,80 +1033,124 @@ function AppliedCandidatesColumn({
           <p className="text-xs text-slate-500">Chưa có ứng viên nộp hồ sơ trực tiếp vào tin săn này.</p>
         </div>
       ) : (
-        <ul className="mt-4 grid gap-3">
-          {results.map((row, index) => {
-            const isShortlisted = shortlistedIds.includes(row.candidateId);
-            const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
-            return (
-              <li
-                key={row.candidateId}
-                className="animate-soft-rise"
-                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-              >
-                <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
-                  <button
-                    type="button"
-                    onClick={() => onSelectCandidate(row)}
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                  >
-                    <ScoreRing score={row.match.score} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
-                          {row.displayName}
+        <>
+          <ul className="mt-4 grid gap-3">
+            {pagedResults.map((row, index) => {
+              const isShortlisted = shortlistedIds.includes(row.candidateId);
+              const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
+              return (
+                <li
+                  key={row.candidateId}
+                  className="animate-soft-rise"
+                  style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+                >
+                  <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
+                    <button
+                      type="button"
+                      onClick={() => onSelectCandidate(row)}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    >
+                      <ScoreRing score={row.match.score} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
+                            {row.displayName}
+                          </span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                            Đã ứng tuyển
+                          </span>
+                          {isShortlisted ? (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                              ★ Đã Shortlist
+                            </span>
+                          ) : null}
                         </span>
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          Đã ứng tuyển
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
+                          {row.industry ? ` · ${row.industry}` : ''}
+                          {' · '}
+                          <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
+                            <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
+                            {row.location ?? 'Chưa có địa điểm'}
+                          </span>
                         </span>
-                        {isShortlisted ? (
-                          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
-                            ★ Đã Shortlist
+                        {row.match.reason ? (
+                          <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
+                            Độ phù hợp {formatMatchPct(row.match.score)}%
                           </span>
                         ) : null}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-slate-500">
-                        {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
-                        {row.industry ? ` · ${row.industry}` : ''}
-                        {' · '}
-                        <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
-                          <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
-                          {row.location ?? 'Chưa có địa điểm'}
+                        <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
+                          Xem đối chiếu JD · Liên hệ · Đặt lịch PV →
                         </span>
                       </span>
-                      {row.match.reason ? (
-                        <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                          Độ phù hợp {formatMatchPct(row.match.score)}%
-                        </span>
-                      ) : null}
-                      <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
-                        Xem đối chiếu JD · Liên hệ · Đặt lịch PV →
-                      </span>
-                    </span>
-                  </button>
+                    </button>
 
+                    <button
+                      type="button"
+                      disabled={!isShortlisted && !canShortlist}
+                      onClick={() => onQuickShortlist(row)}
+                      title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                      className={clsx(
+                        'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                        isShortlisted
+                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                      )}
+                    >
+                      {isShortlisted ? (
+                        <BookmarkCheck className="h-3.5 w-3.5" />
+                      ) : (
+                        '+ Shortlist'
+                      )}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {totalPages > 1 ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              <span className="text-[11px] text-slate-500">
+                Hiển thị {(safePage - 1) * CANDIDATE_PAGE_SIZE + 1}–
+                {Math.min(safePage * CANDIDATE_PAGE_SIZE, results.length)} / {results.length} ứng viên
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(safePage - 1)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                >
+                  ← Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((p) => (
                   <button
+                    key={p}
                     type="button"
-                    disabled={!isShortlisted && !canShortlist}
-                    onClick={() => onQuickShortlist(row)}
-                    title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                    onClick={() => setPage(p)}
                     className={clsx(
-                      'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
-                      isShortlisted
-                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                        : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                      'inline-flex h-7 min-w-7 items-center justify-center rounded-lg px-2 text-[11px] font-bold transition',
+                      p === safePage
+                        ? 'bg-[#072348] text-white shadow-2xs'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
                     )}
                   >
-                    {isShortlisted ? (
-                      <BookmarkCheck className="h-3.5 w-3.5" />
-                    ) : (
-                      '+ Shortlist'
-                    )}
+                    {p}
                   </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                ))}
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(safePage + 1)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -1136,6 +1195,8 @@ function PotentialCandidatesColumn({
   onQuickOutreach: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
+  const [page, setPage] = useState(1);
+
   const isStatusTab =
     selectedRoundId === 'all' ||
     selectedRoundId === 'unviewed' ||
@@ -1197,6 +1258,21 @@ function PotentialCandidatesColumn({
   const outreachedPotentialCount = useMemo(
     () => results.filter((r) => outreachIds.includes(r.candidateId)).length,
     [outreachIds, results],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedRoundId, jobTitle]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / CANDIDATE_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pagedResults = useMemo(
+    () =>
+      filteredResults.slice(
+        (safePage - 1) * CANDIDATE_PAGE_SIZE,
+        safePage * CANDIDATE_PAGE_SIZE,
+      ),
+    [filteredResults, safePage],
   );
 
   return (
@@ -1406,139 +1482,183 @@ function PotentialCandidatesColumn({
           </p>
         </div>
       ) : (
-        <ul className="mt-4 grid gap-3">
-          {filteredResults.map((row, index) => {
-            const creditCost = potentialOpenCreditCost(row.match.score);
-            const isNewlyDiscovered = latestRoundNewSet.has(row.candidateId);
-            const isShortlisted = shortlistedIds.includes(row.candidateId);
-            const isOutreached = outreachIds.includes(row.candidateId);
-            const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
-            const canOutreach = outreachRemaining === null || outreachRemaining > 0;
-            return (
-              <li
-                key={row.candidateId}
-                className="animate-soft-rise"
-                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-              >
-                <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
-                  <button
-                    type="button"
-                    onClick={() => onSelectCandidate(row)}
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                  >
-                    <ScoreRing score={row.match.score} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
-                          {row.displayName}
-                        </span>
-                        {isNewlyDiscovered ? (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-amber-300">
-                            Mới phát hiện
-                          </span>
-                        ) : null}
-                        {isOutreached ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-                            <Headphones className="h-2.5 w-2.5" />
-                            Inlink đang liên hệ
-                          </span>
-                        ) : null}
-                        {isShortlisted ? (
-                          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
-                            ★ Đã Shortlist
-                          </span>
-                        ) : null}
-                        {row.viewed || isOutreached ? (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                            Đã xem
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-slate-500">
-                        {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
-                        {row.industry ? ` · ${row.industry}` : ''}
-                        {' · '}
-                        <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
-                          <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
-                          {row.location ?? 'Chưa có địa điểm'}
-                        </span>
-                      </span>
-                      {row.match.reason ? (
-                        <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                          Độ phù hợp {formatMatchPct(row.match.score)}%
-                        </span>
-                      ) : null}
-                      <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
-                        Xem đối chiếu JD · Mở liên hệ · Đặt lịch PV →
-                      </span>
-                    </span>
-                  </button>
-
-                  {/* Cột dọc bên phải đồng bộ kích thước: Credit -> Shortlist -> Giao Inlink */}
-                  <div className="flex min-w-[112px] shrink-0 flex-col items-stretch gap-1.5">
-                    <span
-                      className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
-                      title={
-                        creditCost === 2
-                          ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
-                          : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
-                      }
-                    >
-                      <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
-                      <span>
-                        <span className="text-[#E8872A]">{creditCost}</span> Credit
-                      </span>
-                    </span>
-
+        <>
+          <ul className="mt-4 grid gap-3">
+            {pagedResults.map((row, index) => {
+              const creditCost = potentialOpenCreditCost(row.match.score);
+              const isNewlyDiscovered = latestRoundNewSet.has(row.candidateId);
+              const isShortlisted = shortlistedIds.includes(row.candidateId);
+              const isOutreached = outreachIds.includes(row.candidateId);
+              const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
+              const canOutreach = outreachRemaining === null || outreachRemaining > 0;
+              return (
+                <li
+                  key={row.candidateId}
+                  className="animate-soft-rise"
+                  style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+                >
+                  <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
                     <button
                       type="button"
-                      disabled={!isShortlisted && !canShortlist}
-                      onClick={() => onQuickShortlist(row)}
-                      title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
-                      className={clsx(
-                        'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
-                        isShortlisted
-                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
-                      )}
+                      onClick={() => onSelectCandidate(row)}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
                     >
-                      {isShortlisted ? (
-                        <>
-                          <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
-                          <span>Đã lưu</span>
-                        </>
-                      ) : (
-                        '+ Shortlist'
-                      )}
+                      <ScoreRing score={row.match.score} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
+                            {row.displayName}
+                          </span>
+                          {isNewlyDiscovered ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-amber-300">
+                              Mới phát hiện
+                            </span>
+                          ) : null}
+                          {isOutreached ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                              <Headphones className="h-2.5 w-2.5" />
+                              Inlink đang liên hệ
+                            </span>
+                          ) : null}
+                          {isShortlisted ? (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                              ★ Đã Shortlist
+                            </span>
+                          ) : null}
+                          {row.viewed || isOutreached ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                              Đã xem
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
+                          {row.industry ? ` · ${row.industry}` : ''}
+                          {' · '}
+                          <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
+                            <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
+                            {row.location ?? 'Chưa có địa điểm'}
+                          </span>
+                        </span>
+                        {row.match.reason ? (
+                          <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
+                            Độ phù hợp {formatMatchPct(row.match.score)}%
+                          </span>
+                        ) : null}
+                        <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
+                          Xem đối chiếu JD · Mở liên hệ · Đặt lịch PV →
+                        </span>
+                      </span>
                     </button>
 
-                    {hasOutreach ? (
+                    {/* Cột dọc bên phải đồng bộ kích thước: Credit -> Shortlist -> Giao Inlink */}
+                    <div className="flex min-w-[112px] shrink-0 flex-col items-stretch gap-1.5">
+                      <span
+                        className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
+                        title={
+                          creditCost === 2
+                            ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
+                            : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
+                        }
+                      >
+                        <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                        <span>
+                          <span className="text-[#E8872A]">{creditCost}</span> Credit
+                        </span>
+                      </span>
+
                       <button
                         type="button"
-                        disabled={isOutreached || !canOutreach || outreachPending}
-                        onClick={() => onQuickOutreach(row)}
-                        title={
-                          isOutreached
-                            ? 'Đã bàn giao cho đội ngũ CSKH Inlink liên hệ & mở khóa hồ sơ'
-                            : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
-                        }
+                        disabled={!isShortlisted && !canShortlist}
+                        onClick={() => onQuickShortlist(row)}
+                        title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
                         className={clsx(
                           'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
-                          isOutreached
-                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90'
-                            : 'border border-[#072348]/20 bg-[#f4f8fd] text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-40',
+                          isShortlisted
+                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
                         )}
                       >
-                        <Headphones className="h-3 w-3 shrink-0 text-[#E8872A]" />
-                        <span>{isOutreached ? 'Đã giao' : 'Giao Inlink'}</span>
+                        {isShortlisted ? (
+                          <>
+                            <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
+                            <span>Đã lưu</span>
+                          </>
+                        ) : (
+                          '+ Shortlist'
+                        )}
                       </button>
-                    ) : null}
+
+                      {hasOutreach ? (
+                        <button
+                          type="button"
+                          disabled={isOutreached || !canOutreach || outreachPending}
+                          onClick={() => onQuickOutreach(row)}
+                          title={
+                            isOutreached
+                              ? 'Đã bàn giao cho đội ngũ CSKH Inlink liên hệ & mở khóa hồ sơ'
+                              : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
+                          }
+                          className={clsx(
+                            'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                            isOutreached
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90'
+                              : 'border border-[#072348]/20 bg-[#f4f8fd] text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-40',
+                          )}
+                        >
+                          <Headphones className="h-3 w-3 shrink-0 text-[#E8872A]" />
+                          <span>{isOutreached ? 'Đã giao' : 'Giao Inlink'}</span>
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                </li>
+              );
+            })}
+          </ul>
+
+          {totalPages > 1 ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              <span className="text-[11px] text-slate-500">
+                Hiển thị {(safePage - 1) * CANDIDATE_PAGE_SIZE + 1}–
+                {Math.min(safePage * CANDIDATE_PAGE_SIZE, filteredResults.length)} / {filteredResults.length} ứng viên
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(safePage - 1)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                >
+                  ← Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPage(p)}
+                    className={clsx(
+                      'inline-flex h-7 min-w-7 items-center justify-center rounded-lg px-2 text-[11px] font-bold transition',
+                      p === safePage
+                        ? 'bg-[#072348] text-white shadow-2xs'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(safePage + 1)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );
