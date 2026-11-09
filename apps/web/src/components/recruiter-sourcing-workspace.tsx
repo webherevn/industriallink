@@ -984,18 +984,18 @@ function AppliedCandidatesColumn({
 }) {
   return (
     <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
             Danh sách ứng viên ứng tuyển
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 truncate text-xs text-slate-500">
             Danh sách ứng viên đã nộp hồ sơ ứng tuyển của bạn
             {jobTitle ? ` · ${jobTitle}` : ''}
           </p>
         </div>
         {ready && !loading ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
             <Users className="h-3.5 w-3.5" />
             {results.length}
           </span>
@@ -1136,12 +1136,16 @@ function PotentialCandidatesColumn({
   onQuickOutreach: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
+  const isStatusTab =
+    selectedRoundId === 'all' ||
+    selectedRoundId === 'unviewed' ||
+    selectedRoundId === 'viewed' ||
+    selectedRoundId === 'shortlist' ||
+    selectedRoundId === 'outreach';
+
   const activeRound = useMemo(
-    () =>
-      selectedRoundId === 'all' || selectedRoundId === 'shortlist' || selectedRoundId === 'outreach'
-        ? null
-        : scanRounds.find((r) => r.id === selectedRoundId) ?? null,
-    [scanRounds, selectedRoundId],
+    () => (isStatusTab ? null : scanRounds.find((r) => r.id === selectedRoundId) ?? null),
+    [isStatusTab, scanRounds, selectedRoundId],
   );
 
   const latestRoundNewSet = useMemo(() => {
@@ -1151,6 +1155,12 @@ function PotentialCandidatesColumn({
   }, [activeRound, scanRounds]);
 
   const filteredResults = useMemo(() => {
+    if (selectedRoundId === 'unviewed') {
+      return results.filter((r) => !r.viewed && !outreachIds.includes(r.candidateId));
+    }
+    if (selectedRoundId === 'viewed') {
+      return results.filter((r) => Boolean(r.viewed) || outreachIds.includes(r.candidateId));
+    }
     if (selectedRoundId === 'shortlist') {
       return results.filter((r) => shortlistedIds.includes(r.candidateId));
     }
@@ -1169,6 +1179,16 @@ function PotentialCandidatesColumn({
       });
   }, [activeRound, outreachIds, results, selectedRoundId, shortlistedIds]);
 
+  const unviewedPotentialCount = useMemo(
+    () => results.filter((r) => !r.viewed && !outreachIds.includes(r.candidateId)).length,
+    [outreachIds, results],
+  );
+
+  const viewedPotentialCount = useMemo(
+    () => results.filter((r) => Boolean(r.viewed) || outreachIds.includes(r.candidateId)).length,
+    [outreachIds, results],
+  );
+
   const shortlistedPotentialCount = useMemo(
     () => results.filter((r) => shortlistedIds.includes(r.candidateId)).length,
     [results, shortlistedIds],
@@ -1181,107 +1201,179 @@ function PotentialCandidatesColumn({
 
   return (
     <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
             DANH SÁCH ỨNG VIÊN TIỀM NĂNG
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Danh sách các ứng viên inlink săn cho bạn dựa trên JD đã chọn, tỉ lệ phù hợp từ cao xuống thấp.
-            {jobTitle ? ` (${jobTitle})` : ''}
+          <p className="mt-0.5 truncate text-xs text-slate-500">
+            Ứng viên inlink săn theo JD từ cao xuống thấp
+            {jobTitle ? ` · ${jobTitle}` : ''}
           </p>
         </div>
         {ready && !loading ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
             <Users className="h-3.5 w-3.5" />
             {filteredResults.length}
           </span>
         ) : null}
       </div>
 
-      {/* Thanh chọn các đợt tìm kiếm 2 giờ/lần + bộ lọc Shortlist + Giao Inlink liên hệ */}
-      {ready && (scanRounds.length > 0 || shortlistedPotentialCount > 0 || hasOutreach || outreachedPotentialCount > 0) ? (
-        <div className="mt-3 space-y-1.5">
-          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-            <span className="inline-flex items-center gap-1 font-medium text-[#072348]">
-              <Clock className="h-3.5 w-3.5 text-[#E8872A]" />
-              Tự động quét 2 giờ/lần (08:00 – 18:00) & báo Email/Zalo khi có ứng viên mới
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      {/* Bộ lọc trạng thái hồ sơ & chọn đợt quét tự động 2 giờ/lần */}
+      {ready &&
+      (results.length > 0 ||
+        scanRounds.length > 0 ||
+        shortlistedPotentialCount > 0 ||
+        hasOutreach ||
+        outreachedPotentialCount > 0) ? (
+        <div className="mt-3.5 space-y-2 rounded-2xl border border-slate-200/80 bg-[#f8fafc] p-2.5">
+          {/* Hàng 1: Các tab lọc theo trạng thái xem / bàn giao / shortlist */}
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => onSelectRound('all')}
               className={clsx(
-                'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition',
+                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
                 selectedRoundId === 'all'
-                  ? 'bg-[#072348] text-white shadow-xs'
-                  : 'bg-[#f4f7fb] text-slate-600 hover:bg-slate-200/70',
+                  ? 'bg-[#072348] text-white shadow-2xs'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-100',
               )}
             >
-              Tất cả phù hợp ({results.length})
+              <span>Tất cả</span>
+              <span
+                className={clsx(
+                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
+                  selectedRoundId === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
+                )}
+              >
+                {results.length}
+              </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectRound('unviewed')}
+              className={clsx(
+                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                selectedRoundId === 'unviewed'
+                  ? 'bg-[#E8872A] text-white shadow-2xs'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-amber-50 hover:text-[#c96a12]',
+              )}
+            >
+              <span>Chưa xem</span>
+              <span
+                className={clsx(
+                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
+                  selectedRoundId === 'unviewed' ? 'bg-white/25 text-white' : 'bg-amber-50 text-[#E8872A]',
+                )}
+              >
+                {unviewedPotentialCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectRound('viewed')}
+              className={clsx(
+                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                selectedRoundId === 'viewed'
+                  ? 'bg-slate-700 text-white shadow-2xs'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-100',
+              )}
+            >
+              <span>Đã xem</span>
+              <span
+                className={clsx(
+                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
+                  selectedRoundId === 'viewed' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
+                )}
+              >
+                {viewedPotentialCount}
+              </span>
+            </button>
+
             {hasOutreach || outreachedPotentialCount > 0 ? (
               <button
                 type="button"
                 onClick={() => onSelectRound('outreach')}
                 className={clsx(
-                  'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition',
+                  'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
                   selectedRoundId === 'outreach'
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/80 hover:bg-emerald-100',
+                    ? 'bg-emerald-700 text-white shadow-2xs'
+                    : 'bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50',
                 )}
               >
-                <Headphones className="h-3 w-3" />
-                <span>
-                  Đã giao Inlink ({outreachedPotentialCount}
-                  {outreachQuota != null ? `/${outreachQuota}` : ''})
+                <Headphones className="h-3 w-3 shrink-0" />
+                <span>Đã giao Inlink</span>
+                <span
+                  className={clsx(
+                    'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
+                    selectedRoundId === 'outreach'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-emerald-50 text-emerald-700',
+                  )}
+                >
+                  {outreachedPotentialCount}
+                  {outreachQuota != null ? `/${outreachQuota}` : ''}
                 </span>
               </button>
             ) : null}
+
             <button
               type="button"
               onClick={() => onSelectRound('shortlist')}
               className={clsx(
-                'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition',
+                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
                 selectedRoundId === 'shortlist'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100',
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'bg-white text-indigo-800 ring-1 ring-indigo-200 hover:bg-indigo-50',
               )}
             >
-              ★ Đã Shortlist ({shortlistedPotentialCount})
+              <span>★ Shortlist</span>
+              <span
+                className={clsx(
+                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
+                  selectedRoundId === 'shortlist'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-indigo-50 text-indigo-700',
+                )}
+              >
+                {shortlistedPotentialCount}
+              </span>
             </button>
-            {scanRounds.map((round) => {
-              const active = selectedRoundId === round.id;
-              return (
-                <button
-                  key={round.id}
-                  type="button"
-                  onClick={() => onSelectRound(round.id)}
+          </div>
+
+          {/* Hàng 2: Lịch quét tự động 2h/lần + Dropdown chọn đợt quét gọn gàng */}
+          {scanRounds.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-2 text-[11px]">
+              <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+                <Clock className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                <span>Quét tự động 2h/lần (08:00 – 18:00)</span>
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-500">Đợt quét:</span>
+                <select
+                  value={activeRound ? activeRound.id : 'all'}
+                  onChange={(e) => onSelectRound(e.target.value)}
                   className={clsx(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition',
-                    active
-                      ? 'bg-[#E8872A] text-white shadow-xs'
-                      : 'bg-[#f4f7fb] text-slate-600 hover:bg-slate-200/70',
+                    'h-7 rounded-lg border px-2.5 text-[11px] font-bold outline-none transition',
+                    activeRound
+                      ? 'border-[#E8872A] bg-amber-50/90 text-[#072348]'
+                      : 'border-slate-200 bg-white text-[#072348] hover:border-slate-300',
                   )}
                 >
-                  <span>
-                    Đợt #{round.roundNumber} · {formatScanRoundTime(round.createdAt)}
-                  </span>
-                  {round.newCount > 0 ? (
-                    <span
-                      className={clsx(
-                        'rounded-full px-1.5 py-0.2 text-[10px] font-bold',
-                        active ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800',
-                      )}
-                    >
-                      +{round.newCount} mới
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+                  <option value="all">Tất cả ({scanRounds.length} đợt quét)</option>
+                  {scanRounds.map((round) => (
+                    <option key={round.id} value={round.id}>
+                      Đợt #{round.roundNumber} · {formatScanRoundTime(round.createdAt)}
+                      {round.newCount > 0 ? ` (+${round.newCount} mới)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -1302,11 +1394,15 @@ function PotentialCandidatesColumn({
       ) : filteredResults.length === 0 ? (
         <div className="mt-4 flex flex-1 flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
           <p className="text-xs text-slate-500">
-            {selectedRoundId === 'outreach'
-              ? 'Chưa có ứng viên nào được giao cho Inlink liên hệ. Bấm «Giao Inlink» trên thẻ ứng viên hoặc trong chi tiết hồ sơ để bàn giao cho đội ngũ CSKH Inlink.'
-              : selectedRoundId === 'shortlist'
-                ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm «+ Shortlist» trên thẻ ứng viên để lưu vào đây.'
-                : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
+            {selectedRoundId === 'unviewed'
+              ? 'Tất cả ứng viên tiềm năng trong danh sách hiện tại đều đã được xem.'
+              : selectedRoundId === 'viewed'
+                ? 'Chưa có ứng viên tiềm năng nào được mở xem. Bấm vào ứng viên bên dưới để xem chi tiết.'
+                : selectedRoundId === 'outreach'
+                  ? 'Chưa có ứng viên nào được giao cho Inlink liên hệ. Bấm «Giao Inlink» trên thẻ ứng viên hoặc trong chi tiết hồ sơ để bàn giao cho đội ngũ CSKH Inlink.'
+                  : selectedRoundId === 'shortlist'
+                    ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm «+ Shortlist» trên thẻ ứng viên để lưu vào đây.'
+                    : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
           </p>
         </div>
       ) : (
@@ -1378,9 +1474,10 @@ function PotentialCandidatesColumn({
                     </span>
                   </button>
 
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  {/* Cột dọc bên phải đồng bộ kích thước: Credit -> Shortlist -> Giao Inlink */}
+                  <div className="flex min-w-[112px] shrink-0 flex-col items-stretch gap-1.5">
                     <span
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-1 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
+                      className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
                       title={
                         creditCost === 2
                           ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
@@ -1393,48 +1490,49 @@ function PotentialCandidatesColumn({
                       </span>
                     </span>
 
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      {hasOutreach ? (
-                        <button
-                          type="button"
-                          disabled={isOutreached || !canOutreach || outreachPending}
-                          onClick={() => onQuickOutreach(row)}
-                          title={
-                            isOutreached
-                              ? 'Đã bàn giao cho đội ngũ CSKH Inlink liên hệ & mở khóa hồ sơ'
-                              : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
-                          }
-                          className={clsx(
-                            'inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
-                            isOutreached
-                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90'
-                              : 'border border-[#072348]/20 bg-[#f4f8fd] text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-40',
-                          )}
-                        >
-                          <Headphones className="h-3 w-3 text-[#E8872A]" />
-                          <span>{isOutreached ? 'Đã giao Inlink' : 'Giao Inlink'}</span>
-                        </button>
-                      ) : null}
+                    <button
+                      type="button"
+                      disabled={!isShortlisted && !canShortlist}
+                      onClick={() => onQuickShortlist(row)}
+                      title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                      className={clsx(
+                        'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                        isShortlisted
+                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                      )}
+                    >
+                      {isShortlisted ? (
+                        <>
+                          <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
+                          <span>Đã lưu</span>
+                        </>
+                      ) : (
+                        '+ Shortlist'
+                      )}
+                    </button>
 
+                    {hasOutreach ? (
                       <button
                         type="button"
-                        disabled={!isShortlisted && !canShortlist}
-                        onClick={() => onQuickShortlist(row)}
-                        title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+                        disabled={isOutreached || !canOutreach || outreachPending}
+                        onClick={() => onQuickOutreach(row)}
+                        title={
+                          isOutreached
+                            ? 'Đã bàn giao cho đội ngũ CSKH Inlink liên hệ & mở khóa hồ sơ'
+                            : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
+                        }
                         className={clsx(
-                          'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
-                          isShortlisted
-                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                            : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
+                          'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                          isOutreached
+                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90'
+                            : 'border border-[#072348]/20 bg-[#f4f8fd] text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-40',
                         )}
                       >
-                        {isShortlisted ? (
-                          <BookmarkCheck className="h-3.5 w-3.5" />
-                        ) : (
-                          '+ Shortlist'
-                        )}
+                        <Headphones className="h-3 w-3 shrink-0 text-[#E8872A]" />
+                        <span>{isOutreached ? 'Đã giao' : 'Giao Inlink'}</span>
                       </button>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               </li>
