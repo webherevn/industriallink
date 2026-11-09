@@ -7,9 +7,11 @@ import {
 import {
   ApplicationStatus,
   DomainEvents,
+  includedScopeCodes,
   InterviewStatus,
   InterviewType,
   JobStatus,
+  parseSourcingScope,
   type ApplicantView,
   type ApplicationDetailView,
   type ApplicationView,
@@ -383,7 +385,7 @@ export class ApplicationService {
     };
   }
 
-  /** Báo cáo tuyển dụng: hồ sơ nhận trong kỳ, phễu trạng thái hiện tại và hiệu suất từng tin. */
+  /** Báo cáo tuyển dụng: hồ sơ nhận trong kỳ, phễu chuyển đổi & trạng thái hiện tại, nguồn săn nhân sự AI, Credit và hiệu suất từng tin. */
   async getRecruitmentReport(user: AuthenticatedUser, daysRaw: number): Promise<RecruitmentReportView> {
     const days = REPORT_DAY_OPTIONS.includes(daysRaw as (typeof REPORT_DAY_OPTIONS)[number])
       ? daysRaw
@@ -400,53 +402,115 @@ export class ApplicationService {
     const companyId = membership.companyId;
     const jobScope = { companyId, isDeleted: false } as const;
 
-    const [openJobs, applications, applicationsPrev, interviewSessions, offersSent, hiredRows] =
-      await Promise.all([
-        this.prisma.job.count({
-          where: { ...jobScope, status: JobStatus.Published },
-        }),
-        this.prisma.application.findMany({
-          where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
-          select: {
-            status: true,
-            createdAt: true,
-            updatedAt: true,
-            matchScore: true,
-            jobId: true,
-            job: { select: { title: true, status: true, location: true } },
-          },
-        }),
-        this.prisma.application.count({
-          where: {
-            isDeleted: false,
-            createdAt: { gte: prevFrom, lt: from },
-            job: jobScope,
-          },
-        }),
-        this.prisma.interview.count({
-          where: {
-            isDeleted: false,
-            scheduledAt: { gte: from, lte: now },
-            status: { not: InterviewStatus.Cancelled },
-            job: jobScope,
-          },
-        }),
-        this.prisma.offer.count({
-          where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
-        }),
-        this.prisma.application.findMany({
-          where: {
-            isDeleted: false,
-            status: ApplicationStatus.Hired,
-            updatedAt: { gte: from },
-            job: jobScope,
-          },
-          select: { createdAt: true, updatedAt: true },
-        }),
-      ]);
+    const [
+      openJobs,
+      applications,
+      applicationsPrev,
+      interviewSessions,
+      offersSent,
+      hiredRows,
+      companyJobs,
+      sourcingPlan,
+      sourcingUsages,
+      shortlistCount,
+      connections,
+      creditAccount,
+      creditTransactions,
+    ] = await Promise.all([
+      this.prisma.job.count({
+        where: { ...jobScope, status: JobStatus.Published },
+      }),
+      this.prisma.application.findMany({
+        where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
+        select: {
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          matchScore: true,
+          jobId: true,
+          job: { select: { title: true, status: true, location: true } },
+        },
+      }),
+      this.prisma.application.count({
+        where: {
+          isDeleted: false,
+          createdAt: { gte: prevFrom, lt: from },
+          job: jobScope,
+        },
+      }),
+      this.prisma.interview.count({
+        where: {
+          isDeleted: false,
+          scheduledAt: { gte: from, lte: now },
+          status: { not: InterviewStatus.Cancelled },
+          job: jobScope,
+        },
+      }),
+      this.prisma.offer.count({
+        where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
+      }),
+      this.prisma.application.findMany({
+        where: {
+          isDeleted: false,
+          status: ApplicationStatus.Hired,
+          updatedAt: { gte: from },
+          job: jobScope,
+        },
+        select: { createdAt: true, updatedAt: true },
+      }),
+      this.prisma.job?.findMany
+        ? this.prisma.job.findMany({
+            where: jobScope,
+            select: { id: true, title: true, status: true, location: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 25,
+          })
+        : Promise.resolve([]),
+      this.prisma.billingCompanySourcingPlan?.findUnique
+        ? this.prisma.billingCompanySourcingPlan.findUnique({
+            where: { companyId },
+            include: {
+              plan: true,
+              engagements: {
+                where: { jobId: { not: null }, status: { not: 'closed' } },
+              },
+            },
+          })
+        : Promise.resolve(null),
+      this.prisma.billingSourcingUsage?.findMany
+        ? this.prisma.billingSourcingUsage.findMany({
+            where: { companyId, createdAt: { gte: from } },
+            select: { kind: true, jobId: true, note: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 300,
+          })
+        : Promise.resolve([]),
+      this.prisma.candidateShortlist?.count
+        ? this.prisma.candidateShortlist.count({ where: { companyId } })
+        : Promise.resolve(0),
+      this.prisma.candidateConnection?.findMany
+        ? this.prisma.candidateConnection.findMany({
+            where: { companyId, createdAt: { gte: from } },
+            select: { status: true },
+          })
+        : Promise.resolve([]),
+      this.prisma.billingCreditAccount?.findUnique
+        ? this.prisma.billingCreditAccount.findUnique({
+            where: { companyId },
+            select: { balance: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.billingCreditTransaction?.findMany
+        ? this.prisma.billingCreditTransaction.findMany({
+            where: { companyId, createdAt: { gte: from } },
+            select: { type: true, action: true, creditDelta: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
     const count = (status: ApplicationStatus) =>
       applications.filter((row) => row.status === status).length;
+    const appliedOnly = count(ApplicationStatus.Applied);
     const screening = count(ApplicationStatus.Screening);
     const interviews = count(ApplicationStatus.Interview);
     const offers = count(ApplicationStatus.Offer);
@@ -457,6 +521,8 @@ export class ApplicationService {
       .map((row) => matchScorePct(row.matchScore))
       .filter((score): score is number => score != null);
     const avgMatchScore = scores.length ? round1(average(scores)) : null;
+    const topMatchScore = scores.length ? round1(Math.max(...scores)) : null;
+    const highMatchCount = scores.filter((score) => score >= 70).length;
     const hireDays = hiredRows.map(
       (row) => (row.updatedAt.getTime() - row.createdAt.getTime()) / MS_PER_DAY,
     );
@@ -465,13 +531,127 @@ export class ApplicationService {
       ? round1((hires / applications.length) * 100)
       : null;
 
-    const funnel: RecruitmentReportFunnelStep[] = [
-      { key: 'applied', label: 'Ứng tuyển', count: count(ApplicationStatus.Applied) },
-      { key: 'screening', label: 'Sàng lọc', count: screening },
-      { key: 'interview', label: 'Phỏng vấn', count: interviews },
-      { key: 'offer', label: 'Đề nghị', count: offers },
-      { key: 'hired', label: 'Nhận việc', count: hires },
+    // Phễu chuyển đổi lũy kế (Cumulative Funnel) kèm số lượng đang đứng tại từng bước
+    const totalApps = applications.length;
+    const cumScreening = screening + interviews + offers + hires;
+    const cumInterview = Math.max(
+      interviews + offers + hires,
+      Math.min(totalApps, interviewSessions),
+    );
+    const cumOffer = Math.max(offers + hires, Math.min(totalApps, offersSent));
+    const cumHired = hires;
+
+    const rawSteps: {
+      key: string;
+      label: string;
+      currentCount: number;
+      cumulativeCount: number;
+    }[] = [
+      {
+        key: 'applied',
+        label: 'Ứng tuyển',
+        currentCount: appliedOnly,
+        cumulativeCount: totalApps,
+      },
+      {
+        key: 'screening',
+        label: 'Sàng lọc',
+        currentCount: screening,
+        cumulativeCount: cumScreening,
+      },
+      {
+        key: 'interview',
+        label: 'Phỏng vấn',
+        currentCount: interviews,
+        cumulativeCount: cumInterview,
+      },
+      {
+        key: 'offer',
+        label: 'Đề nghị',
+        currentCount: offers,
+        cumulativeCount: cumOffer,
+      },
+      {
+        key: 'hired',
+        label: 'Nhận việc',
+        currentCount: hires,
+        cumulativeCount: cumHired,
+      },
     ];
+
+    const funnel: RecruitmentReportFunnelStep[] = rawSteps.map((step, idx) => {
+      const prevCum = idx === 0 ? totalApps : rawSteps[idx - 1]!.cumulativeCount;
+      const conversionFromStartPct =
+        totalApps > 0 ? round1((step.cumulativeCount / totalApps) * 100) : 0;
+      const stepPassRatePct =
+        idx === 0
+          ? totalApps > 0
+            ? 100
+            : 0
+          : prevCum > 0
+            ? round1(Math.min(100, (step.cumulativeCount / prevCum) * 100))
+            : 0;
+      return {
+        key: step.key,
+        label: step.label,
+        count: step.currentCount,
+        currentCount: step.currentCount,
+        cumulativeCount: step.cumulativeCount,
+        conversionFromStartPct,
+        stepPassRatePct,
+      };
+    });
+
+    // Phân tích nguồn Săn nhân sự AI & kết nối chủ động
+    const scanUsages = sourcingUsages.filter((u) => u.kind === 'auto_scan');
+    const scannedCandidateIds = new Set<string>();
+    for (const u of scanUsages) {
+      if (!u.note) continue;
+      try {
+        const parsed = JSON.parse(u.note) as {
+          candidates?: { candidateId?: string }[];
+        };
+        if (Array.isArray(parsed.candidates)) {
+          for (const c of parsed.candidates) {
+            if (c?.candidateId) scannedCandidateIds.add(c.candidateId);
+          }
+        }
+      } catch {
+        // ignore invalid json
+      }
+    }
+    const outreachUsages = sourcingUsages.filter(
+      (u) => u.kind === 'shortlist' && u.note?.startsWith('outreach:'),
+    );
+    const shortlistUsages = sourcingUsages.filter(
+      (u) => u.kind === 'shortlist' && !u.note?.startsWith('outreach:'),
+    );
+    const sourcingProfileOpens = sourcingUsages.filter((u) => u.kind === 'profile_open').length;
+
+    let outreachQuota = 0;
+    if (sourcingPlan?.plan && sourcingPlan.isActive) {
+      const scopeCodes = includedScopeCodes(parseSourcingScope(sourcingPlan.plan.serviceScope));
+      const hasOutreach =
+        scopeCodes.includes('outreach') ||
+        sourcingPlan.plan.code === 'SAN_CHUYEN_SAU' ||
+        (sourcingPlan.plan.shortlistQuota != null && sourcingPlan.plan.shortlistQuota > 0);
+      outreachQuota = hasOutreach ? (sourcingPlan.plan.shortlistQuota ?? 15) : 0;
+    }
+
+    const uniqueEngagementsByJob = new Set(
+      (sourcingPlan?.engagements ?? [])
+        .map((e) => e.jobId)
+        .filter((id): id is string => Boolean(id)),
+    );
+
+    const consumedCredits = creditTransactions
+      .filter((t) => t.type === 'deduct' || t.creditDelta < 0)
+      .reduce((sum, t) => sum + Math.abs(t.creditDelta), 0);
+    const unlockedByCredits = creditTransactions.filter(
+      (t) =>
+        (t.type === 'deduct' || t.creditDelta < 0) &&
+        (t.action === 'view_profile' || t.action === 'contact_potential'),
+    ).length;
 
     return {
       companyName: membership.company.name,
@@ -490,11 +670,29 @@ export class ApplicationService {
       rejected,
       withdrawn,
       avgMatchScore,
+      topMatchScore,
+      highMatchCount,
       avgTimeToHireDays,
       conversionPct,
       funnel,
       trend: buildReportTrend(days, from, now, applications, hiredRows),
-      jobs: buildReportJobs(applications),
+      jobs: buildReportJobs(applications, companyJobs, sourcingUsages),
+      sourcing: {
+        planName: sourcingPlan?.isActive ? (sourcingPlan.plan?.name ?? null) : null,
+        activeEngagements: uniqueEngagementsByJob.size,
+        scanRoundsInPeriod: scanUsages.length,
+        scannedCandidatesCount: scannedCandidateIds.size,
+        shortlistedCount: Math.max(shortlistCount, shortlistUsages.length),
+        outreachCount: outreachUsages.length,
+        outreachQuota,
+        connectionsSent: connections.length,
+        connectionsAccepted: connections.filter((c) => c.status === 'accepted').length,
+      },
+      credits: {
+        balance: creditAccount?.balance ?? 0,
+        consumedInPeriod: consumedCredits,
+        profilesUnlockedInPeriod: unlockedByCredits + sourcingProfileOpens,
+      },
     };
   }
 
@@ -825,11 +1023,11 @@ function interviewMarks(
 const REPORT_DAY_OPTIONS = [7, 30, 90, 365] as const;
 
 const REPORT_FUNNEL: RecruitmentReportFunnelStep[] = [
-  { key: 'applied', label: 'Ứng tuyển', count: 0 },
-  { key: 'screening', label: 'Sàng lọc', count: 0 },
-  { key: 'interview', label: 'Phỏng vấn', count: 0 },
-  { key: 'offer', label: 'Đề nghị', count: 0 },
-  { key: 'hired', label: 'Nhận việc', count: 0 },
+  { key: 'applied', label: 'Ứng tuyển', count: 0, currentCount: 0, cumulativeCount: 0, conversionFromStartPct: 0, stepPassRatePct: 0 },
+  { key: 'screening', label: 'Sàng lọc', count: 0, currentCount: 0, cumulativeCount: 0, conversionFromStartPct: 0, stepPassRatePct: 0 },
+  { key: 'interview', label: 'Phỏng vấn', count: 0, currentCount: 0, cumulativeCount: 0, conversionFromStartPct: 0, stepPassRatePct: 0 },
+  { key: 'offer', label: 'Đề nghị', count: 0, currentCount: 0, cumulativeCount: 0, conversionFromStartPct: 0, stepPassRatePct: 0 },
+  { key: 'hired', label: 'Nhận việc', count: 0, currentCount: 0, cumulativeCount: 0, conversionFromStartPct: 0, stepPassRatePct: 0 },
 ];
 
 function emptyRecruitmentReport(days: number): RecruitmentReportView {
@@ -850,11 +1048,29 @@ function emptyRecruitmentReport(days: number): RecruitmentReportView {
     rejected: 0,
     withdrawn: 0,
     avgMatchScore: null,
+    topMatchScore: null,
+    highMatchCount: 0,
     avgTimeToHireDays: null,
     conversionPct: null,
     funnel: REPORT_FUNNEL.map((step) => ({ ...step })),
     trend: [],
     jobs: [],
+    sourcing: {
+      planName: null,
+      activeEngagements: 0,
+      scanRoundsInPeriod: 0,
+      scannedCandidatesCount: 0,
+      shortlistedCount: 0,
+      outreachCount: 0,
+      outreachQuota: 0,
+      connectionsSent: 0,
+      connectionsAccepted: 0,
+    },
+    credits: {
+      balance: 0,
+      consumedInPeriod: 0,
+      profilesUnlockedInPeriod: 0,
+    },
   };
 }
 
@@ -955,11 +1171,37 @@ function buildReportJobs(
     jobId: string;
     job: { title: string; status: string; location: string | null };
   }[],
+  companyJobs: { id: string; title: string; status: string; location: string | null }[] = [],
+  sourcingUsages: { kind: string; jobId: string | null; note: string | null }[] = [],
 ): RecruitmentReportJobRow[] {
   const rows = new Map<
     string,
-    RecruitmentReportJobRow & { matchSum: number; matchCount: number }
+    RecruitmentReportJobRow & { matchSum: number; matchCount: number; maxMatch: number | null }
   >();
+
+  for (const cj of companyJobs) {
+    rows.set(cj.id, {
+      jobId: cj.id,
+      title: cj.title,
+      status: cj.status,
+      location: cj.location,
+      applications: 0,
+      screening: 0,
+      interviews: 0,
+      offers: 0,
+      hires: 0,
+      avgMatchScore: null,
+      topMatchScore: null,
+      highMatchCount: 0,
+      sourcingScans: 0,
+      shortlisted: 0,
+      outreachCount: 0,
+      matchSum: 0,
+      matchCount: 0,
+      maxMatch: null,
+    });
+  }
+
   for (const row of applications) {
     let job = rows.get(row.jobId);
     if (!job) {
@@ -974,8 +1216,14 @@ function buildReportJobs(
         offers: 0,
         hires: 0,
         avgMatchScore: null,
+        topMatchScore: null,
+        highMatchCount: 0,
+        sourcingScans: 0,
+        shortlisted: 0,
+        outreachCount: 0,
         matchSum: 0,
         matchCount: 0,
+        maxMatch: null,
       };
       rows.set(row.jobId, job);
     }
@@ -988,10 +1236,35 @@ function buildReportJobs(
     if (score != null) {
       job.matchSum += score;
       job.matchCount += 1;
+      if (score >= 70) job.highMatchCount = (job.highMatchCount ?? 0) + 1;
+      if (job.maxMatch == null || score > job.maxMatch) job.maxMatch = score;
+    }
+  }
+
+  for (const u of sourcingUsages) {
+    if (!u.jobId) continue;
+    const job = rows.get(u.jobId);
+    if (!job) continue;
+    if (u.kind === 'auto_scan') {
+      job.sourcingScans = (job.sourcingScans ?? 0) + 1;
+    } else if (u.kind === 'shortlist') {
+      if (u.note?.startsWith('outreach:')) {
+        job.outreachCount = (job.outreachCount ?? 0) + 1;
+      } else {
+        job.shortlisted = (job.shortlisted ?? 0) + 1;
+      }
     }
   }
 
   return [...rows.values()]
+    .filter(
+      (job) =>
+        job.applications > 0 ||
+        (job.sourcingScans ?? 0) > 0 ||
+        (job.shortlisted ?? 0) > 0 ||
+        (job.outreachCount ?? 0) > 0 ||
+        job.status === JobStatus.Published,
+    )
     .map((job) => ({
       jobId: job.jobId,
       title: job.title,
@@ -1003,7 +1276,17 @@ function buildReportJobs(
       offers: job.offers,
       hires: job.hires,
       avgMatchScore: job.matchCount ? round1(job.matchSum / job.matchCount) : null,
+      topMatchScore: job.maxMatch != null ? round1(job.maxMatch) : null,
+      highMatchCount: job.highMatchCount ?? 0,
+      sourcingScans: job.sourcingScans ?? 0,
+      shortlisted: job.shortlisted ?? 0,
+      outreachCount: job.outreachCount ?? 0,
     }))
-    .sort((a, b) => b.applications - a.applications || b.hires - a.hires)
+    .sort(
+      (a, b) =>
+        b.applications - a.applications ||
+        b.hires - a.hires ||
+        (b.sourcingScans ?? 0) - (a.sourcingScans ?? 0),
+    )
     .slice(0, 12);
 }

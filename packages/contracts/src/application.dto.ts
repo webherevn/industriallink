@@ -64,11 +64,19 @@ export interface RecruitmentReportTrendPoint {
   hires: number;
 }
 
-/** Một bậc phễu — số hồ sơ đang đứng ở trạng thái đó trong kỳ. */
+/** Một bậc phễu — số hồ sơ đang đứng ở trạng thái đó trong kỳ kèm số liệu chuyển đổi lũy kế. */
 export interface RecruitmentReportFunnelStep {
   key: string;
   label: string;
   count: number;
+  /** Số hồ sơ đã đi tới hoặc vượt qua bước này (phễu chuyển đổi lũy kế). */
+  cumulativeCount?: number;
+  /** Số hồ sơ hiện đang đứng tại bước này. */
+  currentCount?: number;
+  /** Tỷ lệ chuyển đổi so với tổng đầu vào (%). */
+  conversionFromStartPct?: number;
+  /** Tỷ lệ qua vòng so với bước liền trước (%). */
+  stepPassRatePct?: number;
 }
 
 /** Hiệu suất một tin trong kỳ báo cáo. */
@@ -84,6 +92,36 @@ export interface RecruitmentReportJobRow {
   hires: number;
   /** Điểm khớp trung bình 0–100. */
   avgMatchScore: number | null;
+  /** Điểm khớp cao nhất 0–100. */
+  topMatchScore?: number | null;
+  /** Số hồ sơ chất lượng cao (điểm khớp ≥ 70%). */
+  highMatchCount?: number;
+  /** Số đợt quét AI Săn nhân sự gắn với tin này trong kỳ. */
+  sourcingScans?: number;
+  /** Số ứng viên đã Shortlist gắn với tin này. */
+  shortlisted?: number;
+  /** Số ứng viên đã giao CSKH Inlink liên hệ gắn với tin này. */
+  outreachCount?: number;
+}
+
+/** Thống kê nguồn Săn nhân sự AI & tiếp cận chủ động trong kỳ báo cáo. */
+export interface RecruitmentReportSourcingStats {
+  planName: string | null;
+  activeEngagements: number;
+  scanRoundsInPeriod: number;
+  scannedCandidatesCount: number;
+  shortlistedCount: number;
+  outreachCount: number;
+  outreachQuota: number;
+  connectionsSent: number;
+  connectionsAccepted: number;
+}
+
+/** Thống kê hiệu quả sử dụng Credit mở hồ sơ trong kỳ báo cáo. */
+export interface RecruitmentReportCreditStats {
+  balance: number;
+  consumedInPeriod: number;
+  profilesUnlockedInPeriod: number;
 }
 
 /** Báo cáo tuyển dụng của công ty trong một kỳ. */
@@ -108,12 +146,20 @@ export interface RecruitmentReportView {
   withdrawn: number;
   /** 0–100. */
   avgMatchScore: number | null;
+  /** Điểm khớp cao nhất trong kỳ (0–100). */
+  topMatchScore?: number | null;
+  /** Số lượng hồ sơ khớp cao ≥ 70% trong kỳ. */
+  highMatchCount?: number;
   avgTimeToHireDays: number | null;
   /** Nhận việc / hồ sơ mới trong kỳ, phần trăm 1 chữ số. */
   conversionPct: number | null;
   funnel: RecruitmentReportFunnelStep[];
   trend: RecruitmentReportTrendPoint[];
   jobs: RecruitmentReportJobRow[];
+  /** Nguồn ứng viên Săn nhân sự AI & chủ động kết nối. */
+  sourcing?: RecruitmentReportSourcingStats;
+  /** Hiệu quả sử dụng Credit & mở khóa hồ sơ. */
+  credits?: RecruitmentReportCreditStats;
 }
 
 /** Tóm tắt Recruiter Workspace. */
