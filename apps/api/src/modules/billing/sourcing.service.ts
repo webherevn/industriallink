@@ -93,27 +93,90 @@ export class SourcingService {
   async getEntitlements(companyId: string): Promise<RecruiterSourcingEntitlements> {
     let row = await this.settleExpiredPlan(companyId);
     if (!row?.plan || !row.isActive) return this.emptyEntitlements();
-    const orphanCount = await this.prisma.billingSourcingEngagement.count({
-      where: { companyId, assignmentId: row.id, jobId: null },
+
+    const allEngagements = await this.prisma.billingSourcingEngagement.findMany({
+      where: { companyId, assignmentId: row.id },
+      include: { _count: { select: { usages: true } } },
+      orderBy: { createdAt: 'desc' },
     });
-    if (orphanCount > 0) {
+
+    const toDeleteIds: string[] = [];
+    const byJobId = new Map<string, typeof allEngagements>();
+
+    for (const eng of allEngagements) {
+      if (!eng.jobId) {
+        toDeleteIds.push(eng.id);
+        continue;
+      }
+      const list = byJobId.get(eng.jobId) ?? [];
+      list.push(eng);
+      byJobId.set(eng.jobId, list);
+    }
+
+    const deduplicated: typeof allEngagements = [];
+    for (const [, group] of byJobId) {
+      group.sort((a, b) => {
+        if (b._count.usages !== a._count.usages) return b._count.usages - a._count.usages;
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      });
+      const primary = group[0]!;
+      deduplicated.push(primary);
+      for (const dup of group.slice(1)) {
+        if (dup._count.usages > 0) {
+          await this.prisma.billingSourcingUsage.updateMany({
+            where: { engagementId: dup.id },
+            data: { engagementId: primary.id },
+          });
+        }
+        toDeleteIds.push(dup.id);
+      }
+    }
+
+    deduplicated.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const inCurrentCycle = deduplicated.filter(
+      (eng) => eng.createdAt.getTime() >= row!.startsAt.getTime() - 60_000,
+    );
+    let candidatesToKeep = inCurrentCycle.length > 0 ? inCurrentCycle : deduplicated;
+    if (inCurrentCycle.length > 0 && inCurrentCycle.length < deduplicated.length) {
+      for (const eng of deduplicated) {
+        if (!inCurrentCycle.some((c) => c.id === eng.id)) {
+          toDeleteIds.push(eng.id);
+        }
+      }
+    }
+
+    const quota = row.plan.positionQuota;
+    if (quota != null && quota > 0 && candidatesToKeep.length > quota) {
+      const surplus = candidatesToKeep.slice(quota);
+      for (const s of surplus) {
+        toDeleteIds.push(s.id);
+      }
+      candidatesToKeep = candidatesToKeep.slice(0, quota);
+    }
+
+    if (toDeleteIds.length > 0) {
+      await this.prisma.billingSourcingUsage.deleteMany({
+        where: { engagementId: { in: toDeleteIds } },
+      });
       await this.prisma.billingSourcingEngagement.deleteMany({
-        where: { companyId, assignmentId: row.id, jobId: null },
+        where: { id: { in: toDeleteIds } },
       });
-      const validPositions = await this.prisma.billingSourcingEngagement.count({
-        where: { companyId, assignmentId: row.id, jobId: { not: null } },
-      });
+    }
+
+    const validPositions = candidatesToKeep.length;
+    if (row.positionsUsed !== validPositions) {
       row = await this.prisma.billingCompanySourcingPlan.update({
         where: { id: row.id },
         data: { positionsUsed: validPositions },
         include: { plan: true },
       });
     }
-    const activeEngagements = await this.prisma.billingSourcingEngagement.findMany({
-      where: { companyId, assignmentId: row.id, jobId: { not: null }, status: { not: 'closed' } },
-      select: { jobId: true },
-    });
-    const activeJobIds = activeEngagements.map((e) => e.jobId).filter((id): id is string => Boolean(id));
+
+    const activeJobIds = candidatesToKeep
+      .filter((e) => e.status !== 'closed')
+      .map((e) => e.jobId)
+      .filter((id): id is string => Boolean(id));
     if (activeJobIds.length > 0) {
       await this.prisma.job.updateMany({
         where: {
@@ -269,6 +332,14 @@ export class SourcingService {
         include: { plan: true },
       });
       // Lượt mở không cộng vào ví. Còn lại = creditQuota SuperAdmin đang đặt − hồ sơ đã mở trong kỳ.
+      if (switching) {
+        await tx.billingSourcingUsage.deleteMany({
+          where: { companyId: input.companyId, assignmentId: assigned.id },
+        });
+        await tx.billingSourcingEngagement.deleteMany({
+          where: { companyId: input.companyId, assignmentId: assigned.id },
+        });
+      }
       return assigned;
     });
 
@@ -387,6 +458,25 @@ export class SourcingService {
           throw new BadRequestException(
             'Vui lòng chọn một tin tuyển dụng (JD) có sẵn hoặc tạo JD mới để kích hoạt Tin Săn.',
           );
+        }
+        const dupEngagement = await tx.billingSourcingEngagement.findFirst({
+          where: { companyId, assignmentId: assignment.id, jobId: validJobId, status: { not: 'closed' } },
+        });
+        if (dupEngagement) {
+          throw new BadRequestException('Tin tuyển dụng (JD) này đã được kích hoạt trong Danh sách Tin Săn.');
+        }
+        if (assignment.plan.positionQuota != null && assignment.plan.positionQuota > 0) {
+          const currentEngagementCount = await tx.billingSourcingEngagement.count({
+            where: { companyId, assignmentId: assignment.id, jobId: { not: null }, status: { not: 'closed' } },
+          });
+          if (currentEngagementCount >= assignment.plan.positionQuota) {
+            throw new ForbiddenException({
+              code: 'SOURCING_QUOTA_EXCEEDED',
+              message: `Gói ${assignment.plan.name} chỉ cho phép tối đa ${assignment.plan.positionQuota} Tin Săn hoạt động cùng lúc.`,
+              kind,
+              planCode: assignment.plan.code,
+            });
+          }
         }
         const existingJob = await tx.job.findFirst({
           where: { id: validJobId, companyId, isDeleted: false },
