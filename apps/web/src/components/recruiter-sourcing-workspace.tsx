@@ -1060,7 +1060,7 @@ function AppliedCandidatesColumn({
                       </span>
                       {row.match.reason ? (
                         <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                          {row.match.reason}
+                          Độ phù hợp {formatMatchPct(row.match.score)}%
                         </span>
                       ) : null}
                       <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
@@ -1369,7 +1369,7 @@ function PotentialCandidatesColumn({
                       </span>
                       {row.match.reason ? (
                         <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                          {row.match.reason}
+                          Độ phù hợp {formatMatchPct(row.match.score)}%
                         </span>
                       ) : null}
                       <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
