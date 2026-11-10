@@ -296,4 +296,11 @@ export class JobController {
   ) {
     return this.applications.broadcastEmail(user, id, dto, correlationId);
   }
+
+  @Get(':id/broadcast-email/history')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Lịch sử gửi email hàng loạt của tin tuyển dụng' })
+  broadcastEmailHistory(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.applications.listBroadcastEmailHistory(user, id);
+  }
 }

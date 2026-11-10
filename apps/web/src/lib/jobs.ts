@@ -141,16 +141,42 @@ export async function listApplicants(id: string): Promise<ApplicantView[]> {
   return asArray<ApplicantView>(await apiRequest(`/jobs/${id}/applications`)).map(withMatchedSkills);
 }
 
+export type BroadcastEmailPurpose =
+  | 'received'
+  | 'progress'
+  | 'screening'
+  | 'interview'
+  | 'supplement'
+  | 'keep';
+
 export async function suggestBroadcastEmail(
   id: string,
-  input: { purpose: 'progress' | 'screening' | 'interview' | 'keep'; statuses?: ApplicationStatus[] },
+  input: { purpose: BroadcastEmailPurpose; statuses?: ApplicationStatus[] },
 ): Promise<{ subject: string; body: string }> {
   return apiRequest(`/jobs/${id}/broadcast-email/suggest`, { method: 'POST', body: input });
 }
 
 export async function broadcastJobEmail(
   id: string,
-  input: { subject: string; body: string; applicationIds: string[]; status?: ApplicationStatus },
+  input: {
+    subject: string;
+    body: string;
+    applicationIds: string[];
+    status?: ApplicationStatus;
+    nextStatus?: ApplicationStatus;
+  },
 ): Promise<{ recipients: number; sent: number; failed: number }> {
   return apiRequest(`/jobs/${id}/broadcast-email`, { method: 'POST', body: input });
+}
+
+export interface BroadcastEmailHistoryItem {
+  id: string;
+  subject: string;
+  recipientsCount: number;
+  recipientNames: string[];
+  sentAt: string;
+}
+
+export async function listBroadcastEmailHistory(id: string): Promise<BroadcastEmailHistoryItem[]> {
+  return asArray<BroadcastEmailHistoryItem>(await apiRequest(`/jobs/${id}/broadcast-email/history`));
 }

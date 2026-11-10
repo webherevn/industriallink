@@ -1,13 +1,22 @@
 import { ApplicationStatus } from '@industriallink/contracts';
 
-export const BROADCAST_EMAIL_PURPOSES = ['progress', 'screening', 'interview', 'keep'] as const;
+export const BROADCAST_EMAIL_PURPOSES = [
+  'received',
+  'progress',
+  'screening',
+  'interview',
+  'supplement',
+  'keep',
+] as const;
 export type BroadcastEmailPurpose = (typeof BROADCAST_EMAIL_PURPOSES)[number];
 
 const PURPOSE_LABEL: Record<BroadcastEmailPurpose, string> = {
+  received: 'Xác nhận đã nhận hồ sơ ứng tuyển',
   progress: 'Cập nhật tiến độ tuyển dụng',
-  screening: 'Thông báo sau bước sàng lọc hồ sơ',
+  screening: 'Thông báo vượt qua / đang ở bước sàng lọc hồ sơ',
   interview: 'Nhắc chuẩn bị phỏng vấn, không hẹn giờ cụ thể',
-  keep: 'Giữ liên lạc lịch sự',
+  supplement: 'Yêu cầu bổ sung thông tin / CV chi tiết',
+  keep: 'Thư cảm ơn & Giữ liên lạc lịch sự',
 };
 
 /** Thư gửi đi đã gắn [tên công ty] phía trước, nên tiêu đề không lặp tên công ty. */
@@ -75,6 +84,28 @@ export function localBroadcastDraft(input: {
   const company = input.companyName.trim() || 'chúng tôi';
   const title = input.jobTitle.trim() || 'vị trí đang tuyển';
   const tone = toneOf(input.statuses);
+
+  if (input.purpose === 'received') {
+    return {
+      subject: `Xác nhận tiếp nhận hồ sơ vị trí ${title}`,
+      body: [
+        `Bộ phận Tuyển dụng tại ${company} xác nhận đã nhận được hồ sơ ứng tuyển của bạn cho vị trí ${title}.`,
+        'Hồ sơ của bạn đang được đối chiếu với các tiêu chí chuyên môn của phòng ban. Chúng tôi sẽ phản hồi kết quả vòng sàng lọc sớm nhất ngay trên hệ thống inlink và qua email.',
+        'Cảm ơn bạn đã dành sự quan tâm tới cơ hội nghề nghiệp tại doanh nghiệp.',
+      ].join('\n\n'),
+    };
+  }
+
+  if (input.purpose === 'supplement') {
+    return {
+      subject: `Đề nghị bổ sung thông tin hồ sơ vị trí ${title}`,
+      body: [
+        `Cảm ơn bạn đã ứng tuyển vị trí ${title} tại ${company}.`,
+        'Qua bước rà soát sơ bộ, đội tuyển dụng đánh giá hồ sơ của bạn có nhiều điểm tiềm năng. Tuy nhiên, để hội đồng chuyên môn có đủ cơ sở đánh giá sâu hơn, bạn vui lòng cập nhật thêm kinh nghiệm dự án / sản phẩm thực tế hoặc CV chi tiết trên hồ sơ inlink.',
+        'Sau khi hoàn tất cập nhật, bạn có thể phản hồi lại để chúng tôi ưu tiên xếp lịch trao đổi.',
+      ].join('\n\n'),
+    };
+  }
 
   if (tone === 'rejected' || input.purpose === 'keep') {
     return {

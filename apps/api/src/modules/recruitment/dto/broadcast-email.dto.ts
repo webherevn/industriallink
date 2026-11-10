@@ -45,4 +45,12 @@ export class BroadcastEmailDto {
   @ArrayMaxSize(200)
   @IsUUID('4', { each: true })
   applicationIds?: string[];
+
+  @ApiPropertyOptional({
+    enum: ApplicationStatus,
+    description: 'Tuỳ chọn tự động chuyển trạng thái các hồ sơ đã nhận email sang bước mới',
+  })
+  @IsOptional()
+  @IsEnum(ApplicationStatus)
+  nextStatus?: ApplicationStatus;
 }

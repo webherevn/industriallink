@@ -923,6 +923,23 @@ export class ApplicationService {
           description: subject,
         })),
       });
+
+      if (dto.nextStatus && this.prisma.application.updateMany) {
+        const targetIds = withEmail.map((a) => a.id);
+        await this.prisma.application.updateMany({
+          where: { id: { in: targetIds }, jobId, isDeleted: false },
+          data: { status: dto.nextStatus, updatedBy: user.id },
+        });
+        await this.prisma.applicationTimeline.createMany({
+          data: withEmail.map((a) => ({
+            applicationId: a.id,
+            tenantId: a.tenantId,
+            type: 'status_changed',
+            title: `Tự động chuyển trạng thái → ${applicationStatusLabel(dto.nextStatus!)}`,
+            description: `Cập nhật kèm đợt gửi email: ${subject}`,
+          })),
+        });
+      }
     }
 
     this.logger.log(
@@ -934,6 +951,74 @@ export class ApplicationService {
       sent: result.sent,
       failed: result.failed + missingEmail,
     };
+  }
+
+  /** Lịch sử các đợt gửi email hàng loạt của một tin tuyển dụng. */
+  async listBroadcastEmailHistory(
+    user: AuthenticatedUser,
+    jobId: string,
+  ): Promise<
+    {
+      id: string;
+      subject: string;
+      recipientsCount: number;
+      recipientNames: string[];
+      sentAt: string;
+    }[]
+  > {
+    await this.jobs.requireOwnedJob(user, jobId);
+    if (!this.prisma.applicationTimeline?.findMany) return [];
+
+    const rows = await this.prisma.applicationTimeline.findMany({
+      where: {
+        type: 'broadcast_email',
+        application: { jobId, isDeleted: false },
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 150,
+      include: {
+        application: {
+          select: {
+            candidate: { select: { displayName: true } },
+          },
+        },
+      },
+    });
+
+    const batches = new Map<
+      string,
+      {
+        id: string;
+        subject: string;
+        recipientsCount: number;
+        recipientNames: string[];
+        sentAt: string;
+      }
+    >();
+
+    for (const r of rows) {
+      const minuteBucket = r.occurredAt.toISOString().slice(0, 16);
+      const subject = r.description?.trim() || r.title;
+      const key = `${minuteBucket}::${subject}`;
+      let batch = batches.get(key);
+      if (!batch) {
+        batch = {
+          id: r.id,
+          subject,
+          recipientsCount: 0,
+          recipientNames: [],
+          sentAt: r.occurredAt.toISOString(),
+        };
+        batches.set(key, batch);
+      }
+      batch.recipientsCount += 1;
+      const candName = r.application?.candidate?.displayName;
+      if (candName && batch.recipientNames.length < 5 && !batch.recipientNames.includes(candName)) {
+        batch.recipientNames.push(candName);
+      }
+    }
+
+    return [...batches.values()].slice(0, 15);
   }
 }
 
