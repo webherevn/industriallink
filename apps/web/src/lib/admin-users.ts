@@ -1,5 +1,8 @@
 import type {
   AdminCreateUserRequest,
+  AdminSystemResetPreviewView,
+  AdminSystemResetRequest,
+  AdminSystemResetResultView,
   AdminUpdateUserRequest,
   AdminUserView,
 } from '@industriallink/contracts';
@@ -18,4 +21,14 @@ export async function updateAdminUser(
   body: AdminUpdateUserRequest,
 ): Promise<AdminUserView> {
   return apiRequest(`/admin/users/${id}`, { method: 'PATCH', body });
+}
+
+export async function fetchSystemResetPreview(): Promise<AdminSystemResetPreviewView> {
+  return apiRequest('/admin/users/system-reset/preview');
+}
+
+export async function executeSystemReset(
+  body: AdminSystemResetRequest,
+): Promise<AdminSystemResetResultView> {
+  return apiRequest('/admin/users/system-reset', { method: 'POST', body });
 }

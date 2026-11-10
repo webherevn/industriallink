@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   Menu,
   PanelBottom,
+  RotateCcw,
   Bot,
   ScrollText,
   ScanSearch,
@@ -122,6 +123,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       { href: '/admin/billing/credit-ledger', label: 'Nhật ký Credit', icon: Coins, superAdminOnly: true },
       { href: '/admin/billing/audit', label: 'Lịch sử thay đổi', icon: ScrollText, superAdminOnly: true },
       { href: '/admin/billing/payment', label: 'Thanh toán Stripe', icon: CreditCard, superAdminOnly: true },
+      {
+        href: '/admin/system-reset',
+        label: 'Reset dữ liệu Go-Live',
+        icon: RotateCcw,
+        superAdminOnly: true,
+      },
     ],
   },
   {

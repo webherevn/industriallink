@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole, UserStatus } from '@industriallink/contracts';
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class AdminCreateUserDto {
   @ApiProperty({ example: 'editor@inlink.vn' })
@@ -49,4 +49,30 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsString()
   department?: string;
+}
+
+export class AdminSystemResetDto {
+  @ApiProperty({ example: 'RESET INLINK' })
+  @IsString()
+  confirmPhrase!: string;
+
+  @ApiProperty({ description: 'Mật khẩu hiện tại của SuperAdmin đang thực hiện' })
+  @IsString()
+  @MinLength(1)
+  password!: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  keepEditors?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  keepSalesStaff?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  clearAnalyticsAndAudit?: boolean;
 }

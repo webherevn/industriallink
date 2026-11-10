@@ -9,6 +9,9 @@ import {
   UserRole,
   UserStatus,
   type AdminCreateUserRequest,
+  type AdminSystemResetPreviewView,
+  type AdminSystemResetRequest,
+  type AdminSystemResetResultView,
   type AdminUpdateUserRequest,
   type AdminUserView,
   type CreateCrmStaffAccountRequest,
@@ -167,6 +170,246 @@ export class AdminUsersService {
       });
     }
     return this.map(row);
+  }
+
+  async previewSystemReset(actor: AuthenticatedUser): Promise<AdminSystemResetPreviewView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin mới được phép xem và thực hiện Reset dữ liệu Go-Live');
+    }
+    const [
+      superAdminCount,
+      editorCount,
+      salesStaffCount,
+      recruiterUserCount,
+      candidateUserCount,
+      companyCount,
+      jobCount,
+      applicationCount,
+      candidateProfileCount,
+      billingOrderCount,
+      crmLeadCount,
+      crmDealCount,
+      crmPartnerCount,
+      analyticsHitCount,
+      auditLogCount,
+    ] = await Promise.all([
+      this.prisma.user.count({ where: { isDeleted: false, role: UserRole.SuperAdmin } }),
+      this.prisma.user.count({ where: { isDeleted: false, role: UserRole.Editor } }),
+      this.prisma.user.count({
+        where: { isDeleted: false, role: { in: [UserRole.Sales, UserRole.SalesManager] } },
+      }),
+      this.prisma.user.count({
+        where: {
+          isDeleted: false,
+          role: { in: [UserRole.Recruiter, UserRole.CompanyAdmin, UserRole.HiringManager] },
+        },
+      }),
+      this.prisma.user.count({ where: { isDeleted: false, role: UserRole.Candidate } }),
+      this.prisma.company.count(),
+      this.prisma.job.count(),
+      this.prisma.application.count(),
+      this.prisma.candidate.count(),
+      this.prisma.billingOrder.count(),
+      this.prisma.crmLead.count(),
+      this.prisma.crmDeal.count(),
+      this.prisma.crmPartner.count(),
+      this.prisma.analyticsHit.count(),
+      this.prisma.auditLog.count(),
+    ]);
+
+    return {
+      superAdminCount,
+      editorCount,
+      salesStaffCount,
+      recruiterUserCount,
+      candidateUserCount,
+      companyCount,
+      jobCount,
+      applicationCount,
+      candidateProfileCount,
+      billingOrderCount,
+      crmLeadCount,
+      crmDealCount,
+      crmPartnerCount,
+      analyticsHitCount,
+      auditLogCount,
+    };
+  }
+
+  async executeSystemReset(
+    actor: AuthenticatedUser,
+    input: AdminSystemResetRequest,
+  ): Promise<AdminSystemResetResultView> {
+    if (actor.role !== UserRole.SuperAdmin) {
+      throw new ForbiddenException('Chỉ SuperAdmin mới được phép thực hiện Reset dữ liệu Go-Live');
+    }
+    if ((input.confirmPhrase ?? '').trim().toUpperCase() !== 'RESET INLINK') {
+      throw new BadRequestException('Cụm từ xác nhận không đúng. Vui lòng nhập chính xác: RESET INLINK');
+    }
+    if (!input.password) {
+      throw new BadRequestException('Vui lòng nhập mật khẩu SuperAdmin hiện tại để xác nhận');
+    }
+
+    const adminUser = await this.prisma.user.findUnique({ where: { id: actor.id } });
+    if (!adminUser || adminUser.isDeleted) {
+      throw new NotFoundException('Không tìm thấy tài khoản SuperAdmin');
+    }
+
+    const passwordValid = await this.password.verify(adminUser.passwordHash, input.password);
+    if (!passwordValid) {
+      throw new BadRequestException('Mật khẩu SuperAdmin không chính xác');
+    }
+
+    const keepEditors = input.keepEditors !== false;
+    const keepSalesStaff = input.keepSalesStaff === true;
+    const clearAnalyticsAndAudit = input.clearAnalyticsAndAudit !== false;
+
+    const keptRoles: string[] = [UserRole.SuperAdmin];
+    if (keepEditors) keptRoles.push(UserRole.Editor);
+    if (keepSalesStaff) keptRoles.push(UserRole.Sales, UserRole.SalesManager);
+
+    const keptUsers = await this.prisma.user.findMany({
+      where: {
+        isDeleted: false,
+        role: { in: keptRoles },
+      },
+      select: { id: true },
+    });
+
+    const keptUserIdSet = new Set<string>(keptUsers.map((u) => u.id));
+    keptUserIdSet.add(actor.id);
+    const keptUserIds = Array.from(keptUserIdSet);
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        // 1. Dữ liệu giao dịch CRM
+        await tx.crmCommissionWalletTxn.deleteMany({});
+        await tx.crmCommissionWallet.deleteMany({});
+        await tx.crmCommissionEntry.deleteMany({});
+        await tx.crmCommissionPeriod.deleteMany({});
+        await tx.crmOrderInvoice.deleteMany({});
+        await tx.crmActivity.deleteMany({});
+        await tx.crmQuoteInstallment.deleteMany({});
+        await tx.crmQuote.deleteMany({});
+        await tx.crmDeal.deleteMany({});
+        const deletedLeads = await tx.crmLead.deleteMany({});
+        await tx.crmPartnerClaim.deleteMany({});
+        await tx.crmReferralSignup.deleteMany({});
+        await tx.crmPartner.deleteMany({});
+        await tx.crmMarketingCost.deleteMany({});
+        await tx.crmCampaign.deleteMany({});
+        await tx.crmStaffProfile.deleteMany({
+          where: { userId: { notIn: keptUserIds } },
+        });
+
+        // 2. Dữ liệu giao dịch Billing (Ví, Gói gán công ty, Đơn hàng) — giữ nguyên bảng giá cấu hình
+        await tx.billingSourcingUsage.deleteMany({});
+        await tx.billingSourcingEngagement.deleteMany({});
+        await tx.billingCompanySourcingPlan.deleteMany({});
+        await tx.billingCompanyPlan.deleteMany({});
+        await tx.billingCreditTransaction.deleteMany({});
+        await tx.billingCreditAccount.deleteMany({});
+        await tx.billingPayment.deleteMany({});
+        const deletedOrders = await tx.billingOrder.deleteMany({});
+
+        // 3. Dữ liệu Tuyển dụng, Ứng viên & Công ty
+        await tx.onboarding.deleteMany({});
+        await tx.offer.deleteMany({});
+        await tx.interview.deleteMany({});
+        await tx.applicationTimeline.deleteMany({});
+        await tx.application.deleteMany({});
+        await tx.jobBookmark.deleteMany({});
+        await tx.jobSkill.deleteMany({});
+        const deletedJobs = await tx.job.deleteMany({});
+
+        await tx.connectionMessage.deleteMany({});
+        await tx.candidateConnection.deleteMany({});
+        await tx.candidateShortlist.deleteMany({});
+        await tx.candidateTimeline.deleteMany({});
+        await tx.candidateSearchIndex.deleteMany({});
+        await tx.candidateAiProfile.deleteMany({});
+        await tx.candidateSkill.deleteMany({});
+        await tx.candidateResume.deleteMany({});
+        await tx.candidateExperience.deleteMany({});
+        await tx.candidateProfile.deleteMany({});
+        const deletedCandidates = await tx.candidate.deleteMany({});
+
+        await tx.companyMember.deleteMany({});
+        const deletedCompanies = await tx.company.deleteMany({});
+
+        // 4. Bảo toàn bài viết CMS & xoá các tài khoản người dùng không thuộc diện giữ lại
+        await tx.cmsPost.updateMany({
+          where: { authorId: { notIn: keptUserIds } },
+          data: { authorId: actor.id },
+        });
+        await tx.cmsAuthorProfile.deleteMany({
+          where: { userId: { notIn: keptUserIds } },
+        });
+
+        await tx.notification.deleteMany({});
+        await tx.supportChatMessage.deleteMany({});
+        await tx.supportChat.deleteMany({});
+        await tx.otpCode.deleteMany({
+          where: { userId: { notIn: keptUserIds } },
+        });
+        await tx.refreshToken.deleteMany({
+          where: { userId: { notIn: keptUserIds } },
+        });
+
+        const deletedUsers = await tx.user.deleteMany({
+          where: { id: { notIn: keptUserIds } },
+        });
+
+        // 5. Reset bộ đếm mã nghiệp vụ (trừ USR để không trùng mã với tài khoản được giữ lại)
+        await tx.sequence.deleteMany({
+          where: { NOT: { key: { startsWith: 'USR-' } } },
+        });
+
+        // 6. Xoá Analytics & AuditLog lúc test nếu được chọn
+        if (clearAnalyticsAndAudit) {
+          await tx.analyticsHit.deleteMany({});
+          await tx.webVitalSample.deleteMany({});
+          await tx.auditLog.deleteMany({});
+        }
+
+        const resetAt = new Date().toISOString();
+        await tx.auditLog.create({
+          data: {
+            tenantId: DEFAULT_TENANT_ID,
+            actorId: actor.id,
+            action: 'system.go_live_reset',
+            entityType: 'system',
+            entityId: actor.id,
+            after: {
+              resetAt,
+              keepEditors,
+              keepSalesStaff,
+              clearAnalyticsAndAudit,
+              keptUsersCount: keptUserIds.length,
+              deletedUsersCount: deletedUsers.count,
+              deletedCompaniesCount: deletedCompanies.count,
+              deletedJobsCount: deletedJobs.count,
+              deletedCandidatesCount: deletedCandidates.count,
+              deletedOrdersCount: deletedOrders.count,
+              deletedCrmLeadsCount: deletedLeads.count,
+            },
+          },
+        });
+
+        return {
+          ok: true as const,
+          resetAt,
+          keptUsersCount: keptUserIds.length,
+          deletedUsersCount: deletedUsers.count,
+          deletedCompaniesCount: deletedCompanies.count,
+          deletedJobsCount: deletedJobs.count,
+          deletedCandidatesCount: deletedCandidates.count,
+          deletedOrdersCount: deletedOrders.count,
+          deletedCrmLeadsCount: deletedLeads.count,
+        };
+      },
+      { timeout: 60_000 },
+    );
   }
 
   /** Bảng nhân sự trên CRM. Cùng bản ghi user với trang Người dùng. */

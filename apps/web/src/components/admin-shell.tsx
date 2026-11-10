@@ -51,6 +51,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     if (user.role === UserRole.Editor) {
       const blocked =
         pathname.startsWith('/admin/users') ||
+        pathname.startsWith('/admin/system-reset') ||
         pathname.startsWith('/admin/menus') ||
         pathname.startsWith('/admin/moderation') ||
         pathname.startsWith('/admin/jobs') ||

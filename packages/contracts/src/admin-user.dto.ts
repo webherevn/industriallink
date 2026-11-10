@@ -29,3 +29,41 @@ export interface AdminUpdateUserRequest {
   /** Phòng ban trên bảng nhân sự. Bỏ trống thì xóa. */
   department?: string | null;
 }
+
+export interface AdminSystemResetPreviewView {
+  superAdminCount: number;
+  editorCount: number;
+  salesStaffCount: number;
+  recruiterUserCount: number;
+  candidateUserCount: number;
+  companyCount: number;
+  jobCount: number;
+  applicationCount: number;
+  candidateProfileCount: number;
+  billingOrderCount: number;
+  crmLeadCount: number;
+  crmDealCount: number;
+  crmPartnerCount: number;
+  analyticsHitCount: number;
+  auditLogCount: number;
+}
+
+export interface AdminSystemResetRequest {
+  confirmPhrase: string;
+  password: string;
+  keepEditors?: boolean;
+  keepSalesStaff?: boolean;
+  clearAnalyticsAndAudit?: boolean;
+}
+
+export interface AdminSystemResetResultView {
+  ok: true;
+  resetAt: string;
+  keptUsersCount: number;
+  deletedUsersCount: number;
+  deletedCompaniesCount: number;
+  deletedJobsCount: number;
+  deletedCandidatesCount: number;
+  deletedOrdersCount: number;
+  deletedCrmLeadsCount: number;
+}
