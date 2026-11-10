@@ -477,7 +477,7 @@ function JobsPageInner({
       : postedTime(b.createdAt) - postedTime(a.createdAt),
   );
 
-  const usingAi = filterMode === 'ai' && tab === 'all';
+  const usingAi = filterMode === 'ai';
   const boardLeaving = usingAi !== listAi;
   useEffect(() => {
     if (!boardLeaving) return;
@@ -485,20 +485,22 @@ function JobsPageInner({
     const timer = window.setTimeout(() => setListAi(usingAi), reduce ? 0 : 240);
     return () => window.clearTimeout(timer);
   }, [boardLeaving, usingAi]);
+  const isAiAllTab = listAi && tab === 'all';
+  const activeJobSource = isAiAllTab ? rankedAi : allJobs;
   const jobBoard = useMemo(
     () => (tab === 'all' && !listAi ? composeJobBoard(allJobs, page - 1, boardNow) : null),
     [tab, listAi, allJobs, page, boardNow],
   );
   const pageSize = tab === 'applied' ? APPLIED_PAGE_SIZE : JOB_PAGE_SIZE;
   const totalItems =
-    tab === 'applied' ? allApplications.length : listAi ? rankedAi.length : allJobs.length;
+    tab === 'applied' ? allApplications.length : activeJobSource.length;
   const totalPages =
     tab === 'all' && !listAi
       ? (jobBoard?.totalPages ?? 1)
       : Math.max(1, Math.ceil(totalItems / pageSize) || 1);
   const currentPage = Math.min(page, totalPages);
   const pageOffset = (currentPage - 1) * pageSize;
-  const displayJobs = listAi
+  const displayJobs = isAiAllTab
     ? rankedAi.slice(pageOffset, pageOffset + pageSize)
     : tab === 'all'
       ? (jobBoard && currentPage === page ? jobBoard.page : composeJobBoard(allJobs, currentPage - 1, boardNow).page)
@@ -517,7 +519,7 @@ function JobsPageInner({
   };
 
   const loading =
-    (listAi && matchesLoading && rankedAi.length === 0) ||
+    (isAiAllTab && matchesLoading && rankedAi.length === 0) ||
     (tab === 'all' && !listAi && isLoading) ||
     (tab === 'saved' && bookmarksLoading) ||
     (tab === 'applied' && appsLoading);
@@ -833,7 +835,7 @@ function JobsPageInner({
                   {
                     id: 'all' as const,
                     label: 'Tất cả việc làm',
-                    count: listAi ? rankedAi.length : jobs?.length,
+                    count: filterMode === 'ai' ? rankedAi.length : jobs?.length,
                   },
                   {
                     id: 'saved' as const,
@@ -932,7 +934,7 @@ function JobsPageInner({
                   : 'translate-y-0 opacity-100',
               )}
             >
-              {listAi && rankedAi.length > 0 && (
+              {isAiAllTab && rankedAi.length > 0 && (
                 <p className="mt-3 text-xs text-slate-500">
                   {byPlace
                     ? 'Việc làm AI khớp hồ sơ, trong địa điểm bạn đã chọn.'
@@ -947,11 +949,11 @@ function JobsPageInner({
                   !filtersOpen && 'sm:gap-4 sm:p-4',
                 )}
               >
-                {(listAi ? rankedAi : allJobs).length === 0 && (
+                {activeJobSource.length === 0 && (
                   <li className="col-span-full">
                     <EmptyState
                       text={
-                        listAi
+                        isAiAllTab
                           ? byPlace && (matches?.length ?? 0) > 0
                             ? 'Chưa có việc làm AI gợi ý đúng địa điểm hồ sơ của bạn.'
                             : 'Chưa có việc làm AI gợi ý. Đăng nhập và cập nhật hồ sơ để xem tin khớp với bạn.'
@@ -980,7 +982,7 @@ function JobsPageInner({
                   />
                 ))}
               </ul>
-              {(listAi ? rankedAi : allJobs).length > 0 && (
+              {activeJobSource.length > 0 && (
                 <PaginationBar
                   page={currentPage}
                   totalPages={totalPages}
