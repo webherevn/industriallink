@@ -375,3 +375,23 @@ export function createCrmMarketingCost(body: CreateCrmMarketingCostRequest): Pro
 export function deleteCrmMarketingCost(id: string): Promise<CrmMarketingOverview> {
   return apiRequest<CrmMarketingOverview>(`/crm/marketing/costs/${id}`, { method: 'DELETE' });
 }
+
+
+export function fetchCrmSourcingOutreach(params?: {
+  companyId?: string;
+  status?: string;
+  q?: string;
+}): Promise<import('@industriallink/contracts').CrmSourcingOutreachOverview> {
+  const qs = new URLSearchParams();
+  if (params?.companyId) qs.set('companyId', params.companyId);
+  if (params?.status && params.status !== 'all') qs.set('status', params.status);
+  if (params?.q?.trim()) qs.set('q', params.q.trim());
+  const query = qs.toString();
+  return apiRequest(`/crm/sourcing-outreach${query ? `?${query}` : ''}`);
+}
+
+export function updateCrmSourcingOutreachStatus(
+  body: import('@industriallink/contracts').UpdateCrmSourcingOutreachStatusRequest,
+): Promise<import('@industriallink/contracts').CrmSourcingOutreachItemView> {
+  return apiRequest('/crm/sourcing-outreach/status', { method: 'PATCH', body });
+}

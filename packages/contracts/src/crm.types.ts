@@ -134,6 +134,7 @@ export interface CrmBoard {
   pipelineName: string;
   stages: CrmStageView[];
   leads: CrmLeadView[];
+  sourcingOutreaches?: CrmSourcingOutreachItemView[];
   deals: CrmDealView[];
   activities: CrmActivityView[];
 }
@@ -241,6 +242,7 @@ export interface CrmCompanyProfileView {
   partnerCode: string | null;
   orders: CrmPaidOrderInvoiceView[];
   leads: CrmLeadView[];
+  sourcingOutreaches?: CrmSourcingOutreachItemView[];
 }
 
 export interface CrmPartnerView {
@@ -1034,4 +1036,67 @@ export interface CreateCrmActivityRequest {
   summary: string;
   /** YYYY-MM-DD. Null để bỏ hẹn. Không gửi thì giữ ngày cũ. */
   nextFollowUpAt?: string | null;
+}
+
+
+export interface CrmSourcingOutreachItemView {
+  id: string;
+  companyId: string;
+  companyName: string;
+  assignmentId: string;
+  planCode: string;
+  planName: string;
+  engagementId: string;
+  engagementTitle: string;
+  jobId: string | null;
+  jobTitle: string | null;
+  jobLocation: string | null;
+  jobDescription: string | null;
+  jobRequirements: string | null;
+  candidateId: string;
+  candidateCode: string | null;
+  candidateName: string;
+  candidateEmail: string | null;
+  candidatePhone: string | null;
+  candidatePosition: string | null;
+  candidateCity: string | null;
+  candidateExperienceYears: number | null;
+  status:
+    | 'pending_contact'
+    | 'unreachable'
+    | 'awaiting_reply'
+    | 'declined'
+    | 'agreed'
+    | 'guided_pending_apply'
+    | 'applied';
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CrmSourcingOutreachOverview {
+  items: CrmSourcingOutreachItemView[];
+  stats: {
+    handedOver: number;
+    pendingContact: number;
+    contacted: number;
+    agreed: number;
+    guided: number;
+    applied: number;
+  };
+}
+
+export interface UpdateCrmSourcingOutreachStatusRequest {
+  companyId: string;
+  engagementId: string;
+  candidateId: string;
+  status:
+    | 'pending_contact'
+    | 'unreachable'
+    | 'awaiting_reply'
+    | 'declined'
+    | 'agreed'
+    | 'guided_pending_apply'
+    | 'applied';
+  note?: string | null;
 }

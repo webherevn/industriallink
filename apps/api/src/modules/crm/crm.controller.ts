@@ -58,6 +58,9 @@ import {
   type CrmPaidOrderInvoiceView,
   type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
+  type CrmSourcingOutreachItemView,
+  type CrmSourcingOutreachOverview,
+  type UpdateCrmSourcingOutreachStatusRequest,
 } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
@@ -555,5 +558,29 @@ export class CrmController {
     @Body() body: MoveCrmDealRequest,
   ): Promise<CrmDealView> {
     return this.crm.moveDeal(user, id, body);
+  }
+
+  @Get('sourcing-outreach')
+  @ApiOperation({ summary: 'Danh sách ứng viên được doanh nghiệp bàn giao Inlink liên hệ trong gói Săn chuyên sâu.' })
+  sourcingOutreach(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId = '',
+    @Query('status') status = '',
+    @Query('q') q = '',
+  ): Promise<CrmSourcingOutreachOverview> {
+    return this.crm.sourcingOutreachOverview(user, {
+      companyId: companyId || undefined,
+      status: status || undefined,
+      q: q || undefined,
+    });
+  }
+
+  @Patch('sourcing-outreach/status')
+  @ApiOperation({ summary: 'Cập nhật trạng thái liên hệ và ghi chú hỗ trợ chuyên sâu cho ứng viên được bàn giao.' })
+  updateSourcingOutreachStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmSourcingOutreachStatusRequest,
+  ): Promise<CrmSourcingOutreachItemView> {
+    return this.crm.updateSourcingOutreachStatus(user, body);
   }
 }

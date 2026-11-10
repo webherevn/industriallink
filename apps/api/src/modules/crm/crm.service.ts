@@ -72,6 +72,11 @@ import {
   type CrmEnterpriseRequestView,
   type IssueCrmInvoiceRequest,
   type MoveCrmDealRequest,
+  SOURCING_OUTREACH_STATUS_META,
+  type SourcingOutreachStatus,
+  type CrmSourcingOutreachItemView,
+  type CrmSourcingOutreachOverview,
+  type UpdateCrmSourcingOutreachStatusRequest,
 } from '@industriallink/contracts';
 import { DEFAULT_TENANT_ID } from '../../shared/common/constants';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
@@ -1798,7 +1803,339 @@ export class CrmService {
         this.mapPaidInvoice(order, company.name),
       ),
       leads: leads.map((lead) => this.mapLead(lead, names)),
+      sourcingOutreaches: (await this.sourcingOutreachOverview(actor, { companyId })).items,
     };
+  }
+
+  async sourcingOutreachOverview(
+    actor: AuthenticatedUser,
+    filters?: { companyId?: string; status?: string; q?: string },
+  ): Promise<CrmSourcingOutreachOverview> {
+    const emptyStats = {
+      handedOver: 0,
+      pendingContact: 0,
+      contacted: 0,
+      agreed: 0,
+      guided: 0,
+      applied: 0,
+    };
+
+    let allowedCompanyIds: string[] | null = null;
+    if (filters?.companyId) {
+      if (!/^[0-9a-f-]{36}$/i.test(filters.companyId)) {
+        throw new NotFoundException('Không tìm thấy công ty');
+      }
+      await this.assertCompanyVisible(actor, filters.companyId);
+      allowedCompanyIds = [filters.companyId];
+    } else if (!this.seesAll(actor)) {
+      const scoped = await this.invoiceCompanyIds(actor);
+      if (!scoped || scoped.length === 0) {
+        return { items: [], stats: emptyStats };
+      }
+      allowedCompanyIds = scoped;
+    }
+
+    const outreachUsages = await this.prisma.billingSourcingUsage.findMany({
+      where: {
+        kind: 'shortlist',
+        engagementId: { not: null },
+        note: { startsWith: 'outreach:' },
+        ...(allowedCompanyIds ? { companyId: { in: allowedCompanyIds } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    if (outreachUsages.length === 0) {
+      return { items: [], stats: emptyStats };
+    }
+
+    const engagementIds = [
+      ...new Set(outreachUsages.map((u) => u.engagementId).filter((id): id is string => Boolean(id))),
+    ];
+    const companyIds = [...new Set(outreachUsages.map((u) => u.companyId))];
+    const assignmentIds = [...new Set(outreachUsages.map((u) => u.assignmentId))];
+    const candidateIds = [
+      ...new Set(
+        outreachUsages
+          .map((u) => u.note?.split(':')[1]?.trim())
+          .filter((id): id is string => Boolean(id && /^[0-9a-f-]{36}$/i.test(id))),
+      ),
+    ];
+
+    const [statusUsages, companies, assignments, engagements, candidates] = await Promise.all([
+      this.prisma.billingSourcingUsage.findMany({
+        where: {
+          kind: 'shortlist',
+          engagementId: { in: engagementIds },
+          note: { startsWith: 'outreach_status:' },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.company.findMany({
+        where: { id: { in: companyIds } },
+        select: { id: true, name: true },
+      }),
+      this.prisma.billingCompanySourcingPlan.findMany({
+        where: { id: { in: assignmentIds } },
+        include: { plan: { select: { code: true, name: true } } },
+      }),
+      this.prisma.billingSourcingEngagement.findMany({
+        where: { id: { in: engagementIds } },
+        select: { id: true, title: true, jobId: true },
+      }),
+      candidateIds.length > 0
+        ? this.prisma.candidate.findMany({
+            where: { id: { in: candidateIds } },
+            select: {
+              id: true,
+              code: true,
+              displayName: true,
+              user: { select: { email: true } },
+              profile: {
+                select: {
+                  phone: true,
+                  currentPosition: true,
+                  currentCity: true,
+                  totalExperienceYears: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const jobIds = [
+      ...new Set(engagements.map((e) => e.jobId).filter((id): id is string => Boolean(id))),
+    ];
+    const [jobs, applications] = await Promise.all([
+      jobIds.length > 0
+        ? this.prisma.job.findMany({
+            where: { id: { in: jobIds } },
+            select: {
+              id: true,
+              title: true,
+              location: true,
+              description: true,
+              requirements: true,
+            },
+          })
+        : Promise.resolve([]),
+      jobIds.length > 0 && candidateIds.length > 0
+        ? this.prisma.application.findMany({
+            where: {
+              jobId: { in: jobIds },
+              candidateId: { in: candidateIds },
+              isDeleted: false,
+            },
+            select: { jobId: true, candidateId: true, createdAt: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const companyMap = new Map(companies.map((c) => [c.id, c]));
+    const assignmentMap = new Map(assignments.map((a) => [a.id, a]));
+    const engagementMap = new Map(engagements.map((e) => [e.id, e]));
+    const jobMap = new Map(jobs.map((j) => [j.id, j]));
+    const candidateMap = new Map(candidates.map((c) => [c.id, c]));
+    const appliedMap = new Map(applications.map((a) => [`${a.jobId}:${a.candidateId}`, a.createdAt]));
+
+    const statusByEngCand = new Map<string, { status: SourcingOutreachStatus; updatedAt: Date }>();
+    for (const su of statusUsages) {
+      if (!su.engagementId || !su.note) continue;
+      const parts = su.note.split(':');
+      const cid = parts[1]?.trim();
+      const st = parts[2]?.trim() as SourcingOutreachStatus | undefined;
+      const key = `${su.engagementId}:${cid}`;
+      if (cid && st && st in SOURCING_OUTREACH_STATUS_META && !statusByEngCand.has(key)) {
+        statusByEngCand.set(key, { status: st, updatedAt: su.createdAt });
+      }
+    }
+
+    const seenEngCand = new Set<string>();
+    const allItems: CrmSourcingOutreachItemView[] = [];
+    for (const u of outreachUsages) {
+      if (!u.engagementId || !u.note) continue;
+      const parts = u.note.split(':');
+      const cid = parts[1]?.trim();
+      if (!cid) continue;
+      const key = `${u.engagementId}:${cid}`;
+      if (seenEngCand.has(key)) continue;
+      seenEngCand.add(key);
+
+      const fallbackName = parts[2]?.trim() || 'Ứng viên';
+      const noteText = parts.slice(3).join(':').trim() || null;
+      const company = companyMap.get(u.companyId);
+      const assignment = assignmentMap.get(u.assignmentId);
+      const engagement = engagementMap.get(u.engagementId);
+      const jobId = engagement?.jobId ?? u.jobId ?? null;
+      const job = jobId ? jobMap.get(jobId) : undefined;
+      const cand = candidateMap.get(cid);
+
+      const statusEntry = statusByEngCand.get(key);
+      let status: SourcingOutreachStatus = statusEntry?.status ?? 'pending_contact';
+      let updatedAt = statusEntry?.updatedAt ?? u.createdAt;
+      if (jobId && appliedMap.has(`${jobId}:${cid}`)) {
+        status = 'applied';
+        const appDate = appliedMap.get(`${jobId}:${cid}`);
+        if (appDate && appDate > updatedAt) updatedAt = appDate;
+      }
+
+      allItems.push({
+        id: u.id,
+        companyId: u.companyId,
+        companyName: company?.name ?? 'Doanh nghiệp',
+        assignmentId: u.assignmentId,
+        planCode: assignment?.plan.code ?? 'SAN_CHUYEN_SAU',
+        planName: assignment?.plan.name ?? 'Tin săn Chuyên sâu',
+        engagementId: u.engagementId,
+        engagementTitle: engagement?.title ?? job?.title ?? 'Vị trí săn nhân sự',
+        jobId,
+        jobTitle: job?.title ?? engagement?.title ?? null,
+        jobLocation: job?.location ?? null,
+        jobDescription: job?.description ?? null,
+        jobRequirements: job?.requirements ?? null,
+        candidateId: cid,
+        candidateCode: cand?.code ?? null,
+        candidateName: cand?.displayName ?? fallbackName,
+        candidateEmail: cand?.user?.email ?? null,
+        candidatePhone: cand?.profile?.phone ?? null,
+        candidatePosition: cand?.profile?.currentPosition ?? null,
+        candidateCity: cand?.profile?.currentCity ?? null,
+        candidateExperienceYears: cand?.profile?.totalExperienceYears ?? null,
+        status,
+        note: noteText,
+        createdAt: u.createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      });
+    }
+
+    const stats = {
+      handedOver: allItems.length,
+      pendingContact: allItems.filter((i) => i.status === 'pending_contact').length,
+      contacted: allItems.filter((i) => i.status !== 'pending_contact').length,
+      agreed: allItems.filter((i) =>
+        ['agreed', 'guided_pending_apply', 'applied'].includes(i.status),
+      ).length,
+      guided: allItems.filter((i) =>
+        ['guided_pending_apply', 'applied'].includes(i.status),
+      ).length,
+      applied: allItems.filter((i) => i.status === 'applied').length,
+    };
+
+    const statusFilter = filters?.status?.trim();
+    const qFilter = filters?.q?.trim().toLowerCase();
+    const filtered = allItems.filter((item) => {
+      if (statusFilter && statusFilter !== 'all' && item.status !== statusFilter) {
+        return false;
+      }
+      if (qFilter) {
+        const hay = [
+          item.companyName,
+          item.engagementTitle,
+          item.jobTitle,
+          item.candidateName,
+          item.candidateCode,
+          item.candidateEmail,
+          item.candidatePhone,
+          item.candidatePosition,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(qFilter)) return false;
+      }
+      return true;
+    });
+
+    return { items: filtered, stats };
+  }
+
+  async updateSourcingOutreachStatus(
+    actor: AuthenticatedUser,
+    input: UpdateCrmSourcingOutreachStatusRequest,
+  ): Promise<CrmSourcingOutreachItemView> {
+    const companyId = input.companyId?.trim();
+    const engagementId = input.engagementId?.trim();
+    const candidateId = input.candidateId?.trim();
+    const status = input.status?.trim() as SourcingOutreachStatus | undefined;
+
+    if (
+      !companyId ||
+      !engagementId ||
+      !candidateId ||
+      !status ||
+      !(status in SOURCING_OUTREACH_STATUS_META)
+    ) {
+      throw new BadRequestException('Thông tin cập nhật trạng thái liên hệ không hợp lệ.');
+    }
+
+    await this.assertCompanyVisible(actor, companyId);
+
+    const engagement = await this.prisma.billingSourcingEngagement.findFirst({
+      where: { id: engagementId, companyId },
+    });
+    if (!engagement) {
+      throw new NotFoundException('Không tìm thấy vị trí săn nhân sự.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.billingSourcingUsage.deleteMany({
+        where: {
+          companyId,
+          assignmentId: engagement.assignmentId,
+          engagementId: engagement.id,
+          kind: 'shortlist',
+          note: { startsWith: `outreach_status:${candidateId}:` },
+        },
+      });
+      await tx.billingSourcingUsage.create({
+        data: {
+          companyId,
+          assignmentId: engagement.assignmentId,
+          engagementId: engagement.id,
+          kind: 'shortlist',
+          jobId: engagement.jobId,
+          note: `outreach_status:${candidateId}:${status}`,
+          createdBy: actor.id,
+        },
+      });
+
+      if (input.note !== undefined) {
+        const outreachRow = await tx.billingSourcingUsage.findFirst({
+          where: {
+            companyId,
+            assignmentId: engagement.assignmentId,
+            engagementId: engagement.id,
+            kind: 'shortlist',
+            note: { startsWith: `outreach:${candidateId}:` },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (outreachRow && outreachRow.note) {
+          const parts = outreachRow.note.split(':');
+          const cname = (parts[2] ?? 'Ứng viên').replace(/:/g, ' ').trim();
+          const cleanNote = (input.note ?? '').trim();
+          await tx.billingSourcingUsage.update({
+            where: { id: outreachRow.id },
+            data: {
+              note: cleanNote
+                ? `outreach:${candidateId}:${cname}:${cleanNote}`
+                : `outreach:${candidateId}:${cname}`,
+            },
+          });
+        }
+      }
+    });
+
+    const overview = await this.sourcingOutreachOverview(actor, { companyId });
+    const updated = overview.items.find(
+      (i) => i.engagementId === engagementId && i.candidateId === candidateId,
+    );
+    if (!updated) {
+      throw new NotFoundException('Không tìm thấy bản ghi bàn giao liên hệ ứng viên.');
+    }
+    return updated;
   }
 
   async followUps(actor: AuthenticatedUser): Promise<CrmLeadView[]> {

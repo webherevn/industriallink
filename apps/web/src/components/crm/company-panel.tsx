@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { contactPhoneLabel, errorText, followUpLabel, formatVnd, formatWhen, leadStatusLabel } from '@/components/crm/format';
+import { CrmCompanySourcingOutreachSection } from '@/components/crm/sourcing-outreach-panel';
 import { claimCrmCustomer, fetchCrmCompany } from '@/lib/crm';
 
 export function CrmCompanyPanel({ companyId }: { companyId: string }) {
@@ -70,6 +71,10 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
               ))}
             </ul>
           </section>
+          <CrmCompanySourcingOutreachSection
+            items={data.sourcingOutreaches ?? []}
+            companyId={companyId}
+          />
           <section className="rounded-[22px] bg-white p-5 crm-surface lg:col-span-2">
             <h2 className="text-sm font-semibold text-slate-900">Đơn đã thanh toán</h2>
             {data.orders.length === 0 ? <p className="mt-2 text-sm text-slate-500">Chưa có đơn gói đã trả.</p> : null}

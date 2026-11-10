@@ -13,6 +13,7 @@ import {
   CircleDollarSign,
   CirclePercent,
   Contact,
+  Crosshair,
   FileText,
   Flag,
   Kanban,
@@ -62,6 +63,7 @@ const NAV = [
   {
     title: 'Chăm sóc',
     items: [
+      { href: '/crm/sourcing-outreach', label: 'Săn nhân sự', icon: Crosshair },
       { href: '/crm/activities', label: 'Nhật ký', icon: NotebookPen },
       { href: '/crm/chat', label: 'Chat', icon: MessageCircle },
       { href: '/crm/renewals', label: 'Gia hạn', icon: CalendarClock },
