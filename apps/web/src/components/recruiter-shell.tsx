@@ -10,6 +10,7 @@ import {
   Calendar,
   ChevronDown,
   Coins,
+  Crosshair,
   Crown,
   FileText,
   Gift,
@@ -72,7 +73,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/recruiter/inbox', label: 'Hộp thư ứng viên', icon: Users },
       { href: '/recruiter/chat', label: 'Chat', icon: MessageCircle },
       { href: '/search', label: 'Tìm ứng viên AI', icon: Target },
-      { href: '/recruiter/sourcing', label: 'Săn nhân sự', icon: Search },
+      { href: '/recruiter/sourcing', label: 'Săn nhân sự', icon: Crosshair },
       { href: '/company', label: 'Công ty', icon: Building2 },
     ],
   },
@@ -424,6 +425,75 @@ export function RecruiterShell({
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
+                if (item.href === '/recruiter/sourcing') {
+                  const hasActiveSourcing = Boolean(sourcingName);
+                  return (
+                    <li key={`${item.href}-${item.label}`} className="py-0.5">
+                      <Link
+                        href={item.href}
+                        data-guide={GUIDE_TARGET[item.href]}
+                        className={clsx(
+                          'group relative flex items-center justify-between gap-2 overflow-hidden rounded-xl px-2.5 py-2 text-sm transition-all duration-300',
+                          active
+                            ? 'bg-gradient-to-r from-[#072348] via-[#0c3266] to-[#133f7d] font-extrabold text-white shadow-[0_8px_20px_-6px_rgba(7,35,72,0.55)] ring-1 ring-[#E8872A]/75'
+                            : 'border border-[#F7CFA8] bg-gradient-to-r from-[#FFF8F1] via-[#FFF4E8] to-amber-50/70 font-bold text-[#072348] shadow-[0_2px_8px_-2px_rgba(232,135,42,0.16)] hover:translate-x-1 hover:border-[#E8872A] hover:from-[#FFF3E6] hover:via-[#FFEAD5] hover:to-amber-100/80 hover:shadow-[0_6px_16px_-4px_rgba(232,135,42,0.32)]',
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-y-0 -left-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[380%]"
+                        />
+                        {active && (
+                          <span
+                            className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-amber-300 to-[#E8872A] shadow-[0_0_10px_#E8872A]"
+                            aria-hidden
+                          />
+                        )}
+                        <span className="relative flex min-w-0 items-center gap-2.5">
+                          <span
+                            className={clsx(
+                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-300',
+                              active
+                                ? 'bg-gradient-to-br from-amber-400 to-[#E8872A] text-white shadow-[0_2px_8px_rgba(232,135,42,0.5)]'
+                                : 'bg-[#E8872A]/15 text-[#E8872A] ring-1 ring-[#E8872A]/25 group-hover:scale-110 group-hover:bg-[#E8872A] group-hover:text-white group-hover:shadow-xs',
+                            )}
+                          >
+                            <Icon className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12" />
+                          </span>
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        {hasActiveSourcing ? (
+                          <span
+                            className={clsx(
+                              'relative inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider',
+                              active
+                                ? 'bg-emerald-400/20 text-emerald-300 ring-1 ring-emerald-400/40'
+                                : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+                            )}
+                          >
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            </span>
+                            LIVE
+                          </span>
+                        ) : (
+                          <span
+                            className={clsx(
+                              'relative inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide shadow-2xs transition-transform duration-300 group-hover:scale-105',
+                              active
+                                ? 'bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/40'
+                                : 'bg-gradient-to-r from-[#E8872A] to-amber-500 text-white',
+                            )}
+                          >
+                            <Sparkles className="h-2.5 w-2.5" />
+                            AI VIP
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                }
                 if (item.soon) {
                   return (
                     <li key={`${item.href}-${item.label}`}>
