@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
+  Mail,
   Megaphone,
   Menu,
   MessageCircle,
@@ -28,6 +29,7 @@ import {
   Sparkles,
   Star,
   Target,
+  TrendingUp,
   UserPlus,
   Users,
   Wallet,
@@ -63,45 +65,45 @@ type NavSection = { title?: string; items: NavItem[] };
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    items: [{ href: '/recruiter', label: 'Tổng quan', icon: LayoutDashboard }],
-  },
-  {
-    title: 'Tuyển dụng',
     items: [
-      { href: '/jobs/manage', label: 'Tin tuyển dụng', icon: Briefcase },
-      { href: '/jobs/new', label: 'AI viết JD', icon: FileText },
-      { href: '/recruiter/inbox', label: 'Hộp thư ứng viên', icon: Users },
-      { href: '/recruiter/chat', label: 'Chat', icon: MessageCircle },
-      { href: '/search', label: 'Tìm ứng viên AI', icon: Target },
+      { href: '/recruiter', label: 'Tổng quan', icon: LayoutDashboard },
       { href: '/recruiter/sourcing', label: 'Săn nhân sự', icon: Crosshair },
-      { href: '/company', label: 'Công ty', icon: Building2 },
     ],
   },
   {
-    title: 'Quy trình tuyển dụng',
+    title: 'Nguồn & Tin tuyển dụng',
     items: [
+      { href: '/jobs/manage', label: 'Tin tuyển dụng', icon: Briefcase },
+      { href: '/jobs/new', label: 'AI viết JD', icon: FileText },
+      { href: '/search', label: 'Tìm ứng viên AI', icon: Target },
+    ],
+  },
+  {
+    title: 'Ứng viên & Quy trình',
+    items: [
+      { href: '/recruiter/inbox', label: 'Hộp thư ứng viên', icon: Users },
+      { href: '/recruiter/chat', label: 'Tin nhắn (Chat)', icon: MessageCircle },
+      { href: '/recruiter/email', label: 'Gửi email hàng loạt', icon: Mail },
       { href: '/recruiter/calendar', label: 'Lịch phỏng vấn', icon: Calendar },
       { href: '/recruiter/offers', label: 'Đề nghị làm việc', icon: Gift },
       { href: '/recruiter/onboarding', label: 'Nhận việc', icon: UserPlus },
     ],
   },
   {
-    title: 'Báo cáo',
+    title: 'Phân tích & Thị trường',
     items: [
       { href: '/recruiter/report', label: 'Báo cáo tuyển dụng', icon: BarChart3 },
-      { href: '/recruiter/salary', label: 'Lương thị trường', icon: Wallet },
+      { href: '/recruiter/salary', label: 'Lương thị trường', icon: TrendingUp },
     ],
   },
   {
-    title: 'Giới thiệu',
-    items: [{ href: '/recruiter/partner', label: 'Cộng tác viên', icon: Link2 }],
-  },
-  {
-    title: 'Tài khoản',
+    title: 'Doanh nghiệp & Tài khoản',
     items: [
-      { href: '/recruiter/pricing', label: 'Bảng giá & Credit', icon: Banknote },
-      { href: '/recruiter/billing', label: 'Gói & Credit', icon: Wallet },
+      { href: '/company', label: 'Hồ sơ công ty', icon: Building2 },
+      { href: '/recruiter/billing', label: 'Gói dịch vụ & Ví Credit', icon: Wallet },
+      { href: '/recruiter/pricing', label: 'Bảng giá nâng cấp', icon: Banknote },
       { href: '/recruiter/billing/credits', label: 'Lịch sử Credit', icon: Coins },
+      { href: '/recruiter/partner', label: 'Cộng tác viên', icon: Link2 },
       { href: '/account', label: 'Bảo mật / MFA', icon: Shield },
     ],
   },
@@ -428,7 +430,7 @@ export function RecruiterShell({
                 if (item.href === '/recruiter/sourcing') {
                   const hasActiveSourcing = Boolean(sourcingName);
                   return (
-                    <li key={`${item.href}-${item.label}`} className="py-0.5">
+                    <li key={`${item.href}-${item.label}`} className="py-1">
                       <Link
                         href={item.href}
                         data-guide={GUIDE_TARGET[item.href]}
