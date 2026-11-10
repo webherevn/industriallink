@@ -221,7 +221,7 @@ function CompanyAvatar({
       <img
         src={logoUrl}
         alt={name}
-        className={clsx(sizeClass, shapeClass, 'object-cover ring-2 ring-white shadow-2xs')}
+        className={clsx(sizeClass, shapeClass, 'shrink-0 object-cover ring-2 ring-white shadow-2xs')}
       />
     );
   }
@@ -232,7 +232,7 @@ function CompanyAvatar({
         sizeClass,
         textClass,
         shapeClass,
-        'flex items-center justify-center bg-gradient-to-br from-[#072348] via-[#0c3266] to-[#1E40AF] font-bold text-white shadow-2xs ring-2 ring-white',
+        'flex shrink-0 items-center justify-center bg-gradient-to-br from-[#072348] via-[#0c3266] to-[#1E40AF] font-bold text-white shadow-2xs ring-2 ring-white',
       )}
     >
       {initials || 'NT'}
@@ -697,33 +697,44 @@ export function RecruiterShell({
                 <HelpCircle className="h-5 w-5" strokeWidth={1.75} />
               </button>
 
-              <div ref={accountRef} className="relative ml-1">
+              <span className="mx-1 hidden h-5 w-px bg-slate-200/80 sm:block" />
+
+              <div ref={accountRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setAccountOpen((v) => !v)}
-                  className="flex max-w-[280px] items-center gap-2 rounded-full py-0.5 pl-0.5 pr-2 transition hover:bg-slate-100"
+                  className={clsx(
+                    'group flex items-center gap-2.5 rounded-xl border px-2 py-1.5 text-left transition-all duration-150',
+                    accountOpen
+                      ? 'border-slate-300 bg-white shadow-xs ring-2 ring-slate-900/5'
+                      : 'border-slate-200/80 bg-slate-50/70 hover:border-slate-300 hover:bg-white hover:shadow-2xs',
+                  )}
                   aria-expanded={accountOpen}
                   aria-haspopup="menu"
                 >
-                  <CompanyAvatar logoUrl={logoUrl} name={displayName} />
-                  <span className="hidden min-w-0 text-left sm:block">
-                    <span className="block truncate text-sm font-semibold leading-tight text-slate-900">
+                  <CompanyAvatar
+                    logoUrl={logoUrl}
+                    name={displayName}
+                    sizeClass="h-8 w-8"
+                    textClass="text-[11px]"
+                    shapeClass="rounded-lg"
+                  />
+                  <span className="hidden min-w-0 max-w-[165px] sm:block">
+                    <span className="block truncate text-[12.5px] font-bold leading-tight text-slate-800 group-hover:text-slate-950">
                       {company?.name ?? 'Công ty'}
                     </span>
-                    <span className="mt-0.5 block">
-                      <AccountPlanChips
-                        planCode={planCode}
-                        planName={planName}
-                        sourcingCode={sourcingCode}
-                        sourcingName={sourcingName}
-                        compact
-                      />
+                    <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-medium leading-tight text-slate-500">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      <span className="truncate">
+                        {planName ?? 'Gói cơ bản'}
+                        {sourcingName ? ` · ${sourcingName}` : ''}
+                      </span>
                     </span>
                   </span>
                   <ChevronDown
                     className={clsx(
-                      'hidden h-4 w-4 shrink-0 text-slate-400 transition sm:block',
-                      accountOpen && 'rotate-180',
+                      'hidden h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-slate-600 sm:block',
+                      accountOpen && 'rotate-180 text-slate-600',
                     )}
                   />
                 </button>
@@ -731,60 +742,76 @@ export function RecruiterShell({
                 {accountOpen && (
                   <div
                     role="menu"
-                    className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg shadow-slate-900/10"
+                    className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-xl shadow-slate-900/10"
                   >
-                    <div className="border-b border-slate-100 px-3.5 py-2.5">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {company?.name ?? 'Chưa có công ty'}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">
-                        {user?.email ?? user?.displayName}
-                      </p>
-                      <div className="mt-2">
+                    <div className="rounded-xl bg-slate-50/80 p-3">
+                      <div className="flex items-center gap-2.5">
+                        <CompanyAvatar
+                          logoUrl={logoUrl}
+                          name={displayName}
+                          sizeClass="h-9 w-9"
+                          textClass="text-xs"
+                          shapeClass="rounded-lg"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-bold text-slate-900">
+                            {company?.name ?? 'Chưa có công ty'}
+                          </p>
+                          <p className="truncate text-[11px] text-slate-500">
+                            {user?.email ?? user?.displayName}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2.5 border-t border-slate-200/70 pt-2">
                         <AccountPlanChips
                           planCode={planCode}
                           planName={planName}
                           sourcingCode={sourcingCode}
                           sourcingName={sourcingName}
+                          compact
                         />
                       </div>
                     </div>
-                    <Link
-                      href="/recruiter/billing"
-                      role="menuitem"
-                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                      onClick={() => setAccountOpen(false)}
-                    >
-                      <Wallet className="h-4 w-4 text-slate-400" />
-                      Gói & Credit
-                    </Link>
-                    <Link
-                      href="/company"
-                      role="menuitem"
-                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                      onClick={() => setAccountOpen(false)}
-                    >
-                      <Building2 className="h-4 w-4 text-slate-400" />
-                      Hồ sơ công ty
-                    </Link>
-                    <Link
-                      href="/account"
-                      role="menuitem"
-                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                      onClick={() => setAccountOpen(false)}
-                    >
-                      <Shield className="h-4 w-4 text-slate-400" />
-                      Tài khoản & bảo mật
-                    </Link>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={onLogout}
-                      className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Đăng xuất
-                    </button>
+                    <div className="mt-1 space-y-0.5">
+                      <Link
+                        href="/recruiter/billing"
+                        role="menuitem"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                        onClick={() => setAccountOpen(false)}
+                      >
+                        <Wallet className="h-4 w-4 text-slate-400" />
+                        Gói & Credit
+                      </Link>
+                      <Link
+                        href="/company"
+                        role="menuitem"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                        onClick={() => setAccountOpen(false)}
+                      >
+                        <Building2 className="h-4 w-4 text-slate-400" />
+                        Hồ sơ công ty
+                      </Link>
+                      <Link
+                        href="/account"
+                        role="menuitem"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                        onClick={() => setAccountOpen(false)}
+                      >
+                        <Shield className="h-4 w-4 text-slate-400" />
+                        Tài khoản & bảo mật
+                      </Link>
+                    </div>
+                    <div className="mt-1 border-t border-slate-100 pt-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={onLogout}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Đăng xuất
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
