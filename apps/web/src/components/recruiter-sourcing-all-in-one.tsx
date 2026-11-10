@@ -45,6 +45,7 @@ import {
   LANGUAGE_OPTIONS,
   MARKET_REGIONS,
   SALES_JOB_LEVELS,
+  SOURCING_OUTREACH_STATUS_META,
   TECHNICAL_WORK_TYPES,
   TRAVEL_ABILITY_LABEL,
   TravelAbility,
@@ -58,6 +59,7 @@ import {
   type RecruiterSourcingReportView,
   type RecruiterSourcingScanRoundView,
   type RecruiterSourcingWorkspace,
+  type SourcingOutreachStatus,
 } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
@@ -2577,6 +2579,32 @@ export function SourcingCandidateDrawer({
     },
   });
 
+  const outreachStatusMutation = useMutation({
+    mutationFn: async (status: SourcingOutreachStatus) => {
+      if (!candidateRow || !engagementId) throw new Error('Chưa chọn vị trí Săn');
+      return consumeRecruiterSourcing({
+        kind: 'shortlist',
+        engagementId,
+        jobId: jobId ?? undefined,
+        note: `outreach_status:${candidateRow.candidateId}:${status}`,
+      });
+    },
+    onSuccess: (ws, status) => {
+      void qc.setQueryData(['recruiter-sourcing'], ws);
+      const meta = SOURCING_OUTREACH_STATUS_META[status];
+      setFeedback({
+        tone: 'ok',
+        text: `Đã cập nhật trạng thái hỗ trợ chuyên sâu: «${meta.label}» (${meta.description})`,
+      });
+    },
+    onError: (err) => {
+      setFeedback({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không cập nhật được trạng thái tiếp cận',
+      });
+    },
+  });
+
   const connectMutation = useMutation({
     mutationFn: () => {
       if (!candidateRow) throw new Error('Chưa chọn ứng viên');
@@ -2845,7 +2873,7 @@ export function SourcingCandidateDrawer({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="text-xs font-extrabold uppercase tracking-wide text-emerald-950">
-                      Đội ngũ CSKH Inlink đang liên hệ & kết nối ứng viên này cho bạn
+                      Tiến độ hỗ trợ chuyên sâu Inlink
                     </h4>
                     <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
                       Đã bàn giao lúc{' '}
@@ -2856,13 +2884,46 @@ export function SourcingCandidateDrawer({
                     </span>
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                    Hồ sơ và thông tin liên hệ của ứng viên đã được mở khóa hoàn toàn. Chuyên viên CSKH Inlink sẽ chủ động gọi điện thẩm định nhu cầu ứng tuyển, mức lương kỳ vọng và cập nhật kết quả kết nối cho doanh nghiệp.
+                    Trạng thái hiện tại:{' '}
+                    <strong className="text-[#072348]">
+                      {SOURCING_OUTREACH_STATUS_META[outreachItem.status ?? 'pending_contact'].label}
+                    </strong>{' '}
+                    — {SOURCING_OUTREACH_STATUS_META[outreachItem.status ?? 'pending_contact'].description}.
                   </p>
                   {outreachItem.note ? (
                     <p className="mt-1.5 rounded-xl bg-white/80 px-3 py-1.5 text-[11px] text-slate-700 ring-1 ring-emerald-200/70">
                       <strong className="text-[#072348]">Ghi chú bàn giao CSKH:</strong> {outreachItem.note}
                     </p>
                   ) : null}
+
+                  <div className="mt-3 border-t border-emerald-200/60 pt-2.5">
+                    <p className="text-[11px] font-bold text-[#072348]">
+                      Cập nhật trạng thái tiếp cận & chuyển đổi ứng viên:
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {(Object.keys(SOURCING_OUTREACH_STATUS_META) as SourcingOutreachStatus[]).map((st) => {
+                        const meta = SOURCING_OUTREACH_STATUS_META[st];
+                        const active = (outreachItem.status ?? 'pending_contact') === st;
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            disabled={outreachStatusMutation.isPending}
+                            onClick={() => outreachStatusMutation.mutate(st)}
+                            title={meta.description}
+                            className={clsx(
+                              'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold transition disabled:opacity-50',
+                              active
+                                ? 'bg-[#072348] text-white shadow-2xs'
+                                : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:border-[#072348] hover:text-[#072348]',
+                            )}
+                          >
+                            {meta.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

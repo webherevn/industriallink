@@ -14,6 +14,7 @@ import type {
 import {
   includedScopeCodes,
   parseSourcingScope,
+  SOURCING_OUTREACH_STATUS_META,
   SOURCING_QUOTA_LABELS,
   type AdminAssignCompanySourcingPlanRequest,
   type RecruiterConsumeSourcingRequest,
@@ -25,6 +26,7 @@ import {
   type RecruiterSourcingReportView,
   type RecruiterSourcingUsageView,
   type RecruiterSourcingWorkspace,
+  type SourcingOutreachStatus,
   type SourcingQuotaKind,
   type SourcingUsageKind,
   type BillingCompanySourcingPlanView,
@@ -231,6 +233,18 @@ export class SourcingService {
       .filter((r): r is RecruiterSourcingReportView => r !== null);
     const shortlistedByEngagement: Record<string, string[]> = {};
     const outreachByEngagement: Record<string, RecruiterSourcingOutreachItem[]> = {};
+    const statusByEngagementCandidate = new Map<string, SourcingOutreachStatus>();
+    for (const u of usages) {
+      if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('outreach_status:')) {
+        const parts = u.note.split(':');
+        const cid = parts[1]?.trim();
+        const st = parts[2]?.trim() as SourcingOutreachStatus | undefined;
+        const key = `${u.engagementId}:${cid}`;
+        if (cid && st && st in SOURCING_OUTREACH_STATUS_META && !statusByEngagementCandidate.has(key)) {
+          statusByEngagementCandidate.set(key, st);
+        }
+      }
+    }
     for (const u of usages) {
       if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('shortlist:')) {
         const parts = u.note.split(':');
@@ -248,14 +262,39 @@ export class SourcingService {
         if (cid) {
           const list = outreachByEngagement[u.engagementId] ?? [];
           if (!list.some((item) => item.candidateId === cid)) {
+            const st = statusByEngagementCandidate.get(`${u.engagementId}:${cid}`) ?? 'pending_contact';
             list.push({
               candidateId: cid,
               candidateName: cname,
               note: cnote,
+              status: st,
               createdAt: u.createdAt.toISOString(),
             });
           }
           outreachByEngagement[u.engagementId] = list;
+        }
+      }
+    }
+
+    // Tự động đồng bộ trạng thái 'applied' nếu ứng viên đã nộp đơn vào JD của vị trí săn
+    const engagementJobMap = new Map<string, string>();
+    for (const eng of engagements) {
+      if (eng.jobId) engagementJobMap.set(eng.id, eng.jobId);
+    }
+    const outreachJobIds = [...new Set([...engagementJobMap.values()])];
+    if (outreachJobIds.length > 0) {
+      const apps = await this.prisma.application.findMany({
+        where: { jobId: { in: outreachJobIds }, isDeleted: false },
+        select: { jobId: true, candidateId: true },
+      });
+      const appliedJobCandSet = new Set(apps.map((a) => `${a.jobId}:${a.candidateId}`));
+      for (const [engId, items] of Object.entries(outreachByEngagement)) {
+        const jId = engagementJobMap.get(engId);
+        if (!jId) continue;
+        for (const item of items) {
+          if (appliedJobCandSet.has(`${jId}:${item.candidateId}`)) {
+            item.status = 'applied';
+          }
         }
       }
     }
@@ -438,9 +477,18 @@ export class SourcingService {
         kind === 'shortlist' && Boolean(input.note?.startsWith('unshortlist:'));
       const isOutreach =
         kind === 'shortlist' && Boolean(input.note?.startsWith('outreach:'));
+      const isOutreachStatus =
+        kind === 'shortlist' && Boolean(input.note?.startsWith('outreach_status:'));
       const isBookmarkShortlist =
         kind === 'shortlist' && Boolean(input.note?.startsWith('shortlist:'));
-      if (!isUnshortlist && !isOutreach && !isBookmarkShortlist && remaining !== null && remaining <= 0) {
+      if (
+        !isUnshortlist &&
+        !isOutreach &&
+        !isOutreachStatus &&
+        !isBookmarkShortlist &&
+        remaining !== null &&
+        remaining <= 0
+      ) {
         throw new ForbiddenException({
           code: 'SOURCING_QUOTA_EXCEEDED',
           message: `Gói ${assignment.plan.name} đã hết ${SOURCING_QUOTA_LABELS[kind].toLowerCase()}. Hãy nâng cấp gói Săn.`,
@@ -551,6 +599,35 @@ export class SourcingService {
                 });
               }
             }
+            return;
+          }
+          if (input.note?.startsWith('outreach_status:')) {
+            const parts = input.note.split(':');
+            const candidateId = parts[1]?.trim();
+            const status = parts[2]?.trim() as SourcingOutreachStatus | undefined;
+            if (!candidateId || !status || !(status in SOURCING_OUTREACH_STATUS_META)) {
+              throw new BadRequestException('Trạng thái liên hệ ứng viên không hợp lệ.');
+            }
+            await tx.billingSourcingUsage.deleteMany({
+              where: {
+                companyId,
+                assignmentId: assignment.id,
+                engagementId: engagement.id,
+                kind: 'shortlist',
+                note: { startsWith: `outreach_status:${candidateId}:` },
+              },
+            });
+            await tx.billingSourcingUsage.create({
+              data: {
+                companyId,
+                assignmentId: assignment.id,
+                engagementId: engagement.id,
+                kind: 'shortlist',
+                jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
+                note: `outreach_status:${candidateId}:${status}`,
+                createdBy: actorId,
+              },
+            });
             return;
           }
           if (input.note?.startsWith('outreach:')) {

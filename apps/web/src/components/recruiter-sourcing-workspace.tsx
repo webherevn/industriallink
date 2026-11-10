@@ -27,12 +27,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   JOB_LEVEL_LABEL,
   JobTrack,
+  SOURCING_OUTREACH_STATUS_META,
   SOURCING_QUOTA_LABELS,
   formatJobTitle,
   type CandidateMatchView,
   type RecruiterSourcingEntitlements,
   type RecruiterSourcingOutreachItem,
   type RecruiterSourcingScanRoundView,
+  type SourcingOutreachStatus,
   type SourcingQuotaKind,
 } from '@industriallink/contracts';
 import { JdSalesCreateFlow } from '@/app/jobs/new/sales-create-flow';
@@ -346,16 +348,47 @@ export function RecruiterSourcingWorkspace() {
   );
   const highMatchCount = useMemo(
     () =>
-      allResults.filter((r) => {
+      potentialCandidates.filter((r) => {
         const pct = r.match.score <= 1 ? r.match.score * 100 : r.match.score;
         return pct >= 80;
       }).length,
-    [allResults],
+    [potentialCandidates],
   );
   const openedCount = useMemo(
-    () => allResults.filter((r) => r.viewed || r.applied).length,
-    [allResults],
+    () =>
+      potentialCandidates.filter(
+        (r) => Boolean(r.viewed) || engagementOutreachIds.includes(r.candidateId),
+      ).length,
+    [potentialCandidates, engagementOutreachIds],
   );
+  const connectedCount = useMemo(
+    () => potentialCandidates.filter((r) => Boolean(r.connected)).length,
+    [potentialCandidates],
+  );
+
+  const outreachStats = useMemo(() => {
+    const appliedIdSet = new Set(appliedCandidates.map((c) => c.candidateId));
+    let contacted = 0;
+    let agreed = 0;
+    let guided = 0;
+    let applied = 0;
+    for (const item of engagementOutreachList) {
+      const st: SourcingOutreachStatus = appliedIdSet.has(item.candidateId)
+        ? 'applied'
+        : item.status ?? 'pending_contact';
+      if (st !== 'pending_contact') contacted += 1;
+      if (st === 'agreed' || st === 'guided_pending_apply' || st === 'applied') agreed += 1;
+      if (st === 'guided_pending_apply' || st === 'applied') guided += 1;
+      if (st === 'applied') applied += 1;
+    }
+    return {
+      handedOver: engagementOutreachList.length,
+      contacted,
+      agreed,
+      guided,
+      applied,
+    };
+  }, [engagementOutreachList, appliedCandidates]);
 
   const canOpenMorePositions =
     hasPlan && !ended && (e?.positionsRemaining === null || (e?.positionsRemaining ?? 0) > 0);
@@ -452,11 +485,12 @@ export function RecruiterSourcingWorkspace() {
             <QuotaGrid
               entitlements={e!}
               hasOutreach={hasOutreach}
-              scanRoundsCount={engagementScanRounds.length}
-              totalMatchedCount={allResults.length}
+              totalMatchedCount={potentialCandidates.length}
               highMatchCount={highMatchCount}
+              shortlistedCount={engagementShortlistedIds.length}
               openedCount={openedCount}
-              appliedCount={appliedCandidates.length}
+              connectedCount={connectedCount}
+              outreachStats={outreachStats}
               onOpenPosition={
                 canOpenMorePositions
                   ? () => {
@@ -467,6 +501,8 @@ export function RecruiterSourcingWorkspace() {
               }
               onOpenReport={selected ? () => setReportModalOpen(true) : undefined}
               onOpenRevision={selected && huntJobId ? () => setRevisionModalOpen(true) : undefined}
+              onFilterAllPotential={selected ? () => setSelectedRoundId('all') : undefined}
+              onFilterViewed={selected ? () => setSelectedRoundId('viewed') : undefined}
               onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
               onFilterOutreach={selected && hasOutreach ? () => setSelectedRoundId('outreach') : undefined}
             />
@@ -729,6 +765,7 @@ export function RecruiterSourcingWorkspace() {
                 shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
                 hasOutreach={hasOutreach}
                 outreachIds={engagementOutreachIds}
+                outreachList={engagementOutreachList}
                 outreachQuota={e!.outreachQuota ?? e!.shortlistQuota ?? 15}
                 outreachRemaining={e!.outreachRemaining ?? e!.shortlistsRemaining ?? 15}
                 outreachPending={quickOutreach.isPending}
@@ -1313,6 +1350,7 @@ function PotentialCandidatesColumn({
   shortlistRemaining,
   hasOutreach,
   outreachIds,
+  outreachList,
   outreachQuota,
   outreachRemaining,
   outreachPending,
@@ -1332,6 +1370,7 @@ function PotentialCandidatesColumn({
   shortlistRemaining: number | null;
   hasOutreach: boolean;
   outreachIds: string[];
+  outreachList: RecruiterSourcingOutreachItem[];
   outreachQuota: number | null;
   outreachRemaining: number | null;
   outreachPending: boolean;
@@ -1343,6 +1382,14 @@ function PotentialCandidatesColumn({
   ready: boolean;
 }) {
   const [page, setPage] = useState(1);
+
+  const outreachStatusByCand = useMemo(() => {
+    const m = new Map<string, SourcingOutreachStatus>();
+    for (const item of outreachList) {
+      m.set(item.candidateId, item.status ?? 'pending_contact');
+    }
+    return m;
+  }, [outreachList]);
 
   const isStatusTab =
     selectedRoundId === 'all' ||
@@ -1662,10 +1709,36 @@ function PotentialCandidatesColumn({
                             </span>
                           ) : null}
                           {isOutreached ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-                              <Headphones className="h-2.5 w-2.5" />
-                              Inlink đang liên hệ
-                            </span>
+                            (() => {
+                              const st = outreachStatusByCand.get(row.candidateId) ?? 'pending_contact';
+                              const meta = SOURCING_OUTREACH_STATUS_META[st];
+                              const toneClass =
+                                st === 'applied'
+                                  ? 'bg-emerald-100 text-emerald-800 ring-emerald-300'
+                                  : st === 'agreed'
+                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                                    : st === 'guided_pending_apply'
+                                      ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
+                                      : st === 'awaiting_reply'
+                                        ? 'bg-sky-50 text-sky-700 ring-sky-200'
+                                        : st === 'declined'
+                                          ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                                          : st === 'unreachable'
+                                            ? 'bg-slate-100 text-slate-600 ring-slate-200'
+                                            : 'bg-amber-50 text-amber-800 ring-amber-200';
+                              return (
+                                <span
+                                  title={meta.description}
+                                  className={clsx(
+                                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1',
+                                    toneClass,
+                                  )}
+                                >
+                                  <Headphones className="h-2.5 w-2.5" />
+                                  {meta.label}
+                                </span>
+                              );
+                            })()
                           ) : null}
                           {isShortlisted ? (
                             <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
@@ -1814,27 +1887,39 @@ function PotentialCandidatesColumn({
 function QuotaGrid({
   entitlements: e,
   hasOutreach,
-  scanRoundsCount,
   totalMatchedCount,
   highMatchCount,
+  shortlistedCount,
   openedCount,
-  appliedCount,
+  connectedCount,
+  outreachStats,
   onOpenPosition,
   onOpenReport,
   onOpenRevision,
+  onFilterAllPotential,
+  onFilterViewed,
   onFilterShortlist,
   onFilterOutreach,
 }: {
   entitlements: RecruiterSourcingEntitlements;
   hasOutreach: boolean;
-  scanRoundsCount: number;
   totalMatchedCount: number;
   highMatchCount: number;
+  shortlistedCount: number;
   openedCount: number;
-  appliedCount: number;
+  connectedCount: number;
+  outreachStats: {
+    handedOver: number;
+    contacted: number;
+    agreed: number;
+    guided: number;
+    applied: number;
+  };
   onOpenPosition?: () => void;
   onOpenReport?: () => void;
   onOpenRevision?: () => void;
+  onFilterAllPotential?: () => void;
+  onFilterViewed?: () => void;
   onFilterShortlist?: () => void;
   onFilterOutreach?: () => void;
 }) {
@@ -1842,7 +1927,7 @@ function QuotaGrid({
   const outreachU = e.outreachUsed ?? e.shortlistsUsed;
   const outreachR = e.outreachRemaining ?? e.shortlistsRemaining;
 
-  const rows: {
+  type KpiCardItem = {
     label: string;
     value: string | number;
     badge?: string;
@@ -1850,148 +1935,263 @@ function QuotaGrid({
     tone: string;
     actionHint?: string;
     onClick?: () => void;
-  }[] = [
-    {
-      label: 'Vị trí',
-      value: e.positionQuota == null ? '∞' : String(e.positionsRemaining ?? 0),
-      badge: fmtQuota(e.positionsUsed, e.positionQuota, e.positionsRemaining),
-      icon: Briefcase,
-      tone: 'bg-brand-50 text-brand-700',
-      actionHint: onOpenPosition ? 'Bấm để tạo Tin Săn' : undefined,
-      onClick: onOpenPosition,
-    },
-    {
-      label: 'Credit',
-      value: e.creditQuota == null ? '∞' : String(e.profileOpensRemaining ?? 0),
-      badge: fmtQuota(e.profileOpensUsed, e.creditQuota, e.profileOpensRemaining),
-      icon: Coins,
-      tone: 'bg-accent-50 text-accent-700',
-      actionHint: 'Ưu tiên trừ trước ví lẻ',
-    },
-    {
-      label: 'Điều chỉnh',
-      value: e.revisionQuota == null ? '∞' : String(e.revisionsRemaining ?? 0),
-      badge: fmtQuota(e.revisionsUsed, e.revisionQuota, e.revisionsRemaining),
-      icon: RefreshCw,
-      tone: 'bg-[#e7eef8] text-brand-700',
-      actionHint: onOpenRevision ? 'Sửa tiêu chí JD & quét lại' : undefined,
-      onClick: onOpenRevision,
-    },
-    {
-      label: hasOutreach ? 'Giao Inlink liên hệ' : 'Shortlist',
-      value: hasOutreach
-        ? outreachQ == null
-          ? '∞'
-          : String(outreachR ?? 0)
-        : e.shortlistQuota == null
-          ? '∞'
-          : String(e.shortlistsRemaining ?? 0),
-      badge: hasOutreach
-        ? fmtQuota(outreachU, outreachQ ?? 15, outreachR ?? 0)
-        : fmtQuota(e.shortlistsUsed, e.shortlistQuota, e.shortlistsRemaining),
-      icon: hasOutreach ? Headphones : ListChecks,
-      tone: 'bg-indigo-50 text-indigo-700',
-      actionHint: hasOutreach
-        ? 'Lọc ứng viên đã giao Inlink liên hệ'
-        : onFilterShortlist
-          ? 'Lọc ứng viên đã Shortlist'
-          : undefined,
-      onClick: hasOutreach ? onFilterOutreach : onFilterShortlist,
-    },
-    {
-      label: 'Đợt quét 2h/lần',
-      value: scanRoundsCount,
-      icon: Clock,
-      tone: 'bg-brand-50 text-brand-700',
-    },
+  };
+
+  // HÀNG 1: HIỆU QUẢ TÌM KIẾM ỨNG VIÊN (Chung cho mọi gói)
+  const searchEffectivenessRows: KpiCardItem[] = [
     {
       label: 'Tổng phù hợp',
       value: totalMatchedCount,
       icon: Users,
       tone: 'bg-[#e7eef8] text-brand-700',
+      actionHint: 'Tổng số ứng viên tiềm năng được hệ thống AI Matching tìm thấy và đánh giá phù hợp với tiêu chí tuyển dụng',
+      onClick: onFilterAllPotential,
     },
     {
       label: 'Khớp cao ≥ 80%',
       value: highMatchCount,
       icon: Sparkles,
       tone: 'bg-accent-50 text-accent-700',
+      actionHint: 'Số ứng viên tiềm năng có điểm phù hợp từ 80% trở lên',
+      onClick: onFilterAllPotential,
+    },
+    {
+      label: 'Đã Shortlist',
+      value: shortlistedCount,
+      icon: BookmarkCheck,
+      tone: 'bg-indigo-50 text-indigo-700',
+      actionHint: 'Số ứng viên tiềm năng được doanh nghiệp đưa vào danh sách lựa chọn',
+      onClick: onFilterShortlist,
     },
     {
       label: 'Đã mở hồ sơ',
       value: openedCount,
       icon: Eye,
       tone: 'bg-brand-50 text-brand-700',
+      actionHint: 'Số hồ sơ ứng viên tiềm năng doanh nghiệp đã sử dụng Credit để xem thông tin chi tiết',
+      onClick: onFilterViewed,
     },
     {
-      label: 'Nộp ứng tuyển',
-      value: appliedCount,
+      label: 'Đã kết nối',
+      value: connectedCount,
       icon: CheckCircle2,
       tone: 'bg-emerald-50 text-emerald-700',
+      actionHint: 'Số ứng viên tiềm năng doanh nghiệp đã chủ động kết nối trực tiếp',
+      onClick: onFilterViewed,
+    },
+  ];
+
+  // HÀNG 2: HIỆU QUẢ HỖ TRỢ CHUYÊN SÂU (Chỉ áp dụng gói Chuyên sâu)
+  const outreachEffectivenessRows: KpiCardItem[] = [
+    {
+      label: 'Đã bàn giao',
+      value: outreachStats.handedOver,
+      icon: Headphones,
+      tone: 'bg-indigo-50 text-indigo-700',
+      actionHint: 'Số ứng viên doanh nghiệp đã lựa chọn và bàn giao cho Inlink hỗ trợ liên hệ',
+      onClick: onFilterOutreach,
     },
     {
-      label: 'Báo cáo',
+      label: 'Đã liên hệ',
+      value: outreachStats.contacted,
+      icon: Clock,
+      tone: 'bg-brand-50 text-brand-700',
+      actionHint: 'Số ứng viên Inlink đã liên hệ thành công và ghi nhận kết quả tiếp cận',
+      onClick: onFilterOutreach,
+    },
+    {
+      label: 'Đồng ý kết nối',
+      value: outreachStats.agreed,
+      icon: Users,
+      tone: 'bg-accent-50 text-accent-700',
+      actionHint: 'Số ứng viên đồng ý tìm hiểu cơ hội việc làm và cho phép Inlink kết nối với doanh nghiệp',
+      onClick: onFilterOutreach,
+    },
+    {
+      label: 'Đã hướng dẫn ứng tuyển',
+      value: outreachStats.guided,
+      icon: ListChecks,
+      tone: 'bg-[#e7eef8] text-brand-700',
+      actionHint: 'Số ứng viên đã được Inlink hướng dẫn cách xem thông tin công việc và thực hiện ứng tuyển vào Tin tuyển dụng phù hợp',
+      onClick: onFilterOutreach,
+    },
+    {
+      label: 'Đã ứng tuyển',
+      value: outreachStats.applied,
+      icon: CheckCircle2,
+      tone: 'bg-emerald-50 text-emerald-700',
+      actionHint: 'Số ứng viên đã hoàn tất nộp hồ sơ thành công vào Tin tuyển dụng của doanh nghiệp',
+      onClick: onFilterOutreach,
+    },
+  ];
+
+  // HÀNG 3: TÀI NGUYÊN DỊCH VỤ (Chung cho mọi gói)
+  const resourceRows: KpiCardItem[] = [
+    {
+      label: 'Vị trí còn',
+      value: e.positionQuota == null ? '∞' : String(e.positionsRemaining ?? 0),
+      badge: fmtQuota(e.positionsUsed, e.positionQuota, e.positionsRemaining),
+      icon: Briefcase,
+      tone: 'bg-brand-50 text-brand-700',
+      actionHint: onOpenPosition
+        ? 'Số vị trí tuyển dụng doanh nghiệp còn được phép sử dụng · Bấm để tạo Tin Săn'
+        : 'Số vị trí tuyển dụng doanh nghiệp còn được phép sử dụng',
+      onClick: onOpenPosition,
+    },
+    {
+      label: 'Credit còn',
+      value: e.creditQuota == null ? '∞' : String(e.profileOpensRemaining ?? 0),
+      badge: fmtQuota(e.profileOpensUsed, e.creditQuota, e.profileOpensRemaining),
+      icon: Coins,
+      tone: 'bg-accent-50 text-accent-700',
+      actionHint: 'Số Credit còn lại trong gói để mở hồ sơ ứng viên (ưu tiên trừ trước ví lẻ)',
+    },
+    {
+      label: 'Lượt điều chỉnh còn',
+      value: e.revisionQuota == null ? '∞' : String(e.revisionsRemaining ?? 0),
+      badge: fmtQuota(e.revisionsUsed, e.revisionQuota, e.revisionsRemaining),
+      icon: RefreshCw,
+      tone: 'bg-[#e7eef8] text-brand-700',
+      actionHint: onOpenRevision
+        ? 'Số lượt còn được điều chỉnh tiêu chí tìm kiếm hoặc JD · Bấm để sửa tiêu chí'
+        : 'Số lượt còn được điều chỉnh tiêu chí tìm kiếm hoặc JD',
+      onClick: onOpenRevision,
+    },
+    {
+      label: 'Lượt bàn giao Inlink còn',
+      value: hasOutreach
+        ? outreachQ == null
+          ? '∞'
+          : String(outreachR ?? 0)
+        : '0',
+      badge: hasOutreach
+        ? fmtQuota(outreachU, outreachQ ?? 15, outreachR ?? 0)
+        : 'Gói Chuyên sâu',
+      icon: Headphones,
+      tone: 'bg-indigo-50 text-indigo-700',
+      actionHint: hasOutreach
+        ? 'Số lượt doanh nghiệp còn được bàn giao ứng viên cho Inlink hỗ trợ liên hệ · Bấm để lọc danh sách'
+        : 'Nâng cấp gói Tin săn Chuyên sâu để bàn giao ứng viên cho Inlink hỗ trợ liên hệ',
+      onClick: hasOutreach ? onFilterOutreach : undefined,
+    },
+    {
+      label: 'Báo cáo còn',
       value: e.searchRoundQuota == null ? '∞' : String(e.searchRoundsRemaining ?? 0),
       badge: fmtQuota(e.searchRoundsUsed, e.searchRoundQuota, e.searchRoundsRemaining),
       icon: FileSearch,
       tone: 'bg-emerald-50 text-emerald-700',
-      actionHint: onOpenReport ? 'Xem phễu & khuyến nghị AI' : undefined,
+      actionHint: onOpenReport
+        ? 'Số lượt báo cáo doanh nghiệp còn được sử dụng theo gói dịch vụ · Bấm để xem báo cáo tiến độ'
+        : 'Số lượt báo cáo doanh nghiệp còn được sử dụng theo gói dịch vụ',
       onClick: onOpenReport,
     },
   ];
+
   const ended = cycleEnded(e.assignment?.endsAt);
   const endLabel = e.assignment?.endsAt
     ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(e.assignment.endsAt))
     : null;
-  return (
-    <section>
-      {ended || endLabel ? (
-        <p className="mb-3 text-xs text-slate-500">
-          {ended
-            ? `Gói đã hết hạn${endLabel ? ` ngày ${endLabel}` : ''}.`
-            : endLabel
-              ? `Dùng đến ${endLabel}.`
-              : null}
-        </p>
-      ) : null}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-        {rows.map((r) => {
-          const Icon = r.icon;
-          const Tag = r.onClick ? 'button' : 'div';
-          return (
-            <Tag
-              key={r.label}
-              type={r.onClick ? 'button' : undefined}
-              onClick={r.onClick}
-              title={r.actionHint}
-              className={clsx(
-                'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200',
-                r.onClick && 'cursor-pointer',
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span
-                  className={clsx(
-                    'flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110',
-                    r.tone,
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                </span>
-                {r.badge ? (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                    {r.badge}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-3 text-sm font-medium text-slate-500">{r.label}</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{r.value}</p>
+
+  const renderCardGrid = (items: KpiCardItem[]) => (
+    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      {items.map((r) => {
+        const Icon = r.icon;
+        const Tag = r.onClick ? 'button' : 'div';
+        return (
+          <Tag
+            key={r.label}
+            type={r.onClick ? 'button' : undefined}
+            onClick={r.onClick}
+            title={r.actionHint}
+            className={clsx(
+              'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200',
+              r.onClick && 'cursor-pointer',
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
               <span
-                aria-hidden
-                className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80"
-              />
-            </Tag>
-          );
-        })}
+                className={clsx(
+                  'flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110',
+                  r.tone,
+                )}
+              >
+                <Icon className="h-5 w-5" />
+              </span>
+              {r.badge ? (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                  {r.badge}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-3 text-sm font-medium text-slate-500">{r.label}</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{r.value}</p>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80"
+            />
+          </Tag>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <section className="space-y-5">
+      {/* 1. HIỆU QUẢ TÌM KIẾM ỨNG VIÊN */}
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
+              1. HIỆU QUẢ TÌM KIẾM ỨNG VIÊN
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Theo dõi hiệu quả hệ thống tìm kiếm và hoạt động khai thác ứng viên tiềm năng của doanh nghiệp.
+            </p>
+          </div>
+        </div>
+        {renderCardGrid(searchEffectivenessRows)}
+      </div>
+
+      {/* 2. HIỆU QUẢ HỖ TRỢ CHUYÊN SÂU (Chỉ hiển thị khi gói Chuyên sâu / hasOutreach) */}
+      {hasOutreach ? (
+        <div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
+              2. HIỆU QUẢ HỖ TRỢ CHUYÊN SÂU
+            </h2>
+            <span className="rounded-full bg-orange-100/90 px-2.5 py-0.5 text-[11px] font-bold text-[#c95b12]">
+              Chỉ áp dụng gói Chuyên sâu
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Theo dõi toàn bộ quá trình Inlink hỗ trợ doanh nghiệp tiếp cận, kết nối và chuyển đổi ứng viên thành hồ sơ ứng tuyển.
+          </p>
+          {renderCardGrid(outreachEffectivenessRows)}
+        </div>
+      ) : null}
+
+      {/* 3. TÀI NGUYÊN DỊCH VỤ */}
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
+              {hasOutreach ? '3. TÀI NGUYÊN DỊCH VỤ' : '2. TÀI NGUYÊN DỊCH VỤ'}
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Theo dõi số lượng tài nguyên và quyền lợi dịch vụ còn lại trong gói Tin săn.
+            </p>
+          </div>
+          {ended || endLabel ? (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {ended
+                ? `Gói đã hết hạn${endLabel ? ` ngày ${endLabel}` : ''}`
+                : endLabel
+                  ? `Dùng đến ${endLabel}`
+                  : null}
+            </span>
+          ) : null}
+        </div>
+        {renderCardGrid(resourceRows)}
       </div>
     </section>
   );

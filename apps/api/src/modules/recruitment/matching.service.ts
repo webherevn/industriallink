@@ -771,10 +771,11 @@ export class MatchingService {
       .filter((r) => !r.applied && r.match.score >= MIN_ENGINE_SCORE)
       .sort((a, b) => b.match.score - a.match.score);
     const ranked = [...appliedRows, ...networkRows].slice(0, MATCH_LIMIT);
-    const viewedIds = await this.viewedCandidateIds(
-      companyId,
-      ranked.map((row) => row.candidateId),
-    );
+    const candidateIdList = ranked.map((row) => row.candidateId);
+    const [viewedIds, connectedIds] = await Promise.all([
+      this.viewedCandidateIds(companyId, candidateIdList),
+      this.connectedCandidateIds(companyId, candidateIdList),
+    ]);
 
     return ranked.map(
       (row): CandidateMatchView => ({
@@ -786,6 +787,7 @@ export class MatchingService {
         match: row.match,
         applied: row.applied,
         viewed: viewedIds.has(row.candidateId),
+        connected: connectedIds.has(row.candidateId),
       }),
     );
   }
@@ -805,6 +807,34 @@ export class MatchingService {
       distinct: ['candidateId'],
     });
     return new Set(rows.flatMap((row) => (row.candidateId ? [row.candidateId] : [])));
+  }
+
+  /** Công ty đã chủ động kết nối trực tiếp với ứng viên (gửi yêu cầu kết nối hoặc mở liên hệ). */
+  private async connectedCandidateIds(companyId: string, candidateIds: string[]): Promise<Set<string>> {
+    if (candidateIds.length === 0) return new Set();
+    const [connRows, txRows] = await Promise.all([
+      this.prisma.candidateConnection.findMany({
+        where: {
+          companyId,
+          candidateId: { in: candidateIds },
+          status: { not: 'cancelled' },
+        },
+        select: { candidateId: true },
+      }),
+      this.prisma.billingCreditTransaction.findMany({
+        where: {
+          companyId,
+          candidateId: { in: candidateIds },
+          action: { in: ['contact_potential', 'contact_applicant'] },
+        },
+        select: { candidateId: true },
+        distinct: ['candidateId'],
+      }),
+    ]);
+    return new Set([
+      ...connRows.map((r) => r.candidateId),
+      ...txRows.flatMap((r) => (r.candidateId ? [r.candidateId] : [])),
+    ]);
   }
 
   /** Gợi ý tin tuyển dụng phù hợp cho ứng viên đang đăng nhập. */

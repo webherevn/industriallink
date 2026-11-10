@@ -442,10 +442,54 @@ export interface RecruiterSourcingUsageView {
   createdAt: string;
 }
 
+export type SourcingOutreachStatus =
+  | 'pending_contact'
+  | 'unreachable'
+  | 'awaiting_reply'
+  | 'declined'
+  | 'agreed'
+  | 'guided_pending_apply'
+  | 'applied';
+
+export const SOURCING_OUTREACH_STATUS_META: Record<
+  SourcingOutreachStatus,
+  { label: string; description: string }
+> = {
+  pending_contact: {
+    label: 'Chờ liên hệ',
+    description: 'Inlink chưa thực hiện liên hệ',
+  },
+  unreachable: {
+    label: 'Không liên hệ được',
+    description: 'Chưa tiếp cận được ứng viên',
+  },
+  awaiting_reply: {
+    label: 'Chờ phản hồi',
+    description: 'Đã liên hệ nhưng chưa nhận được phản hồi',
+  },
+  declined: {
+    label: 'Từ chối kết nối',
+    description: 'Ứng viên không có nhu cầu',
+  },
+  agreed: {
+    label: 'Đồng ý kết nối',
+    description: 'Ứng viên đồng ý tìm hiểu cơ hội',
+  },
+  guided_pending_apply: {
+    label: 'Chưa ứng tuyển',
+    description: 'Đã được hướng dẫn nhưng chưa nộp hồ sơ',
+  },
+  applied: {
+    label: 'Đã ứng tuyển',
+    description: 'Đã nộp hồ sơ thành công',
+  },
+};
+
 export interface RecruiterSourcingOutreachItem {
   candidateId: string;
   candidateName: string;
   note: string | null;
+  status?: SourcingOutreachStatus;
   createdAt: string;
 }
 
