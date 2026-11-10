@@ -281,13 +281,15 @@ function HeroPublic({
   stats,
   page,
   checkoutReady,
+  onSelectTab,
 }: {
   stats: ReturnType<typeof computeStats> | null;
   page: BillingPageContentView;
   checkoutReady: boolean;
+  onSelectTab?: (tab: PricingTab) => void;
 }) {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-[#072348] via-[#0a2d5e] to-[#0d3b80] pb-12 pt-14 text-white sm:pb-16 sm:pt-20">
+    <section className="relative overflow-hidden bg-gradient-to-br from-[#072348] via-[#0a2d5e] to-[#0d3b80] pb-12 pt-12 text-white sm:pb-16 sm:pt-16">
       <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-amber-500/15 blur-3xl" aria-hidden="true" />
       <div className="absolute -bottom-40 -left-20 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" aria-hidden="true" />
 
@@ -302,75 +304,164 @@ function HeroPublic({
       />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-500/10 px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
-            <Sparkles className="h-3 w-3" /> {page.heroBadge}
-          </span>
-
-          <h1 className="mt-5 text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">
-            <span className="block">{page.heroHeading}</span>
-            <span className="bg-gradient-to-r from-amber-300 to-amber-200 bg-clip-text text-transparent">
-              {page.heroHeadingAccent}
+        <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
+          {/* Left Column: Headline & Primary CTAs (matches HomeHero style) */}
+          <div className="home-reasons-head text-center lg:col-span-7 lg:text-left">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-500/10 px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
+              <Sparkles className="home-reasons-glyph h-3 w-3" /> {page.heroBadge}
             </span>
-          </h1>
+            <span
+              className="home-reasons-mark mx-auto mt-3 block h-1 w-12 origin-center rounded-full bg-[#E8872A] lg:mx-0 lg:origin-left"
+              aria-hidden="true"
+            />
 
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            {page.heroSubtitle}
-          </p>
+            <h1 className="mt-4 text-3xl font-extrabold leading-[1.14] tracking-tight sm:text-5xl">
+              <span className="block">{page.heroHeading}</span>
+              <span className="bg-gradient-to-r from-amber-300 to-amber-200 bg-clip-text text-transparent">
+                {page.heroHeadingAccent}
+              </span>
+            </h1>
 
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href={checkoutReady ? '/recruiter/billing' : '/register'}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition-colors hover:bg-amber-400"
-            >
-              {checkoutReady ? 'Quản lý gói của tôi' : page.heroCtaPrimary} <ArrowRight className="h-4 w-4" />
-            </Link>
-            <a
-              href="#how"
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
-            >
-              <Play className="h-4 w-4" /> {page.heroCtaSecondary}
-            </a>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg lg:mx-0">
+              {page.heroSubtitle}
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <Link
+                href={checkoutReady ? '/recruiter/billing' : '/register'}
+                className="group inline-flex h-12 items-center gap-2 rounded-2xl bg-[#E8872A] px-6 text-sm font-bold text-white shadow-[0_12px_24px_-10px_rgba(232,135,42,0.85)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#d06f18]"
+              >
+                {checkoutReady ? 'Quản lý gói của tôi' : page.heroCtaPrimary}
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+              <a
+                href="#how"
+                className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:bg-white/15"
+              >
+                <Play className="h-4 w-4 text-amber-300" /> {page.heroCtaSecondary}
+              </a>
+            </div>
+
+            <p className="mt-5 text-xs font-medium text-slate-300/90 sm:text-sm">{page.heroSocialProof}</p>
+
+            {stats && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-300 lg:justify-start">
+                <span>
+                  <strong className="text-white">{stats.planCount}</strong> gói nền tảng
+                </span>
+                <span className="text-slate-500">·</span>
+                <span>
+                  <strong className="text-white">{stats.sourcingCount}</strong> gói Săn nhân sự
+                </span>
+                <span className="text-slate-500">·</span>
+                <span>
+                  <strong className="text-white">{stats.topupCount}</strong> mức Top-up Credit
+                </span>
+                {stats.savingPct && (
+                  <>
+                    <span className="text-slate-500">·</span>
+                    <span>
+                      Tiết kiệm đến <strong className="text-amber-300">{stats.savingPct}%</strong> đơn giá Credit
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
-          <p className="mt-5 text-xs font-medium text-slate-400 sm:text-sm">{page.heroSocialProof}</p>
+          {/* Right Column: Floating Dynamic Preview Cards (like HomeHero) */}
+          <div className="home-reasons-item grid gap-3.5 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1" style={{ animationDelay: '140ms' }}>
+            {/* Floating Card 1: AI Matching & Credit Mechanism */}
+            <article className="home-hero-float-card rounded-2xl border border-white/15 bg-white/95 p-4 text-slate-800 shadow-[0_18px_42px_-18px_rgba(2,6,23,0.55)] backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#072348]">
+                  <Sparkles className="h-4 w-4 text-[#E8872A]" />
+                  Cơ chế tính Credit thông minh
+                </span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                  Minh bạch 100%
+                </span>
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                  <span className="font-medium text-slate-600">Xem tổng quan điểm AI Matching</span>
+                  <span className="font-extrabold text-emerald-600">Miễn phí (0đ)</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                  <span className="font-medium text-slate-600">Xem CV ứng viên tự nộp vào tin</span>
+                  <span className="font-extrabold text-emerald-600">0 Credit</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-amber-50/70 px-3 py-2 text-xs">
+                  <span className="font-medium text-slate-700">Chủ động mở CV tiềm năng</span>
+                  <span className="font-extrabold text-[#072348]">1 – 2 Credit / CV</span>
+                </div>
+              </div>
+            </article>
 
-          {stats && (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-300">
-              <span>
-                <strong className="text-white">{stats.planCount}</strong> gói nền tảng
-              </span>
-              <span className="text-slate-500">·</span>
-              <span>
-                <strong className="text-white">{stats.sourcingCount}</strong> gói Săn nhân sự
-              </span>
-              <span className="text-slate-500">·</span>
-              <span>
-                <strong className="text-white">{stats.topupCount}</strong> mức Top-up Credit
-              </span>
-              {stats.savingPct && (
-                <>
-                  <span className="text-slate-500">·</span>
-                  <span>
-                    Tiết kiệm đến <strong className="text-amber-300">{stats.savingPct}%</strong> đơn giá Credit
-                  </span>
-                </>
-              )}
-            </div>
-          )}
+            {/* Floating Card 2: Quick Interactive Service Tier Jump */}
+            <article
+              className="home-hero-float-card rounded-2xl border border-white/15 bg-white/95 p-4 text-slate-800 shadow-[0_18px_42px_-18px_rgba(2,6,23,0.55)] backdrop-blur-md"
+              style={{ animationDelay: '0.8s' }}
+            >
+              <p className="text-xs font-extrabold uppercase tracking-wider text-[#072348]">
+                3 Giải pháp linh hoạt theo nhu cầu
+              </p>
+              <div className="mt-2.5 grid gap-2">
+                {[
+                  {
+                    id: 'platform' as const,
+                    title: page.platformTitle,
+                    desc: 'Tự đăng tin & khai thác kho CV bằng AI',
+                    badge: stats?.maxPlatformPromo ? `-${stats.maxPlatformPromo}%` : '4 gói + Enterprise',
+                  },
+                  {
+                    id: 'sourcing' as const,
+                    title: page.sourcingTitle,
+                    desc: 'Chuyên gia inlink săn & lọc ứng viên',
+                    badge: stats?.maxSourcingPromo ? `-${stats.maxSourcingPromo}%` : 'Theo vị trí',
+                  },
+                  {
+                    id: 'credit' as const,
+                    title: page.creditTitle,
+                    desc: 'Mua thêm lượt mở CV bảo lưu vĩnh viễn',
+                    badge: stats?.savingPct ? `Tiết kiệm ${stats.savingPct}%` : 'Vô thời hạn',
+                  },
+                ].map((tier) => (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => onSelectTab?.(tier.id)}
+                    className="home-audience-row flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2 text-left transition hover:border-amber-300 hover:bg-amber-50/60"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-[#072348]">{tier.title}</p>
+                      <p className="truncate text-[11px] text-slate-500">{tier.desc}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-800">
+                      {tier.badge}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </article>
+          </div>
         </div>
 
         {/* Integrated 3 Trust Commitments Bar */}
         {page.trustItems.length > 0 && (
-          <div className="mx-auto mt-10 grid max-w-5xl gap-3 border-t border-white/10 pt-8 sm:grid-cols-3 sm:gap-4">
+          <div className="mx-auto mt-10 grid max-w-6xl gap-3.5 border-t border-white/10 pt-8 sm:grid-cols-3 sm:gap-4">
             {page.trustItems.map((item, i) => {
               const Icon = TRUST_ICONS[i % TRUST_ICONS.length] ?? Shield;
               return (
                 <div
                   key={`${item.title}-${i}`}
-                  className="flex items-start gap-3.5 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 backdrop-blur-sm"
+                  style={{ animationDelay: `${200 + i * 100}ms` }}
+                  className="home-reasons-item home-stat-item flex items-start gap-3.5 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-3.5 backdrop-blur-sm"
                 >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300">
+                  <div
+                    className="home-reasons-glyph flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300"
+                    style={{ animationDelay: `${i * 0.35}s` }}
+                  >
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
@@ -645,26 +736,112 @@ function SectionNav({
 }
 
 // ============================================================================
-// PROMO & VAT RIBBON (REPLACES 347-DAY COUNTDOWN)
+// PROMO COUNTDOWN & VAT RIBBON (COMPACT, PROFESSIONAL B2B STYLE)
 // ============================================================================
+function computePromoRemaining(nowMs: number) {
+  const now = new Date(nowMs);
+  // Chu kỳ ưu đãi theo đợt trong tháng (tự động gia hạn chu kỳ kế tiếp nếu dưới 2 ngày)
+  let end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  if (end.getTime() - nowMs < 2 * 86_400_000) {
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 15, 23, 59, 59);
+  }
+  const diffSec = Math.max(0, Math.floor((end.getTime() - nowMs) / 1000));
+  const days = Math.floor(diffSec / 86_400);
+  const hours = Math.floor((diffSec % 86_400) / 3_600);
+  const minutes = Math.floor((diffSec % 3_600) / 60);
+  const seconds = diffSec % 60;
+  return { days, hours, minutes, seconds };
+}
+
 function PromoRibbon({
   promoNote,
   vatPercent,
+  showCountdown = false,
 }: {
   promoNote?: string | null;
   vatPercent?: number | null;
+  showCountdown?: boolean;
 }) {
+  const [remaining, setRemaining] = useState<{
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!showCountdown) return;
+    const update = () => setRemaining(computePromoRemaining(Date.now()));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [showCountdown]);
+
   const vatText =
     vatPercent != null
-      ? `Giá hiển thị chưa bao gồm thuế VAT (${vatPercent}%) · Xuất hoá đơn GTGT đầy đủ`
-      : 'Giá hiển thị chưa bao gồm thuế VAT · Hỗ trợ xuất hoá đơn GTGT cho doanh nghiệp';
+      ? `Giá chưa gồm VAT (${vatPercent}%) · Xuất hoá đơn GTGT đầy đủ`
+      : 'Giá chưa gồm VAT · Hỗ trợ xuất hoá đơn GTGT doanh nghiệp';
+
+  const pad = (v: number) => String(v).padStart(2, '0');
+
+  if (showCountdown && promoNote) {
+    const units = [
+      { label: 'Ngày', value: remaining ? pad(remaining.days) : '05' },
+      { label: 'Giờ', value: remaining ? pad(remaining.hours) : '14' },
+      { label: 'Phút', value: remaining ? pad(remaining.minutes) : '38' },
+      { label: 'Giây', value: remaining ? pad(remaining.seconds) : '24' },
+    ];
+
+    return (
+      <div className="home-reasons-item mx-auto mt-6 max-w-5xl overflow-hidden rounded-2xl border border-[#123d73] bg-gradient-to-r from-[#072348] via-[#0b2f5c] to-[#113d73] px-4 py-3.5 text-white shadow-[0_16px_36px_-18px_rgba(7,35,72,0.55)] sm:px-6">
+        <div className="flex flex-col items-center justify-between gap-3.5 lg:flex-row">
+          {/* Left: Promo message & VAT */}
+          <div className="flex flex-col items-center gap-1.5 text-center sm:flex-row sm:gap-3 sm:text-left">
+            <span className="home-step-badge inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#072348] shadow-sm">
+              <Tag className="h-3 w-3" /> Ưu đãi ra mắt
+            </span>
+            <div>
+              <p className="text-xs font-bold text-white sm:text-sm">{promoNote}</p>
+              <p className="mt-0.5 text-[11px] text-slate-300">{vatText}</p>
+            </div>
+          </div>
+
+          {/* Right: Sleek Executive Countdown */}
+          <div className="flex shrink-0 items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-1.5 backdrop-blur-sm">
+            <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-amber-200 sm:inline">
+              Kết thúc sau
+            </span>
+            <div className="flex items-center gap-1.5" aria-label="Thời gian ưu đãi còn lại">
+              {units.map((u, idx) => (
+                <div key={u.label} className="flex items-center gap-1.5">
+                  <div className="flex min-w-[2.9rem] flex-col items-center justify-center rounded-lg border border-amber-400/30 bg-[#061c38]/90 px-2 py-1 shadow-inner">
+                    <span className="font-mono text-sm font-extrabold tabular-nums leading-none text-amber-300 sm:text-base">
+                      {u.value}
+                    </span>
+                    <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-300">
+                      {u.label}
+                    </span>
+                  </div>
+                  {idx < units.length - 1 ? (
+                    <span className="text-xs font-bold text-amber-400/70" aria-hidden="true">
+                      :
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto mt-5 flex max-w-4xl flex-col items-center justify-between gap-2.5 rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/60 px-4 py-3 shadow-sm sm:flex-row sm:px-5">
+    <div className="home-reasons-item mx-auto mt-5 flex max-w-4xl flex-col items-center justify-between gap-2.5 rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/60 px-4 py-3 shadow-sm sm:flex-row sm:px-5">
       {promoNote ? (
         <div className="flex items-center gap-2 text-center sm:text-left">
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#072348]">
-            <Tag className="h-3 w-3" /> Ưu đãi
+          <span className="home-step-badge inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#072348]">
+            <Tag className="h-3 w-3" /> Quyền lợi
           </span>
           <p className="text-xs font-semibold text-slate-800 sm:text-sm">{promoNote}</p>
         </div>
@@ -695,7 +872,7 @@ function buildPlatformPromoSummary(plans: BillingPlatformPlanView[]): string | n
   if (promoPlans.length === 0) return null;
   const maxPct = Math.max(...promoPlans.map((p) => p.promoPercent ?? 0));
   const names = promoPlans.map((p) => p.name).join(', ');
-  return `Ưu đãi ra mắt giảm đến ${maxPct}% cho gói ${names}.`;
+  return `Giảm đến ${maxPct}% cho gói ${names}`;
 }
 
 function PlatformPlansView({
@@ -737,6 +914,8 @@ function PlatformPlansView({
   const isPlanFeatured = (plan: BillingPlatformPlanView) =>
     hasExplicitFeatured ? Boolean(plan.isFeatured) : plan.code === 'TIN_DANG_PLUS';
 
+  const promoNote = buildPlatformPromoSummary(visible);
+
   const cardProps = {
     currency,
     isRecruiter,
@@ -749,22 +928,24 @@ function PlatformPlansView({
 
   return (
     <section id="nentang" aria-labelledby="pricing-title" className="scroll-mt-24">
-      <div id="pricing" className="mb-8 text-center scroll-mt-24">
+      <div id="pricing" className="home-reasons-head mb-8 text-center scroll-mt-24">
         <PricingH2 id="pricing-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
           {page.platformTitle}
         </PricingH2>
         <p className="mt-1.5 text-sm text-slate-500">{page.platformSubtitle}</p>
-        <PromoRibbon promoNote={buildPlatformPromoSummary(visible)} vatPercent={vatPercent} />
+        <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
+        <PromoRibbon promoNote={promoNote} vatPercent={vatPercent} showCountdown={Boolean(promoNote)} />
       </div>
 
       {/* Row 1: 4 Standard Plans on a uniform 4-column grid */}
       <div className="grid min-w-0 items-stretch gap-5 pt-3 md:grid-cols-2 xl:grid-cols-4">
-        {standardPlans.map((p) => {
+        {standardPlans.map((p, idx) => {
           const domId = planDomId(p.code);
           return (
             <PlatformPlanCard
               key={p.id}
               domId={domId}
+              index={idx}
               highlighted={highlightedId === domId}
               plan={p}
               featured={isPlanFeatured(p)}
@@ -789,12 +970,13 @@ function PlatformPlansView({
       {/* Extra custom plans if SuperAdmin adds more */}
       {rest.length > 0 ? (
         <div className="mt-6 grid min-w-0 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {rest.map((p) => {
+          {rest.map((p, idx) => {
             const domId = planDomId(p.code);
             return (
               <PlatformPlanCard
                 key={p.id}
                 domId={domId}
+                index={idx}
                 highlighted={highlightedId === domId}
                 plan={p}
                 featured={Boolean(p.isFeatured)}
@@ -826,6 +1008,7 @@ function PlatformPlansView({
 
 function PlatformPlanCard({
   domId,
+  index = 0,
   highlighted = false,
   plan,
   featured,
@@ -838,6 +1021,7 @@ function PlatformPlanCard({
   canRequestEnterprise,
 }: {
   domId?: string;
+  index?: number;
   highlighted?: boolean;
   plan: BillingPlatformPlanView;
   featured: boolean;
@@ -853,7 +1037,7 @@ function PlatformPlanCard({
   const isEnterprise = plan.code === 'ENTERPRISE';
   const rows = displayFeatureLines(plan);
   const ctaClass = clsx(
-    'inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition',
+    'group/cta inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition-all',
     featured
       ? 'bg-amber-500 text-[#072348] shadow-md shadow-amber-500/20 hover:bg-amber-400'
       : isEnterprise
@@ -865,8 +1049,9 @@ function PlatformPlanCard({
   return (
     <div
       id={domId}
+      style={{ animationDelay: `${index * 90}ms` }}
       className={clsx(
-        'relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-5 transition-all sm:p-6',
+        'home-reasons-item home-solution-card relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-5 transition-all sm:p-6',
         highlighted
           ? 'z-20 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
           : featured
@@ -875,7 +1060,7 @@ function PlatformPlanCard({
       )}
     >
       {featured ? (
-        <span className="absolute -top-3.5 left-6 inline-flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#072348] shadow-sm">
+        <span className="home-step-badge absolute -top-3.5 left-6 inline-flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#072348] shadow-sm">
           <Star className="h-3 w-3 fill-[#072348]" />
           Gói phổ biến nhất
         </span>
@@ -893,7 +1078,7 @@ function PlatformPlanCard({
         </div>
         <span
           className={clsx(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            'home-reasons-glyph flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
             featured ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-[#072348]',
           )}
         >
@@ -963,7 +1148,7 @@ function PlatformPlanCard({
               : checkoutReady || isRecruiter
                 ? 'Nâng cấp ngay'
                 : 'Chọn gói này'}
-          <ArrowRight className="h-3.5 w-3.5" />
+          <ArrowRight className="home-solution-arrow h-3.5 w-3.5" />
         </Link>
       )}
 
@@ -973,9 +1158,9 @@ function PlatformPlanCard({
           Quyền lợi trong gói
         </p>
         <ul className="space-y-2">
-          {rows.map((row, index) => (
+          {rows.map((row, idx) => (
             <li
-              key={`${index}-${row.label}`}
+              key={`${idx}-${row.label}`}
               aria-disabled={row.included ? undefined : true}
               className="flex items-start gap-2"
             >
@@ -1029,16 +1214,17 @@ function EnterprisePlanBanner({
   return (
     <div
       id={domId}
+      style={{ animationDelay: '360ms' }}
       className={clsx(
-        'relative scroll-mt-28 overflow-hidden rounded-3xl border bg-gradient-to-r from-[#072348] via-[#0a2f5e] to-[#0d3b80] p-6 text-white shadow-xl transition-all sm:p-8',
-        highlighted ? 'border-amber-400 ring-4 ring-amber-400/50' : 'border-[#123d73]',
+        'home-reasons-item relative scroll-mt-28 overflow-hidden rounded-3xl border bg-gradient-to-r from-[#072348] via-[#0a2f5e] to-[#0d3b80] p-6 text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl sm:p-8',
+        highlighted ? 'border-amber-400 ring-4 ring-amber-400/50' : 'border-[#123d73] hover:border-amber-400/60',
       )}
     >
       <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-amber-500/15 blur-3xl" aria-hidden="true" />
       <div className="relative grid items-center gap-6 lg:grid-cols-12 lg:gap-8">
         {/* Col 1: Identity & Custom Quote */}
         <div className="lg:col-span-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+          <span className="home-step-badge inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">
             <Building2 className="h-3 w-3" /> Giải pháp Tập đoàn & Nhà máy lớn
           </span>
           <div className="mt-3 flex items-baseline gap-3">
@@ -1064,7 +1250,7 @@ function EnterprisePlanBanner({
               <div
                 key={stat.label}
                 title={stat.hint}
-                className="rounded-xl border border-white/10 bg-white/[0.07] px-2.5 py-2 text-center"
+                className="rounded-xl border border-white/10 bg-white/[0.07] px-2.5 py-2 text-center transition-colors hover:border-amber-400/40 hover:bg-white/10"
               >
                 <p className="text-[10px] font-medium text-slate-300">{stat.label}</p>
                 <p className="mt-0.5 text-base font-extrabold tabular-nums text-amber-300">{stat.value}</p>
@@ -1088,7 +1274,7 @@ function EnterprisePlanBanner({
         <div className="flex flex-col items-stretch justify-center lg:col-span-3">
           {canRequestEnterprise ? (
             <EnterpriseConsultButton
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition hover:bg-amber-400 disabled:opacity-60"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition hover:-translate-y-0.5 hover:bg-amber-400 disabled:opacity-60"
               label="Yêu cầu tư vấn Enterprise"
               noteClassName="mt-2 text-center text-xs text-emerald-300"
               errorClassName="mt-2 text-center text-xs text-rose-300"
@@ -1096,9 +1282,9 @@ function EnterprisePlanBanner({
           ) : (
             <Link
               href={enterpriseCtaHref()}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition hover:bg-amber-400"
+              className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition hover:-translate-y-0.5 hover:bg-amber-400"
             >
-              Liên hệ tư vấn báo giá <ArrowRight className="h-4 w-4" />
+              Liên hệ tư vấn báo giá <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Link>
           )}
           <p className="mt-2 text-center text-[11px] text-slate-300">
@@ -1117,7 +1303,7 @@ function buildSourcingPromoSummary(plans: BillingSourcingPlanView[]): string | n
   const promoPlans = plans.filter((p) => p.promoPercent && p.promoPercent > 0);
   if (promoPlans.length === 0) return null;
   const maxPct = Math.max(...promoPlans.map((p) => p.promoPercent ?? 0));
-  return `Ưu đãi ra mắt: giảm ${maxPct}% phí dịch vụ cho các gói Săn nhân sự theo vị trí.`;
+  return `Giảm ${maxPct}% phí dịch vụ cho các gói Săn nhân sự theo vị trí`;
 }
 
 function SourcingPlansView({
@@ -1140,27 +1326,30 @@ function SourcingPlansView({
   page: BillingPageContentView;
 }) {
   const activePlans = plans.filter((p) => p.isActive);
+  const promoNote = buildSourcingPromoSummary(activePlans);
 
   return (
     <section id="tinsan" aria-labelledby="sourcing" className="scroll-mt-24">
-      <div className="mb-8 text-center">
+      <div className="home-reasons-head mb-8 text-center">
         <PricingH2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-24">
           {page.sourcingTitle}
         </PricingH2>
         <p className="mt-1.5 text-sm text-slate-500">{page.sourcingSubtitle}</p>
-        <p className="mx-auto mt-2 max-w-3xl text-xs leading-relaxed text-slate-600 sm:text-sm">
+        <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
+        <p className="mx-auto mt-3 max-w-3xl text-xs leading-relaxed text-slate-600 sm:text-sm">
           Đội ngũ chuyên gia {PRICING_BRAND} trực tiếp tìm kiếm, sàng lọc và bàn giao ứng viên theo tiêu chí kỹ thuật của nhà máy. Giá gói đã bao gồm quyền đăng tin và sử dụng nền tảng cho vị trí đó.
         </p>
-        <PromoRibbon promoNote={buildSourcingPromoSummary(activePlans)} vatPercent={vatPercent} />
+        <PromoRibbon promoNote={promoNote} vatPercent={vatPercent} showCountdown={Boolean(promoNote)} />
       </div>
 
       <div className="grid items-stretch gap-5 pt-3 md:grid-cols-2 lg:grid-cols-3">
-        {activePlans.map((p) => {
+        {activePlans.map((p, idx) => {
           const domId = planDomId(p.code);
           return (
             <SourcingPlanCard
               key={p.id}
               domId={domId}
+              index={idx}
               highlighted={highlightedId === domId}
               plan={p}
               currency={currency}
@@ -1190,12 +1379,14 @@ function SourcingPlansView({
 
 function SourcingPlanCard({
   domId,
+  index = 0,
   highlighted = false,
   plan,
   currency,
   planCtaHref,
 }: {
   domId?: string;
+  index?: number;
   highlighted?: boolean;
   plan: BillingSourcingPlanView;
   currency: BillingCurrencyDisplay;
@@ -1205,8 +1396,9 @@ function SourcingPlanCard({
   return (
     <div
       id={domId}
+      style={{ animationDelay: `${index * 100}ms` }}
       className={clsx(
-        'relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-6 transition-all',
+        'home-reasons-item home-solution-card relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-6 transition-all',
         highlighted
           ? 'z-20 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
           : featured
@@ -1215,7 +1407,7 @@ function SourcingPlanCard({
       )}
     >
       {featured ? (
-        <span className="absolute -top-3.5 left-6 inline-flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#072348] shadow-sm">
+        <span className="home-step-badge absolute -top-3.5 left-6 inline-flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#072348] shadow-sm">
           <Star className="h-3 w-3 fill-[#072348]" /> Đề xuất tối ưu
         </span>
       ) : null}
@@ -1231,7 +1423,7 @@ function SourcingPlanCard({
         </div>
         <div
           className={clsx(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            'home-reasons-glyph flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
             featured ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-[#072348]',
           )}
         >
@@ -1280,7 +1472,7 @@ function SourcingPlanCard({
         )}
       >
         {planCtaHref(plan.code).startsWith('/recruiter') ? 'Đăng ký gói Săn' : 'Chọn gói Săn này'}{' '}
-        <ArrowRight className="h-3.5 w-3.5" />
+        <ArrowRight className="home-solution-arrow h-3.5 w-3.5" />
       </Link>
 
       {/* Service scope */}
@@ -1367,11 +1559,12 @@ function CreditTopupView({
 
   return (
     <section aria-labelledby="credit" className="scroll-mt-24">
-      <div className="mb-8 text-center">
+      <div className="home-reasons-head mb-8 text-center">
         <PricingH2 id="credit" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
           {page.creditTitle}
         </PricingH2>
         <p className="mt-2 text-sm text-slate-500">{page.creditSubtitle}</p>
+        <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
         <PromoRibbon
           promoNote="Credit mua thêm có thời hạn vĩnh viễn và được bảo lưu ngay cả khi gói đăng tin hết hạn."
           vatPercent={vatPercent}
@@ -1379,9 +1572,10 @@ function CreditTopupView({
       </div>
 
       <div className="grid items-stretch gap-5 pt-3 md:grid-cols-2 lg:grid-cols-3">
-        {activeTopups.map((t) => (
+        {activeTopups.map((t, idx) => (
           <CreditTopupCard
             key={t.id}
+            index={idx}
             topup={t}
             maxUnitPrice={maxUnitPrice}
             currency={currency}
@@ -1414,11 +1608,13 @@ function CreditTopupView({
 }
 
 function CreditTopupCard({
+  index = 0,
   topup,
   maxUnitPrice,
   currency,
   topupCtaHref,
 }: {
+  index?: number;
   topup: BillingCreditTopupView;
   maxUnitPrice: number;
   currency: BillingCurrencyDisplay;
@@ -1433,15 +1629,16 @@ function CreditTopupCard({
 
   return (
     <div
+      style={{ animationDelay: `${index * 100}ms` }}
       className={clsx(
-        'relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition-all',
+        'home-reasons-item home-solution-card relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition-all',
         featured
           ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
           : 'border-slate-200 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
       )}
     >
       {topup.badge || featured ? (
-        <span className="absolute -top-3.5 left-6 inline-flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#072348] shadow-sm">
+        <span className="home-step-badge absolute -top-3.5 left-6 inline-flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#072348] shadow-sm">
           <Star className="h-3 w-3 fill-[#072348]" />
           {topup.badge ?? 'Được chọn nhiều'}
         </span>
@@ -1456,7 +1653,7 @@ function CreditTopupCard({
         </div>
         <span
           className={clsx(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            'home-reasons-glyph flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
             featured ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-[#072348]',
           )}
         >
@@ -1509,52 +1706,78 @@ function CreditTopupCard({
             : 'bg-[#072348] text-white shadow-sm hover:bg-[#0d3b80]',
         )}
       >
-        Mua gói Credit này <ArrowRight className="h-3.5 w-3.5" />
+        Mua gói Credit này <ArrowRight className="home-solution-arrow h-3.5 w-3.5" />
       </Link>
     </div>
   );
 }
 
 // ============================================================================
-// HOW IT WORKS & PLATFORM FEATURES
+// HOW IT WORKS & PLATFORM FEATURES (ANIMATED LIKE HOME-STEPS & HOME-REASONS)
 // ============================================================================
 function HowItWorksSection({ page }: { page: BillingPageContentView }) {
   return (
     <section
       id="how"
       aria-labelledby="how-title"
-      className="relative overflow-hidden bg-gradient-to-br from-[#072348] to-[#0d3b80] py-14 text-white sm:py-20 scroll-mt-20"
+      className="relative overflow-hidden bg-gradient-to-br from-[#072348] via-[#0b2f5c] to-[#0d3b80] py-14 text-white sm:py-20 scroll-mt-20"
     >
-      <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-20"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+        aria-hidden="true"
+      />
+      <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-amber-500/15 blur-3xl" aria-hidden="true" />
       <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" aria-hidden="true" />
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-10 text-center">
+        <div className="home-reasons-head mb-10 text-center">
           <PricingH2 id="how-title" className="text-2xl font-bold sm:text-3xl">
             {page.howTitle}
           </PricingH2>
           <p className="mt-2 text-sm text-slate-300">{page.howSubtitle}</p>
+          <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
         </div>
 
         <dl className="grid gap-6 lg:grid-cols-3">
           {page.howSteps.map((step, i) => (
-            <div key={`${step.title}-${i}`} className="relative flex">
-              <div className="flex w-full flex-col rounded-2xl border border-white/10 bg-white/[0.06] p-6 backdrop-blur-sm">
+            <div
+              key={`${step.title}-${i}`}
+              style={{ animationDelay: `${i * 120}ms` }}
+              className="home-reasons-item relative flex"
+            >
+              <div
+                style={{ animationDelay: `${i * 0.8}s` }}
+                className="home-hero-float-card group flex w-full flex-col rounded-2xl border border-white/15 bg-white/[0.07] p-6 backdrop-blur-sm transition-colors hover:border-amber-400/50 hover:bg-white/[0.11]"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/20 text-lg font-extrabold text-amber-300">
+                  <span
+                    style={{ animationDelay: `${i * 0.6}s` }}
+                    className="home-step-badge inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400/20 text-lg font-extrabold text-amber-300 ring-1 ring-inset ring-amber-400/30"
+                  >
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   {i < page.howSteps.length - 1 && (
-                    <ArrowRight className="hidden h-5 w-5 text-white/30 lg:block" aria-hidden="true" />
+                    <ArrowRight
+                      style={{ animationDelay: `${i * 0.35}s` }}
+                      className="home-step-arrow hidden h-5 w-5 text-amber-300/80 lg:block"
+                      aria-hidden="true"
+                    />
                   )}
                 </div>
-                <dt className="mt-4 text-base font-bold text-white">{step.title}</dt>
+                <dt className="mt-4 text-base font-bold text-white group-hover:text-amber-300 transition-colors">
+                  {step.title}
+                </dt>
                 <dd className="mt-2 text-sm leading-relaxed text-slate-300">{step.desc}</dd>
               </div>
             </div>
           ))}
         </dl>
 
-        <p className="mx-auto mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-xs font-medium text-amber-200 sm:text-sm">
+        <p className="home-reasons-item mx-auto mt-8 max-w-2xl rounded-xl border border-amber-400/30 bg-white/[0.06] px-4 py-3 text-center text-xs font-medium text-amber-200 backdrop-blur-sm sm:text-sm">
           {page.howFooter}
         </p>
       </div>
@@ -1564,13 +1787,18 @@ function HowItWorksSection({ page }: { page: BillingPageContentView }) {
 
 function FeaturesSection({ page }: { page: BillingPageContentView }) {
   return (
-    <section id="features" aria-labelledby="features-title" className="bg-slate-50 py-14 sm:py-20 scroll-mt-20">
+    <section
+      id="features"
+      aria-labelledby="features-title"
+      className="relative overflow-hidden bg-[radial-gradient(900px_420px_at_8%_-8%,rgba(240,138,36,0.09),transparent_62%),radial-gradient(880px_420px_at_94%_108%,rgba(12,47,87,0.08),transparent_65%),#f8fafc] py-14 sm:py-20 scroll-mt-20"
+    >
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-10 text-center">
+        <div className="home-reasons-head mb-10 text-center">
           <PricingH2 id="features-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
             {page.featuresTitle}
           </PricingH2>
           <p className="mt-2 text-sm text-slate-500">{page.featuresSubtitle}</p>
+          <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {page.features.map((f, i) => {
@@ -1578,12 +1806,18 @@ function FeaturesSection({ page }: { page: BillingPageContentView }) {
             return (
               <div
                 key={`${f.title}-${i}`}
-                className="group rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm transition-all hover:border-slate-300 hover:shadow-md"
+                style={{ animationDelay: `${i * 90}ms` }}
+                className="home-reasons-item home-solution-card group rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm transition-all"
               >
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <div
+                  style={{ animationDelay: `${(i % 3) * 0.45}s` }}
+                  className="home-reasons-glyph mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700 transition-colors group-hover:bg-amber-500 group-hover:text-[#072348]"
+                >
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-base font-bold text-[#072348]">{f.title}</h3>
+                <h3 className="text-base font-bold text-[#072348] transition-colors group-hover:text-[#0d3b80]">
+                  {f.title}
+                </h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.desc}</p>
               </div>
             );
@@ -1601,21 +1835,23 @@ function FAQSection({ page, vatPercent = null }: { page: BillingPageContentView;
   return (
     <section id="faq" aria-labelledby="faq-title" className="border-t border-slate-200/80 bg-white py-14 sm:py-20 scroll-mt-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-10 text-center">
+        <div className="home-reasons-head mb-10 text-center">
           <PricingH2 id="faq-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
             {page.faqTitle}
           </PricingH2>
           <p className="mt-2 text-sm text-slate-500">{page.faqSubtitle}</p>
+          <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
         </div>
         <div className="grid items-start gap-4 lg:grid-cols-2">
           {page.faqItems.map((item, i) => (
             <details
               key={i}
-              className="group overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-50/50 transition-colors open:bg-white open:shadow-sm"
+              style={{ animationDelay: `${i * 70}ms` }}
+              className="home-reasons-item group overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-50/50 transition-all hover:border-amber-300/80 hover:bg-white open:border-amber-400/80 open:bg-white open:shadow-md"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left text-sm font-bold text-[#072348] [&::-webkit-details-marker]:hidden">
                 <span>{item.q}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180 group-open:text-[#072348]" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180 group-open:text-amber-600" />
               </summary>
               <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600">
                 {displayFaqAnswer(item.a, vatPercent)}
@@ -1669,18 +1905,19 @@ function UnifiedBottomCTA({
       className="bg-slate-50 py-14 sm:py-20 scroll-mt-20"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#072348] via-[#0a2d5e] to-[#0d3b80] p-8 text-white shadow-xl sm:p-12">
+        <div className="home-reasons-item relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#072348] via-[#0a2d5e] to-[#0d3b80] p-8 text-white shadow-xl sm:p-12">
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-amber-500/15 blur-3xl" aria-hidden="true" />
           <div className="relative grid items-center gap-8 lg:grid-cols-12">
             {/* Left column: Value prop + Direct start CTA */}
-            <div className="lg:col-span-5">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-200">
+            <div className="home-reasons-head lg:col-span-5">
+              <span className="home-step-badge inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-200">
                 Đồng hành cùng doanh nghiệp công nghiệp
               </span>
               <PricingH2 id="contact-title" className="mt-3 text-2xl font-extrabold leading-tight sm:text-3xl">
                 {page.contactTitle}
               </PricingH2>
-              <p className="mt-2.5 text-sm leading-relaxed text-slate-300">
+              <span className="home-reasons-mark mt-3 block h-1 w-14 rounded-full bg-[#F08A24]" />
+              <p className="mt-3 text-sm leading-relaxed text-slate-300">
                 {page.contactSubtitle}
               </p>
               <p className="mt-2 text-xs text-slate-400">
@@ -1689,23 +1926,25 @@ function UnifiedBottomCTA({
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Link
                   href={checkoutReady ? '/recruiter/billing' : '/register'}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition-colors hover:bg-amber-400"
+                  className="group inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-[#072348] shadow-lg shadow-amber-500/25 transition-all hover:-translate-y-0.5 hover:bg-amber-400"
                 >
-                  {checkoutReady ? 'Quản lý gói của tôi' : 'Đăng ký miễn phí ngay'} <ArrowRight className="h-4 w-4" />
+                  {checkoutReady ? 'Quản lý gói của tôi' : 'Đăng ký miễn phí ngay'}{' '}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               </div>
             </div>
 
             {/* Right column: 3 Direct B2B Contact Channels */}
             <div className="grid gap-3.5 sm:grid-cols-3 lg:col-span-7">
-              {channels.map((ch) => (
+              {channels.map((ch, idx) => (
                 <a
                   key={ch.label}
                   href={ch.href}
-                  className="group flex flex-col justify-between rounded-2xl border border-white/15 bg-white/[0.06] p-5 backdrop-blur-sm transition-all hover:border-amber-300/50 hover:bg-white/10"
+                  style={{ animationDelay: `${idx * 0.7}s` }}
+                  className="home-hero-float-card group flex flex-col justify-between rounded-2xl border border-white/15 bg-white/[0.06] p-5 backdrop-blur-sm transition-all hover:border-amber-300/60 hover:bg-white/10"
                 >
                   <div>
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300">
+                    <div className="home-reasons-glyph mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300">
                       <ch.icon className="h-5 w-5" />
                     </div>
                     <p className="text-xs font-medium text-slate-300">{ch.label}</p>
@@ -1800,14 +2039,14 @@ function CrossSellCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 text-left shadow-sm transition-all hover:border-amber-400 hover:shadow-md"
+      className="home-solution-card group flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 text-left shadow-sm transition-all"
     >
       <div className="min-w-0">
-        <p className="text-sm font-bold text-[#072348] group-hover:text-amber-700">{title}</p>
+        <p className="text-sm font-bold text-[#072348] transition-colors group-hover:text-amber-700">{title}</p>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">{desc}</p>
       </div>
       <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-bold text-[#072348] ring-1 ring-inset ring-amber-300/80 transition-colors group-hover:bg-amber-500">
-        {cta} <ArrowRight className="h-3.5 w-3.5" />
+        {cta} <ArrowRight className="home-solution-arrow h-3.5 w-3.5" />
       </span>
     </button>
   );
@@ -2085,7 +2324,7 @@ export function PricingClient({
       {isRecruiter ? (
         <HeroRecruiter page={page} />
       ) : (
-        <HeroPublic stats={stats} page={page} checkoutReady={checkoutReady} />
+        <HeroPublic stats={stats} page={page} checkoutReady={checkoutReady} onSelectTab={switchTab} />
       )}
 
       {/* 2. STICKY 3-TIER SERVICE SWITCHER & MAIN PRICING */}

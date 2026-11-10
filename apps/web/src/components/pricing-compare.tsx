@@ -731,16 +731,19 @@ export function CompareSection({
             : 'mx-auto max-w-7xl px-4 sm:px-6'
         }
       >
-        <div className="mb-6 text-center">
+        <div className="home-reasons-head mb-6 text-center">
           <h2
             id="compare-title"
-            className="inline-flex items-center justify-center gap-2 text-2xl font-bold text-[#072348] sm:text-3xl"
+            className="inline-flex items-center justify-center gap-2 text-2xl font-extrabold tracking-tight text-[#072348] sm:text-3xl"
           >
-            <BarChart3 className="h-6 w-6 text-[#E8872A]" aria-hidden="true" />
+            <BarChart3 className="home-reasons-glyph h-6 w-6 text-[#E8872A]" aria-hidden="true" />
             {page.compareTitle}
             <span className="sr-only">{PRICING_HEADING_CONTEXT}</span>
           </h2>
-          <p className="mt-2 text-sm text-slate-500">{page.compareSubtitle}</p>
+          <span className="mt-2.5 flex justify-center" aria-hidden="true">
+            <span className="home-reasons-mark block h-[3px] w-10 origin-center rounded-full bg-[#F08A24]" />
+          </span>
+          <p className="mt-3 text-sm text-slate-500">{page.compareSubtitle}</p>
         </div>
 
         <div
