@@ -177,7 +177,7 @@ export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boole
     return false;
   }
 
-  if (isAdminHostname()) {
+  if (isAdminHostname() || isCrmHostname()) {
     if (role === UserRole.Candidate) {
       goToPublicApp('/dashboard');
       return true;
@@ -187,9 +187,12 @@ export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boole
   }
 
   if (role !== UserRole.Candidate && isPublicHostname()) {
-    const dest = isRecruiterAppPath(pathWithSearch) ? pathWithSearch : '/recruiter';
-    goToRecruiterApp(dest);
-    return true;
+    if (isRecruiterAppPath(path)) {
+      goToRecruiterApp(pathWithSearch);
+      return true;
+    }
+    // Nhà tuyển dụng được phép xem trang chủ inlink.vn và các trang công khai mà không bị tự động đẩy về tuyendung.inlink.vn
+    return false;
   }
   if (role === UserRole.Candidate && isRecruiterHostname()) {
     const dest = isRecruiterAppPath(pathWithSearch) ? '/dashboard' : pathWithSearch;

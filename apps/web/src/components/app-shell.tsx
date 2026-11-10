@@ -171,6 +171,7 @@ export function AppShell({
   }
 
   if (
+    !allowGuest &&
     user &&
     user.role !== UserRole.Candidate &&
     !isCmsAdminRole(user.role) &&
@@ -179,10 +180,14 @@ export function AppShell({
     return <RecruiterShell>{children}</RecruiterShell>;
   }
 
-  if (!user || isCmsAdminRole(user.role) || isSalesStaff(user.role)) {
+  if (allowGuest || !user || isCmsAdminRole(user.role) || isSalesStaff(user.role)) {
     return (
       <div className="flex min-h-screen flex-col bg-[#F5F7FB]">
-        <PublicHeader />
+        <PublicHeader
+          user={user ?? null}
+          candidate={candidate ?? null}
+          onLogout={onLogout}
+        />
         <main
           className={
             bleed
