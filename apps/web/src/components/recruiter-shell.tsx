@@ -197,11 +197,13 @@ function CompanyAvatar({
   name,
   sizeClass = 'h-9 w-9',
   textClass = 'text-[11px]',
+  shapeClass = 'rounded-full',
 }: {
   logoUrl: string | null | undefined;
   name: string;
   sizeClass?: string;
   textClass?: string;
+  shapeClass?: string;
 }) {
   const initials = name
     .split(' ')
@@ -217,7 +219,7 @@ function CompanyAvatar({
       <img
         src={logoUrl}
         alt={name}
-        className={clsx(sizeClass, 'rounded-full object-cover ring-2 ring-white')}
+        className={clsx(sizeClass, shapeClass, 'object-cover ring-2 ring-white shadow-2xs')}
       />
     );
   }
@@ -227,7 +229,8 @@ function CompanyAvatar({
       className={clsx(
         sizeClass,
         textClass,
-        'flex items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#93C5FD] font-bold text-[#1D4ED8] ring-2 ring-white',
+        shapeClass,
+        'flex items-center justify-center bg-gradient-to-br from-[#072348] via-[#0c3266] to-[#1E40AF] font-bold text-white shadow-2xs ring-2 ring-white',
       )}
     >
       {initials || 'NT'}
@@ -538,47 +541,81 @@ export function RecruiterShell({
         ))}
       </nav>
 
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-2.5">
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event('inlink-open-guide'))}
-          className="flex w-full items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-sm font-semibold text-[#072348] transition hover:border-amber-300 hover:bg-amber-100"
+          className="flex w-full items-center gap-2.5 rounded-lg border border-amber-200/90 bg-amber-50/80 px-2.5 py-2 text-sm font-semibold text-[#072348] transition hover:border-amber-300 hover:bg-amber-100/80"
         >
           <HelpCircle className="h-4 w-4 text-[#E8872A]" />
-          Hướng dẫn
+          Hướng dẫn sử dụng
         </button>
       </div>
 
-      <div className="border-t border-slate-100 p-4">
-        <div className="flex items-center gap-3">
-          <CompanyAvatar
-            logoUrl={logoUrl}
-            name={displayName}
-            sizeClass="h-10 w-10"
-            textClass="text-sm"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900">
-              {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
-            </p>
-            <div className="mt-1">
-              <AccountPlanChips
-                planCode={planCode}
-                planName={planName}
-                sourcingCode={sourcingCode}
-                sourcingName={sourcingName}
-                compact
+      <div className="border-t border-slate-200/70 bg-gradient-to-b from-slate-50/50 to-slate-100/60 p-3">
+        <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-[0_2px_10px_-4px_rgba(7,35,72,0.08)]">
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/company"
+              className="relative shrink-0 transition-transform hover:scale-105"
+              title="Hồ sơ công ty"
+            >
+              <CompanyAvatar
+                logoUrl={logoUrl}
+                name={displayName}
+                sizeClass="h-10 w-10"
+                textClass="text-xs tracking-wider"
+                shapeClass="rounded-xl"
               />
+              <span
+                className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
+                title="Đang hoạt động"
+              />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <Link
+                href="/company"
+                className="block truncate text-[13px] font-bold text-[#072348] transition hover:text-brand-600"
+              >
+                {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
+              </Link>
+              <p className="truncate text-[11px] font-medium text-slate-400">
+                {user?.email ?? 'Tài khoản doanh nghiệp'}
+              </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            title="Đăng xuất"
+
+          <Link
+            href="/recruiter/billing"
+            className="mt-2.5 flex flex-wrap items-center gap-1 rounded-lg bg-slate-50/90 px-2 py-1.5 ring-1 ring-slate-200/60 transition hover:bg-slate-100/80"
+            title="Xem gói dịch vụ & Ví Credit"
           >
-            <LogOut className="h-4 w-4" />
-          </button>
+            <AccountPlanChips
+              planCode={planCode}
+              planName={planName}
+              sourcingCode={sourcingCode}
+              sourcingName={sourcingName}
+              compact
+            />
+          </Link>
+
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5 border-t border-slate-100 pt-2.5">
+            <Link
+              href="/company"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-[#072348]"
+            >
+              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+              Hồ sơ CTy
+            </Link>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200/70 bg-rose-50/50 px-2 py-1.5 text-[11px] font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Đăng xuất
+            </button>
+          </div>
         </div>
       </div>
     </aside>
