@@ -428,6 +428,48 @@ function HeroRecruiter({ page }: { page: BillingPageContentView }) {
 // ============================================================================
 type PricingTab = 'platform' | 'sourcing' | 'credit';
 
+function planDomId(code: string): string {
+  return code.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function resolvePricingHash(
+  rawHash: string,
+): { tab: PricingTab; targetId: string; highlightId?: string } | null {
+  const h = rawHash.replace(/^#/, '').trim().toLowerCase();
+  if (!h) return null;
+  if (['features', 'compare', 'how', 'faq', 'contact'].includes(h)) return null;
+
+  const normalized = h.replace(/[-_]+/g, '');
+  if (['nentang', 'goinentang', 'platform', 'pricing'].includes(normalized)) {
+    return { tab: 'platform', targetId: 'nentang' };
+  }
+  if (['khampha', 'goikhampha'].includes(normalized)) {
+    return { tab: 'platform', targetId: 'khampha', highlightId: 'khampha' };
+  }
+  if (['tindang', 'goitindang'].includes(normalized)) {
+    return { tab: 'platform', targetId: 'tindang', highlightId: 'tindang' };
+  }
+  if (['tindangplus', 'goitindangplus'].includes(normalized)) {
+    return { tab: 'platform', targetId: 'tindangplus', highlightId: 'tindangplus' };
+  }
+  if (['doanhnghiep', 'goidoanhnghiep'].includes(normalized)) {
+    return { tab: 'platform', targetId: 'doanhnghiep', highlightId: 'doanhnghiep' };
+  }
+  if (['enterprise', 'goienterprise'].includes(normalized)) {
+    return { tab: 'platform', targetId: 'enterprise', highlightId: 'enterprise' };
+  }
+  if (['tinsan', 'goisan', 'goisannhansu', 'sourcing'].includes(normalized)) {
+    return { tab: 'sourcing', targetId: 'tinsan' };
+  }
+  if (normalized.startsWith('tinsan') || normalized.startsWith('sourcing')) {
+    return { tab: 'sourcing', targetId: normalized, highlightId: normalized };
+  }
+  if (['credit', 'topup', 'topupcredit', 'napcredit'].includes(normalized)) {
+    return { tab: 'credit', targetId: 'credit' };
+  }
+  return null;
+}
+
 /** Giữ cả ba nhóm gói trong HTML. Đổi tab chỉ ẩn, không gỡ khỏi DOM. */
 function PricingH2({
   id,
@@ -470,29 +512,25 @@ function SectionNav({
   const items: Array<{
     id: PricingTab;
     label: string;
-    sub: string;
     badge?: string;
     Icon: typeof Package;
   }> = [
     {
       id: 'platform',
       label: page.platformTitle,
-      sub: 'Đăng tin & AI Matching tự động',
       badge: stats?.maxPlatformPromo ? `-${stats.maxPlatformPromo}%` : undefined,
       Icon: Package,
     },
     {
       id: 'sourcing',
       label: page.sourcingTitle,
-      sub: 'Chuyên gia inlink săn & lọc hồ sơ',
       badge: stats?.maxSourcingPromo ? `-${stats.maxSourcingPromo}%` : undefined,
       Icon: Shield,
     },
     {
       id: 'credit',
       label: page.creditTitle,
-      sub: 'Mua lẻ lượt mở hồ sơ vô thời hạn',
-      badge: stats?.savingPct ? `Tiết kiệm ${stats.savingPct}%` : undefined,
+      badge: stats?.savingPct ? `-${stats.savingPct}%` : undefined,
       Icon: Coins,
     },
   ];
@@ -500,65 +538,11 @@ function SectionNav({
   if (embedded) {
     return (
       <nav
-        className="grid gap-2.5 sm:grid-cols-3"
+        className="flex flex-wrap items-center gap-2"
         aria-label="Chuyển nhóm dịch vụ bảng giá"
       >
-        {items.map(({ id, label, sub, badge, Icon }) => {
-          const active = tab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onTabChange(id)}
-              className={clsx(
-                'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all',
-                active
-                  ? 'border-[#072348] bg-[#072348] text-white shadow-md'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
-              )}
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  className={clsx(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-                    active ? 'bg-amber-500 text-[#072348]' : 'bg-slate-100 text-[#072348]',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{label}</p>
-                  <p className={clsx('truncate text-[11px]', active ? 'text-slate-300' : 'text-slate-500')}>
-                    {sub}
-                  </p>
-                </div>
-              </div>
-              {badge ? (
-                <span
-                  className={clsx(
-                    'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
-                    active ? 'bg-amber-400 text-[#072348]' : 'bg-rose-50 text-rose-700',
-                  )}
-                >
-                  {badge}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </nav>
-    );
-  }
-
-  return (
-    <nav
-      className="sticky top-[57px] z-20 border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-md"
-      aria-label="Chuyển nhóm dịch vụ bảng giá"
-    >
-      <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="grid flex-1 grid-cols-3 gap-1.5 rounded-2xl bg-slate-100/90 p-1.5 sm:max-w-3xl">
-          {items.map(({ id, label, sub, badge, Icon }) => {
+        <div className="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-100/90 p-1.5">
+          {items.map(({ id, label, badge, Icon }) => {
             const active = tab === id;
             return (
               <button
@@ -567,43 +551,82 @@ function SectionNav({
                 aria-pressed={active}
                 onClick={() => onTabChange(id)}
                 className={clsx(
-                  'group relative flex items-center justify-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4',
+                  'inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-all sm:px-5 sm:text-sm',
                   active
                     ? 'bg-[#072348] text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white/70 hover:text-[#072348]',
+                    : 'text-slate-600 hover:bg-white hover:text-[#072348]',
                 )}
               >
-                <span
+                <Icon
                   className={clsx(
-                    'hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:flex',
-                    active ? 'bg-amber-500 text-[#072348]' : 'bg-slate-200/80 text-slate-600 group-hover:bg-slate-200',
+                    'h-4 w-4 shrink-0',
+                    active ? 'text-amber-400' : 'text-slate-400',
                   )}
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 text-center sm:text-left">
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-start">
-                    <span className="truncate text-xs font-bold sm:text-sm">{label}</span>
-                    {badge ? (
-                      <span
-                        className={clsx(
-                          'inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-extrabold leading-none',
-                          active ? 'bg-amber-400 text-[#072348]' : 'bg-rose-100 text-rose-700',
-                        )}
-                      >
-                        {badge}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p
+                />
+                <span>{label}</span>
+                {badge ? (
+                  <span
                     className={clsx(
-                      'hidden truncate text-[11px] lg:block',
-                      active ? 'text-slate-300' : 'text-slate-500',
+                      'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold leading-none',
+                      active
+                        ? 'bg-amber-400 text-[#072348]'
+                        : 'bg-amber-100 text-amber-800',
                     )}
                   >
-                    {sub}
-                  </p>
-                </div>
+                    {badge}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
+
+  return (
+    <nav
+      className="sticky top-[57px] z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-md"
+      aria-label="Chuyển nhóm dịch vụ bảng giá"
+    >
+      <div className="relative mx-auto flex max-w-7xl items-center justify-center px-4 py-3 sm:px-6">
+        <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-slate-200/90 bg-slate-100/90 p-1.5 shadow-inner sm:gap-1.5">
+          {items.map(({ id, label, badge, Icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onTabChange(id)}
+                className={clsx(
+                  'group inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-all sm:px-5 sm:py-2.5 sm:text-sm',
+                  active
+                    ? 'bg-[#072348] text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-white hover:text-[#072348]',
+                )}
+              >
+                <Icon
+                  className={clsx(
+                    'h-4 w-4 shrink-0 transition-colors',
+                    active
+                      ? 'text-amber-400'
+                      : 'text-slate-400 group-hover:text-[#072348]',
+                  )}
+                />
+                <span>{label}</span>
+                {badge ? (
+                  <span
+                    className={clsx(
+                      'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold leading-none',
+                      active
+                        ? 'bg-amber-400 text-[#072348]'
+                        : 'bg-amber-100/90 text-amber-800',
+                    )}
+                  >
+                    {badge}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -611,7 +634,7 @@ function SectionNav({
 
         <a
           href="#contact"
-          className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-[#072348] transition-colors hover:border-amber-300 hover:bg-amber-50 xl:inline-flex"
+          className="hidden shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-[#072348] xl:absolute xl:right-6 xl:inline-flex"
         >
           <Phone className="h-3.5 w-3.5 text-amber-600" />
           {page.consultNavText}
@@ -679,6 +702,7 @@ function PlatformPlansView({
   plans,
   currency,
   vatPercent,
+  highlightedId,
   onSourcing,
   onTopup,
   isRecruiter,
@@ -692,6 +716,7 @@ function PlatformPlansView({
   plans: BillingPlatformPlanView[];
   currency: BillingCurrencyDisplay;
   vatPercent: number | null;
+  highlightedId?: string | null;
   onSourcing: () => void;
   onTopup: () => void;
   isRecruiter: boolean;
@@ -723,45 +748,60 @@ function PlatformPlansView({
   };
 
   return (
-    <section id="pricing" aria-labelledby="pricing-title" className="scroll-mt-24">
-      <div className="mb-8 text-center">
+    <section id="nentang" aria-labelledby="pricing-title" className="scroll-mt-24">
+      <div id="pricing" className="mb-8 text-center scroll-mt-24">
         <PricingH2 id="pricing-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
           {page.platformTitle}
         </PricingH2>
-        <p className="mt-2 text-sm text-slate-500">{page.platformSubtitle}</p>
+        <p className="mt-1.5 text-sm text-slate-500">{page.platformSubtitle}</p>
         <PromoRibbon promoNote={buildPlatformPromoSummary(visible)} vatPercent={vatPercent} />
       </div>
 
       {/* Row 1: 4 Standard Plans on a uniform 4-column grid */}
       <div className="grid min-w-0 items-stretch gap-5 pt-3 md:grid-cols-2 xl:grid-cols-4">
-        {standardPlans.map((p) => (
-          <PlatformPlanCard
-            key={p.id}
-            plan={p}
-            featured={isPlanFeatured(p)}
-            {...cardProps}
-          />
-        ))}
+        {standardPlans.map((p) => {
+          const domId = planDomId(p.code);
+          return (
+            <PlatformPlanCard
+              key={p.id}
+              domId={domId}
+              highlighted={highlightedId === domId}
+              plan={p}
+              featured={isPlanFeatured(p)}
+              {...cardProps}
+            />
+          );
+        })}
       </div>
 
       {/* Row 2: Full-width Horizontal Enterprise Banner */}
       {enterprisePlan ? (
         <div className="mt-6">
-          <EnterprisePlanBanner plan={enterprisePlan} {...cardProps} />
+          <EnterprisePlanBanner
+            domId="enterprise"
+            highlighted={highlightedId === 'enterprise'}
+            plan={enterprisePlan}
+            {...cardProps}
+          />
         </div>
       ) : null}
 
       {/* Extra custom plans if SuperAdmin adds more */}
       {rest.length > 0 ? (
         <div className="mt-6 grid min-w-0 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {rest.map((p) => (
-            <PlatformPlanCard
-              key={p.id}
-              plan={p}
-              featured={Boolean(p.isFeatured)}
-              {...cardProps}
-            />
-          ))}
+          {rest.map((p) => {
+            const domId = planDomId(p.code);
+            return (
+              <PlatformPlanCard
+                key={p.id}
+                domId={domId}
+                highlighted={highlightedId === domId}
+                plan={p}
+                featured={Boolean(p.isFeatured)}
+                {...cardProps}
+              />
+            );
+          })}
         </div>
       ) : null}
 
@@ -785,6 +825,8 @@ function PlatformPlansView({
 }
 
 function PlatformPlanCard({
+  domId,
+  highlighted = false,
   plan,
   featured,
   currency,
@@ -795,6 +837,8 @@ function PlatformPlanCard({
   enterpriseCtaHref,
   canRequestEnterprise,
 }: {
+  domId?: string;
+  highlighted?: boolean;
   plan: BillingPlatformPlanView;
   featured: boolean;
   currency: BillingCurrencyDisplay;
@@ -820,11 +864,14 @@ function PlatformPlanCard({
 
   return (
     <div
+      id={domId}
       className={clsx(
-        'relative flex min-w-0 flex-col rounded-2xl border bg-white p-5 transition-all sm:p-6',
-        featured
-          ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
-          : 'border-slate-200/90 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
+        'relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-5 transition-all sm:p-6',
+        highlighted
+          ? 'z-20 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
+          : featured
+            ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
+            : 'border-slate-200/90 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
       )}
     >
       {featured ? (
@@ -959,10 +1006,14 @@ function PlatformPlanCard({
 
 /** Thẻ ngang cao cấp dành riêng cho gói ENTERPRISE (Hàng 2 của bố cục 4 + 1) */
 function EnterprisePlanBanner({
+  domId,
+  highlighted = false,
   plan,
   enterpriseCtaHref,
   canRequestEnterprise,
 }: {
+  domId?: string;
+  highlighted?: boolean;
   plan: BillingPlatformPlanView;
   currency: BillingCurrencyDisplay;
   isRecruiter: boolean;
@@ -976,7 +1027,13 @@ function EnterprisePlanBanner({
   const includedRows = displayFeatureLines(plan).filter((r) => r.included);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-[#123d73] bg-gradient-to-r from-[#072348] via-[#0a2f5e] to-[#0d3b80] p-6 text-white shadow-xl sm:p-8">
+    <div
+      id={domId}
+      className={clsx(
+        'relative scroll-mt-28 overflow-hidden rounded-3xl border bg-gradient-to-r from-[#072348] via-[#0a2f5e] to-[#0d3b80] p-6 text-white shadow-xl transition-all sm:p-8',
+        highlighted ? 'border-amber-400 ring-4 ring-amber-400/50' : 'border-[#123d73]',
+      )}
+    >
       <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-amber-500/15 blur-3xl" aria-hidden="true" />
       <div className="relative grid items-center gap-6 lg:grid-cols-12 lg:gap-8">
         {/* Col 1: Identity & Custom Quote */}
@@ -1067,6 +1124,7 @@ function SourcingPlansView({
   plans,
   currency,
   vatPercent,
+  highlightedId,
   onPlatform,
   onTopup,
   planCtaHref,
@@ -1075,6 +1133,7 @@ function SourcingPlansView({
   plans: BillingSourcingPlanView[];
   currency: BillingCurrencyDisplay;
   vatPercent: number | null;
+  highlightedId?: string | null;
   onPlatform: () => void;
   onTopup: () => void;
   planCtaHref: (code: string) => string;
@@ -1083,12 +1142,12 @@ function SourcingPlansView({
   const activePlans = plans.filter((p) => p.isActive);
 
   return (
-    <section aria-labelledby="sourcing" className="scroll-mt-24">
+    <section id="tinsan" aria-labelledby="sourcing" className="scroll-mt-24">
       <div className="mb-8 text-center">
-        <PricingH2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
+        <PricingH2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-24">
           {page.sourcingTitle}
         </PricingH2>
-        <p className="mt-2 text-sm text-slate-500">{page.sourcingSubtitle}</p>
+        <p className="mt-1.5 text-sm text-slate-500">{page.sourcingSubtitle}</p>
         <p className="mx-auto mt-2 max-w-3xl text-xs leading-relaxed text-slate-600 sm:text-sm">
           Đội ngũ chuyên gia {PRICING_BRAND} trực tiếp tìm kiếm, sàng lọc và bàn giao ứng viên theo tiêu chí kỹ thuật của nhà máy. Giá gói đã bao gồm quyền đăng tin và sử dụng nền tảng cho vị trí đó.
         </p>
@@ -1096,9 +1155,19 @@ function SourcingPlansView({
       </div>
 
       <div className="grid items-stretch gap-5 pt-3 md:grid-cols-2 lg:grid-cols-3">
-        {activePlans.map((p) => (
-          <SourcingPlanCard key={p.id} plan={p} currency={currency} planCtaHref={planCtaHref} />
-        ))}
+        {activePlans.map((p) => {
+          const domId = planDomId(p.code);
+          return (
+            <SourcingPlanCard
+              key={p.id}
+              domId={domId}
+              highlighted={highlightedId === domId}
+              plan={p}
+              currency={currency}
+              planCtaHref={planCtaHref}
+            />
+          );
+        })}
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -1120,10 +1189,14 @@ function SourcingPlansView({
 }
 
 function SourcingPlanCard({
+  domId,
+  highlighted = false,
   plan,
   currency,
   planCtaHref,
 }: {
+  domId?: string;
+  highlighted?: boolean;
   plan: BillingSourcingPlanView;
   currency: BillingCurrencyDisplay;
   planCtaHref: (code: string) => string;
@@ -1131,11 +1204,14 @@ function SourcingPlanCard({
   const featured = plan.isFeatured;
   return (
     <div
+      id={domId}
       className={clsx(
-        'relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition-all',
-        featured
-          ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
-          : 'border-slate-200 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
+        'relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-6 transition-all',
+        highlighted
+          ? 'z-20 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
+          : featured
+            ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
+            : 'border-slate-200 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
       )}
     >
       {featured ? (
@@ -1874,13 +1950,50 @@ export function PricingClient({
       ? `/recruiter/billing/sourcing?plan=${encodeURIComponent(code)}`
       : `/register?plan=${encodeURIComponent(code)}`;
 
-  // Tab state
+  // Tab & Deep-link Hash state
   const [tab, setTab] = useState<PricingTab>('platform');
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const skipTabScroll = useRef(true);
 
   const switchTab = (next: PricingTab) => {
     setTab(next);
+    setHighlightedId(null);
+    if (!embedded && typeof window !== 'undefined') {
+      const hash = next === 'platform' ? '#nentang' : next === 'sourcing' ? '#tinsan' : '#credit';
+      window.history.replaceState(null, '', hash);
+    }
   };
+
+  useEffect(() => {
+    if (embedded || !resolved || typeof window === 'undefined') return;
+    const applyHash = () => {
+      const matched = resolvePricingHash(window.location.hash);
+      if (!matched) return;
+      skipTabScroll.current = true;
+      setTab(matched.tab);
+      if (matched.highlightId) {
+        setHighlightedId(matched.highlightId);
+      }
+      window.setTimeout(() => {
+        const el =
+          document.getElementById(matched.targetId) ??
+          document.getElementById(
+            matched.tab === 'platform' ? 'nentang' : matched.tab === 'sourcing' ? 'tinsan' : 'credit',
+          );
+        el?.scrollIntoView({ behavior: 'smooth', block: matched.highlightId ? 'center' : 'start' });
+      }, 80);
+    };
+
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, [embedded, resolved]);
+
+  useEffect(() => {
+    if (!highlightedId) return;
+    const timer = window.setTimeout(() => setHighlightedId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedId]);
 
   useEffect(() => {
     if (embedded) return;
@@ -1888,7 +2001,7 @@ export function PricingClient({
       skipTabScroll.current = false;
       return;
     }
-    const id = tab === 'platform' ? 'pricing' : tab;
+    const id = tab === 'platform' ? 'nentang' : tab === 'sourcing' ? 'tinsan' : 'credit';
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [tab, embedded]);
 
@@ -1917,8 +2030,9 @@ export function PricingClient({
               plans={resolved.platformPlans}
               currency={cur}
               vatPercent={vatPercent}
-              onSourcing={() => setTab('sourcing')}
-              onTopup={() => setTab('credit')}
+              highlightedId={highlightedId}
+              onSourcing={() => switchTab('sourcing')}
+              onTopup={() => switchTab('credit')}
               isRecruiter
               checkoutReady
               planCtaHref={planCtaHref}
@@ -1933,8 +2047,9 @@ export function PricingClient({
               plans={resolved.sourcingPlans}
               currency={cur}
               vatPercent={vatPercent}
-              onPlatform={() => setTab('platform')}
-              onTopup={() => setTab('credit')}
+              highlightedId={highlightedId}
+              onPlatform={() => switchTab('platform')}
+              onTopup={() => switchTab('credit')}
               planCtaHref={sourcingCtaHref}
               page={page}
             />
@@ -1944,8 +2059,8 @@ export function PricingClient({
               topups={resolved.creditTopups}
               currency={cur}
               vatPercent={vatPercent}
-              onPlatform={() => setTab('platform')}
-              onSourcing={() => setTab('sourcing')}
+              onPlatform={() => switchTab('platform')}
+              onSourcing={() => switchTab('sourcing')}
               topupCtaHref={topupCtaHref}
               page={page}
             />
@@ -1976,15 +2091,16 @@ export function PricingClient({
       {/* 2. STICKY 3-TIER SERVICE SWITCHER & MAIN PRICING */}
       <SectionNav tab={tab} onTabChange={switchTab} page={page} stats={stats} />
 
-      <section className="bg-slate-50 py-12 sm:py-16">
+      <section className="bg-slate-50 py-8 sm:py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <PricingTabPane active={tab === 'platform'}>
             <PlatformPlansView
               plans={resolved.platformPlans}
               currency={cur}
               vatPercent={vatPercent}
-              onSourcing={() => setTab('sourcing')}
-              onTopup={() => setTab('credit')}
+              highlightedId={highlightedId}
+              onSourcing={() => switchTab('sourcing')}
+              onTopup={() => switchTab('credit')}
               isRecruiter={isRecruiter}
               checkoutReady={checkoutReady}
               planCtaHref={planCtaHref}
@@ -1999,8 +2115,9 @@ export function PricingClient({
               plans={resolved.sourcingPlans}
               currency={cur}
               vatPercent={vatPercent}
-              onPlatform={() => setTab('platform')}
-              onTopup={() => setTab('credit')}
+              highlightedId={highlightedId}
+              onPlatform={() => switchTab('platform')}
+              onTopup={() => switchTab('credit')}
               planCtaHref={sourcingCtaHref}
               page={page}
             />
@@ -2010,8 +2127,8 @@ export function PricingClient({
               topups={resolved.creditTopups}
               currency={cur}
               vatPercent={vatPercent}
-              onPlatform={() => setTab('platform')}
-              onSourcing={() => setTab('sourcing')}
+              onPlatform={() => switchTab('platform')}
+              onSourcing={() => switchTab('sourcing')}
               topupCtaHref={topupCtaHref}
               page={page}
             />

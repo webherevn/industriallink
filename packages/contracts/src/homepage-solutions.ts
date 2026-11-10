@@ -33,7 +33,7 @@ export const DEFAULT_HOMEPAGE_SOLUTIONS: HomepageSolutionsContent = {
       points: ['Đăng tin tuyển dụng', 'Xem gợi ý ứng viên theo % phù hợp', 'Khai thác hồ sơ theo gói'],
       icon: 'document',
       imageUrl: '',
-      href: '/bang-gia',
+      href: 'https://tuyendung.inlink.vn/bang-gia#nentang',
     },
     {
       title: 'Tin săn',
@@ -41,7 +41,7 @@ export const DEFAULT_HOMEPAGE_SOLUTIONS: HomepageSolutionsContent = {
       points: ['Hỗ trợ xác định tiêu chí', 'Tìm kiếm và gợi ý ứng viên phù hợp', 'Báo cáo tiến độ (tùy gói)'],
       icon: 'target',
       imageUrl: '',
-      href: '/bang-gia',
+      href: 'https://tuyendung.inlink.vn/bang-gia#tinsan',
     },
     {
       title: 'Gói doanh nghiệp',
@@ -49,7 +49,7 @@ export const DEFAULT_HOMEPAGE_SOLUTIONS: HomepageSolutionsContent = {
       points: ['Quản lý nhiều tin tuyển dụng', 'Sử dụng Matching theo hạn mức', 'Dịch vụ hỗ trợ chuyên sâu (tùy gói)'],
       icon: 'building',
       imageUrl: '',
-      href: '/bang-gia',
+      href: 'https://tuyendung.inlink.vn/bang-gia#doanhnghiep',
     },
   ],
 };
@@ -69,6 +69,11 @@ function assetUrl(value: unknown): string {
 function pageUrl(value: unknown, fallback: string): string {
   const raw = clip(value, 300);
   if (!raw) return fallback;
+  // Nếu dữ liệu cũ trong DB đang là "/bang-gia" chung chung chưa gắn neo (#hash),
+  // tự động chuẩn hoá sang URL có neo đúng gói dịch vụ (fallback).
+  if (/^(https?:\/\/[^/]+)?\/bang-gia\/?$/i.test(raw)) {
+    return fallback;
+  }
   if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
   if (/^https?:\/\//i.test(raw)) return raw;
   return fallback;

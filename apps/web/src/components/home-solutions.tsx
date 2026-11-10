@@ -1,6 +1,27 @@
-import type { HomepageSolutionIcon, HomepageSolutionsContent } from '@industriallink/contracts';
+import type { HomepageSolutionIcon, HomepageSolutionItem, HomepageSolutionsContent } from '@industriallink/contracts';
 import Link from 'next/link';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
+
+const DEFAULT_ANCHOR_BY_INDEX = ['#nentang', '#tinsan', '#doanhnghiep'] as const;
+
+function resolveSolutionHref(item: HomepageSolutionItem, index: number): string {
+  const raw = (item.href ?? '').trim();
+  const titleLower = item.title.toLowerCase();
+  const fallbackHash =
+    titleLower.includes('săn') || item.icon === 'target'
+      ? '#tinsan'
+      : titleLower.includes('doanh nghiệp') || item.icon === 'building'
+        ? '#doanhnghiep'
+        : DEFAULT_ANCHOR_BY_INDEX[index] ?? '#nentang';
+
+  if (!raw || /^(https?:\/\/[^/]+)?\/bang-gia\/?$/i.test(raw)) {
+    return `https://tuyendung.inlink.vn/bang-gia${fallbackHash}`;
+  }
+  if (raw.startsWith('/bang-gia#')) {
+    return `https://tuyendung.inlink.vn${raw}`;
+  }
+  return raw;
+}
 
 function SolutionGlyph({ icon }: { icon: HomepageSolutionIcon }) {
   const stroke = {
@@ -45,8 +66,15 @@ function ArrowButton({ href, label }: { href: string; label: string }) {
     </svg>
   );
   if (/^https?:\/\//i.test(href)) {
+    const isInternalBrand = /^https?:\/\/([a-z0-9-]+\.)?inlink\.vn(\/|$)/i.test(href);
     return (
-      <a href={href} className={className} aria-label={label} target="_blank" rel="noreferrer">
+      <a
+        href={href}
+        className={className}
+        aria-label={label}
+        target={isInternalBrand ? undefined : '_blank'}
+        rel={isInternalBrand ? undefined : 'noreferrer'}
+      >
         {icon}
       </a>
     );
@@ -79,6 +107,7 @@ export function HomeSolutions({ solutions }: { solutions: HomepageSolutionsConte
         <ul className="mt-10 grid grid-cols-1 gap-5 lg:mt-12 lg:grid-cols-3 lg:gap-6">
           {items.map((item, index) => {
             const image = resolveCmsAssetUrl(item.imageUrl);
+            const resolvedHref = resolveSolutionHref(item, index);
             return (
               <li
                 key={`${item.icon}-${index}`}
@@ -93,7 +122,11 @@ export function HomeSolutions({ solutions }: { solutions: HomepageSolutionsConte
                     >
                       {image ? <img src={image} alt="" className="h-8 w-8 object-contain" /> : <SolutionGlyph icon={item.icon} />}
                     </span>
-                    <h3 className="text-[1.15rem] font-extrabold tracking-tight text-[#12315c]">{item.title}</h3>
+                    <h3 className="text-[1.15rem] font-extrabold tracking-tight text-[#12315c]">
+                      <a href={resolvedHref} className="transition-colors hover:text-[#F08A24]">
+                        {item.title}
+                      </a>
+                    </h3>
                   </div>
                   <p className="mt-3 text-[14px] leading-relaxed text-[#7d8b9a]">{item.description}</p>
                   <ul className="mt-5 space-y-2.5">
@@ -106,7 +139,7 @@ export function HomeSolutions({ solutions }: { solutions: HomepageSolutionsConte
                       </li>
                     ))}
                   </ul>
-                  <ArrowButton href={item.href} label={`Xem ${item.title}`} />
+                  <ArrowButton href={resolvedHref} label={`Xem ${item.title}`} />
                 </article>
               </li>
             );
