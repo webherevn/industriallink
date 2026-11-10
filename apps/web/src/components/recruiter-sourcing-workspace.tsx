@@ -25,6 +25,7 @@ import {
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  JOB_LEVEL_LABEL,
   JobTrack,
   SOURCING_QUOTA_LABELS,
   formatJobTitle,
@@ -45,7 +46,8 @@ import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { addCandidateShortlist, getCandidateById, removeCandidateShortlist } from '@/lib/candidate';
-import { listMyJobs } from '@/lib/jobs';
+import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
+import { getJob, listMyJobs } from '@/lib/jobs';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
 import { consumeRecruiterSourcing, fetchRecruiterSourcing } from '@/lib/recruiter-billing';
@@ -97,6 +99,39 @@ function formatRemainingDaysFromStart(createdAtIso: string | null | undefined): 
   return `Bảo lưu còn ${days} ngày (${dateLabel})`;
 }
 
+function getPreservationPeriodInfo(createdAtIso: string | null | undefined): {
+  remainingText: string;
+  expiryDateText: string;
+  expired: boolean;
+} {
+  if (!createdAtIso) {
+    return {
+      remainingText: 'Còn 45 ngày',
+      expiryDateText: 'Bảo lưu theo gói',
+      expired: false,
+    };
+  }
+  const deadline = new Date(new Date(createdAtIso).getTime() + 45 * 24 * 60 * 60 * 1000);
+  const diffMs = deadline.getTime() - Date.now();
+  const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+  const dd = String(deadline.getDate()).padStart(2, '0');
+  const mm = String(deadline.getMonth() + 1).padStart(2, '0');
+  const yyyy = deadline.getFullYear();
+  const fullDate = `${dd}/${mm}/${yyyy}`;
+  if (days <= 0) {
+    return {
+      remainingText: 'Đã hết hạn',
+      expiryDateText: `Hết hạn: ${fullDate}`,
+      expired: true,
+    };
+  }
+  return {
+    remainingText: `Còn ${days} ngày`,
+    expiryDateText: `Hết hạn: ${fullDate}`,
+    expired: false,
+  };
+}
+
 const STATUS_LABEL: Record<string, string> = {
   open: 'Đang săn 2h/lần',
   in_progress: 'Đang săn 2h/lần',
@@ -115,6 +150,7 @@ export function RecruiterSourcingWorkspace() {
   const [createTrack, setCreateTrack] = useState<JobTrack>(JobTrack.Sales);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [viewCriteriaModalOpen, setViewCriteriaModalOpen] = useState(false);
   const [drawerCandidate, setDrawerCandidate] = useState<CandidateMatchView | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
@@ -468,13 +504,16 @@ export function RecruiterSourcingWorkspace() {
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {validEngagements.map((eng) => {
                     const isActive = selected === eng.id;
                     const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
                     const slCount = (data?.shortlistedByEngagement?.[eng.id] ?? []).length;
-                    const deadlineBadge = formatRemainingDaysFromStart(eng.createdAt);
-                    const linkedJobTitle = (jobs ?? []).find((j) => j.id === eng.jobId)?.title;
+                    const preserveInfo = getPreservationPeriodInfo(eng.createdAt);
+                    const linkedJob = (jobs ?? []).find((j) => j.id === eng.jobId);
+                    const linkedLocation = linkedJob?.location?.trim();
+                    const isRunning = eng.status !== 'closed' && !preserveInfo.expired && !ended;
+
                     return (
                       <div
                         key={eng.id}
@@ -492,67 +531,160 @@ export function RecruiterSourcingWorkspace() {
                           }
                         }}
                         className={clsx(
-                          'group flex cursor-pointer flex-col justify-between gap-2.5 rounded-2xl border p-4 text-left transition',
+                          'group flex cursor-pointer flex-col justify-between rounded-2xl border p-4 sm:p-5 text-left transition',
                           isActive
                             ? 'border-[#072348] bg-[#072348] text-white shadow-md'
                             : 'border-[#d7e3f2] bg-[#f8fafc] text-slate-800 hover:-translate-y-0.5 hover:border-[#52749a] hover:bg-white',
                         )}
                       >
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="line-clamp-1 text-sm font-extrabold">{eng.title}</span>
+                        {/* TẦNG 1: TIÊU ĐỀ TIN SĂN & TRẠNG THÁI */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="line-clamp-1 text-[15px] font-extrabold leading-snug">
+                              {formatJobTitle(eng.title)}
+                            </p>
+                            <p
+                              className={clsx(
+                                'mt-1 line-clamp-1 text-xs',
+                                isActive ? 'text-white/70' : 'text-slate-500',
+                              )}
+                            >
+                              Tin săn{linkedLocation ? ` · ${linkedLocation}` : linkedJob?.title ? ` · ${formatJobTitle(linkedJob.title)}` : ''}
+                            </p>
                           </div>
-                          <p
+
+                          <span
                             className={clsx(
-                              'mt-1 line-clamp-1 text-[11px]',
+                              'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold',
+                              isRunning
+                                ? isActive
+                                  ? 'bg-emerald-400/20 text-emerald-300 ring-1 ring-emerald-400/30'
+                                  : 'bg-emerald-100/90 text-emerald-700'
+                                : isActive
+                                  ? 'bg-white/15 text-white/80'
+                                  : 'bg-slate-200 text-slate-600',
+                            )}
+                          >
+                            {isRunning ? 'Đang hoạt động' : 'Đã kết thúc'}
+                          </span>
+                        </div>
+
+                        {/* TẦNG 2: THỜI GIAN BẢO LƯU & ĐỢT QUÉT ỨNG VIÊN */}
+                        <div
+                          className={clsx(
+                            'my-3.5 grid grid-cols-2 items-start gap-3 border-y py-3',
+                            isActive ? 'border-white/15' : 'border-slate-200/80',
+                          )}
+                        >
+                          <div>
+                            <p
+                              className={clsx(
+                                'text-[11px] font-medium',
+                                isActive ? 'text-white/65' : 'text-slate-500',
+                              )}
+                            >
+                              Thời gian bảo lưu
+                            </p>
+                            <p
+                              className={clsx(
+                                'mt-0.5 text-[15px] font-extrabold',
+                                isActive ? 'text-white' : 'text-slate-900',
+                              )}
+                            >
+                              {preserveInfo.remainingText}
+                            </p>
+                            <p
+                              className={clsx(
+                                'mt-0.5 text-[11px]',
+                                isActive ? 'text-white/65' : 'text-slate-500',
+                              )}
+                            >
+                              {preserveInfo.expiryDateText}
+                            </p>
+                          </div>
+
+                          <div className="text-right">
+                            <p
+                              className={clsx(
+                                'text-[11px] font-medium',
+                                isActive ? 'text-white/65' : 'text-slate-500',
+                              )}
+                            >
+                              Đợt quét ứng viên
+                            </p>
+                            <p
+                              className={clsx(
+                                'mt-0.5 text-[15px] font-extrabold',
+                                isActive ? 'text-white' : 'text-slate-900',
+                              )}
+                            >
+                              {roundCount} đợt
+                            </p>
+                            {slCount > 0 ? (
+                              <p
+                                className={clsx(
+                                  'mt-0.5 text-[11px] font-semibold',
+                                  isActive ? 'text-amber-300' : 'text-[#E8872A]',
+                                )}
+                              >
+                                ★ {slCount} Shortlist
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* TẦNG 3: TIÊU CHÍ TUYỂN DỤNG & 2 NÚT XEM / ĐIỀU CHỈNH */}
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className={clsx(
+                              'text-xs leading-snug',
                               isActive ? 'text-white/75' : 'text-slate-500',
                             )}
                           >
-                            JD: {linkedJobTitle ?? eng.title}
-                          </p>
-                        </div>
+                            Tiêu chí tuyển dụng đã được thiết lập
+                          </span>
 
-                        <div
-                          className={clsx(
-                            'flex flex-wrap items-center justify-between gap-2 border-t pt-2.5 text-[11px]',
-                            isActive ? 'border-white/15 text-white/85' : 'border-slate-200/80 text-slate-500',
-                          )}
-                        >
-                          <div className="flex flex-wrap items-center gap-2 font-medium">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-[#E8872A]" />
-                              {roundCount} đợt quét
-                            </span>
-                            <span>·</span>
-                            <span className="inline-flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {deadlineBadge ?? 'Bảo lưu 45 ngày'}
-                            </span>
-                            {slCount > 0 ? <span>· ★ {slCount}</span> : null}
+                          <div className="flex shrink-0 flex-col items-end gap-1.5">
+                            <button
+                              type="button"
+                              disabled={!eng.jobId}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                setActiveId(eng.id);
+                                setViewCriteriaModalOpen(true);
+                              }}
+                              className={clsx(
+                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold transition disabled:opacity-40',
+                                isActive
+                                  ? 'bg-sky-400/20 text-sky-200 ring-1 ring-sky-300/30 hover:bg-sky-400/30'
+                                  : 'bg-sky-100/90 text-sky-700 hover:bg-sky-200/80',
+                              )}
+                            >
+                              Xem tiêu chí
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                ended ||
+                                !eng.jobId ||
+                                (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)
+                              }
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                setActiveId(eng.id);
+                                setRevisionModalOpen(true);
+                              }}
+                              className={clsx(
+                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold transition disabled:opacity-40',
+                                isActive
+                                  ? 'bg-[#E8872A] text-white shadow-2xs hover:bg-[#d4761d]'
+                                  : 'bg-amber-100/90 text-[#c96a12] hover:bg-amber-200/80',
+                              )}
+                            >
+                              Điều chỉnh tiêu chí
+                            </button>
                           </div>
-
-                          <button
-                            type="button"
-                            disabled={
-                              ended ||
-                              !eng.jobId ||
-                              (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)
-                            }
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              setActiveId(eng.id);
-                              setRevisionModalOpen(true);
-                            }}
-                            className={clsx(
-                              'inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-bold transition disabled:opacity-40',
-                              isActive
-                                ? 'bg-white text-[#072348] shadow-2xs hover:bg-amber-50'
-                                : 'border border-[#072348]/20 bg-white text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white',
-                            )}
-                          >
-                            <RefreshCw className="h-3 w-3 text-[#E8872A]" />
-                            Điều chỉnh
-                          </button>
                         </div>
                       </div>
                     );
@@ -862,6 +994,21 @@ export function RecruiterSourcingWorkspace() {
             void qc.setQueryData(['recruiter-sourcing'], ws);
             void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
             setBanner({ tone: 'ok', text: msg });
+          }}
+        />
+      ) : null}
+
+      {/* MODAL XEM TIÊU CHÍ TUYỂN DỤNG ĐÃ THIẾT LẬP */}
+      {hasPlan && e ? (
+        <SourcingViewCriteriaModal
+          open={viewCriteriaModalOpen}
+          onClose={() => setViewCriteriaModalOpen(false)}
+          jobId={huntJobId}
+          engagementTitle={selectedEngagement?.title ?? ''}
+          revisionsRemaining={e.revisionsRemaining}
+          onOpenRevision={() => {
+            setViewCriteriaModalOpen(false);
+            setRevisionModalOpen(true);
           }}
         />
       ) : null}
@@ -1847,5 +1994,207 @@ function QuotaGrid({
         })}
       </div>
     </section>
+  );
+}
+
+function SourcingViewCriteriaModal({
+  open,
+  onClose,
+  jobId,
+  engagementTitle,
+  revisionsRemaining,
+  onOpenRevision,
+}: {
+  open: boolean;
+  onClose: () => void;
+  jobId: string | null;
+  engagementTitle: string;
+  revisionsRemaining: number | null;
+  onOpenRevision: () => void;
+}) {
+  const { data: job, isLoading } = useQuery({
+    queryKey: ['job', jobId],
+    queryFn: () => getJob(jobId!),
+    enabled: Boolean(open && jobId),
+  });
+
+  if (!open) return null;
+
+  const isSales =
+    job?.jobTrack === JobTrack.Sales ||
+    (!job?.jobTrack && (!job?.technicalCriteria || Boolean(job?.salesCriteria)));
+
+  const sales = job?.salesCriteria;
+  const tech = job?.technicalCriteria;
+  const industries =
+    (isSales ? sales?.industries : tech?.industries)?.length
+      ? (isSales ? sales?.industries : tech?.industries) ?? []
+      : job?.industry
+        ? [job.industry]
+        : [];
+
+  const expLabel =
+    job?.experienceBand && EXPERIENCE_LABEL[job.experienceBand as keyof typeof EXPERIENCE_LABEL]
+      ? EXPERIENCE_LABEL[job.experienceBand as keyof typeof EXPERIENCE_LABEL]
+      : 'Thoả thuận / Theo JD';
+  const levelLabel =
+    job?.jobLevel && JOB_LEVEL_LABEL[job.jobLevel as keyof typeof JOB_LEVEL_LABEL]
+      ? JOB_LEVEL_LABEL[job.jobLevel as keyof typeof JOB_LEVEL_LABEL]
+      : 'Chuyên viên / Quản lý';
+  const salaryLabel =
+    job?.salaryMin || job?.salaryMax
+      ? `${job?.salaryMin ? formatVndAmount(job.salaryMin) : 'Thoả thuận'} – ${
+          job?.salaryMax ? formatVndAmount(job.salaryMax) : 'Thoả thuận'
+        }`
+      : 'Thoả thuận theo năng lực';
+  const canRevise = revisionsRemaining === null || revisionsRemaining > 0;
+
+  const criteriaGroups: { label: string; items: string[] }[] = isSales
+    ? [
+        { label: 'Ngành / lĩnh vực ưu tiên', items: industries },
+        { label: 'Sản phẩm / Giải pháp kinh doanh', items: sales?.productsSold ?? [] },
+        { label: 'Tệp khách hàng mục tiêu', items: sales?.customerSegments ?? [] },
+        { label: 'Loại hình giao dịch (Deal)', items: sales?.dealTypes ?? [] },
+        { label: 'Phạm vi công việc bán hàng', items: sales?.sellingStages ?? [] },
+        { label: 'Thị trường / Vùng phụ trách', items: sales?.marketsCovered ?? [] },
+        {
+          label: 'Trình độ & Chuyên ngành',
+          items: [sales?.educationLevel, sales?.educationMajor].filter((x): x is string => Boolean(x)),
+        },
+        { label: 'Ngoại ngữ & Bằng lái', items: [...(sales?.languages ?? []), ...(sales?.driverLicenses ?? [])] },
+      ]
+    : [
+        { label: 'Ngành / lĩnh vực kỹ thuật', items: industries },
+        { label: 'Hệ thống / Thiết bị phụ trách', items: tech?.equipmentSystems ?? [] },
+        { label: 'Môi trường làm việc', items: tech?.workEnvironments ?? [] },
+        { label: 'Nhóm công việc kỹ thuật', items: tech?.technicalWorkTypes ?? [] },
+        { label: 'Công cụ / Phần mềm chuyên ngành', items: tech?.technicalTools ?? [] },
+        { label: 'Chứng chỉ & Tài liệu kỹ thuật', items: [...(tech?.certificates ?? []), ...(tech?.documentLiteracy ?? [])] },
+        {
+          label: 'Trình độ & Chuyên ngành',
+          items: [tech?.educationLevel, tech?.educationMajor].filter((x): x is string => Boolean(x)),
+        },
+        { label: 'Ngoại ngữ & Bằng lái', items: [...(tech?.languages ?? []), ...(tech?.driverLicenses ?? [])] },
+      ];
+
+  const skillItems = (job?.skills ?? []).map((s) => s.name).filter(Boolean);
+  if (skillItems.length > 0) {
+    criteriaGroups.push({ label: 'Kỹ năng trọng tâm', items: skillItems });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#d7e3f2] bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-[#072348] to-[#0f3466] px-6 py-4 text-white">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-bold text-sky-200">
+              <ListChecks className="h-3.5 w-3.5" />
+              Tiêu chí tuyển dụng đang áp dụng
+            </span>
+            <h3 className="mt-1.5 truncate text-lg font-extrabold">
+              {job?.title ? formatJobTitle(job.title) : formatJobTitle(engagementTitle)}
+            </h3>
+            <p className="mt-0.5 text-xs text-white/75">
+              Hệ thống AI Inlink đang quét tự động 2 giờ/lần dựa trên bộ tiêu chí bên dưới
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12 text-sm text-slate-500">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#E8872A]" />
+              Đang tải tiêu chí tuyển dụng...
+            </div>
+          ) : !job ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+              Chưa tìm thấy thông tin chi tiết JD của vị trí săn này.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Khung thông số cốt lõi */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-2xl border border-[#d7e3f2] bg-[#f8fafc] p-3">
+                  <p className="text-[11px] font-medium text-slate-500">Địa điểm làm việc</p>
+                  <p className="mt-1 text-xs font-extrabold text-[#072348]">
+                    {job.location || 'Toàn quốc'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#d7e3f2] bg-[#f8fafc] p-3">
+                  <p className="text-[11px] font-medium text-slate-500">Kinh nghiệm</p>
+                  <p className="mt-1 text-xs font-extrabold text-[#072348]">{expLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-[#d7e3f2] bg-[#f8fafc] p-3">
+                  <p className="text-[11px] font-medium text-slate-500">Cấp bậc</p>
+                  <p className="mt-1 text-xs font-extrabold text-[#072348]">{levelLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-[#d7e3f2] bg-[#f8fafc] p-3">
+                  <p className="text-[11px] font-medium text-slate-500">Mức lương dự kiến</p>
+                  <p className="mt-1 text-xs font-extrabold text-[#E8872A]">{salaryLabel}</p>
+                </div>
+              </div>
+
+              {/* Các nhóm tiêu chí chuyên sâu */}
+              <div className="space-y-3">
+                {criteriaGroups.map((group) => (
+                  <div
+                    key={group.label}
+                    className="rounded-2xl border border-slate-200/80 bg-white p-3.5"
+                  >
+                    <p className="text-xs font-bold text-[#072348]">{group.label}</p>
+                    {group.items.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {group.items.map((item) => (
+                          <span
+                            key={item}
+                            className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80"
+                          >
+                            <CheckCircle2 className="h-3 w-3 text-sky-600" />
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-400">Không giới hạn cứng (Mở rộng nguồn ứng viên)</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4">
+          <span className="text-xs text-slate-500">
+            Lượt điều chỉnh tiêu chí còn lại:{' '}
+            <strong className="text-[#072348]">
+              {revisionsRemaining == null ? '∞' : revisionsRemaining}
+            </strong>
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Đóng
+            </Button>
+            {canRevise ? (
+              <Button onClick={onOpenRevision}>
+                <RefreshCw className="h-4 w-4" />
+                Điều chỉnh tiêu chí
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
