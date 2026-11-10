@@ -157,13 +157,15 @@ function PlanChip({
   return (
     <span
       className={clsx(
-        'inline-flex max-w-full items-center gap-1 rounded-full font-bold ring-1',
-        compact ? 'px-1.5 py-0.5 text-[10px] leading-none' : 'px-2 py-0.5 text-[11px]',
+        'inline-flex max-w-full items-center font-bold ring-1',
+        compact
+          ? 'gap-0.5 rounded-md px-1.5 py-[2px] text-[9px] leading-none'
+          : 'gap-1 rounded-full px-2 py-0.5 text-[11px]',
         visual.tone,
       )}
       title={name ?? 'Chưa gán gói'}
     >
-      <Icon className={compact ? 'h-3 w-3 shrink-0' : 'h-3.5 w-3.5 shrink-0'} />
+      <Icon className={compact ? 'h-2.5 w-2.5 shrink-0' : 'h-3.5 w-3.5 shrink-0'} />
       <span className="truncate">{name ?? 'Chưa gán gói'}</span>
     </span>
   );
@@ -560,81 +562,58 @@ export function RecruiterShell({
         ))}
       </nav>
 
-      <div className="px-3 pb-2.5">
+      <div className="px-3 pb-2">
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event('inlink-open-guide'))}
-          className="flex w-full items-center gap-2.5 rounded-lg border border-amber-200/90 bg-amber-50/80 px-2.5 py-2 text-sm font-semibold text-[#072348] transition hover:border-amber-300 hover:bg-amber-100/80"
+          className="flex w-full items-center gap-2 rounded-lg border border-amber-200/90 bg-amber-50/80 px-2.5 py-1.5 text-xs font-semibold text-[#072348] transition hover:border-amber-300 hover:bg-amber-100/80"
         >
-          <HelpCircle className="h-4 w-4 text-[#E8872A]" />
+          <HelpCircle className="h-3.5 w-3.5 text-[#E8872A]" />
           Hướng dẫn sử dụng
         </button>
       </div>
 
-      <div className="border-t border-slate-200/70 bg-gradient-to-b from-slate-50/50 to-slate-100/60 p-3">
-        <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-[0_2px_10px_-4px_rgba(7,35,72,0.08)]">
-          <div className="flex items-center gap-2.5">
-            <Link
-              href="/company"
-              className="relative shrink-0 transition-transform hover:scale-105"
-              title="Hồ sơ công ty"
-            >
-              <CompanyAvatar
-                logoUrl={logoUrl}
-                name={displayName}
-                sizeClass="h-10 w-10"
-                textClass="text-xs tracking-wider"
-                shapeClass="rounded-xl"
-              />
-              <span
-                className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
-                title="Đang hoạt động"
-              />
-            </Link>
-            <div className="min-w-0 flex-1">
-              <Link
-                href="/company"
-                className="block truncate text-[13px] font-bold text-[#072348] transition hover:text-brand-600"
-              >
-                {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
-              </Link>
-              <p className="truncate text-[11px] font-medium text-slate-400">
-                {user?.email ?? 'Tài khoản doanh nghiệp'}
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/recruiter/billing"
-            className="mt-2.5 flex flex-wrap items-center gap-1 rounded-lg bg-slate-50/90 px-2 py-1.5 ring-1 ring-slate-200/60 transition hover:bg-slate-100/80"
-            title="Xem gói dịch vụ & Ví Credit"
-          >
-            <AccountPlanChips
-              planCode={planCode}
-              planName={planName}
-              sourcingCode={sourcingCode}
-              sourcingName={sourcingName}
-              compact
+      <div className="border-t border-slate-200/70 bg-slate-50/70 px-2.5 py-2">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2.5 py-2 shadow-2xs">
+          <div className="relative shrink-0">
+            <CompanyAvatar
+              logoUrl={logoUrl}
+              name={displayName}
+              sizeClass="h-8 w-8"
+              textClass="text-[11px] tracking-wider"
+              shapeClass="rounded-lg"
             />
-          </Link>
-
-          <div className="mt-2.5 grid grid-cols-2 gap-1.5 border-t border-slate-100 pt-2.5">
-            <Link
-              href="/company"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-[#072348]"
-            >
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
-              Hồ sơ CTy
-            </Link>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200/70 bg-rose-50/50 px-2 py-1.5 text-[11px] font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              Đăng xuất
-            </button>
+            <span
+              className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white"
+              title="Đang hoạt động"
+            />
           </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold leading-tight text-[#072348]">
+              {company?.name ?? user?.displayName ?? 'Nhà tuyển dụng'}
+            </p>
+            <Link
+              href="/recruiter/billing"
+              className="mt-1 block"
+              title="Xem gói dịch vụ & Ví Credit"
+            >
+              <AccountPlanChips
+                planCode={planCode}
+                planName={planName}
+                sourcingCode={sourcingCode}
+                sourcingName={sourcingName}
+                compact
+              />
+            </Link>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-rose-200/80 bg-rose-50/60 text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700"
+            title="Đăng xuất"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </aside>
