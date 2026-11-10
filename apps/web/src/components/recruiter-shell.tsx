@@ -238,12 +238,14 @@ function CompanyAvatar({
   );
 }
 
+let savedSidebarScrollTop = 0;
+
 export function RecruiterShell({
   children,
-  pinSidebar = false,
+  pinSidebar = true,
 }: {
   children: ReactNode;
-  /** Sidebar đứng yên khi cuộn nội dung trang. */
+  /** Sidebar đứng yên khi cuộn nội dung trang (mặc định: true). */
   pinSidebar?: boolean;
 }) {
   const router = useRouter();
@@ -251,12 +253,23 @@ export function RecruiterShell({
   const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionReady, setSessionReady] = useState(() => Boolean(tokenStore.get()));
   const accountRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    if (tokenStore.get()) {
+      setSessionReady(true);
+      return;
+    }
     void restoreSession().finally(() => setSessionReady(true));
   }, []);
+
+  useEffect(() => {
+    if (navRef.current && savedSidebarScrollTop > 0) {
+      navRef.current.scrollTop = savedSidebarScrollTop;
+    }
+  }, [pathname, sessionReady]);
 
   useEffect(() => {
     const openNav = () => setMobileOpen(true);
@@ -418,7 +431,13 @@ export function RecruiterShell({
         <BrandSidebarLockup href="/recruiter" />
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
+      <nav
+        ref={navRef}
+        onScroll={(e) => {
+          savedSidebarScrollTop = e.currentTarget.scrollTop;
+        }}
+        className="flex-1 space-y-4 overflow-y-auto px-3 pb-4"
+      >
         {NAV_SECTIONS.map((section) => (
           <div key={section.title ?? 'main'}>
             {section.title && (
