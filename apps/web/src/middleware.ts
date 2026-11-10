@@ -75,12 +75,16 @@ export function middleware(req: NextRequest) {
   const isAdminHost = host === BRAND_ADMIN_HOST || host.startsWith('admin.');
   const isCrmHost = host === BRAND_CRM_HOST || host.startsWith('crm.');
   const isPublicHost = host === BRAND_SITE_HOST || host === `www.${BRAND_SITE_HOST}`;
+  const isCandidateViewPath = pathname === '/candidates' || pathname.startsWith('/candidates/');
 
   if (isCrmHost) {
     if (pathname === '/' || pathname === '') {
       const dest = req.nextUrl.clone();
       dest.pathname = '/crm';
       return applyNoStore(NextResponse.redirect(dest));
+    }
+    if (isCandidateViewPath) {
+      return nextWithRequestHeaders(req);
     }
     if (isAdminAppPath(pathname)) {
       return applyNoStore(NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`));
@@ -105,16 +109,17 @@ export function middleware(req: NextRequest) {
       dest.pathname = '/admin';
       return applyNoStore(NextResponse.redirect(dest));
     }
+    if (isCandidateViewPath) {
+      return nextWithRequestHeaders(req);
+    }
     if (!isAdminAppPath(pathname) && pathname !== '/login') {
       if (isCrmAppPath(pathname)) {
         return applyNoStore(NextResponse.redirect(`https://${BRAND_CRM_HOST}${pathname}${search}`));
       }
-      if (isCandidatePublicPath(pathname) || isRecruiterAppPath(pathname)) {
-        return applyNoStore(NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`));
+      if (isRecruiterAppPath(pathname)) {
+        return applyNoStore(NextResponse.redirect(`https://${BRAND_RECRUITER_HOST}${pathname}${search}`));
       }
-      const dest = req.nextUrl.clone();
-      dest.pathname = '/admin';
-      return applyNoStore(NextResponse.redirect(dest));
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_SITE_HOST}${pathname}${search}`));
     }
     return nextWithRequestHeaders(req);
   }

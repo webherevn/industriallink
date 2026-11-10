@@ -185,7 +185,14 @@ export class CandidateController {
   }
 
   @Get(':id')
-  @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
+  @Roles(
+    UserRole.Recruiter,
+    UserRole.HiringManager,
+    UserRole.CompanyAdmin,
+    UserRole.SuperAdmin,
+    UserRole.Sales,
+    UserRole.SalesManager,
+  )
   @ApiOperation({ summary: 'Xem hồ sơ ứng viên (NTD, cùng tenant) — liên hệ ẩn đến khi kết nối' })
   getCandidateById(
     @CurrentUser() user: AuthenticatedUser,

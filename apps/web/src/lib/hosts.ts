@@ -154,23 +154,26 @@ export function navigateAfterLogin(role: UserRole, nextPath?: string | null): vo
 /** Trả true nếu đã bắt đầu chuyển host — caller không render tiếp. */
 export function bounceIfWrongHost(role: UserRole, pathWithSearch: string): boolean {
   if (!shouldUseSplitHosts()) return false;
+  const path = pathWithSearch.split('?')[0] ?? pathWithSearch;
+  const isCandidateViewPath = path === '/candidates' || path.startsWith('/candidates/');
 
   if (isSalesStaff(role)) {
-    const path = pathWithSearch.split('?')[0] ?? pathWithSearch;
-    if (isCrmHostname() && isCrmAppPath(path)) return false;
-    goToCrmApp(isCrmAppPath(path) ? path : '/crm');
+    if (isCrmHostname() && (isCrmAppPath(path) || isCandidateViewPath)) return false;
+    if (isPublicHostname() || isCandidateViewPath) return false;
+    goToCrmApp(isCrmAppPath(path) ? pathWithSearch : '/crm');
     return true;
   }
 
   if (isCmsAdminRole(role)) {
-    if (isCrmHostname() && isCrmAppPath(pathWithSearch.split('?')[0] ?? pathWithSearch)) {
-      return false;
-    }
-    if (!isAdminHostname()) {
-      const dest = isAdminAppPath(pathWithSearch) ? pathWithSearch : '/admin';
-      goToAdminApp(dest);
+    if (isAdminAppPath(path) && !isAdminHostname()) {
+      goToAdminApp(pathWithSearch);
       return true;
     }
+    if (isCrmAppPath(path) && !isCrmHostname()) {
+      goToCrmApp(pathWithSearch);
+      return true;
+    }
+    // SuperAdmin / Editor được phép xem trang chủ, hồ sơ công ty, tin tuyển dụng và hồ sơ ứng viên mà không bị đá về admin.inlink.vn
     return false;
   }
 

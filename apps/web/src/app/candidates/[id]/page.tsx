@@ -44,10 +44,13 @@ import {
   formatJobLevel,
   formatJobTitle,
 } from '@industriallink/contracts';
+import { AdminShell } from '@/components/admin-shell';
+import { CrmShell } from '@/components/crm-shell';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { StarterProfileLockDialog } from '@/components/starter-profile-lock';
 import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
 import { ApiError } from '@/lib/api';
+import { isAdminHostname, isCrmHostname } from '@/lib/hosts';
 import {
   addCandidateShortlist,
   cancelCandidateConnection,
@@ -263,16 +266,22 @@ export default function CandidateDetailPage() {
     }
   }
 
+  const onCrm = typeof window !== 'undefined' && isCrmHostname();
+  const onAdmin = typeof window !== 'undefined' && isAdminHostname();
+  const Shell = onCrm ? CrmShell : onAdmin ? AdminShell : RecruiterShell;
+  const backHref = onCrm ? '/crm/sourcing-outreach' : onAdmin ? '/admin' : '/search';
+  const backLabel = onCrm ? 'Quay lại CRM' : onAdmin ? 'Quay lại Admin' : 'Quay lại tìm kiếm';
+
   return (
-    <RecruiterShell>
+    <Shell>
       <div className="mx-auto max-w-6xl space-y-4 animate-soft-rise pb-10">
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href="/search"
+            href={backHref}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-brand-600"
           >
             <ArrowLeft className="h-4 w-4" />
-            Quay lại tìm kiếm
+            {backLabel}
           </Link>
         </div>
 
@@ -752,6 +761,6 @@ export default function CandidateDetailPage() {
           </div>
         )}
       </div>
-    </RecruiterShell>
+    </Shell>
   );
 }

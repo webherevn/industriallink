@@ -23,7 +23,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { UserRole } from '@industriallink/contracts';
+import { isCmsAdminRole, isSalesStaff, UserRole } from '@industriallink/contracts';
 import { BrandLogo } from '@/components/brand-logo';
 import { HiredNoticeSwitch } from '@/components/hired-notice-switch';
 import { ConnectionChat } from '@/components/connection-chat';
@@ -112,7 +112,7 @@ export function AppShell({
   const { data: candidate } = useQuery({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
-    enabled: hasToken,
+    enabled: hasToken && user?.role === UserRole.Candidate,
     retry: false,
   });
 
@@ -170,11 +170,16 @@ export function AppShell({
     );
   }
 
-  if (user && user.role !== UserRole.Candidate) {
+  if (
+    user &&
+    user.role !== UserRole.Candidate &&
+    !isCmsAdminRole(user.role) &&
+    !isSalesStaff(user.role)
+  ) {
     return <RecruiterShell>{children}</RecruiterShell>;
   }
 
-  if (!user) {
+  if (!user || isCmsAdminRole(user.role) || isSalesStaff(user.role)) {
     return (
       <div className="flex min-h-screen flex-col bg-[#F5F7FB]">
         <PublicHeader />

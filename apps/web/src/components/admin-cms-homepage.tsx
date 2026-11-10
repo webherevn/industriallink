@@ -25,6 +25,7 @@ import { ApiError } from '@/lib/api';
 import { getCmsHomepageAdmin, saveCmsHomepageAdmin, uploadCmsMedia } from '@/lib/admin-cms';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 import { BRAND_NAME } from '@/lib/brand';
+import { publicSiteUrl } from '@/lib/hosts';
 
 type FormState = UpsertCmsHomepageSettingsRequest;
 
@@ -243,13 +244,14 @@ export function AdminHomepageSeoPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="/"
+          <a
+            href={publicSiteUrl()}
             target="_blank"
+            rel="noreferrer"
             className="admin-dash-card inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-semibold text-[#072348]"
           >
             Xem trang chủ <ExternalLink className="h-3.5 w-3.5 text-[#E8872A]" />
-          </Link>
+          </a>
           <button
             type="button"
             disabled={saveMutation.isPending || isLoading}

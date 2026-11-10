@@ -566,7 +566,6 @@ export class CandidateService {
     source?: string,
     matchScore?: string,
   ): Promise<RecruiterCandidateView> {
-    const { companyId } = await this.companies.requireUserCompany(user.id);
     const candidate = await this.prisma.candidate.findFirst({
       where: {
         id: candidateId,
@@ -584,6 +583,30 @@ export class CandidateService {
     if (!candidate) {
       throw new NotFoundException('Không tìm thấy ứng viên');
     }
+
+    const rawPhone = candidate.profile?.phone ?? null;
+    const rawEmail = candidate.user.email ?? null;
+    const view = this.toCandidateView(candidate);
+
+    if (
+      user.role === UserRole.SuperAdmin ||
+      user.role === UserRole.Sales ||
+      user.role === UserRole.SalesManager
+    ) {
+      return {
+        ...view,
+        contactUnlocked: true,
+        phone: rawPhone,
+        email: rawEmail,
+        phoneMasked: maskPhone(rawPhone),
+        emailMasked: maskEmail(rawEmail),
+        connection: null,
+        isShortlisted: false,
+        matchScore: matchScore != null && Number.isFinite(Number(matchScore)) ? Number(matchScore) : null,
+      };
+    }
+
+    const { companyId } = await this.companies.requireUserCompany(user.id);
 
     const [connection, shortlist] = await Promise.all([
       this.prisma.candidateConnection.findUnique({
@@ -604,9 +627,6 @@ export class CandidateService {
     ]);
 
     const unlocked = connection?.status === ConnectionStatus.Accepted;
-    const rawPhone = candidate.profile?.phone ?? null;
-    const rawEmail = candidate.user.email ?? null;
-    const view = this.toCandidateView(candidate);
 
     if (!unlocked && view.profile) {
       view.profile = { ...view.profile, phone: null };

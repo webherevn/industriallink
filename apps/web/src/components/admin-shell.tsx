@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { LogOut, Menu, Shield, X } from 'lucide-react';
+import { ExternalLink, LogOut, Menu, Shield, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -11,7 +11,7 @@ import { BrandSidebarLockup } from '@/components/brand-logo';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { adminNavForRole } from '@/lib/admin-nav';
 import { fetchMe, logout } from '@/lib/auth';
-import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
+import { bounceIfWrongHost, goToPublicApp, publicSiteUrl } from '@/lib/hosts';
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -201,10 +201,19 @@ export function AdminShell({ children }: { children: ReactNode }) {
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-brand-600">inlink Admin</p>
             <p className="truncate text-xs text-slate-500">CMS · SEO · vận hành nền tảng</p>
           </div>
+          <a
+            href={publicSiteUrl()}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#072348] transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            Xem trang chủ
+            <ExternalLink className="h-3.5 w-3.5 text-[#E8872A]" />
+          </a>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
           {children}
