@@ -504,7 +504,7 @@ export function RecruiterSourcingWorkspace() {
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {validEngagements.map((eng) => {
                     const isActive = selected === eng.id;
                     const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
