@@ -524,52 +524,85 @@ function CompareMatrix({
   return (
     <>
       <div className="hidden lg:block">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_32px_-16px_rgba(7,35,72,0.12)]">
+          <table className="w-full border-collapse text-sm">
             <caption className="sr-only">
               Bảng so sánh chi tiết thông số và quyền lợi các gói tuyển dụng công nghiệp trên inlink.vn
             </caption>
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500" scope="col">
-                  Tiêu chí
+              <tr className="border-b border-slate-200 bg-[#072348] text-white">
+                <th
+                  className="w-[24%] px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-300"
+                  scope="col"
+                >
+                  Tiêu chí đối chiếu
                 </th>
                 {columns.map((col) => (
                   <th
                     key={col.id}
                     scope="col"
                     className={clsx(
-                      'px-4 py-3 text-center',
-                      col.featured ? 'bg-accent-50 text-accent-700' : 'text-slate-600',
+                      'px-4 py-4 text-center align-middle',
+                      col.featured
+                        ? 'bg-gradient-to-b from-amber-500/25 to-amber-500/10 text-amber-300'
+                        : 'text-white',
                     )}
                   >
-                    <span className="text-xs font-bold uppercase tracking-wide">{col.name}</span>
+                    <div className="flex flex-col items-center gap-1">
+                      {col.featured ? (
+                        <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#072348]">
+                          Đề xuất
+                        </span>
+                      ) : null}
+                      <span className="text-xs font-bold uppercase tracking-wide">{col.name}</span>
+                    </div>
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row, ri) => (
-                <tr
-                  key={`${row.label}-${ri}`}
-                  className={clsx(
-                    'border-b border-slate-100',
-                    ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50',
-                  )}
-                >
-                  <th scope="row" className="px-4 py-3 text-left font-medium text-slate-700">
-                    {row.label}
-                  </th>
-                  {row.cells.map((cell, ci) => (
-                    <td
-                      key={columns[ci]?.id ?? ci}
-                      className={clsx('px-4 py-3 text-center', featured[ci] ? 'bg-accent-50/70' : '')}
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row, ri) => {
+                const isPriceRow = row.autoKey === 'price' || row.autoKey === 'fee';
+                const isHookRow = row.autoKey === 'hook';
+                return (
+                  <tr
+                    key={`${row.label}-${ri}`}
+                    className={clsx(
+                      'transition-colors hover:bg-slate-50/90',
+                      isPriceRow
+                        ? 'bg-slate-50/80 font-semibold'
+                        : ri % 2 === 0
+                          ? 'bg-white'
+                          : 'bg-slate-50/35',
+                    )}
+                  >
+                    <th
+                      scope="row"
+                      className={clsx(
+                        'px-5 py-3.5 text-left text-[13px]',
+                        isPriceRow || isHookRow
+                          ? 'font-bold text-[#072348]'
+                          : 'font-medium text-slate-700',
+                      )}
                     >
-                      <CompareCellView cell={cell} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
+                      {row.label}
+                    </th>
+                    {row.cells.map((cell, ci) => (
+                      <td
+                        key={columns[ci]?.id ?? ci}
+                        className={clsx(
+                          'px-4 py-3.5 text-center align-middle',
+                          featured[ci]
+                            ? 'border-x border-amber-200/50 bg-amber-50/40'
+                            : '',
+                        )}
+                      >
+                        <CompareCellView cell={cell} />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -580,19 +613,29 @@ function CompareMatrix({
           <div
             key={col.id}
             className={clsx(
-              'rounded-2xl border p-5',
+              'rounded-2xl border p-5 shadow-sm',
               col.featured
-                ? 'border-accent-200 bg-accent-50/70'
+                ? 'border-amber-300 bg-gradient-to-b from-amber-50/70 to-white'
                 : 'border-slate-200 bg-white',
             )}
           >
-            <h3 className="text-base font-bold text-[#072348]">{col.name}</h3>
-            <div className="mt-3 space-y-1.5">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold uppercase text-[#072348]">{col.name}</h3>
+              {col.featured ? (
+                <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold uppercase text-[#072348]">
+                  Đề xuất
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-3 space-y-2">
               {rows.map((row, rowIndex) => {
                 const cell = row.cells[idx];
                 if (!cell) return null;
                 return (
-                  <div key={row.autoKey ?? `${row.label}-${rowIndex}`} className="flex items-start justify-between gap-3 text-xs">
+                  <div
+                    key={row.autoKey ?? `${row.label}-${rowIndex}`}
+                    className="flex items-start justify-between gap-3 border-b border-slate-100/70 pb-1.5 text-xs last:border-b-0 last:pb-0"
+                  >
                     <span className="text-slate-500">{row.label}</span>
                     {cell.kind === 'flag' ? (
                       <CompareFlag yes={cell.yes} compact />
@@ -638,6 +681,7 @@ export function CompareSection({
   const platform = platformPlans.filter((p) => p.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
   const sourcing = sourcingPlans.filter((p) => p.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
   const credit = topups.filter((t) => t.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
+  const hasExplicitFeaturedPlatform = platform.some((p) => p.isFeatured);
 
   const tabs = [
     ['platform', page.platformTitle],
@@ -652,7 +696,7 @@ export function CompareSection({
         id: p.id,
         code: p.code,
         name: p.name,
-        featured: p.code === 'TIN_DANG_PLUS',
+        featured: hasExplicitFeaturedPlatform ? Boolean(p.isFeatured) : p.code === 'TIN_DANG_PLUS',
       })),
       rows: buildPlatformRows(platform, currency),
       insight: platformInsight(platform),
@@ -675,18 +719,35 @@ export function CompareSection({
   ].map((panel, index) => ({ ...panel, id: (['platform', 'sourcing', 'credit'] as const)[index] }));
 
   return (
-    <section id="compare" aria-labelledby="compare-title" className={flush ? 'scroll-mt-20' : 'scroll-mt-20 bg-slate-50 py-14 sm:py-20'}>
-      <div className={flush ? 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6' : 'mx-auto max-w-6xl px-4 sm:px-6'}>
+    <section
+      id="compare"
+      aria-labelledby="compare-title"
+      className={flush ? 'scroll-mt-20' : 'scroll-mt-20 border-t border-slate-200/80 bg-white py-14 sm:py-20'}
+    >
+      <div
+        className={
+          flush
+            ? 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'
+            : 'mx-auto max-w-7xl px-4 sm:px-6'
+        }
+      >
         <div className="mb-6 text-center">
-          <h2 id="compare-title" className="inline-flex items-center justify-center gap-2 text-2xl font-bold text-brand-800">
-            <BarChart3 className="h-5 w-5 text-[#E8872A]" aria-hidden="true" />
+          <h2
+            id="compare-title"
+            className="inline-flex items-center justify-center gap-2 text-2xl font-bold text-[#072348] sm:text-3xl"
+          >
+            <BarChart3 className="h-6 w-6 text-[#E8872A]" aria-hidden="true" />
             {page.compareTitle}
             <span className="sr-only">{PRICING_HEADING_CONTEXT}</span>
           </h2>
           <p className="mt-2 text-sm text-slate-500">{page.compareSubtitle}</p>
         </div>
 
-        <div className="mb-6 flex flex-wrap justify-center gap-2" role="tablist" aria-label="So sánh theo nhóm gói">
+        <div
+          className="mb-6 flex flex-wrap justify-center gap-2"
+          role="tablist"
+          aria-label="So sánh theo nhóm gói"
+        >
           {tabs.map(([id, label]) => (
             <button
               key={id}
@@ -695,10 +756,10 @@ export function CompareSection({
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               className={clsx(
-                'rounded-full px-4 py-2 text-sm font-semibold transition',
+                'rounded-xl px-4 py-2 text-sm font-semibold transition',
                 tab === id
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'border border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-800',
+                  ? 'bg-[#072348] text-white shadow-sm'
+                  : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-[#072348]',
               )}
             >
               {label}
@@ -709,7 +770,7 @@ export function CompareSection({
         {panels.map((panel) => (
           <div key={panel.id} hidden={tab !== panel.id} aria-hidden={tab !== panel.id}>
             {panel.insight ? (
-              <p className="mx-auto mb-6 max-w-3xl text-center text-sm leading-relaxed text-slate-600">
+              <p className="mx-auto mb-6 max-w-3xl rounded-xl border border-slate-200/80 bg-slate-50 px-4 py-2.5 text-center text-xs leading-relaxed text-slate-600 sm:text-sm">
                 {panel.insight}
               </p>
             ) : null}
@@ -726,8 +787,8 @@ export function CompareSection({
                 />
                 <p className="mt-4 text-center text-[11px] text-slate-400">
                   {panel.custom
-                    ? 'Nội dung bảng là chữ đã lưu, không đổi khi sửa giá hoặc hạn mức gói.'
-                    : '✓ / ✗ lấy từ giá, hạn mức và quyền đang bật của từng gói — đổi cấu hình SuperAdmin là bảng đổi theo.'}
+                    ? 'Nội dung bảng được hiển thị theo cấu hình bảng so sánh từ quản trị viên.'
+                    : 'Bảng đối chiếu tự động đồng bộ theo giá, hạn mức và quyền lợi đang bật của từng gói.'}
                 </p>
               </>
             )}
