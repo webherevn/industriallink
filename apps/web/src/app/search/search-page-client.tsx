@@ -3,12 +3,19 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  AlertTriangle,
   ArrowDownWideNarrow,
+  ArrowRight,
+  Bookmark,
+  BookmarkCheck,
   Briefcase,
+  Building2,
   Car,
+  Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Coins,
-  Eye,
   Languages,
   Loader2,
   MapPin,
@@ -56,9 +63,10 @@ import { AppShell } from '@/components/app-shell';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { ProfileOpenLink } from '@/components/starter-profile-lock';
 import { ApiError } from '@/lib/api';
+import { addCandidateShortlist, removeCandidateShortlist } from '@/lib/candidate';
 import { listMyJobs } from '@/lib/jobs';
 import { candidatesForJob } from '@/lib/matching';
-import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
+import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { searchCandidates, type CandidateSearchFilters } from '@/lib/search';
 
 type FilterState = {
@@ -225,6 +233,7 @@ function matchToResult(row: CandidateMatchView): CandidateSearchResult {
     criteria: row.match.criteria,
     applied: row.applied,
     viewed: row.viewed,
+    isShortlisted: row.isShortlisted,
   };
 }
 
@@ -300,11 +309,71 @@ function FilterSection({
   );
 }
 
+function formatPersonName(raw?: string | null): string {
+  const trimmed = (raw ?? '').trim().replace(/\s+/g, ' ');
+  if (!trimmed) return 'Ứng viên';
+  return trimmed
+    .split(' ')
+    .map((word) => {
+      if (!word) return '';
+      const lower = word.toLocaleLowerCase('vi-VN');
+      return lower.charAt(0).toLocaleUpperCase('vi-VN') + lower.slice(1);
+    })
+    .join(' ');
+}
+
+type ParsedAiReason = {
+  background: string | null;
+  missingItems: string[];
+  note: string | null;
+};
+
+function parseAiReason(reason?: string | null): ParsedAiReason {
+  if (!reason) return { background: null, missingItems: [], note: null };
+  let text = reason
+    .trim()
+    .replace(/^(?:Độ|Tỉ lệ|Tỷ lệ)\s+phù\s+hợp\s+[\d.,]+%\s*(?:\([^)]*\))?\.?\s*/i, '')
+    .trim();
+
+  if (!text) return { background: null, missingItems: [], note: null };
+
+  let missingItems: string[] = [];
+  const missingMatch = text.match(/Khoảng thiếu:\s*([^.]+)\.?/i);
+  if (missingMatch) {
+    missingItems = missingMatch[1]
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    text = text.replace(missingMatch[0], '').trim();
+  }
+
+  let background: string | null = null;
+  let note: string | null = null;
+
+  const bgPrefix = text.match(/^(?:Nền tảng|Nền):\s*(.+)$/i);
+  if (bgPrefix) {
+    const rest = bgPrefix[1].replace(/\.\s*$/, '').trim();
+    const extraSplit = rest.match(/^(.+?)\.\s+((?:Điểm mạnh|Khớp|Phù hợp|Ưu điểm):?\s*.+)$/i);
+    if (extraSplit) {
+      background = extraSplit[1].trim() || null;
+      note = extraSplit[2].replace(/\.\s*$/, '').trim() || null;
+    } else {
+      background = rest || null;
+    }
+  } else {
+    const cleaned = text.replace(/\.\s*$/, '').trim();
+    note = cleaned || null;
+  }
+
+  return { background, missingItems, note };
+}
+
 function ScoreRing({ score }: { score: number }) {
   const pct = formatMatchPct(score);
   const r = 18;
   const c = 2 * Math.PI * r;
-  const safe = Math.min(1, Math.max(0, score));
+  const unit = score <= 1 ? score : score / 100;
+  const safe = Math.min(1, Math.max(0, unit));
   const offset = c * (1 - safe);
   const ringColor = matchRingColor(score);
   return (
@@ -333,7 +402,7 @@ function ScoreRing({ score }: { score: number }) {
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <span
-          className="text-[12px] font-extrabold leading-none tracking-tight"
+          className="text-[12px] font-extrabold leading-none tracking-tight tabular-nums"
           style={{ color: ringColor }}
         >
           {pct}
@@ -347,190 +416,373 @@ function ScoreRing({ score }: { score: number }) {
 function ResultCard({
   result,
   index,
+  shortlisted,
+  shortlistBusy,
+  onToggleShortlist,
 }: {
   result: CandidateSearchResult;
   index: number;
+  shortlisted: boolean;
+  shortlistBusy: boolean;
+  onToggleShortlist: (candidateId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const criteria = (result.criteria ?? []).filter((c) => c.score != null);
   const scorePct = result.score <= 1 ? result.score * 100 : result.score;
   const creditCost = scorePct >= 80 ? 2 : 1;
+  const displayName = formatPersonName(result.displayName);
+  const parsedReason = useMemo(() => parseAiReason(result.reason), [result.reason]);
+  const matchedSkills = result.matchedSkills ?? [];
+  const visibleSkills = matchedSkills.slice(0, 4);
+  const extraSkills = Math.max(0, matchedSkills.length - visibleSkills.length);
+  const visibleMissing = parsedReason.missingItems.slice(0, 2);
+  const extraMissing = Math.max(0, parsedReason.missingItems.length - visibleMissing.length);
+  const isUnlockedOrFree = Boolean(result.viewed || result.applied);
 
   return (
     <article
-      className="progress-card group relative p-4 animate-soft-rise sm:p-5"
+      className="group relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(7,35,72,0.04)] transition duration-200 hover:border-slate-300 hover:shadow-[0_10px_26px_-16px_rgba(7,35,72,0.2)] animate-soft-rise"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
-      <div className="relative z-10 flex items-start gap-3 sm:gap-4">
-        <ScoreRing score={result.score} />
-        <div className="min-w-0 flex-1">
-          <div className="min-w-0">
-            <h3 className="truncate text-base font-bold text-slate-900">
-              {result.displayName}
-            </h3>
-            {(result.viewed || result.applied) && (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {result.viewed && (
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+      {/* Tầng 1: Thông tin ứng viên & nhận xét AI dễ quét */}
+      <div className="px-4 pt-4 pb-3.5 sm:px-5">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <ScoreRing score={result.score} />
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+                <h3 className="truncate text-[15px] font-bold text-[#072348] sm:text-base">
+                  {displayName}
+                </h3>
+
+                {result.viewed ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
                     Đã xem
                   </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200/70">
+                    Chưa xem
+                  </span>
                 )}
+
                 {result.applied && (
-                  <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200/80">
                     Đã ứng tuyển
                   </span>
                 )}
+
+                {result.code ? (
+                  <span className="hidden font-mono text-[11px] text-slate-400 sm:inline">
+                    {result.code}
+                  </span>
+                ) : null}
               </div>
-            )}
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-500">
-              <span>
-                {result.currentPosition
-                  ? formatJobTitle(result.currentPosition)
-                  : 'Chưa cập nhật vị trí'}
+
+              <button
+                type="button"
+                disabled={shortlistBusy}
+                onClick={() => onToggleShortlist(result.candidateId)}
+                className={clsx(
+                  'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition disabled:opacity-60',
+                  shortlisted
+                    ? 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-[#072348]',
+                )}
+                title={
+                  shortlisted
+                    ? 'Bỏ lưu khỏi danh sách Shortlist theo dõi'
+                    : 'Lưu ứng viên vào Shortlist để cân nhắc mở hồ sơ sau'
+                }
+              >
+                {shortlisted ? (
+                  <BookmarkCheck className="h-3.5 w-3.5 shrink-0 text-[#1D4ED8]" />
+                ) : (
+                  <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                )}
+                <span>{shortlisted ? 'Đã Shortlist' : 'Shortlist'}</span>
+              </button>
+            </div>
+
+            <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="font-medium text-slate-700">
+                  {result.currentPosition
+                    ? formatJobTitle(result.currentPosition)
+                    : 'Chưa cập nhật vị trí'}
+                </span>
+                {result.industry ? (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span>{result.industry}</span>
+                  </>
+                ) : null}
               </span>
-              {result.industry && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span>{result.industry}</span>
-                </>
-              )}
-              <span className="text-slate-300">·</span>
+
               <span
                 className={clsx(
                   'inline-flex items-center gap-1 font-medium',
                   result.location ? 'text-slate-700' : 'text-slate-400',
                 )}
               >
-                <MapPin className="h-3.5 w-3.5 text-[#E8872A]" />
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
                 {result.location ?? 'Chưa có địa điểm'}
               </span>
-              {result.code ? (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span className="font-mono text-xs text-slate-400">{result.code}</span>
-                </>
-              ) : null}
             </p>
-          </div>
 
-          {result.reason && (
-            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-600">
-              {result.reason}
-            </p>
-          )}
-
-          {result.matchedSkills?.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {result.matchedSkills.map((skill) => (
-                <span
-                  key={skill}
-                  className="animate-chip-pop rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
-                >
-                  {skill}
+            {parsedReason.background && (
+              <p className="mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-snug text-slate-500">
+                <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="line-clamp-1">
+                  <span className="text-slate-400">Nền tảng:</span>{' '}
+                  <span className="font-medium text-slate-700">{parsedReason.background}</span>
                 </span>
-              ))}
-            </div>
-          )}
+              </p>
+            )}
 
-          {criteria.length > 0 && (
-            <div className="mt-3 pointer-events-auto">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setExpanded((v) => !v);
-                }}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
-              >
-                Chi tiết tiêu chí matching
-                <ChevronDown
-                  className={clsx('h-3.5 w-3.5 transition-transform duration-200', expanded && 'rotate-180')}
-                />
-              </button>
+            {parsedReason.note && (
+              <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-relaxed text-slate-600">
+                {parsedReason.note}
+              </p>
+            )}
+
+            {(visibleSkills.length > 0 || visibleMissing.length > 0) && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                {visibleSkills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center gap-1 rounded-md bg-emerald-50/70 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200/60"
+                  >
+                    <Check className="h-3 w-3 shrink-0 text-emerald-600" />
+                    {skill}
+                  </span>
+                ))}
+                {extraSkills > 0 && (
+                  <span
+                    className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500"
+                    title={matchedSkills.slice(4).join(', ')}
+                  >
+                    +{extraSkills}
+                  </span>
+                )}
+                {visibleMissing.length > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-md bg-amber-50/80 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200/70"
+                    title={`Cần kiểm tra thêm khi phỏng vấn: ${parsedReason.missingItems.join(', ')}`}
+                  >
+                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+                    <span>
+                      Thiếu: {visibleMissing.join(', ')}
+                      {extraMissing > 0 ? ` +${extraMissing}` : ''}
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {criteria.length > 0 && (
               <div
                 className={clsx(
                   'grid transition-all duration-300 ease-soft',
-                  expanded ? 'mt-2 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+                  expanded ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
                 )}
               >
-                <div className="overflow-hidden space-y-2">
-                  {criteria.slice(0, 8).map((c) => {
-                    const pct = Math.round((c.score ?? 0) * 100);
-                    return (
-                      <div key={c.key} className="space-y-1">
-                        <div className="flex items-center justify-between gap-2 text-[11px]">
-                          <span className="font-medium text-slate-600" title={c.note}>
-                            {c.label}
-                            <span className="ml-1 font-normal text-slate-400">
-                              · {Math.round(c.weight * 100)}%
+                <div className="overflow-hidden">
+                  <div className="grid gap-2.5 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:grid-cols-2">
+                    {criteria.slice(0, 8).map((c) => {
+                      const pct = Math.round((c.score ?? 0) * 100);
+                      return (
+                        <div key={c.key} className="space-y-1">
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="truncate font-medium text-slate-600" title={c.note}>
+                              {c.label}
+                              <span className="ml-1 font-normal text-slate-400">
+                                · {Math.round(c.weight * 100)}%
+                              </span>
                             </span>
-                          </span>
-                          <span className="tabular-nums font-semibold text-slate-800">{pct}%</span>
+                            <span className="shrink-0 tabular-nums font-semibold text-slate-800">
+                              {pct}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/70">
+                            <div
+                              className="h-full origin-left rounded-full bg-[#E8872A] animate-bar-grow"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full origin-left rounded-full bg-amber-500 animate-bar-grow"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tầng 2: Thanh hành động chân thẻ đồng bộ chuẩn B2B */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100 bg-slate-50/55 px-4 py-2.5 sm:px-5">
+        <div className="flex items-center gap-2">
+          {criteria.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className={clsx(
+                '-ml-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold transition',
+                expanded
+                  ? 'bg-amber-50 text-[#C86D18]'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-[#072348]',
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
+              <span>Chi tiết tiêu chí matching</span>
+              <ChevronDown
+                className={clsx(
+                  'h-3.5 w-3.5 transition-transform duration-200',
+                  expanded && 'rotate-180',
+                )}
+              />
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400">
+              <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
+              Gợi ý bởi AI Inlink
+            </span>
           )}
         </div>
 
-        <div className="flex min-w-[108px] shrink-0 flex-col items-stretch gap-1.5">
-          <span
-            className={clsx(
-              'inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-[11px] font-bold tabular-nums ring-1',
-              matchBadgeTone(result.score),
-            )}
-          >
-            Phù hợp {formatMatchPct(result.score)}%
-          </span>
-          <span
-            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)]"
-            title={
-              creditCost === 2
-                ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
-                : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
-            }
-          >
-            <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
-            <span>
-              <span className="text-[#E8872A]">{creditCost}</span> Credit
-            </span>
-          </span>
-          <ProfileOpenLink
-            href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
-            potential={!result.applied}
-            ariaLabel={`Xem hồ sơ ${result.displayName}`}
-            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg bg-[#072348] px-2.5 text-[11px] font-bold text-white shadow-2xs transition hover:bg-[#0d3b80]"
-          >
-            <Eye className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
-            <span>Xem hồ sơ</span>
-          </ProfileOpenLink>
+        <div className="ml-auto flex items-center gap-2">
+          {isUnlockedOrFree ? (
+            <>
+              {result.applied && !result.viewed && (
+                <span className="hidden text-[11px] font-medium text-emerald-700 sm:inline">
+                  Miễn phí mở
+                </span>
+              )}
+              <ProfileOpenLink
+                href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
+                potential={!result.applied}
+                ariaLabel={`Xem hồ sơ ${displayName}`}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#072348]/20 bg-white px-4 text-xs font-bold text-[#072348] shadow-2xs transition hover:border-[#072348]/40 hover:bg-[#072348]/[0.04]"
+              >
+                <span>Xem hồ sơ</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </ProfileOpenLink>
+            </>
+          ) : (
+            <ProfileOpenLink
+              href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
+              potential={!result.applied}
+              ariaLabel={`Mở hồ sơ ${displayName} (${creditCost} Credit)`}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#072348] pl-4 pr-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d356c]"
+            >
+              <span>Mở hồ sơ</span>
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-[#FFD0A3]"
+                title={
+                  creditCost === 2
+                    ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
+                    : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
+                }
+              >
+                <Coins className="h-3 w-3 shrink-0 text-[#FFB366]" />
+                {creditCost} Credit
+              </span>
+            </ProfileOpenLink>
+          )}
         </div>
       </div>
     </article>
   );
 }
 
+type ResultStatusFilter = 'all' | 'unviewed' | 'viewed' | 'applied' | 'shortlisted';
+
+const RESULT_PAGE_SIZE = 10;
+
 function ResultList({
   results,
   loading,
   emptyTitle,
   emptyHint,
+  shortlistOverrides,
+  shortlistBusyIds,
+  onToggleShortlist,
 }: {
   results: CandidateSearchResult[];
   loading: boolean;
   emptyTitle: string;
   emptyHint: string;
+  shortlistOverrides: Record<string, boolean>;
+  shortlistBusyIds: Record<string, boolean>;
+  onToggleShortlist: (candidateId: string, currentShortlisted: boolean) => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState<ResultStatusFilter>('all');
+  const [page, setPage] = useState(1);
+
+  const isRowShortlisted = useCallback(
+    (row: CandidateSearchResult) =>
+      shortlistOverrides[row.candidateId] ?? Boolean(row.isShortlisted),
+    [shortlistOverrides],
+  );
+
+  useEffect(() => {
+    setStatusFilter('all');
+    setPage(1);
+  }, [results]);
+
+  const counts = useMemo(() => {
+    let unviewed = 0;
+    let viewed = 0;
+    let applied = 0;
+    let shortlisted = 0;
+    for (const r of results) {
+      if (r.viewed) viewed += 1;
+      else unviewed += 1;
+      if (r.applied) applied += 1;
+      if (isRowShortlisted(r)) shortlisted += 1;
+    }
+    return {
+      all: results.length,
+      unviewed,
+      viewed,
+      applied,
+      shortlisted,
+    };
+  }, [results, isRowShortlisted]);
+
+  const filteredResults = useMemo(() => {
+    switch (statusFilter) {
+      case 'unviewed':
+        return results.filter((r) => !r.viewed);
+      case 'viewed':
+        return results.filter((r) => Boolean(r.viewed));
+      case 'applied':
+        return results.filter((r) => Boolean(r.applied));
+      case 'shortlisted':
+        return results.filter((r) => isRowShortlisted(r));
+      default:
+        return results;
+    }
+  }, [results, statusFilter, isRowShortlisted]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / RESULT_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedResults = useMemo(() => {
+    const start = (safePage - 1) * RESULT_PAGE_SIZE;
+    return filteredResults.slice(start, start + RESULT_PAGE_SIZE);
+  }, [filteredResults, safePage]);
+
+  const statusTabs: { key: ResultStatusFilter; label: string; count: number }[] = [
+    { key: 'all', label: 'Tất cả', count: counts.all },
+    { key: 'unviewed', label: 'Chưa xem', count: counts.unviewed },
+    { key: 'viewed', label: 'Đã xem', count: counts.viewed },
+    { key: 'applied', label: 'Đã ứng tuyển', count: counts.applied },
+    { key: 'shortlisted', label: 'Shortlist', count: counts.shortlisted },
+  ];
+
   return (
     <>
       {loading && results.length === 0 && (
@@ -538,7 +790,7 @@ function ResultList({
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-28 rounded-xl border border-slate-100 bg-[linear-gradient(110deg,#f1f5f9_8%,#e2e8f0_18%,#f1f5f9_33%)] bg-[length:200%_100%] animate-search-shimmer"
+              className="h-32 rounded-2xl border border-slate-100 bg-[linear-gradient(110deg,#f1f5f9_8%,#e2e8f0_18%,#f1f5f9_33%)] bg-[length:200%_100%] animate-search-shimmer"
               style={{ animationDelay: `${i * 120}ms` }}
             />
           ))}
@@ -546,17 +798,118 @@ function ResultList({
       )}
 
       {!loading && results.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center animate-soft-rise">
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center animate-soft-rise">
           <p className="text-sm font-semibold text-slate-700">{emptyTitle}</p>
           <p className="mt-1 text-xs text-slate-400">{emptyHint}</p>
         </div>
       )}
 
-      <div className={clsx('space-y-3', loading && results.length > 0 && 'opacity-70')}>
-        {results.map((r, i) => (
-          <ResultCard key={r.candidateId} result={r} index={i} />
-        ))}
-      </div>
+      {results.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {statusTabs.map((tab) => {
+              const active = statusFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(tab.key);
+                    setPage(1);
+                  }}
+                  className={clsx(
+                    'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
+                    active
+                      ? 'bg-[#EFF6FF] text-[#1D4ED8] ring-1 ring-[#BFDBFE]'
+                      : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/70 hover:text-slate-800',
+                  )}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={clsx(
+                      'tabular-nums text-[11px] font-bold',
+                      active ? 'text-[#1D4ED8]' : 'text-slate-400',
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredResults.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-slate-700">
+                Chưa có ứng viên ở mục «{statusTabs.find((t) => t.key === statusFilter)?.label}»
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('all');
+                  setPage(1);
+                }}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1D4ED8] hover:underline"
+              >
+                Xem tất cả {counts.all} ứng viên
+              </button>
+            </div>
+          ) : (
+            <div className={clsx('space-y-3', loading && 'opacity-70')}>
+              {pagedResults.map((r, i) => {
+                const shortlisted = isRowShortlisted(r);
+                return (
+                  <ResultCard
+                    key={r.candidateId}
+                    result={r}
+                    index={i}
+                    shortlisted={shortlisted}
+                    shortlistBusy={Boolean(shortlistBusyIds[r.candidateId])}
+                    onToggleShortlist={(cid) => onToggleShortlist(cid, shortlisted)}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-xs text-slate-500">
+              <span>
+                Hiển thị{' '}
+                <strong className="font-semibold text-slate-700">
+                  {(safePage - 1) * RESULT_PAGE_SIZE + 1}–
+                  {Math.min(safePage * RESULT_PAGE_SIZE, filteredResults.length)}
+                </strong>{' '}
+                trên <strong className="font-semibold text-slate-700">{filteredResults.length}</strong>{' '}
+                ứng viên
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Trước
+                </button>
+                <span className="px-2 font-semibold tabular-nums text-slate-700">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Sau
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -652,11 +1005,30 @@ export function SearchPageClient() {
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [filterResults, setFilterResults] = useState<CandidateSearchResult[]>([]);
   const [hasFilterSearched, setHasFilterSearched] = useState(false);
+  const [shortlistOverrides, setShortlistOverrides] = useState<Record<string, boolean>>({});
+  const [shortlistBusyIds, setShortlistBusyIds] = useState<Record<string, boolean>>({});
   const [promptIndex, setPromptIndex] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipLiveRef = useRef(true);
   const autoMatchRef = useRef(Boolean(initialJobId));
   const matchAnchorRef = useRef<HTMLElement | null>(null);
+
+  const handleToggleShortlist = useCallback(
+    async (candidateId: string, currentShortlisted: boolean) => {
+      const next = !currentShortlisted;
+      setShortlistOverrides((prev) => ({ ...prev, [candidateId]: next }));
+      setShortlistBusyIds((prev) => ({ ...prev, [candidateId]: true }));
+      try {
+        if (next) await addCandidateShortlist(candidateId);
+        else await removeCandidateShortlist(candidateId);
+      } catch {
+        setShortlistOverrides((prev) => ({ ...prev, [candidateId]: currentShortlisted }));
+      } finally {
+        setShortlistBusyIds((prev) => ({ ...prev, [candidateId]: false }));
+      }
+    },
+    [],
+  );
 
   const jobsQuery = useQuery({
     queryKey: ['my-jobs'],
@@ -1116,6 +1488,9 @@ export function SearchPageClient() {
             <ResultList
               results={shownMatches}
               loading={matching}
+              shortlistOverrides={shortlistOverrides}
+              shortlistBusyIds={shortlistBusyIds}
+              onToggleShortlist={handleToggleShortlist}
               emptyTitle={
                 locationMode === 'exact' && matchResults.length > 0
                   ? 'Không có ứng viên đúng địa điểm của tin'
@@ -1516,6 +1891,9 @@ export function SearchPageClient() {
               <ResultList
                 results={filterResults}
                 loading={filtering}
+                shortlistOverrides={shortlistOverrides}
+                shortlistBusyIds={shortlistBusyIds}
+                onToggleShortlist={handleToggleShortlist}
                 emptyTitle="Không thấy ứng viên khớp bộ lọc"
                 emptyHint="Thử bỏ bớt điều kiện hoặc dùng gợi ý nhanh phía trên."
               />

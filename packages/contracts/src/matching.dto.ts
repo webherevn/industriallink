@@ -141,6 +141,7 @@ export interface CandidateMatchView {
   viewed?: boolean;
   /** Công ty đã chủ động kết nối trực tiếp với ứng viên này. */
   connected?: boolean;
+  isShortlisted?: boolean;
 }
 
 /** Cùng danh sách và điểm với AI gợi ý ứng viên, không trừ Credit. */

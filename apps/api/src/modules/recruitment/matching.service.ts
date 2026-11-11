@@ -772,9 +772,10 @@ export class MatchingService {
       .sort((a, b) => b.match.score - a.match.score);
     const ranked = [...appliedRows, ...networkRows].slice(0, MATCH_LIMIT);
     const candidateIdList = ranked.map((row) => row.candidateId);
-    const [viewedIds, connectedIds] = await Promise.all([
+    const [viewedIds, connectedIds, shortlistedIds] = await Promise.all([
       this.viewedCandidateIds(companyId, candidateIdList),
       this.connectedCandidateIds(companyId, candidateIdList),
+      this.shortlistedCandidateIds(companyId, candidateIdList),
     ]);
 
     return ranked.map(
@@ -788,8 +789,19 @@ export class MatchingService {
         applied: row.applied,
         viewed: viewedIds.has(row.candidateId),
         connected: connectedIds.has(row.candidateId),
+        isShortlisted: shortlistedIds.has(row.candidateId),
       }),
     );
+  }
+
+  /** Công ty đã lưu ứng viên vào Shortlist chung. */
+  private async shortlistedCandidateIds(companyId: string, candidateIds: string[]): Promise<Set<string>> {
+    if (candidateIds.length === 0 || !this.prisma.candidateShortlist?.findMany) return new Set();
+    const rows = await this.prisma.candidateShortlist.findMany({
+      where: { companyId, candidateId: { in: candidateIds } },
+      select: { candidateId: true },
+    });
+    return new Set(rows.map((row) => row.candidateId));
   }
 
   /** Công ty đã mở hồ sơ: lượt xem có phí, hoặc mốc xem miễn phí. */

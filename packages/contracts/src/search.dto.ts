@@ -44,4 +44,5 @@ export interface CandidateSearchResult {
   applied?: boolean;
   /** Công ty đã mở hồ sơ. */
   viewed?: boolean;
+  isShortlisted?: boolean;
 }

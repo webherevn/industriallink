@@ -243,7 +243,7 @@ export class SearchService {
       where: { id: { in: ids.map((r) => r.candidate_id) } },
       include: { profile: true, skills: true, experiences: true },
     });
-    const appliedIds = await this.appliedCandidateIds(
+    const flags = await this.recruiterCandidateFlags(
       userId,
       candidates.map((c) => c.id),
     );
@@ -290,13 +290,73 @@ export class SearchService {
           reason: explanation.reason,
           matchedSkills: explanation.matchedSkills,
           criteria: explanation.criteria,
-          applied: appliedIds.has(c.id),
+          applied: flags.appliedIds.has(c.id),
+          viewed: flags.viewedIds.has(c.id),
+          isShortlisted: flags.shortlistedIds.has(c.id),
         } satisfies CandidateSearchResult;
       })
       .sort((a, b) => b.score - a.score);
   }
 
   /** Ứng viên đã nộp vào tin của công ty đang tìm. */
+  private async recruiterCandidateFlags(
+    userId: string | undefined,
+    candidateIds: string[],
+  ): Promise<{
+    appliedIds: Set<string>;
+    viewedIds: Set<string>;
+    shortlistedIds: Set<string>;
+  }> {
+    const empty = {
+      appliedIds: new Set<string>(),
+      viewedIds: new Set<string>(),
+      shortlistedIds: new Set<string>(),
+    };
+    if (!userId || candidateIds.length === 0) return empty;
+    const membership = await this.prisma.companyMember.findFirst({
+      where: { userId },
+      select: { companyId: true },
+    });
+    if (!membership) return empty;
+    const { companyId } = membership;
+
+    const [appRows, viewRows, shortlistRows] = await Promise.all([
+      this.prisma.application.findMany({
+        where: {
+          candidateId: { in: candidateIds },
+          isDeleted: false,
+          job: { companyId, isDeleted: false },
+        },
+        select: { candidateId: true },
+      }),
+      this.prisma.billingCreditTransaction?.findMany
+        ? this.prisma.billingCreditTransaction.findMany({
+            where: {
+              companyId,
+              candidateId: { in: candidateIds },
+              action: {
+                in: ['view_profile', 'view_profile_high_match', 'view_applicant', 'reopen_profile'],
+              },
+            },
+            select: { candidateId: true },
+            distinct: ['candidateId'],
+          })
+        : Promise.resolve([]),
+      this.prisma.candidateShortlist?.findMany
+        ? this.prisma.candidateShortlist.findMany({
+            where: { companyId, candidateId: { in: candidateIds } },
+            select: { candidateId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      appliedIds: new Set(appRows.map((row) => row.candidateId)),
+      viewedIds: new Set(viewRows.flatMap((row) => (row.candidateId ? [row.candidateId] : []))),
+      shortlistedIds: new Set(shortlistRows.map((row) => row.candidateId)),
+    };
+  }
+
   private async appliedCandidateIds(userId: string | undefined, candidateIds: string[]): Promise<Set<string>> {
     if (!userId || candidateIds.length === 0) return new Set();
     const membership = await this.prisma.companyMember.findFirst({
