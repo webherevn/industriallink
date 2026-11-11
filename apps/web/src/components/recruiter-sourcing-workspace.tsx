@@ -4,21 +4,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertTriangle,
-  BookmarkCheck,
   Briefcase,
   Calendar,
   CheckCircle2,
   Clock,
   Coins,
+  ExternalLink,
   Eye,
   FileSearch,
   Headphones,
   ListChecks,
   Loader2,
   MapPin,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   Sparkles,
+  Star,
   Users,
   X,
 } from 'lucide-react';
@@ -43,6 +45,7 @@ import {
   SourcingCandidateDrawer,
   SourcingJdRevisionModal,
   SourcingProgressReportModal,
+  type SourcingDrawerSection,
 } from '@/components/recruiter-sourcing-all-in-one';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Button, Input } from '@/components/ui';
@@ -154,9 +157,18 @@ export function RecruiterSourcingWorkspace() {
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
   const [viewCriteriaModalOpen, setViewCriteriaModalOpen] = useState(false);
   const [drawerCandidate, setDrawerCandidate] = useState<CandidateMatchView | null>(null);
+  const [drawerSection, setDrawerSection] = useState<SourcingDrawerSection>('overview');
   const [historyPage, setHistoryPage] = useState(1);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const syncedScanEngagementsRef = useRef<Set<string>>(new Set());
+
+  const openCandidateDrawer = (
+    row: CandidateMatchView,
+    section: SourcingDrawerSection = 'overview',
+  ) => {
+    setDrawerSection(section);
+    setDrawerCandidate(row);
+  };
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['recruiter-sourcing'],
@@ -744,7 +756,7 @@ export function RecruiterSourcingWorkspace() {
                 results={appliedCandidates}
                 shortlistedIds={engagementShortlistedIds}
                 shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
-                onSelectCandidate={setDrawerCandidate}
+                onSelectCandidate={openCandidateDrawer}
                 onQuickShortlist={(row) => quickShortlist.mutate(row)}
                 ready={Boolean(huntJobId) && !ended}
               />
@@ -771,7 +783,7 @@ export function RecruiterSourcingWorkspace() {
                 outreachPending={quickOutreach.isPending}
                 selectedRoundId={selectedRoundId}
                 onSelectRound={setSelectedRoundId}
-                onSelectCandidate={setDrawerCandidate}
+                onSelectCandidate={openCandidateDrawer}
                 onQuickShortlist={(row) => quickShortlist.mutate(row)}
                 onQuickOutreach={(row) => quickOutreach.mutate(row)}
                 ready={Boolean(huntJobId) && !ended}
@@ -1071,6 +1083,7 @@ export function RecruiterSourcingWorkspace() {
       {hasPlan && e ? (
         <SourcingCandidateDrawer
           candidateRow={drawerCandidate}
+          initialSection={drawerSection}
           onClose={() => setDrawerCandidate(null)}
           engagementId={selected}
           engagementTitle={selectedEngagement?.title ?? ''}
@@ -1084,12 +1097,14 @@ export function RecruiterSourcingWorkspace() {
               ? engagementOutreachList.find((o) => o.candidateId === drawerCandidate.candidateId) ?? null
               : null
           }
-          onShortlistSuccess={(ws, candName) => {
+          onShortlistSuccess={(ws, candName, removed) => {
             void qc.setQueryData(['recruiter-sourcing'], ws);
             void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
             setBanner({
               tone: 'ok',
-              text: `Đã đưa ứng viên «${candName}» vào danh sách Shortlist!`,
+              text: removed
+                ? `Đã bỏ ứng viên «${candName}» khỏi danh sách Shortlist.`
+                : `Đã đưa ứng viên «${candName}» vào danh sách Shortlist!`,
             });
           }}
           onOutreachSuccess={(ws, candName) => {
@@ -1164,7 +1179,7 @@ function AppliedCandidatesColumn({
   results: CandidateMatchView[];
   shortlistedIds: string[];
   shortlistRemaining: number | null;
-  onSelectCandidate: (row: CandidateMatchView) => void;
+  onSelectCandidate: (row: CandidateMatchView, section?: SourcingDrawerSection) => void;
   onQuickShortlist: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
@@ -1244,8 +1259,8 @@ function AppliedCandidatesColumn({
                             Đã ứng tuyển
                           </span>
                           {isShortlisted ? (
-                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
-                              ★ Đã Shortlist
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200/80">
+                              Đã Shortlist
                             </span>
                           ) : null}
                         </span>
@@ -1273,19 +1288,22 @@ function AppliedCandidatesColumn({
                       type="button"
                       disabled={!isShortlisted && !canShortlist}
                       onClick={() => onQuickShortlist(row)}
-                      title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
-                      className={clsx(
-                        'shrink-0 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition',
+                      title={
                         isShortlisted
-                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
-                      )}
+                          ? 'Đã Shortlist · Bấm để bỏ khỏi Shortlist'
+                          : 'Đưa ứng viên vào Shortlist'
+                      }
+                      aria-label={isShortlisted ? 'Bỏ khỏi Shortlist' : 'Đưa vào Shortlist'}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:bg-amber-50 disabled:opacity-40"
                     >
-                      {isShortlisted ? (
-                        <BookmarkCheck className="h-3.5 w-3.5" />
-                      ) : (
-                        '+ Shortlist'
-                      )}
+                      <Star
+                        className={clsx(
+                          'h-4 w-4 transition',
+                          isShortlisted
+                            ? 'fill-amber-400 text-amber-500'
+                            : 'text-slate-400 hover:text-amber-500',
+                        )}
+                      />
                     </button>
                   </div>
                 </li>
@@ -1376,12 +1394,20 @@ function PotentialCandidatesColumn({
   outreachPending: boolean;
   selectedRoundId: string;
   onSelectRound: (id: string) => void;
-  onSelectCandidate: (row: CandidateMatchView) => void;
+  onSelectCandidate: (row: CandidateMatchView, section?: SourcingDrawerSection) => void;
   onQuickShortlist: (row: CandidateMatchView) => void;
   onQuickOutreach: (row: CandidateMatchView) => void;
   ready: boolean;
 }) {
   const [page, setPage] = useState(1);
+  const [openMoreId, setOpenMoreId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openMoreId) return;
+    const close = () => setOpenMoreId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMoreId]);
 
   const outreachStatusByCand = useMemo(() => {
     const m = new Map<string, SourcingOutreachStatus>();
@@ -1471,22 +1497,21 @@ function PotentialCandidatesColumn({
 
   return (
     <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
-            DANH SÁCH ỨNG VIÊN TIỀM NĂNG
-          </h3>
-          <p className="mt-0.5 truncate text-xs text-slate-500">
-            Ứng viên inlink săn theo JD từ cao xuống thấp
+      <div>
+        <h3 className="text-[15px] font-bold uppercase tracking-tight text-slate-900">
+          DANH SÁCH ỨNG VIÊN TIỀM NĂNG
+        </h3>
+        <div className="mt-1.5 flex items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 truncate text-[13px] text-slate-500">
+            AI Inlink tìm kiếm và đề xuất
             {jobTitle ? ` · ${jobTitle}` : ''}
           </p>
+          {ready && !loading ? (
+            <span className="inline-flex shrink-0 items-center rounded-full bg-[#FCEEE3] px-3 py-1 text-xs font-semibold tabular-nums text-[#9A3412]">
+              {filteredResults.length} ứng viên
+            </span>
+          ) : null}
         </div>
-        {ready && !loading ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
-            <Users className="h-3.5 w-3.5" />
-            {filteredResults.length}
-          </span>
-        ) : null}
       </div>
 
       {/* Bộ lọc trạng thái hồ sơ & chọn đợt quét tự động 2 giờ/lần */}
@@ -1496,70 +1521,45 @@ function PotentialCandidatesColumn({
         shortlistedPotentialCount > 0 ||
         hasOutreach ||
         outreachedPotentialCount > 0) ? (
-        <div className="mt-3.5 space-y-2 rounded-2xl border border-slate-200/80 bg-[#f8fafc] p-2.5">
-          {/* Hàng 1: Các tab lọc theo trạng thái xem / bàn giao / shortlist */}
+        <div className="mt-3.5 space-y-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => onSelectRound('all')}
               className={clsx(
-                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                'inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold tabular-nums transition',
                 selectedRoundId === 'all'
-                  ? 'bg-[#072348] text-white shadow-2xs'
-                  : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-100',
+                  ? 'bg-[#E5F2FF] text-[#0969DA]'
+                  : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
               )}
             >
-              <span>Tất cả</span>
-              <span
-                className={clsx(
-                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
-                  selectedRoundId === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
-                )}
-              >
-                {results.length}
-              </span>
+              Tất cả {results.length}
             </button>
 
             <button
               type="button"
               onClick={() => onSelectRound('unviewed')}
               className={clsx(
-                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                'inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold tabular-nums transition',
                 selectedRoundId === 'unviewed'
-                  ? 'bg-[#E8872A] text-white shadow-2xs'
-                  : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-amber-50 hover:text-[#c96a12]',
+                  ? 'bg-[#E5F2FF] text-[#0969DA]'
+                  : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
               )}
             >
-              <span>Chưa xem</span>
-              <span
-                className={clsx(
-                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
-                  selectedRoundId === 'unviewed' ? 'bg-white/25 text-white' : 'bg-amber-50 text-[#E8872A]',
-                )}
-              >
-                {unviewedPotentialCount}
-              </span>
+              Chưa xem {unviewedPotentialCount}
             </button>
 
             <button
               type="button"
               onClick={() => onSelectRound('viewed')}
               className={clsx(
-                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                'inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold tabular-nums transition',
                 selectedRoundId === 'viewed'
-                  ? 'bg-slate-700 text-white shadow-2xs'
-                  : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-100',
+                  ? 'bg-[#E5F2FF] text-[#0969DA]'
+                  : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
               )}
             >
-              <span>Đã xem</span>
-              <span
-                className={clsx(
-                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
-                  selectedRoundId === 'viewed' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
-                )}
-              >
-                {viewedPotentialCount}
-              </span>
+              Đã xem {viewedPotentialCount}
             </button>
 
             {hasOutreach || outreachedPotentialCount > 0 ? (
@@ -1567,25 +1567,14 @@ function PotentialCandidatesColumn({
                 type="button"
                 onClick={() => onSelectRound('outreach')}
                 className={clsx(
-                  'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                  'inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold tabular-nums transition',
                   selectedRoundId === 'outreach'
-                    ? 'bg-emerald-700 text-white shadow-2xs'
-                    : 'bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50',
+                    ? 'bg-[#C8F0D8] text-[#0F6A2E] ring-1 ring-[#7EDBA2]'
+                    : 'bg-[#DCF5E7] text-[#15803D] hover:bg-[#CEEFDC]',
                 )}
               >
-                <Headphones className="h-3 w-3 shrink-0" />
-                <span>Đã giao Inlink</span>
-                <span
-                  className={clsx(
-                    'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
-                    selectedRoundId === 'outreach'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-emerald-50 text-emerald-700',
-                  )}
-                >
-                  {outreachedPotentialCount}
-                  {outreachQuota != null ? `/${outreachQuota}` : ''}
-                </span>
+                Đã giao Inlink {outreachedPotentialCount}
+                {outreachQuota != null ? `/${outreachQuota}` : ''}
               </button>
             ) : null}
 
@@ -1593,44 +1582,33 @@ function PotentialCandidatesColumn({
               type="button"
               onClick={() => onSelectRound('shortlist')}
               className={clsx(
-                'inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                'inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold tabular-nums transition',
                 selectedRoundId === 'shortlist'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'bg-white text-indigo-800 ring-1 ring-indigo-200 hover:bg-indigo-50',
+                  ? 'bg-[#E5F2FF] text-[#0969DA]'
+                  : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
               )}
             >
-              <span>★ Shortlist</span>
-              <span
-                className={clsx(
-                  'rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums',
-                  selectedRoundId === 'shortlist'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-indigo-50 text-indigo-700',
-                )}
-              >
-                {shortlistedPotentialCount}
-              </span>
+              Shortlist {shortlistedPotentialCount}
             </button>
           </div>
 
-          {/* Hàng 2: Lịch quét tự động 2h/lần + Dropdown chọn đợt quét gọn gàng */}
           {scanRounds.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-2 text-[11px]">
-              <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f8fafc] px-3 py-1.5 text-[11px]">
+              <span className="inline-flex items-center gap-1 font-medium text-slate-500">
                 <Clock className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
                 <span>Quét tự động 2h/lần (08:00 – 18:00)</span>
               </span>
 
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-500">Đợt quét:</span>
+                <span className="text-[11px] font-medium text-slate-500">Đợt quét:</span>
                 <select
                   value={activeRound ? activeRound.id : 'all'}
                   onChange={(e) => onSelectRound(e.target.value)}
                   className={clsx(
-                    'h-7 rounded-lg border px-2.5 text-[11px] font-bold outline-none transition',
+                    'h-6 rounded-lg border px-2 text-[11px] font-semibold outline-none transition',
                     activeRound
                       ? 'border-[#E8872A] bg-amber-50/90 text-[#072348]'
-                      : 'border-slate-200 bg-white text-[#072348] hover:border-slate-300',
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
                   )}
                 >
                   <option value="all">Tất cả ({scanRounds.length} đợt quét)</option>
@@ -1667,11 +1645,11 @@ function PotentialCandidatesColumn({
             {selectedRoundId === 'unviewed'
               ? 'Tất cả ứng viên tiềm năng trong danh sách hiện tại đều đã được xem.'
               : selectedRoundId === 'viewed'
-                ? 'Chưa có ứng viên tiềm năng nào được mở xem. Bấm vào ứng viên bên dưới để xem chi tiết.'
+                ? 'Chưa có ứng viên tiềm năng nào được mở xem. Bấm «Mở hồ sơ» trên thẻ ứng viên để xem chi tiết.'
                 : selectedRoundId === 'outreach'
                   ? 'Chưa có ứng viên nào được giao cho Inlink liên hệ. Bấm «Giao Inlink» trên thẻ ứng viên hoặc trong chi tiết hồ sơ để bàn giao cho đội ngũ CSKH Inlink.'
                   : selectedRoundId === 'shortlist'
-                    ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm «+ Shortlist» trên thẻ ứng viên để lưu vào đây.'
+                    ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm biểu tượng ngôi sao cạnh tên ứng viên để đưa vào Shortlist.'
                     : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
           </p>
         </div>
@@ -1683,153 +1661,270 @@ function PotentialCandidatesColumn({
               const isNewlyDiscovered = latestRoundNewSet.has(row.candidateId);
               const isShortlisted = shortlistedIds.includes(row.candidateId);
               const isOutreached = outreachIds.includes(row.candidateId);
+              const isUnlocked = Boolean(row.viewed || isOutreached);
               const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
               const canOutreach = outreachRemaining === null || outreachRemaining > 0;
+              const rawPct = row.match.score <= 1 ? row.match.score * 100 : row.match.score;
+              const pctRawStr = formatMatchPct(row.match.score);
+              const pctLabel = `${pctRawStr.replace('.', ',')}%`;
+              const scoreColorClass =
+                rawPct >= 80
+                  ? 'text-emerald-600'
+                  : rawPct >= 45
+                    ? 'text-[#D97706]'
+                    : 'text-[#EA580C]';
+              const moreOpen = openMoreId === row.candidateId;
+
               return (
                 <li
                   key={row.candidateId}
                   className="animate-soft-rise"
                   style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
                 >
-                  <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
-                    <button
-                      type="button"
-                      onClick={() => onSelectCandidate(row)}
-                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                    >
-                      <ScoreRing score={row.match.score} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
+                  <div className="relative rounded-2xl border border-slate-200/90 bg-white px-4 py-4 transition hover:border-slate-300 hover:shadow-[0_4px_16px_rgba(15,23,42,0.05)] sm:px-5">
+                    {/* Khu vực thông tin chính: Tỉ lệ % bên trái + Thông tin ứng viên bên phải */}
+                    <div className="flex items-center gap-3.5 sm:gap-4">
+                      <button
+                        type="button"
+                        onClick={() => onSelectCandidate(row, 'jd_match')}
+                        title="Xem đối chiếu mức độ phù hợp JD"
+                        className={clsx(
+                          'w-[58px] shrink-0 text-left text-lg font-semibold tracking-tight tabular-nums transition hover:opacity-80 sm:w-[64px] sm:text-[19px]',
+                          scoreColorClass,
+                        )}
+                      >
+                        {pctLabel}
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        {/* Dòng 1: Tên ứng viên + Ngôi sao Shortlist đồng bộ */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onSelectCandidate(row, 'overview')}
+                            className="truncate text-left text-[15px] font-bold text-slate-900 transition hover:text-[#072348]"
+                          >
                             {row.displayName}
-                          </span>
-                          {isNewlyDiscovered ? (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-amber-300">
-                              Mới phát hiện
-                            </span>
-                          ) : null}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isShortlisted && !canShortlist}
+                            onClick={() => onQuickShortlist(row)}
+                            title={
+                              isShortlisted
+                                ? 'Đã Shortlist · Bấm để bỏ khỏi Shortlist'
+                                : 'Đưa ứng viên vào Shortlist'
+                            }
+                            aria-label={isShortlisted ? 'Bỏ khỏi Shortlist' : 'Đưa vào Shortlist'}
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition hover:bg-amber-50 disabled:opacity-40"
+                          >
+                            <Star
+                              className={clsx(
+                                'h-4 w-4 transition',
+                                isShortlisted
+                                  ? 'fill-amber-400 text-amber-500'
+                                  : 'text-slate-400 hover:text-amber-500',
+                              )}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Dòng 2: Các nhãn trạng thái gọn gàng */}
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {isOutreached ? (
                             (() => {
                               const st = outreachStatusByCand.get(row.candidateId) ?? 'pending_contact';
                               const meta = SOURCING_OUTREACH_STATUS_META[st];
                               const toneClass =
-                                st === 'applied'
-                                  ? 'bg-emerald-100 text-emerald-800 ring-emerald-300'
-                                  : st === 'agreed'
-                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                                    : st === 'guided_pending_apply'
-                                      ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
-                                      : st === 'awaiting_reply'
-                                        ? 'bg-sky-50 text-sky-700 ring-sky-200'
-                                        : st === 'declined'
-                                          ? 'bg-rose-50 text-rose-700 ring-rose-200'
-                                          : st === 'unreachable'
-                                            ? 'bg-slate-100 text-slate-600 ring-slate-200'
-                                            : 'bg-amber-50 text-amber-800 ring-amber-200';
+                                st === 'applied' || st === 'agreed'
+                                  ? 'bg-[#DCF5E7] text-[#15803D]'
+                                  : st === 'guided_pending_apply'
+                                    ? 'bg-[#E5F2FF] text-[#0969DA]'
+                                    : st === 'declined'
+                                      ? 'bg-rose-50 text-rose-700'
+                                      : st === 'unreachable'
+                                        ? 'bg-slate-100 text-slate-600'
+                                        : 'bg-[#FCEEE3] text-[#9A3412]';
                               return (
                                 <span
                                   title={meta.description}
                                   className={clsx(
-                                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1',
+                                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
                                     toneClass,
                                   )}
                                 >
-                                  <Headphones className="h-2.5 w-2.5" />
                                   {meta.label}
                                 </span>
                               );
                             })()
+                          ) : isNewlyDiscovered ? (
+                            <span className="inline-flex items-center rounded-full bg-[#FCEEE3] px-2.5 py-0.5 text-[11px] font-semibold text-[#9A3412]">
+                              Mới phát hiện
+                            </span>
                           ) : null}
+
+                          <span
+                            className={clsx(
+                              'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                              isUnlocked
+                                ? 'bg-[#F1F3F5] text-slate-700'
+                                : 'bg-slate-100 text-slate-500',
+                            )}
+                          >
+                            {isUnlocked ? 'Đã xem' : 'Chưa xem'}
+                          </span>
+
                           {isShortlisted ? (
-                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200">
-                              ★ Đã Shortlist
+                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200/80">
+                              Đã Shortlist
                             </span>
                           ) : null}
-                          {row.viewed || isOutreached ? (
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                              Đã xem
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-slate-500">
+                        </div>
+
+                        {/* Dòng 3: Vị trí · Ngành nghề · Địa điểm */}
+                        <p className="mt-1.5 truncate text-[13px] text-slate-500">
                           {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
                           {row.industry ? ` · ${row.industry}` : ''}
                           {' · '}
-                          <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
-                            <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
-                            {row.location ?? 'Chưa có địa điểm'}
-                          </span>
-                        </span>
-                        {row.match.reason ? (
-                          <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                            Độ phù hợp {formatMatchPct(row.match.score)}%
-                          </span>
-                        ) : null}
-                        <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
-                          Xem đối chiếu JD · Mở liên hệ · Đặt lịch PV →
-                        </span>
-                      </span>
-                    </button>
+                          {row.location ?? 'Chưa có địa điểm'}
+                        </p>
+                      </div>
+                    </div>
 
-                    {/* Cột dọc bên phải đồng bộ kích thước: Credit -> Shortlist -> Giao Inlink */}
-                    <div className="flex min-w-[112px] shrink-0 flex-col items-stretch gap-1.5">
-                      <span
-                        className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 text-[11px] font-bold tabular-nums text-[#072348] shadow-[0_1px_2px_rgba(232,135,42,0.08)] transition group-hover:border-[#E8872A] group-hover:bg-[#FFEEDB]"
-                        title={
-                          creditCost === 2
-                            ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
-                            : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
-                        }
-                      >
-                        <Coins className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
-                        <span>
-                          <span className="text-[#E8872A]">{creditCost}</span> Credit
+                    {/* Hàng hành động chính căn phải: Credit + Giao Inlink + Mở hồ sơ */}
+                    <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                      {isUnlocked ? (
+                        <span className="mr-0.5 text-xs font-medium text-emerald-600">
+                          Đã mở khóa
                         </span>
-                      </span>
-
-                      <button
-                        type="button"
-                        disabled={!isShortlisted && !canShortlist}
-                        onClick={() => onQuickShortlist(row)}
-                        title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
-                        className={clsx(
-                          'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
-                          isShortlisted
-                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200'
-                            : 'border border-slate-200 bg-white text-slate-700 hover:border-[#072348] hover:text-[#072348] disabled:opacity-40',
-                        )}
-                      >
-                        {isShortlisted ? (
-                          <>
-                            <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
-                            <span>Đã lưu</span>
-                          </>
-                        ) : (
-                          '+ Shortlist'
-                        )}
-                      </button>
+                      ) : (
+                        <span
+                          className="mr-0.5 text-xs font-medium tabular-nums text-slate-500"
+                          title={
+                            creditCost === 2
+                              ? 'Mở hồ sơ ứng viên này tính 2 Credit (Matching ≥ 80%)'
+                              : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
+                          }
+                        >
+                          {creditCost} Credit
+                        </span>
+                      )}
 
                       {hasOutreach ? (
                         <button
                           type="button"
-                          disabled={isOutreached || !canOutreach || outreachPending}
-                          onClick={() => onQuickOutreach(row)}
+                          disabled={(!isOutreached && !canOutreach) || outreachPending}
+                          onClick={() => {
+                            if (isOutreached) {
+                              onSelectCandidate(row, 'overview');
+                              return;
+                            }
+                            onQuickOutreach(row);
+                          }}
                           title={
                             isOutreached
-                              ? 'Đã bàn giao cho đội ngũ CSKH Inlink liên hệ & mở khóa hồ sơ'
+                              ? 'Xem tiến độ CSKH Inlink đang liên hệ'
                               : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
                           }
                           className={clsx(
-                            'inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[11px] font-bold transition',
+                            'inline-flex h-8 items-center justify-center rounded-full border px-3.5 text-xs font-semibold transition disabled:opacity-40',
                             isOutreached
-                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90'
-                              : 'border border-[#072348]/20 bg-[#f4f8fd] text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-40',
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70'
+                              : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50',
                           )}
                         >
-                          <Headphones className="h-3 w-3 shrink-0 text-[#E8872A]" />
-                          <span>{isOutreached ? 'Đã giao' : 'Giao Inlink'}</span>
+                          {isOutreached ? 'Đã giao Inlink' : 'Giao Inlink'}
                         </button>
                       ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => onSelectCandidate(row, isUnlocked ? 'overview' : 'unlock')}
+                        className={clsx(
+                          'inline-flex h-8 items-center justify-center rounded-full px-4 text-xs font-bold transition',
+                          isUnlocked
+                            ? 'border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200/80'
+                            : 'bg-slate-950 text-white hover:bg-[#072348]',
+                        )}
+                      >
+                        {isUnlocked ? 'Xem hồ sơ' : 'Mở hồ sơ'}
+                      </button>
+                    </div>
+
+                    {/* Hàng liên kết tiện ích đáy trái: Đối chiếu JD · Liên hệ · Khác ... */}
+                    <div className="mt-1.5 flex items-center gap-4 text-xs font-medium text-slate-500">
+                      <button
+                        type="button"
+                        onClick={() => onSelectCandidate(row, 'jd_match')}
+                        className="transition hover:text-slate-900"
+                      >
+                        Đối chiếu JD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectCandidate(row, 'contact')}
+                        className="transition hover:text-slate-900"
+                      >
+                        Liên hệ
+                      </button>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMoreId((prev) => (prev === row.candidateId ? null : row.candidateId));
+                          }}
+                          className="inline-flex items-center gap-0.5 transition hover:text-slate-900"
+                        >
+                          <span>Khác</span>
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+
+                        {moreOpen ? (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute bottom-full left-0 z-20 mb-1.5 w-48 rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+                          >
+                            <button
+                              type="button"
+                              disabled={!isShortlisted && !canShortlist}
+                              onClick={() => {
+                                setOpenMoreId(null);
+                                onQuickShortlist(row);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                            >
+                              <Star
+                                className={clsx(
+                                  'h-3.5 w-3.5 shrink-0',
+                                  isShortlisted ? 'fill-amber-400 text-amber-500' : 'text-slate-400',
+                                )}
+                              />
+                              <span>{isShortlisted ? 'Bỏ khỏi Shortlist' : 'Đưa vào Shortlist'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMoreId(null);
+                                onSelectCandidate(row, 'interview');
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              <span>Đặt lịch phỏng vấn</span>
+                            </button>
+                            <Link
+                              href={`/candidates/${row.candidateId}?from=sourcing&match=${pctRawStr}`}
+                              target="_blank"
+                              onClick={() => setOpenMoreId(null)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              <span>Trang hồ sơ đầy đủ</span>
+                            </Link>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </li>
@@ -1958,8 +2053,8 @@ function QuotaGrid({
     {
       label: 'Đã Shortlist',
       value: shortlistedCount,
-      icon: BookmarkCheck,
-      tone: 'bg-indigo-50 text-indigo-700',
+      icon: Star,
+      tone: 'bg-amber-50 text-amber-700',
       actionHint: 'Số ứng viên tiềm năng được doanh nghiệp đưa vào danh sách lựa chọn',
       onClick: onFilterShortlist,
     },

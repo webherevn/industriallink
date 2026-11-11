@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertCircle,
-  BookmarkCheck,
   Briefcase,
   Calendar,
   CheckCircle2,
@@ -23,12 +22,13 @@ import {
   RefreshCw,
   Save,
   Sparkles,
+  Star,
   TrendingUp,
   UserPlus,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CUSTOMER_SEGMENTS,
   ConnectionStatus,
@@ -72,6 +72,7 @@ import {
   addCandidateShortlist,
   getCandidateById,
   openConnectionChat,
+  removeCandidateShortlist,
   requestCandidateConnection,
 } from '@/lib/candidate';
 import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
@@ -2396,8 +2397,11 @@ export function SourcingJdRevisionModal({
 // 3. SLIDE-OVER DRAWER XỬ LÝ ỨNG VIÊN ALL-IN-ONE NGAY TRÊN TRANG SĂN NHÂN SỰ
 // ============================================================================
 
+export type SourcingDrawerSection = 'overview' | 'jd_match' | 'contact' | 'interview' | 'unlock';
+
 export function SourcingCandidateDrawer({
   candidateRow,
+  initialSection = 'overview',
   onClose,
   engagementId,
   engagementTitle,
@@ -2410,6 +2414,7 @@ export function SourcingCandidateDrawer({
   onProfileUnlocked,
 }: {
   candidateRow: CandidateMatchView | null;
+  initialSection?: SourcingDrawerSection;
   onClose: () => void;
   engagementId: string | null;
   engagementTitle: string;
@@ -2417,12 +2422,14 @@ export function SourcingCandidateDrawer({
   entitlements: RecruiterSourcingEntitlements;
   isShortlisted: boolean;
   outreachItem?: RecruiterSourcingOutreachItem | null;
-  onShortlistSuccess: (ws: RecruiterSourcingWorkspace, candidateName: string) => void;
+  onShortlistSuccess: (ws: RecruiterSourcingWorkspace, candidateName: string, removed?: boolean) => void;
   onOutreachSuccess?: (ws: RecruiterSourcingWorkspace, candidateName: string) => void;
   onProfileUnlocked: () => void;
 }) {
   const qc = useQueryClient();
   const { showAlert: showCreditAlert } = useCreditAlert();
+  const jdMatchRef = useRef<HTMLDivElement | null>(null);
+  const contactRef = useRef<HTMLDivElement | null>(null);
   const [unlocked, setUnlocked] = useState(false);
   const [connectMessage, setConnectMessage] = useState('');
   const [showInterviewForm, setShowInterviewForm] = useState(false);
@@ -2465,11 +2472,20 @@ export function SourcingCandidateDrawer({
     setOutreachNote(
       `Nhờ CSKH Inlink liên hệ ứng viên ${candidateRow.displayName} cho vị trí «${engagementTitle}», thẩm định nhu cầu chuyển việc & mức lương kỳ vọng giúp doanh nghiệp.`,
     );
-    setShowInterviewForm(false);
+    setShowInterviewForm(initialSection === 'interview');
     setShowOutreachForm(false);
     setExpandedExp(false);
     setFeedback(null);
-  }, [candidateRow, engagementTitle, outreachItem]);
+
+    const timer = window.setTimeout(() => {
+      if (initialSection === 'jd_match') {
+        jdMatchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (initialSection === 'contact' || initialSection === 'unlock') {
+        contactRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [candidateRow, engagementTitle, initialSection, outreachItem]);
 
   const pctStr = candidateRow ? formatMatchPct(candidateRow.match.score) : '0';
   const creditCost = candidateRow ? potentialCreditCost(candidateRow.match.score) : 1;
@@ -2515,27 +2531,40 @@ export function SourcingCandidateDrawer({
   const shortlistMutation = useMutation({
     mutationFn: async () => {
       if (!candidateRow || !engagementId) throw new Error('Chưa chọn vị trí Săn');
+      if (isShortlisted) {
+        await removeCandidateShortlist(candidateRow.candidateId).catch(() => null);
+        const ws = await consumeRecruiterSourcing({
+          kind: 'shortlist',
+          engagementId,
+          jobId: jobId ?? undefined,
+          note: `unshortlist:${candidateRow.candidateId}:${candidateRow.displayName}`,
+        });
+        return { ws, removed: true };
+      }
       await addCandidateShortlist(candidateRow.candidateId).catch(() => null);
-      return consumeRecruiterSourcing({
+      const ws = await consumeRecruiterSourcing({
         kind: 'shortlist',
         engagementId,
         jobId: jobId ?? undefined,
         note: `shortlist:${candidateRow.candidateId}:${candidateRow.displayName}`,
       });
+      return { ws, removed: false };
     },
-    onSuccess: (ws) => {
+    onSuccess: ({ ws, removed }) => {
       if (candidateRow) {
-        onShortlistSuccess(ws, candidateRow.displayName);
+        onShortlistSuccess(ws, candidateRow.displayName, removed);
       }
       setFeedback({
         tone: 'ok',
-        text: `Đã đưa «${candidateRow?.displayName}» vào danh sách Shortlist!`,
+        text: removed
+          ? `Đã bỏ «${candidateRow?.displayName}» khỏi danh sách Shortlist.`
+          : `Đã đưa «${candidateRow?.displayName}» vào danh sách Shortlist!`,
       });
     },
     onError: (err) => {
       setFeedback({
         tone: 'err',
-        text: err instanceof ApiError ? err.message : 'Không đưa được vào Shortlist',
+        text: err instanceof ApiError ? err.message : 'Không cập nhật được Shortlist',
       });
     },
   });
@@ -2831,6 +2860,32 @@ export function SourcingCandidateDrawer({
               <Calendar className="h-3.5 w-3.5" />
               {showInterviewForm ? 'Đang mở lịch phỏng vấn' : 'Đặt lịch phỏng vấn'}
             </button>
+
+            <button
+              type="button"
+              disabled={
+                shortlistMutation.isPending ||
+                (!isShortlisted &&
+                  entitlements.shortlistsRemaining != null &&
+                  entitlements.shortlistsRemaining <= 0)
+              }
+              onClick={() => shortlistMutation.mutate()}
+              className={clsx(
+                'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition active:scale-[0.99] disabled:opacity-45',
+                isShortlisted
+                  ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+              )}
+              title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
+            >
+              <Star
+                className={clsx(
+                  'h-3.5 w-3.5',
+                  isShortlisted ? 'fill-amber-400 text-amber-500' : 'text-slate-400',
+                )}
+              />
+              <span>{isShortlisted ? 'Đã Shortlist' : 'Shortlist'}</span>
+            </button>
           </div>
 
           <Link
@@ -3065,7 +3120,57 @@ export function SourcingCandidateDrawer({
             </div>
           ) : null}
 
+          {/* Đối chiếu mức độ phù hợp JD (hiển thị ngay cả trước khi mở khóa) */}
+          <div
+            ref={jdMatchRef}
+            className="rounded-2xl border border-[#d7e3f2] bg-white p-4 space-y-2.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-[#072348]">
+                <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
+                Đối chiếu mức độ phù hợp JD
+              </h4>
+              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-[#c96a12] ring-1 ring-amber-200/80">
+                Độ phù hợp {pctStr.replace('.', ',')}%
+              </span>
+            </div>
+            {candidateRow.match.reason ? (
+              <p className="text-xs leading-relaxed text-slate-600">{candidateRow.match.reason}</p>
+            ) : null}
+            {candidateRow.match.matchedSkills?.length > 0 ? (
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-emerald-800">Tiêu chí & kỹ năng đáp ứng:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {candidateRow.match.matchedSkills.map((sk) => (
+                    <span
+                      key={sk}
+                      className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200/70"
+                    >
+                      ✓ {sk}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {candidateRow.match.missingSkills?.length > 0 ? (
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-slate-500">Cần lưu ý / bổ sung khi phỏng vấn:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {candidateRow.match.missingSkills.map((sk) => (
+                    <span
+                      key={sk}
+                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
+                    >
+                      {sk}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           {/* Mở khóa hồ sơ & Liên hệ / Kết nối ứng viên */}
+          <div ref={contactRef}>
           {!unlocked ? (
             <div className="rounded-2xl border-2 border-[#E8872A]/40 bg-gradient-to-br from-amber-50/90 to-white p-5">
               <div className="flex items-start gap-3">
@@ -3246,6 +3351,7 @@ export function SourcingCandidateDrawer({
               ) : null}
             </>
           ) : null}
+          </div>
         </div>
       </div>
     </div>
