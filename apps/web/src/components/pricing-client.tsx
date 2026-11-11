@@ -174,7 +174,7 @@ function TopNav({ checkoutReady }: { checkoutReady: boolean }) {
   const startLabel = checkoutReady ? 'Gói của tôi' : 'Đăng ký miễn phí';
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
         <BrandMark size={32} />
 
@@ -677,7 +677,7 @@ function SectionNav({
 
   return (
     <nav
-      className="sticky top-[57px] z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-md"
+      className="sticky top-[57px] z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md"
       aria-label="Chuyển nhóm dịch vụ bảng giá"
     >
       <div className="relative mx-auto flex max-w-7xl items-center justify-center px-4 py-3 sm:px-6">
@@ -927,8 +927,8 @@ function PlatformPlansView({
   };
 
   return (
-    <section id="nentang" aria-labelledby="pricing-title" className="scroll-mt-24">
-      <div id="pricing" className="home-reasons-head mb-8 text-center scroll-mt-24">
+    <section id="nentang" aria-labelledby="pricing-title" className="scroll-mt-36">
+      <div id="pricing" className="home-reasons-head mb-8 text-center scroll-mt-36">
         <PricingH2 id="pricing-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
           {page.platformTitle}
         </PricingH2>
@@ -1008,7 +1008,6 @@ function PlatformPlansView({
 
 function PlatformPlanCard({
   domId,
-  index = 0,
   highlighted = false,
   plan,
   featured,
@@ -1049,11 +1048,10 @@ function PlatformPlanCard({
   return (
     <div
       id={domId}
-      style={{ animationDelay: `${index * 90}ms` }}
       className={clsx(
-        'home-reasons-item home-solution-card relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-5 transition-all sm:p-6',
+        'home-solution-card relative flex min-w-0 scroll-mt-40 flex-col rounded-2xl border bg-white p-5 transition-all sm:p-6',
         highlighted
-          ? 'z-20 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
+          ? 'z-10 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
           : featured
             ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
             : 'border-slate-200/90 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
@@ -1214,9 +1212,8 @@ function EnterprisePlanBanner({
   return (
     <div
       id={domId}
-      style={{ animationDelay: '360ms' }}
       className={clsx(
-        'home-reasons-item relative scroll-mt-28 overflow-hidden rounded-3xl border bg-gradient-to-r from-[#072348] via-[#0a2f5e] to-[#0d3b80] p-6 text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl sm:p-8',
+        'relative scroll-mt-40 overflow-hidden rounded-3xl border bg-gradient-to-r from-[#072348] via-[#0a2f5e] to-[#0d3b80] p-6 text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl sm:p-8',
         highlighted ? 'border-amber-400 ring-4 ring-amber-400/50' : 'border-[#123d73] hover:border-amber-400/60',
       )}
     >
@@ -1329,9 +1326,9 @@ function SourcingPlansView({
   const promoNote = buildSourcingPromoSummary(activePlans);
 
   return (
-    <section id="tinsan" aria-labelledby="sourcing" className="scroll-mt-24">
+    <section id="tinsan" aria-labelledby="sourcing" className="scroll-mt-36">
       <div className="home-reasons-head mb-8 text-center">
-        <PricingH2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-24">
+        <PricingH2 id="sourcing" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-36">
           {page.sourcingTitle}
         </PricingH2>
         <p className="mt-1.5 text-sm text-slate-500">{page.sourcingSubtitle}</p>
@@ -1379,7 +1376,6 @@ function SourcingPlansView({
 
 function SourcingPlanCard({
   domId,
-  index = 0,
   highlighted = false,
   plan,
   currency,
@@ -1396,11 +1392,10 @@ function SourcingPlanCard({
   return (
     <div
       id={domId}
-      style={{ animationDelay: `${index * 100}ms` }}
       className={clsx(
-        'home-reasons-item home-solution-card relative flex min-w-0 scroll-mt-28 flex-col rounded-2xl border bg-white p-6 transition-all',
+        'home-solution-card relative flex min-w-0 scroll-mt-40 flex-col rounded-2xl border bg-white p-6 transition-all',
         highlighted
-          ? 'z-20 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
+          ? 'z-10 border-amber-500 ring-4 ring-amber-400/50 shadow-[0_24px_48px_-16px_rgba(232,135,42,0.55)]'
           : featured
             ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
             : 'border-slate-200 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
@@ -1558,9 +1553,9 @@ function CreditTopupView({
     : 0;
 
   return (
-    <section aria-labelledby="credit" className="scroll-mt-24">
+    <section aria-labelledby="credit" className="scroll-mt-36">
       <div className="home-reasons-head mb-8 text-center">
-        <PricingH2 id="credit" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-20">
+        <PricingH2 id="credit" className="text-2xl font-bold text-[#072348] sm:text-3xl scroll-mt-36">
           {page.creditTitle}
         </PricingH2>
         <p className="mt-2 text-sm text-slate-500">{page.creditSubtitle}</p>
@@ -1608,7 +1603,6 @@ function CreditTopupView({
 }
 
 function CreditTopupCard({
-  index = 0,
   topup,
   maxUnitPrice,
   currency,
@@ -1629,9 +1623,8 @@ function CreditTopupCard({
 
   return (
     <div
-      style={{ animationDelay: `${index * 100}ms` }}
       className={clsx(
-        'home-reasons-item home-solution-card relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition-all',
+        'home-solution-card relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition-all',
         featured
           ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
           : 'border-slate-200 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',
@@ -2219,7 +2212,7 @@ export function PricingClient({
           document.getElementById(
             matched.tab === 'platform' ? 'nentang' : matched.tab === 'sourcing' ? 'tinsan' : 'credit',
           );
-        el?.scrollIntoView({ behavior: 'smooth', block: matched.highlightId ? 'center' : 'start' });
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 80);
     };
 
@@ -2330,7 +2323,7 @@ export function PricingClient({
       {/* 2. STICKY 3-TIER SERVICE SWITCHER & MAIN PRICING */}
       <SectionNav tab={tab} onTabChange={switchTab} page={page} stats={stats} />
 
-      <section className="bg-slate-50 py-8 sm:py-12">
+      <section className="relative isolate bg-slate-50 py-8 sm:py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <PricingTabPane active={tab === 'platform'}>
             <PlatformPlansView
