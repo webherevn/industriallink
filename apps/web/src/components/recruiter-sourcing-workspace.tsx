@@ -1147,30 +1147,35 @@ export function RecruiterSourcingWorkspace() {
 function ScoreRing({ score }: { score: number }) {
   const unit = score <= 1 ? score : score / 100;
   const pct = formatMatchPct(score);
-  const r = 16;
+  const r = 18;
   const c = 2 * Math.PI * r;
-  const offset = c * (1 - Math.min(1, Math.max(0, unit)));
-  const color = matchRingColor(score);
+  const safe = Math.min(1, Math.max(0, unit));
+  const offset = c * (1 - safe);
+  const ringColor = matchRingColor(score);
   return (
     <div className="relative h-12 w-12 shrink-0">
-      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 40 40" aria-hidden>
-        <circle cx="20" cy="20" r={r} fill="none" stroke="#f4f7fb" strokeWidth="3.5" />
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
+        <circle cx="22" cy="22" r={r} fill="none" stroke="#fde68a" strokeWidth="3.5" />
         <circle
-          cx="20"
-          cy="20"
+          cx="22"
+          cy="22"
           r={r}
           fill="none"
-          stroke={color}
+          stroke={ringColor}
           strokeWidth="3.5"
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={offset}
-          className="transition-[stroke-dashoffset] duration-700"
+          className="transition-[stroke-dashoffset] duration-700 ease-soft"
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[10px] font-extrabold" style={{ color }}>
-          {pct}
+        <span
+          className="text-[11.5px] font-extrabold leading-none tracking-tight tabular-nums"
+          style={{ color: ringColor }}
+        >
+          {pct === '100.0' ? '100' : pct}
+          <span className="text-[8.5px] font-bold opacity-80">%</span>
         </span>
       </div>
     </div>
@@ -1683,29 +1688,7 @@ function PotentialCandidatesColumn({
               const isUnlocked = Boolean(row.viewed || isOutreached);
               const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
               const canOutreach = outreachRemaining === null || outreachRemaining > 0;
-              const rawPct = row.match.score <= 1 ? row.match.score * 100 : row.match.score;
               const pctRawStr = formatMatchPct(row.match.score);
-              const pctLabel = `${pctRawStr.replace('.', ',')}%`;
-              const scoreTheme =
-                rawPct >= 80
-                  ? {
-                      box: 'border-emerald-200/90 bg-emerald-50/75 text-emerald-700',
-                      bar: 'bg-emerald-500',
-                    }
-                  : rawPct >= 65
-                    ? {
-                        box: 'border-sky-200/90 bg-sky-50/75 text-[#0B5CAB]',
-                        bar: 'bg-[#0B5CAB]',
-                      }
-                    : rawPct >= 45
-                      ? {
-                          box: 'border-amber-200/90 bg-amber-50/75 text-[#B45309]',
-                          bar: 'bg-[#E8872A]',
-                        }
-                      : {
-                          box: 'border-rose-200/80 bg-rose-50/60 text-rose-700',
-                          bar: 'bg-rose-400',
-                        };
               const matchedSkills = row.match.matchedSkills ?? [];
               const visibleSkills = matchedSkills.slice(0, 3);
               const extraSkillsCount = Math.max(0, matchedSkills.length - visibleSkills.length);
@@ -1720,29 +1703,15 @@ function PotentialCandidatesColumn({
                 >
                   <div className="group relative rounded-2xl border border-[#dce6f4] bg-white shadow-[0_1px_3px_rgba(7,35,72,0.03)] transition hover:border-[#b8cde8] hover:shadow-[0_6px_18px_rgba(7,35,72,0.07)]">
                     {/* TẦNG 1: KHỐI THÔNG TIN ỨNG VIÊN & ĐIỂM SÁNG CHUYÊN MÔN */}
-                    <div className="flex items-start gap-3.5 px-4 pt-4 pb-3.5 sm:px-5">
-                      {/* Hộp Điểm AI neo thị giác bên trái (phân 4 bậc màu) */}
+                    <div className="flex items-start gap-3 sm:gap-4 px-4 pt-4 pb-3.5 sm:px-5">
+                      {/* Vòng tròn tỉ lệ % đồng bộ từ trang AI Matching */}
                       <button
                         type="button"
                         onClick={() => onSelectCandidate(row, 'jd_match')}
                         title="Xem chi tiết đối chiếu JD"
-                        className={clsx(
-                          'flex w-[66px] shrink-0 flex-col items-center rounded-2xl border px-2 py-2.5 text-center transition hover:scale-[1.02]',
-                          scoreTheme.box,
-                        )}
+                        className="shrink-0 rounded-full transition hover:scale-105"
                       >
-                        <span className="text-[15px] font-extrabold leading-none tracking-tight tabular-nums">
-                          {pctLabel}
-                        </span>
-                        <span className="mt-1 text-[9.5px] font-bold uppercase tracking-wider opacity-75">
-                          Phù hợp
-                        </span>
-                        <span className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/80">
-                          <span
-                            className={clsx('block h-full rounded-full transition-all', scoreTheme.bar)}
-                            style={{ width: `${Math.max(8, Math.min(100, rawPct))}%` }}
-                          />
-                        </span>
+                        <ScoreRing score={row.match.score} />
                       </button>
 
                       {/* Thông tin chính ứng viên */}
