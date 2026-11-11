@@ -1538,6 +1538,7 @@ function PotentialCandidatesColumn({
 }) {
   const [page, setPage] = useState(1);
   const [openMoreId, setOpenMoreId] = useState<string | null>(null);
+  const [confirmOutreachRow, setConfirmOutreachRow] = useState<CandidateMatchView | null>(null);
 
   useEffect(() => {
     if (!openMoreId) return;
@@ -1545,6 +1546,17 @@ function PotentialCandidatesColumn({
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [openMoreId]);
+
+  useEffect(() => {
+    if (!confirmOutreachRow) return;
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && !outreachPending) {
+        setConfirmOutreachRow(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmOutreachRow, outreachPending]);
 
   const outreachStatusByCand = useMemo(() => {
     const m = new Map<string, SourcingOutreachStatus>();
@@ -2022,7 +2034,7 @@ function PotentialCandidatesColumn({
                                 onSelectCandidate(row, 'overview');
                                 return;
                               }
-                              onQuickOutreach(row);
+                              setConfirmOutreachRow(row);
                             }}
                             title={
                               isOutreached
@@ -2128,6 +2140,69 @@ function PotentialCandidatesColumn({
           ) : null}
         </>
       )}
+
+      {confirmOutreachRow ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="confirm-outreach-title"
+          onClick={() => {
+            if (!outreachPending) setConfirmOutreachRow(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#072348]/25 p-4 backdrop-blur-[2px]"
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            className="w-full max-w-[356px] rounded-2xl border border-[#dce6f4] bg-white p-5 shadow-[0_20px_50px_-12px_rgba(7,35,72,0.22)]"
+          >
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF4EA] text-[#E8872A]">
+                <Headphones className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p
+                  id="confirm-outreach-title"
+                  className="text-[14.5px] font-bold leading-snug text-[#072348]"
+                >
+                  Bạn muốn giao Inlink liên hệ hồ sơ này?
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Ứng viên{' '}
+                  <span className="font-semibold text-slate-700">
+                    {formatPersonName(confirmOutreachRow.displayName)}
+                  </span>
+                  {outreachRemaining !== null
+                    ? ` · Còn ${outreachRemaining}/${outreachQuota ?? 15} lượt`
+                    : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={outreachPending}
+                onClick={() => setConfirmOutreachRow(null)}
+                className="inline-flex h-8 min-w-[76px] items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50"
+              >
+                Không
+              </button>
+              <button
+                type="button"
+                disabled={outreachPending}
+                onClick={() => {
+                  const target = confirmOutreachRow;
+                  setConfirmOutreachRow(null);
+                  onQuickOutreach(target);
+                }}
+                className="inline-flex h-8 min-w-[76px] items-center justify-center rounded-full bg-[#072348] px-4 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#0d3468] disabled:opacity-50"
+              >
+                Có
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
