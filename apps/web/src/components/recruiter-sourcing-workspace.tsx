@@ -1206,10 +1206,18 @@ function AppliedCandidatesColumn({
   ready: boolean;
 }) {
   const [page, setPage] = useState(1);
+  const [openMoreId, setOpenMoreId] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
   }, [jobTitle, results.length]);
+
+  useEffect(() => {
+    if (!openMoreId) return;
+    const close = () => setOpenMoreId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMoreId]);
 
   const totalPages = Math.max(1, Math.ceil(results.length / CANDIDATE_PAGE_SIZE));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -1220,22 +1228,21 @@ function AppliedCandidatesColumn({
 
   return (
     <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
-            Danh sách ứng viên ứng tuyển
-          </h3>
-          <p className="mt-0.5 truncate text-xs text-slate-500">
+      <div>
+        <h3 className="text-[15px] font-bold uppercase tracking-tight text-slate-900">
+          DANH SÁCH ỨNG VIÊN ỨNG TUYỂN
+        </h3>
+        <div className="mt-1.5 flex items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 truncate text-[13px] text-slate-500">
             Danh sách ứng viên đã nộp hồ sơ ứng tuyển của bạn
             {jobTitle ? ` · ${jobTitle}` : ''}
           </p>
+          {ready && !loading ? (
+            <span className="inline-flex shrink-0 items-center rounded-full bg-[#DCF5E7] px-3 py-1 text-xs font-semibold tabular-nums text-[#15803D]">
+              {results.length} ứng viên
+            </span>
+          ) : null}
         </div>
-        {ready && !loading ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-            <Users className="h-3.5 w-3.5" />
-            {results.length}
-          </span>
-        ) : null}
       </div>
 
       {!ready ? (
@@ -1255,80 +1262,198 @@ function AppliedCandidatesColumn({
         </div>
       ) : (
         <>
-          <ul className="mt-4 grid gap-3">
+          <ul className="mt-4 grid gap-3.5">
             {pagedResults.map((row, index) => {
               const isShortlisted = shortlistedIds.includes(row.candidateId);
               const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
+              const pctRawStr = formatMatchPct(row.match.score);
+              const matchedSkills = row.match.matchedSkills ?? [];
+              const visibleSkills = matchedSkills.slice(0, 3);
+              const extraSkillsCount = Math.max(0, matchedSkills.length - visibleSkills.length);
+              const locationDisplay = row.location ? row.location.replace(/\s*·\s*/g, ', ') : null;
+              const moreOpen = openMoreId === row.candidateId;
+
               return (
                 <li
                   key={row.candidateId}
                   className="animate-soft-rise"
                   style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
                 >
-                  <div className="progress-card group flex w-full items-start gap-3 p-3 text-left sm:p-4">
-                    <button
-                      type="button"
-                      onClick={() => onSelectCandidate(row)}
-                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                    >
-                      <ScoreRing score={row.match.score} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-[#072348] transition group-hover:text-[#E8872A]">
-                            {formatPersonName(row.displayName)}
-                          </span>
-                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                            Đã ứng tuyển
-                          </span>
-                        </span>
-                        <span className="mt-0.5 block text-xs text-slate-500">
-                          {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
-                          {row.industry ? ` · ${row.industry}` : ''}
-                          {' · '}
-                          <span className={row.location ? 'font-medium text-slate-700' : 'text-slate-400'}>
-                            <MapPin className="mr-0.5 inline h-3.5 w-3.5 text-[#E8872A]" />
-                            {row.location ?? 'Chưa có địa điểm'}
-                          </span>
-                        </span>
-                        {row.match.reason ? (
-                          <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-slate-600">
-                            Độ phù hợp {formatMatchPct(row.match.score)}%
-                          </span>
-                        ) : null}
-                        <span className="mt-2 inline-flex text-xs font-semibold text-[#E8872A]">
-                          Xem đối chiếu JD · Liên hệ · Đặt lịch PV →
-                        </span>
-                      </span>
-                    </button>
+                  <div className="group relative rounded-2xl border border-[#dce6f4] bg-white shadow-[0_1px_3px_rgba(7,35,72,0.03)] transition hover:border-[#b8cde8] hover:shadow-[0_6px_18px_rgba(7,35,72,0.07)]">
+                    {/* TẦNG 1: KHỐI THÔNG TIN ỨNG VIÊN & ĐIỂM SÁNG CHUYÊN MÔN */}
+                    <div className="flex items-start gap-3 sm:gap-4 px-4 pt-4 pb-3.5 sm:px-5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectCandidate(row, 'jd_match')}
+                        title="Xem chi tiết đối chiếu JD"
+                        className="shrink-0 rounded-full transition hover:scale-105"
+                      >
+                        <ScoreRing score={row.match.score} />
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={!isShortlisted && !canShortlist}
-                      onClick={() => onQuickShortlist(row)}
-                      title={
-                        isShortlisted
-                          ? 'Đã Shortlist · Bấm để bỏ khỏi Shortlist'
-                          : 'Đưa ứng viên vào Shortlist'
-                      }
-                      className={clsx(
-                        'inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold transition disabled:opacity-40',
-                        isShortlisted
-                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-indigo-100/70'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
-                      )}
-                    >
-                      {isShortlisted ? (
-                        <>
-                          <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
-                          <span>Đã Shortlist</span>
-                        </>
-                      ) : (
-                        <>
-                          <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span>Shortlist</span>
-                        </>
-                      )}
-                    </button>
+                      <div className="min-w-0 flex-1">
+                        {/* Hàng 1: Tên + Nhãn Đã ứng tuyển + Nút Bookmark Shortlist góc phải */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onSelectCandidate(row, 'overview')}
+                              className="truncate text-left text-[15px] font-bold text-[#072348] transition hover:text-[#E8872A]"
+                            >
+                              {formatPersonName(row.displayName)}
+                            </button>
+
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
+                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
+                              Đã ứng tuyển
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={!isShortlisted && !canShortlist}
+                            onClick={() => onQuickShortlist(row)}
+                            title={
+                              isShortlisted
+                                ? 'Đã Shortlist · Bấm để bỏ khỏi Shortlist'
+                                : 'Đưa ứng viên vào Shortlist'
+                            }
+                            className={clsx(
+                              'inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold transition disabled:opacity-40',
+                              isShortlisted
+                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/90 hover:bg-indigo-100/80'
+                                : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900',
+                            )}
+                          >
+                            {isShortlisted ? (
+                              <>
+                                <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
+                                <span>Đã Shortlist</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                <span>Shortlist</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Hàng 2: Tách bạch Chức danh · Ngành nghề và Khu vực */}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          <span className="inline-flex min-w-0 items-center gap-1 font-medium text-slate-700">
+                            <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <span className="truncate">
+                              {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
+                              {row.industry ? ` · ${row.industry}` : ''}
+                            </span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-1 text-slate-500">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                            <span className="truncate">{locationDisplay ?? 'Chưa có địa điểm'}</span>
+                          </span>
+                        </div>
+
+                        {/* Hàng 3: Điểm sáng chuyên môn / Kỹ năng khớp JD */}
+                        {visibleSkills.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {visibleSkills.map((skill) => (
+                              <span
+                                key={skill}
+                                className="inline-flex max-w-[180px] truncate rounded-md bg-[#F4F8FD] px-2 py-0.5 text-[11px] font-medium text-[#072348] ring-1 ring-[#dce7f5]"
+                              >
+                                ✓ {skill}
+                              </span>
+                            ))}
+                            {extraSkillsCount > 0 ? (
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-500">
+                                +{extraSkillsCount}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : row.match.reason ? (
+                          <p className="mt-1.5 line-clamp-1 text-[11.5px] text-slate-500">
+                            <Sparkles className="mr-1 inline h-3 w-3 text-[#E8872A]" />
+                            {row.match.reason}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* TẦNG 2: THANH HÀNH ĐỘNG CHÂN THẺ (KHÔNG CÓ GIAO INLINK) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-slate-100 bg-[#FAFBFD] px-4 py-2.5 sm:px-5">
+                      <div className="flex items-center gap-1 sm:gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onSelectCandidate(row, 'jd_match')}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348]"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                          <span>Đối chiếu JD</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onSelectCandidate(row, 'interview')}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348]"
+                        >
+                          <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span>Đặt lịch PV</span>
+                        </button>
+
+                        <div className="relative">
+                          <button
+                            type="button"
+                            title="Tác vụ khác"
+                            aria-label="Tác vụ khác"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMoreId((prev) => (prev === row.candidateId ? null : row.candidateId));
+                            }}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-200/60 hover:text-slate-900"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+
+                          {moreOpen ? (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute bottom-full left-0 z-20 mb-1.5 w-48 rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMoreId(null);
+                                  onSelectCandidate(row, 'contact');
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                              >
+                                <Phone className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                                <span>Liên hệ & Kết nối</span>
+                              </button>
+                              <Link
+                                href={`/candidates/${row.candidateId}?from=sourcing&match=${pctRawStr}`}
+                                target="_blank"
+                                onClick={() => setOpenMoreId(null)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                <span>Trang hồ sơ đầy đủ</span>
+                              </Link>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onSelectCandidate(row, 'overview')}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-[#072348]/25 bg-white px-3.5 text-xs font-bold text-[#072348] transition hover:border-[#072348] hover:bg-[#072348] hover:text-white"
+                      >
+                        <span>Xem hồ sơ</span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                      </button>
+                    </div>
                   </div>
                 </li>
               );
