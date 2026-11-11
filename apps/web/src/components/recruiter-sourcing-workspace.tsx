@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertTriangle,
+  Bookmark,
+  BookmarkCheck,
   Briefcase,
   Calendar,
   CheckCircle2,
@@ -20,7 +22,6 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
-  Star,
   Users,
   X,
 } from 'lucide-react';
@@ -671,11 +672,12 @@ export function RecruiterSourcingWorkspace() {
                             {slCount > 0 ? (
                               <p
                                 className={clsx(
-                                  'mt-0.5 text-[11px] font-semibold',
+                                  'mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold',
                                   isActive ? 'text-amber-300' : 'text-[#E8872A]',
                                 )}
                               >
-                                ★ {slCount} Shortlist
+                                <BookmarkCheck className="h-3 w-3 shrink-0" />
+                                {slCount} Shortlist
                               </p>
                             ) : null}
                           </div>
@@ -1258,11 +1260,6 @@ function AppliedCandidatesColumn({
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                             Đã ứng tuyển
                           </span>
-                          {isShortlisted ? (
-                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200/80">
-                              Đã Shortlist
-                            </span>
-                          ) : null}
                         </span>
                         <span className="mt-0.5 block text-xs text-slate-500">
                           {row.currentPosition ? formatJobTitle(row.currentPosition) : 'Chưa cập nhật vị trí'}
@@ -1293,17 +1290,24 @@ function AppliedCandidatesColumn({
                           ? 'Đã Shortlist · Bấm để bỏ khỏi Shortlist'
                           : 'Đưa ứng viên vào Shortlist'
                       }
-                      aria-label={isShortlisted ? 'Bỏ khỏi Shortlist' : 'Đưa vào Shortlist'}
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:bg-amber-50 disabled:opacity-40"
+                      className={clsx(
+                        'inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold transition disabled:opacity-40',
+                        isShortlisted
+                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-indigo-100/70'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                      )}
                     >
-                      <Star
-                        className={clsx(
-                          'h-4 w-4 transition',
-                          isShortlisted
-                            ? 'fill-amber-400 text-amber-500'
-                            : 'text-slate-400 hover:text-amber-500',
-                        )}
-                      />
+                      {isShortlisted ? (
+                        <>
+                          <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
+                          <span>Đã Shortlist</span>
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span>Shortlist</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </li>
@@ -1649,7 +1653,7 @@ function PotentialCandidatesColumn({
                 : selectedRoundId === 'outreach'
                   ? 'Chưa có ứng viên nào được giao cho Inlink liên hệ. Bấm «Giao Inlink» trên thẻ ứng viên hoặc trong chi tiết hồ sơ để bàn giao cho đội ngũ CSKH Inlink.'
                   : selectedRoundId === 'shortlist'
-                    ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm biểu tượng ngôi sao cạnh tên ứng viên để đưa vào Shortlist.'
+                    ? 'Chưa có ứng viên nào trong danh sách Shortlist. Bấm nút «Shortlist» trên thẻ ứng viên để đưa vào đây.'
                     : 'Chưa có ứng viên tiềm năng khớp ở đợt tìm kiếm này. Hệ thống sẽ tiếp tục quét tự động 2 giờ/lần.'}
           </p>
         </div>
@@ -1697,12 +1701,12 @@ function PotentialCandidatesColumn({
                       </button>
 
                       <div className="min-w-0 flex-1">
-                        {/* Dòng 1: Tên ứng viên + Ngôi sao Shortlist đồng bộ */}
-                        <div className="flex items-center gap-1.5">
+                        {/* Dòng 1: Tên ứng viên + Nút Bookmark Shortlist / Đã Shortlist góc phải */}
+                        <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
                             onClick={() => onSelectCandidate(row, 'overview')}
-                            className="truncate text-left text-[15px] font-bold text-slate-900 transition hover:text-[#072348]"
+                            className="min-w-0 truncate text-left text-[15px] font-bold text-slate-900 transition hover:text-[#072348]"
                           >
                             {row.displayName}
                           </button>
@@ -1715,17 +1719,24 @@ function PotentialCandidatesColumn({
                                 ? 'Đã Shortlist · Bấm để bỏ khỏi Shortlist'
                                 : 'Đưa ứng viên vào Shortlist'
                             }
-                            aria-label={isShortlisted ? 'Bỏ khỏi Shortlist' : 'Đưa vào Shortlist'}
-                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition hover:bg-amber-50 disabled:opacity-40"
+                            className={clsx(
+                              'inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold transition disabled:opacity-40',
+                              isShortlisted
+                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/80 hover:bg-indigo-100/70'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                            )}
                           >
-                            <Star
-                              className={clsx(
-                                'h-4 w-4 transition',
-                                isShortlisted
-                                  ? 'fill-amber-400 text-amber-500'
-                                  : 'text-slate-400 hover:text-amber-500',
-                              )}
-                            />
+                            {isShortlisted ? (
+                              <>
+                                <BookmarkCheck className="h-3.5 w-3.5 shrink-0" />
+                                <span>Đã Shortlist</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                <span>Shortlist</span>
+                              </>
+                            )}
                           </button>
                         </div>
 
@@ -1773,12 +1784,6 @@ function PotentialCandidatesColumn({
                           >
                             {isUnlocked ? 'Đã xem' : 'Chưa xem'}
                           </span>
-
-                          {isShortlisted ? (
-                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200/80">
-                              Đã Shortlist
-                            </span>
-                          ) : null}
                         </div>
 
                         {/* Dòng 3: Vị trí · Ngành nghề · Địa điểm */}
@@ -1894,13 +1899,12 @@ function PotentialCandidatesColumn({
                               }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
                             >
-                              <Star
-                                className={clsx(
-                                  'h-3.5 w-3.5 shrink-0',
-                                  isShortlisted ? 'fill-amber-400 text-amber-500' : 'text-slate-400',
-                                )}
-                              />
-                              <span>{isShortlisted ? 'Bỏ khỏi Shortlist' : 'Đưa vào Shortlist'}</span>
+                              {isShortlisted ? (
+                                <BookmarkCheck className="h-3.5 w-3.5 shrink-0 text-indigo-600" />
+                              ) : (
+                                <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              )}
+                              <span>{isShortlisted ? 'Đã Shortlist (bỏ chọn)' : 'Shortlist'}</span>
                             </button>
                             <button
                               type="button"
@@ -2053,8 +2057,8 @@ function QuotaGrid({
     {
       label: 'Đã Shortlist',
       value: shortlistedCount,
-      icon: Star,
-      tone: 'bg-amber-50 text-amber-700',
+      icon: BookmarkCheck,
+      tone: 'bg-indigo-50 text-indigo-700',
       actionHint: 'Số ứng viên tiềm năng được doanh nghiệp đưa vào danh sách lựa chọn',
       onClick: onFilterShortlist,
     },

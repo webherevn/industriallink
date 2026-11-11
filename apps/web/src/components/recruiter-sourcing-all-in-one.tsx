@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertCircle,
+  Bookmark,
+  BookmarkCheck,
   Briefcase,
   Calendar,
   CheckCircle2,
@@ -22,7 +24,6 @@ import {
   RefreshCw,
   Save,
   Sparkles,
-  Star,
   TrendingUp,
   UserPlus,
   X,
@@ -2782,8 +2783,9 @@ export function SourcingCandidateDrawer({
                   </span>
                 )}
                 {isShortlisted ? (
-                  <span className="rounded-full bg-indigo-400/25 px-2.5 py-0.5 text-[10px] font-bold text-indigo-100 ring-1 ring-indigo-300/40">
-                    ★ Đã Shortlist
+                  <span className="inline-flex items-center gap-1 rounded-full bg-indigo-400/25 px-2.5 py-0.5 text-[10px] font-bold text-indigo-100 ring-1 ring-indigo-300/40">
+                    <BookmarkCheck className="h-3 w-3" />
+                    Đã Shortlist
                   </span>
                 ) : null}
                 {isOutreached ? (
@@ -2873,17 +2875,16 @@ export function SourcingCandidateDrawer({
               className={clsx(
                 'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition active:scale-[0.99] disabled:opacity-45',
                 isShortlisted
-                  ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
               )}
               title={isShortlisted ? 'Đang trong Shortlist · Bấm để bỏ Shortlist' : 'Đưa ứng viên vào Shortlist'}
             >
-              <Star
-                className={clsx(
-                  'h-3.5 w-3.5',
-                  isShortlisted ? 'fill-amber-400 text-amber-500' : 'text-slate-400',
-                )}
-              />
+              {isShortlisted ? (
+                <BookmarkCheck className="h-3.5 w-3.5 text-indigo-600" />
+              ) : (
+                <Bookmark className="h-3.5 w-3.5 text-slate-400" />
+              )}
               <span>{isShortlisted ? 'Đã Shortlist' : 'Shortlist'}</span>
             </button>
           </div>
