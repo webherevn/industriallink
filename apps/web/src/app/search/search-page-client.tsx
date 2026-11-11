@@ -788,10 +788,10 @@ function ResultList({
   return (
     <div className="space-y-3">
       {(leftToolbar || results.length > 0) && (
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 md:flex-nowrap xl:gap-x-3">
           {leftToolbar}
           {results.length > 0 && (
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1 md:shrink-0 md:flex-nowrap xl:gap-1.5">
               {statusTabs.map((tab) => {
                 const active = statusFilter === tab.key;
                 return (
@@ -803,7 +803,7 @@ function ResultList({
                       setPage(1);
                     }}
                     className={clsx(
-                      'inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
+                      'inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[11px] font-semibold transition lg:h-9 xl:gap-1.5 xl:px-3 xl:text-xs',
                       active
                         ? 'bg-[#EFF6FF] text-[#1D4ED8] ring-1 ring-[#BFDBFE]'
                         : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/70 hover:text-slate-800',
@@ -812,7 +812,7 @@ function ResultList({
                     <span>{tab.label}</span>
                     <span
                       className={clsx(
-                        'tabular-nums text-[11px] font-bold',
+                        'tabular-nums text-[10.5px] font-bold xl:text-[11px]',
                         active ? 'text-[#1D4ED8]' : 'text-slate-400',
                       )}
                     >
@@ -947,7 +947,7 @@ function MatchRefineBar({
         aria-pressed={on}
         onClick={() => onLocationMode(on ? 'off' : mode)}
         className={clsx(
-          'h-7 rounded-full px-2.5 text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40',
+          'h-6 shrink-0 whitespace-nowrap rounded-full px-2 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 lg:h-7 xl:px-2.5 xl:text-[12px]',
           on ? 'bg-[#E8872A] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50',
         )}
       >
@@ -957,37 +957,46 @@ function MatchRefineBar({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:flex-nowrap xl:gap-2">
       <button
         type="button"
         aria-pressed={sortByScore}
         onClick={() => onSortByScore(!sortByScore)}
         className={clsx(
-          'inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[12px] font-semibold shadow-sm transition',
+          'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-semibold shadow-sm transition lg:h-9 xl:gap-2 xl:px-3 xl:text-[12px]',
           sortByScore
             ? 'border-[#072348] bg-[#072348] text-white'
             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
         )}
       >
-        <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+        <ArrowDownWideNarrow className="h-3.5 w-3.5 shrink-0" />
         Tỷ lệ matching
-        <span className={clsx('font-medium', sortByScore ? 'text-white/70' : 'text-slate-400')}>
+        <span
+          className={clsx(
+            'inline font-medium md:hidden xl:inline',
+            sortByScore ? 'text-white/70' : 'text-slate-400',
+          )}
+        >
           cao tới thấp
         </span>
       </button>
 
       <div
         className={clsx(
-          'inline-flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white pl-3 pr-1 shadow-sm',
+          'inline-flex h-8 min-w-0 items-center gap-1 rounded-full border border-slate-200 bg-white pl-2.5 pr-1 shadow-sm lg:h-9 xl:pl-3',
           !place && 'opacity-60',
         )}
         title={place ? `Lọc theo địa điểm trên JD: ${place}` : 'Tin này chưa có địa điểm làm việc'}
       >
         <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
-        <span className="max-w-[14rem] truncate pr-1 text-[12px] font-semibold text-slate-700">
+        <span className="shrink-0 pr-0.5 text-[11.5px] font-semibold text-slate-700 xl:text-[12px]">
           Địa điểm
-          {place ? <span className="ml-1 font-medium text-slate-400">{place}</span> : null}
         </span>
+        {place ? (
+          <span className="min-w-0 max-w-[10rem] truncate pr-1 text-[11.5px] font-medium text-slate-400 md:max-w-[6rem] lg:max-w-[9rem] xl:max-w-[13rem] xl:text-[12px]">
+            {place}
+          </span>
+        ) : null}
         {locationButton('exact', 'Chính xác')}
         {locationButton('nearest', 'Gần nhất')}
       </div>
