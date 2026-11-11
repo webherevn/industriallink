@@ -707,6 +707,7 @@ function ResultList({
   loading,
   emptyTitle,
   emptyHint,
+  leftToolbar,
   shortlistOverrides,
   shortlistBusyIds,
   onToggleShortlist,
@@ -715,6 +716,7 @@ function ResultList({
   loading: boolean;
   emptyTitle: string;
   emptyHint: string;
+  leftToolbar?: ReactNode;
   shortlistOverrides: Record<string, boolean>;
   shortlistBusyIds: Record<string, boolean>;
   onToggleShortlist: (candidateId: string, currentShortlisted: boolean) => void;
@@ -784,7 +786,46 @@ function ResultList({
   ];
 
   return (
-    <>
+    <div className="space-y-3">
+      {(leftToolbar || results.length > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          {leftToolbar}
+          {results.length > 0 && (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+              {statusTabs.map((tab) => {
+                const active = statusFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter(tab.key);
+                      setPage(1);
+                    }}
+                    className={clsx(
+                      'inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
+                      active
+                        ? 'bg-[#EFF6FF] text-[#1D4ED8] ring-1 ring-[#BFDBFE]'
+                        : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/70 hover:text-slate-800',
+                    )}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={clsx(
+                        'tabular-nums text-[11px] font-bold',
+                        active ? 'text-[#1D4ED8]' : 'text-slate-400',
+                      )}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {loading && results.length === 0 && (
         <div className="space-y-3" aria-busy="true" aria-live="polite">
           {[0, 1, 2].map((i) => (
@@ -805,39 +846,7 @@ function ResultList({
       )}
 
       {results.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {statusTabs.map((tab) => {
-              const active = statusFilter === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => {
-                    setStatusFilter(tab.key);
-                    setPage(1);
-                  }}
-                  className={clsx(
-                    'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
-                    active
-                      ? 'bg-[#EFF6FF] text-[#1D4ED8] ring-1 ring-[#BFDBFE]'
-                      : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/70 hover:text-slate-800',
-                  )}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={clsx(
-                      'tabular-nums text-[11px] font-bold',
-                      active ? 'text-[#1D4ED8]' : 'text-slate-400',
-                    )}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
+        <>
           {filteredResults.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
               <p className="text-sm font-semibold text-slate-700">
@@ -908,9 +917,9 @@ function ResultList({
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -948,7 +957,7 @@ function MatchRefineBar({
   }
 
   return (
-    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         aria-pressed={sortByScore}
@@ -1475,19 +1484,21 @@ export function SearchPageClient() {
                   ? 'Đang đối chiếu tiêu chí chuẩn của tin…'
                   : `${engineLabel(selectedJob)} · ${refineCaption(sortByScore, locationMode)}`}
               </p>
-              {hasMatched && matchResults.length > 0 && (
-                <MatchRefineBar
-                  sortByScore={sortByScore}
-                  locationMode={locationMode}
-                  jobLocation={selectedJob?.location ?? null}
-                  onSortByScore={setSortByScore}
-                  onLocationMode={setLocationMode}
-                />
-              )}
             </div>
             <ResultList
               results={shownMatches}
               loading={matching}
+              leftToolbar={
+                hasMatched && matchResults.length > 0 ? (
+                  <MatchRefineBar
+                    sortByScore={sortByScore}
+                    locationMode={locationMode}
+                    jobLocation={selectedJob?.location ?? null}
+                    onSortByScore={setSortByScore}
+                    onLocationMode={setLocationMode}
+                  />
+                ) : undefined
+              }
               shortlistOverrides={shortlistOverrides}
               shortlistBusyIds={shortlistBusyIds}
               onToggleShortlist={handleToggleShortlist}

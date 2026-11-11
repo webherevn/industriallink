@@ -41,7 +41,7 @@ const CANDIDATE_POOL = 160;
 /** Điểm tối thiểu (0–100) để hiện trong kết quả mạng lưới. */
 const MIN_ENGINE_SCORE = 0;
 
-const CANDIDATE_MATCH_INCLUDE = {
+export const CANDIDATE_MATCH_INCLUDE = {
   profile: true,
   skills: true,
   experiences: true,
@@ -137,6 +137,14 @@ export class MatchingService {
     });
   }
 
+  /** Chấm điểm trực tiếp giữa một tin và một ứng viên (đồng bộ 100% giữa Tìm ứng viên AI, Săn nhân sự & Hộp thư ứng viên). */
+  scoreJobCandidate(
+    job: Parameters<typeof jobToB2bMatchInput>[0],
+    candidate: CandidateWithSales,
+  ): MatchExplanation {
+    return this.explainPair(0, job, candidate);
+  }
+
   /** Tính điểm phù hợp giữa một ứng viên và một tin tuyển dụng (dùng khi ứng tuyển). */
   async computePairMatch(jobId: string, candidateId: string): Promise<MatchExplanation> {
     const [job, candidate] = await Promise.all([
@@ -149,18 +157,7 @@ export class MatchingService {
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     if (!candidate) throw new NotFoundException('Không tìm thấy ứng viên');
 
-    let semantic = 0;
-    try {
-      const [jobVec, candVec] = await Promise.all([
-        this.ai.embed(buildJobText(job, job.skills.map((s) => s.name))),
-        this.ai.embed(this.buildCandidateText(candidate)),
-      ]);
-      semantic = cosine(jobVec, candVec);
-    } catch (err) {
-      this.logger.warn(`Không tính được embedding khi so khớp: ${String(err)}`);
-    }
-
-    return this.explainPair(semantic, job, candidate);
+    return this.scoreJobCandidate(job, candidate);
   }
 
   /**
@@ -185,9 +182,7 @@ export class MatchingService {
     });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
 
-    const criteriaEngine = shouldUseSalesMatchEngine(job) || shouldUseTechnicalMatchEngine(job);
-    const semantic = criteriaEngine ? 0 : await this.semanticScoreForJob(job.id, candidate);
-    return this.explainPair(semantic, job, candidate);
+    return this.scoreJobCandidate(job, candidate);
   }
 
   /** Cosine lưu trên tin. Không có embedding thì 0 — cùng đường gợi ý AI. */

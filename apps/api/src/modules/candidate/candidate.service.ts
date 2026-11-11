@@ -1767,20 +1767,49 @@ export class CandidateService {
       }
     }
 
-    const appRow = await this.prisma.application.findFirst({
+    const appliedRows = await this.prisma.application.findMany({
       where: {
         candidateId: candidate.id,
         isDeleted: false,
         job: { companyId, isDeleted: false },
-        matchScore: { not: null },
       },
-      orderBy: [{ matchScore: 'desc' }, { updatedAt: 'desc' }],
-      select: { matchScore: true },
+      orderBy: [{ updatedAt: 'desc' }],
+      include: { job: { include: { skills: true } } },
     });
-    if (appRow?.matchScore != null && Number.isFinite(appRow.matchScore)) {
-      const raw = appRow.matchScore;
-      const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
-      return Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+    if (appliedRows.length > 0) {
+      let bestApplied: number | null = null;
+      const staleUpdates: Promise<unknown>[] = [];
+      for (const appRow of appliedRows) {
+        const exp = shouldUseTechnicalMatchEngine(appRow.job)
+          ? explainTechnicalJobCandidate(appRow.job, candidate)
+          : shouldUseSalesMatchEngine(appRow.job)
+            ? explainSalesJobCandidate(appRow.job, candidate)
+            : buildB2bExplanation({
+                semantic: 0,
+                candidate: toB2bCandidateFromRecords({
+                  profile: candidate.profile,
+                  experiences: candidate.experiences,
+                  skills: candidate.skills.map((s) => s.name),
+                }),
+                job: jobToB2bMatchInput(appRow.job),
+              });
+        const raw = exp.score;
+        const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
+        const rounded = Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+        if (appRow.matchScore !== rounded && this.prisma.application?.update) {
+          staleUpdates.push(
+            this.prisma.application.update({
+              where: { id: appRow.id },
+              data: { matchScore: rounded },
+            }),
+          );
+        }
+        if (bestApplied === null || rounded > bestApplied) bestApplied = rounded;
+      }
+      if (staleUpdates.length > 0) {
+        void Promise.allSettled(staleUpdates);
+      }
+      if (bestApplied !== null) return bestApplied;
     }
 
     const jobs = await this.prisma.job.findMany({

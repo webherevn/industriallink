@@ -43,7 +43,7 @@ import {
 } from './broadcast-email-suggest';
 import { JobService } from './job.service';
 import { candidateMatchTrack, jobMatchTrack } from './match-track.util';
-import { MatchingService } from './matching.service';
+import { CANDIDATE_MATCH_INCLUDE, MatchingService } from './matching.service';
 import { skillOverlap } from './matching.util';
 import type { ApplyJobDto, UpdateApplicationStatusDto } from './dto/apply-job.dto';
 import type { BroadcastEmailDto } from './dto/broadcast-email.dto';
@@ -163,30 +163,65 @@ export class ApplicationService {
     };
   }
 
+  private resolveLiveMatch(
+    app: { id?: string; matchScore: number | null },
+    job: Parameters<MatchingService['scoreJobCandidate']>[0],
+    candidate: Parameters<MatchingService['scoreJobCandidate']>[1],
+    staleUpdates: Promise<unknown>[],
+  ): { score: number | null; matchedSkills: string[] } {
+    if (typeof this.matching?.scoreJobCandidate !== 'function') {
+      return { score: app.matchScore, matchedSkills: [] };
+    }
+    const explanation = this.matching.scoreJobCandidate(job, candidate);
+    const liveScore = explanation.score;
+    if (
+      app.id &&
+      app.matchScore !== liveScore &&
+      typeof this.prisma.application?.update === 'function'
+    ) {
+      staleUpdates.push(
+        this.prisma.application.update({
+          where: { id: app.id },
+          data: { matchScore: liveScore },
+        }),
+      );
+    }
+    return { score: liveScore, matchedSkills: explanation.matchedSkills };
+  }
+
   async myApplications(user: AuthenticatedUser): Promise<ApplicationView[]> {
-    const candidate = await this.prisma.candidate.findUnique({ where: { userId: user.id } });
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { userId: user.id },
+      include: CANDIDATE_MATCH_INCLUDE,
+    });
     if (!candidate) return [];
 
     const applications = await this.prisma.application.findMany({
       where: { candidateId: candidate.id, isDeleted: false },
       orderBy: { createdAt: 'desc' },
-      include: { job: { include: { company: { select: { name: true } } } } },
+      include: { job: { include: { skills: true, company: { select: { name: true } } } } },
     });
 
-    return applications.map((a) => ({
-      id: a.id,
-      code: a.code,
-      jobId: a.jobId,
-      jobTitle: a.job.title,
-      companyName: a.job.company.name,
-      location: a.job.location,
-      salaryMin: a.job.salaryMin,
-      salaryMax: a.job.salaryMax,
-      status: a.status as ApplicationStatus,
-      matchScore: a.matchScore,
-      coverLetter: a.coverLetter,
-      createdAt: a.createdAt.toISOString(),
-    }));
+    const staleUpdates: Promise<unknown>[] = [];
+    const views = applications.map((a) => {
+      const live = this.resolveLiveMatch(a, a.job, candidate, staleUpdates);
+      return {
+        id: a.id,
+        code: a.code,
+        jobId: a.jobId,
+        jobTitle: a.job.title,
+        companyName: a.job.company.name,
+        location: a.job.location,
+        salaryMin: a.job.salaryMin,
+        salaryMax: a.job.salaryMax,
+        status: a.status as ApplicationStatus,
+        matchScore: live.score,
+        coverLetter: a.coverLetter,
+        createdAt: a.createdAt.toISOString(),
+      };
+    });
+    if (staleUpdates.length > 0) void Promise.allSettled(staleUpdates);
+    return views;
   }
 
   /** Chi tiết đơn + timeline — chỉ chủ sở hữu (ứng viên). */
@@ -194,7 +229,10 @@ export class ApplicationService {
     user: AuthenticatedUser,
     applicationId: string,
   ): Promise<ApplicationDetailView> {
-    const candidate = await this.prisma.candidate.findUnique({ where: { userId: user.id } });
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { userId: user.id },
+      include: CANDIDATE_MATCH_INCLUDE,
+    });
     if (!candidate) {
       throw new NotFoundException('Không tìm thấy hồ sơ ứng tuyển');
     }
@@ -202,13 +240,17 @@ export class ApplicationService {
     const application = await this.prisma.application.findFirst({
       where: { id: applicationId, candidateId: candidate.id, isDeleted: false },
       include: {
-        job: { include: { company: { select: { name: true } } } },
+        job: { include: { skills: true, company: { select: { name: true } } } },
         timeline: { orderBy: { occurredAt: 'asc' } },
       },
     });
     if (!application) {
       throw new NotFoundException('Không tìm thấy hồ sơ ứng tuyển');
     }
+
+    const staleUpdates: Promise<unknown>[] = [];
+    const live = this.resolveLiveMatch(application, application.job, candidate, staleUpdates);
+    if (staleUpdates.length > 0) void Promise.allSettled(staleUpdates);
 
     return {
       id: application.id,
@@ -220,7 +262,7 @@ export class ApplicationService {
       salaryMin: application.job.salaryMin,
       salaryMax: application.job.salaryMax,
       status: application.status as ApplicationStatus,
-      matchScore: application.matchScore,
+      matchScore: live.score,
       coverLetter: application.coverLetter,
       createdAt: application.createdAt.toISOString(),
       timeline: application.timeline.map((t) => ({
@@ -245,17 +287,19 @@ export class ApplicationService {
       take: Math.min(Math.max(limit, 1), 100),
       include: {
         job: { include: { skills: true } },
-        candidate: { include: { profile: true, skills: true } },
+        candidate: { include: CANDIDATE_MATCH_INCLUDE },
         interviews: interviewInclude,
       },
     });
 
-    return applications.map((a) => {
+    const staleUpdates: Promise<unknown>[] = [];
+    const rows = applications.map((a) => {
       const requiredSkills = a.job.skills.filter((s) => s.required).map((s) => s.name);
       const { matched } = skillOverlap(
         requiredSkills,
         a.candidate.skills.map((s) => s.name),
       );
+      const live = this.resolveLiveMatch(a, a.job, a.candidate, staleUpdates);
       return {
         applicationId: a.id,
         candidateId: a.candidateId,
@@ -263,8 +307,8 @@ export class ApplicationService {
         currentPosition: a.candidate.profile?.currentPosition ?? null,
         industry: a.candidate.profile?.industry ?? null,
         status: a.status as ApplicationStatus,
-        matchScore: a.matchScore,
-        matchedSkills: matched,
+        matchScore: live.score,
+        matchedSkills: live.matchedSkills.length > 0 ? live.matchedSkills : matched,
         coverLetter: a.coverLetter,
         createdAt: a.createdAt.toISOString(),
         interviews: interviewMarks(a.interviews),
@@ -272,6 +316,8 @@ export class ApplicationService {
         jobTitle: a.job.title,
       };
     });
+    if (staleUpdates.length > 0) void Promise.allSettled(staleUpdates);
+    return rows;
   }
 
   /** Tóm tắt workspace nhà tuyển dụng. */
@@ -423,12 +469,14 @@ export class ApplicationService {
       this.prisma.application.findMany({
         where: { isDeleted: false, createdAt: { gte: from }, job: jobScope },
         select: {
+          id: true,
           status: true,
           createdAt: true,
           updatedAt: true,
           matchScore: true,
           jobId: true,
-          job: { select: { title: true, status: true, location: true } },
+          job: { include: { skills: true } },
+          candidate: { include: CANDIDATE_MATCH_INCLUDE },
         },
       }),
       this.prisma.application.count({
@@ -507,6 +555,15 @@ export class ApplicationService {
           })
         : Promise.resolve([]),
     ]);
+
+    const reportStaleUpdates: Promise<unknown>[] = [];
+    for (const row of applications) {
+      if (row.candidate && row.job) {
+        const live = this.resolveLiveMatch(row, row.job, row.candidate, reportStaleUpdates);
+        row.matchScore = live.score;
+      }
+    }
+    if (reportStaleUpdates.length > 0) void Promise.allSettled(reportStaleUpdates);
 
     const count = (status: ApplicationStatus) =>
       applications.filter((row) => row.status === status).length;
@@ -705,16 +762,18 @@ export class ApplicationService {
       where: { jobId, isDeleted: false },
       orderBy: [{ matchScore: 'desc' }, { createdAt: 'asc' }],
       include: {
-        candidate: { include: { profile: true, skills: true } },
+        candidate: { include: CANDIDATE_MATCH_INCLUDE },
         interviews: interviewInclude,
       },
     });
 
-    return applications.map((a) => {
+    const staleUpdates: Promise<unknown>[] = [];
+    const rows = applications.map((a) => {
       const { matched } = skillOverlap(
         requiredSkills,
         a.candidate.skills.map((s) => s.name),
       );
+      const live = this.resolveLiveMatch(a, job, a.candidate, staleUpdates);
       return {
         applicationId: a.id,
         candidateId: a.candidateId,
@@ -722,13 +781,15 @@ export class ApplicationService {
         currentPosition: a.candidate.profile?.currentPosition ?? null,
         industry: a.candidate.profile?.industry ?? null,
         status: a.status as ApplicationStatus,
-        matchScore: a.matchScore,
-        matchedSkills: matched,
+        matchScore: live.score,
+        matchedSkills: live.matchedSkills.length > 0 ? live.matchedSkills : matched,
         coverLetter: a.coverLetter,
         createdAt: a.createdAt.toISOString(),
         interviews: interviewMarks(a.interviews),
       };
     });
+    if (staleUpdates.length > 0) void Promise.allSettled(staleUpdates);
+    return rows.sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
   }
 
   async updateStatus(
