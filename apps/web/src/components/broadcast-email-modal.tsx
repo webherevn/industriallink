@@ -63,8 +63,7 @@ const STATUS_BADGE_TONE: Record<ApplicationStatus, string> = {
 
 function normalizeMatchPct(score: number | null): number | null {
   if (score == null || Number.isNaN(score)) return null;
-  const val = score <= 1 ? score * 100 : score;
-  return Math.round(Math.max(0, Math.min(100, val)) * 10) / 10;
+  return Math.round(Math.max(0, Math.min(100, score)) * 10) / 10;
 }
 
 function interpolatePreview(

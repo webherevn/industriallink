@@ -79,8 +79,7 @@ export default function RecruiterBroadcastEmailPage() {
     ).length;
     const highMatch = list.filter((a) => {
       if (a.matchScore == null) return false;
-      const pct = a.matchScore <= 1 ? a.matchScore * 100 : a.matchScore;
-      return pct >= 70;
+      return a.matchScore >= 70;
     }).length;
     return { total, applied, inProgress, highMatch };
   }, [applicants]);

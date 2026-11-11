@@ -368,14 +368,13 @@ function parseAiReason(reason?: string | null): ParsedAiReason {
   return { background, missingItems, note };
 }
 
-function ScoreRing({ score }: { score: number }) {
-  const pct = formatMatchPct(score);
+function ScoreRing({ scorePct }: { scorePct: number }) {
+  const pct = formatMatchPct(scorePct);
   const r = 18;
   const c = 2 * Math.PI * r;
-  const unit = score <= 1 ? score : score / 100;
-  const safe = Math.min(1, Math.max(0, unit));
+  const safe = Math.min(1, Math.max(0, scorePct / 100));
   const offset = c * (1 - safe);
-  const ringColor = matchRingColor(score);
+  const ringColor = matchRingColor(scorePct);
   return (
     <div className="relative h-12 w-12 shrink-0">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
@@ -428,7 +427,7 @@ function ResultCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const criteria = (result.criteria ?? []).filter((c) => c.score != null);
-  const scorePct = result.score <= 1 ? result.score * 100 : result.score;
+  const scorePct = Math.max(0, Math.min(100, result.score * 100));
   const creditCost = scorePct >= 80 ? 2 : 1;
   const displayName = formatPersonName(result.displayName);
   const parsedReason = useMemo(() => parseAiReason(result.reason), [result.reason]);
@@ -447,7 +446,7 @@ function ResultCard({
       {/* Tầng 1: Thông tin ứng viên & nhận xét AI dễ quét */}
       <div className="px-4 pt-4 pb-3.5 sm:px-5">
         <div className="flex items-start gap-3 sm:gap-4">
-          <ScoreRing score={result.score} />
+          <ScoreRing scorePct={scorePct} />
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2.5">
@@ -662,7 +661,7 @@ function ResultCard({
                 </span>
               )}
               <ProfileOpenLink
-                href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
+                href={`/candidates/${result.candidateId}?match=${formatMatchPct(scorePct)}`}
                 potential={!result.applied}
                 ariaLabel={`Xem hồ sơ ${displayName}`}
                 className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#072348]/20 bg-white px-4 text-xs font-bold text-[#072348] shadow-2xs transition hover:border-[#072348]/40 hover:bg-[#072348]/[0.04]"
@@ -673,7 +672,7 @@ function ResultCard({
             </>
           ) : (
             <ProfileOpenLink
-              href={`/candidates/${result.candidateId}?match=${formatMatchPct(result.score)}`}
+              href={`/candidates/${result.candidateId}?match=${formatMatchPct(scorePct)}`}
               potential={!result.applied}
               ariaLabel={`Mở hồ sơ ${displayName} (${creditCost} Credit)`}
               className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#072348] pl-4 pr-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d356c]"

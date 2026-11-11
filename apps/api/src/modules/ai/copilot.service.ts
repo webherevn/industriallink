@@ -280,8 +280,7 @@ function isFindCandidatesQuery(message: string): boolean {
 }
 
 function enginePct(score: number): string {
-  const numeric = score <= 1 ? score * 100 : score;
-  const clamped = Math.max(0, Math.min(100, numeric));
+  const clamped = Math.max(0, Math.min(100, score));
   return clamped.toFixed(1);
 }
 

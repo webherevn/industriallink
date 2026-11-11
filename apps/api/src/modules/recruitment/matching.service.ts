@@ -450,8 +450,7 @@ export class MatchingService {
 
     const roundNumber = prevUsageRows.length + 1;
     const allScoredCandidates: RecruiterSourcingScanCandidateItem[] = potentialRows.map((row) => {
-      const raw = row.match.score <= 1 ? row.match.score * 100 : row.match.score;
-      const score = Math.round(Math.max(0, Math.min(100, raw)) * 10) / 10;
+      const score = Math.round(Math.max(0, Math.min(100, row.match.score)) * 10) / 10;
       const prev = prevBestScore.get(row.candidateId);
       const isNew = prev === undefined || score - prev >= 1;
       return {
@@ -549,7 +548,7 @@ export class MatchingService {
     }
 
     const topLines = newMatches.slice(0, 5).map((m) => {
-      const pct = Math.round((m.match.score <= 1 ? m.match.score * 100 : m.match.score) * 10) / 10;
+      const pct = Math.round(Math.max(0, Math.min(100, m.match.score)) * 10) / 10;
       return `• ${m.displayName} — Phù hợp ${pct}%${m.currentPosition ? ` (${m.currentPosition})` : ''}`;
     });
 
@@ -567,7 +566,7 @@ export class MatchingService {
     const htmlList = newMatches
       .slice(0, 5)
       .map((m) => {
-        const pct = Math.round((m.match.score <= 1 ? m.match.score * 100 : m.match.score) * 10) / 10;
+        const pct = Math.round(Math.max(0, Math.min(100, m.match.score)) * 10) / 10;
         return `<li><strong>${m.displayName}</strong> — Phù hợp <strong>${pct}%</strong>${m.currentPosition ? ` (${m.currentPosition})` : ''}</li>`;
       })
       .join('');

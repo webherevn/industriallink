@@ -331,8 +331,7 @@ function ApplicantRow({ applicant: a }: { applicant: InboxApplicantView }) {
 
 function scoreValue(value: number | null | undefined): number {
   if (value == null || Number.isNaN(value)) return 0;
-  const numeric = value <= 1 ? value * 100 : value;
-  return Math.max(0, Math.min(100, numeric));
+  return Math.max(0, Math.min(100, value));
 }
 
 function StatCard({

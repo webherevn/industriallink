@@ -96,7 +96,7 @@ import { sourcingCandidatesForJob } from '@/lib/matching';
 import { consumeRecruiterSourcing } from '@/lib/recruiter-billing';
 
 function potentialCreditCost(score: number): 1 | 2 {
-  const pct = score <= 1 ? score * 100 : score;
+  const pct = Math.max(0, Math.min(100, score));
   return pct >= 80 ? 2 : 1;
 }
 
@@ -175,7 +175,7 @@ export function SourcingProgressReportModal({
   });
 
   const analytics = useMemo(() => {
-    const normPct = (s: number) => (s <= 1 ? s * 100 : s);
+    const normPct = (s: number) => Math.max(0, Math.min(100, s));
     const totalMatched = allResults.length;
     const highMatch = allResults.filter((r) => normPct(r.match.score) >= 80);
     const mediumMatch = allResults.filter((r) => {
@@ -1455,9 +1455,9 @@ export function SourcingJdRevisionModal({
   }, [open, job, hydratedId]);
 
   const aiDiagnostics = useMemo(() => {
-    const highCount = allResults.filter((r) => (r.match.score <= 1 ? r.match.score * 100 : r.match.score) >= 80).length;
+    const highCount = allResults.filter((r) => r.match.score >= 80).length;
     const medCount = allResults.filter((r) => {
-      const p = r.match.score <= 1 ? r.match.score * 100 : r.match.score;
+      const p = r.match.score;
       return p >= 60 && p < 80;
     }).length;
     const missingCounts = new Map<string, number>();
@@ -2690,8 +2690,7 @@ export function SourcingCandidateDrawer({
 
   if (!candidateRow) return null;
 
-  const rawScore = candidateRow.match.score <= 1 ? candidateRow.match.score * 100 : candidateRow.match.score;
-  const clampedPct = Math.max(0, Math.min(100, rawScore));
+  const clampedPct = Math.max(0, Math.min(100, candidateRow.match.score));
   const ringRadius = 26;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringOffset = ringCircumference * (1 - clampedPct / 100);

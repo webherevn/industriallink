@@ -1222,8 +1222,7 @@ function emptyRecruitmentReport(days: number): RecruitmentReportView {
 
 function matchScorePct(score: number | null): number | null {
   if (score == null || Number.isNaN(score)) return null;
-  const scaled = score <= 1 ? score * 100 : score;
-  return Math.max(0, Math.min(100, scaled));
+  return Math.max(0, Math.min(100, score));
 }
 
 function round1(value: number): number {

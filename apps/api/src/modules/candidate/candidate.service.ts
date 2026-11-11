@@ -1742,9 +1742,7 @@ export class CandidateService {
     const str = String(raw).trim();
     const n = Number(str);
     if (!Number.isFinite(n) || n < 0) return null;
-    const pct =
-      n > 0 && n <= 1 && (str.includes('.') || n < 1) ? Math.round(n * 100) : Math.round(n);
-    return Math.max(0, Math.min(100, pct));
+    return Math.max(0, Math.min(100, Math.round(n)));
   }
 
   private async resolveRecruiterMatchScore(
@@ -1762,8 +1760,7 @@ export class CandidateService {
       const str = rawQueryScore.trim();
       const n = Number(str);
       if (Number.isFinite(n) && n >= 0) {
-        const pct = n > 0 && n <= 1 && (str.includes('.') || n < 1) ? n * 100 : n;
-        return Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+        return Math.round(Math.max(0, Math.min(100, n)) * 10) / 10;
       }
     }
 
@@ -1793,9 +1790,7 @@ export class CandidateService {
                 }),
                 job: jobToB2bMatchInput(appRow.job),
               });
-        const raw = exp.score;
-        const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
-        const rounded = Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+        const rounded = Math.round(Math.max(0, Math.min(100, exp.score)) * 10) / 10;
         if (appRow.matchScore !== rounded && this.prisma.application?.update) {
           staleUpdates.push(
             this.prisma.application.update({
@@ -1835,9 +1830,7 @@ export class CandidateService {
               }),
               job: jobToB2bMatchInput(job),
             });
-      const raw = exp.score;
-      const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
-      const rounded = Math.round(Math.max(0, Math.min(100, pct)) * 10) / 10;
+      const rounded = Math.round(Math.max(0, Math.min(100, exp.score)) * 10) / 10;
       if (best === null || rounded > best) best = rounded;
     }
     return best;

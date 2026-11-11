@@ -204,7 +204,7 @@ export default function RecruiterDashboardPage() {
       for (const row of board.candidates) {
         const raw = row.match?.score;
         if (raw == null || Number.isNaN(raw)) continue;
-        const score = raw <= 1 ? raw * 100 : raw;
+        const score = Math.max(0, Math.min(100, raw));
         if (!best || score > best.score) {
           best = {
             candidateId: row.candidateId,

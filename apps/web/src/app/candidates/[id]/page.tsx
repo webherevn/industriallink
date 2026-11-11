@@ -120,8 +120,7 @@ function parseMatchValue(raw: string | number | null | undefined): number | null
   const str = String(raw).trim();
   const n = Number(str);
   if (!Number.isFinite(n) || n < 0) return null;
-  const pct = n > 0 && n <= 1 && (str.includes('.') || n < 1) ? n * 100 : n;
-  return Math.max(0, Math.min(100, pct));
+  return Math.max(0, Math.min(100, n));
 }
 
 function CompletionRing({ value }: { value: number | null }) {

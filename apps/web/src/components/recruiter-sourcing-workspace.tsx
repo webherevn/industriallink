@@ -61,7 +61,7 @@ import { sourcingCandidatesForJob } from '@/lib/matching';
 import { consumeRecruiterSourcing, fetchRecruiterSourcing } from '@/lib/recruiter-billing';
 
 function potentialOpenCreditCost(score: number): 1 | 2 {
-  const pct = score <= 1 ? score * 100 : score;
+  const pct = Math.max(0, Math.min(100, score));
   return pct >= 80 ? 2 : 1;
 }
 
@@ -375,11 +375,7 @@ export function RecruiterSourcingWorkspace() {
     [allResults],
   );
   const highMatchCount = useMemo(
-    () =>
-      potentialCandidates.filter((r) => {
-        const pct = r.match.score <= 1 ? r.match.score * 100 : r.match.score;
-        return pct >= 80;
-      }).length,
+    () => potentialCandidates.filter((r) => r.match.score >= 80).length,
     [potentialCandidates],
   );
   const openedCount = useMemo(
@@ -1145,11 +1141,10 @@ export function RecruiterSourcingWorkspace() {
 }
 
 function ScoreRing({ score }: { score: number }) {
-  const unit = score <= 1 ? score : score / 100;
   const pct = formatMatchPct(score);
   const r = 18;
   const c = 2 * Math.PI * r;
-  const safe = Math.min(1, Math.max(0, unit));
+  const safe = Math.min(1, Math.max(0, score / 100));
   const offset = c * (1 - safe);
   const ringColor = matchRingColor(score);
   return (
