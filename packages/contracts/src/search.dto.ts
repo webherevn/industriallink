@@ -32,6 +32,8 @@ export interface CandidateSearchResult {
   industry: string | null;
   /** Nơi ở hoặc nơi muốn làm. */
   location?: string | null;
+  /** Tóm tắt chuyên môn chung ngắn gọn của ứng viên (độc lập với đối chiếu JD). */
+  summary?: string | null;
   /** Điểm phù hợp 0–1 (semantic + tiêu chí B2B). UI hiển thị % = score * 100. */
   score: number;
   /** Lý do phù hợp ngắn (tiếng Việt). */

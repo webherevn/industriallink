@@ -3,13 +3,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  AlertTriangle,
   ArrowDownWideNarrow,
   ArrowRight,
   Bookmark,
   BookmarkCheck,
   Briefcase,
-  Building2,
   Car,
   Check,
   ChevronDown,
@@ -227,6 +225,7 @@ function matchToResult(row: CandidateMatchView): CandidateSearchResult {
     currentPosition: row.currentPosition,
     industry: row.industry,
     location: row.location,
+    summary: row.summary ?? null,
     score: Math.max(0, Math.min(1, row.match.score / 100)),
     reason: row.match.reason,
     matchedSkills: row.match.matchedSkills,
@@ -322,52 +321,6 @@ function formatPersonName(raw?: string | null): string {
     .join(' ');
 }
 
-type ParsedAiReason = {
-  background: string | null;
-  missingItems: string[];
-  note: string | null;
-};
-
-function parseAiReason(reason?: string | null): ParsedAiReason {
-  if (!reason) return { background: null, missingItems: [], note: null };
-  let text = reason
-    .trim()
-    .replace(/^(?:Độ|Tỉ lệ|Tỷ lệ)\s+phù\s+hợp\s+[\d.,]+%\s*(?:\([^)]*\))?\.?\s*/i, '')
-    .trim();
-
-  if (!text) return { background: null, missingItems: [], note: null };
-
-  let missingItems: string[] = [];
-  const missingMatch = text.match(/Khoảng thiếu:\s*([^.]+)\.?/i);
-  if (missingMatch) {
-    missingItems = missingMatch[1]
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    text = text.replace(missingMatch[0], '').trim();
-  }
-
-  let background: string | null = null;
-  let note: string | null = null;
-
-  const bgPrefix = text.match(/^(?:Nền tảng|Nền):\s*(.+)$/i);
-  if (bgPrefix) {
-    const rest = bgPrefix[1].replace(/\.\s*$/, '').trim();
-    const extraSplit = rest.match(/^(.+?)\.\s+((?:Điểm mạnh|Khớp|Phù hợp|Ưu điểm):?\s*.+)$/i);
-    if (extraSplit) {
-      background = extraSplit[1].trim() || null;
-      note = extraSplit[2].replace(/\.\s*$/, '').trim() || null;
-    } else {
-      background = rest || null;
-    }
-  } else {
-    const cleaned = text.replace(/\.\s*$/, '').trim();
-    note = cleaned || null;
-  }
-
-  return { background, missingItems, note };
-}
-
 function ScoreRing({ scorePct }: { scorePct: number }) {
   const pct = formatMatchPct(scorePct);
   const r = 18;
@@ -430,12 +383,9 @@ function ResultCard({
   const scorePct = Math.max(0, Math.min(100, result.score * 100));
   const creditCost = scorePct >= 80 ? 2 : 1;
   const displayName = formatPersonName(result.displayName);
-  const parsedReason = useMemo(() => parseAiReason(result.reason), [result.reason]);
   const matchedSkills = result.matchedSkills ?? [];
   const visibleSkills = matchedSkills.slice(0, 4);
   const extraSkills = Math.max(0, matchedSkills.length - visibleSkills.length);
-  const visibleMissing = parsedReason.missingItems.slice(0, 2);
-  const extraMissing = Math.max(0, parsedReason.missingItems.length - visibleMissing.length);
   const isUnlockedOrFree = Boolean(result.viewed || result.applied);
 
   return (
@@ -530,24 +480,21 @@ function ResultCard({
               </span>
             </p>
 
-            {parsedReason.background && (
-              <p className="mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-snug text-slate-500">
-                <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="line-clamp-1">
-                  <span className="text-slate-400">Nền tảng:</span>{' '}
-                  <span className="font-medium text-slate-700">{parsedReason.background}</span>
-                </span>
+            {result.summary ? (
+              <p
+                className="mt-1.5 line-clamp-1 text-[12.5px] leading-relaxed text-slate-500"
+                title={result.summary}
+              >
+                {result.summary}
+              </p>
+            ) : (
+              <p className="mt-1.5 line-clamp-1 text-[12.5px] italic text-slate-400">
+                Chưa cập nhật tóm tắt chuyên môn
               </p>
             )}
 
-            {parsedReason.note && (
-              <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-relaxed text-slate-600">
-                {parsedReason.note}
-              </p>
-            )}
-
-            {(visibleSkills.length > 0 || visibleMissing.length > 0) && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {visibleSkills.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {visibleSkills.map((skill) => (
                   <span
                     key={skill}
@@ -563,18 +510,6 @@ function ResultCard({
                     title={matchedSkills.slice(4).join(', ')}
                   >
                     +{extraSkills}
-                  </span>
-                )}
-                {visibleMissing.length > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-md bg-amber-50/80 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200/70"
-                    title={`Cần kiểm tra thêm khi phỏng vấn: ${parsedReason.missingItems.join(', ')}`}
-                  >
-                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-                    <span>
-                      Thiếu: {visibleMissing.join(', ')}
-                      {extraMissing > 0 ? ` +${extraMissing}` : ''}
-                    </span>
                   </span>
                 )}
               </div>

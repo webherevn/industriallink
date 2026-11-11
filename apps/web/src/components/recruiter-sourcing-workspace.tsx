@@ -1262,9 +1262,6 @@ function AppliedCandidatesColumn({
               const isShortlisted = shortlistedIds.includes(row.candidateId);
               const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
               const pctRawStr = formatMatchPct(row.match.score);
-              const matchedSkills = row.match.matchedSkills ?? [];
-              const visibleSkills = matchedSkills.slice(0, 3);
-              const extraSkillsCount = Math.max(0, matchedSkills.length - visibleSkills.length);
               const locationDisplay = row.location ? row.location.replace(/\s*·\s*/g, ', ') : null;
               const moreOpen = openMoreId === row.candidateId;
 
@@ -1349,29 +1346,19 @@ function AppliedCandidatesColumn({
                           </span>
                         </div>
 
-                        {/* Hàng 3: Điểm sáng chuyên môn / Kỹ năng khớp JD */}
-                        {visibleSkills.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            {visibleSkills.map((skill) => (
-                              <span
-                                key={skill}
-                                className="inline-flex max-w-[180px] truncate rounded-md bg-[#F4F8FD] px-2 py-0.5 text-[11px] font-medium text-[#072348] ring-1 ring-[#dce7f5]"
-                              >
-                                ✓ {skill}
-                              </span>
-                            ))}
-                            {extraSkillsCount > 0 ? (
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-500">
-                                +{extraSkillsCount}
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : row.match.reason ? (
-                          <p className="mt-1.5 line-clamp-1 text-[11.5px] text-slate-500">
-                            <Sparkles className="mr-1 inline h-3 w-3 text-[#E8872A]" />
-                            {row.match.reason}
+                        {/* Hàng 3: Tóm tắt chuyên môn chung ngắn gọn */}
+                        {row.summary ? (
+                          <p
+                            className="mt-1.5 line-clamp-1 text-[11.5px] leading-relaxed text-slate-500"
+                            title={row.summary}
+                          >
+                            {row.summary}
                           </p>
-                        ) : null}
+                        ) : (
+                          <p className="mt-1.5 line-clamp-1 text-[11.5px] italic text-slate-400">
+                            Chưa cập nhật tóm tắt chuyên môn
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1809,9 +1796,6 @@ function PotentialCandidatesColumn({
               const canShortlist = shortlistRemaining === null || shortlistRemaining > 0;
               const canOutreach = outreachRemaining === null || outreachRemaining > 0;
               const pctRawStr = formatMatchPct(row.match.score);
-              const matchedSkills = row.match.matchedSkills ?? [];
-              const visibleSkills = matchedSkills.slice(0, 3);
-              const extraSkillsCount = Math.max(0, matchedSkills.length - visibleSkills.length);
               const locationDisplay = row.location ? row.location.replace(/\s*·\s*/g, ', ') : null;
               const moreOpen = openMoreId === row.candidateId;
 
@@ -1939,29 +1923,19 @@ function PotentialCandidatesColumn({
                           </span>
                         </div>
 
-                        {/* Hàng 3: Điểm sáng chuyên môn / Kỹ năng khớp JD */}
-                        {visibleSkills.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            {visibleSkills.map((skill) => (
-                              <span
-                                key={skill}
-                                className="inline-flex max-w-[180px] truncate rounded-md bg-[#F4F8FD] px-2 py-0.5 text-[11px] font-medium text-[#072348] ring-1 ring-[#dce7f5]"
-                              >
-                                ✓ {skill}
-                              </span>
-                            ))}
-                            {extraSkillsCount > 0 ? (
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-500">
-                                +{extraSkillsCount}
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : row.match.reason ? (
-                          <p className="mt-1.5 line-clamp-1 text-[11.5px] text-slate-500">
-                            <Sparkles className="mr-1 inline h-3 w-3 text-[#E8872A]" />
-                            {row.match.reason}
+                        {/* Hàng 3: Tóm tắt chuyên môn chung ngắn gọn */}
+                        {row.summary ? (
+                          <p
+                            className="mt-1.5 line-clamp-1 text-[11.5px] leading-relaxed text-slate-500"
+                            title={row.summary}
+                          >
+                            {row.summary}
                           </p>
-                        ) : null}
+                        ) : (
+                          <p className="mt-1.5 line-clamp-1 text-[11.5px] italic text-slate-400">
+                            Chưa cập nhật tóm tắt chuyên môn
+                          </p>
+                        )}
                       </div>
                     </div>
 

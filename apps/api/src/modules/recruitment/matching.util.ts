@@ -65,6 +65,143 @@ export function candidateLocationLabel(profile: {
   return places.slice(0, 3).join(' · ');
 }
 
+function cleanSummaryLine(raw?: string | null): string {
+  if (!raw) return '';
+  return stripHtml(raw)
+    .replace(/^[\s•\-–*]+/, '')
+    .replace(/\s*[\r\n]+\s*/g, ' · ')
+    .replace(/\s*·\s*·\s*/g, ' · ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateSummarySnippet(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const sliced = text.slice(0, maxChars);
+  const lastSpace = sliced.lastIndexOf(' ');
+  const base = lastSpace >= Math.floor(maxChars * 0.6) ? sliced.slice(0, lastSpace) : sliced;
+  return base.replace(/[,;:.·\-–\s]+$/, '') + '…';
+}
+
+const B2B_EXP_BAND_SHORT: Record<string, string> = {
+  under_1: 'Dưới 1 năm kinh nghiệm',
+  '1_3': '1–3 năm kinh nghiệm',
+  '3_5': '3–5 năm kinh nghiệm',
+  '5_10': '5–10 năm kinh nghiệm',
+  '10_plus': 'Trên 10 năm kinh nghiệm',
+};
+
+/**
+ * Tóm tắt chuyên môn chung ngắn gọn (~105–110 ký tự) của ứng viên để hiển thị trên thẻ danh sách,
+ * hoàn toàn độc lập với văn bản đối chiếu JD.
+ */
+export function candidateSummarySnippet(
+  candidate: {
+    profile?: {
+      summary?: string | null;
+      careerObjective?: string | null;
+      salesHighlights?: string | null;
+      specialization?: string | null;
+      totalExperienceYears?: number | null;
+      b2bExperienceBand?: string | null;
+      jobTrack?: string | null;
+      productsSold?: string[] | null;
+      brandsTechnologies?: string[] | null;
+      technicalWorkTypes?: string[] | null;
+      sellingStages?: string[] | null;
+      technicalTools?: string[] | null;
+      educationMajor?: string | null;
+    } | null;
+    aiProfile?: {
+      summary?: string | null;
+    } | null;
+    experiences?: Array<{
+      companyName?: string | null;
+      jobTitle?: string | null;
+      isCurrent?: boolean | null;
+      highlights?: string | null;
+      jobDescription?: string | null;
+      productsSold?: string[] | null;
+      brandsTechnologies?: string[] | null;
+    }> | null;
+    skills?: Array<{ name: string } | string> | null;
+  },
+  maxChars = 110,
+): string | null {
+  const p = candidate.profile;
+
+  for (const raw of [p?.summary, candidate.aiProfile?.summary, p?.salesHighlights, p?.careerObjective]) {
+    const cleaned = cleanSummaryLine(raw);
+    if (cleaned) return truncateSummarySnippet(cleaned, maxChars);
+  }
+
+  const parts: string[] = [];
+  if (p?.totalExperienceYears != null && p.totalExperienceYears > 0) {
+    const yrs = Number.isInteger(p.totalExperienceYears)
+      ? String(p.totalExperienceYears)
+      : p.totalExperienceYears.toFixed(1);
+    parts.push(`${yrs} năm kinh nghiệm`);
+  } else if (p?.b2bExperienceBand && B2B_EXP_BAND_SHORT[p.b2bExperienceBand]) {
+    parts.push(B2B_EXP_BAND_SHORT[p.b2bExperienceBand]);
+  }
+
+  const exps = candidate.experiences ?? [];
+  const primaryExp =
+    exps.find((e) => e.isCurrent && (e.companyName?.trim() || e.jobTitle?.trim())) ??
+    exps.find((e) => e.companyName?.trim() || e.jobTitle?.trim());
+
+  if (primaryExp) {
+    const jt = primaryExp.jobTitle?.trim();
+    const co = primaryExp.companyName?.trim();
+    if (jt && co) parts.push(`${jt} tại ${co}`);
+    else if (co) parts.push(`Kinh nghiệm tại ${co}`);
+    else if (jt) parts.push(jt);
+  }
+
+  const domainPool = [
+    p?.specialization,
+    ...(p?.productsSold ?? []),
+    ...(p?.brandsTechnologies ?? []),
+    ...(primaryExp?.productsSold ?? []),
+    ...(primaryExp?.brandsTechnologies ?? []),
+  ]
+    .map((s) => (s ?? '').trim())
+    .filter(Boolean);
+  const uniqDomain = [...new Set(domainPool)];
+
+  const workPool = [
+    ...(p?.technicalWorkTypes ?? []),
+    ...(p?.sellingStages ?? []),
+    ...(p?.technicalTools ?? []),
+  ]
+    .map((s) => (s ?? '').trim())
+    .filter(Boolean);
+  const uniqWork = [...new Set(workPool)];
+
+  if (uniqDomain.length > 0) {
+    const prefix = p?.jobTrack === 'technical' ? 'Thiết bị/hãng' : 'Mảng';
+    parts.push(`${prefix}: ${uniqDomain.slice(0, 3).join(', ')}`);
+  } else if (uniqWork.length > 0) {
+    parts.push(`Chuyên môn: ${uniqWork.slice(0, 3).join(', ')}`);
+  } else if (primaryExp?.highlights || primaryExp?.jobDescription) {
+    const expNote = cleanSummaryLine(primaryExp.highlights || primaryExp.jobDescription);
+    if (expNote) parts.push(expNote);
+  } else if ((candidate.skills ?? []).length > 0) {
+    const skillNames = (candidate.skills ?? [])
+      .map((s) => (typeof s === 'string' ? s.trim() : s.name.trim()))
+      .filter(Boolean);
+    if (skillNames.length > 0) {
+      parts.push(`Kỹ năng: ${skillNames.slice(0, 4).join(', ')}`);
+    }
+  } else if (p?.educationMajor?.trim()) {
+    parts.push(`Chuyên ngành ${p.educationMajor.trim()}`);
+  }
+
+  if (parts.length === 0) return null;
+  return truncateSummarySnippet(parts.join(' · '), maxChars);
+}
+
+
 /** Độ tương đồng cosine giữa hai vector embedding. */
 export function cosine(a: number[], b: number[]): number {
   if (!a?.length || !b?.length || a.length !== b.length) return 0;

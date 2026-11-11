@@ -27,6 +27,7 @@ import { candidateMatchTrack, jobMatchTrack, type MatchTrack } from './match-tra
 import {
   buildB2bExplanation,
   candidateLocationLabel,
+  candidateSummarySnippet,
   cosine,
   jobToB2bMatchInput,
   toB2bCandidateFromRecords,
@@ -43,6 +44,7 @@ const MIN_ENGINE_SCORE = 0;
 
 export const CANDIDATE_MATCH_INCLUDE = {
   profile: true,
+  aiProfile: { select: { summary: true } },
   skills: true,
   experiences: true,
 } as const;
@@ -753,6 +755,7 @@ export class MatchingService {
         currentPosition: c.profile?.currentPosition ?? null,
         industry: c.profile?.industry ?? null,
         location: candidateLocationLabel(c.profile),
+        summary: candidateSummarySnippet(c),
         match: explanation,
         applied: appliedIds.has(c.id),
       };
@@ -779,6 +782,7 @@ export class MatchingService {
         currentPosition: row.currentPosition,
         industry: row.industry,
         location: row.location,
+        summary: row.summary,
         match: row.match,
         applied: row.applied,
         viewed: viewedIds.has(row.candidateId),

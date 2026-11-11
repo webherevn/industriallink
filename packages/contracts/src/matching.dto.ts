@@ -134,6 +134,8 @@ export interface CandidateMatchView {
   industry: string | null;
   /** Nơi ở hoặc nơi muốn làm, để NTD thấy ngay trên thẻ kết quả. */
   location: string | null;
+  /** Tóm tắt chuyên môn chung ngắn gọn của ứng viên (độc lập với đối chiếu JD). */
+  summary?: string | null;
   match: MatchExplanation;
   /** Đã nộp hồ sơ vào đúng tin đang tìm. */
   applied?: boolean;

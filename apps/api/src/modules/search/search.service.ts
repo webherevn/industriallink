@@ -8,6 +8,7 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import {
   buildB2bExplanation,
   candidateLocationLabel,
+  candidateSummarySnippet,
   toB2bCandidateFromRecords,
 } from '../recruitment/matching.util';
 import { candidateMatchTrack } from '../recruitment/match-track.util';
@@ -39,7 +40,7 @@ export class SearchService {
   async indexCandidate(candidateId: string): Promise<void> {
     const candidate = await this.prisma.candidate.findUnique({
       where: { id: candidateId },
-      include: { profile: true, skills: true, experiences: true },
+      include: { profile: true, aiProfile: { select: { summary: true } }, skills: true, experiences: true },
     });
     if (!candidate) return;
 
@@ -286,6 +287,7 @@ export class SearchService {
           currentPosition: p?.currentPosition ?? null,
           industry: p?.industry ?? null,
           location: candidateLocationLabel(p),
+          summary: candidateSummarySnippet(c),
           score: Number((explanation.score / 100).toFixed(4)),
           reason: explanation.reason,
           matchedSkills: explanation.matchedSkills,
