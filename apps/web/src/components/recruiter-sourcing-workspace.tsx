@@ -755,7 +755,7 @@ export function RecruiterSourcingWorkspace() {
             </section>
 
             {/* 2 CỘT ỨNG VIÊN: NỘP HỒ SƠ & TIỀM NĂNG */}
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-2 xl:gap-3.5 2xl:gap-4">
               <AppliedCandidatesColumn
                 jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedEngagement?.title}
                 loading={Boolean(huntJobId) && hunt.isLoading}
@@ -1222,7 +1222,7 @@ function AppliedCandidatesColumn({
   );
 
   return (
-    <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
+    <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-4 shadow-sm sm:p-6 xl:p-4 2xl:p-6">
       <div>
         <h3 className="text-[15px] font-bold uppercase tracking-tight text-slate-900">
           DANH SÁCH ỨNG VIÊN ỨNG TUYỂN
@@ -1276,7 +1276,7 @@ function AppliedCandidatesColumn({
                 >
                   <div className="group relative rounded-2xl border border-[#dce6f4] bg-white shadow-[0_1px_3px_rgba(7,35,72,0.03)] transition hover:border-[#b8cde8] hover:shadow-[0_6px_18px_rgba(7,35,72,0.07)]">
                     {/* TẦNG 1: KHỐI THÔNG TIN ỨNG VIÊN & ĐIỂM SÁNG CHUYÊN MÔN */}
-                    <div className="flex items-start gap-3 sm:gap-4 px-4 pt-4 pb-3.5 sm:px-5">
+                    <div className="flex items-start gap-3 px-3.5 pt-4 pb-3.5 sm:gap-4 sm:px-5 xl:gap-3 xl:px-3.5 2xl:gap-4 2xl:px-5">
                       <button
                         type="button"
                         onClick={() => onSelectCandidate(row, 'jd_match')}
@@ -1376,23 +1376,23 @@ function AppliedCandidatesColumn({
                     </div>
 
                     {/* TẦNG 2: THANH HÀNH ĐỘNG CHÂN THẺ (KHÔNG CÓ GIAO INLINK) */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-slate-100 bg-[#FAFBFD] px-4 py-2.5 sm:px-5">
-                      <div className="flex items-center gap-1 sm:gap-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-slate-100 bg-[#FAFBFD] px-3.5 py-2.5 sm:flex-nowrap sm:px-5 xl:px-3.5 2xl:px-5">
+                      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 xl:gap-1 2xl:gap-1.5">
                         <button
                           type="button"
                           onClick={() => onSelectCandidate(row, 'jd_match')}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348]"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348] xl:px-1.5 xl:text-[11px] 2xl:px-2 2xl:text-xs"
                         >
-                          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#E8872A] xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                           <span>Đối chiếu JD</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => onSelectCandidate(row, 'interview')}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348]"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348] xl:px-1.5 xl:text-[11px] 2xl:px-2 2xl:text-xs"
                         >
-                          <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400 xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                           <span>Đặt lịch PV</span>
                         </button>
 
@@ -1443,10 +1443,10 @@ function AppliedCandidatesColumn({
                       <button
                         type="button"
                         onClick={() => onSelectCandidate(row, 'overview')}
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-[#072348]/25 bg-white px-3.5 text-xs font-bold text-[#072348] transition hover:border-[#072348] hover:bg-[#072348] hover:text-white"
+                        className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-[#072348]/25 bg-white px-3.5 text-xs font-bold text-[#072348] transition hover:border-[#072348] hover:bg-[#072348] hover:text-white xl:h-7 xl:px-3 xl:text-[11px] 2xl:h-8 2xl:px-3.5 2xl:text-xs"
                       >
                         <span>Xem hồ sơ</span>
-                        <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1640,7 +1640,7 @@ function PotentialCandidatesColumn({
   );
 
   return (
-    <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
+    <section className="flex flex-col rounded-3xl border border-[#d7e3f2] bg-white p-4 shadow-sm sm:p-6 xl:p-4 2xl:p-6">
       <div>
         <h3 className="text-[15px] font-bold uppercase tracking-tight text-slate-900">
           DANH SÁCH ỨNG VIÊN TIỀM NĂNG
@@ -1823,7 +1823,7 @@ function PotentialCandidatesColumn({
                 >
                   <div className="group relative rounded-2xl border border-[#dce6f4] bg-white shadow-[0_1px_3px_rgba(7,35,72,0.03)] transition hover:border-[#b8cde8] hover:shadow-[0_6px_18px_rgba(7,35,72,0.07)]">
                     {/* TẦNG 1: KHỐI THÔNG TIN ỨNG VIÊN & ĐIỂM SÁNG CHUYÊN MÔN */}
-                    <div className="flex items-start gap-3 sm:gap-4 px-4 pt-4 pb-3.5 sm:px-5">
+                    <div className="flex items-start gap-3 px-3.5 pt-4 pb-3.5 sm:gap-4 sm:px-5 xl:gap-3 xl:px-3.5 2xl:gap-4 2xl:px-5">
                       {/* Vòng tròn tỉ lệ % đồng bộ từ trang AI Matching */}
                       <button
                         type="button"
@@ -1966,28 +1966,28 @@ function PotentialCandidatesColumn({
                     </div>
 
                     {/* TẦNG 2: THANH HÀNH ĐỘNG CHÂN THẺ (GỘP TRÁI - PHẢI THẲNG HÀNG) */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-slate-100 bg-[#FAFBFD] px-4 py-2.5 sm:px-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-slate-100 bg-[#FAFBFD] px-3.5 py-2.5 sm:flex-nowrap sm:px-5 xl:gap-1.5 xl:px-3 2xl:gap-2 2xl:px-5">
                       {/* Cụm tác vụ nhanh bên trái */}
-                      <div className="flex items-center gap-1 sm:gap-1.5">
+                      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 xl:gap-0.5 2xl:gap-1.5">
                         <button
                           type="button"
                           onClick={() => onSelectCandidate(row, 'jd_match')}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348]"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348] xl:px-1 xl:text-[11px] 2xl:px-2 2xl:text-xs"
                         >
-                          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#E8872A] xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                           <span>Đối chiếu JD</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => onSelectCandidate(row, 'interview')}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348]"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348] xl:px-1 xl:text-[11px] 2xl:px-2 2xl:text-xs"
                         >
-                          <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400 xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                           <span>Đặt lịch PV</span>
                         </button>
 
-                        <div className="relative">
+                        <div className="relative shrink-0">
                           <button
                             type="button"
                             title="Tác vụ khác"
@@ -1996,9 +1996,9 @@ function PotentialCandidatesColumn({
                               e.stopPropagation();
                               setOpenMoreId((prev) => (prev === row.candidateId ? null : row.candidateId));
                             }}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-200/60 hover:text-slate-900"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-200/60 hover:text-slate-900 xl:w-6 2xl:w-7"
                           >
-                            <MoreHorizontal className="h-4 w-4" />
+                            <MoreHorizontal className="h-4 w-4 xl:h-3.5 xl:w-3.5 2xl:h-4 2xl:w-4" />
                           </button>
 
                           {moreOpen ? (
@@ -2032,7 +2032,7 @@ function PotentialCandidatesColumn({
                       </div>
 
                       {/* Cụm hành động chính bên phải: Giao Inlink + Mở/Xem hồ sơ */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2 xl:gap-1.5 2xl:gap-2">
                         {hasOutreach ? (
                           <button
                             type="button"
@@ -2050,7 +2050,7 @@ function PotentialCandidatesColumn({
                                 : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
                             }
                             className={clsx(
-                              'inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition disabled:opacity-40',
+                              'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-semibold transition disabled:opacity-40 xl:h-7 xl:gap-1 xl:px-2.5 xl:text-[11px] 2xl:h-8 2xl:gap-1.5 2xl:px-3 2xl:text-xs',
                               isOutreached
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70'
                                 : 'border-[#072348]/15 bg-white text-[#072348] hover:border-[#072348]/35 hover:bg-[#F4F8FD]',
@@ -2058,7 +2058,7 @@ function PotentialCandidatesColumn({
                           >
                             <Headphones
                               className={clsx(
-                                'h-3.5 w-3.5 shrink-0',
+                                'h-3.5 w-3.5 shrink-0 xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5',
                                 isOutreached ? 'text-emerald-600' : 'text-[#E8872A]',
                               )}
                             />
@@ -2077,21 +2077,21 @@ function PotentialCandidatesColumn({
                                 : 'Mở hồ sơ ứng viên này tính 1 Credit (Matching < 80%)'
                           }
                           className={clsx(
-                            'inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-bold transition',
+                            'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-xs font-bold transition xl:h-7 xl:gap-1 xl:text-[11px] 2xl:h-8 2xl:gap-1.5 2xl:text-xs',
                             isUnlocked
-                              ? 'border border-[#072348]/25 bg-white text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white'
-                              : 'bg-[#072348] text-white shadow-2xs hover:bg-[#0d3468]',
+                              ? 'border border-[#072348]/25 bg-white px-3.5 text-[#072348] hover:border-[#072348] hover:bg-[#072348] hover:text-white xl:px-2.5 2xl:px-3.5'
+                              : 'bg-[#072348] pl-3.5 pr-2 text-white shadow-2xs hover:bg-[#0d3468] xl:pl-2.5 xl:pr-1.5 2xl:pl-3.5 2xl:pr-2',
                           )}
                         >
                           {isUnlocked ? (
                             <>
                               <span>Xem hồ sơ</span>
-                              <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                              <ArrowRight className="h-3.5 w-3.5 shrink-0 xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                             </>
                           ) : (
                             <>
                               <span>Mở hồ sơ</span>
-                              <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-amber-300">
+                              <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-amber-300 xl:px-1.5 xl:py-px xl:text-[9.5px] 2xl:px-1.5 2xl:py-0.5 2xl:text-[10px]">
                                 {creditCost} Credit
                               </span>
                             </>
