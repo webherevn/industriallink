@@ -120,19 +120,28 @@ function formatRemainingDaysFromStart(createdAtIso: string | null | undefined): 
   return `Bảo lưu còn ${days} ngày (${dateLabel})`;
 }
 
-function getPreservationPeriodInfo(createdAtIso: string | null | undefined): {
+function getSourcingPlanPeriodInfo(
+  assignment: { startsAt?: string | null; endsAt?: string | null } | null | undefined,
+): {
   remainingText: string;
   expiryDateText: string;
   expired: boolean;
 } {
-  if (!createdAtIso) {
+  if (!assignment) {
     return {
-      remainingText: 'Còn 45 ngày',
-      expiryDateText: 'Bảo lưu theo gói',
+      remainingText: 'Chưa kích hoạt',
+      expiryDateText: 'Theo gói săn nhân sự',
       expired: false,
     };
   }
-  const deadline = new Date(new Date(createdAtIso).getTime() + 45 * 24 * 60 * 60 * 1000);
+  if (!assignment.endsAt) {
+    return {
+      remainingText: 'Không giới hạn',
+      expiryDateText: 'Theo gói săn hiện tại',
+      expired: false,
+    };
+  }
+  const deadline = new Date(assignment.endsAt);
   const diffMs = deadline.getTime() - Date.now();
   const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
   const dd = String(deadline.getDate()).padStart(2, '0');
@@ -142,13 +151,13 @@ function getPreservationPeriodInfo(createdAtIso: string | null | undefined): {
   if (days <= 0) {
     return {
       remainingText: 'Đã hết hạn',
-      expiryDateText: `Hết hạn: ${fullDate}`,
+      expiryDateText: `Hết hạn ${fullDate}`,
       expired: true,
     };
   }
   return {
     remainingText: `Còn ${days} ngày`,
-    expiryDateText: `Hết hạn: ${fullDate}`,
+    expiryDateText: `Hết hạn ${fullDate}`,
     expired: false,
   };
 }
@@ -569,10 +578,10 @@ export function RecruiterSourcingWorkspace() {
                     const isActive = selected === eng.id;
                     const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
                     const slCount = (data?.shortlistedByEngagement?.[eng.id] ?? []).length;
-                    const preserveInfo = getPreservationPeriodInfo(eng.createdAt);
+                    const planPeriodInfo = getSourcingPlanPeriodInfo(e?.assignment);
                     const linkedJob = (jobs ?? []).find((j) => j.id === eng.jobId);
                     const linkedLocation = linkedJob?.location?.trim();
-                    const isRunning = eng.status !== 'closed' && !preserveInfo.expired && !ended;
+                    const isRunning = eng.status !== 'closed' && !planPeriodInfo.expired && !ended;
 
                     return (
                       <div
@@ -600,13 +609,13 @@ export function RecruiterSourcingWorkspace() {
                         {/* TẦNG 1: TIÊU ĐỀ TIN SĂN & TRẠNG THÁI */}
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="line-clamp-1 text-[15px] font-extrabold leading-snug">
+                            <p className="line-clamp-1 text-[16px] font-bold leading-snug">
                               {formatJobTitle(eng.title)}
                             </p>
                             <p
                               className={clsx(
-                                'mt-1 line-clamp-1 text-xs',
-                                isActive ? 'text-white/70' : 'text-slate-500',
+                                'mt-1 line-clamp-1 text-[13px]',
+                                isActive ? 'text-white/75' : 'text-slate-500',
                               )}
                             >
                               Tin săn{linkedLocation ? ` · ${linkedLocation}` : linkedJob?.title ? ` · ${formatJobTitle(linkedJob.title)}` : ''}
@@ -615,10 +624,10 @@ export function RecruiterSourcingWorkspace() {
 
                           <span
                             className={clsx(
-                              'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold',
+                              'shrink-0 rounded-full px-3 py-1 text-xs font-semibold',
                               isRunning
                                 ? isActive
-                                  ? 'bg-emerald-400/20 text-emerald-300 ring-1 ring-emerald-400/30'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
                                   : 'bg-emerald-100/90 text-emerald-700'
                                 : isActive
                                   ? 'bg-white/15 text-white/80'
@@ -629,83 +638,80 @@ export function RecruiterSourcingWorkspace() {
                           </span>
                         </div>
 
-                        {/* TẦNG 2: THỜI GIAN BẢO LƯU & ĐỢT QUÉT ỨNG VIÊN */}
+                        {/* TẦNG 2: THỜI GIAN GÓI SĂN & KẾT QUẢ TÌM KIẾM */}
                         <div
                           className={clsx(
-                            'my-3.5 grid grid-cols-2 items-start gap-3 border-y py-3',
+                            'my-4 grid grid-cols-2 items-start gap-3 border-y py-3.5',
                             isActive ? 'border-white/15' : 'border-slate-200/80',
                           )}
                         >
                           <div>
                             <p
                               className={clsx(
-                                'text-[11px] font-medium',
-                                isActive ? 'text-white/65' : 'text-slate-500',
+                                'text-[13px]',
+                                isActive ? 'text-white/75' : 'text-slate-500',
                               )}
                             >
-                              Thời gian bảo lưu
+                              Thời gian săn nhân sự
                             </p>
                             <p
                               className={clsx(
-                                'mt-0.5 text-[15px] font-extrabold',
+                                'mt-0.5 text-[15px] font-bold',
                                 isActive ? 'text-white' : 'text-slate-900',
                               )}
                             >
-                              {preserveInfo.remainingText}
+                              {planPeriodInfo.remainingText}
                             </p>
                             <p
                               className={clsx(
-                                'mt-0.5 text-[11px]',
-                                isActive ? 'text-white/65' : 'text-slate-500',
+                                'mt-0.5 text-[13px]',
+                                isActive ? 'text-white/75' : 'text-slate-500',
                               )}
                             >
-                              {preserveInfo.expiryDateText}
+                              {planPeriodInfo.expiryDateText}
                             </p>
                           </div>
 
                           <div className="text-right">
                             <p
                               className={clsx(
-                                'text-[11px] font-medium',
-                                isActive ? 'text-white/65' : 'text-slate-500',
+                                'text-[13px]',
+                                isActive ? 'text-white/75' : 'text-slate-500',
                               )}
                             >
-                              Đợt quét ứng viên
+                              Kết quả tìm kiếm
                             </p>
                             <p
                               className={clsx(
-                                'mt-0.5 text-[15px] font-extrabold',
+                                'mt-0.5 text-[15px] font-bold',
                                 isActive ? 'text-white' : 'text-slate-900',
                               )}
                             >
-                              {roundCount} đợt
+                              {roundCount} lượt quét
                             </p>
-                            {slCount > 0 ? (
-                              <p
-                                className={clsx(
-                                  'mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold',
-                                  isActive ? 'text-amber-300' : 'text-[#E8872A]',
-                                )}
-                              >
-                                <BookmarkCheck className="h-3 w-3 shrink-0" />
-                                {slCount} Shortlist
-                              </p>
-                            ) : null}
+                            <p
+                              className={clsx(
+                                'mt-0.5 text-[13px] font-medium',
+                                isActive ? 'text-amber-400' : 'text-[#d97706]',
+                              )}
+                            >
+                              ★ {slCount} ứng viên Shortlist
+                            </p>
                           </div>
                         </div>
 
                         {/* TẦNG 3: TIÊU CHÍ TUYỂN DỤNG & 2 NÚT XEM / ĐIỀU CHỈNH */}
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
                           <span
                             className={clsx(
-                              'text-xs leading-snug',
-                              isActive ? 'text-white/75' : 'text-slate-500',
+                              'text-[13px] leading-snug',
+                              isActive ? 'text-white/80' : 'text-slate-600',
                             )}
                           >
                             Tiêu chí tuyển dụng đã được thiết lập
                           </span>
 
-                          <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             <button
                               type="button"
                               disabled={!eng.jobId}
@@ -715,9 +721,9 @@ export function RecruiterSourcingWorkspace() {
                                 setViewCriteriaModalOpen(true);
                               }}
                               className={clsx(
-                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold transition disabled:opacity-40',
+                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40',
                                 isActive
-                                  ? 'bg-sky-400/20 text-sky-200 ring-1 ring-sky-300/30 hover:bg-sky-400/30'
+                                  ? 'bg-sky-500/20 text-sky-400 hover:bg-sky-500/30'
                                   : 'bg-sky-100/90 text-sky-700 hover:bg-sky-200/80',
                               )}
                             >
@@ -737,9 +743,9 @@ export function RecruiterSourcingWorkspace() {
                                 setRevisionModalOpen(true);
                               }}
                               className={clsx(
-                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold transition disabled:opacity-40',
+                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40',
                                 isActive
-                                  ? 'bg-[#E8872A] text-white shadow-2xs hover:bg-[#d4761d]'
+                                  ? 'bg-[#E8872A]/20 text-[#FF9838] hover:bg-[#E8872A]/30'
                                   : 'bg-amber-100/90 text-[#c96a12] hover:bg-amber-200/80',
                               )}
                             >
