@@ -24,7 +24,7 @@ import { formatPriceVnd } from '@/lib/format-billing';
 import { VatPayLines } from '@/components/vat-pay-lines';
 import { createSourcingCheckout, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
 
-function fmtQuota(n: number | null) {
+function fmtQuota(n: number | null | undefined) {
   return n == null ? 'Không giới hạn' : String(n);
 }
 
@@ -72,7 +72,7 @@ export function RecruiterSourcingActivate() {
           <h1 className="cms-page-title mt-2">Thanh toán gói Săn</h1>
           <div className="brand-accent-bar mt-2" />
           <p className="cms-page-subtitle mt-2">
-            Phí dịch vụ Săn không gồm Credit. Hạn mức vị trí / đợt tìm / shortlist lấy đúng số SuperAdmin.
+            Gói Săn nhân sự đã bao gồm Credit mở hồ sơ, quét tự động 2 giờ/lần (08:00 – 18:00) và đầy đủ hạn mức cấu hình từ hệ thống.
           </p>
         </div>
 
@@ -145,19 +145,28 @@ export function RecruiterSourcingActivate() {
               <ul className="mt-5 space-y-2 text-sm text-slate-600">
                 <li className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-slate-400" />
-                  Vị trí: <strong>{fmtQuota(plan.positionQuota)}</strong>
+                  Vị trí săn: <strong>{fmtQuota(plan.positionQuota)} vị trí</strong>
                 </li>
                 <li className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-slate-400" />
-                  Đợt tìm: <strong>{fmtQuota(plan.searchRoundQuota)}</strong>
+                  Credit mở hồ sơ đi kèm: <strong>{fmtQuota(plan.creditQuota)} Credit</strong>
                 </li>
                 <li className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-slate-400" />
-                  Shortlist: <strong>{fmtQuota(plan.shortlistQuota)}</strong>
+                  Lượt điều chỉnh tiêu chí / JD: <strong>{fmtQuota(plan.revisionQuota)} lượt</strong>
                 </li>
                 <li className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-slate-400" />
-                  Điều chỉnh: <strong>{fmtQuota(plan.revisionQuota)}</strong>
+                  Bàn giao Inlink liên hệ:{' '}
+                  <strong>
+                    {plan.code === 'TIN_SAN_CHUYEN_SAU'
+                      ? `${fmtQuota(plan.shortlistQuota ?? 15)} lượt`
+                      : 'Tự liên hệ'}
+                  </strong>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-slate-400" />
+                  Báo cáo tiến độ: <strong>{fmtQuota(plan.searchRoundQuota)} lượt</strong>
                 </li>
               </ul>
 
@@ -212,7 +221,7 @@ function CurrentSourcingCard({
       ) : (
         <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
           <Shield className="mt-0.5 h-4 w-4 shrink-0" />
-          Chưa gán gói Săn. Kích hoạt để dùng hạn mức SuperAdmin.
+          Chưa kích hoạt gói Săn. Thanh toán để bắt đầu chiến dịch Săn nhân sự tự động.
         </p>
       )}
     </Card>

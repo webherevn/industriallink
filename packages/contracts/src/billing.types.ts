@@ -353,7 +353,7 @@ export const SOURCING_QUOTA_KINDS: readonly SourcingQuotaKind[] = [
 
 export const SOURCING_QUOTA_LABELS: Record<SourcingQuotaKind, string> = {
   position: 'Vị trí Săn',
-  search_round: 'Đợt tìm',
+  search_round: 'Báo cáo tiến độ',
   shortlist: 'Shortlist',
   revision: 'Điều chỉnh',
 };

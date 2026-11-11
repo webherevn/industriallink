@@ -198,10 +198,18 @@ export class SourcingService {
         },
       });
     }
-    const [opensUsed, outreachUsed] = await Promise.all([
+    const [opensUsed, outreachUsed, bookmarkShortlistsUsed] = await Promise.all([
       this.countIncludedOpens(row.id, row.startsAt),
       this.countOutreachUsed(row.id, row.startsAt),
+      this.countShortlistBookmarks(row.id, row.startsAt),
     ]);
+    if (row.shortlistsUsed !== bookmarkShortlistsUsed) {
+      row = await this.prisma.billingCompanySourcingPlan.update({
+        where: { id: row.id },
+        data: { shortlistsUsed: bookmarkShortlistsUsed },
+        include: { plan: true },
+      });
+    }
     return this.toEntitlements(row, opensUsed, outreachUsed);
   }
 
@@ -722,11 +730,13 @@ export class SourcingService {
         }
       }
 
-      const field = USED_FIELD[kind];
-      await tx.billingCompanySourcingPlan.update({
-        where: { id: assignment.id },
-        data: { [field]: { increment: 1 }, updatedBy: actorId },
-      });
+      if (!isOutreach) {
+        const field = USED_FIELD[kind];
+        await tx.billingCompanySourcingPlan.update({
+          where: { id: assignment.id },
+          data: { [field]: { increment: 1 }, updatedBy: actorId },
+        });
+      }
       await tx.billingSourcingUsage.create({
         data: {
           companyId,
@@ -828,7 +838,7 @@ export class SourcingService {
       case 'position':
         return 'Mở vị trí Săn';
       case 'search_round':
-        return 'Ghi nhận 1 đợt tìm';
+        return 'Xuất báo cáo tiến độ';
       case 'shortlist':
         return 'Giao shortlist';
       case 'revision':
@@ -890,6 +900,17 @@ export class SourcingService {
         assignmentId,
         kind: 'shortlist',
         note: { startsWith: 'outreach:' },
+        createdAt: { gte: startsAt },
+      },
+    });
+  }
+
+  private async countShortlistBookmarks(assignmentId: string, startsAt: Date): Promise<number> {
+    return this.prisma.billingSourcingUsage.count({
+      where: {
+        assignmentId,
+        kind: 'shortlist',
+        note: { startsWith: 'shortlist:' },
         createdAt: { gte: startsAt },
       },
     });
