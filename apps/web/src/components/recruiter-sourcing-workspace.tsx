@@ -1730,17 +1730,19 @@ function PotentialCandidatesColumn({
                             {isUnlocked ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 ring-1 ring-emerald-200/70">
                                 <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
-                                Đã mở hồ sơ
-                              </span>
-                            ) : isNewlyDiscovered ? (
-                              <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800 ring-1 ring-amber-200/80">
-                                Mới phát hiện
+                                Đã xem
                               </span>
                             ) : (
                               <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-medium text-slate-500">
                                 Chưa xem
                               </span>
                             )}
+
+                            {!isUnlocked && isNewlyDiscovered ? (
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800 ring-1 ring-amber-200/80">
+                                Mới phát hiện
+                              </span>
+                            ) : null}
 
                             {isOutreached ? (
                               (() => {
