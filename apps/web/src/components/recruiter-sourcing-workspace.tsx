@@ -1897,22 +1897,6 @@ function PotentialCandidatesColumn({
                                 <Phone className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
                                 <span>Liên hệ & Kết nối</span>
                               </button>
-                              <button
-                                type="button"
-                                disabled={!isShortlisted && !canShortlist}
-                                onClick={() => {
-                                  setOpenMoreId(null);
-                                  onQuickShortlist(row);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
-                              >
-                                {isShortlisted ? (
-                                  <BookmarkCheck className="h-3.5 w-3.5 shrink-0 text-indigo-600" />
-                                ) : (
-                                  <Bookmark className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                                )}
-                                <span>{isShortlisted ? 'Đã Shortlist (bỏ chọn)' : 'Shortlist'}</span>
-                              </button>
                               <Link
                                 href={`/candidates/${row.candidateId}?from=sourcing&match=${pctRawStr}`}
                                 target="_blank"
