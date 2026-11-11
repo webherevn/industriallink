@@ -9,6 +9,7 @@ import {
   Briefcase,
   Calendar,
   CheckCircle2,
+  ChevronDown,
   Download,
   ExternalLink,
   FileBarChart2,
@@ -46,7 +47,9 @@ import {
   LANGUAGE_OPTIONS,
   MARKET_REGIONS,
   SALES_JOB_LEVELS,
+  SALES_MATCH_FIELD_LABEL,
   SOURCING_OUTREACH_STATUS_META,
+  TECH_MATCH_FIELD_LABEL,
   TECHNICAL_WORK_TYPES,
   TRAVEL_ABILITY_LABEL,
   TravelAbility,
@@ -2442,6 +2445,7 @@ export function SourcingCandidateDrawer({
   const [interviewLocation, setInterviewLocation] = useState('');
   const [interviewNote, setInterviewNote] = useState('');
   const [expandedExp, setExpandedExp] = useState(false);
+  const [showAllCriteria, setShowAllCriteria] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   const hasOutreach = useMemo(() => {
@@ -2476,6 +2480,7 @@ export function SourcingCandidateDrawer({
     setShowInterviewForm(initialSection === 'interview');
     setShowOutreachForm(false);
     setExpandedExp(false);
+    setShowAllCriteria(false);
     setFeedback(null);
 
     const timer = window.setTimeout(() => {
@@ -3121,53 +3126,317 @@ export function SourcingCandidateDrawer({
           ) : null}
 
           {/* Đối chiếu mức độ phù hợp JD (hiển thị ngay cả trước khi mở khóa) */}
-          <div
-            ref={jdMatchRef}
-            className="rounded-2xl border border-[#d7e3f2] bg-white p-4 space-y-2.5"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
-                Đối chiếu mức độ phù hợp JD
-              </h4>
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-[#c96a12] ring-1 ring-amber-200/80">
-                Độ phù hợp {pctStr.replace('.', ',')}%
-              </span>
-            </div>
-            {candidateRow.match.reason ? (
-              <p className="text-xs leading-relaxed text-slate-600">{candidateRow.match.reason}</p>
-            ) : null}
-            {candidateRow.match.matchedSkills?.length > 0 ? (
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-emerald-800">Tiêu chí & kỹ năng đáp ứng:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {candidateRow.match.matchedSkills.map((sk) => (
-                    <span
-                      key={sk}
-                      className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200/70"
-                    >
-                      ✓ {sk}
-                    </span>
-                  ))}
+          {(() => {
+            const salesMatch = candidateRow.match.salesMatch ?? null;
+            const technicalMatch = candidateRow.match.technicalMatch ?? null;
+            const engineResult = salesMatch ?? technicalMatch;
+            const trackLabel = technicalMatch
+              ? 'Kỹ thuật'
+              : salesMatch
+                ? 'Kinh doanh B2B'
+                : null;
+            const scoreNum = Math.max(0, Math.min(100, candidateRow.match.score ?? 0));
+            const scoreBadgeClass =
+              scoreNum >= 75
+                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80'
+                : scoreNum >= 50
+                  ? 'bg-amber-50 text-[#c96a12] ring-1 ring-amber-200/80'
+                  : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80';
+
+            const rawCriteriaRows = engineResult
+              ? engineResult.chi_tiet.map((r, idx) => ({
+                  key: String(r.truong),
+                  label: r.label,
+                  weightPct: Math.round(r.trong_so),
+                  matchPct: Math.round(Math.max(0, Math.min(100, r.S))),
+                  order: idx,
+                }))
+              : (candidateRow.match.criteria ?? []).map((c, idx) => ({
+                  key: c.key,
+                  label: c.label,
+                  weightPct: Math.round((c.weight ?? 0) * 100),
+                  matchPct: Math.round(Math.max(0, Math.min(100, (c.score ?? 0) * 100))),
+                  order: idx,
+                }));
+
+            const sortedCriteria = [...rawCriteriaRows].sort(
+              (a, b) => b.weightPct - a.weightPct || a.order - b.order,
+            );
+            const INITIAL_CRITERIA_COUNT = 6;
+            const visibleCriteria = showAllCriteria
+              ? sortedCriteria
+              : sortedCriteria.slice(0, INITIAL_CRITERIA_COUNT);
+
+            const criteriaByKey = new Map(sortedCriteria.map((c) => [c.key, c]));
+            const fieldLabelLookup: Record<string, string> = {
+              ...SALES_MATCH_FIELD_LABEL,
+              ...TECH_MATCH_FIELD_LABEL,
+            };
+
+            const strongTags =
+              sortedCriteria.length > 0
+                ? sortedCriteria
+                    .filter((c) => c.matchPct >= 70)
+                    .slice(0, 6)
+                    .map((c) => c.label)
+                : (candidateRow.match.matchedSkills ?? []);
+
+            const allGapTags = engineResult
+              ? [...engineResult.khoang_thieu]
+                  .map((code) => {
+                    const key = String(code);
+                    const hit = criteriaByKey.get(key);
+                    return {
+                      key,
+                      label: hit?.label ?? fieldLabelLookup[key] ?? key,
+                      weightPct: hit?.weightPct ?? 0,
+                    };
+                  })
+                  .sort((a, b) => b.weightPct - a.weightPct)
+                  .map((g) => g.label)
+              : (candidateRow.match.missingSkills ?? []);
+
+            const visibleGapTags = showAllCriteria ? allGapTags : allGapTags.slice(0, 6);
+            const hiddenGapCount = Math.max(0, allGapTags.length - visibleGapTags.length);
+
+            const expScore =
+              engineResult?.diem_kinh_nghiem != null
+                ? Math.round(Math.max(0, Math.min(100, engineResult.diem_kinh_nghiem)))
+                : null;
+            const commonScore =
+              engineResult?.diem_chung != null
+                ? Math.round(Math.max(0, Math.min(100, engineResult.diem_chung)))
+                : null;
+            const tenureBonusPct =
+              engineResult && engineResult.thuong_be_day > 0
+                ? Math.round(engineResult.thuong_be_day * 100)
+                : 0;
+            const rawBestCompany = engineResult?.cong_ty_tot_nhat?.ten?.trim() || null;
+            const hasRealCompany =
+              Boolean(rawBestCompany) &&
+              rawBestCompany !== 'Hồ sơ' &&
+              !/^Công ty \d+$/i.test(rawBestCompany!);
+
+            return (
+              <div
+                ref={jdMatchRef}
+                className="space-y-3 rounded-2xl border border-[#d7e3f2] bg-white p-4"
+              >
+                {/* Tầng 1: Tiêu đề + Tổng điểm */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h4 className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-[#072348]">
+                      <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
+                      Đối chiếu mức độ phù hợp JD
+                    </h4>
+                    {trackLabel ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-600">
+                        {trackLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span
+                    className={clsx(
+                      'rounded-full px-2.5 py-0.5 text-[11px] font-bold tabular-nums',
+                      scoreBadgeClass,
+                    )}
+                  >
+                    Độ phù hợp {pctStr}%
+                  </span>
                 </div>
+
+                {/* Cảnh báo lọc cứng hoặc Tóm tắt 2 trụ cột điểm số */}
+                {engineResult && !engineResult.dat_loc_cung ? (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-900">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#c96a12]" />
+                    <div>
+                      <p className="font-semibold">Chưa đáp ứng điều kiện bắt buộc của JD</p>
+                      {engineResult.ly_do_loai.length > 0 ? (
+                        <p className="mt-0.5 text-[11.5px] text-amber-800/90">
+                          {engineResult.ly_do_loai.join(' · ')}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : engineResult && (expScore !== null || commonScore !== null) ? (
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11.5px] font-semibold text-slate-700">
+                          Kinh nghiệm thực chiến
+                        </span>
+                        <span
+                          className={clsx(
+                            'text-xs font-extrabold tabular-nums',
+                            (expScore ?? 0) >= 75
+                              ? 'text-emerald-700'
+                              : (expScore ?? 0) >= 40
+                                ? 'text-[#c96a12]'
+                                : 'text-slate-600',
+                          )}
+                        >
+                          {expScore ?? 0}%
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
+                        {unlocked
+                          ? hasRealCompany
+                            ? `Tại ${rawBestCompany}`
+                            : rawBestCompany
+                              ? 'Đánh giá trên dữ liệu kinh nghiệm hồ sơ'
+                              : 'Chưa cập nhật lịch sử doanh nghiệp'
+                          : rawBestCompany
+                            ? 'Doanh nghiệp phù hợp nhất lịch sử làm việc'
+                            : 'Chưa ghi nhận lịch sử doanh nghiệp'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11.5px] font-semibold text-slate-700">
+                          Điều kiện &amp; kỳ vọng chung
+                        </span>
+                        <span
+                          className={clsx(
+                            'text-xs font-extrabold tabular-nums',
+                            (commonScore ?? 0) >= 75
+                              ? 'text-emerald-700'
+                              : (commonScore ?? 0) >= 40
+                                ? 'text-[#c96a12]'
+                                : 'text-slate-600',
+                          )}
+                        >
+                          {commonScore ?? 0}%
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
+                        Địa điểm, thu nhập, năm KN, ngoại ngữ...
+                        {tenureBonusPct > 0 ? ` (+${tenureBonusPct}% bề dày)` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Tầng 2: Bảng thanh tiến độ từng tiêu chí theo Trọng số */}
+                {visibleCriteria.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="grid gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] p-3.5 sm:grid-cols-2">
+                      {visibleCriteria.map((c) => (
+                        <div key={c.key} className="space-y-1">
+                          <div className="flex items-center justify-between gap-2 text-[11.5px]">
+                            <span className="min-w-0 truncate font-medium text-slate-700" title={c.label}>
+                              {c.label}
+                              {c.weightPct > 0 ? (
+                                <span className="ml-1 font-normal text-slate-400">
+                                  · Trọng số {c.weightPct}%
+                                </span>
+                              ) : null}
+                            </span>
+                            <span
+                              className={clsx(
+                                'shrink-0 text-[11.5px] font-bold tabular-nums',
+                                c.matchPct >= 75
+                                  ? 'text-emerald-700'
+                                  : c.matchPct >= 35
+                                    ? 'text-[#c96a12]'
+                                    : 'text-slate-500',
+                              )}
+                            >
+                              {c.matchPct}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/75">
+                            <div
+                              className={clsx(
+                                'h-full rounded-full transition-all duration-300',
+                                c.matchPct >= 75
+                                  ? 'bg-emerald-500'
+                                  : c.matchPct >= 35
+                                    ? 'bg-[#E8872A]'
+                                    : 'bg-slate-400',
+                              )}
+                              style={{ width: `${c.matchPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {sortedCriteria.length > INITIAL_CRITERIA_COUNT ? (
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllCriteria((v) => !v)}
+                          className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11.5px] font-semibold text-[#072348]/80 transition hover:bg-slate-100 hover:text-[#072348]"
+                        >
+                          <span>
+                            {showAllCriteria
+                              ? 'Thu gọn tiêu chí'
+                              : `Xem đầy đủ ${sortedCriteria.length} tiêu chí`}
+                          </span>
+                          <ChevronDown
+                            className={clsx(
+                              'h-3.5 w-3.5 transition-transform duration-200',
+                              showAllCriteria && 'rotate-180',
+                            )}
+                          />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : !engineResult && candidateRow.match.reason ? (
+                  <p className="text-xs leading-relaxed text-slate-600">{candidateRow.match.reason}</p>
+                ) : null}
+
+                {/* Tầng 3: Điểm mạnh đáp ứng & Cần thẩm định thêm */}
+                {strongTags.length > 0 || visibleGapTags.length > 0 ? (
+                  <div className="space-y-2 pt-0.5">
+                    {strongTags.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-slate-600">
+                          Điểm mạnh đáp ứng:
+                        </span>
+                        {strongTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200/70"
+                          >
+                            ✓ {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {visibleGapTags.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-slate-600">
+                          Cần thẩm định thêm:
+                        </span>
+                        {visibleGapTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center rounded-full bg-amber-50/90 px-2.5 py-0.5 text-[11px] font-medium text-[#b45309] ring-1 ring-amber-200/70"
+                          >
+                            ⚠ {tag}
+                          </span>
+                        ))}
+                        {hiddenGapCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllCriteria(true)}
+                            title={allGapTags.slice(6).join(', ')}
+                            className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-200/80"
+                          >
+                            +{hiddenGapCount} tiêu chí khác
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-            {candidateRow.match.missingSkills?.length > 0 ? (
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-slate-500">Cần lưu ý / bổ sung khi phỏng vấn:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {candidateRow.match.missingSkills.map((sk) => (
-                    <span
-                      key={sk}
-                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
-                    >
-                      {sk}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
+            );
+          })()}
 
           {/* Mở khóa hồ sơ & Liên hệ / Kết nối ứng viên */}
           <div ref={contactRef}>
