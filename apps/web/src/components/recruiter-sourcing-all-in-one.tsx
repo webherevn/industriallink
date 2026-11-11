@@ -3188,28 +3188,44 @@ export function SourcingCandidateDrawer({
                     <strong>ưu tiên trừ trực tiếp từ {entitlements.profileOpensRemaining ?? 0} Credit có sẵn trong Gói Săn</strong>{' '}
                     của bạn mà không làm tốn ví Credit mua lẻ.
                   </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button
+                  <div
+                    className={clsx(
+                      'mt-3.5 grid gap-2.5',
+                      hasOutreach && !isOutreached ? 'sm:grid-cols-2' : 'sm:max-w-xs',
+                    )}
+                  >
+                    <button
+                      type="button"
                       disabled={unlockMutation.isPending}
                       onClick={() => unlockMutation.mutate()}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#072348] px-3.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d356c] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
                     >
                       {unlockMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#FFB366]" />
                       ) : (
-                        <Sparkles className="h-4 w-4" />
+                        <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#FFB366]" />
                       )}
-                      Mở khóa Hồ sơ & Liên hệ ngay (-{creditCost} Credit Gói Săn)
-                    </Button>
+                      <span className="whitespace-nowrap">Mở khóa &amp; Liên hệ</span>
+                      <span className="shrink-0 rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-extrabold tabular-nums text-[#FFD0A3]">
+                        -{creditCost} Credit
+                      </span>
+                    </button>
 
                     {hasOutreach && !isOutreached ? (
                       <button
                         type="button"
-                        disabled={outreachMutation.isPending || (outreachRemaining != null && outreachRemaining <= 0)}
+                        disabled={
+                          outreachMutation.isPending ||
+                          (outreachRemaining != null && outreachRemaining <= 0)
+                        }
                         onClick={() => setShowOutreachForm(true)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#072348]/25 bg-white px-3.5 py-2 text-xs font-bold text-[#072348] shadow-2xs transition hover:border-[#072348] hover:bg-[#072348] hover:text-white disabled:opacity-45"
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#072348]/20 bg-white px-3.5 text-xs font-bold text-[#072348] shadow-2xs transition hover:border-[#072348]/45 hover:bg-[#f4f8fd] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
                       >
-                        <Headphones className="h-3.5 w-3.5 text-[#E8872A]" />
-                        Giao Inlink liên hệ & Mở khóa (Còn {outreachRemaining ?? 0}/{outreachQuota})
+                        <Headphones className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                        <span className="whitespace-nowrap">Giao Inlink mở khóa</span>
+                        <span className="shrink-0 rounded-md bg-[#FFF4E8] px-2 py-0.5 text-[11px] font-extrabold tabular-nums text-[#C86D18] ring-1 ring-inset ring-[#FFD0A3]/70">
+                          Còn {outreachRemaining ?? 0}/{outreachQuota}
+                        </span>
                       </button>
                     ) : null}
                   </div>
