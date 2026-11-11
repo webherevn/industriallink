@@ -1,7 +1,54 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import clsx from 'clsx';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { handoffHashForToken, tokenStore } from '@/lib/api';
 import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/brand';
+import { isRecruiterHostname, publicSiteUrl, shouldUseSplitHosts } from '@/lib/hosts';
+
+function useResolvedBrandHref(href: string): string {
+  const [resolvedHref, setResolvedHref] = useState(href);
+
+  useEffect(() => {
+    const siteUrl = publicSiteUrl();
+    if (!shouldUseSplitHosts()) {
+      setResolvedHref(href === siteUrl ? '/' : href);
+      return;
+    }
+    if (href === '/' && isRecruiterHostname()) {
+      setResolvedHref(siteUrl);
+      return;
+    }
+    setResolvedHref(href);
+  }, [href]);
+
+  return resolvedHref;
+}
+
+function handleBrandHomeClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+    return;
+  }
+  const siteUrl = publicSiteUrl();
+  const isHomeTarget = href === '/' || href === siteUrl;
+  if (!isHomeTarget) return;
+
+  if (!shouldUseSplitHosts()) {
+    if (href === siteUrl) {
+      e.preventDefault();
+      window.location.assign('/');
+    }
+    return;
+  }
+
+  if (isRecruiterHostname()) {
+    e.preventDefault();
+    const handoff = handoffHashForToken(tokenStore.get());
+    window.location.assign(`${siteUrl}/${handoff}`);
+  }
+}
 
 /** Icon vuông iL — dùng trên nav / sidebar. */
 export function BrandMark({
@@ -17,9 +64,11 @@ export function BrandMark({
   wordmarkClassName?: string;
   className?: string;
 }) {
+  const resolvedHref = useResolvedBrandHref(href);
   return (
     <Link
-      href={href}
+      href={resolvedHref}
+      onClick={(e) => handleBrandHomeClick(e, href)}
       className={clsx(
         'group inline-flex items-center gap-2.5 transition-opacity hover:opacity-90',
         className,
@@ -54,9 +103,14 @@ export function BrandLogo({
   compact?: boolean;
   className?: string;
 }) {
+  const resolvedHref = useResolvedBrandHref(href);
   const height = Math.round(width * (313 / 878));
   return (
-    <Link href={href} className={clsx('inline-flex shrink-0', className)}>
+    <Link
+      href={resolvedHref}
+      onClick={(e) => handleBrandHomeClick(e, href)}
+      className={clsx('inline-flex shrink-0', className)}
+    >
       <Image
         src="/logo.png"
         alt={`${BRAND_NAME} — ${BRAND_TAGLINE}`}
@@ -72,9 +126,14 @@ export function BrandLogo({
 }
 
 /** Sidebar NTD: icon + tên + slogan. */
-export function BrandSidebarLockup({ href = '/recruiter' }: { href?: string }) {
+export function BrandSidebarLockup({ href = publicSiteUrl() }: { href?: string }) {
+  const resolvedHref = useResolvedBrandHref(href);
   return (
-    <Link href={href} className="flex items-start gap-2.5">
+    <Link
+      href={resolvedHref}
+      onClick={(e) => handleBrandHomeClick(e, href)}
+      className="flex items-start gap-2.5"
+    >
       <Image
         src="/favicon.png"
         alt={BRAND_NAME}

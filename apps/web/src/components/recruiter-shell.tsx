@@ -46,7 +46,7 @@ import { CreditBalanceBadge } from '@/components/credit-balance-badge';
 import { NotificationBell } from '@/components/notification-bell';
 import { restoreSession, tokenStore, ApiError } from '@/lib/api';
 import { clearAuthQueryCache, fetchMe, logout } from '@/lib/auth';
-import { bounceIfWrongHost } from '@/lib/hosts';
+import { bounceIfWrongHost, publicSiteUrl } from '@/lib/hosts';
 import {
   MY_COMPANY_LOGO_QUERY_KEY,
   fetchMyCompanyLogoObjectUrl,
@@ -430,7 +430,7 @@ export function RecruiterShell({
   const sidebar = (
     <aside className="flex h-full w-[260px] flex-col border-r border-slate-200/80 bg-white">
       <div className="px-4 py-5">
-        <BrandSidebarLockup href="/recruiter" />
+        <BrandSidebarLockup href={publicSiteUrl()} />
       </div>
 
       <nav
