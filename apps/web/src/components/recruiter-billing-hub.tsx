@@ -128,7 +128,7 @@ export function RecruiterBillingHub() {
                     {plan.planCode === 'KHAM_PHA'
                       ? `Dùng thử ${fmtDate(plan.startsAt)} → ${fmtDate(plan.endsAt)}. Hết hạn gói mở lại sau 30 ngày (Credit Top-up được bảo lưu vô thời hạn).`
                       : plan.planCode === 'ENTERPRISE'
-                        ? `Theo hợp đồng${plan.endsAt ? ` · đến ${fmtDate(plan.endsAt)}` : ''}`
+                        ? `Hợp đồng Enterprise${plan.endsAt ? ` · đến ${fmtDate(plan.endsAt)}` : ' · Không giới hạn thời hạn'}${plan.note && !plan.note.startsWith('SuperAdmin') ? ` (${plan.note})` : ''}`
                         : `Hạn gói đến ${fmtDate(plan.endsAt)}. Hết hạn chuyển về Khám phá (chỉ hết hạn Credit tặng kèm gói, Credit Top-up được bảo lưu vô thời hạn).`}
                     {!plan.isActive ? ' · đã tắt' : ''}
                   </p>
@@ -152,17 +152,25 @@ export function RecruiterBillingHub() {
                     hint={
                       entitlements?.jobsRemaining != null
                         ? `còn ${entitlements.jobsRemaining}`
-                        : undefined
+                        : plan?.planCode === 'ENTERPRISE'
+                          ? `Đang mở ${entitlements?.jobsUsed ?? 0} tin`
+                          : undefined
                     }
                   />
                   <Metric
-                    label="Credit tặng kèm"
+                    label={plan?.planCode === 'ENTERPRISE' ? 'Credit hợp đồng' : 'Credit tặng kèm'}
                     value={
                       entitlements?.creditQuota == null
                         ? 'Theo HĐ'
                         : `${fmtCredit(entitlements.creditQuota)} Credit`
                     }
-                    hint={entitlements?.creditQuota ? 'Đã cộng vào ví' : 'Gói miễn phí'}
+                    hint={
+                      plan?.planCode === 'ENTERPRISE'
+                        ? 'Cấp theo hợp đồng'
+                        : entitlements?.creditQuota
+                          ? 'Đã cộng vào ví'
+                          : 'Gói miễn phí'
+                    }
                   />
                 </div>
               </>

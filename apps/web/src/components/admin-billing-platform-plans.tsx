@@ -337,13 +337,33 @@ function PlanRow({
         {plan.description ? <p className="mt-0.5 text-xs text-slate-500">{plan.description}</p> : null}
         <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-slate-500">
           <span>
-            Tin hiển thị: <strong>{plan.durationDays ?? '∞'}</strong> ngày
+            Tin hiển thị:{' '}
+            <strong>
+              {plan.code === 'ENTERPRISE'
+                ? (plan.durationDays ?? '365 (linh hoạt)')
+                : (plan.durationDays ?? '∞')}
+            </strong>{' '}
+            ngày
           </span>
           <span>
-            JD: <strong>{plan.jobPostQuota ?? '∞'}</strong>
+            JD:{' '}
+            <strong>
+              {plan.code === 'ENTERPRISE'
+                ? plan.jobPostQuota != null
+                  ? `${plan.jobPostQuota}+`
+                  : '∞ (Không giới hạn)'
+                : (plan.jobPostQuota ?? '∞')}
+            </strong>
           </span>
           <span>
-            Credit: <strong>{plan.creditQuota ?? '—'}</strong>
+            Credit:{' '}
+            <strong>
+              {plan.code === 'ENTERPRISE'
+                ? plan.creditQuota != null
+                  ? `${plan.creditQuota}+`
+                  : 'Tối đa'
+                : (plan.creditQuota ?? '—')}
+            </strong>
           </span>
           <span>
             Mở hồ sơ:{' '}
@@ -360,15 +380,24 @@ function PlanRow({
         </div>
       </div>
       <div className="text-right">
-        <p className="text-xl font-bold tabular-nums text-[#072348]">
-          {currency ? formatPriceVnd(plan.priceVnd, currency) : `${plan.priceVnd}₫`}
-          <span className="ml-1 text-[11px] font-medium text-slate-400">
-            {UNIT_LABEL[plan.billingUnit]}
-          </span>
-        </p>
-        {currency ? (
-          <p className="text-[10px] text-slate-400">{formatReferenceUsd(plan.priceVnd, currency)}</p>
-        ) : null}
+        {plan.code === 'ENTERPRISE' ? (
+          <>
+            <p className="text-base font-extrabold text-[#072348]">Báo giá hợp đồng</p>
+            <p className="text-[10px] text-slate-500">Gán riêng hạn mức ở Quản lý công ty</p>
+          </>
+        ) : (
+          <>
+            <p className="text-xl font-bold tabular-nums text-[#072348]">
+              {currency ? formatPriceVnd(plan.priceVnd, currency) : `${plan.priceVnd}₫`}
+              <span className="ml-1 text-[11px] font-medium text-slate-400">
+                {UNIT_LABEL[plan.billingUnit]}
+              </span>
+            </p>
+            {currency ? (
+              <p className="text-[10px] text-slate-400">{formatReferenceUsd(plan.priceVnd, currency)}</p>
+            ) : null}
+          </>
+        )}
       </div>
       <div className="flex gap-1">
         <button
@@ -442,12 +471,21 @@ function EditModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">
-            {form.id ? 'Sửa gói' : 'Tạo gói mới'}
+            {form.id ? `Sửa gói ${form.code === 'ENTERPRISE' ? 'Enterprise' : ''}`.trim() : 'Tạo gói mới'}
           </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {form.code === 'ENTERPRISE' ? (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs leading-relaxed text-amber-950">
+            <strong className="font-bold">Cơ chế Enterprise 2 tầng:</strong> Các thông số dưới đây dùng để hiển thị
+            mức <strong>Maximum / Trần năng lực</strong> trên trang Bảng giá và làm gợi ý mặc định. Khi ký hợp đồng thực
+            tế với từng doanh nghiệp, hãy vào <strong>Quản lý công ty → Gán gói</strong> để nhập Số tin, Số Credit, Thời
+            hạn HĐ riêng cho từng công ty.
+          </div>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Mã (code)" description="IN HOA, snake_case">
@@ -461,46 +499,75 @@ function EditModal({
           <Field label="Tên hiển thị">
             <Input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Tin đăng" />
           </Field>
-          <Field label="Giá (VND)" description="Integer; 0 = miễn phí/báo giá">
-            <Input
-              value={form.priceVnd.toString()}
-              onChange={(e) => update('priceVnd', e.target.value)}
-              placeholder="1225000"
-            />
-          </Field>
-          <Field label="Đơn vị giá">
-            <Select
-              value={form.billingUnit}
-              onChange={(e) => update('billingUnit', e.target.value as 'per_jd' | 'per_month')}
-            >
-              <option value="per_jd">Theo JD</option>
-              <option value="per_month">Theo tháng</option>
-            </Select>
-          </Field>
+          {form.code === 'ENTERPRISE' ? (
+            <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
+              Giá hiển thị trên Bảng giá: <strong className="text-[#072348]">Báo giá riêng (Theo hợp đồng)</strong>
+            </div>
+          ) : (
+            <>
+              <Field label="Giá (VND)" description="Integer; 0 = miễn phí/báo giá">
+                <Input
+                  value={form.priceVnd.toString()}
+                  onChange={(e) => update('priceVnd', e.target.value)}
+                  placeholder="1225000"
+                />
+              </Field>
+              <Field label="Đơn vị giá">
+                <Select
+                  value={form.billingUnit}
+                  onChange={(e) => update('billingUnit', e.target.value as 'per_jd' | 'per_month')}
+                >
+                  <option value="per_jd">Theo JD</option>
+                  <option value="per_month">Theo tháng</option>
+                </Select>
+              </Field>
+            </>
+          )}
           <Field
-            label="Số ngày hiển thị tin"
-            description="Số ngày tin được hiển thị. Gói Khám phá dùng cùng số này làm chu kỳ gói."
+            label={form.code === 'ENTERPRISE' ? 'Số ngày tối đa (Bảng giá / Mẫu)' : 'Số ngày hiển thị tin'}
+            description={
+              form.code === 'ENTERPRISE'
+                ? 'Để trống = hiện "365 (Linh hoạt / năm)" trên bảng giá; nhập số để đặt mốc cụ thể.'
+                : 'Số ngày tin được hiển thị. Gói Khám phá dùng cùng số này làm chu kỳ gói.'
+            }
           >
             <Input
               type="number"
+              placeholder={form.code === 'ENTERPRISE' ? 'Để trống = 365 (Linh hoạt)' : undefined}
               value={form.durationDays ?? ''}
               onChange={(e) =>
                 update('durationDays', e.target.value === '' ? null : Number(e.target.value))
               }
             />
           </Field>
-          <Field label="Quota JD" description="Để trống = unlimited">
+          <Field
+            label={form.code === 'ENTERPRISE' ? 'Số tin tối đa (Bảng giá)' : 'Quota JD'}
+            description={
+              form.code === 'ENTERPRISE'
+                ? 'Để trống = hiện "∞ (Không giới hạn)"; nhập số X = hiện "X+".'
+                : 'Để trống = unlimited'
+            }
+          >
             <Input
               type="number"
+              placeholder={form.code === 'ENTERPRISE' ? 'Để trống = ∞ (Không giới hạn)' : undefined}
               value={form.jobPostQuota ?? ''}
               onChange={(e) =>
                 update('jobPostQuota', e.target.value === '' ? null : Number(e.target.value))
               }
             />
           </Field>
-          <Field label="Credit quota" description="Số lượt mở hồ sơ tặng kèm; trống = theo HĐ">
+          <Field
+            label={form.code === 'ENTERPRISE' ? 'Mốc Credit (Bảng giá / Gợi ý HĐ)' : 'Credit quota'}
+            description={
+              form.code === 'ENTERPRISE'
+                ? 'Để trống = hiện "Tối đa"; nhập số X (VD: 500) = hiện "500+" và gợi ý khi gán HĐ.'
+                : 'Số lượt mở hồ sơ tặng kèm; trống = theo HĐ'
+            }
+          >
             <Input
               type="number"
+              placeholder={form.code === 'ENTERPRISE' ? 'Để trống = Tối đa (hoặc nhập 500)' : undefined}
               value={form.creditQuota ?? ''}
               onChange={(e) =>
                 update('creditQuota', e.target.value === '' ? null : Number(e.target.value))
@@ -537,7 +604,31 @@ function EditModal({
         </Field>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-semibold text-slate-800">Credit / lượt thao tác</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-slate-800">Credit / lượt thao tác</p>
+            {form.code === 'ENTERPRISE' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = BILLING_PLAN_BILLABLE_ACTIONS.map((a) => {
+                    const existing = (form.actionCosts ?? []).find((c) => c.action === a);
+                    return {
+                      action: a,
+                      cost:
+                        a === 'view_profile' || a === 'view_profile_high_match'
+                          ? 1
+                          : (existing?.cost ?? 0),
+                      isActive: true,
+                    };
+                  });
+                  update('actionCosts', next);
+                }}
+                className="rounded-lg border border-amber-300 bg-amber-100/80 px-2.5 py-1 text-[11px] font-bold text-[#072348] transition hover:bg-amber-200"
+              >
+                Đặt ưu đãi VIP: 1 Credit / mọi CV
+              </button>
+            ) : null}
+          </div>
           <p className="mt-0.5 text-[11px] text-slate-500">
             Áp dụng khi công ty được gán gói này. Để 0 = miễn phí. Thiếu dòng thì fallback policy
             global.

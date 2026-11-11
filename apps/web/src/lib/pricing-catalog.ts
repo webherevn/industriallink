@@ -128,7 +128,12 @@ export function packPlatformFeatures(
 /** Câu hạn mức tin dùng chung cho thẻ, bảng so sánh và schema. */
 export function platformJobSentence(plan: BillingPlatformPlanView): string {
   const jobs = plan.jobPostQuota;
-  if (plan.code === 'ENTERPRISE' || jobs == null) return 'Hạn mức tin theo hợp đồng';
+  if (plan.code === 'ENTERPRISE') {
+    return jobs == null
+      ? 'Đăng tin tuyển dụng song song không giới hạn'
+      : `Tối đa ${jobs}+ tin tuyển dụng song song`;
+  }
+  if (jobs == null) return 'Hạn mức tin không giới hạn';
   if (plan.billingUnit === 'per_month') return `Tối đa ${jobs} tin đang hoạt động`;
   if (plan.code === 'KHAM_PHA') return `${jobs} tin thử nghiệm`;
   return `${jobs} tin đăng`;
@@ -150,7 +155,31 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
   const credits = plan.creditQuota;
   const openCost = actionCost(plan, 'view_profile');
   const highMatchCost = actionCost(plan, 'view_profile_high_match');
-  const canOpen = enterprise || credits == null || credits > 0;
+
+  if (enterprise) {
+    return [
+      { included: true, label: platformJobSentence(plan) },
+      {
+        included: true,
+        label:
+          credits != null && credits > 0
+            ? `Hạn mức ${credits}+ Credit theo quý / năm (đơn giá VIP)`
+            : 'Cấp hạn mức Credit lớn theo quý / năm (đơn giá VIP)',
+      },
+      {
+        included: true,
+        label:
+          days != null && days > 0
+            ? `Thời hạn hiển thị tin dài hạn đến ${days} ngày`
+            : 'Thời hạn hiển thị tin dài hạn & linh hoạt (đến 365 ngày)',
+      },
+      { included: true, label: 'Phân tích JD & AI Matching chuyên sâu không giới hạn' },
+      { included: true, label: 'Quản lý tuyển dụng tập trung đa chi nhánh / nhiều nhà máy' },
+      { included: true, label: 'Chuyên viên AM riêng, cam kết SLA & xuất hoá đơn VAT theo kỳ' },
+    ];
+  }
+
+  const canOpen = credits == null || credits > 0;
   const openCostLabel =
     openCost != null && openCost > 0
       ? highMatchCost != null && highMatchCost > 0 && highMatchCost !== openCost
@@ -163,7 +192,7 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
     {
       included: true,
       label:
-        enterprise || days == null
+        days == null
           ? 'Thời hạn theo hợp đồng'
           : monthly
             ? `Chu kỳ ${days} ngày`
@@ -172,7 +201,7 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
     {
       included: canOpen,
       label:
-        enterprise || credits == null
+        credits == null
           ? 'Credit mở hồ sơ theo hợp đồng'
           : credits > 0
             ? monthly
@@ -193,7 +222,6 @@ export function platformFeatureRows(plan: BillingPlatformPlanView): PlatformFeat
     { included: true, label: 'Phân tích JD bằng AI' },
     { included: true, label: 'Sửa tiêu chí JD' },
     { included: company, label: 'Tin đóng hoặc nháp không tính hạn mức' },
-    { included: enterprise, label: 'Hỗ trợ triển khai riêng' },
   ];
 }
 
@@ -210,6 +238,20 @@ export function displayFeatureLines(plan: BillingPlatformPlanView): PlatformFeat
     highMatchCost > 0 &&
     highMatchCost !== openCost;
   const dualLabel = `Mở hồ sơ: < 80% Matching tốn ${openCost} Credit, ≥ 80% tốn ${highMatchCost} Credit`;
+
+  if (plan.code === 'ENTERPRISE') {
+    const legacyEnterpriseSet = new Set([
+      'Số tin tuyển dụng theo thỏa thuận',
+      'Số Credit theo thỏa thuận',
+      'Báo giá riêng theo nhu cầu',
+      'Hạn mức tin và lượt mở theo hợp đồng',
+    ]);
+    const isLegacyDefault = saved.some((l) => legacyEnterpriseSet.has(l.label.trim()));
+    if (isLegacyDefault) {
+      return platformFeatureRows(plan);
+    }
+  }
+
   return saved.map((line) => {
     const trimmed = line.label.trim();
     if (hasDual && /^Mỗi lượt mở hồ sơ tốn \d+ Credit$/i.test(trimmed)) {
@@ -223,7 +265,7 @@ export function displayFeatureLines(plan: BillingPlatformPlanView): PlatformFeat
   });
 }
 
-export type PlatformHighlightStat = { label: string; value: string; hint?: string };
+export type PlatformHighlightStat = { label: string; value: string; sub?: string; hint?: string };
 
 function quotaStat(value: number | null, empty: string, hint?: string): { value: string; hint?: string } {
   if (value == null) return { value: empty, hint };
@@ -233,9 +275,6 @@ function quotaStat(value: number | null, empty: string, hint?: string): { value:
 /** Bốn thông số nổi trên thẻ gói tin. Số lấy từ cài đặt SuperAdmin, không lấy từ câu mô tả. */
 export function platformHighlightStats(plan: BillingPlatformPlanView): PlatformHighlightStat[] {
   const enterprise = plan.code === 'ENTERPRISE';
-  const jobs = quotaStat(plan.jobPostQuota, enterprise ? 'HĐ' : '∞', enterprise ? 'Theo hợp đồng' : 'Không giới hạn');
-  const opens = quotaStat(plan.creditQuota, 'HĐ', 'Theo hợp đồng');
-  const days = quotaStat(plan.durationDays, enterprise ? 'HĐ' : '∞', enterprise ? 'Theo hợp đồng' : 'Không giới hạn');
   const openCost = actionCost(plan, 'view_profile');
   const highMatchCost = actionCost(plan, 'view_profile_high_match');
   const hasTieredCost =
@@ -243,6 +282,58 @@ export function platformHighlightStats(plan: BillingPlatformPlanView): PlatformH
     highMatchCost != null &&
     highMatchCost > 0 &&
     highMatchCost !== openCost;
+
+  if (enterprise) {
+    return [
+      {
+        label: 'Số tin',
+        value: plan.jobPostQuota == null ? '∞' : `${plan.jobPostQuota}+`,
+        sub: plan.jobPostQuota == null ? 'Không giới hạn' : 'Tối đa / HĐ',
+        hint:
+          plan.jobPostQuota == null
+            ? 'Đăng tin tuyển dụng song song không giới hạn'
+            : `Từ ${plan.jobPostQuota}+ tin tuyển dụng song song`,
+      },
+      {
+        label: 'Credit',
+        value: plan.creditQuota == null ? 'Tối đa' : `${plan.creditQuota}+`,
+        sub: 'Theo quy mô',
+        hint:
+          plan.creditQuota == null
+            ? 'Cấp hạn mức Credit lớn theo quy mô tập đoàn & nhà máy'
+            : `Từ ${plan.creditQuota}+ Credit mở hồ sơ ưu đãi VIP`,
+      },
+      {
+        label: 'Số ngày',
+        value: plan.durationDays == null ? '365' : String(plan.durationDays),
+        sub: plan.durationDays == null ? 'Linh hoạt / năm' : 'Linh hoạt / HĐ',
+        hint:
+          plan.durationDays == null
+            ? 'Thời hạn hiển thị tin & hợp đồng dài hạn đến 365 ngày'
+            : `Thời hạn hiển thị & chu kỳ linh hoạt đến ${plan.durationDays} ngày`,
+      },
+      {
+        label: 'Credit/lượt',
+        value:
+          openCost == null
+            ? '1'
+            : hasTieredCost
+              ? `${openCost}–${highMatchCost}`
+              : String(openCost),
+        sub: hasTieredCost ? 'Ưu đãi mở CV' : 'Ưu đãi VIP',
+        hint:
+          openCost == null
+            ? 'Ưu đãi mở hồ sơ gói Enterprise'
+            : hasTieredCost
+              ? `< 80% Matching: ${openCost} Credit · ≥ 80% Matching: ${highMatchCost} Credit`
+              : `Đặc quyền VIP: mở mọi hồ sơ chỉ tốn ${openCost} Credit`,
+      },
+    ];
+  }
+
+  const jobs = quotaStat(plan.jobPostQuota, '∞', 'Không giới hạn');
+  const opens = quotaStat(plan.creditQuota, 'HĐ', 'Theo hợp đồng');
+  const days = quotaStat(plan.durationDays, '∞', 'Không giới hạn');
   return [
     { label: 'Số tin', ...jobs },
     { label: 'Credit', ...opens },
@@ -267,13 +358,16 @@ export function platformHighlightStats(plan: BillingPlatformPlanView): PlatformH
 
 /** Cụm số tin trong điểm nhấn bảng so sánh. */
 export function platformJobCountLabel(plan: BillingPlatformPlanView): string {
-  if (plan.code === 'ENTERPRISE' || plan.jobPostQuota == null) return 'Không giới hạn tin';
+  if (plan.code === 'ENTERPRISE') {
+    return plan.jobPostQuota == null ? 'Không giới hạn tin' : `${plan.jobPostQuota}+ tin`;
+  }
+  if (plan.jobPostQuota == null) return 'Không giới hạn tin';
   return `${plan.jobPostQuota} tin`;
 }
 
 function alignPlatformCounts(text: string, plan: BillingPlatformPlanView): string {
   let out = text.replace(/(\d+)\s*lượt mở(\s*hồ sơ)?/gi, '$1 Credit');
-  const jobs = plan.code === 'ENTERPRISE' ? null : plan.jobPostQuota;
+  const jobs = plan.jobPostQuota;
   const days = plan.durationDays;
   const credits = plan.creditQuota;
   if (jobs != null) {
@@ -298,7 +392,7 @@ function alignPlatformCounts(text: string, plan: BillingPlatformPlanView): strin
 
 function fallbackPlatformDescription(plan: BillingPlatformPlanView): string {
   if (plan.code === 'ENTERPRISE' || plan.jobPostQuota == null) {
-    return 'Báo giá riêng. Hạn mức tin và Credit theo hợp đồng.';
+    return 'Giải pháp tuyển dụng quy mô lớn với hạn mức tin đăng, Credit và thời hạn tối đa theo hợp đồng.';
   }
   const days = plan.durationDays ? ` trong ${plan.durationDays} ngày` : '';
   if (plan.code === 'KHAM_PHA') {
@@ -350,7 +444,7 @@ export function pricingPlatformFact(plan: BillingPlatformPlanView): PricingPlatf
     description: raw ? alignPlatformCounts(raw, plan) : fallbackPlatformDescription(plan),
     jobSentence: platformJobSentence(plan),
     jobCountLabel: platformJobCountLabel(plan),
-    jobPostQuota: plan.code === 'ENTERPRISE' ? null : plan.jobPostQuota,
+    jobPostQuota: plan.jobPostQuota,
     durationDays: plan.durationDays,
     creditQuota: plan.creditQuota ?? null,
     sellingPriceVnd: sellingPriceVnd(plan),

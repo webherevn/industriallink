@@ -1398,6 +1398,12 @@ model BillingCompanyPlan {
   endsAt    DateTime? @map("ends_at")
   isActive  Boolean   @default(true) @map("is_active")
   note      String?
+
+  /// Hạn mức ghi đè riêng theo hợp đồng của từng doanh nghiệp (Enterprise; null = kế thừa từ gói).
+  customJobPostQuota Int? @map("custom_job_post_quota")
+  customCreditQuota  Int? @map("custom_credit_quota")
+  customDurationDays Int? @map("custom_duration_days")
+
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid
   updatedAt DateTime  @updatedAt @map("updated_at")

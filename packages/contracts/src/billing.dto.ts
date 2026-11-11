@@ -201,6 +201,9 @@ export interface AdminAssignCompanyPlanRequest {
   endsAt?: string | null;
   isActive?: boolean;
   note?: string | null;
+  customJobPostQuota?: number | null;
+  customCreditQuota?: number | null;
+  customDurationDays?: number | null;
 }
 
 export interface AdminCreditAdjustRequest {

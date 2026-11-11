@@ -1242,23 +1242,28 @@ function EnterprisePlanBanner({
 
         {/* Col 2: Stats & Key Enterprise Perks */}
         <div className="lg:col-span-5">
-          <div className="grid grid-cols-4 gap-2" aria-label="Thông số gói Enterprise">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" aria-label="Thông số gói Enterprise">
             {stats.map((stat) => (
               <div
                 key={stat.label}
                 title={stat.hint}
-                className="rounded-xl border border-white/10 bg-white/[0.07] px-2.5 py-2 text-center transition-colors hover:border-amber-400/40 hover:bg-white/10"
+                className="flex flex-col items-center justify-center rounded-xl border border-amber-400/25 bg-gradient-to-b from-white/[0.11] to-white/[0.04] px-2.5 py-2.5 text-center shadow-inner transition-colors hover:border-amber-400/55 hover:bg-white/[0.13]"
               >
-                <p className="text-[10px] font-medium text-slate-300">{stat.label}</p>
-                <p className="mt-0.5 text-base font-extrabold tabular-nums text-amber-300">{stat.value}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">{stat.label}</p>
+                <p className="mt-1 text-lg font-extrabold leading-none tabular-nums text-amber-300 sm:text-xl">
+                  {stat.value}
+                </p>
+                {stat.sub ? (
+                  <p className="mt-1 text-[10px] font-medium leading-tight text-amber-100/80">{stat.sub}</p>
+                ) : null}
               </div>
             ))}
           </div>
-          <ul className="mt-4 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+          <ul className="mt-4 grid gap-x-4 gap-y-2 sm:grid-cols-2">
             {includedRows.slice(0, 6).map((row, idx) => (
-              <li key={`${idx}-${row.label}`} className="flex items-center gap-2 text-xs text-slate-200">
-                <Check className="h-3.5 w-3.5 shrink-0 text-amber-400" strokeWidth={2.6} />
-                <span className="truncate" title={row.label}>
+              <li key={`${idx}-${row.label}`} className="flex items-start gap-2 text-xs leading-snug text-slate-200">
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" strokeWidth={2.6} />
+                <span className="min-w-0">
                   <span className="sr-only">Bao gồm: </span>
                   {row.label}
                 </span>

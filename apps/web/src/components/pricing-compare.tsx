@@ -245,18 +245,37 @@ export function buildPlatformRows(
       label: 'Thời hạn',
       cells: plans.map((p) => ({
         kind: 'text',
-        text: p.durationDays == null ? 'Không giới hạn' : `${p.durationDays} ngày`,
+        text: isEnterprisePlan(p)
+          ? p.durationDays == null
+            ? '365 ngày (linh hoạt)'
+            : `${p.durationDays} ngày`
+          : p.durationDays == null
+            ? 'Không giới hạn'
+            : `${p.durationDays} ngày`,
       })),
     },
     {
       label: 'Số tin',
-      cells: plans.map((p) => ({ kind: 'text', text: formatQuota(p.jobPostQuota) })),
+      cells: plans.map((p) => ({
+        kind: 'text',
+        text: isEnterprisePlan(p)
+          ? p.jobPostQuota == null
+            ? 'Không giới hạn (∞)'
+            : `${p.jobPostQuota}+ tin`
+          : formatQuota(p.jobPostQuota),
+      })),
     },
     {
       label: 'Credit tặng kèm',
       cells: plans.map((p) => ({
         kind: 'text',
-        text: p.creditQuota == null ? 'Theo HĐ' : String(p.creditQuota),
+        text: isEnterprisePlan(p)
+          ? p.creditQuota == null
+            ? 'Tối đa theo quy mô'
+            : `${p.creditQuota}+ Credit`
+          : p.creditQuota == null
+            ? 'Theo HĐ'
+            : String(p.creditQuota),
       })),
     },
     {

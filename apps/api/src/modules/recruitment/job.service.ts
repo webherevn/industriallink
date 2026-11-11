@@ -1292,7 +1292,7 @@ export class JobService {
     for (const row of rows) {
       const code = row.plan.code;
       const expired =
-        code !== 'ENTERPRISE' && row.endsAt != null && row.endsAt.getTime() <= now;
+        row.endsAt != null && row.endsAt.getTime() <= now;
       map.set(row.companyId, !row.isActive || expired ? 'KHAM_PHA' : code);
     }
     return map;

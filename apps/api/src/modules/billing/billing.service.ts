@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -141,7 +142,7 @@ function addUtcDays(from: Date, days: number): Date {
 }
 
 @Injectable()
-export class BillingService {
+export class BillingService implements OnModuleInit {
   private readonly logger = new Logger(BillingService.name);
 
   constructor(
@@ -149,6 +150,19 @@ export class BillingService {
     private readonly config: ConfigService<AppConfig, true>,
     private readonly sourcing: SourcingService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        ALTER TABLE billing.billing_company_plan
+          ADD COLUMN IF NOT EXISTS custom_job_post_quota INTEGER,
+          ADD COLUMN IF NOT EXISTS custom_credit_quota INTEGER,
+          ADD COLUMN IF NOT EXISTS custom_duration_days INTEGER
+      `);
+    } catch (err) {
+      this.logger.warn(`Không tự kiểm tra cột mở rộng billing_company_plan: ${String(err)}`);
+    }
+  }
 
   // =========================================================================
   // PUBLIC
@@ -355,11 +369,49 @@ export class BillingService {
     const before = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId: input.companyId },
     });
+    const isEnterprise = plan.code === 'ENTERPRISE';
+    const toOptInt = (v: number | null | undefined): number | null => {
+      if (v == null || !Number.isFinite(Number(v))) return null;
+      return Math.max(0, Math.trunc(Number(v)));
+    };
+    const customJobPostQuota = isEnterprise
+      ? input.customJobPostQuota === undefined
+        ? before?.planId === plan.id
+          ? before.customJobPostQuota
+          : null
+        : toOptInt(input.customJobPostQuota)
+      : null;
+    const customCreditQuota = isEnterprise
+      ? input.customCreditQuota === undefined
+        ? before?.planId === plan.id
+          ? before.customCreditQuota
+          : null
+        : toOptInt(input.customCreditQuota)
+      : null;
+    const customDurationDays = isEnterprise
+      ? input.customDurationDays === undefined
+        ? before?.planId === plan.id
+          ? before.customDurationDays
+          : null
+        : toOptInt(input.customDurationDays)
+      : null;
+
     const shouldGrant = this.shouldGrantPlanQuota(before, {
       planId: input.planId,
       isActive: input.isActive ?? true,
     });
-    const quota = plan.creditQuota ?? 0;
+    const effectiveQuota = isEnterprise
+      ? (customCreditQuota ?? plan.creditQuota ?? 0)
+      : (plan.creditQuota ?? 0);
+    const prevEnterpriseQuota =
+      isEnterprise && before?.planId === plan.id
+        ? (before.customCreditQuota ?? plan.creditQuota ?? 0)
+        : 0;
+    const quota = shouldGrant
+      ? effectiveQuota
+      : isEnterprise && (input.isActive ?? true) && customCreditQuota != null
+        ? Math.max(0, customCreditQuota - prevEnterpriseQuota)
+        : 0;
 
     const row = await this.prisma.$transaction(async (tx) => {
       const assigned = await tx.billingCompanyPlan.upsert({
@@ -371,6 +423,9 @@ export class BillingService {
           endsAt,
           isActive: input.isActive ?? true,
           note: input.note ?? null,
+          customJobPostQuota,
+          customCreditQuota,
+          customDurationDays,
           createdBy: actorId,
           updatedBy: actorId,
         },
@@ -380,12 +435,15 @@ export class BillingService {
           endsAt,
           isActive: input.isActive ?? true,
           note: input.note === undefined ? undefined : input.note,
+          customJobPostQuota,
+          customCreditQuota,
+          customDurationDays,
           updatedBy: actorId,
         },
         include: { plan: true },
       });
 
-      if (shouldGrant && quota > 0 && assigned.isActive) {
+      if (quota > 0 && assigned.isActive) {
         const account = await tx.billingCreditAccount.upsert({
           where: { companyId: company.id },
           create: { companyId: company.id, tenantId: company.tenantId },
@@ -412,7 +470,9 @@ export class BillingService {
             quantity: 1,
             actorUserId: actorId,
             actorEmail: actor.email ?? null,
-            note: `Tặng ${quota} Credit khi gán gói ${plan.name}`,
+            note: isEnterprise
+              ? `${shouldGrant ? 'Cấp' : 'Cấp bổ sung'} ${quota} Credit theo hợp đồng ${plan.name}`
+              : `Tặng ${quota} Credit khi gán gói ${plan.name}`,
             metadata: {
               source: 'plan_assign',
               planId: plan.id,
@@ -451,14 +511,24 @@ export class BillingService {
       input.companyId,
       before ? 'update' : 'create',
       before
-        ? { planId: before.planId, isActive: before.isActive, endsAt: before.endsAt?.toISOString() ?? null }
+        ? {
+            planId: before.planId,
+            isActive: before.isActive,
+            endsAt: before.endsAt?.toISOString() ?? null,
+            customJobPostQuota: before.customJobPostQuota,
+            customCreditQuota: before.customCreditQuota,
+            customDurationDays: before.customDurationDays,
+          }
         : null,
       {
         planId: row.planId,
         planCode: plan.code,
         isActive: row.isActive,
         endsAt: row.endsAt?.toISOString() ?? null,
-        creditGranted: shouldGrant && quota > 0 && row.isActive ? quota : 0,
+        customJobPostQuota: row.customJobPostQuota,
+        customCreditQuota: row.customCreditQuota,
+        customDurationDays: row.customDurationDays,
+        creditGranted: quota > 0 && row.isActive ? quota : 0,
       },
     );
     return this.mapCompanyPlan(row);
@@ -550,7 +620,14 @@ export class BillingService {
       return this.provisionStarterPlan(companyId, { renew: true });
     }
     const expired = Boolean(existing.endsAt && existing.endsAt < now);
-    if (expired || !existing.isActive) {
+    if (expired) {
+      await this.zeroStarterCredit(companyId, existing.startsAt, existing.endsAt!, existing.plan.name);
+      return this.provisionStarterPlan(companyId, {
+        renew: true,
+        note: `Về gói Khám phá vì hợp đồng ${existing.plan.name} hết hạn`,
+      });
+    }
+    if (!existing.isActive) {
       return this.provisionStarterPlan(companyId, { renew: true });
     }
     await this.safeBackfillPlanGrant(companyId, existing);
@@ -649,8 +726,11 @@ export class BillingService {
       );
     }
 
-    const quota = assignment?.plan?.jobPostQuota ?? null;
-    const countActiveJobs = assignment?.plan?.code === 'DOANH_NGHIEP';
+    const quota = assignment?.customJobPostQuota ?? assignment?.plan?.jobPostQuota ?? null;
+    const effectiveCreditQuota = assignment?.customCreditQuota ?? assignment?.plan?.creditQuota ?? null;
+    const effectiveDisplayDays = assignment?.customDurationDays ?? assignment?.plan?.durationDays ?? null;
+    const countActiveJobs =
+      assignment?.plan?.code === 'DOANH_NGHIEP' || assignment?.plan?.code === 'ENTERPRISE';
     const jobsUsed = assignment
       ? await this.prisma.job.count({
           where: countActiveJobs
@@ -700,7 +780,7 @@ export class BillingService {
       plan: planView ?? (assignment?.plan ? this.mapCompanyPlan(assignment) : null),
       planCode: assignment?.plan?.code ?? planView?.planCode ?? null,
       planName: assignment?.plan?.name ?? planView?.planName ?? null,
-      creditQuota: assignment?.plan?.creditQuota ?? null,
+      creditQuota: effectiveCreditQuota,
       jobPostQuota: quota,
       credits: {
         balance: account.balance,
@@ -710,21 +790,21 @@ export class BillingService {
       },
       jobsUsed,
       jobsRemaining,
-      jobDisplayDays: assignment?.plan?.durationDays ?? null,
+      jobDisplayDays: effectiveDisplayDays,
       actionCosts,
       enforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
       sourcing,
     };
   }
 
-  /** Số ngày tin được phép hiển thị — lấy durationDays SuperAdmin của gói đang gán. */
+  /** Số ngày tin được phép hiển thị — lấy customDurationDays (nếu có) hoặc durationDays SuperAdmin của gói đang gán. */
   async getJobDisplayDays(companyId: string): Promise<number | null> {
     await this.ensureCompanyPlan(companyId);
     const row = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
       include: { plan: { select: { code: true, durationDays: true } } },
     });
-    const days = row?.plan?.durationDays;
+    const days = row?.customDurationDays ?? row?.plan?.durationDays;
     if (row?.plan?.code === STARTER_PLAN_CODE && (await this.hasActiveSourcingPlan(companyId))) {
       return Math.max(days ?? 0, 30);
     }
@@ -745,7 +825,7 @@ export class BillingService {
     if (row?.plan?.code === STARTER_PLAN_CODE && (await this.hasActiveSourcingPlan(companyId))) {
       return addVnCalendarDays(from, 30);
     }
-    const days = row?.plan?.durationDays;
+    const days = row?.customDurationDays ?? row?.plan?.durationDays;
     const fromDays = days != null && days > 0 ? addVnCalendarDays(from, days) : null;
     if (row?.plan?.code === STARTER_PLAN_CODE && row.endsAt) {
       const endsAtVnDate = toVnCalendarDate(row.endsAt);
@@ -951,7 +1031,7 @@ export class BillingService {
     companyId: string,
     assignment: BillingCompanyPlan & { plan: BillingPlatformPlan },
   ): Promise<void> {
-    const quota = assignment.plan.creditQuota ?? 0;
+    const quota = assignment.customCreditQuota ?? assignment.plan.creditQuota ?? 0;
     if (quota <= 0) return;
     const granted = await this.prisma.billingCreditTransaction.findFirst({
       where: { companyId, action: 'plan_grant' },
@@ -1888,6 +1968,9 @@ export class BillingService {
       endsAt: row.endsAt?.toISOString() ?? null,
       isActive: row.isActive,
       note: row.note,
+      customJobPostQuota: row.customJobPostQuota ?? null,
+      customCreditQuota: row.customCreditQuota ?? null,
+      customDurationDays: row.customDurationDays ?? null,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

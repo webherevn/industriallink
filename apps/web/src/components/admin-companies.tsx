@@ -2,15 +2,16 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Search, X } from 'lucide-react';
+import { Building2, Search, X } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CompanyStatus, type AdminCompanyListItem } from '@industriallink/contracts';
 import { AdminShell } from '@/components/admin-shell';
 import { Button, Card, Input } from '@/components/ui';
 import {
   assignAdminCompanyPlan,
   assignAdminCompanySourcingPlan,
+  fetchAdminCompanyPlan,
   fetchAdminPlatformPlans,
   fetchAdminSourcingPlans,
   unassignAdminCompanySourcingPlan,
@@ -352,6 +353,12 @@ function PlanTag({ label, empty, muted = false }: { label: string | null; empty:
   );
 }
 
+function addMonthsToDateInput(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
 function PlanPicker({
   company,
   onClose,
@@ -371,11 +378,23 @@ function PlanPicker({
     queryKey: ['admin-billing-sourcing-plans', 'active'],
     queryFn: () => fetchAdminSourcingPlans(false),
   });
+  const { data: currentAssignment, isLoading: loadingAssignment } = useQuery({
+    queryKey: ['admin-company-plan', company.id],
+    queryFn: () => fetchAdminCompanyPlan(company.id),
+  });
+
   const activePlatforms = (platforms ?? []).filter((p) => p.isActive);
   const activeSourcing = (sourcings ?? []).filter((p) => p.isActive);
   const [platformId, setPlatformId] = useState<string | null>(null);
   const [sourcingId, setSourcingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [customJobPostQuota, setCustomJobPostQuota] = useState<string>('');
+  const [customCreditQuota, setCustomCreditQuota] = useState<string>('');
+  const [customDurationDays, setCustomDurationDays] = useState<string>('90');
+  const [endsAtDate, setEndsAtDate] = useState<string>(() => addMonthsToDateInput(12));
+  const [contractNote, setContractNote] = useState<string>('');
+  const [initializedAssignment, setInitializedAssignment] = useState(false);
 
   const selectedPlatform =
     platformId ??
@@ -383,6 +402,35 @@ function PlanPicker({
     activePlatforms.find((p) => p.code === 'KHAM_PHA')?.id ??
     activePlatforms[0]?.id ??
     '';
+  const selectedPlatformObj = activePlatforms.find((p) => p.id === selectedPlatform) ?? null;
+  const isEnterpriseSelected = selectedPlatformObj?.code === 'ENTERPRISE';
+
+  useEffect(() => {
+    if (initializedAssignment || loadingAssignment || loadingPlatforms) return;
+    const enterpriseTemplate = activePlatforms.find((p) => p.code === 'ENTERPRISE');
+    if (currentAssignment?.planCode === 'ENTERPRISE') {
+      setCustomJobPostQuota(
+        currentAssignment.customJobPostQuota != null ? String(currentAssignment.customJobPostQuota) : '',
+      );
+      setCustomCreditQuota(
+        currentAssignment.customCreditQuota != null ? String(currentAssignment.customCreditQuota) : '',
+      );
+      setCustomDurationDays(
+        currentAssignment.customDurationDays != null ? String(currentAssignment.customDurationDays) : '',
+      );
+      setEndsAtDate(currentAssignment.endsAt ? currentAssignment.endsAt.slice(0, 10) : '');
+      setContractNote(currentAssignment.note ?? '');
+    } else if (enterpriseTemplate) {
+      if (enterpriseTemplate.creditQuota != null) {
+        setCustomCreditQuota(String(enterpriseTemplate.creditQuota));
+      }
+      if (enterpriseTemplate.durationDays != null) {
+        setCustomDurationDays(String(enterpriseTemplate.durationDays));
+      }
+    }
+    setInitializedAssignment(true);
+  }, [activePlatforms, currentAssignment, initializedAssignment, loadingAssignment, loadingPlatforms]);
+
   const selectedSourcing =
     sourcingId ??
     (company.sourcingPlanCode
@@ -396,12 +444,32 @@ function PlanPicker({
     }
     setSaving(true);
     try {
-      await assignAdminCompanyPlan({
-        companyId: company.id,
-        planId: selectedPlatform,
-        isActive: true,
-        note: 'SuperAdmin gán từ danh sách công ty',
-      });
+      const toNullableInt = (raw: string): number | null => {
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        const parsed = Number(trimmed);
+        return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : null;
+      };
+
+      await assignAdminCompanyPlan(
+        isEnterpriseSelected
+          ? {
+              companyId: company.id,
+              planId: selectedPlatform,
+              endsAt: endsAtDate ? new Date(`${endsAtDate}T23:59:59.999Z`).toISOString() : null,
+              isActive: true,
+              note: contractNote.trim() || 'SuperAdmin kích hoạt hợp đồng Enterprise',
+              customJobPostQuota: toNullableInt(customJobPostQuota),
+              customCreditQuota: toNullableInt(customCreditQuota),
+              customDurationDays: toNullableInt(customDurationDays),
+            }
+          : {
+              companyId: company.id,
+              planId: selectedPlatform,
+              isActive: true,
+              note: 'SuperAdmin gán từ danh sách công ty',
+            },
+      );
       if (selectedSourcing) {
         await assignAdminCompanySourcingPlan({
           companyId: company.id,
@@ -422,7 +490,7 @@ function PlanPicker({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#E8872A]">Gói đăng ký</p>
@@ -436,7 +504,7 @@ function PlanPicker({
           </button>
         </div>
 
-        {loadingPlatforms || loadingSourcing ? (
+        {loadingPlatforms || loadingSourcing || loadingAssignment ? (
           <div className="admin-dash-skel mt-4 h-24" />
         ) : (
           <>
@@ -444,7 +512,13 @@ function PlanPicker({
               <legend className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gói tin đăng</legend>
               <div className="mt-2 space-y-1.5">
                 {activePlatforms.map((plan) => (
-                  <label key={plan.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                  <label
+                    key={plan.id}
+                    className={clsx(
+                      'flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 transition hover:bg-slate-50',
+                      selectedPlatform === plan.id && plan.code === 'ENTERPRISE' && 'bg-amber-50/70 ring-1 ring-amber-200',
+                    )}
+                  >
                     <input
                       type="radio"
                       name="platform-plan"
@@ -453,10 +527,120 @@ function PlanPicker({
                     />
                     <span className="text-sm font-medium text-slate-800">{plan.name}</span>
                     <span className="text-[11px] text-slate-400">{plan.code}</span>
+                    {plan.code === 'ENTERPRISE' ? (
+                      <span className="ml-auto rounded-full bg-[#072348] px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                        Hợp đồng riêng
+                      </span>
+                    ) : null}
                   </label>
                 ))}
               </div>
             </fieldset>
+
+            {isEnterpriseSelected ? (
+              <div className="mt-4 rounded-xl border border-[#123d73]/20 bg-gradient-to-b from-slate-50 to-amber-50/30 p-3.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#072348] text-amber-300">
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-[#072348]">
+                      Thông số Hợp đồng Enterprise cho {company.name}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Áp dụng độc lập cho công ty này, không ảnh hưởng Bảng giá chung hay công ty khác.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <label className="text-xs font-semibold text-slate-700">Ngày kết thúc hợp đồng</label>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { label: '3 tháng', months: 3 },
+                          { label: '6 tháng', months: 6 },
+                          { label: '12 tháng', months: 12 },
+                        ].map((preset) => (
+                          <button
+                            key={preset.months}
+                            type="button"
+                            onClick={() => setEndsAtDate(addMonthsToDateInput(preset.months))}
+                            className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-[#072348] hover:border-amber-300 hover:bg-amber-50"
+                          >
+                            +{preset.label}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setEndsAtDate('')}
+                          className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100"
+                        >
+                          Vô thời hạn
+                        </button>
+                      </div>
+                    </div>
+                    <Input
+                      type="date"
+                      className="mt-1"
+                      value={endsAtDate}
+                      onChange={(e) => setEndsAtDate(e.target.value)}
+                    />
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      Để trống nếu hợp đồng không giới hạn ngày kết thúc. Khi hết hạn hệ thống tự chuyển về gói Khám phá.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Số tin đăng đồng thời</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      className="mt-1"
+                      placeholder="Trống = Không giới hạn (∞)"
+                      value={customJobPostQuota}
+                      onChange={(e) => setCustomJobPostQuota(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Credit cấp theo hợp đồng</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="mt-1"
+                      placeholder="VD: 500"
+                      value={customCreditQuota}
+                      onChange={(e) => setCustomCreditQuota(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Hạn hiển thị mỗi tin (ngày)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      className="mt-1"
+                      placeholder="VD: 90 (Trống = Không giới hạn)"
+                      value={customDurationDays}
+                      onChange={(e) => setCustomDurationDays(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Mã hợp đồng / Ghi chú</label>
+                    <Input
+                      className="mt-1"
+                      placeholder="VD: HĐ 15/2026/INLINK"
+                      value={contractNote}
+                      onChange={(e) => setContractNote(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <fieldset className="mt-4">
               <legend className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gói Săn</legend>
               <div className="mt-2 space-y-1.5">
@@ -491,7 +675,7 @@ function PlanPicker({
             Huỷ
           </Button>
           <Button type="button" onClick={() => void save()} disabled={saving || !selectedPlatform}>
-            {saving ? 'Đang gán…' : 'Gán gói'}
+            {saving ? 'Đang lưu…' : isEnterpriseSelected ? 'Lưu hợp đồng Enterprise' : 'Gán gói'}
           </Button>
         </div>
       </div>
