@@ -170,9 +170,12 @@ export function HomeHero({ hero }: { hero: HomepageHeroContent }) {
             </Link>
             <Link
               href={hero.secondaryHref}
-              className="inline-flex min-h-[64px] min-w-[210px] flex-col justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[#072348] shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+              className="group inline-flex min-h-[64px] min-w-[210px] flex-col justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[#072348] shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
             >
-              <span className="text-[15px] font-bold">{hero.secondaryLabel}</span>
+              <span className="flex items-center gap-2 text-[15px] font-bold text-[#072348]">
+                {hero.secondaryLabel}
+                <ArrowRight className="h-4 w-4 text-[#072348] transition-transform duration-300 group-hover:translate-x-1" />
+              </span>
               <span className="text-[12px] font-medium text-slate-500">{hero.secondaryHint}</span>
             </Link>
           </div>
