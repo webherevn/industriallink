@@ -4,11 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   Bookmark,
   BookmarkCheck,
   Briefcase,
   Calendar,
+  Check,
   CheckCircle2,
   Clock,
   Coins,
@@ -51,6 +53,7 @@ import {
   type SourcingDrawerSection,
 } from '@/components/recruiter-sourcing-all-in-one';
 import { RecruiterShell } from '@/components/recruiter-shell';
+import { SourcingOverviewDashboard } from '@/components/sourcing-overview-dashboard';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { addCandidateShortlist, getCandidateById, removeCandidateShortlist } from '@/lib/candidate';
@@ -58,7 +61,11 @@ import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
 import { getJob, listMyJobs } from '@/lib/jobs';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
-import { consumeRecruiterSourcing, fetchRecruiterSourcing } from '@/lib/recruiter-billing';
+import {
+  consumeRecruiterSourcing,
+  fetchRecruiterEntitlements,
+  fetchRecruiterSourcing,
+} from '@/lib/recruiter-billing';
 
 function potentialOpenCreditCost(score: number): 1 | 2 {
   const pct = Math.max(0, Math.min(100, score));
@@ -169,11 +176,12 @@ const STATUS_LABEL: Record<string, string> = {
   closed: 'Đã đóng',
 };
 
-export function RecruiterSourcingWorkspace() {
+export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string } = {}) {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [jobId, setJobId] = useState('');
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(campaignId ?? null);
   const [selectedRoundId, setSelectedRoundId] = useState<string>('all');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'select' | 'create'>('select');
@@ -204,6 +212,11 @@ export function RecruiterSourcingWorkspace() {
     queryFn: listMyJobs,
     staleTime: 60_000,
   });
+  const { data: billingEntitlements } = useQuery({
+    queryKey: ['recruiter-billing-entitlements'],
+    queryFn: fetchRecruiterEntitlements,
+    staleTime: 60_000,
+  });
 
   const consume = useMutation({
     mutationFn: consumeRecruiterSourcing,
@@ -222,6 +235,7 @@ export function RecruiterSourcingWorkspace() {
       if (vars.kind === 'position') {
         setTitle('');
         setJobId('');
+        setSelectedPackageId(null);
         setCreateModalOpen(false);
         setModalMode('select');
         const newest = ws.engagements[0]?.id;
@@ -316,9 +330,11 @@ export function RecruiterSourcingWorkspace() {
     [data?.engagements],
   );
   const selected =
-    activeId && validEngagements.some((eng) => eng.id === activeId)
-      ? activeId
-      : validEngagements[0]?.id ?? null;
+    campaignId && validEngagements.some((eng) => eng.id === campaignId)
+      ? campaignId
+      : activeId && validEngagements.some((eng) => eng.id === activeId)
+        ? activeId
+        : validEngagements[0]?.id ?? null;
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
   const hasOutreach =
@@ -432,35 +448,77 @@ export function RecruiterSourcingWorkspace() {
         <header className="brand-hero-surface recruiter-dash-rise rounded-3xl px-5 py-6 sm:px-7">
           <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
           <div className="relative flex flex-wrap items-center justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
                 Săn nhân sự · All-in-One
               </p>
               <h1 className="mt-1.5 text-2xl font-bold uppercase tracking-tight sm:text-3xl">
-                {hasPlan && e?.planName ? e.planName : 'Gói Săn & hạn mức'}
+                {campaignId && selectedEngagement
+                  ? formatJobTitle(selectedEngagement.title)
+                  : hasPlan && e?.planName
+                    ? e.planName
+                    : 'Gói Săn & hạn mức'}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-white/80">
-                {hasPlan
-                  ? ended
-                    ? 'Kỳ gói đã kết thúc.'
-                    : 'iLink đối chiếu ứng viên theo tin bạn gắn, tự động quét 2h/lần và xử lý tuyển dụng từ A–Z ngay tại đây.'
-                  : 'Kích hoạt gói để iLink săn ứng viên cho vị trí đang tuyển.'}
+                {campaignId && selectedEngagement
+                  ? 'Quản lý danh sách ứng viên ứng tuyển, ứng viên tiềm năng AI Matching, shortlist và mời phỏng vấn cho chiến dịch này.'
+                  : hasPlan
+                    ? ended
+                      ? 'Kỳ gói đã kết thúc.'
+                      : 'iLink đối chiếu ứng viên theo tin bạn gắn, tự động quét 2h/lần và xử lý tuyển dụng từ A–Z ngay tại đây.'
+                    : 'Kích hoạt gói để iLink săn ứng viên cho vị trí đang tuyển.'}
               </p>
             </div>
-            {hasPlan ? (
-              <button
-                type="button"
-                disabled={!canOpenMorePositions}
-                onClick={() => {
-                  setModalMode('select');
-                  setCreateModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[#E8872A] px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#d6761b] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-              >
-                <Plus className="h-4 w-4 stroke-[2.5]" />
-                Tạo Tin Săn
-              </button>
-            ) : null}
+
+            {!campaignId && (
+              <ul className="hidden space-y-1.5 text-xs font-medium text-white/90 xl:block">
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/15 text-sky-200">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  Tìm ứng viên chủ động, đúng tiêu chí
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/15 text-sky-200">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  Tiết kiệm thời gian, tăng tốc tuyển dụng
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/15 text-sky-200">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  Quản lý nhiều chiến dịch song song
+                </li>
+              </ul>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {campaignId ? (
+                <Link
+                  href="/recruiter/sourcing"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-xs transition hover:bg-white/20"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Tổng quan Săn nhân sự
+                </Link>
+              ) : null}
+              {hasPlan ? (
+                <button
+                  type="button"
+                  disabled={!canOpenMorePositions}
+                  onClick={() => {
+                    setSelectedPackageId(null);
+                    setModalMode('select');
+                    setCreateModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#E8872A] px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#d6761b] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                >
+                  <Plus className="h-4 w-4 stroke-[2.5]" />
+                  Tạo Tin săn
+                </button>
+              ) : null}
+            </div>
           </div>
         </header>
 
@@ -515,7 +573,31 @@ export function RecruiterSourcingWorkspace() {
           </section>
         ) : (
           <>
-            <QuotaGrid
+            {!campaignId ? (
+              <SourcingOverviewDashboard
+                entitlements={e!}
+                packages={data?.packages ?? []}
+                engagements={validEngagements}
+                jobs={jobs ?? []}
+                usages={data?.usages ?? []}
+                scanRounds={data?.scanRounds ?? []}
+                shortlistedByEngagement={data?.shortlistedByEngagement ?? {}}
+                outreachByEngagement={data?.outreachByEngagement ?? {}}
+                creditBalance={billingEntitlements?.credits.balance ?? 0}
+                canOpenMorePositions={canOpenMorePositions}
+                onActivatePackage={(pkgId) => {
+                  setSelectedPackageId(pkgId || null);
+                  setModalMode('select');
+                  setCreateModalOpen(true);
+                }}
+                onOpenRevision={(engId) => {
+                  setActiveId(engId);
+                  setRevisionModalOpen(true);
+                }}
+              />
+            ) : (
+              <>
+                <QuotaGrid
               entitlements={e!}
               hasOutreach={hasOutreach}
               totalMatchedCount={potentialCandidates.length}
@@ -808,6 +890,8 @@ export function RecruiterSourcingWorkspace() {
                 ready={Boolean(huntJobId) && !ended}
               />
             </div>
+              </>
+            )}
 
             {/* LỊCH SỬ (PHÂN TRANG 7 MỤC / TRANG) */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
@@ -996,6 +1080,7 @@ export function RecruiterSourcingWorkspace() {
                       const selectedJob = (jobs ?? []).find((j) => j.id === jobId);
                       consume.mutate({
                         kind: 'position',
+                        packageId: selectedPackageId ?? undefined,
                         jobId,
                         title: selectedJob?.title || undefined,
                       });
@@ -1020,6 +1105,7 @@ export function RecruiterSourcingWorkspace() {
                     onCreated={(createdJob) => {
                       consume.mutate({
                         kind: 'position',
+                        packageId: selectedPackageId ?? undefined,
                         jobId: createdJob.id,
                         title: createdJob.title,
                       });
@@ -1033,6 +1119,7 @@ export function RecruiterSourcingWorkspace() {
                     onCreated={(createdJob) => {
                       consume.mutate({
                         kind: 'position',
+                        packageId: selectedPackageId ?? undefined,
                         jobId: createdJob.id,
                         title: createdJob.title,
                       });

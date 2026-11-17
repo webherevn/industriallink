@@ -1348,6 +1348,7 @@ export class BillingService implements OnModuleInit {
         description: input.description,
         feeVnd: BigInt(input.feeVnd),
         creditQuota: input.creditQuota,
+        durationDays: input.durationDays ?? 30,
         positionQuota: input.positionQuota,
         searchRoundQuota: input.searchRoundQuota,
         shortlistQuota: input.shortlistQuota,
@@ -1383,6 +1384,7 @@ export class BillingService implements OnModuleInit {
     if (input.shortlistQuota !== undefined) data.shortlistQuota = input.shortlistQuota;
     if (input.revisionQuota !== undefined) data.revisionQuota = input.revisionQuota;
     if (input.creditQuota !== undefined) data.creditQuota = input.creditQuota;
+    if (input.durationDays !== undefined) data.durationDays = Math.max(1, Math.trunc(input.durationDays));
     if (input.scopeItems !== undefined || input.serviceScope !== undefined) {
       data.serviceScope = this.scopePayload(input) as Prisma.JsonArray;
     }
@@ -2099,6 +2101,7 @@ export class BillingService implements OnModuleInit {
       promoPriceVnd: sale.toString(),
       promoLabel: promo.label,
       creditQuota: s.creditQuota,
+      durationDays: s.durationDays ?? 30,
       positionQuota: s.positionQuota,
       searchRoundQuota: s.searchRoundQuota,
       shortlistQuota: s.shortlistQuota,

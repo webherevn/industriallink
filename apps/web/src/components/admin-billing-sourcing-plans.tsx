@@ -54,6 +54,7 @@ const EMPTY: FormState = {
   shortlistQuota: 1,
   revisionQuota: 1,
   creditQuota: 30,
+  durationDays: 30,
   serviceScope: ['ai_match', 'filter_rank'],
   scopeItems: DEFAULT_SOURCING_SCOPE_LINES.map((line) => ({
     ...line,
@@ -213,6 +214,9 @@ export function AdminBillingSourcingPlans() {
                         Credit: <strong>{p.creditQuota ?? '∞'}</strong>
                       </span>
                       <span>
+                        Thời hạn: <strong>{p.durationDays ?? 30} ngày</strong>
+                      </span>
+                      <span>
                         Báo cáo: <strong>{p.searchRoundQuota ?? '∞'}</strong>
                       </span>
                       <span>
@@ -259,6 +263,7 @@ export function AdminBillingSourcingPlans() {
                           shortlistQuota: p.shortlistQuota ?? undefined,
                           revisionQuota: p.revisionQuota ?? undefined,
                           creditQuota: p.creditQuota ?? undefined,
+                          durationDays: p.durationDays ?? 30,
                           serviceScope: p.serviceScope as FormState['serviceScope'],
                           scopeItems: scopeLinesOf(p),
                           sortOrder: p.sortOrder,
@@ -405,6 +410,19 @@ function EditModal({
               value={form.creditQuota ?? ''}
               onChange={(e) =>
                 update('creditQuota', e.target.value === '' ? undefined : Number(e.target.value))
+              }
+            />
+          </Field>
+          <Field
+            label="Thời hạn sử dụng (ngày)"
+            description="Số ngày hiệu lực kể từ khi kích hoạt chiến dịch Tin Săn (mặc định 30 ngày)"
+          >
+            <Input
+              type="number"
+              min={1}
+              value={form.durationDays ?? 30}
+              onChange={(e) =>
+                update('durationDays', e.target.value === '' ? 30 : Number(e.target.value))
               }
             />
           </Field>

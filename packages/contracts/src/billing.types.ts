@@ -158,6 +158,8 @@ export interface BillingSourcingPlanView {
   promoLabel?: string | null;
   /** Lượt mở hồ sơ tiềm năng đi kèm gói. */
   creditQuota?: number | null;
+  /** Thời hạn sử dụng (ngày) kể từ khi kích hoạt chiến dịch Tin Săn (mặc định 30 ngày). */
+  durationDays?: number;
   positionQuota: number | null;
   searchRoundQuota: number | null;
   shortlistQuota: number | null;
@@ -415,10 +417,32 @@ export interface RecruiterSourcingEntitlements {
   outreachRemaining?: number | null;
 }
 
+export interface RecruiterSourcingPackageView {
+  id: string;
+  code: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  status: 'reserved' | 'active' | 'completed' | 'expired';
+  durationDays: number;
+  positionQuota: number | null;
+  searchRoundQuota: number | null;
+  shortlistQuota: number | null;
+  revisionQuota: number | null;
+  creditQuota: number | null;
+  purchasedAt: string;
+  activatedAt: string | null;
+  reserveEndsAt: string | null;
+  endsAt: string | null;
+  engagementId: string | null;
+  engagementTitle: string | null;
+}
+
 export interface RecruiterSourcingEngagementView {
   id: string;
   companyId: string;
   assignmentId: string;
+  packageId?: string | null;
   jobId: string | null;
   title: string;
   status: string;
@@ -508,6 +532,7 @@ export interface RecruiterSourcingOutreachItem {
 
 export interface RecruiterSourcingWorkspace {
   entitlements: RecruiterSourcingEntitlements;
+  packages?: RecruiterSourcingPackageView[];
   engagements: RecruiterSourcingEngagementView[];
   usages: RecruiterSourcingUsageView[];
   scanRounds?: RecruiterSourcingScanRoundView[];

@@ -67,6 +67,7 @@ export interface AdminCreateSourcingPlanRequest {
   shortlistQuota?: number;
   revisionQuota?: number;
   creditQuota?: number;
+  durationDays?: number;
   serviceScope?: SourcingServiceScope[];
   /** Dòng phạm vi dịch vụ. Có trường này thì ghi đè serviceScope. */
   scopeItems?: SourcingScopeLine[];
@@ -235,6 +236,7 @@ export interface RecruiterConsumeSourcingRequest {
   kind: SourcingQuotaKind;
   /** Bắt buộc với search_round / shortlist / revision. Mở vị trí có thể tạo engagement mới. */
   engagementId?: string;
+  packageId?: string;
   jobId?: string;
   title?: string;
   note?: string;

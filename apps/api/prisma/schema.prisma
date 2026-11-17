@@ -1444,6 +1444,8 @@ model BillingSourcingPlan {
   revisionQuota Int? @map("revision_quota")
   /// Lượt mở hồ sơ đi kèm gói. Đọc live khi NTD đang dùng gói; không cộng vào ví Credit.
   creditQuota Int? @map("credit_quota")
+  /// Thời hạn sử dụng (ngày) kể từ khi kích hoạt chiến dịch Tin Săn (mặc định 30 ngày).
+  durationDays Int @default(30) @map("duration_days")
 
   /// Phạm vi dịch vụ dạng JSON (vd: ["ai_match","filter","shortlist","strengths_gaps","priority","outreach","follow_up","replacement"]).
   /// Mapping đến 8 hàng trong bảng XI tài liệu.
@@ -1459,6 +1461,7 @@ model BillingSourcingPlan {
   updatedBy String?  @map("updated_by") @db.Uuid
 
   companyAssignments BillingCompanySourcingPlan[]
+  packages           BillingSourcingPackage[]
 
   @@map("billing_sourcing_plan")
   @@schema("billing")
@@ -1502,11 +1505,38 @@ model BillingCompanySourcingPlan {
   @@schema("billing")
 }
 
+/// Từng gói Tin Săn đã mua/gán riêng biệt cho công ty (TS-000101, TS-000102...).
+model BillingSourcingPackage {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String    @unique
+  companyId     String    @map("company_id") @db.Uuid
+  planId        String    @map("plan_id") @db.Uuid
+  /// 'reserved' | 'active' | 'completed' | 'expired'
+  status        String    @default("reserved")
+  durationDays  Int       @default(30) @map("duration_days")
+  purchasedAt   DateTime  @default(now()) @map("purchased_at")
+  activatedAt   DateTime? @map("activated_at")
+  reserveEndsAt DateTime? @map("reserve_ends_at")
+  endsAt        DateTime? @map("ends_at")
+  note          String?
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  plan        BillingSourcingPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  engagements BillingSourcingEngagement[]
+
+  @@index([companyId, status, purchasedAt])
+  @@map("billing_sourcing_package")
+  @@schema("billing")
+}
+
 /// Một vị trí Săn đã mở trong gói đang gán (trừ 1 positionQuota).
 model BillingSourcingEngagement {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId    String   @map("company_id") @db.Uuid
   assignmentId String   @map("assignment_id") @db.Uuid
+  packageId    String?  @map("package_id") @db.Uuid
   jobId        String?  @map("job_id") @db.Uuid
   title        String
   /// 'open' | 'in_progress' | 'shortlisted' | 'closed'
@@ -1516,6 +1546,7 @@ model BillingSourcingEngagement {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  package    BillingSourcingPackage?    @relation(fields: [packageId], references: [id], onDelete: SetNull)
   usages     BillingSourcingUsage[]
 
   @@index([companyId, createdAt])

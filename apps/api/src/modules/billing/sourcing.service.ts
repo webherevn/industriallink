@@ -8,6 +8,7 @@ import {
 import type {
   BillingCompanySourcingPlan,
   BillingSourcingEngagement,
+  BillingSourcingPackage,
   BillingSourcingPlan,
   Prisma,
 } from '@prisma/client';
@@ -21,6 +22,7 @@ import {
   type RecruiterSourcingEngagementView,
   type RecruiterSourcingEntitlements,
   type RecruiterSourcingOutreachItem,
+  type RecruiterSourcingPackageView,
   type RecruiterSourcingScanCandidateItem,
   type RecruiterSourcingScanRoundView,
   type RecruiterSourcingReportView,
@@ -299,8 +301,11 @@ export class SourcingService {
         }
       }
     }
+    const packages = await this.syncAndListPackages(companyId, entitlements, engagements);
+
     return {
       entitlements,
+      packages,
       engagements: engagements.map((e) => this.mapEngagement(e)),
       usages: usages.map((u) => this.mapUsage(u)),
       scanRounds,
@@ -308,6 +313,122 @@ export class SourcingService {
       outreachByEngagement,
       reports,
     };
+  }
+
+  private async nextPackageCode(tx: Prisma.TransactionClient): Promise<string> {
+    const latest = await tx.billingSourcingPackage.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { code: true },
+    });
+    const m = latest?.code.match(/TS-(\d+)/);
+    const nextNum = m ? Math.max(101, Number(m[1]) + 1) : 101;
+    return `TS-${String(nextNum).padStart(6, '0')}`;
+  }
+
+  private async syncAndListPackages(
+    companyId: string,
+    entitlements: RecruiterSourcingEntitlements,
+    engagements: BillingSourcingEngagement[],
+  ): Promise<RecruiterSourcingPackageView[]> {
+    let rows = await this.prisma.billingSourcingPackage.findMany({
+      where: { companyId },
+      include: {
+        plan: true,
+        engagements: {
+          select: { id: true, title: true, status: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { purchasedAt: 'desc' },
+    });
+
+    // Backfill 1 gói cho dữ liệu cũ nếu công ty đã có gói Săn nhưng chưa có bản ghi BillingSourcingPackage.
+    if (rows.length === 0 && entitlements.assignment?.isActive) {
+      const a = entitlements.assignment;
+      const plan = await this.prisma.billingSourcingPlan.findUnique({ where: { id: a.planId } });
+      if (plan) {
+        const isReserved = !a.activatedAt && Boolean(a.reserveEndsAt);
+        const createdPkg = await this.prisma.$transaction(async (tx) => {
+          const code = await this.nextPackageCode(tx);
+          const pkg = await tx.billingSourcingPackage.create({
+            data: {
+              code,
+              companyId,
+              planId: plan.id,
+              status: isReserved ? 'reserved' : 'active',
+              durationDays: plan.durationDays ?? SOURCING_CYCLE_DAYS,
+              purchasedAt: new Date(a.startsAt),
+              activatedAt: a.activatedAt ? new Date(a.activatedAt) : isReserved ? null : new Date(a.startsAt),
+              reserveEndsAt: a.reserveEndsAt ? new Date(a.reserveEndsAt) : null,
+              endsAt: a.endsAt ? new Date(a.endsAt) : null,
+              note: a.note ?? null,
+            },
+          });
+          if (engagements.length > 0) {
+            await tx.billingSourcingEngagement.updateMany({
+              where: { companyId, packageId: null },
+              data: { packageId: pkg.id },
+            });
+          }
+          return pkg;
+        });
+        if (createdPkg) {
+          rows = await this.prisma.billingSourcingPackage.findMany({
+            where: { companyId },
+            include: {
+              plan: true,
+              engagements: {
+                select: { id: true, title: true, status: true },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+            orderBy: { purchasedAt: 'desc' },
+          });
+        }
+      }
+    }
+
+    const nowMs = Date.now();
+    const expiredIds: string[] = [];
+    for (const r of rows) {
+      if (r.status === 'reserved' && r.reserveEndsAt && r.reserveEndsAt.getTime() < nowMs) {
+        expiredIds.push(r.id);
+        r.status = 'expired';
+      } else if (r.status === 'active' && r.endsAt && r.endsAt.getTime() < nowMs) {
+        expiredIds.push(r.id);
+        r.status = 'expired';
+      }
+    }
+    if (expiredIds.length > 0) {
+      await this.prisma.billingSourcingPackage.updateMany({
+        where: { id: { in: expiredIds } },
+        data: { status: 'expired' },
+      });
+    }
+
+    return rows.map((r) => {
+      const primaryEng = r.engagements[0] ?? null;
+      return {
+        id: r.id,
+        code: r.code,
+        planId: r.planId,
+        planCode: r.plan.code,
+        planName: r.plan.name,
+        status: (r.status as RecruiterSourcingPackageView['status']) ?? 'reserved',
+        durationDays: r.durationDays,
+        positionQuota: r.plan.positionQuota,
+        searchRoundQuota: r.plan.searchRoundQuota,
+        shortlistQuota: r.plan.shortlistQuota,
+        revisionQuota: r.plan.revisionQuota,
+        creditQuota: r.plan.creditQuota,
+        purchasedAt: r.purchasedAt.toISOString(),
+        activatedAt: r.activatedAt?.toISOString() ?? null,
+        reserveEndsAt: r.reserveEndsAt?.toISOString() ?? null,
+        endsAt: r.endsAt?.toISOString() ?? null,
+        engagementId: primaryEng?.id ?? null,
+        engagementTitle: primaryEng?.title ?? null,
+      };
+    });
   }
 
   async getCompanyAssignment(companyId: string): Promise<BillingCompanySourcingPlanView | null> {
@@ -455,6 +576,26 @@ export class SourcingService {
         });
         await tx.billingSourcingEngagement.deleteMany({
           where: { companyId: input.companyId, assignmentId: assigned.id },
+        });
+      }
+      // Tạo bản ghi gói độc lập (TS-000101...) mỗi lần mua hoặc gán gói mới.
+      if (switching || opts.reserveOnly) {
+        const pkgCode = await this.nextPackageCode(tx);
+        const pkgDuration = plan.durationDays ?? SOURCING_CYCLE_DAYS;
+        await tx.billingSourcingPackage.create({
+          data: {
+            code: pkgCode,
+            companyId: input.companyId,
+            planId: plan.id,
+            status: reserveOnly ? 'reserved' : 'active',
+            durationDays: pkgDuration,
+            purchasedAt: startsAt,
+            activatedAt: reserveOnly ? null : startsAt,
+            reserveEndsAt: reserveOnly ? reserveEndsAt : null,
+            endsAt: reserveOnly ? null : cycleEnd ?? addUtcDays(startsAt, pkgDuration),
+            note: input.note ?? null,
+            createdBy: actorId,
+          },
         });
       }
       return assigned;
@@ -613,14 +754,42 @@ export class SourcingService {
             });
           }
         }
+        // Tìm gói Tin Săn cụ thể (theo packageId truyền lên, hoặc ưu tiên gói Chưa kích hoạt cũ nhất).
+        const targetPkg = input.packageId
+          ? await tx.billingSourcingPackage.findFirst({
+              where: { id: input.packageId, companyId, status: { in: ['reserved', 'active'] } },
+              include: { plan: true },
+            })
+          : (await tx.billingSourcingPackage.findFirst({
+              where: { companyId, status: 'reserved' },
+              orderBy: { purchasedAt: 'asc' },
+              include: { plan: true },
+            })) ??
+            (await tx.billingSourcingPackage.findFirst({
+              where: { companyId, status: 'active' },
+              orderBy: { purchasedAt: 'desc' },
+              include: { plan: true },
+            }));
+        const pkgDuration =
+          targetPkg?.durationDays ?? assignment.plan.durationDays ?? SOURCING_CYCLE_DAYS;
+        const actNow = new Date();
+        if (targetPkg && targetPkg.status === 'reserved') {
+          await tx.billingSourcingPackage.update({
+            where: { id: targetPkg.id },
+            data: {
+              status: 'active',
+              activatedAt: actNow,
+              endsAt: addUtcDays(actNow, pkgDuration),
+            },
+          });
+        }
         // Kết thúc trạng thái bảo lưu khi NTD kích hoạt Tin Săn đầu tiên.
         if (!assignment.activatedAt) {
-          const actNow = new Date();
           await tx.billingCompanySourcingPlan.update({
             where: { id: assignment.id },
             data: {
               activatedAt: actNow,
-              endsAt: addUtcDays(actNow, SOURCING_CYCLE_DAYS),
+              endsAt: addUtcDays(actNow, pkgDuration),
             },
           });
         }
@@ -636,7 +805,7 @@ export class SourcingService {
           existingJob.deadline && existingJob.deadline.getTime() > Date.now()
             ? existingJob.deadline
             : new Date();
-        const preservedDeadline = addUtcDays(baseDate, 45);
+        const preservedDeadline = addUtcDays(baseDate, pkgDuration);
         await tx.job.update({
           where: { id: existingJob.id },
           data: {
@@ -651,6 +820,7 @@ export class SourcingService {
           data: {
             companyId,
             assignmentId: assignment.id,
+            packageId: targetPkg?.id ?? null,
             jobId: validJobId,
             title,
             status: 'open',
@@ -1107,6 +1277,7 @@ export class SourcingService {
       id: e.id,
       companyId: e.companyId,
       assignmentId: e.assignmentId,
+      packageId: e.packageId ?? null,
       jobId: e.jobId,
       title: e.title,
       status: e.status,
