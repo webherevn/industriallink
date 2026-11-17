@@ -136,17 +136,7 @@ export class SourcingService {
 
     deduplicated.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    const inCurrentCycle = deduplicated.filter(
-      (eng) => eng.createdAt.getTime() >= row!.startsAt.getTime() - 60_000,
-    );
-    let candidatesToKeep = inCurrentCycle.length > 0 ? inCurrentCycle : deduplicated;
-    if (inCurrentCycle.length > 0 && inCurrentCycle.length < deduplicated.length) {
-      for (const eng of deduplicated) {
-        if (!inCurrentCycle.some((c) => c.id === eng.id)) {
-          toDeleteIds.push(eng.id);
-        }
-      }
-    }
+    let candidatesToKeep = deduplicated;
 
     const quota =
       row.plan.positionQuota != null
@@ -375,11 +365,25 @@ export class SourcingService {
       (!before.reserveEndsAt || before.activatedAt != null || before.reserveEndsAt >= now);
 
     if (opts.preserveRemaining && beforeValid) {
-      const oldOpensUsed = await this.countIncludedOpens(before.id, before.startsAt);
-      extraPositionQuota =
+      const [oldOpensUsed, activeEngCount] = await Promise.all([
+        this.countIncludedOpens(before.id, before.startsAt),
+        this.prisma.billingSourcingEngagement.count({
+          where: {
+            companyId: input.companyId,
+            assignmentId: before.id,
+            jobId: { not: null },
+            status: { not: 'closed' },
+          },
+        }),
+      ]);
+      const oldPosQuota =
         before.plan.positionQuota != null
-          ? Math.max(0, before.plan.positionQuota + (before.extraPositionQuota ?? 0) - before.positionsUsed)
-          : 0;
+          ? before.plan.positionQuota + (before.extraPositionQuota ?? 0)
+          : null;
+      const remainingOldPos =
+        oldPosQuota != null ? Math.max(0, oldPosQuota - activeEngCount) : 0;
+      extraPositionQuota =
+        plan.positionQuota != null ? activeEngCount + remainingOldPos : 0;
       extraSearchRoundQuota =
         before.plan.searchRoundQuota != null
           ? Math.max(0, before.plan.searchRoundQuota + (before.extraSearchRoundQuota ?? 0) - before.searchRoundsUsed)
@@ -598,7 +602,6 @@ export class SourcingService {
               assignmentId: assignment.id,
               jobId: { not: null },
               status: { not: 'closed' },
-              createdAt: { gte: assignment.startsAt },
             },
           });
           if (currentEngagementCount >= effectivePosQuota) {

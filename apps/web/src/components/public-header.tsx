@@ -198,10 +198,19 @@ export function PublicHeader({
     refetchOnWindowFocus: true,
   });
 
-  const items = useMemo(
-    () => (menuItems.length ? menuItems : DEFAULT_PRIMARY_ITEMS),
-    [menuItems],
-  );
+  const isCandidate = user?.role === UserRole.Candidate;
+  const isAdmin = user ? isCmsAdminRole(user.role) : false;
+  const isCrm = user ? isSalesStaff(user.role) : false;
+  const isRecruiter = Boolean(user && !isCandidate && !isAdmin && !isCrm);
+
+  const items = useMemo(() => {
+    const base = menuItems.length ? menuItems : DEFAULT_PRIMARY_ITEMS;
+    if (!isRecruiter) return base;
+    return base.filter((it) => {
+      const resolved = resolveNavHref(it.url, true).href;
+      return !resolved.startsWith('/cv/create');
+    });
+  }, [menuItems, isRecruiter]);
 
   useEffect(() => {
     setOpen(false);
@@ -225,11 +234,6 @@ export function PublicHeader({
       document.removeEventListener('keydown', onKey);
     };
   }, [accountOpen]);
-
-  const isCandidate = user?.role === UserRole.Candidate;
-  const isAdmin = user ? isCmsAdminRole(user.role) : false;
-  const isCrm = user ? isSalesStaff(user.role) : false;
-  const isRecruiter = Boolean(user && !isCandidate && !isAdmin && !isCrm);
 
   function renderWorkspaceAction() {
     if (!user) return null;

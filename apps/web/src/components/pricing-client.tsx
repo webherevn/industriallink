@@ -1571,7 +1571,7 @@ function CreditTopupView({
         />
       </div>
 
-      <div className="grid items-stretch gap-5 pt-3 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid items-stretch gap-4 pt-3 sm:grid-cols-2 lg:grid-cols-4">
         {activeTopups.map((t, idx) => (
           <CreditTopupCard
             key={t.id}
@@ -1629,7 +1629,7 @@ function CreditTopupCard({
   return (
     <div
       className={clsx(
-        'home-solution-card relative flex min-w-0 flex-col rounded-2xl border bg-white p-6 transition-all',
+        'home-solution-card relative flex min-w-0 flex-col rounded-2xl border bg-white p-5 transition-all',
         featured
           ? 'z-10 border-amber-400 ring-2 ring-amber-400/30 shadow-[0_20px_40px_-20px_rgba(232,135,42,0.45)]'
           : 'border-slate-200 shadow-[0_8px_24px_-16px_rgba(7,35,72,0.18)] hover:border-slate-300',

@@ -41,11 +41,13 @@ import {
   TRAVEL_ABILITY_LABEL,
   TRAVEL_ABILITY_QUESTION,
   TravelAbility,
+  UserRole,
   composeEducationDegree,
   joinDriverLicenses,
   parseDriverLicenses,
   parseEducationDegree,
 } from '@industriallink/contracts';
+import { goToRecruiterApp } from '@/lib/hosts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { CopilotRobot } from '@/components/copilot-robot';
@@ -233,6 +235,48 @@ function cvFileReject(file: File): string | null {
 }
 
 export default function CreateCvPage() {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchMe,
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  if (!isLoading && user && user.role !== UserRole.Candidate) {
+    return (
+      <AppShell>
+        <div className="mx-auto my-10 max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-[#0B468C]">
+            <UserRound className="h-6 w-6" />
+          </div>
+          <h1 className="mt-4 text-xl font-bold text-[#072348]">
+            Tính năng Tạo CV chỉ dành cho Ứng viên
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Bạn đang đăng nhập bằng tài khoản Nhà tuyển dụng. Vui lòng chuyển về Bàn làm việc NTD để đăng tin hoặc tìm ứng viên.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => goToRecruiterApp('/recruiter')}
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#072348] to-[#0B468C] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+            >
+              Về Bàn làm việc NTD
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => goToRecruiterApp('/jobs/new')}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-[#072348] transition hover:bg-slate-50"
+            >
+              AI viết JD tuyển dụng
+            </button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <CvFormAccordion>
       <CreateCvEditor />
