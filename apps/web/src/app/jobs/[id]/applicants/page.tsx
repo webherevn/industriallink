@@ -1,12 +1,22 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sparkles } from 'lucide-react';
+import {
+  Briefcase,
+  CalendarDays,
+  ChevronLeft,
+  Info,
+  Mail,
+  MoreHorizontal,
+  Search,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
-import { ApplicationStatus, type ApplicantView, formatJobTitle } from '@industriallink/contracts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ApplicationStatus, type ApplicantView, formatJobTitle, formatJobTrack } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { BroadcastEmailModal } from '@/components/broadcast-email-modal';
 import { Badge, Button, Card, Field, Textarea } from '@/components/ui';
@@ -45,6 +55,19 @@ export default function ApplicantsPage() {
   );
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [moreOpen]);
 
   const applicantsKey = ['applicants', jobId] as const;
 
@@ -100,44 +123,156 @@ export default function ApplicantsPage() {
     setNote('');
   }
 
+  const kpiCounts = useMemo(() => {
+    const list = applicants ?? [];
+    return {
+      total: list.length,
+      screening: list.filter((a) => a.status === ApplicationStatus.Screening).length,
+      offer: list.filter((a) => a.status === ApplicationStatus.Offer).length,
+    };
+  }, [applicants]);
+
   return (
     <AppShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{job?.title ?? 'Tin tuyển dụng'}</h1>
-          <p className="mt-1 text-slate-500">{job?.code}</p>
+      {/* Quay lại Hộp thư ứng viên */}
+      <div className="mb-3">
+        <Link
+          href="/recruiter/inbox"
+          className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1D4ED8] hover:underline"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Quay lại Hộp thư ứng viên
+        </Link>
+      </div>
+
+      {/* Header vị trí tuyển dụng */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-[#E8872A] ring-1 ring-amber-200/70">
+            <Briefcase className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-bold text-[#072348] sm:text-2xl">
+              {job?.title ?? 'Tin tuyển dụng'}
+            </h1>
+            <p className="mt-0.5 truncate text-[12.5px] text-slate-500">
+              {[
+                job?.code,
+                job?.jobTrack ? formatJobTrack(job.jobTrack) : null,
+                job?.location,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          </div>
         </div>
-        {(applicants?.length ?? 0) > 0 && (
-          <Button variant="outline" onClick={() => setBroadcastOpen(true)}>
-            Gửi email hàng loạt
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {(applicants?.length ?? 0) > 0 && (
+            <Button variant="outline" onClick={() => setBroadcastOpen(true)} className="rounded-xl">
+              <Mail className="h-4 w-4" />
+              Gửi email hàng loạt
+            </Button>
+          )}
+          <div ref={moreRef} className="relative">
+            <button
+              type="button"
+              aria-label="Thao tác khác"
+              onClick={() => setMoreOpen((v) => !v)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {moreOpen && (
+              <div className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg">
+                <Link
+                  href={`/jobs/${jobId}/detail`}
+                  onClick={() => setMoreOpen(false)}
+                  className="block px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Xem chi tiết tin
+                </Link>
+                <Link
+                  href="/jobs/manage"
+                  onClick={() => setMoreOpen(false)}
+                  className="block px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Danh sách tin tuyển dụng
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {broadcastResult && (
         <p className="mt-3 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800">{broadcastResult}</p>
       )}
 
-      <div className="mt-6 flex gap-1 border-b border-slate-200">
-        <TabButton active={tab === 'pipeline'} onClick={() => setTab('pipeline')}>
-          Quy trình ({applicants?.length ?? 0})
-        </TabButton>
-        <TabButton active={tab === 'suggested'} onClick={() => setTab('suggested')}>
-          <Sparkles className="mr-1 inline h-4 w-4" /> AI gợi ý ứng viên
-        </TabButton>
+      {/* Tab bar + 3 KPI tóm tắt */}
+      <div className="mt-5 flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex gap-1">
+          <TabButton active={tab === 'pipeline'} onClick={() => setTab('pipeline')}>
+            Quy trình ({applicants?.length ?? 0})
+          </TabButton>
+          <TabButton active={tab === 'suggested'} onClick={() => setTab('suggested')}>
+            <Sparkles className="mr-1 inline h-4 w-4" /> AI gợi ý ứng viên
+          </TabButton>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2.5 sm:w-auto">
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-2xs">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <Users className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-base font-bold tabular-nums leading-none text-[#072348]">
+                {kpiCounts.total}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">Tổng ứng viên</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-2xs">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-[#0B468C]">
+              <Search className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-base font-bold tabular-nums leading-none text-[#072348]">
+                {kpiCounts.screening}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">Đang sàng lọc</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2 shadow-2xs">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+              <CalendarDays className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-base font-bold tabular-nums leading-none text-[#072348]">
+                {kpiCounts.offer}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">Đề nghị làm việc</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {tab === 'pipeline' && (
-        <div className="mt-6">
+        <div className="mt-4">
           {loadingApplicants && <p className="text-slate-500">Đang tải...</p>}
           {applicants && applicants.length === 0 && (
             <p className="text-sm text-slate-400">Chưa có ứng viên nào ứng tuyển.</p>
           )}
           {applicants && applicants.length > 0 && (
             <>
-              <p className="mb-3 text-sm text-slate-500">
-                Cột Phỏng vấn là một bước hồ sơ. Kéo vào cột đó để chọn Phỏng vấn HR hoặc Phỏng vấn chuyên môn rồi lưu lịch. Kéo sang cột nhận việc mở phiếu ngày nhận việc.
-              </p>
+              <div className="mb-3.5 flex items-center gap-2 rounded-xl border border-sky-100 bg-[#F4F8FF] px-3.5 py-2.5 text-[12.5px] text-slate-600">
+                <Info className="h-4 w-4 shrink-0 text-[#1D4ED8]" />
+                <span>
+                  Quy trình tuyển dụng cho vị trí này. Kéo và thả ứng viên để chuyển bước, hoặc dùng nhanh các thao tác trên từng hồ sơ.
+                </span>
+              </div>
               <KanbanBoard
                 applicants={applicants}
                 onMove={requestMove}

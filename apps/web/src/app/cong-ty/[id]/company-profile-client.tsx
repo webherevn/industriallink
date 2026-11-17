@@ -27,6 +27,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
   formatCompanySize,
+  formatVietnameseCompanyName,
   looksLikeUuid,
   type CompanyPublicProfileView,
 } from '@industriallink/contracts';
@@ -216,7 +217,8 @@ function CompanyProfileView({
   onShare: () => void;
 }) {
   const brand = data.brand;
-  const shortName = brand.internationalName ?? data.name;
+  const displayName = formatVietnameseCompanyName(data.name) || data.name;
+  const shortName = brand.internationalName ?? displayName;
   const description = data.description ?? 'Chưa có mô tả công ty.';
   const showMore = description.length > 280;
   const visibleDesc =
@@ -267,7 +269,7 @@ function CompanyProfileView({
             <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
               <div className="-mt-10 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md sm:-mt-12 sm:h-24 sm:w-24">
                 {logoSrc ? (
-                  <img src={logoSrc} alt={data.name} className="h-full w-full object-contain p-1.5" />
+                  <img src={logoSrc} alt={displayName} className="h-full w-full object-contain p-1.5" />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center bg-brand-50 text-center">
                     <span className="text-lg font-extrabold tracking-tight text-brand-600 sm:text-xl">
@@ -279,7 +281,7 @@ function CompanyProfileView({
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{data.name}</h1>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{displayName}</h1>
                   {brand.verified && (
                     <BadgeCheck className="h-5 w-5 shrink-0 text-brand-500" aria-label="Đã xác thực" />
                   )}

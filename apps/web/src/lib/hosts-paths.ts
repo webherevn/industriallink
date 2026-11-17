@@ -20,6 +20,11 @@ export function isCrmAppPath(pathname: string): boolean {
   return path === '/crm' || path.startsWith('/crm/');
 }
 
+export function isCtvAppPath(pathname: string): boolean {
+  const path = pathname.split('?')[0] ?? pathname;
+  return path === '/ctv' || path.startsWith('/ctv/');
+}
+
 export function isAdminAppPath(pathname: string): boolean {
   const path = pathname.split('?')[0] ?? pathname;
   return path === '/admin' || path.startsWith('/admin/');

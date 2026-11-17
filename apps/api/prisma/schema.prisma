@@ -788,6 +788,7 @@ model Job {
   // Embedding cá»§a mÃ´ táº£ cÃ´ng viá»‡c (JD) cho AI Matching, ghi/Ä‘á»c qua raw SQL.
   embedding      Unsupported("vector(768)")?
   publishedAt    DateTime? @map("published_at")
+  viewCount      Int       @default(0) @map("view_count")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid

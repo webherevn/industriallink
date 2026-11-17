@@ -15,7 +15,8 @@
     "db:push": "dotenv -e ../../.env -- prisma db push",
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
-    "db:backfill-timeline-labels": "dotenv -e ../../.env -- ts-node prisma/backfill-timeline-labels.ts"
+    "db:backfill-timeline-labels": "dotenv -e ../../.env -- ts-node prisma/backfill-timeline-labels.ts",
+    "db:backfill-b2b-slugs": "dotenv -e ../../.env -- ts-node prisma/backfill-b2b-job-slugs.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

@@ -163,12 +163,17 @@ export interface JobMatchView {
   companyId: string;
   companySlug: string | null;
   companyName: string;
+  companyVerified?: boolean;
+  companyHasLogo?: boolean;
   location: string | null;
   industry: string | null;
+  subIndustry?: string | null;
   jobLevel: string | null;
   experienceBand: string | null;
   salaryMin: number | null;
   salaryMax: number | null;
+  products?: string[];
+  benefits?: string | null;
   /** Tên kỹ năng yêu cầu (rút gọn cho thẻ tin). */
   skills: string[];
   publishedAt: string | null;

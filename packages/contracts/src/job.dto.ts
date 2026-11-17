@@ -80,6 +80,7 @@ export interface JobView {
   salaryMax: number | null;
   status: JobStatus;
   jobTrack: string | null;
+  products?: string[];
   salesCriteria: JobSalesCriteria | null;
   technicalCriteria: JobTechnicalCriteria | null;
   skills: JobSkillView[];
@@ -109,6 +110,7 @@ export interface JobListItem {
   companyName: string;
   /** Công ty đã có logo. Ảnh lấy ở /companies/{id}/logo. */
   companyHasLogo?: boolean;
+  companyVerified?: boolean;
   industry: string | null;
   subIndustry: string | null;
   jobLevel: string | null;
@@ -119,10 +121,14 @@ export interface JobListItem {
   salaryMax: number | null;
   status: JobStatus;
   jobTrack: string | null;
+  products?: string[];
   /** Tên kỹ năng (rút gọn cho thẻ tin). */
   skills: string[];
   createdAt: string;
   publishedAt: string | null;
+  deadline?: string | null;
+  /** Số lượt xem tin công khai. */
+  viewCount?: number;
   /** Tin đăng trong 48h gần nhất. */
   isNew: boolean;
   /** Gói nền tảng đang hiệu lực của công ty. Hết hạn thì là KHAM_PHA. */

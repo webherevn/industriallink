@@ -4,12 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   ArrowRight,
+  CalendarDays,
   Clock3,
   Filter,
+  Gift,
   Inbox,
   Mail,
   Search,
   Sparkles,
+  UserCheck,
+  UserPlus,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -54,11 +58,26 @@ export default function RecruiterInboxPage() {
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     return {
       total: list.length,
-      newToday: list.filter((a) => new Date(a.createdAt).getTime() >= dayAgo).length,
+      applied: list.filter((a) => a.status === ApplicationStatus.Applied).length,
       screening: list.filter((a) => a.status === ApplicationStatus.Screening).length,
+      interview: list.filter((a) => a.status === ApplicationStatus.Interview).length,
+      offer: list.filter((a) => a.status === ApplicationStatus.Offer).length,
+      hired: list.filter((a) => a.status === ApplicationStatus.Hired).length,
+      rejected: list.filter((a) => a.status === ApplicationStatus.Rejected).length,
+      newToday: list.filter((a) => new Date(a.createdAt).getTime() >= dayAgo).length,
       highMatch: list.filter((a) => (a.matchScore ?? 0) >= 60).length,
     };
   }, [data]);
+
+  const countByFilter: Record<string, number> = {
+    all: stats.total,
+    [ApplicationStatus.Applied]: stats.applied,
+    [ApplicationStatus.Screening]: stats.screening,
+    [ApplicationStatus.Interview]: stats.interview,
+    [ApplicationStatus.Offer]: stats.offer,
+    [ApplicationStatus.Hired]: stats.hired,
+    [ApplicationStatus.Rejected]: stats.rejected,
+  };
 
   const filtered = useMemo(() => {
     let list = data ?? [];
@@ -126,11 +145,56 @@ export default function RecruiterInboxPage() {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={<Users className="h-5 w-5" />} label="Tổng hồ sơ" value={stats.total} tone="bg-brand-50 text-brand-700" />
-        <StatCard icon={<Clock3 className="h-5 w-5" />} label="Mới 24 giờ" value={stats.newToday} tone="bg-accent-50 text-accent-700" />
-        <StatCard icon={<Filter className="h-5 w-5" />} label="Đang sàng lọc" value={stats.screening} tone="bg-[#e7eef8] text-brand-700" />
-        <StatCard icon={<Sparkles className="h-5 w-5" />} label="Phù hợp ≥ 60%" value={stats.highMatch} tone="bg-emerald-50 text-emerald-700" />
+      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <StatCard
+          icon={<Users className="h-5 w-5" />}
+          label="Tổng hồ sơ"
+          value={stats.total}
+          tone="bg-brand-50 text-brand-700"
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        />
+        <StatCard
+          icon={<UserPlus className="h-5 w-5" />}
+          label="Mới ứng tuyển"
+          value={stats.applied}
+          tone="bg-sky-50 text-sky-700"
+          active={statusFilter === ApplicationStatus.Applied}
+          onClick={() => setStatusFilter(ApplicationStatus.Applied)}
+        />
+        <StatCard
+          icon={<Filter className="h-5 w-5" />}
+          label="Sàng lọc"
+          value={stats.screening}
+          tone="bg-[#e7eef8] text-brand-700"
+          active={statusFilter === ApplicationStatus.Screening}
+          onClick={() => setStatusFilter(ApplicationStatus.Screening)}
+        />
+        <StatCard
+          icon={<CalendarDays className="h-5 w-5" />}
+          label="Phỏng vấn"
+          value={stats.interview}
+          tone="bg-violet-50 text-violet-700"
+          active={statusFilter === ApplicationStatus.Interview}
+          onClick={() => setStatusFilter(ApplicationStatus.Interview)}
+        />
+        <StatCard
+          icon={<Gift className="h-5 w-5" />}
+          label="Đề nghị"
+          value={stats.offer}
+          tone="bg-amber-50 text-amber-700"
+          active={statusFilter === ApplicationStatus.Offer}
+          onClick={() => setStatusFilter(ApplicationStatus.Offer)}
+        />
+        <StatCard
+          icon={<UserCheck className="h-5 w-5" />}
+          label="Đã nhận việc"
+          value={stats.hired}
+          tone="bg-emerald-50 text-emerald-700"
+          valueTone="text-emerald-600"
+          active={statusFilter === ApplicationStatus.Hired}
+          onClick={() => setStatusFilter(ApplicationStatus.Hired)}
+        />
       </div>
 
       <div className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)] sm:p-4">
@@ -159,7 +223,7 @@ export default function RecruiterInboxPage() {
                       : 'text-slate-600 hover:bg-slate-100',
                   )}
                 >
-                  {f.label}
+                  {f.label} ({countByFilter[f.value] ?? 0})
                 </button>
               );
             })}
@@ -168,9 +232,21 @@ export default function RecruiterInboxPage() {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-slate-500">
-          {isLoading ? 'Đang tải…' : `${filtered.length} hồ sơ`}
-        </p>
+        <div className="flex flex-wrap items-center gap-2.5 text-sm font-medium text-slate-500">
+          <span>{isLoading ? 'Đang tải…' : `${filtered.length} hồ sơ`}</span>
+          {!isLoading && (
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                <Clock3 className="h-3 w-3" />
+                {stats.newToday} mới 24h
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                <Sparkles className="h-3 w-3" />
+                {stats.highMatch} phù hợp ≥ 60%
+              </span>
+            </>
+          )}
+        </div>
         <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
           Sắp xếp theo
           <select
@@ -339,20 +415,35 @@ function StatCard({
   label,
   value,
   tone,
+  valueTone,
+  active,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   value: number;
   tone: string;
+  valueTone?: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200">
-      <span className={clsx('flex h-11 w-11 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'group relative overflow-hidden rounded-2xl border bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-200',
+        active ? 'border-brand-300 ring-2 ring-brand-200/70' : 'border-slate-200/80',
+      )}
+    >
+      <span className={clsx('flex h-10 w-10 items-center justify-center rounded-xl transition duration-200 group-hover:scale-105', tone)}>
         {icon}
       </span>
-      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
+      <p className="mt-3 text-[13px] font-medium text-slate-500">{label}</p>
+      <p className={clsx('mt-1 text-2xl font-bold tabular-nums tracking-tight sm:text-3xl', valueTone ?? 'text-[#E8872A]')}>
+        {value}
+      </p>
       <span aria-hidden className="pointer-events-none absolute -bottom-6 -right-4 h-16 w-24 rounded-full bg-brand-50/80" />
-    </div>
+    </button>
   );
 }

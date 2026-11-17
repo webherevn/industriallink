@@ -31,6 +31,7 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { ApiError, tokenStore } from '@/lib/api';
+import { loadSavedCoverLetter } from '@/lib/cover-letter';
 import { getMyCandidate } from '@/lib/candidate';
 import {
   EMPLOYMENT_LABEL,
@@ -349,9 +350,13 @@ export function JobDetailClient({
                       {job.title}
                     </h1>
                     {job.status === JobStatus.Published && (
-                      <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-100">
-                        Đang tuyển
-                      </span>
+                      <>
+                        <span className="sr-only"> (</span>
+                        <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-100">
+                          Đang tuyển
+                        </span>
+                        <span className="sr-only">)</span>
+                      </>
                     )}
                   </div>
 
@@ -363,10 +368,12 @@ export function JobDetailClient({
                       <Building2 className="h-4 w-4 shrink-0 text-amber-500" />
                       <span className="break-words">{job.companyName}</span>
                     </Link>
+                    <span className="sr-only"> · </span>
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                       {job.location ?? 'Linh hoạt'}
                     </span>
+                    <span className="sr-only"> · </span>
                     <button
                       type="button"
                       onClick={onCopyCode}
@@ -378,28 +385,53 @@ export function JobDetailClient({
                     </button>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {job.employmentType && (
-                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                        {EMPLOYMENT_LABEL[job.employmentType]}
-                      </span>
-                    )}
-                    {job.jobLevel && (
-                      <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-brand-100">
-                        {formatJobLevel(job.jobLevel)}
-                      </span>
-                    )}
-                    {job.industry && (
-                      <span className="max-w-full break-words rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-100">
-                        {job.industry}
-                      </span>
-                    )}
-                    {job.department && (
-                      <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100">
-                        {job.department}
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    const attrBadges = [
+                      job.employmentType
+                        ? {
+                            key: 'employmentType',
+                            label: EMPLOYMENT_LABEL[job.employmentType],
+                            className:
+                              'rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600',
+                          }
+                        : null,
+                      job.jobLevel
+                        ? {
+                            key: 'jobLevel',
+                            label: formatJobLevel(job.jobLevel),
+                            className:
+                              'rounded-lg bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-brand-100',
+                          }
+                        : null,
+                      job.industry
+                        ? {
+                            key: 'industry',
+                            label: job.industry,
+                            className:
+                              'max-w-full break-words rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-100',
+                          }
+                        : null,
+                      job.department
+                        ? {
+                            key: 'department',
+                            label: job.department,
+                            className:
+                              'rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100',
+                          }
+                        : null,
+                    ].filter((b): b is { key: string; label: string; className: string } => Boolean(b));
+                    if (attrBadges.length === 0) return null;
+                    return (
+                      <ul className="m-0 mt-3 flex list-none flex-wrap gap-1.5 p-0">
+                        {attrBadges.map((b, idx) => (
+                          <li key={b.key} className={b.className}>
+                            {b.label}
+                            {idx < attrBadges.length - 1 ? <span className="sr-only">, </span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -561,14 +593,30 @@ export function JobDetailClient({
                 ) : (
                   <>
                     <label className="block">
-                      <span className="text-xs font-semibold text-slate-600">
-                        Thư giới thiệu{' '}
-                        <span className="font-normal text-slate-400">(không bắt buộc)</span>
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-slate-600">
+                          Thư giới thiệu{' '}
+                          <span className="font-normal text-slate-400">(không bắt buộc)</span>
+                        </span>
+                        {(() => {
+                          const savedLetter = loadSavedCoverLetter(job.id);
+                          if (!savedLetter.content) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setCoverLetter(savedLetter.content!)}
+                              className="text-[11px] font-semibold text-brand-600 hover:underline"
+                            >
+                              {savedLetter.isJobSpecific ? '✨ Dùng thư AI cho tin này' : '✨ Dùng thư AI đã lưu'}
+                            </button>
+                          );
+                        })()}
+                      </div>
                       <textarea
                         rows={4}
                         value={coverLetter}
                         onChange={(e) => setCoverLetter(e.target.value)}
+                        spellCheck={false}
                         placeholder="Giới thiệu ngắn về kinh nghiệm phù hợp với vị trí…"
                         className="mt-1.5 w-full max-w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 hover:border-amber-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                       />
@@ -719,9 +767,9 @@ export function JobDetailClient({
 
             {job.skills.length > 0 && (
               <ContentSection title="Kỹ năng cần có" icon={<Factory className="h-4 w-4" />}>
-                <div className="flex flex-wrap gap-2">
-                  {job.skills.map((s) => (
-                    <span
+                <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+                  {job.skills.map((s, idx) => (
+                    <li
                       key={`${s.skillId ?? s.name}-${s.name}`}
                       className={clsx(
                         'inline-flex max-w-full items-center gap-1 break-words rounded-lg px-2.5 py-1.5 text-xs font-semibold',
@@ -732,13 +780,18 @@ export function JobDetailClient({
                     >
                       {plainLabel(s.name)}
                       {s.required && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase text-amber-600">
-                          Bắt buộc
-                        </span>
+                        <>
+                          <span className="sr-only"> (</span>
+                          <span className="shrink-0 text-[10px] font-bold uppercase text-amber-600">
+                            Bắt buộc
+                          </span>
+                          <span className="sr-only">)</span>
+                        </>
                       )}
-                    </span>
+                      {idx < job.skills.length - 1 ? <span className="sr-only">, </span> : null}
+                    </li>
                   ))}
-                </div>
+                </ul>
               </ContentSection>
             )}
 

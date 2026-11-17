@@ -9,6 +9,8 @@ function parseWebOrigins(): string[] {
     process.env.RECRUITER_WEB_ORIGIN,
     process.env.ADMIN_WEB_ORIGIN,
     process.env.CRM_WEB_ORIGIN,
+    process.env.CTV_WEB_ORIGIN,
+    process.env.NODE_ENV === 'production' ? 'https://ctv.inlink.vn' : undefined,
     ...(process.env.WEB_ORIGINS ?? '').split(','),
   ]
     .map((s) => s?.trim())

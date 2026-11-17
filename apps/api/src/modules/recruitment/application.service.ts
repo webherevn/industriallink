@@ -11,6 +11,7 @@ import {
   InterviewStatus,
   InterviewType,
   JobStatus,
+  OfferStatus,
   parseSourcingScope,
   type ApplicantView,
   type ApplicationDetailView,
@@ -341,6 +342,9 @@ export class ApplicationService {
         newApplicationsYesterday: 0,
         avgTimeToHireDays: null,
         avgTimeToHireDeltaDays: null,
+        pendingReviewCount: 0,
+        pendingOfferCount: 0,
+        hiredThisMonthCount: 0,
       };
     }
 
@@ -350,6 +354,7 @@ export class ApplicationService {
     startOfToday.setHours(0, 0, 0, 0);
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const [
@@ -362,6 +367,8 @@ export class ApplicationService {
       newApplicationsToday,
       newApplicationsYesterday,
       hiredApplications,
+      pendingReviewCount,
+      pendingOfferCount,
     ] = await Promise.all([
       this.prisma.job.count({ where: { companyId, isDeleted: false } }),
       this.prisma.job.count({
@@ -408,12 +415,29 @@ export class ApplicationService {
         },
         select: { createdAt: true, updatedAt: true },
       }),
+      this.prisma.application.count({
+        where: {
+          isDeleted: false,
+          status: { in: [ApplicationStatus.Applied, ApplicationStatus.Screening] },
+          job: { companyId, isDeleted: false },
+        },
+      }),
+      this.prisma.offer.count({
+        where: {
+          isDeleted: false,
+          status: OfferStatus.Pending,
+          job: { companyId, isDeleted: false },
+        },
+      }),
     ]);
 
     const { avgTimeToHireDays, avgTimeToHireDeltaDays } = computeTimeToHireStats(
       hiredApplications,
       now,
     );
+    const hiredThisMonthCount = hiredApplications.filter(
+      (a) => a.updatedAt >= startOfMonth,
+    ).length;
 
     return {
       companyName: membership.company.name,
@@ -428,6 +452,9 @@ export class ApplicationService {
       newApplicationsYesterday,
       avgTimeToHireDays,
       avgTimeToHireDeltaDays,
+      pendingReviewCount,
+      pendingOfferCount,
+      hiredThisMonthCount,
     };
   }
 

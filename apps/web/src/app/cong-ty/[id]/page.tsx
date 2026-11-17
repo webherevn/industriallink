@@ -1,4 +1,4 @@
-import { companyPublicPath } from '@industriallink/contracts';
+import { companyPublicPath, formatVietnameseCompanyName } from '@industriallink/contracts';
 import type { Metadata } from 'next';
 import { fetchPublicCompany } from '@/lib/public-job-api';
 import { apiPublicBase, siteUrl } from '@/lib/public-paths';
@@ -23,19 +23,20 @@ export async function generateMetadata({
   const { id } = await params;
   const company = await fetchPublicCompany(id);
   const canonical = company ? companyPublicPath(company) : `/cong-ty/${id}`;
-  const name = company?.name ?? 'Thông tin công ty';
+  const name = company?.name ? formatVietnameseCompanyName(company.name) : 'Thông tin công ty';
   const about = plain(company?.description);
   const description = about
     ? about.slice(0, 160)
-    : `${name} đang tuyển dụng trên inlink. Xem việc làm, văn hóa và thông tin doanh nghiệp.`;
+    : `${name} đang tuyển dụng trên Inlink. Xem việc làm, văn hóa và thông tin doanh nghiệp.`;
   const image = mediaUrl(company?.brand.bannerUrl) ?? mediaUrl(company?.brand.logoUrl);
+  const metaTitle = company ? `${name} - Inlink` : 'Thông tin công ty - Inlink';
   return {
-    title: company ? `${company.name} tuyển dụng` : 'Thông tin công ty',
+    title: metaTitle,
     description,
     robots: INDEX_ROBOTS,
     alternates: { canonical },
     openGraph: {
-      title: `${name} tuyển dụng`,
+      title: metaTitle,
       description,
       url: canonical,
       type: 'website',
@@ -43,7 +44,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: image ? 'summary_large_image' : 'summary',
-      title: `${name} tuyển dụng`,
+      title: metaTitle,
       description,
       images: image ? [image] : undefined,
     },
@@ -56,7 +57,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const origin = siteUrl();
   const path = company ? companyPublicPath(company) : `/cong-ty/${id}`;
   const url = `${origin}${path}`;
-  const name = company?.name ?? 'Công ty';
+  const name = company?.name ? formatVietnameseCompanyName(company.name) : 'Công ty';
   const logo = mediaUrl(company?.brand.logoUrl);
   const schemas = [
     {

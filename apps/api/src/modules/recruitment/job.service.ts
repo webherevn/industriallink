@@ -43,6 +43,7 @@ import {
   allocateUniqueJobSlug,
   backfillMissingCompanySlugs,
   backfillMissingJobSlugs,
+  resolveLegacyJobRef,
 } from '../../shared/seo/unique-slug';
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 import type { Job, JobSkill, Prisma } from '@prisma/client';
@@ -485,7 +486,17 @@ export class JobService {
       (dto.salesCriteria?.industries?.length ? dto.salesCriteria.industries[0] : undefined) ||
       (dto.technicalCriteria?.industries?.length ? dto.technicalCriteria.industries[0] : undefined);
 
-    const slug = await allocateUniqueJobSlug(this.prisma, dto.title);
+    const normalizedIndustry = normalizeIndustry(primaryIndustry) ?? primaryIndustry ?? null;
+    const companyRow = await this.prisma.company.findUnique({
+      where: { id: company.companyId },
+      select: { name: true },
+    });
+    const slug = await allocateUniqueJobSlug(this.prisma, dto.title, undefined, {
+      code,
+      industry: normalizedIndustry,
+      location: dto.location ?? null,
+      companyName: companyRow?.name ?? null,
+    });
     const job = await this.prisma.job.create({
       data: {
         code,
@@ -1099,10 +1110,19 @@ export class JobService {
     if (sourcingEngagement) {
       view.isSourcingActive = true;
     }
-    if (!(await this.canSeeModerationDetails(user, job.companyId))) {
+    const canSeeMod = await this.canSeeModerationDetails(user, job.companyId);
+    if (!canSeeMod) {
       delete view.aiRiskScore;
       delete view.aiReason;
       delete view.aiSuggestedAction;
+      if (job.status === JobStatus.Published) {
+        void this.prisma.job
+          .update({
+            where: { id: job.id },
+            data: { viewCount: { increment: 1 } },
+          })
+          .catch(() => undefined);
+      }
     }
     if (user) {
       const candidate = await this.prisma.candidate.findUnique({
@@ -1143,11 +1163,45 @@ export class JobService {
   }
 
   private async findJobByRef(ref: string): Promise<JobWithRelations> {
-    const where = looksLikeUuid(ref) ? { id: ref } : { slug: ref };
-    const job = await this.prisma.job.findFirst({
+    const cleanRef = ref.trim();
+    const where = looksLikeUuid(cleanRef) ? { id: cleanRef } : { slug: cleanRef };
+    let job = await this.prisma.job.findFirst({
       where: { ...where, isDeleted: false },
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
     });
+
+    if (!job && !looksLikeUuid(cleanRef)) {
+      const legacyTarget = resolveLegacyJobRef(cleanRef);
+      if (legacyTarget) {
+        job = await this.prisma.job.findFirst({
+          where: {
+            ...(looksLikeUuid(legacyTarget) ? { id: legacyTarget } : { code: legacyTarget }),
+            isDeleted: false,
+          },
+          include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+        });
+      }
+    }
+
+    if (!job && !looksLikeUuid(cleanRef)) {
+      const shortMatch = cleanRef.match(/-j(\d+)$/i);
+      if (shortMatch) {
+        const num = Number.parseInt(shortMatch[1], 10);
+        if (Number.isFinite(num) && num > 0) {
+          const tail = '-' + String(num).padStart(6, '0');
+          job = await this.prisma.job.findFirst({
+            where: {
+              code: { endsWith: tail },
+              NOT: { code: { startsWith: 'JOB-DEMO-' } },
+              isDeleted: false,
+            },
+            orderBy: { createdAt: 'desc' },
+            include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+          });
+        }
+      }
+    }
+
     if (!job) {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
@@ -1156,7 +1210,13 @@ export class JobService {
 
   private async ensureJobSlug(job: JobWithRelations): Promise<JobWithRelations> {
     if (job.slug) return job;
-    const slug = await allocateUniqueJobSlug(this.prisma, job.title, job.id);
+    const slug = await allocateUniqueJobSlug(this.prisma, job.title, job.id, {
+      code: job.code,
+      id: job.id,
+      industry: job.industry,
+      location: job.location,
+      companyName: job.company?.name ?? null,
+    });
     await this.prisma.job.update({ where: { id: job.id }, data: { slug } });
     return { ...job, slug };
   }
@@ -1221,7 +1281,10 @@ export class JobService {
     const isNew = publishedAt
       ? Date.now() - publishedAt.getTime() < 48 * 60 * 60 * 1000
       : false;
-    const profile = job.company.profile as { logoStorageKey?: string } | null;
+    const profile = job.company.profile as { logoStorageKey?: string; verified?: boolean } | null;
+    const salesProducts = Array.isArray((job.salesCriteria as { productsSold?: unknown } | null)?.productsSold) ? (job.salesCriteria as { productsSold: unknown[] }).productsSold.filter((v): v is string => typeof v === 'string' && v.trim().length > 0) : [];
+    const techEquipment = Array.isArray((job.technicalCriteria as { equipmentSystems?: unknown } | null)?.equipmentSystems) ? (job.technicalCriteria as { equipmentSystems: unknown[] }).equipmentSystems.filter((v): v is string => typeof v === 'string' && v.trim().length > 0) : [];
+    const products = [...new Set([...salesProducts, ...techEquipment].map((s) => plainLabel(s)).filter(Boolean))].slice(0, 4);
     return {
       id: job.id,
       slug: job.slug ?? job.id,
@@ -1231,6 +1294,8 @@ export class JobService {
       companySlug: job.company?.slug ?? null,
       companyName: job.company?.name ?? companyName,
       companyHasLogo: Boolean(profile?.logoStorageKey),
+      companyVerified: Boolean(profile?.verified),
+      products,
       industry: normalizeIndustry(job.industry) ?? job.industry,
       subIndustry: job.subIndustry,
       jobLevel: job.jobLevel,
@@ -1245,6 +1310,8 @@ export class JobService {
       skills: skillLabels(job.skills),
       createdAt: job.createdAt.toISOString(),
       publishedAt: publishedAt ? publishedAt.toISOString() : null,
+      deadline: job.deadline ? job.deadline.toISOString() : null,
+      viewCount: job.viewCount ?? 0,
       isNew,
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
       ...(extras?.planCode != null ? { planCode: extras.planCode } : {}),

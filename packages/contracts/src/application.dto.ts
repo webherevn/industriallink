@@ -180,6 +180,12 @@ export interface RecruiterWorkspaceSummary {
   avgTimeToHireDays: number | null;
   /** Chênh lệch so với giai đoạn 30 ngày trước đó — null nếu thiếu dữ liệu một trong hai giai đoạn. */
   avgTimeToHireDeltaDays: number | null;
+  /** Số hồ sơ đang chờ xử lý (Applied + Screening). */
+  pendingReviewCount?: number;
+  /** Số đề nghị làm việc đang chờ ứng viên phản hồi (Pending). */
+  pendingOfferCount?: number;
+  /** Số ứng viên nhận việc (Hired) trong tháng hiện tại. */
+  hiredThisMonthCount?: number;
 }
 
 /** Một mốc trên timeline xử lý hồ sơ ứng tuyển. */

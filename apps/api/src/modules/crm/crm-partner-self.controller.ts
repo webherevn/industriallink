@@ -1,26 +1,22 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import {
-  UserRole,
-  type CreateCrmPartnerClaimRequest,
-  type CrmPartnerClaimView,
-  type CrmPartnerSelfView,
-  type CrmPartnerView,
-  type RegisterCrmPartnerRequest,
+import type {
+  CreateCrmPartnerClaimRequest,
+  CrmPartnerClaimView,
+  CrmPartnerSelfView,
+  CrmPartnerView,
+  RegisterCrmPartnerRequest,
 } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
-import { Roles } from '../../shared/security/roles.decorator';
-import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CrmService } from './crm.service';
 
 @ApiTags('CRM')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin)
-@Controller('recruiter/partner')
+@UseGuards(JwtAuthGuard)
+@Controller(['recruiter/partner', 'partner'])
 export class CrmPartnerSelfController {
   constructor(private readonly crm: CrmService) {}
 

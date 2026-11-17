@@ -1,50 +1,74 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  AlertCircle,
+  ArrowRight,
   Briefcase,
+  Calendar,
+  CalendarDays,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   ClipboardList,
-  Eye,
-  FileText,
+  Filter,
+  Gift,
+  Lightbulb,
   MapPin,
-  Percent,
   Search,
   Sparkles,
-  Target,
-  Wallet,
+  UserPlus,
+  X,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   ApplicationStatus,
+  InterviewStatus,
+  OfferStatus,
   type ApplicationView,
+  type InterviewView,
+  type OfferView,
+  type OnboardingView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { PaginationBar } from '@/components/pagination-bar';
+import { Select } from '@/components/ui';
 import { fetchMe } from '@/lib/auth';
 import { getApplicationDetail, myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
-import { APPLICATION_STATUS_LABEL, formatSalary } from '@/lib/format';
+import {
+  APPLICATION_STATUS_LABEL,
+  formatJobTitle,
+  formatSalary,
+  formatVndAmount,
+  INTERVIEW_TYPE_LABEL,
+} from '@/lib/format';
+import { listMyInterviews } from '@/lib/interviews';
 import { formatMatchPct } from '@/lib/match-percent';
+import { listMyOffers, respondToOffer } from '@/lib/offers';
+import { listMyOnboardings } from '@/lib/onboarding';
 
-type FilterTab = 'all' | 'processing' | 'interview' | 'offer' | 'rejected' | 'hired';
+type FilterTab = 'all' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
 type SortMode = 'newest' | 'oldest' | 'match';
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 6;
 
-const PROCESSING: ApplicationStatus[] = [
-  ApplicationStatus.Applied,
-  ApplicationStatus.Screening,
-  ApplicationStatus.Interview,
-  ApplicationStatus.Offer,
+const PIPELINE_STEPS: { status: ApplicationStatus; label: string }[] = [
+  { status: ApplicationStatus.Applied, label: 'Đã nộp' },
+  { status: ApplicationStatus.Screening, label: 'Sàng lọc' },
+  { status: ApplicationStatus.Interview, label: 'Phỏng vấn' },
+  { status: ApplicationStatus.Offer, label: 'Đề nghị' },
+  { status: ApplicationStatus.Hired, label: 'Nhận việc' },
 ];
+
+function stepIndexOf(status: ApplicationStatus): number {
+  const idx = PIPELINE_STEPS.findIndex((s) => s.status === status);
+  return idx >= 0 ? idx : 0;
+}
 
 function companyInitials(name: string): string {
   const parts = name
@@ -57,7 +81,7 @@ function companyInitials(name: string): string {
   return (parts[0] ?? name).slice(0, 2).toUpperCase();
 }
 
-function formatAppliedDate(iso: string): string {
+function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('vi-VN');
   } catch {
@@ -65,42 +89,70 @@ function formatAppliedDate(iso: string): string {
   }
 }
 
-function formatDateTime(iso: string): string {
+function formatShortDayMonth(iso: string): string {
   try {
-    return new Date(iso).toLocaleString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const d = new Date(iso);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  } catch {
+    return '';
+  }
+}
+
+function formatTimeRange(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const weekday = d.toLocaleDateString('vi-VN', { weekday: 'short' });
+    const dm = formatShortDayMonth(iso);
+    const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    return `${weekday} ${dm} · ${hm}`;
   } catch {
     return iso;
   }
 }
 
-function statusBadgeClass(status: ApplicationStatus): string {
+function statusPillMeta(status: ApplicationStatus): {
+  label: string;
+  className: string;
+} {
   switch (status) {
-    case ApplicationStatus.Applied:
-      return 'bg-brand-50 text-brand-700 ring-brand-100';
-    case ApplicationStatus.Screening:
-      return 'bg-accent-50 text-accent-700 ring-accent-100';
-    case ApplicationStatus.Interview:
-      return 'bg-brand-50 text-brand-700 ring-brand-100';
     case ApplicationStatus.Offer:
-      return 'bg-accent-50 text-accent-700 ring-accent-100';
+      return {
+        label: 'Đề nghị làm việc',
+        className: 'bg-amber-50 text-[#b45309] ring-1 ring-amber-200/80',
+      };
+    case ApplicationStatus.Interview:
+      return {
+        label: 'Phỏng vấn',
+        className: 'bg-sky-50 text-brand-700 ring-1 ring-sky-200/80',
+      };
+    case ApplicationStatus.Screening:
+      return {
+        label: 'Sàng lọc',
+        className: 'bg-amber-50/70 text-amber-700 ring-1 ring-amber-200/60',
+      };
     case ApplicationStatus.Hired:
-      return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+      return {
+        label: 'Đã nhận việc',
+        className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80',
+      };
     case ApplicationStatus.Rejected:
     case ApplicationStatus.Withdrawn:
-      return 'bg-slate-100 text-slate-600 ring-slate-200';
+      return {
+        label: APPLICATION_STATUS_LABEL[status] ?? 'Đã từ chối',
+        className: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+      };
     default:
-      return 'bg-slate-50 text-slate-600 ring-slate-200';
+      return {
+        label: 'Đã nộp',
+        className: 'bg-sky-50 text-brand-700 ring-1 ring-sky-200/70',
+      };
   }
 }
 
 export default function ApplicationsPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<FilterTab>('all');
+  const [statusSelect, setStatusSelect] = useState<string>('all');
   const [sort, setSort] = useState<SortMode>('newest');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -117,6 +169,30 @@ export default function ApplicationsPage() {
     queryFn: myApplications,
     retry: false,
   });
+  const { data: interviews } = useQuery({
+    queryKey: ['my-interviews'],
+    queryFn: listMyInterviews,
+    retry: false,
+  });
+  const { data: offers } = useQuery({
+    queryKey: ['my-offers'],
+    queryFn: listMyOffers,
+    retry: false,
+  });
+  const { data: onboardings } = useQuery({
+    queryKey: ['my-onboardings'],
+    queryFn: listMyOnboardings,
+    retry: false,
+  });
+
+  const respondOfferMutation = useMutation({
+    mutationFn: ({ id, accept }: { id: string; accept: boolean }) => respondToOffer(id, accept),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['my-offers'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-onboardings'] });
+    },
+  });
 
   const apps = useMemo(() => applications ?? [], [applications]);
 
@@ -131,69 +207,65 @@ export default function ApplicationsPage() {
       hired: by(ApplicationStatus.Hired),
       rejected: apps.filter(
         (a) =>
-          a.status === ApplicationStatus.Rejected ||
-          a.status === ApplicationStatus.Withdrawn,
+          a.status === ApplicationStatus.Rejected || a.status === ApplicationStatus.Withdrawn,
       ).length,
-      processing: apps.filter((a) => PROCESSING.includes(a.status)).length,
     };
   }, [apps]);
 
-  const avgMatch = useMemo(() => {
-    const scored = apps.filter((a) => a.matchScore != null);
-    if (!scored.length) return null;
-    return Math.round(
-      scored.reduce((s, a) => s + (a.matchScore ?? 0), 0) / scored.length,
-    );
-  }, [apps]);
+  const upcomingInterviews = useMemo(() => {
+    const now = Date.now() - 60 * 60 * 1000;
+    return [...(interviews ?? [])]
+      .filter(
+        (row) =>
+          row.status === InterviewStatus.Scheduled && new Date(row.scheduledAt).getTime() >= now,
+      )
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  }, [interviews]);
 
-  const needsAttention = useMemo(
-    () =>
-      apps
-        .filter(
-          (a) =>
-            a.status === ApplicationStatus.Interview ||
-            a.status === ApplicationStatus.Offer,
-        )
-        .slice(0, 4),
-    [apps],
+  const pendingOffers = useMemo(
+    () => (offers ?? []).filter((o) => o.status === OfferStatus.Pending),
+    [offers],
   );
 
   const filtered = useMemo(() => {
-    const keyword = q.trim().toLowerCase();
+    const needle = q.trim().toLowerCase();
     let list = apps.filter((a) => {
-      if (keyword) {
-        const hay = `${a.jobTitle} ${a.companyName} ${a.code}`.toLowerCase();
-        if (!hay.includes(keyword)) return false;
+      if (
+        needle &&
+        !a.jobTitle.toLowerCase().includes(needle) &&
+        !a.companyName.toLowerCase().includes(needle) &&
+        !a.code.toLowerCase().includes(needle)
+      ) {
+        return false;
       }
+      if (statusSelect !== 'all' && a.status !== statusSelect) return false;
       switch (tab) {
-        case 'processing':
-          return PROCESSING.includes(a.status);
+        case 'screening':
+          return a.status === ApplicationStatus.Screening;
         case 'interview':
           return a.status === ApplicationStatus.Interview;
         case 'offer':
           return a.status === ApplicationStatus.Offer;
+        case 'hired':
+          return a.status === ApplicationStatus.Hired;
         case 'rejected':
           return (
             a.status === ApplicationStatus.Rejected ||
             a.status === ApplicationStatus.Withdrawn
           );
-        case 'hired':
-          return a.status === ApplicationStatus.Hired;
         default:
           return true;
       }
     });
 
     list = [...list].sort((a, b) => {
-      if (sort === 'match') {
-        return (b.matchScore ?? -1) - (a.matchScore ?? -1);
-      }
+      if (sort === 'match') return (b.matchScore ?? -1) - (a.matchScore ?? -1);
       const da = new Date(a.createdAt).getTime();
       const db = new Date(b.createdAt).getTime();
       return sort === 'newest' ? db - da : da - db;
     });
     return list;
-  }, [apps, tab, sort, q]);
+  }, [apps, tab, statusSelect, sort, q]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -201,6 +273,9 @@ export default function ApplicationsPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
+
+  // Mặc định mở thẻ đầu tiên để hiển thị trực quan thanh tiến trình 5 bước như mẫu
+  const effectiveExpandedId = expandedId ?? pageItems[0]?.id ?? null;
 
   function goToPage(next: number) {
     setPage(Math.min(Math.max(1, next), totalPages));
@@ -210,309 +285,391 @@ export default function ApplicationsPage() {
     }
   }
 
-  const displayName = candidate?.displayName ?? me?.displayName ?? 'Ứng viên';
+  const displayName = (candidate?.displayName ?? me?.displayName ?? 'Ứng viên').replace(/\r/g, '');
+  const todoCount = pendingOffers.length + upcomingInterviews.length;
 
   return (
     <AppShell wide>
-      <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
+      <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)_285px]">
         <CandidateSidebar
           displayName={displayName}
-          email={me?.email}
-          hasAvatar={Boolean(candidate?.hasAvatar)}
           position={candidate?.profile?.currentPosition}
           profileCompletion={candidate?.profileCompletion}
         />
 
-        {/* Center — danh sách đơn + lịch sử */}
-        <section className="min-w-0 animate-soft-rise [animation-delay:60ms]">
-          <nav className="flex flex-wrap items-center gap-1 text-xs text-slate-400">
-            <Link
-              href="/dashboard"
-              className="transition-colors duration-200 hover:text-brand-600"
-            >
+        {/* Cột giữa: Đơn ứng tuyển + Tiến trình */}
+        <section className="min-w-0 space-y-4">
+          <nav className="flex items-center gap-1.5 text-xs text-slate-400">
+            <Link href="/dashboard" className="hover:text-slate-600">
               Trang chủ
             </Link>
-            <ChevronRight className="h-3 w-3" />
-            <span>Hoạt động</span>
-            <ChevronRight className="h-3 w-3" />
+            <ChevronRight className="h-3.5 w-3.5" />
             <span className="font-medium text-slate-600">Đơn ứng tuyển</span>
           </nav>
 
-          <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
-                <FileText className="h-5 w-5" />
+          <div>
+            <h1 className="flex items-center gap-2.5 text-2xl font-extrabold tracking-tight text-[#072348]">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-[#E8872A]">
+                <ClipboardList className="h-4 w-4" />
               </span>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-brand-800">Đơn ứng tuyển của tôi</h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  Quản lý hồ sơ đã nộp, mã đơn và lịch sử trạng thái từng vị trí.
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/progress"
-              className="inline-flex items-center gap-1.5 rounded-full border border-accent-200 bg-accent-50 px-4 py-2 text-sm font-semibold text-accent-700 transition hover:bg-accent-100"
-            >
-              <Target className="h-3.5 w-3.5" />
-              Xem tiến trình
-            </Link>
+              <span>Đơn ứng tuyển của tôi</span>
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Quản lý tất cả đơn ứng tuyển, theo dõi tiến trình phỏng vấn, đề nghị và nhận việc.
+            </p>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCell icon={<ClipboardList className="h-4 w-4" />} iconClass="bg-accent-50 text-accent-700" label="Tổng đơn" value={counts.total} />
-            <StatCell icon={<Briefcase className="h-4 w-4" />} iconClass="bg-brand-50 text-brand-700" label="Đang xử lý" value={counts.processing} />
-            <StatCell icon={<AlertCircle className="h-4 w-4" />} iconClass="bg-accent-50 text-accent-700" label="Cần theo dõi" value={counts.interview + counts.offer} />
-            <StatCell icon={<CheckCircle2 className="h-4 w-4" />} iconClass="bg-emerald-50 text-emerald-700" label="Đã nhận việc" value={counts.hired} />
+          {/* 5 KPI Cards */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+            <StatCell
+              active={tab === 'all'}
+              onClick={() => {
+                setTab('all');
+                setPage(1);
+              }}
+              icon={<ClipboardList className="h-4 w-4" />}
+              iconClass="bg-amber-100/80 text-[#E8872A]"
+              label="Tổng đơn"
+              value={counts.total}
+              tint="bg-gradient-to-br from-amber-50/70 to-white border-amber-200/70"
+            />
+            <StatCell
+              active={tab === 'screening'}
+              onClick={() => {
+                setTab('screening');
+                setPage(1);
+              }}
+              icon={<Filter className="h-4 w-4" />}
+              iconClass="bg-sky-50 text-sky-600"
+              label="Sàng lọc"
+              value={counts.screening}
+            />
+            <StatCell
+              active={tab === 'interview'}
+              onClick={() => {
+                setTab('interview');
+                setPage(1);
+              }}
+              icon={<CalendarDays className="h-4 w-4" />}
+              iconClass="bg-indigo-50 text-brand-700"
+              label="Phỏng vấn"
+              value={counts.interview}
+            />
+            <StatCell
+              active={tab === 'offer'}
+              onClick={() => {
+                setTab('offer');
+                setPage(1);
+              }}
+              icon={<Briefcase className="h-4 w-4" />}
+              iconClass="bg-amber-50 text-amber-600"
+              label="Đề nghị"
+              value={counts.offer}
+            />
+            <StatCell
+              active={tab === 'hired'}
+              onClick={() => {
+                setTab('hired');
+                setPage(1);
+              }}
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              iconClass="bg-emerald-50 text-emerald-600"
+              label="Nhận việc"
+              value={counts.hired}
+            />
           </div>
 
-          {/* Search + tabs */}
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <label className="relative min-w-[220px] flex-1">
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: 'all', label: `Tất cả (${counts.total})` },
+                { id: 'screening', label: `Sàng lọc (${counts.screening})` },
+                { id: 'interview', label: `Phỏng vấn (${counts.interview})` },
+                { id: 'offer', label: `Đề nghị (${counts.offer})` },
+                { id: 'hired', label: `Nhận việc (${counts.hired})` },
+                { id: 'rejected', label: `Đã từ chối (${counts.rejected})` },
+              ] as const
+            ).map((item) => {
+              const active = tab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setTab(item.id);
+                    setPage(1);
+                  }}
+                  className={clsx(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    active
+                      ? 'bg-[#E8872A] text-white shadow-2xs'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                  )}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search + Time + Status Select */}
+          <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+            <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
+                type="search"
                 value={q}
                 onChange={(e) => {
                   setQ(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Tìm theo vị trí, công ty hoặc mã đơn…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-brand-200 focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                placeholder="Tìm theo vị trí, công ty..."
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-800 outline-none focus:border-brand-500"
               />
-            </label>
-            <div className="relative">
-              <select
-                value={sort}
-                onChange={(e) => {
-                  setSort(e.target.value as SortMode);
-                  setPage(1);
-                }}
-                className="appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100"
-              >
-                <option value="newest">Mới nhất</option>
-                <option value="oldest">Cũ nhất</option>
-                <option value="match">Độ phù hợp cao</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             </div>
+
+            <Select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortMode)}
+              className="!h-10 !rounded-xl !border-slate-200 !text-xs !text-slate-700"
+            >
+              <option value="newest">Thời gian: Mới nhất</option>
+              <option value="oldest">Thời gian: Cũ nhất</option>
+              <option value="match">Phù hợp AI cao nhất</option>
+            </Select>
+
+            <Select
+              value={statusSelect}
+              onChange={(e) => {
+                setStatusSelect(e.target.value);
+                setPage(1);
+              }}
+              className="!h-10 !rounded-xl !border-slate-200 !text-xs !text-slate-700"
+            >
+              <option value="all">Trạng thái: Tất cả</option>
+              <option value={ApplicationStatus.Applied}>Đã nộp</option>
+              <option value={ApplicationStatus.Screening}>Sàng lọc</option>
+              <option value={ApplicationStatus.Interview}>Phỏng vấn</option>
+              <option value={ApplicationStatus.Offer}>Đề nghị</option>
+              <option value={ApplicationStatus.Hired}>Nhận việc</option>
+              <option value={ApplicationStatus.Rejected}>Đã từ chối</option>
+            </Select>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-0.5 border-b border-slate-200">
-            {(
-              [
-                { id: 'all' as const, label: 'Tất cả', count: counts.total },
-                {
-                  id: 'processing' as const,
-                  label: 'Đang xử lý',
-                  count: counts.processing,
-                },
-                {
-                  id: 'interview' as const,
-                  label: 'Phỏng vấn',
-                  count: counts.interview,
-                },
-                { id: 'offer' as const, label: 'Đề nghị', count: counts.offer },
-                { id: 'hired' as const, label: 'Nhận việc', count: counts.hired },
-                {
-                  id: 'rejected' as const,
-                  label: 'Đã từ chối',
-                  count: counts.rejected,
-                },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  setTab(t.id);
-                  setPage(1);
-                }}
-                className={clsx(
-                  'relative px-3.5 py-2.5 text-[13px] font-semibold transition-colors duration-200',
-                  tab === t.id ? 'text-accent-600' : 'text-slate-500 hover:text-slate-800',
-                )}
-              >
-                {t.label} ({t.count})
-                <span
-                  className={clsx(
-                    'absolute inset-x-2 bottom-0 h-[2.5px] rounded-full bg-accent-500 transition-all duration-200',
-                    tab === t.id ? 'scale-x-100 opacity-100' : 'scale-x-50 opacity-0',
-                  )}
+          {/* Danh sách đơn ứng tuyển */}
+          {isLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-24 animate-pulse rounded-2xl border border-slate-200/80 bg-white"
                 />
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : pageItems.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+              <ClipboardList className="mx-auto h-8 w-8 text-slate-300" />
+              <p className="mt-2.5 text-sm font-semibold text-slate-700">
+                {apps.length === 0
+                  ? 'Bạn chưa có đơn ứng tuyển nào.'
+                  : 'Không tìm thấy đơn phù hợp bộ lọc.'}
+              </p>
+              <Link
+                href="/viec-lam"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0d3468]"
+              >
+                <span>Khám phá việc làm</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {pageItems.map((app) => {
+                const isExpanded = effectiveExpandedId === app.id;
+                const appInterviews = (interviews ?? []).filter(
+                  (iv) => iv.applicationId === app.id,
+                );
+                const appOffers = (offers ?? []).filter((of) => of.applicationId === app.id);
+                const appOnboardings = (onboardings ?? []).filter(
+                  (ob) => ob.applicationId === app.id,
+                );
 
-          <ul className="mt-4 space-y-3">
-            {isLoading && (
-              <li className="progress-card p-10 text-center text-sm text-slate-500">
-                Đang tải đơn ứng tuyển...
-              </li>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <li className="progress-card border-dashed p-12 text-center">
-                <FileText className="mx-auto h-10 w-10 text-brand-400" />
-                <p className="mt-3 text-sm font-semibold text-slate-700">
-                  {apps.length === 0
-                    ? 'Bạn chưa có đơn ứng tuyển nào'
-                    : 'Không tìm thấy đơn phù hợp bộ lọc'}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {apps.length === 0
-                    ? 'Ứng tuyển việc phù hợp — đơn sẽ xuất hiện tại đây kèm mã và lịch sử.'
-                    : 'Thử đổi từ khóa hoặc chọn tab khác.'}
-                </p>
-                {apps.length === 0 && (
-                  <Link
-                    href="/viec-lam"
-                    className="progress-btn mt-4 bg-brand-600 text-white hover:bg-brand-700"
-                  >
-                    Tìm việc làm
-                  </Link>
-                )}
-              </li>
-            )}
-            {pageItems.map((app, idx) => (
-              <ApplicationRecordCard
-                key={app.id}
-                app={app}
-                index={idx}
-                expanded={expandedId === app.id}
-                onToggleHistory={() =>
-                  setExpandedId((cur) => (cur === app.id ? null : app.id))
-                }
-              />
-            ))}
-          </ul>
+                return (
+                  <ApplicationProgressCard
+                    key={app.id}
+                    app={app}
+                    expanded={isExpanded}
+                    interviews={appInterviews}
+                    offers={appOffers}
+                    onboardings={appOnboardings}
+                    offerRespondPending={respondOfferMutation.isPending}
+                    onRespondOffer={(id, accept) => respondOfferMutation.mutate({ id, accept })}
+                    onToggle={() =>
+                      setExpandedId((cur) => (cur === app.id ? '__none__' : app.id))
+                    }
+                  />
+                );
+              })}
+            </ul>
+          )}
 
-          {!isLoading && filtered.length > 0 && (
+          {filtered.length > PAGE_SIZE && (
             <PaginationBar
               page={currentPage}
               totalPages={totalPages}
               totalItems={filtered.length}
               pageSize={PAGE_SIZE}
-              itemLabel="đơn"
               onChange={goToPage}
             />
           )}
         </section>
 
-        {/* Right — ngữ cảnh & CTA */}
-        <aside className="space-y-4 animate-soft-rise [animation-delay:120ms]">
-          <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-accent-500 to-[#d06f18] p-4 text-white shadow-[0_12px_28px_-16px_rgba(232,135,42,0.8)]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium text-white/80">Độ phù hợp AI trung bình</p>
-                <p className="mt-1 text-4xl font-bold tracking-tight">
-                  {avgMatch != null ? `${avgMatch}%` : '—'}
-                </p>
-                <p className="mt-1 text-[11px] text-white/80">
-                  Trên {apps.filter((a) => a.matchScore != null).length} đơn có điểm khớp
-                </p>
-              </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-                <Target className="h-5 w-5" />
-              </span>
-            </div>
-            <div className="mt-4 space-y-2">
-              <Link
-                href="/recommended"
-                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-800 text-sm font-semibold text-white transition hover:bg-brand-700"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Xem gợi ý AI
-              </Link>
-              <Link
-                href="/viec-lam"
-                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-white/40 bg-white/15 text-sm font-semibold text-white transition hover:bg-white/25"
-              >
-                <Search className="h-3.5 w-3.5" />
-                Tìm thêm việc
-              </Link>
-            </div>
-          </div>
+        {/* Cột phải: Việc cần làm · Lịch sắp tới · Gợi ý tiếp theo */}
+        <aside className="space-y-4">
+          {/* 1. Việc cần làm */}
+          <div className="rounded-2xl border border-[#dce6f4] bg-white p-4 shadow-xs">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-[#072348]">
+              <Zap className="h-4 w-4 text-amber-500" />
+              <span>Việc cần làm ({todoCount})</span>
+            </h2>
 
-          <div className="progress-card p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900">Cần chú ý</h2>
-              <Eye className="h-4 w-4 text-brand-500" />
-            </div>
-            {needsAttention.length === 0 ? (
-              <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                Không có đơn ở bước phỏng vấn hoặc đề nghị. Khi NTD cập nhật, sẽ hiện tại đây.
+            {todoCount === 0 ? (
+              <p className="mt-3 text-xs text-slate-400">
+                Hiện không có đề nghị hay lịch phỏng vấn nào cần xử lý gấp.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">
-                {needsAttention.map((a) => (
-                  <li key={a.id}>
+                {pendingOffers.map((offer) => (
+                  <li key={offer.id}>
                     <button
                       type="button"
                       onClick={() => {
-                        setTab(
-                          a.status === ApplicationStatus.Offer ? 'offer' : 'interview',
-                        );
-                        setPage(1);
-                        setExpandedId(a.id);
-                        window.setTimeout(() => {
-                          document
-                            .getElementById(`app-${a.id}`)
-                            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 50);
+                        setTab('offer');
+                        setExpandedId(offer.applicationId);
                       }}
-                      className="group flex w-full items-start gap-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:bg-white hover:shadow-sm"
+                      className="flex w-full items-center justify-between gap-2.5 rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-2.5 text-left transition hover:bg-amber-50"
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white text-[11px] font-bold text-slate-500">
-                        {companyInitials(a.companyName)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-slate-900 group-hover:text-amber-700">
-                          {a.jobTitle}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-500">{a.companyName}</p>
-                        <span
-                          className={clsx(
-                            'mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
-                            statusBadgeClass(a.status),
-                          )}
-                        >
-                          {APPLICATION_STATUS_LABEL[a.status]}
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-[#c96a12]">
+                          <Gift className="h-4 w-4" />
                         </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-[#072348]">
+                            Phản hồi đề nghị làm việc
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-600">
+                            {formatJobTitle(offer.jobTitle)} – {offer.companyName}
+                          </p>
+                        </div>
                       </div>
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    </button>
+                  </li>
+                ))}
+
+                {upcomingInterviews.slice(0, 2).map((iv) => (
+                  <li key={iv.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTab('interview');
+                        setExpandedId(iv.applicationId);
+                      }}
+                      className="flex w-full items-center justify-between gap-2.5 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2.5 text-left transition hover:bg-sky-50"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-brand-700">
+                          <CalendarDays className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-[#072348]">
+                            Lịch phỏng vấn sắp tới
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-600">
+                            {formatJobTitle(iv.jobTitle)} · {formatTimeRange(iv.scheduledAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-            <Link
-              href="/progress"
-              className="mt-3 block text-center text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 hover:underline"
-            >
-              Theo dõi trên Tiến trình →
-            </Link>
           </div>
 
-          <div className="progress-card p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900">Gợi ý sử dụng</h2>
-              <Percent className="h-4 w-4 text-slate-400" />
-            </div>
-            <ul className="mt-3 space-y-2.5 text-[12px] leading-relaxed text-slate-600">
-              <li className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                Mở <strong className="font-semibold text-slate-800">Lịch sử</strong> để xem
-                từng mốc NTD đã cập nhật.
+          {/* 2. Lịch sắp tới */}
+          <div className="rounded-2xl border border-[#dce6f4] bg-white p-4 shadow-xs">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-[#072348]">
+              <Calendar className="h-4 w-4 text-brand-600" />
+              <span>Lịch sắp tới</span>
+            </h2>
+
+            {upcomingInterviews.length === 0 ? (
+              <p className="mt-3 text-xs text-slate-400">Chưa có lịch phỏng vấn nào được hẹn.</p>
+            ) : (
+              <ul className="mt-3 space-y-2.5">
+                {upcomingInterviews.slice(0, 3).map((iv) => {
+                  const d = new Date(iv.scheduledAt);
+                  const wk = d.toLocaleDateString('vi-VN', { weekday: 'short' });
+                  const dm = formatShortDayMonth(iv.scheduledAt);
+                  const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <li
+                      key={iv.id}
+                      className="flex items-center gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] p-2.5"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-white text-center shadow-2xs ring-1 ring-slate-200/70">
+                        <span className="text-[10px] font-bold uppercase text-brand-600">{wk}</span>
+                        <span className="text-xs font-extrabold text-[#072348]">{dm}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-[#072348]">Phỏng vấn</p>
+                        <p className="mt-0.5 truncate text-[11px] text-slate-600">
+                          {formatJobTitle(iv.jobTitle)}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">🕒 {hm}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {upcomingInterviews.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('interview');
+                  setPage(1);
+                }}
+                className="mt-3 flex w-full items-center justify-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-800"
+              >
+                <span>Xem toàn bộ lịch</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* 3. Gợi ý tiếp theo */}
+          <div className="rounded-2xl border border-[#dce6f4] bg-white p-4 shadow-xs">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-[#072348]">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              <span>Gợi ý tiếp theo</span>
+            </h2>
+            <ul className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#072348]" />
+                <span>Chuẩn bị kỹ câu chuyện doanh số hoặc dự án tiêu biểu trước buổi phỏng vấn.</span>
               </li>
-              <li className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-                Dùng mã đơn khi liên hệ hỗ trợ hoặc nhà tuyển dụng.
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#072348]" />
+                <span>Theo dõi và phản hồi đề nghị làm việc đúng hạn để giữ uy tín hồ sơ.</span>
               </li>
-              <li className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
-                Đơn ở bước Phỏng vấn / Đề nghị nên theo dõi thêm tại{' '}
-                <Link href="/progress" className="font-semibold text-brand-600 hover:underline">
-                  Tiến trình
-                </Link>
-                .
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#072348]" />
+                <span>Cập nhật CV thường xuyên để AI gợi ý thêm nhiều vị trí phù hợp.</span>
               </li>
             </ul>
           </div>
@@ -523,219 +680,398 @@ export default function ApplicationsPage() {
 }
 
 function StatCell({
+  active,
+  onClick,
   icon,
   iconClass,
   label,
   value,
+  tint,
 }: {
+  active?: boolean;
+  onClick: () => void;
   icon: ReactNode;
   iconClass: string;
   label: string;
   value: number;
+  tint?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)]">
-      <div className={clsx('flex h-9 w-9 items-center justify-center rounded-xl', iconClass)}>{icon}</div>
-      <p className="mt-2 truncate text-[12px] text-slate-500">{label}</p>
-      <p className="text-2xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm',
+        tint ?? 'border-[#dce6f4] bg-white',
+        active && 'ring-2 ring-[#072348]/20',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className={clsx('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', iconClass)}>
+          {icon}
+        </span>
+        <span className="truncate text-xs font-medium text-slate-600">{label}</span>
+      </div>
+      <p className="mt-2 text-2xl font-extrabold tabular-nums tracking-tight text-[#072348]">
+        {value}
+      </p>
+    </button>
   );
 }
 
-function ApplicationRecordCard({
+function ApplicationProgressCard({
   app,
-  index,
   expanded,
-  onToggleHistory,
+  interviews,
+  offers,
+  onboardings,
+  offerRespondPending,
+  onRespondOffer,
+  onToggle,
 }: {
   app: ApplicationView;
-  index: number;
   expanded: boolean;
-  onToggleHistory: () => void;
+  interviews: InterviewView[];
+  offers: OfferView[];
+  onboardings: OnboardingView[];
+  offerRespondPending: boolean;
+  onRespondOffer: (id: string, accept: boolean) => void;
+  onToggle: () => void;
 }) {
+  const pill = statusPillMeta(app.status);
+  const currentStep = stepIndexOf(app.status);
+  const isRejected =
+    app.status === ApplicationStatus.Rejected || app.status === ApplicationStatus.Withdrawn;
+
+  const { data: detail } = useQuery({
+    queryKey: ['application', app.id],
+    queryFn: () => getApplicationDetail(app.id),
+    enabled: expanded,
+    retry: false,
+  });
+
+  const stepDates = useMemo(() => {
+    const map = new Map<ApplicationStatus, string>();
+    map.set(ApplicationStatus.Applied, formatShortDayMonth(app.createdAt));
+    for (const ev of detail?.timeline ?? []) {
+      const dateStr = formatShortDayMonth(ev.occurredAt);
+      const t = ev.type.toUpperCase();
+      if (t.includes('SCREEN') || t.includes('SHORTLIST')) {
+        map.set(ApplicationStatus.Screening, dateStr);
+      }
+      else if (t.includes('INTERVIEW')) map.set(ApplicationStatus.Interview, dateStr);
+      else if (t.includes('OFFER')) map.set(ApplicationStatus.Offer, dateStr);
+      else if (t.includes('HIRED') || t.includes('ONBOARD')) map.set(ApplicationStatus.Hired, dateStr);
+    }
+    if (!map.has(ApplicationStatus.Interview) && interviews[0]?.scheduledAt) {
+      map.set(ApplicationStatus.Interview, formatShortDayMonth(interviews[0].scheduledAt));
+    }
+    if (!map.has(ApplicationStatus.Offer) && offers[0]?.createdAt) {
+      map.set(ApplicationStatus.Offer, formatShortDayMonth(offers[0].createdAt));
+    }
+    return map;
+  }, [app.createdAt, detail?.timeline, interviews, offers]);
+
   return (
     <li
-      id={`app-${app.id}`}
-      className="progress-card overflow-hidden"
-      style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+      className={clsx(
+        'overflow-hidden rounded-2xl border bg-white transition',
+        expanded
+          ? 'border-amber-300/90 shadow-sm ring-1 ring-amber-200/50'
+          : 'border-[#dce6f4] hover:border-brand-200 hover:shadow-xs',
+      )}
     >
-      <div className="p-4 sm:p-5">
-        <div className="flex gap-3 sm:gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-sm font-bold text-slate-500 transition-transform duration-200 hover:scale-105 sm:h-[52px] sm:w-[52px]">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-xs font-bold text-[#072348]">
             {companyInitials(app.companyName)}
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/jobs/${app.jobId}`}
-                    className="text-[15px] font-bold text-slate-900 transition-colors hover:text-amber-700"
-                  >
-                    {app.jobTitle}
-                  </Link>
-                  <span
-                    className={clsx(
-                      'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
-                      statusBadgeClass(app.status),
-                    )}
-                  >
-                    {APPLICATION_STATUS_LABEL[app.status]}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-sm text-slate-500">{app.companyName}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1 font-medium text-slate-600">
-                    <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
-                    {app.code}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                    {app.location || 'Thỏa thuận'}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Wallet className="h-3.5 w-3.5 text-slate-400" />
-                    {formatSalary(app.salaryMin, app.salaryMax)}
-                  </span>
-                </div>
-                <p className="mt-1.5 text-[11px] text-slate-400">
-                  Nộp đơn: {formatAppliedDate(app.createdAt)}
-                </p>
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                {app.matchScore != null ? (
-                  <div className="rounded-xl bg-accent-50 px-3 py-2 text-right">
-                    <p className="text-[10px] font-medium text-slate-500">Phù hợp AI</p>
-                    <p className="text-lg font-bold tabular-nums text-[#E8872A]">
-                      {formatMatchPct(app.matchScore)}%
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-slate-400">Chưa có điểm khớp</p>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Link
-                href={`/jobs/${app.jobId}`}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-700"
-              >
-                <Eye className="h-3.5 w-3.5" />
-                Xem tin tuyển dụng
-              </Link>
-              <Link
-                href="/progress"
-                className="progress-btn border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              >
-                <Target className="h-3.5 w-3.5" />
-                Tiến trình
-              </Link>
-              <button
-                type="button"
-                onClick={onToggleHistory}
-                className={clsx(
-                  'progress-btn',
-                  expanded
-                    ? 'bg-brand-600 text-white hover:bg-brand-700'
-                    : 'border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100',
-                )}
-              >
-                {expanded ? (
-                  <>
-                    <ChevronUp className="h-3.5 w-3.5" /> Thu gọn lịch sử
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-3.5 w-3.5" /> Lịch sử trạng thái
-                  </>
-                )}
-              </button>
+            <p className="truncate text-[15px] font-bold text-[#072348]">
+              {formatJobTitle(app.jobTitle)}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{app.companyName}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-500">
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                Ứng tuyển: {formatDate(app.createdAt)}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                {app.location || 'Thỏa thuận'}
+              </span>
+              {app.matchScore != null && (
+                <span className="inline-flex items-center gap-1 font-semibold text-brand-700">
+                  <Sparkles className="h-3 w-3 text-sky-500" />
+                  Phù hợp {formatMatchPct(app.matchScore)}%
+                </span>
+              )}
             </div>
           </div>
         </div>
-      </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={clsx('rounded-full px-3 py-1 text-[11px] font-semibold', pill.className)}>
+            {pill.label}
+          </span>
+          <ChevronDown
+            className={clsx(
+              'h-4 w-4 text-slate-400 transition-transform duration-200',
+              expanded && 'rotate-180 text-[#072348]',
+            )}
+          />
+        </div>
+      </button>
 
       {expanded && (
-        <div className="border-t border-slate-100 bg-[#F8FAFC] px-4 py-4 sm:px-5 animate-soft-rise">
-          <ApplicationTimelinePanel applicationId={app.id} />
+        <div className="border-t border-slate-100 bg-[#FAFBFD] px-4 pb-4 pt-3.5">
+          {/* Thanh tiến trình 5 bước */}
+          {!isRejected ? (
+            <div className="overflow-x-auto pb-1">
+              <div className="flex min-w-[440px] items-start justify-between">
+                {PIPELINE_STEPS.map((st, idx) => {
+                  const done = idx < currentStep || app.status === ApplicationStatus.Hired;
+                  const current = idx === currentStep && app.status !== ApplicationStatus.Hired;
+                  const dateTxt = stepDates.get(st.status);
+                  const isOfferCurrent = current && st.status === ApplicationStatus.Offer;
+
+                  // Màu node theo từng bước & trạng thái giống mẫu
+                  const circleClass = (() => {
+                    if (done) {
+                      if (st.status === ApplicationStatus.Interview) {
+                        return 'bg-[#0B468C] text-white';
+                      }
+                      return 'bg-emerald-500 text-white';
+                    }
+                    if (current) {
+                      if (st.status === ApplicationStatus.Offer || st.status === ApplicationStatus.Screening) {
+                        return 'bg-[#F97316] text-white ring-4 ring-orange-100';
+                      }
+                      if (st.status === ApplicationStatus.Interview) {
+                        return 'bg-[#0B468C] text-white ring-4 ring-sky-100';
+                      }
+                      return 'bg-emerald-500 text-white ring-4 ring-emerald-100';
+                    }
+                    return 'border-2 border-slate-300 bg-white text-transparent';
+                  })();
+
+                  // Màu đường nối tới bước tiếp theo
+                  const renderConnector = () => {
+                    if (idx >= PIPELINE_STEPS.length - 1) return null;
+                    const isCompletedLink = idx < currentStep || app.status === ApplicationStatus.Hired;
+                    const isPartialCurrent = idx === currentStep && app.status !== ApplicationStatus.Hired;
+
+                    if (isCompletedLink) {
+                      const isBlueLink = st.status === ApplicationStatus.Interview;
+                      return (
+                        <div className="mt-3.5 flex flex-1 items-center px-1.5">
+                          <div
+                            className={clsx(
+                              'h-[2px] flex-1 rounded-full',
+                              isBlueLink ? 'bg-[#0B468C]' : 'bg-emerald-500',
+                            )}
+                          />
+                          <span
+                            className={clsx(
+                              '-ml-1 h-0 w-0 border-y-[3.5px] border-l-[5px] border-y-transparent',
+                              isBlueLink ? 'border-l-[#0B468C]' : 'border-l-emerald-500',
+                            )}
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (isPartialCurrent) {
+                      const activeBarColor =
+                        st.status === ApplicationStatus.Offer || st.status === ApplicationStatus.Screening
+                          ? 'bg-[#F97316]'
+                          : st.status === ApplicationStatus.Interview
+                            ? 'bg-[#0B468C]'
+                            : 'bg-emerald-500';
+                      return (
+                        <div className="mt-3.5 flex flex-1 items-center px-1.5">
+                          <div className={clsx('h-[2px] w-2/5 rounded-l-full', activeBarColor)} />
+                          <div className="h-[2px] flex-1 rounded-r-full bg-slate-200" />
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-3.5 flex flex-1 items-center px-1.5">
+                        <div className="h-[2px] flex-1 rounded-full bg-slate-200" />
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <div
+                      key={st.status}
+                      className={clsx(
+                        'flex items-start',
+                        idx < PIPELINE_STEPS.length - 1 ? 'flex-1' : 'shrink-0',
+                      )}
+                    >
+                      <div className="flex min-w-[68px] flex-col items-center text-center">
+                        <span
+                          className={clsx(
+                            'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+                            circleClass,
+                          )}
+                        >
+                          {done ? (
+                            <Check className="h-3.5 w-3.5 stroke-[2.75]" />
+                          ) : current ? (
+                            <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                          ) : null}
+                        </span>
+                        <span
+                          className={clsx(
+                            'mt-1.5 text-[11px] font-semibold',
+                            done || current ? 'text-[#072348]' : 'text-slate-400',
+                          )}
+                        >
+                          {st.label}
+                        </span>
+                        <span
+                          className={clsx(
+                            'mt-0.5 text-[10px]',
+                            isOfferCurrent
+                              ? 'font-medium text-[#EA580C]'
+                              : current && st.status === ApplicationStatus.Screening
+                                ? 'font-medium text-[#EA580C]'
+                                : 'text-slate-500',
+                          )}
+                        >
+                          {isOfferCurrent ? 'Chờ phản hồi' : dateTxt || '—'}
+                        </span>
+                      </div>
+                      {renderConnector()}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">
+              Đơn ứng tuyển này đã kết thúc ({APPLICATION_STATUS_LABEL[app.status]}).
+            </p>
+          )}
+
+          {/* Chi tiết Lịch phỏng vấn / Đề nghị / Nhận việc thuộc đơn này */}
+          {(interviews.length > 0 || offers.length > 0 || onboardings.length > 0) && (
+            <div className="mt-3 space-y-2 border-t border-slate-200/70 pt-3">
+              {interviews.map((iv) => (
+                <div
+                  key={iv.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-100 bg-white px-3.5 py-2.5 text-xs"
+                >
+                  <div>
+                    <p className="font-bold text-[#072348]">
+                      📅 {INTERVIEW_TYPE_LABEL[iv.type] ?? 'Phỏng vấn'} · {formatTimeRange(iv.scheduledAt)}
+                    </p>
+                    {(iv.meetingLink || iv.location) && (
+                      <p className="mt-0.5 text-slate-600">
+                        Địa điểm / Link: {iv.meetingLink ?? iv.location}
+                      </p>
+                    )}
+                  </div>
+                  <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
+                    {iv.status === InterviewStatus.Scheduled ? 'Đã lên lịch' : iv.status}
+                  </span>
+                </div>
+              ))}
+
+              {offers.map((offer) => (
+                <div
+                  key={offer.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-white px-3.5 py-2.5 text-xs"
+                >
+                  <div>
+                    <p className="font-bold text-[#072348]">
+                      🎁 Đề nghị làm việc · Mức lương:{' '}
+                      <span className="text-[#c96a12]">
+                        {offer.salary != null
+                          ? formatVndAmount(offer.salary)
+                          : formatSalary(app.salaryMin, app.salaryMax)}
+                      </span>
+                    </p>
+                    {offer.startDate && (
+                      <p className="mt-0.5 text-slate-600">
+                        Ngày dự kiến nhận việc: {formatDate(offer.startDate)}
+                      </p>
+                    )}
+                  </div>
+
+                  {offer.status === OfferStatus.Pending ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={offerRespondPending}
+                        onClick={() => onRespondOffer(offer.id, false)}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Từ chối</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={offerRespondPending}
+                        onClick={() => onRespondOffer(offer.id, true)}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#072348] px-3 text-xs font-bold text-white hover:bg-[#0d3468] disabled:opacity-50"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Đồng ý nhận việc</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      {offer.status === OfferStatus.Accepted ? 'Đã đồng ý' : 'Đã từ chối'}
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {onboardings.map((ob) => (
+                <div
+                  key={ob.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3.5 py-2.5 text-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-emerald-600" />
+                    <span className="font-bold text-[#072348]">
+                      Quá trình nhận việc (Onboarding)
+                    </span>
+                    {ob.startDate && (
+                      <span className="text-slate-500">· Bắt đầu {formatDate(ob.startDate)}</span>
+                    )}
+                  </div>
+                  <Link
+                    href="/progress#onboarding"
+                    className="font-semibold text-brand-600 hover:underline"
+                  >
+                    Xem checklist →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-slate-400">Mã đơn: {app.code}</span>
+            <Link
+              href={`/jobs/${app.jobId}`}
+              className="font-semibold text-brand-600 hover:underline"
+            >
+              Xem tin tuyển dụng →
+            </Link>
+          </div>
         </div>
       )}
     </li>
-  );
-}
-
-function ApplicationTimelinePanel({ applicationId }: { applicationId: string }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['application-detail', applicationId],
-    queryFn: () => getApplicationDetail(applicationId),
-  });
-
-  if (isLoading) {
-    return <p className="text-sm text-slate-500">Đang tải lịch sử trạng thái...</p>;
-  }
-  if (isError || !data) {
-    return <p className="text-sm text-rose-600">Không tải được lịch sử đơn này.</p>;
-  }
-
-  if (data.timeline.length === 0) {
-    return (
-      <p className="text-sm text-slate-500">
-        Chưa có mốc trạng thái. Khi nhà tuyển dụng cập nhật, lịch sử sẽ hiện tại đây.
-      </p>
-    );
-  }
-
-  return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-          Lịch sử trạng thái
-        </p>
-        {data.coverLetter && (
-          <details className="text-xs">
-            <summary className="cursor-pointer font-semibold text-brand-600 hover:underline">
-              Xem thư xin việc
-            </summary>
-            <p className="mt-2 max-w-xl whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-3 text-slate-600">
-              {data.coverLetter}
-            </p>
-          </details>
-        )}
-      </div>
-      <ol className="relative space-y-0 pl-1">
-        {data.timeline.map((item, idx) => {
-          const isLast = idx === data.timeline.length - 1;
-          return (
-            <li key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
-              <div className="flex w-4 flex-col items-center">
-                <span
-                  className={clsx(
-                    'mt-1 h-2.5 w-2.5 shrink-0 rounded-full ring-4',
-                    isLast
-                      ? 'bg-brand-500 ring-brand-100'
-                      : 'bg-slate-300 ring-slate-100',
-                  )}
-                />
-                {!isLast && <span className="mt-1 w-px flex-1 bg-slate-200" />}
-              </div>
-              <div className="min-w-0 flex-1 rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm transition-shadow duration-200 hover:shadow-md">
-                <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                {item.description && (
-                  <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500">
-                    {item.description}
-                  </p>
-                )}
-                <p className="mt-1.5 text-[11px] text-slate-400">
-                  {formatDateTime(item.occurredAt)}
-                </p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
   );
 }

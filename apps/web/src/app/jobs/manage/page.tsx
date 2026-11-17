@@ -6,41 +6,36 @@ import {
   Briefcase,
   Building2,
   CalendarDays,
+  CheckCircle2,
+  Clock,
   Copy,
   Eye,
   FileText,
+  Info,
   Laptop,
   Lock,
-  Sparkles,
   MapPin,
+  MoreHorizontal,
   Pause,
+  PauseCircle,
   Pencil,
   Play,
   Plus,
   Search,
+  Settings,
   Trash2,
   UserCheck,
   Users,
   Wallet,
-  XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { JobModerationStatus, JobStatus, type JobListItem } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { Badge, Button, Input } from '@/components/ui';
+import { Badge, Button, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import {
-  EMPLOYMENT_LABEL,
-  formatJobLevel,
-  formatSalary,
-} from '@/lib/format';
-import {
-  deleteJob,
-  listMyJobs,
-  publishJob,
-  updateJobStatus,
-} from '@/lib/jobs';
+import { EMPLOYMENT_LABEL, formatJobLevel, formatSalary } from '@/lib/format';
+import { deleteJob, listMyJobs, publishJob, updateJobStatus } from '@/lib/jobs';
 import { plainLabel } from '@/lib/plain-label';
 import { apiPublicBase } from '@/lib/public-paths';
 
@@ -78,11 +73,62 @@ function isRejected(job: JobListItem): boolean {
   );
 }
 
-function jobBadge(job: JobListItem): { label: string; tone: 'green' | 'slate' | 'amber' | 'red' } {
-  if (isModerating(job)) return { label: 'Đang kiểm duyệt', tone: 'amber' };
-  if (isAwaitingAdmin(job)) return { label: 'Chờ Admin duyệt', tone: 'amber' };
-  if (isRejected(job)) return { label: 'Bị từ chối', tone: 'red' };
-  return { label: STATUS_LABEL[job.status], tone: statusTone(job.status) };
+function jobBadge(job: JobListItem): {
+  label: string;
+  tone: 'green' | 'slate' | 'amber' | 'red';
+  dotClass: string;
+} {
+  if (isModerating(job)) {
+    return { label: 'Đang kiểm duyệt', tone: 'amber', dotClass: 'bg-amber-500' };
+  }
+  if (isAwaitingAdmin(job)) {
+    return { label: 'Chờ Admin duyệt', tone: 'amber', dotClass: 'bg-amber-500' };
+  }
+  if (isRejected(job)) {
+    return { label: 'Bị từ chối', tone: 'red', dotClass: 'bg-rose-500' };
+  }
+  const tone = statusTone(job.status);
+  const dotClass =
+    tone === 'green'
+      ? 'bg-emerald-500'
+      : tone === 'amber'
+        ? 'bg-amber-500'
+        : tone === 'red'
+          ? 'bg-rose-500'
+          : 'bg-slate-400';
+  return { label: STATUS_LABEL[job.status], tone, dotClass };
+}
+
+function getDeadlineBadge(deadline: string | null | undefined): {
+  text: string;
+  className: string;
+} {
+  if (!deadline) {
+    return {
+      text: 'Không giới hạn',
+      className: 'bg-slate-100 text-slate-600',
+    };
+  }
+  const end = new Date(deadline);
+  const now = new Date();
+  end.setHours(23, 59, 59, 999);
+  const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays > 1) {
+    return {
+      text: `còn ${diffDays} ngày`,
+      className: 'bg-emerald-50 text-emerald-700',
+    };
+  }
+  if (diffDays === 1 || diffDays === 0) {
+    return {
+      text: diffDays === 1 ? 'còn 1 ngày' : 'Hết hạn hôm nay',
+      className: 'bg-amber-50 text-amber-700',
+    };
+  }
+  return {
+    text: 'Đã hết hạn',
+    className: 'bg-rose-50 text-rose-600',
+  };
 }
 
 const MODERATION_POLL_MS = 3000;
@@ -95,9 +141,12 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: JobStatus.Closed, label: 'Đã đóng' },
 ];
 
+type TimeFilter = 'all' | '7d' | '30d' | '90d';
+
 export default function ManageJobsPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [sort, setSort] = useState<'new' | 'old'>('new');
   const [q, setQ] = useState('');
 
@@ -154,6 +203,11 @@ export default function ManageJobsPage() {
     if (statusFilter !== 'all') {
       list = list.filter((j) => j.status === statusFilter);
     }
+    if (timeFilter !== 'all') {
+      const days = timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : 90;
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      list = list.filter((j) => new Date(j.createdAt).getTime() >= cutoff);
+    }
     const query = q.trim().toLowerCase();
     if (query) {
       list = list.filter((j) => {
@@ -167,7 +221,7 @@ export default function ManageJobsPage() {
       const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return sort === 'new' ? diff : -diff;
     });
-  }, [jobs, statusFilter, q, sort]);
+  }, [jobs, statusFilter, timeFilter, q, sort]);
 
   return (
     <AppShell>
@@ -196,61 +250,105 @@ export default function ManageJobsPage() {
       </section>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={<Briefcase className="h-4 w-4" />} label="Tổng tin" value={stats.total} tone="bg-brand-50 text-brand-700" />
-        <StatCard icon={<UserCheck className="h-4 w-4" />} label="Đang tuyển" value={stats.published} tone="bg-emerald-50 text-emerald-700" />
-        <StatCard icon={<FileText className="h-4 w-4" />} label="Bản nháp" value={stats.draft} tone="bg-accent-50 text-accent-700" />
-        <StatCard icon={<Pause className="h-4 w-4" />} label="Tạm dừng" value={stats.paused} tone="bg-amber-50 text-amber-700" />
+        <StatCard
+          icon={<Briefcase className="h-4 w-4" />}
+          label="Tổng tin"
+          value={stats.total}
+          tone="bg-brand-50 text-brand-700"
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        />
+        <StatCard
+          icon={<UserCheck className="h-4 w-4" />}
+          label="Đang tuyển"
+          value={stats.published}
+          tone="bg-emerald-50 text-emerald-700"
+          active={statusFilter === JobStatus.Published}
+          onClick={() => setStatusFilter(JobStatus.Published)}
+        />
+        <StatCard
+          icon={<FileText className="h-4 w-4" />}
+          label="Bản nháp"
+          value={stats.draft}
+          tone="bg-accent-50 text-accent-700"
+          active={statusFilter === JobStatus.Draft}
+          onClick={() => setStatusFilter(JobStatus.Draft)}
+        />
+        <StatCard
+          icon={<Pause className="h-4 w-4" />}
+          label="Tạm dừng"
+          value={stats.paused}
+          tone="bg-amber-50 text-amber-700"
+          active={statusFilter === JobStatus.Paused}
+          onClick={() => setStatusFilter(JobStatus.Paused)}
+        />
       </div>
 
-      <div className="brand-panel mt-5 p-4">
-        <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-2">
-          <div className="relative min-w-0">
+      {/* Thanh tìm kiếm, lọc trạng thái, lọc thời gian & sắp xếp */}
+      <div className="brand-panel mt-5 p-3.5 sm:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative min-w-0 flex-1 xl:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Tìm theo tên tin, mã JOB, địa điểm, kỹ năng..."
-              className="w-full border-accent-200 bg-[#FFFBF7] pl-9"
+              className="h-10 w-full rounded-xl border-slate-200 bg-white pl-9 text-sm"
             />
           </div>
-          <div className="flex min-w-0 flex-wrap gap-1.5">
-            {STATUS_FILTERS.map((f) => {
-              const active = statusFilter === f.value;
-              return (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => setStatusFilter(f.value)}
-                  className={clsx(
-                    'rounded-full px-3 py-1.5 text-[12px] font-semibold transition',
-                    active
-                      ? 'bg-brand-600 text-white shadow-sm ring-2 ring-accent-300/70'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                  )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {STATUS_FILTERS.map((f) => {
+                const active = statusFilter === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setStatusFilter(f.value)}
+                    className={clsx(
+                      'rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
+                      active
+                        ? 'bg-[#072348] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 xl:ml-1">
+              <div className="w-40">
+                <Select
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+                  className="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs font-medium text-slate-700"
                 >
-                  {f.label}
-                </button>
-              );
-            })}
+                  <option value="all">Tất cả thời gian</option>
+                  <option value="7d">7 ngày qua</option>
+                  <option value="30d">30 ngày qua</option>
+                  <option value="90d">90 ngày qua</option>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500">Sắp xếp:</span>
+                <div className="w-32">
+                  <Select
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value === 'old' ? 'old' : 'new')}
+                    className="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348]"
+                  >
+                    <option value="new">Mới nhất</option>
+                    <option value="old">Cũ nhất</option>
+                  </Select>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-medium text-slate-600">
-          {isLoading ? 'Đang tải…' : `${filtered.length} tin tuyển dụng`}
-        </p>
-        <label className="inline-flex items-center gap-2 text-sm text-slate-500">
-          Sắp xếp
-          <select
-            value={sort}
-            onChange={(event) => setSort(event.target.value === 'old' ? 'old' : 'new')}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-brand-800"
-          >
-            <option value="new">Mới nhất</option>
-            <option value="old">Cũ nhất</option>
-          </select>
-        </label>
       </div>
 
       {isError && (
@@ -277,7 +375,7 @@ export default function ManageJobsPage() {
           <p className="mt-1 text-sm text-slate-500">
             {jobs?.length === 0
               ? 'Đăng tin đầu tiên để bắt đầu nhận hồ sơ ứng viên.'
-              : 'Thử đổi trạng thái hoặc xoá từ khoá tìm kiếm.'}
+              : 'Thử đổi trạng thái, khoảng thời gian hoặc xoá từ khoá tìm kiếm.'}
           </p>
           {jobs?.length === 0 && (
             <Link href="/jobs/new" className="mt-4 inline-block">
@@ -287,12 +385,12 @@ export default function ManageJobsPage() {
         </div>
       )}
 
-      <div className="mt-3 space-y-3">
+      <div className="mt-4 space-y-3.5">
         {isLoading &&
           [1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-36 animate-pulse rounded-2xl border border-slate-100 bg-slate-100/80"
+              className="h-44 animate-pulse rounded-2xl border border-slate-100 bg-slate-100/80"
             />
           ))}
 
@@ -302,15 +400,9 @@ export default function ManageJobsPage() {
             job={job}
             busy={busy}
             onPublish={() => publishMutation.mutate(job.id)}
-            onPause={() =>
-              statusMutation.mutate({ id: job.id, status: JobStatus.Paused })
-            }
-            onResume={() =>
-              statusMutation.mutate({ id: job.id, status: JobStatus.Published })
-            }
-            onClose={() =>
-              statusMutation.mutate({ id: job.id, status: JobStatus.Closed })
-            }
+            onPause={() => statusMutation.mutate({ id: job.id, status: JobStatus.Paused })}
+            onResume={() => statusMutation.mutate({ id: job.id, status: JobStatus.Published })}
+            onClose={() => statusMutation.mutate({ id: job.id, status: JobStatus.Closed })}
             onDelete={() => {
               if (
                 window.confirm(
@@ -344,6 +436,20 @@ function JobManageCard({
   onClose: () => void;
   onDelete: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [menuOpen]);
+
   const badge = jobBadge(job);
   const inReview = isModerating(job) || isAwaitingAdmin(job);
   const created = new Date(job.createdAt).toLocaleDateString('vi-VN', {
@@ -351,6 +457,7 @@ function JobManageCard({
     month: '2-digit',
     year: 'numeric',
   });
+  const deadlineInfo = getDeadlineBadge(job.deadline);
   const result = job.recruitment ?? {
     applications: 0,
     screening: 0,
@@ -359,167 +466,312 @@ function JobManageCard({
     hires: 0,
   };
 
+  const cleanSkills = job.skills.map((s) => plainLabel(s)).filter(Boolean);
+  const visibleSkills = cleanSkills.slice(0, 4);
+  const extraSkillCount = Math.max(0, cleanSkills.length - visibleSkills.length);
+
   return (
-    <article className="brand-panel group p-4 transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.35)] sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <JobThumb job={job} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/jobs/${job.id}/detail`}
-              className="text-[15px] font-semibold text-brand-800 hover:text-brand-600"
-            >
-              {job.title}
-            </Link>
-            <Badge tone={badge.tone}>{badge.label}</Badge>
-            {job.isSourcingActive && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-xs font-bold text-[#072348] shadow-2xs">
-                <Sparkles className="h-3 w-3 text-[#E8872A]" />
-                Đang hoạt động săn tin
+    <article className="brand-panel group relative p-4 transition duration-200 hover:border-brand-200 hover:shadow-[0_12px_30px_-16px_rgba(7,35,72,0.28)] sm:p-5">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        {/* Cột trái: Thông tin tin tuyển dụng */}
+        <div className="flex min-w-0 flex-1 items-start gap-3.5">
+          <JobThumb job={job} />
+
+          <div className="min-w-0 flex-1">
+            {/* Tiêu đề + Trạng thái + Tin săn */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/jobs/${job.id}/detail`}
+                className="text-[15.5px] font-bold text-[#072348] hover:text-brand-600"
+              >
+                {job.title}
+              </Link>
+
+              <span
+                className={clsx(
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                  badge.tone === 'green' && 'bg-emerald-50 text-emerald-700',
+                  badge.tone === 'amber' && 'bg-amber-50 text-amber-700',
+                  badge.tone === 'red' && 'bg-rose-50 text-rose-700',
+                  badge.tone === 'slate' && 'bg-slate-100 text-slate-600',
+                )}
+              >
+                <span className={clsx('h-1.5 w-1.5 rounded-full', badge.dotClass)} />
+                {badge.label}
               </span>
-            )}
-            {job.isNew && <Badge tone="accent">Mới</Badge>}
-          </div>
 
-          <p className="mt-1.5 text-[12px] font-medium text-slate-400">{job.code}</p>
+              {job.isSourcingActive ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]">
+                  <Settings className="h-3 w-3 text-[#E8872A]" />
+                  Tin săn: Đang hoạt động
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+                  <Settings className="h-3 w-3 text-slate-400" />
+                  Tin săn: Chưa tạo
+                </span>
+              )}
 
-          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-slate-600">
-            {job.jobLevel && (
+              {job.isNew && <Badge tone="accent">Mới</Badge>}
+            </div>
+
+            <p className="mt-1 text-[12px] font-medium text-slate-400">{job.code}</p>
+
+            {/* Hàng metadata vị trí / địa điểm / lương / hình thức */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-slate-600">
+              {job.jobLevel && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                  {formatJobLevel(job.jobLevel)}
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5">
-                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-                {formatJobLevel(job.jobLevel)}
+                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                {job.location ?? 'Chưa rõ địa điểm'}
               </span>
-            )}
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-slate-400" />
-              {job.location ?? 'Chưa rõ địa điểm'}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Wallet className="h-3.5 w-3.5 text-slate-400" />
-              {formatSalary(job.salaryMin, job.salaryMax)}
-            </span>
-            {job.employmentType && (
-              <span className="text-slate-500">
-                {EMPLOYMENT_LABEL[job.employmentType] ?? job.employmentType}
+              <span className="inline-flex items-center gap-1.5">
+                <Wallet className="h-3.5 w-3.5 text-slate-400" />
+                {formatSalary(job.salaryMin, job.salaryMax)}
               </span>
-            )}
-          </div>
-
-          {job.skills.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {job.skills
-                .map((s) => plainLabel(s))
-                .filter(Boolean)
-                .slice(0, 5)
-                .map((s) => (
-                  <Badge key={s} tone="green">
-                    {s}
-                  </Badge>
-                ))}
-              {job.skills.length > 5 && (
-                <span className="text-[11px] font-medium text-slate-400">
-                  +{job.skills.length - 5}
+              {job.employmentType && (
+                <span className="inline-flex items-center gap-1.5 text-slate-600">
+                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                  {EMPLOYMENT_LABEL[job.employmentType] ?? job.employmentType}
                 </span>
               )}
             </div>
-          )}
 
-          <p className="mt-3 text-[11px] text-slate-400">Tạo ngày {created}</p>
+            {/* Tag kỹ năng */}
+            {visibleSkills.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {visibleSkills.map((s) => (
+                  <span
+                    key={s}
+                    className={clsx(
+                      'rounded-md px-2.5 py-0.5 text-[11px] font-medium',
+                      job.isSourcingActive
+                        ? 'border border-slate-200 bg-slate-50 text-slate-700'
+                        : 'bg-emerald-50 text-emerald-700',
+                    )}
+                  >
+                    {s}
+                  </span>
+                ))}
+                {extraSkillCount > 0 && (
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                    +{extraSkillCount} kỹ năng
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Ngày tạo · Thời hạn đăng · Số lượt xem */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-slate-500">
+              <span>Tạo ngày {created}</span>
+              <span className="text-slate-300">|</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span>Thời hạn đăng:</span>
+                <span className={clsx('rounded px-1.5 py-0.5 text-[11px] font-semibold', deadlineInfo.className)}>
+                  {deadlineInfo.text}
+                </span>
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+                <Eye className="h-3.5 w-3.5 text-slate-400" />
+                <span>
+                  <strong className="font-semibold text-[#072348]">{job.viewCount ?? 0}</strong> lượt xem tin
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-5 lg:w-[22rem] lg:shrink-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-          <ResultStat icon={<Users className="h-3.5 w-3.5" />} label="Hồ sơ" value={result.applications} />
-          <ResultStat icon={<Search className="h-3.5 w-3.5" />} label="Sàng lọc" value={result.screening} />
-          <ResultStat icon={<CalendarDays className="h-3.5 w-3.5" />} label="Phỏng vấn" value={result.interviews} />
-          <ResultStat icon={<FileText className="h-3.5 w-3.5" />} label="Đề nghị" value={result.offers} />
-          <ResultStat icon={<UserCheck className="h-3.5 w-3.5" />} label="Nhận việc" value={result.hires} hired />
-        </div>
-      </div>
+        {/* Cột phải: Tiến độ tuyển dụng + Hàng nút hành động */}
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-3.5 lg:w-[27rem] lg:shrink-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-[#072348]">Tiến độ tuyển dụng</p>
+                <span
+                  title="Thống kê số lượng hồ sơ ứng viên đang ở từng giai đoạn của tin tuyển dụng này"
+                  className="text-slate-400"
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                <Eye className="h-3 w-3 text-slate-400" />
+                {job.viewCount ?? 0} lượt xem
+              </span>
+            </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3.5">
-        <Link href={`/jobs/${job.id}/detail`}>
-          <span className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent-500 px-3.5 text-[13px] font-semibold text-white shadow-sm shadow-accent-500/20 transition hover:bg-accent-600">
-            <Eye className="h-3.5 w-3.5" />
-            Xem
-          </span>
-        </Link>
-        {job.isSourcingActive ? (
-          <>
-            <span
-              className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 text-[12px] font-medium text-slate-400"
-              title="Tin đang hoạt động săn tin nên không thể chỉnh sửa tại mục Tin tuyển dụng"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              Đã khoá sửa
-            </span>
-            <Link href="/recruiter/sourcing">
-              <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#FFD0A3] bg-[#FFF8F1] px-3 text-[12px] font-bold text-[#072348] transition hover:border-[#E8872A] hover:bg-[#FFEEDB]">
-                <Sparkles className="h-3.5 w-3.5 text-[#E8872A]" />
-                Quản lý tại Săn nhân sự
+            <div className="mt-2 grid grid-cols-5 gap-1.5">
+              <ResultStat icon={<Users className="h-3.5 w-3.5" />} label="Hồ sơ" value={result.applications} />
+              <ResultStat icon={<Search className="h-3.5 w-3.5" />} label="Sàng lọc" value={result.screening} />
+              <ResultStat icon={<CalendarDays className="h-3.5 w-3.5" />} label="Phỏng vấn" value={result.interviews} />
+              <ResultStat icon={<FileText className="h-3.5 w-3.5" />} label="Đề nghị" value={result.offers} />
+              <ResultStat icon={<UserCheck className="h-3.5 w-3.5" />} label="Nhận việc" value={result.hires} hired />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/jobs/${job.id}/detail`}>
+              <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#E8872A] px-3.5 text-[12.5px] font-semibold text-white shadow-xs transition hover:bg-[#d6761b]">
+                <Eye className="h-3.5 w-3.5" />
+                Xem tin
               </span>
             </Link>
-          </>
-        ) : (
-          <Link href={`/jobs/${job.id}/edit`}>
-          <ActionChip>
-            <Pencil className="h-3.5 w-3.5" />
-            Sửa
-          </ActionChip>
-        </Link>
-        )}
-        <Link href={`/jobs/${job.id}/applicants`}>
-          <ActionChip>
-            <Users className="h-3.5 w-3.5" />
-            Ứng viên
-          </ActionChip>
-        </Link>
-        <Link href={`/jobs/new?from=${job.id}`}>
-          <ActionChip>
-            <Copy className="h-3.5 w-3.5" />
-            Copy tin đăng
-          </ActionChip>
-        </Link>
 
-        {!job.isSourcingActive && (
-          <div className="contents">
-            <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:inline-block" aria-hidden />
+            <Link href={`/jobs/${job.id}/applicants`}>
+              <span className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[12.5px] font-semibold text-[#072348] transition hover:border-brand-300 hover:bg-slate-50">
+                <Users className="h-3.5 w-3.5 text-slate-500" />
+                Ứng viên
+              </span>
+            </Link>
 
-        {job.status === JobStatus.Draft && !inReview && (
-          <ActionChip onClick={onPublish} disabled={busy}>
-            <Play className="h-3.5 w-3.5" />
-            Đăng tin
-          </ActionChip>
-        )}
-        {job.status === JobStatus.Published && (
-          <ActionChip onClick={onPause} disabled={busy}>
-            <Pause className="h-3.5 w-3.5" />
-            Tạm dừng
-          </ActionChip>
-        )}
-        {job.status === JobStatus.Paused && (
-          <ActionChip onClick={onResume} disabled={busy}>
-            <Play className="h-3.5 w-3.5" />
-            Mở lại
-          </ActionChip>
-        )}
-        {(job.status === JobStatus.Published || job.status === JobStatus.Paused) && (
-          <ActionChip onClick={onClose} disabled={busy}>
-            <XCircle className="h-3.5 w-3.5" />
-            Đóng tin
-          </ActionChip>
-        )}
+            <Link href="/recruiter/sourcing" className="flex-1 sm:flex-initial">
+              <span
+                className={clsx(
+                  'inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border px-3 text-[12.5px] font-semibold transition sm:w-auto',
+                  job.isSourcingActive
+                    ? 'border-[#FFD0A3] bg-[#FFF8F1] text-[#072348] hover:border-[#E8872A] hover:bg-[#FFEEDB]'
+                    : 'border-slate-200 bg-slate-50 text-[#072348] hover:border-brand-300 hover:bg-slate-100',
+                )}
+              >
+                <Settings
+                  className={clsx(
+                    'h-3.5 w-3.5',
+                    job.isSourcingActive ? 'text-[#E8872A]' : 'text-brand-600',
+                  )}
+                />
+                {job.isSourcingActive ? 'Quản lý Tin săn' : 'Tạo Tin săn'}
+              </span>
+            </Link>
 
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onDelete}
-          title="Xoá tin"
-          className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-        )}
+            {/* Menu 3 chấm */}
+            <div ref={menuRef} className="relative ml-auto">
+              <button
+                type="button"
+                aria-label="Thao tác khác"
+                onClick={() => setMenuOpen((o) => !o)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-[#072348]"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg">
+                  {job.isSourcingActive ? (
+                    <span
+                      title="Tin đang hoạt động săn tin nên không thể sửa tại đây"
+                      className="flex cursor-not-allowed items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-400"
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                      Đã khoá sửa tin
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/jobs/${job.id}/edit`}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-slate-400" />
+                      Sửa tin
+                    </Link>
+                  )}
+
+                  <Link
+                    href={`/jobs/new?from=${job.id}`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Copy className="h-3.5 w-3.5 text-slate-400" />
+                    Copy tin đăng
+                  </Link>
+
+                  {!job.isSourcingActive && (
+                    <>
+                      {job.status === JobStatus.Draft && !inReview && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            onPublish();
+                          }}
+                          className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <Play className="h-3.5 w-3.5 text-slate-400" />
+                          Đăng tin
+                        </button>
+                      )}
+
+                      {job.status === JobStatus.Published && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            onPause();
+                          }}
+                          className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <PauseCircle className="h-3.5 w-3.5 text-slate-400" />
+                          Tạm dừng tin
+                        </button>
+                      )}
+
+                      {job.status === JobStatus.Paused && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            onResume();
+                          }}
+                          className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <Play className="h-3.5 w-3.5 text-slate-400" />
+                          Mở lại tin
+                        </button>
+                      )}
+
+                      {(job.status === JobStatus.Published || job.status === JobStatus.Paused) && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            onClose();
+                          }}
+                          className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-slate-400" />
+                          Đóng tin
+                        </button>
+                      )}
+
+                      <div className="my-1 border-t border-slate-100" />
+
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onDelete();
+                        }}
+                        className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Xoá tin
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </article>
   );
@@ -529,7 +781,7 @@ function JobThumb({ job }: { job: JobListItem }) {
   const [failed, setFailed] = useState(false);
   const showLogo = Boolean(job.companyHasLogo && job.companyId && !failed);
   return (
-    <div className="hidden h-[4.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-brand-50 ring-1 ring-brand-100 sm:block">
+    <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50 sm:block">
       {showLogo ? (
         <img
           src={`${apiPublicBase()}/companies/${job.companyId}/logo`}
@@ -538,8 +790,8 @@ function JobThumb({ job }: { job: JobListItem }) {
           onError={() => setFailed(true)}
         />
       ) : (
-        <span className="flex h-full w-full items-center justify-center text-brand-600">
-          <Building2 className="h-6 w-6" />
+        <span className="flex h-full w-full items-center justify-center text-[#072348]">
+          <Building2 className="h-6 w-6" strokeWidth={1.6} />
         </span>
       )}
     </div>
@@ -558,39 +810,21 @@ function ResultStat({
   hired?: boolean;
 }) {
   return (
-    <div className="text-center">
-      <span className="mx-auto flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+    <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-1.5 py-2 text-center">
+      <span className="mx-auto flex h-5 w-5 items-center justify-center text-slate-600">
         {icon}
       </span>
-      <p className={clsx('mt-1.5 text-lg font-bold tabular-nums', hired ? 'text-emerald-700' : 'text-[#E8872A]')}>
+      <p
+        className={clsx(
+          'mt-1 text-base font-bold tabular-nums leading-none',
+          hired ? 'text-emerald-600' : 'text-[#E8872A]',
+        )}
+      >
         {value}
       </p>
-      <p className="text-[11px] text-slate-500">{label}</p>
+      <p className="mt-1 text-[10.5px] font-medium text-slate-500">{label}</p>
     </div>
   );
-}
-
-function ActionChip({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const className =
-    'inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-accent-200 hover:bg-accent-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-50';
-
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} disabled={disabled} className={className}>
-        {children}
-      </button>
-    );
-  }
-
-  return <span className={className}>{children}</span>;
 }
 
 function StatCard({
@@ -598,21 +832,37 @@ function StatCard({
   label,
   value,
   tone,
+  active,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   tone: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.28)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-16px_rgba(7,35,72,0.4)]">
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'group rounded-2xl border bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.28)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-200',
+        active ? 'border-brand-300 ring-1 ring-brand-200/70' : 'border-slate-200/80',
+      )}
+    >
       <div className="flex items-center gap-2.5">
-        <span className={clsx('flex h-9 w-9 items-center justify-center rounded-xl transition duration-300 group-hover:scale-110', tone)}>
+        <span
+          className={clsx(
+            'flex h-9 w-9 items-center justify-center rounded-xl transition duration-200 group-hover:scale-105',
+            tone,
+          )}
+        >
           {icon}
         </span>
         <p className="text-sm font-medium text-slate-500">{label}</p>
       </div>
       <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
-    </div>
+    </button>
   );
 }

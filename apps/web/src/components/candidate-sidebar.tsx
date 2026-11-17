@@ -11,6 +11,7 @@ import {
   Gift,
   Headphones,
   LayoutDashboard,
+  Link2,
   MessageCircle,
   Send,
   Settings2,
@@ -179,9 +180,10 @@ export function CandidateSidebar({
               icon={BadgeCheck}
             />
             <NavItem
-              href="/viec-lam?tab=saved"
+              href="/saved-jobs"
               label="Việc làm đã lưu"
               icon={Bookmark}
+              active={isActivePath(pathname, '/saved-jobs')}
             />
           </nav>
 
@@ -193,7 +195,7 @@ export function CandidateSidebar({
               href="/applications"
               label="Đơn ứng tuyển"
               icon={ClipboardList}
-              active={isActivePath(pathname, '/applications')}
+              active={isActivePath(pathname, '/applications') || isActivePath(pathname, '/progress')}
             />
             <NavItem
               href="/connections"
@@ -208,45 +210,37 @@ export function CandidateSidebar({
               active={isActivePath(pathname, '/chat')}
             />
             <NavItem
-              href="/progress"
-              label="Tiến trình"
-              icon={Target}
-              active={isActivePath(pathname, '/progress')}
-            />
-            <NavItem
-              href="/viec-lam?tab=applied"
-              label="Việc đã ứng tuyển"
-              icon={Send}
-              active={false}
-            />
-            <NavItem
-              href="/progress#interviews"
-              label="Lịch phỏng vấn"
-              icon={CalendarDays}
-              active={false}
-            />
-            <NavItem
-              href="/progress#offers"
-              label="Đề nghị làm việc"
-              icon={Gift}
-              active={false}
-            />
-            <NavItem
-              href="/progress#onboarding"
-              label="Quá trình nhận việc"
-              icon={UserPlus}
-              active={false}
+              href="/partner"
+              label="Cộng tác viên"
+              icon={Link2}
+              active={isActivePath(pathname, '/partner')}
             />
           </nav>
 
-          <div className="mt-3 space-y-0.5 border-t border-slate-100 pt-3">
-            <NavItem
+          <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+            <Link
               href="/recommended"
-              label="Gợi ý việc làm AI"
-              icon={Sparkles}
-              badge="NEW"
-              active={isActivePath(pathname, '/recommended')}
-            />
+              className={clsx(
+                'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-[13px] transition',
+                isActivePath(pathname, '/recommended')
+                  ? 'border-[#072348] bg-[#072348] text-white shadow-sm'
+                  : 'border-[#FAD9B1] bg-gradient-to-r from-[#FFF5E8] to-[#FFEFD8] text-[#072348] hover:border-[#F3C48A] hover:from-[#FFEFD8] hover:to-[#FFE7C7]',
+              )}
+            >
+              <Sparkles
+                className={clsx(
+                  'h-4 w-4 shrink-0',
+                  isActivePath(pathname, '/recommended') ? 'text-amber-300' : 'text-[#E8872A]',
+                )}
+                strokeWidth={2}
+              />
+              <span className="flex-1 truncate font-medium">
+                <strong className="font-bold">Gợi ý</strong> việc làm AI
+              </span>
+              <span className="rounded-md bg-[#E8872A] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                NEW
+              </span>
+            </Link>
             <NavItem
               href="/notifications"
               label="Thông báo"

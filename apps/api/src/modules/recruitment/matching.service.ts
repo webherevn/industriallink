@@ -884,7 +884,7 @@ export class MatchingService {
           status: 'published',
           isDeleted: false,
         },
-        include: { skills: true, company: { select: { id: true, name: true, slug: true } } },
+        include: { skills: true, company: { select: { id: true, name: true, slug: true, profile: true } } },
         orderBy: { publishedAt: 'desc' },
         take: fetchLimit,
       });
@@ -906,7 +906,7 @@ export class MatchingService {
     const scoreMap = new Map(rows.map((r) => [r.id, r.score]));
     const fetched = await this.prisma.job.findMany({
       where: { id: { in: rows.map((r) => r.id) } },
-      include: { skills: true, company: { select: { id: true, name: true, slug: true } } },
+      include: { skills: true, company: { select: { id: true, name: true, slug: true, profile: true } } },
     });
     const jobs = fetched
       .filter(fitsTrack)
@@ -935,16 +935,40 @@ export class MatchingService {
       title: string;
       location: string | null;
       industry: string | null;
+      subIndustry?: string | null;
       jobLevel: string | null;
       experienceBand: string | null;
       salaryMin: number | null;
       salaryMax: number | null;
+      benefits?: string | null;
+      salesCriteria?: unknown;
+      technicalCriteria?: unknown;
       publishedAt: Date | null;
       skills: { name: string; required: boolean }[];
-      company: { id: string; name: string; slug?: string | null };
+      company: { id: string; name: string; slug?: string | null; profile?: unknown };
     },
     explanation: MatchExplanation,
   ): JobMatchView {
+    const profile = (j.company.profile ?? null) as
+      | { logoStorageKey?: string | null; verified?: boolean }
+      | null;
+    const salesProducts = Array.isArray((j.salesCriteria as { productsSold?: unknown } | null)?.productsSold)
+      ? ((j.salesCriteria as { productsSold: unknown[] }).productsSold.filter(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0,
+        ))
+      : [];
+    const techEquipment = Array.isArray(
+      (j.technicalCriteria as { equipmentSystems?: unknown } | null)?.equipmentSystems,
+    )
+      ? ((j.technicalCriteria as { equipmentSystems: unknown[] }).equipmentSystems.filter(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0,
+        ))
+      : [];
+    const products = [...new Set([...salesProducts, ...techEquipment].map((s) => plainLabel(s)).filter(Boolean))].slice(
+      0,
+      4,
+    );
+
     return {
       jobId: j.id,
       slug: j.slug ?? j.id,
@@ -953,12 +977,17 @@ export class MatchingService {
       companyId: j.company.id,
       companySlug: j.company.slug ?? null,
       companyName: j.company.name,
+      companyVerified: Boolean(profile?.verified),
+      companyHasLogo: Boolean(profile?.logoStorageKey),
       location: j.location,
       industry: j.industry,
+      subIndustry: j.subIndustry ?? null,
       jobLevel: j.jobLevel,
       experienceBand: j.experienceBand,
       salaryMin: j.salaryMin,
       salaryMax: j.salaryMax,
+      products,
+      benefits: j.benefits ?? null,
       skills: j.skills
         .map((s) => plainLabel(s.name))
         .filter(Boolean)

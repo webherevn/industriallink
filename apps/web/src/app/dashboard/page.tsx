@@ -1,26 +1,31 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  ArrowRight,
+  Banknote,
+  BarChart3,
   Bookmark,
   Briefcase,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronRight,
-  Circle,
   ClipboardList,
+  Filter,
   Gift,
+  Heart,
   MapPin,
   Sparkles,
-  UserRound,
+  Target,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ApplicationStatus,
+  ExperienceBand,
   InterviewStatus,
-  InterviewType,
   OfferStatus,
   jobPublicPath,
   type ApplicationView,
@@ -29,15 +34,22 @@ import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { myApplications } from '@/lib/applications';
+import { ApiError } from '@/lib/api';
 import { fetchMe } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
-import { APPLICATION_STATUS_LABEL, formatJobTitle, formatSalary } from '@/lib/format';
+import { EXPERIENCE_LABEL, formatJobTitle, formatSalary } from '@/lib/format';
 import { listMyInterviews } from '@/lib/interviews';
-import { listBookmarkedJobs } from '@/lib/jobs';
-import { formatMatchPct } from '@/lib/match-percent';
+import {
+  addJobBookmark,
+  applyToJob,
+  listBookmarkedJobs,
+  removeJobBookmark,
+} from '@/lib/jobs';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
 import { recommendedJobs } from '@/lib/matching';
 import { listNotifications } from '@/lib/notifications';
 import { listMyOffers } from '@/lib/offers';
+import { apiPublicBase } from '@/lib/public-paths';
 
 const PIPELINE: { status: ApplicationStatus; label: string; bar: string }[] = [
   { status: ApplicationStatus.Applied, label: 'Đã nộp', bar: 'bg-brand-700' },
@@ -55,6 +67,7 @@ const OPEN_STATUSES: ApplicationStatus[] = [
 ];
 
 export default function DashboardPage() {
+  const queryClient = useQueryClient();
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
   const { data: candidate, isLoading } = useQuery({
     queryKey: ['my-candidate'],
@@ -92,11 +105,49 @@ export default function DashboardPage() {
     retry: false,
   });
 
+  const bookmarkedIds = useMemo(
+    () => new Set((bookmarks ?? []).map((b) => b.id)),
+    [bookmarks],
+  );
+  const appliedIds = useMemo(
+    () => new Set((applications ?? []).map((a) => a.jobId)),
+    [applications],
+  );
+  const [applyFeedback, setApplyFeedback] = useState<{ jobId: string; tone: 'ok' | 'err'; text: string } | null>(null);
+
+  const bookmarkMutation = useMutation({
+    mutationFn: async ({ id, saved }: { id: string; saved: boolean }) => {
+      if (saved) await removeJobBookmark(id);
+      else await addJobBookmark(id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['job-bookmarks'] });
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: async (jobId: string) => applyToJob(jobId, {}),
+    onSuccess: (_data, jobId) => {
+      setApplyFeedback({ jobId, tone: 'ok', text: 'Đã gửi hồ sơ ứng tuyển thành công!' });
+      void queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+      void queryClient.invalidateQueries({ queryKey: ['recommended-jobs'] });
+    },
+    onError: (err, jobId) => {
+      setApplyFeedback({
+        jobId,
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không gửi được hồ sơ ứng tuyển',
+      });
+    },
+  });
+
   const displayName = (candidate?.displayName ?? me?.displayName ?? 'bạn').replace(/\r/g, '');
   const apps = useMemo(() => applications ?? [], [applications]);
   const counts = useMemo(() => {
     const by = (status: ApplicationStatus) => apps.filter((row) => row.status === status).length;
     return {
+      total: apps.length,
       open: apps.filter((row) => OPEN_STATUSES.includes(row.status)).length,
       rejected: apps.filter(
         (row) =>
@@ -118,6 +169,15 @@ export default function DashboardPage() {
       .slice(0, 3);
   }, [interviews]);
 
+  const upcoming7DaysCount = useMemo(() => {
+    const now = Date.now() - 60 * 60 * 1000;
+    const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
+    return (interviews ?? []).filter((row) => {
+      const t = new Date(row.scheduledAt).getTime();
+      return row.status === InterviewStatus.Scheduled && t >= now && t <= sevenDays;
+    }).length;
+  }, [interviews]);
+
   const pendingOffers = useMemo(
     () => (offers ?? []).filter((row) => row.status === OfferStatus.Pending).slice(0, 3),
     [offers],
@@ -131,41 +191,33 @@ export default function DashboardPage() {
     [jobs],
   );
 
-  const recentApps = useMemo(
-    () =>
-      [...apps]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 4),
-    [apps],
-  );
-
   const checklist = useMemo(() => {
     const profile = candidate?.profile;
     const sales = profile?.sales;
     return [
-      { done: Boolean(profile?.currentPosition), label: 'Vị trí hiện tại', href: '/profile/edit' },
+      { done: Boolean(profile?.currentPosition), label: 'Cập nhật vị trí hiện tại', href: '/profile/edit' },
       {
         done: Boolean(profile?.summary || candidate?.aiProfile?.summary),
-        label: 'Giới thiệu bản thân',
+        label: 'Thêm giới thiệu bản thân',
         href: '/profile/edit',
       },
-      { done: (candidate?.skills?.length ?? 0) > 0, label: 'Kỹ năng', href: '/profile?tab=skills' },
+      { done: (candidate?.skills?.length ?? 0) > 0, label: 'Thêm kỹ năng chuyên môn', href: '/profile?tab=skills' },
       {
         done: (candidate?.experiences?.length ?? 0) > 0,
-        label: 'Kinh nghiệm',
+        label: 'Thêm kinh nghiệm làm việc',
         href: '/profile?tab=experience',
       },
       {
         done: (sales?.desiredLocations?.length ?? 0) > 0,
-        label: 'Địa điểm mong muốn',
+        label: 'Cập nhật địa điểm mong muốn',
         href: '/profile/edit',
       },
-      { done: Boolean(candidate?.hasAvatar), label: 'Ảnh đại diện', href: '/profile/edit' },
+      { done: Boolean(candidate?.hasAvatar), label: 'Cập nhật ảnh đại diện', href: '/profile/edit' },
     ];
   }, [candidate]);
 
-  const doneSteps = checklist.filter((step) => step.done).length;
-  const pipelineMax = Math.max(1, ...counts.pipeline.map((step) => step.count));
+  const missingSteps = useMemo(() => checklist.filter((step) => !step.done), [checklist]);
+  const completionPct = Math.max(0, Math.min(100, candidate?.profileCompletion ?? 0));
   const weekDelta = useMemo(() => applicationWeekDelta(apps), [apps]);
 
   if (isLoading && !candidate) {
@@ -187,277 +239,489 @@ export default function DashboardPage() {
         />
 
         <div className="min-w-0 space-y-4">
-          <section className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-4">
-              <div>
-                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
-                  <span className="h-4 w-1 rounded-full bg-accent-500" />
-                  Tổng quan
-                </p>
-                <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800">
-                  {greeting()}, {firstName(displayName)}!
-                </h1>
-                <p className="mt-1 max-w-xl text-sm text-slate-500">
-                  {candidate?.profile?.currentPosition
-                    ? `${candidate.profile.currentPosition} · Theo dõi đơn, lịch và việc phù hợp.`
-                    : 'Theo dõi đơn ứng tuyển, lịch phỏng vấn và việc làm phù hợp.'}
-                </p>
+          {/* Lời chào */}
+          <section className="pt-1">
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#072348] sm:text-[26px]">
+              {greeting()}, {displayName}! <span aria-hidden>👋</span>
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Cùng Inlink tìm công việc phù hợp và phát triển sự nghiệp trong lĩnh vực công nghiệp.
+            </p>
+          </section>
+
+          {/* Hero Card: Hoàn thiện hồ sơ + Checklist + Robot Copilot */}
+          <section className="relative overflow-hidden rounded-2xl border border-[#dce6f4] bg-gradient-to-r from-white via-[#F8FBFF] to-[#EEF5FF] p-5 shadow-xs sm:p-6">
+            <div className="flex flex-col items-center gap-6 md:flex-row">
+              {/* Vòng tròn % hoàn thiện hồ sơ */}
+              <div className="relative flex h-32 w-32 shrink-0 items-center justify-center">
+                <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="10"
+                  />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 50}
+                    strokeDashoffset={2 * Math.PI * 50 * (1 - completionPct / 100)}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-extrabold leading-none text-[#072348] tabular-nums">
+                    {completionPct}%
+                  </span>
+                  <span className="mt-1 text-[11px] font-medium leading-tight text-slate-500">
+                    Hoàn thiện
+                    <br />
+                    hồ sơ
+                  </span>
+                </div>
               </div>
-              <div className="hidden w-28 shrink-0 lg:block" aria-hidden>
+
+              {/* Danh sách mục còn thiếu + CTA */}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[17px] font-bold text-[#072348]">
+                  {completionPct >= 100
+                    ? 'Hồ sơ của bạn đã hoàn thiện!'
+                    : 'Hồ sơ của bạn gần hoàn thiện!'}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {missingSteps.length > 0
+                    ? `Còn ${missingSteps.length} mục để tăng cơ hội được nhà tuyển dụng chú ý.`
+                    : 'Hồ sơ của bạn đã sẵn sàng để AI gợi ý và nhà tuyển dụng tiếp cận.'}
+                </p>
+
+                {missingSteps.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {missingSteps.slice(0, 2).map((step, idx) => (
+                      <li key={step.label}>
+                        <Link
+                          href={step.href}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 transition hover:border-brand-200 hover:bg-brand-50/40"
+                        >
+                          <span className="flex items-center gap-2.5 truncate">
+                            {idx === 0 ? (
+                              <Briefcase className="h-3.5 w-3.5 shrink-0 text-brand-600" />
+                            ) : (
+                              <Heart className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+                            )}
+                            <span className="truncate">{step.label}</span>
+                          </span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="mt-3.5">
+                  <Link
+                    href="/profile/edit"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#072348] px-5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d3468] sm:w-auto sm:min-w-[240px]"
+                  >
+                    <span>{completionPct >= 100 ? 'Xem & cập nhật hồ sơ' : 'Hoàn thiện hồ sơ'}</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </div>
+
+              {/* Robot Copilot minh họa bên phải */}
+              <div className="hidden w-36 shrink-0 lg:block" aria-hidden>
                 <CopilotRobot />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/viec-lam"
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-sm transition hover:border-brand-200 hover:bg-brand-50"
-              >
-                <Briefcase className="h-4 w-4" />
-                Tìm việc
-              </Link>
-              <Link
-                href="/recommended"
-                className="inline-flex items-center gap-1.5 rounded-full bg-accent-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600"
-              >
-                <Sparkles className="h-4 w-4" />
-                Gợi ý AI
-              </Link>
-            </div>
           </section>
 
+          {/* 4 Thẻ KPI Tổng quan */}
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat
+            <StatCard
               href="/applications"
               icon={<ClipboardList className="h-4 w-4" />}
-              tone="bg-accent-50 text-accent-700"
-              wave="bg-accent-100/80"
-              label="Đơn đang xử lý"
-              value={counts.open}
-              hint={weekDeltaHint(weekDelta)}
-              hintClass={weekDelta > 0 ? 'text-emerald-600' : 'text-slate-500'}
+              iconTone="bg-amber-50 text-[#E8872A]"
+              label="Đơn ứng tuyển"
+              value={counts.total}
+              badge={
+                weekDelta > 0
+                  ? {
+                      text: `↑ +${weekDelta} so với tuần trước`,
+                      tone: 'bg-emerald-50 text-emerald-700',
+                    }
+                  : undefined
+              }
+              hint={weekDelta <= 0 ? weekDeltaHint(weekDelta) : undefined}
             />
-            <Stat
+            <StatCard
               href="/progress#interviews"
               icon={<CalendarDays className="h-4 w-4" />}
-              tone="bg-brand-50 text-brand-700"
-              wave="bg-brand-100/70"
-              label="Phỏng vấn sắp tới"
+              iconTone="bg-sky-50 text-sky-600"
+              label="Lịch phỏng vấn"
               value={upcoming.length}
-              hint="Lịch còn hiệu lực"
+              hint={upcoming7DaysCount > 0 ? `${upcoming7DaysCount} lịch trong 7 ngày tới` : 'Trong 7 ngày tới'}
             />
-            <Stat
+            <StatCard
               href="/progress#offers"
               icon={<Gift className="h-4 w-4" />}
-              tone="bg-accent-50 text-accent-700"
-              wave="bg-rose-100/70"
-              label="Đề nghị chờ trả lời"
+              iconTone="bg-amber-50 text-amber-600"
+              label="Đề nghị làm việc"
               value={pendingOffers.length}
-              hint="Cần phản hồi"
+              badge={
+                pendingOffers.length > 0
+                  ? { text: 'Cần phản hồi ›', tone: 'bg-amber-50 text-[#c96a12]' }
+                  : undefined
+              }
+              hint={pendingOffers.length === 0 ? 'Chưa có đề nghị chờ' : undefined}
             />
-            <Stat
-              href="/viec-lam?tab=saved"
+            <StatCard
+              href="/saved-jobs"
               icon={<Bookmark className="h-4 w-4" />}
-              tone="bg-[#e7eef8] text-brand-700"
-              wave="bg-brand-100/70"
+              iconTone="bg-indigo-50 text-brand-700"
               label="Việc đã lưu"
               value={bookmarks?.length ?? 0}
               hint={`${notifications?.unreadCount ?? 0} thông báo chưa đọc`}
             />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-            <div className="space-y-4">
-              <Panel
-                title="Việc làm phù hợp"
-                hint="Ba tin AI xếp điểm cao nhất."
-                href="/recommended"
-                action="Xem tất cả"
-                delay="80ms"
-              >
-                {suggestions.length === 0 ? (
-                  <Empty
-                    text="Chưa có gợi ý. Hoàn thiện hồ sơ để AI chọn việc sát hơn."
-                    href="/profile/edit"
-                    action="Cập nhật hồ sơ"
-                  />
-                ) : (
-                  <ul className="divide-y divide-slate-100">
-                    {suggestions.map((job) => (
-                      <li key={job.jobId}>
-                        <Link
-                          href={jobPublicPath(job)}
-                          className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-brand-50/50"
-                        >
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-[11px] font-bold text-brand-700">
-                            {companyMark(job.companyName)}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-brand-800">
-                              {formatJobTitle(job.title)}
-                            </p>
-                            <p className="mt-0.5 truncate text-xs text-slate-500">
-                              {job.companyName}
-                              {job.location ? ` · ${job.location}` : ''}
-                            </p>
-                          </div>
-                          <span className="shrink-0 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-semibold text-[#E8872A]">
-                            {formatMatchPct(job.match.score)}%
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Panel>
+          {/* Lưới 2 cột: Trái (Việc làm phù hợp) | Phải (Trạng thái ứng tuyển + Hành động tiếp theo) */}
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(310px,0.95fr)]">
+            {/* Cột trái: Việc làm phù hợp với bạn */}
+            <div className="rounded-2xl border border-[#dce6f4] bg-white p-5 shadow-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-base font-bold text-[#072348]">
+                    <Sparkles className="h-4 w-4 text-sky-500" />
+                    <span>Việc làm phù hợp với bạn</span>
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Gợi ý từ AI dựa trên hồ sơ, kỹ năng và kinh nghiệm của bạn.
+                  </p>
+                </div>
+                <Link
+                  href="/recommended"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-800"
+                >
+                  <span>Xem tất cả</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
 
-              <Panel
-                title="Đơn gần đây"
-                hint="Trạng thái mới nhất của hồ sơ đã nộp."
-                href="/applications"
-                action="Theo dõi đơn"
-                delay="140ms"
-              >
-                {recentApps.length === 0 ? (
-                  <Empty
-                    text="Bạn chưa nộp đơn nào."
-                    href="/viec-lam"
-                    action="Xem việc làm"
-                  />
-                ) : (
-                  <ul className="divide-y divide-slate-100">
-                    {recentApps.map((app) => (
-                      <ApplicationRow key={app.id} app={app} />
-                    ))}
-                  </ul>
-                )}
-              </Panel>
+              {suggestions.length === 0 ? (
+                <Empty
+                  text="Chưa có gợi ý. Hoàn thiện hồ sơ để AI chọn việc sát hơn."
+                  href="/profile/edit"
+                  action="Cập nhật hồ sơ"
+                />
+              ) : (
+                <ul className="mt-4 divide-y divide-slate-100">
+                  {suggestions.map((job) => {
+                    const isSaved = bookmarkedIds.has(job.jobId);
+                    const isApplied = appliedIds.has(job.jobId);
+                    const isApplying =
+                      applyMutation.isPending && applyMutation.variables === job.jobId;
+                    const fb = applyFeedback?.jobId === job.jobId ? applyFeedback : null;
+                    const expLabel = job.experienceBand
+                      ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ?? job.experienceBand
+                      : 'Không yêu cầu';
+
+                    return (
+                      <li key={job.jobId} className="py-3.5 first:pt-1 last:pb-1">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 text-xs font-bold text-brand-700">
+                            {job.companyHasLogo ? (
+                              <img
+                                src={`${apiPublicBase()}/companies/${job.companyId}/logo`}
+                                alt={job.companyName}
+                                className="h-full w-full object-contain p-1"
+                              />
+                            ) : (
+                              companyMark(job.companyName)
+                            )}
+                          </div>
+
+                          <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 sm:flex-row sm:items-stretch">
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={jobPublicPath(job)}
+                                className="line-clamp-1 text-[14.5px] font-bold text-[#072348] hover:text-brand-600"
+                              >
+                                {formatJobTitle(job.title)}
+                              </Link>
+                              <p className="mt-0.5 truncate text-xs text-slate-500">
+                                {job.companyName}
+                                {job.location ? ` · ${job.location}` : ''}
+                              </p>
+
+                              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-medium">
+                                  <Banknote className="h-3 w-3 text-slate-500" />
+                                  {formatSalary(job.salaryMin, job.salaryMax)}
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-medium">
+                                  <Briefcase className="h-3 w-3 text-slate-500" />
+                                  Kinh nghiệm {expLabel}
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-medium">
+                                  <MapPin className="h-3 w-3 text-slate-500" />
+                                  {job.location ?? 'Linh hoạt'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 flex-row items-center justify-between gap-2 sm:flex-col sm:items-end sm:justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={clsx(
+                                    'rounded-full px-2.5 py-0.5 text-[11px] font-bold tabular-nums',
+                                    matchBadgeTone(job.match.score),
+                                  )}
+                                >
+                                  {formatMatchPct(job.match.score)}% phù hợp
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={bookmarkMutation.isPending}
+                                  aria-label={isSaved ? 'Bỏ lưu' : 'Lưu tin'}
+                                  onClick={() =>
+                                    bookmarkMutation.mutate({ id: job.jobId, saved: isSaved })
+                                  }
+                                  className={clsx(
+                                    'rounded-md p-1 transition',
+                                    isSaved
+                                      ? 'text-amber-500 hover:bg-amber-50'
+                                      : 'text-slate-400 hover:bg-slate-100 hover:text-amber-500',
+                                  )}
+                                >
+                                  <Bookmark
+                                    className={clsx('h-4 w-4', isSaved && 'fill-current')}
+                                  />
+                                </button>
+                              </div>
+
+                              {isApplied ? (
+                                <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  Đã ứng tuyển
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={isApplying}
+                                  onClick={() => applyMutation.mutate(job.jobId)}
+                                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-[#072348] px-3.5 text-xs font-bold text-white shadow-2xs transition hover:bg-[#0d3468] disabled:opacity-60"
+                                >
+                                  {isApplying ? 'Đang gửi...' : 'Ứng tuyển ngay'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {fb && (
+                          <p
+                            className={clsx(
+                              'mt-1.5 pl-14 text-[11.5px] font-medium',
+                              fb.tone === 'ok' ? 'text-emerald-700' : 'text-rose-600',
+                            )}
+                          >
+                            {fb.text}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
+            {/* Cột phải: Trạng thái ứng tuyển + Hành động tiếp theo */}
             <div className="space-y-4">
-              <Panel title="Hồ sơ" hint={`${doneSteps}/${checklist.length} mục đã có`} delay="100ms">
-                <div className="px-5 pb-1">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>Mức hoàn thiện</span>
-                    <span className="font-bold text-[#E8872A]">
-                      {candidate?.profileCompletion ?? 0}%
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-accent-500 transition-all duration-700"
-                      style={{ width: `${candidate?.profileCompletion ?? 0}%` }}
-                    />
-                  </div>
+              {/* Trạng thái ứng tuyển (5 bước ngang) */}
+              <div className="rounded-2xl border border-[#dce6f4] bg-white p-5 shadow-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-2 text-base font-bold text-[#072348]">
+                    <BarChart3 className="h-4 w-4 text-brand-600" />
+                    <span>Trạng thái ứng tuyển</span>
+                  </h2>
+                  <Link
+                    href="/applications"
+                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-800"
+                  >
+                    <span>Xem tất cả</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
                 </div>
-                <ul className="mt-3 divide-y divide-slate-100">
-                  {checklist.map((step) => (
-                    <li key={step.label}>
-                      <Link
-                        href={step.href}
-                        className="flex items-center gap-2.5 px-5 py-2.5 text-sm transition hover:bg-slate-50"
-                      >
-                        {step.done ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                        ) : (
-                          <Circle className="h-4 w-4 shrink-0 text-slate-300" />
+
+                <div className="mt-4 flex items-start justify-between gap-1">
+                  {counts.pipeline.map((step, idx) => {
+                    const isOfferActive = step.status === ApplicationStatus.Offer && step.count > 0;
+                    const stepIcons = [
+                      <Check key="0" className="h-3.5 w-3.5" />,
+                      <Filter key="1" className="h-3.5 w-3.5" />,
+                      <CalendarDays key="2" className="h-3.5 w-3.5" />,
+                      <Briefcase key="3" className="h-3.5 w-3.5" />,
+                      <CheckCircle2 key="4" className="h-3.5 w-3.5" />,
+                    ];
+                    return (
+                      <div key={step.status} className="flex flex-1 items-start">
+                        <div className="flex flex-1 flex-col items-center text-center">
+                          <span
+                            className={clsx(
+                              'flex h-8 w-8 items-center justify-center rounded-full',
+                              idx === 0 && step.count > 0
+                                ? 'bg-blue-600 text-white'
+                                : isOfferActive
+                                  ? 'bg-amber-100 text-[#E8872A]'
+                                  : step.count > 0
+                                    ? 'bg-sky-50 text-brand-700 ring-1 ring-brand-200'
+                                    : 'bg-slate-100 text-slate-400',
+                            )}
+                          >
+                            {stepIcons[idx]}
+                          </span>
+                          <span className="mt-1.5 text-[11px] font-medium text-slate-600">
+                            {step.label}
+                          </span>
+                          <span
+                            className={clsx(
+                              'mt-0.5 text-sm font-extrabold tabular-nums',
+                              isOfferActive ? 'text-[#E8872A]' : 'text-[#072348]',
+                            )}
+                          >
+                            {step.count}
+                          </span>
+                        </div>
+                        {idx < counts.pipeline.length - 1 && (
+                          <ArrowRight className="mt-2.5 h-3 w-3 shrink-0 text-slate-300" />
                         )}
-                        <span className={step.done ? 'text-slate-700' : 'text-slate-500'}>
-                          {step.label}
-                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Hành động tiếp theo */}
+              <div className="rounded-2xl border border-[#dce6f4] bg-white p-5 shadow-xs">
+                <h2 className="flex items-center gap-2 text-base font-bold text-[#072348]">
+                  <Target className="h-4 w-4 text-brand-600" />
+                  <span>Hành động tiếp theo</span>
+                </h2>
+
+                <ul className="mt-3 space-y-2.5">
+                  {upcoming.slice(0, 1).map((item) => (
+                    <li key={item.id}>
+                      <Link
+                        href="/progress#interviews"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] px-3.5 py-2.5 transition hover:border-brand-200 hover:bg-brand-50/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                            <CalendarDays className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-[#072348]">
+                              Tham gia phỏng vấn
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                              {formatJobTitle(item.jobTitle)} – {item.companyName}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5 text-right">
+                          <span className="text-[11px] font-medium text-slate-600">
+                            {formatWhen(item.scheduledAt)}
+                          </span>
+                          <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                        </div>
                       </Link>
                     </li>
                   ))}
+
+                  {pendingOffers.slice(0, 1).map((offer) => (
+                    <li key={offer.id}>
+                      <Link
+                        href="/progress#offers"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] px-3.5 py-2.5 transition hover:border-amber-200 hover:bg-amber-50/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-[#E8872A]">
+                            <Briefcase className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-[#072348]">
+                              Phản hồi đề nghị làm việc
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                              {formatJobTitle(offer.jobTitle)} – {offer.companyName}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10.5px] font-bold text-[#b45309]">
+                            Cần phản hồi
+                          </span>
+                          <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+
+                  {missingSteps.length > 0 && (
+                    <li>
+                      <Link
+                        href="/profile/edit"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] px-3.5 py-2.5 transition hover:border-brand-200 hover:bg-brand-50/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-brand-600">
+                            <Sparkles className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-[#072348]">
+                              Hoàn thiện hồ sơ ({missingSteps.length} mục còn thiếu)
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                              {missingSteps.slice(0, 2).map((s) => s.label).join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      </Link>
+                    </li>
+                  )}
+
+                  {upcoming.length === 0 && pendingOffers.length === 0 && missingSteps.length === 0 && (
+                    <li>
+                      <Link
+                        href="/recommended"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] px-3.5 py-2.5 transition hover:border-brand-200 hover:bg-brand-50/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                            <Sparkles className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-[#072348]">
+                              Khám phá thêm việc làm AI gợi ý
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                              Xem toàn bộ danh sách tin tuyển dụng phù hợp hồ sơ của bạn
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      </Link>
+                    </li>
+                  )}
                 </ul>
-                <div className="px-5 py-4">
-                  <Link
-                    href="/profile"
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-accent-600 hover:text-accent-700"
-                  >
-                    <UserRound className="h-4 w-4" />
-                    Xem hồ sơ
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </Panel>
-
-              <Panel title="Lịch sắp tới" href="/progress#interviews" action="Xem tiến trình" delay="160ms">
-                {upcoming.length === 0 && pendingOffers.length === 0 ? (
-                  <div className="flex flex-col items-center px-5 py-8 text-center">
-                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-400">
-                      <CalendarDays className="h-7 w-7" strokeWidth={1.4} />
-                    </span>
-                    <p className="mt-3 text-sm text-slate-500">Chưa có lịch phỏng vấn hay đề nghị mới.</p>
-                  </div>
-                ) : (
-                  <ul className="divide-y divide-slate-100">
-                    {upcoming.map((item) => (
-                      <li key={item.id} className="px-5 py-3">
-                        <p className="text-sm font-semibold text-slate-800">
-                          {formatJobTitle(item.jobTitle)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {interviewTypeLabel(item.type)} · {item.companyName}
-                        </p>
-                        <p className="mt-1 text-xs font-medium text-brand-700">
-                          {formatWhen(item.scheduledAt)}
-                        </p>
-                      </li>
-                    ))}
-                    {pendingOffers.map((offer) => (
-                      <li key={offer.id} className="px-5 py-3">
-                        <p className="text-sm font-semibold text-slate-800">
-                          {formatJobTitle(offer.jobTitle)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          Đề nghị · {offer.companyName} · {formatSalary(offer.salary, offer.salary)}
-                        </p>
-                        <Link
-                          href="/progress#offers"
-                          className="mt-1 inline-flex text-xs font-semibold text-accent-700 hover:underline"
-                        >
-                          Phản hồi đề nghị
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Panel>
-            </div>
-          </section>
-
-          <section
-            className="animate-soft-rise rounded-xl border border-slate-200/90 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-            style={{ animationDelay: '200ms' }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-brand-800">Hành trình ứng tuyển</h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {counts.rejected > 0
-                    ? `${counts.rejected} đơn đã đóng hoặc đã rút.`
-                    : 'Số đơn đang đứng ở từng bước.'}
-                </p>
               </div>
-              <Link href="/progress" className="text-sm font-semibold text-brand-600 hover:text-brand-800">
-                Tiến trình
-              </Link>
             </div>
-            <ol className="mt-4 grid gap-3 sm:grid-cols-5">
-              {counts.pipeline.map((step) => (
-                <li key={step.status}>
-                  <div className="flex items-baseline justify-between text-sm">
-                    <span className="text-slate-600">{step.label}</span>
-                    <span className="font-semibold tabular-nums text-brand-800">{step.count}</span>
-                  </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={clsx('h-full origin-left animate-bar-grow rounded-full', step.bar)}
-                      style={{ width: apps.length ? `${(step.count / pipelineMax) * 100}%` : '0%' }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
           </section>
         </div>
       </div>
@@ -465,91 +729,55 @@ export default function DashboardPage() {
   );
 }
 
-function Stat({
+function StatCard({
   href,
   icon,
-  tone,
-  wave,
+  iconTone,
   label,
   value,
+  badge,
   hint,
-  hintClass = 'text-slate-500',
 }: {
   href: string;
   icon: ReactNode;
-  tone: string;
-  wave: string;
+  iconTone: string;
   label: string;
   value: number;
-  hint: string;
-  hintClass?: string;
+  badge?: { text: string; tone: string };
+  hint?: string;
 }) {
   return (
     <Link
       href={href}
-      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(7,35,72,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-brand-200"
+      className="group flex items-start gap-3.5 rounded-2xl border border-[#dce6f4] bg-white p-4 shadow-xs transition duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
     >
-      <span className={clsx('flex h-10 w-10 items-center justify-center rounded-xl transition group-hover:scale-110', tone)}>
+      <span
+        className={clsx(
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105',
+          iconTone,
+        )}
+      >
         {icon}
       </span>
-      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-brand-800">{value}</p>
-      <p className={clsx('mt-1 text-xs font-medium', hintClass)}>{hint}</p>
-      <span aria-hidden className={clsx('pointer-events-none absolute -bottom-6 -right-3 h-14 w-24 rounded-full', wave)} />
-    </Link>
-  );
-}
-
-function Panel({
-  title,
-  hint,
-  href,
-  action,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  href?: string;
-  action?: string;
-  delay?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(7,35,72,0.04)]">
-      <div className="flex items-start justify-between gap-3 px-5 py-4">
-        <div>
-          <h2 className="text-base font-bold text-brand-800">{title}</h2>
-          {hint ? <p className="mt-0.5 text-xs text-slate-500">{hint}</p> : null}
-        </div>
-        {href && action ? (
-          <Link href={href} className="inline-flex items-center gap-0.5 text-sm font-semibold text-brand-600 hover:text-brand-800">
-            {action}
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className="mt-0.5 text-2xl font-extrabold leading-tight tracking-tight text-[#072348] tabular-nums">
+          {value}
+        </p>
+        {badge ? (
+          <span
+            className={clsx(
+              'mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+              badge.tone,
+            )}
+          >
+            {badge.text}
+          </span>
+        ) : hint ? (
+          <p className="mt-1 truncate text-[11px] text-slate-500">{hint}</p>
         ) : null}
       </div>
-      {children}
-    </section>
-  );
-}
-
-function ApplicationRow({ app }: { app: ApplicationView }) {
-  return (
-    <li>
-      <Link href="/applications" className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-slate-50">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-800">{formatJobTitle(app.jobTitle)}</p>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
-            <MapPin className="h-3 w-3 shrink-0" />
-            {app.companyName}
-            {app.location ? ` · ${app.location}` : ''}
-          </p>
-        </div>
-        <span className={clsx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold', statusClass(app.status))}>
-          {APPLICATION_STATUS_LABEL[app.status] ?? app.status}
-        </span>
-      </Link>
-    </li>
+    </Link>
   );
 }
 
@@ -562,30 +790,6 @@ function Empty({ text, href, action }: { text: string; href: string; action: str
       </Link>
     </div>
   );
-}
-
-function statusClass(status: ApplicationStatus): string {
-  switch (status) {
-    case ApplicationStatus.Interview:
-      return 'bg-brand-50 text-brand-700';
-    case ApplicationStatus.Offer:
-      return 'bg-accent-50 text-accent-700';
-    case ApplicationStatus.Hired:
-      return 'bg-emerald-50 text-emerald-700';
-    case ApplicationStatus.Rejected:
-    case ApplicationStatus.Withdrawn:
-      return 'bg-slate-100 text-slate-600';
-    case ApplicationStatus.Screening:
-      return 'bg-accent-50 text-accent-700';
-    default:
-      return 'bg-brand-50 text-brand-700';
-  }
-}
-
-function interviewTypeLabel(type: InterviewType): string {
-  if (type === InterviewType.Hr) return 'Phỏng vấn HR';
-  if (type === InterviewType.Technical) return 'Phỏng vấn chuyên môn';
-  return 'Phỏng vấn';
 }
 
 function companyMark(name: string): string {
@@ -616,11 +820,6 @@ function greeting(): string {
   if (hour < 12) return 'Chào buổi sáng';
   if (hour < 18) return 'Chào buổi chiều';
   return 'Chào buổi tối';
-}
-
-function firstName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts[parts.length - 1] || 'bạn';
 }
 
 function formatWhen(iso: string): string {

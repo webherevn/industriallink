@@ -94,8 +94,8 @@ const PIPELINE_STAGES: { key: PipelineKey; label: string; status: ApplicationSta
 const COPILOT_CHIPS = [
   { label: 'Tìm ứng viên phù hợp', href: '/search', icon: Search },
   { label: 'Tóm tắt ứng viên', href: '/recruiter/inbox', icon: Users },
-  { label: 'Viết email mời phỏng vấn', href: '/recruiter/calendar', icon: Mail },
-  { label: 'Phân tích tin tuyển dụng', href: '/jobs/manage', icon: FileSearch },
+  { label: 'Soạn email mời phỏng vấn', href: '/recruiter/calendar', icon: Mail },
+  { label: 'Phân tích hiệu quả tuyển dụng', href: '/recruiter/report', icon: FileSearch },
 ] as const;
 
 export default function RecruiterDashboardPage() {
@@ -118,6 +118,7 @@ export default function RecruiterDashboardPage() {
     },
   });
   const [jobFilter, setJobFilter] = useState('all');
+  const [pipelineDays, setPipelineDays] = useState<7 | 30 | 90>(30);
   const [pipelineActive, setPipelineActive] = useState<PipelineKey>('applied');
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -152,9 +153,13 @@ export default function RecruiterDashboardPage() {
     staleTime: 60_000,
   });
   const filteredInbox = useMemo(() => {
-    if (jobFilter === 'all') return inbox ?? [];
-    return (inbox ?? []).filter((a) => a.jobId === jobFilter);
-  }, [inbox, jobFilter]);
+    const cutoff = Date.now() - pipelineDays * 24 * 60 * 60 * 1000;
+    return (inbox ?? []).filter((a) => {
+      if (jobFilter !== 'all' && a.jobId !== jobFilter) return false;
+      const ts = new Date(a.createdAt).getTime();
+      return Number.isNaN(ts) || ts >= cutoff;
+    });
+  }, [inbox, jobFilter, pipelineDays]);
 
   const activeStage = PIPELINE_STAGES.find((stage) => stage.key === pipelineActive) ?? PIPELINE_STAGES[0];
   const pipelineCounts = useMemo(() => {
@@ -174,13 +179,20 @@ export default function RecruiterDashboardPage() {
   );
 
   const topCandidates = useMemo(() => {
-    return [...(inbox ?? [])]
-      .filter((a) => a.matchScore != null)
-      .sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
-      .slice(0, 5);
+    const active = (inbox ?? []).filter(
+      (a) =>
+        a.matchScore != null &&
+        a.status !== ApplicationStatus.Rejected &&
+        a.status !== ApplicationStatus.Withdrawn,
+    );
+    const pool = active.length > 0 ? active : (inbox ?? []).filter((a) => a.matchScore != null);
+    return [...pool].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0)).slice(0, 5);
   }, [inbox]);
 
-  const trendPoints = useMemo(() => buildTrend(inbox ?? [], 30), [inbox]);
+  const trendPoints = useMemo(
+    () => buildTrend(filteredInbox, pipelineDays),
+    [filteredInbox, pipelineDays],
+  );
 
   const avgMatch = useMemo(() => {
     const scored = (inbox ?? []).filter((a) => a.matchScore != null);
@@ -220,48 +232,164 @@ export default function RecruiterDashboardPage() {
   }, [matchBoards]);
 
   const suggestions = useMemo(() => {
-    const n = data?.newApplicationCount ?? 0;
-    const top = topCandidates[0];
-    return [
-      {
-        icon: 'users' as const,
+    const items: Array<{
+      id: string;
+      badge: string;
+      badgeClass: string;
+      title: string;
+      description: string;
+      cta: string;
+      href: string;
+      potential?: boolean;
+    }> = [];
+
+    const nowMs = Date.now();
+    const publishedJobs = (jobs ?? []).filter((j) => j.status === 'published');
+
+    // 1. Tin đăng 7-15 ngày (hoặc >= 7 ngày) chưa có ứng viên
+    const staleJob = publishedJobs
+      .map((j) => {
+        const refDate = j.publishedAt ?? j.createdAt;
+        const days = Math.max(0, Math.floor((nowMs - new Date(refDate).getTime()) / 86400000));
+        return { job: j, days, apps: j.recruitment?.applications ?? 0 };
+      })
+      .filter((x) => x.apps === 0 && x.days >= 7)
+      .sort((a, b) => {
+        const aInRange = a.days <= 15 ? 0 : 1;
+        const bInRange = b.days <= 15 ? 0 : 1;
+        if (aInRange !== bInRange) return aInRange - bInRange;
+        return b.days - a.days;
+      })[0];
+
+    if (staleJob) {
+      items.push({
+        id: `stale-${staleJob.job.id}`,
+        badge: 'Cần xử lý',
+        badgeClass: 'bg-rose-50 text-rose-600',
+        title: `Tin ${formatJobTitle(staleJob.job.title)} đã ${staleJob.days} ngày chưa có ứng viên`,
+        description: 'AI đề xuất điều chỉnh tiêu chí hoặc triển khai Săn nhân sự.',
+        cta: 'Tối ưu tin ngay →',
+        href: staleJob.job.isSourcingActive ? '/recruiter/sourcing' : `/jobs/${staleJob.job.id}/edit`,
+      });
+    }
+
+    // 2. Có ứng viên mới nhưng chưa xử lý
+    const newUnprocessed = data?.newApplicationCount ?? pipelineCounts.applied;
+    if (newUnprocessed > 0) {
+      items.push({
+        id: 'new-unprocessed',
+        badge: 'Cần xử lý',
+        badgeClass: 'bg-rose-50 text-rose-600',
+        title: `Có ${newUnprocessed} ứng viên mới nhưng chưa xử lý`,
+        description: 'Sàng lọc và phản hồi sớm để không bỏ lỡ ứng viên phù hợp.',
+        cta: 'Xử lý ngay →',
+        href: '/recruiter/inbox',
+      });
+    }
+
+    // 3. Tin sắp hết hạn (trong vòng 7 ngày tới)
+    const expiringJob = publishedJobs
+      .filter((j) => Boolean(j.deadline))
+      .map((j) => {
+        const end = new Date(j.deadline as string);
+        end.setHours(23, 59, 59, 999);
+        const daysLeft = Math.ceil((end.getTime() - nowMs) / 86400000);
+        return { job: j, daysLeft };
+      })
+      .filter((x) => x.daysLeft >= 0 && x.daysLeft <= 7)
+      .sort((a, b) => a.daysLeft - b.daysLeft)[0];
+
+    if (expiringJob) {
+      items.push({
+        id: `expiring-${expiringJob.job.id}`,
+        badge: 'Cần xử lý',
+        badgeClass: 'bg-amber-50 text-amber-700',
         title:
-          n > 0
-            ? `Có ${n} ứng viên mới phù hợp với tin đang mở — cần sàng lọc hôm nay`
-            : 'Có ứng viên mới cho vị trí kỹ sư kinh doanh HVAC — mở Tìm ứng viên AI để tìm thêm',
-        cta: 'Xem ngay',
-        href: n > 0 ? '/recruiter/inbox' : '/search',
-      },
-      {
-        icon: 'file' as const,
-        title:
-          'Tin «Bảo trì điện» đã 15 ngày chưa có ứng viên — AI gợi ý tối ưu JD ngay',
-        cta: 'Tối ưu ngay',
-        href: '/jobs/new',
-      },
-      {
-        icon: 'check' as const,
-        title: featured
-          ? `${featured.displayName} khớp ${formatMatchPct(featured.score)}% với tin «${featured.jobTitle}»`
-          : top
-            ? `${top.displayName} khớp ${formatMatchPct(top.matchScore)}% với tin «${top.jobTitle}»`
-            : 'Kỹ sư PLC đạt độ khớp cao — dùng AI xếp hạng để ưu tiên hồ sơ',
-        cta: 'Xem hồ sơ',
-        href: featured
-          ? `/candidates/${featured.candidateId}?match=${formatMatchPct(featured.score)}`
-          : top
-            ? `/candidates/${top.candidateId}${top.matchScore != null ? `?match=${formatMatchPct(top.matchScore)}` : ''}`
-            : '/search',
-        potential: Boolean(featured && !featured.applied),
-      },
-      {
-        icon: 'wallet' as const,
-        title: 'Báo cáo lương thị trường HVAC / kỹ thuật — tham chiếu khi đăng tin mới',
-        cta: 'Xem báo cáo',
+          expiringJob.daysLeft === 0
+            ? `Tin ${formatJobTitle(expiringJob.job.title)} hết hạn hôm nay`
+            : `Tin ${formatJobTitle(expiringJob.job.title)} sắp hết hạn (còn ${expiringJob.daysLeft} ngày)`,
+        description: 'Gia hạn thời gian đăng hoặc kiểm tra lại tiến độ hồ sơ của tin.',
+        cta: expiringJob.job.isSourcingActive ? 'Quản lý tin →' : 'Gia hạn tin →',
+        href: expiringJob.job.isSourcingActive ? '/jobs/manage' : `/jobs/${expiringJob.job.id}/edit`,
+      });
+    }
+
+    // 4. Có ứng viên phù hợp cao chưa xem hồ sơ
+    const topAppliedUnseen = topCandidates.find(
+      (a) => a.status === ApplicationStatus.Applied && (a.matchScore ?? 0) >= 60,
+    );
+    const highFitCandidate =
+      featured && !featured.applied && featured.score >= 60
+        ? {
+            candidateId: featured.candidateId,
+            displayName: featured.displayName,
+            jobTitle: featured.jobTitle,
+            score: featured.score,
+            potential: true,
+          }
+        : topAppliedUnseen
+          ? {
+              candidateId: topAppliedUnseen.candidateId,
+              displayName: topAppliedUnseen.displayName,
+              jobTitle: topAppliedUnseen.jobTitle,
+              score: topAppliedUnseen.matchScore ?? 0,
+              potential: false,
+            }
+          : null;
+
+    if (highFitCandidate) {
+      items.push({
+        id: `high-fit-${highFitCandidate.candidateId}`,
+        badge: 'Cơ hội',
+        badgeClass: 'bg-emerald-50 text-emerald-700',
+        title: `Có ứng viên phù hợp cao (${formatMatchPct(highFitCandidate.score)}%) chưa xem hồ sơ`,
+        description: `${highFitCandidate.displayName} phù hợp với vị trí ${formatJobTitle(highFitCandidate.jobTitle)}.`,
+        cta: 'Xem hồ sơ →',
+        href: `/candidates/${highFitCandidate.candidateId}?match=${formatMatchPct(highFitCandidate.score)}`,
+        potential: highFitCandidate.potential,
+      });
+    } else if (featured) {
+      items.push({
+        id: `featured-${featured.candidateId}`,
+        badge: 'Cơ hội',
+        badgeClass: 'bg-emerald-50 text-emerald-700',
+        title: `Có ứng viên phù hợp cho vị trí ${formatJobTitle(featured.jobTitle)}`,
+        description: `AI phát hiện ${featured.displayName} (${formatMatchPct(featured.score)}%) trong dữ liệu Inlink.`,
+        cta: 'Xem ứng viên →',
+        href: `/candidates/${featured.candidateId}?match=${formatMatchPct(featured.score)}`,
+        potential: !featured.applied,
+      });
+    }
+
+    // Bổ sung gợi ý tham khảo nếu danh sách còn ít hơn 3 mục
+    if (items.length < 3) {
+      const nonSourcingJob = publishedJobs.find((j) => !j.isSourcingActive);
+      if (nonSourcingJob) {
+        items.push({
+          id: `sourcing-${nonSourcingJob.id}`,
+          badge: 'Tham khảo',
+          badgeClass: 'bg-sky-50 text-sky-700',
+          title: `Tăng tốc tuyển dụng cho vị trí ${formatJobTitle(nonSourcingJob.title)}`,
+          description: 'Kích hoạt Săn nhân sự để AI quét và mời ứng viên phù hợp mỗi 2 giờ.',
+          cta: 'Khám phá Tin săn →',
+          href: '/recruiter/sourcing',
+        });
+      }
+    }
+    if (items.length < 3) {
+      items.push({
+        id: 'salary-market',
+        badge: 'Tham khảo',
+        badgeClass: 'bg-sky-50 text-sky-700',
+        title: 'Tham chiếu lương thị trường cho các vị trí kỹ thuật & kinh doanh',
+        description: 'Điều chỉnh dải lương cạnh tranh giúp cải thiện tỷ lệ ứng tuyển.',
+        cta: 'Xem báo cáo lương →',
         href: '/recruiter/salary',
-      },
-    ];
-  }, [data, topCandidates, featured]);
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [data, jobs, pipelineCounts, topCandidates, featured]);
 
   if (isLoading) {
     return (
@@ -302,7 +430,10 @@ export default function RecruiterDashboardPage() {
 
   const interviewToday = interviewStats?.todayCount ?? 0;
   const interviewNext2h = interviewStats?.next2hCount ?? 0;
-  const offerCount = pipelineCounts.offer;
+  const pendingReviewCount =
+    data.pendingReviewCount ?? pipelineCounts.applied + pipelineCounts.screening;
+  const pendingOfferCount = data.pendingOfferCount ?? pipelineCounts.offer;
+  const hiredThisMonthCount = data.hiredThisMonthCount ?? 0;
 
   return (
     <AppShell>
@@ -314,16 +445,26 @@ export default function RecruiterDashboardPage() {
           delta={formatWeekDelta(data.publishedJobCount - data.publishedJobCount7dAgo)}
           tone="violet"
           icon={<Briefcase className="h-[18px] w-[18px]" strokeWidth={2} />}
+          href="/jobs/manage"
         />
         <KpiCard
           label="Ứng viên mới"
-          value={data.newApplicationCount}
+          value={data.newApplicationsToday}
           delta={formatDayDelta(data.newApplicationsToday - data.newApplicationsYesterday)}
           tone="blue"
           icon={<Users className="h-[18px] w-[18px]" strokeWidth={2} />}
+          href="/recruiter/inbox"
         />
         <KpiCard
-          label="Phỏng vấn hôm nay"
+          label="Ứng viên chờ xử lý"
+          value={pendingReviewCount}
+          delta={pendingReviewCount > 0 ? 'Cần xem & phân loại' : 'Đã xử lý hết'}
+          tone="orange"
+          icon={<Clock className="h-[18px] w-[18px]" strokeWidth={2} />}
+          href="/recruiter/inbox"
+        />
+        <KpiCard
+          label="Lịch phỏng vấn hôm nay"
           value={interviewToday}
           delta={
             interviewNext2h > 0
@@ -334,35 +475,23 @@ export default function RecruiterDashboardPage() {
           }
           tone="green"
           icon={<CalendarDays className="h-[18px] w-[18px]" strokeWidth={2} />}
+          href="/recruiter/calendar"
         />
         <KpiCard
-          label="Đề nghị làm việc"
-          value={offerCount}
-          delta={offerCount > 0 ? `${offerCount} đang chờ phản hồi` : 'Chưa có đề nghị'}
-          tone="orange"
-          icon={<UserPlus className="h-[18px] w-[18px]" strokeWidth={2} />}
-        />
-        <KpiCard
-          label="Thời gian tuyển trung bình"
-          value={
-            data.avgTimeToHireDays != null ? `${Math.round(data.avgTimeToHireDays)} ngày` : '—'
-          }
-          delta={
-            data.avgTimeToHireDays == null
-              ? 'Chưa có dữ liệu'
-              : data.avgTimeToHireDeltaDays == null
-                ? 'Chưa đủ dữ liệu so sánh'
-                : formatDeltaDays(data.avgTimeToHireDeltaDays)
-          }
+          label="Đề nghị chờ phản hồi"
+          value={pendingOfferCount}
+          delta={pendingOfferCount > 0 ? 'Đang chờ ứng viên' : 'Chưa có đề nghị'}
           tone="violet"
-          icon={<Clock className="h-[18px] w-[18px]" strokeWidth={2} />}
+          icon={<FileText className="h-[18px] w-[18px]" strokeWidth={2} />}
+          href="/recruiter/offers"
         />
         <KpiCard
-          label="Điểm phù hợp AI trung bình"
-          value={avgMatch != null ? `${avgMatch}%` : '—'}
-          delta={avgMatch == null ? 'Chưa có hồ sơ' : formatMatchDelta(avgMatchDelta)}
+          label="Nhận việc trong tháng"
+          value={hiredThisMonthCount}
+          delta={hiredThisMonthCount > 0 ? 'Đã nhận việc tháng này' : 'Chưa có nhận việc'}
           tone="teal"
-          icon={<Target className="h-[18px] w-[18px]" strokeWidth={2} />}
+          icon={<UserPlus className="h-[18px] w-[18px]" strokeWidth={2} />}
+          href="/recruiter/onboarding"
         />
       </div>
 
@@ -495,21 +624,34 @@ export default function RecruiterDashboardPage() {
               Xem tất cả →
             </Link>
           </div>
-          <ul className="mt-4 flex-1 space-y-2.5">
+          <ul className="mt-3 flex-1 divide-y divide-slate-100">
             {suggestions.map((s) => (
-              <li
-                key={s.title}
-                className="flex items-center gap-3 rounded-xl bg-[#F8FAFC] px-3 py-2.5"
-              >
-                <SuggestionIcon type={s.icon} />
-                <p className="min-w-0 flex-1 text-[13px] leading-snug text-slate-700">{s.title}</p>
-                <ProfileOpenLink
-                  href={s.href}
-                  potential={'potential' in s ? s.potential : false}
-                  className="shrink-0 rounded-lg border-0 bg-[#EEF2FF] px-2.5 py-1.5 text-[11px] font-semibold text-[#4338CA] transition hover:bg-[#E0E7FF]"
-                >
-                  {s.cta}
-                </ProfileOpenLink>
+              <li key={s.id} className="py-3 first:pt-1 last:pb-0">
+                <div className="flex items-start gap-2.5">
+                  <span
+                    className={clsx(
+                      'mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                      s.badgeClass,
+                    )}
+                  >
+                    {s.badge}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-semibold leading-snug text-slate-900">
+                      {s.title}
+                    </p>
+                    <p className="mt-1 text-[12px] leading-snug text-slate-500">
+                      {s.description}
+                    </p>
+                    <ProfileOpenLink
+                      href={s.href}
+                      potential={Boolean(s.potential)}
+                      className="mt-1.5 inline-block text-[12.5px] font-semibold text-[#1D4ED8] hover:underline"
+                    >
+                      {s.cta}
+                    </ProfileOpenLink>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
@@ -521,23 +663,43 @@ export default function RecruiterDashboardPage() {
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] xl:col-span-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-[15px] font-semibold text-slate-900">Quy trình tuyển dụng</h3>
-            <div className="flex items-center gap-3">
-              <div className="w-full max-w-[220px]">
-              <Select
-                value={jobFilter}
-                onChange={(e) => setJobFilter(e.target.value)}
-                className="rounded-xl border-slate-200 bg-[#F8FAFC] text-[13px]"
-                size="sm"
-              >
-                <option value="all">Tất cả tin đang mở</option>
-                {(jobs ?? [])
-                  .filter((j) => j.status === 'published' || j.status === 'draft')
-                  .map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.title}
-                    </option>
-                  ))}
-              </Select>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-[#F8FAFC] p-0.5">
+                {([7, 30, 90] as const).map((days) => {
+                  const active = pipelineDays === days;
+                  return (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => setPipelineDays(days)}
+                      className={clsx(
+                        'rounded-lg px-2.5 py-1 text-[12px] font-semibold transition',
+                        active
+                          ? 'bg-[#072348] text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900',
+                      )}
+                    >
+                      {days} ngày
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="w-full max-w-[210px] sm:w-auto">
+                <Select
+                  value={jobFilter}
+                  onChange={(e) => setJobFilter(e.target.value)}
+                  className="rounded-xl border-slate-200 bg-[#F8FAFC] text-[13px]"
+                  size="sm"
+                >
+                  <option value="all">Tất cả tin đang mở</option>
+                  {(jobs ?? [])
+                    .filter((j) => j.status === 'published' || j.status === 'draft')
+                    .map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.title}
+                      </option>
+                    ))}
+                </Select>
               </div>
               <Link
                 href="/jobs/manage"
@@ -661,17 +823,17 @@ export default function RecruiterDashboardPage() {
                 <p className="mt-0.5 text-[12px] text-slate-400">Theo ngày nộp hồ sơ</p>
               </div>
               <span className="rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1.5 text-[12px] font-medium text-slate-600">
-                30 ngày qua
+                {pipelineDays} ngày qua
               </span>
             </div>
             <TrendChart points={trendPoints} />
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] xl:col-span-2">
+        <section className="self-start rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] xl:col-span-2">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-[15px] font-semibold text-slate-900">
-              Ứng viên ứng tuyển phù hợp nhất hôm nay
+              Ứng viên nổi bật &amp; cần xử lý
             </h3>
             <Link
               href="/recruiter/inbox"
@@ -680,47 +842,85 @@ export default function RecruiterDashboardPage() {
               Xem tất cả →
             </Link>
           </div>
-          <ul className="mt-4 space-y-3">
+          <ul className="mt-4 divide-y divide-slate-100">
             {topCandidates.length === 0 && (
-              <li className="rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
+              <li className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
                 Chưa có điểm khớp AI. Khi ứng viên nộp hồ sơ, xếp hạng sẽ hiện tại đây.
               </li>
             )}
-            {topCandidates.map((a, idx) => (
-              <li key={a.applicationId}>
-                <Link
-                  href={`/candidates/${a.candidateId}${a.matchScore != null ? `?match=${formatMatchPct(a.matchScore)}` : ''}`}
-                  className="flex items-center gap-2.5 rounded-xl px-1 py-1 transition hover:bg-slate-50"
-                >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
-                    {idx + 1}
-                  </span>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE] text-[11px] font-bold text-[#1D4ED8]">
-                    {initials(a.displayName)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold text-slate-900">
-                      {a.displayName}
-                    </p>
-                    <p className="truncate text-[11px] text-slate-500">
-                      {a.currentPosition
-                        ? formatJobTitle(a.currentPosition)
-                        : a.jobTitle
-                          ? formatJobTitle(a.jobTitle)
-                          : '—'}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    {a.matchScore != null && (
-                      <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1', matchBadgeTone(a.matchScore))}>
-                        Phù hợp {formatMatchPct(a.matchScore)}%
-                      </span>
-                    )}
-                    <span className="text-[12px] font-semibold text-[#2563EB]">Xem hồ sơ</span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+            {topCandidates.map((a) => {
+              const statusText =
+                a.status === ApplicationStatus.Applied
+                  ? 'Đã ứng tuyển'
+                  : a.status === ApplicationStatus.Screening
+                    ? 'Đang sàng lọc'
+                    : a.status === ApplicationStatus.Interview
+                      ? 'Phỏng vấn'
+                      : a.status === ApplicationStatus.Offer
+                        ? 'Đề nghị'
+                        : a.status === ApplicationStatus.Hired
+                          ? 'Nhận việc'
+                          : 'Đã xử lý';
+              const nextActionText =
+                a.status === ApplicationStatus.Applied
+                  ? 'Chưa liên hệ'
+                  : a.status === ApplicationStatus.Screening
+                    ? 'Cần đánh giá hồ sơ'
+                    : a.status === ApplicationStatus.Interview
+                      ? a.interviews.length > 0
+                        ? 'Chờ phỏng vấn'
+                        : 'Chưa đặt lịch'
+                      : a.status === ApplicationStatus.Offer
+                        ? 'Chờ phản hồi'
+                        : a.status === ApplicationStatus.Hired
+                          ? 'Chờ nhận việc'
+                          : 'Đã hoàn tất';
+
+              return (
+                <li key={a.applicationId} className="py-3 first:pt-1 last:pb-0">
+                  <Link
+                    href={`/candidates/${a.candidateId}${a.matchScore != null ? `?match=${formatMatchPct(a.matchScore)}` : ''}`}
+                    className="group flex items-start gap-3 rounded-xl p-1.5 transition hover:bg-slate-50"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE] text-[11px] font-bold text-[#1D4ED8]">
+                      {initials(a.displayName)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-[13.5px] font-semibold text-slate-900 group-hover:text-[#1D4ED8]">
+                          {a.displayName}
+                        </p>
+                        {a.matchScore != null && (
+                          <span
+                            className={clsx(
+                              'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1',
+                              matchBadgeTone(a.matchScore),
+                            )}
+                          >
+                            {formatMatchPct(a.matchScore)}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-[12px] text-slate-500">
+                        {a.jobTitle ? formatJobTitle(a.jobTitle) : a.currentPosition ? formatJobTitle(a.currentPosition) : '—'}
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11.5px]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                            {statusText}
+                          </span>
+                          <span className="text-slate-300">·</span>
+                          <span className="font-medium text-amber-700">{nextActionText}</span>
+                        </div>
+                        <span className="font-semibold text-[#2563EB] group-hover:underline">
+                          Xem hồ sơ →
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </section>
       </div>
@@ -833,16 +1033,23 @@ function KpiCard({
   delta,
   tone,
   icon,
+  href,
 }: {
   label: string;
   value: number | string;
   delta: string;
   tone: keyof typeof KPI_TONE;
   icon: React.ReactNode;
+  href?: string;
 }) {
   const isOrange = tone === 'orange';
-  return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+  const content = (
+    <div
+      className={clsx(
+        'h-full rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)]',
+        href && 'transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm',
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <span
           className={clsx(
@@ -865,6 +1072,14 @@ function KpiCard({
       </p>
     </div>
   );
+  if (href) {
+    return (
+      <Link href={href} className="block h-full">
+        {content}
+      </Link>
+    );
+  }
+  return content;
 }
 
 function QuickOutline({

@@ -65,28 +65,24 @@ type NavSection = { title?: string; items: NavItem[] };
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    items: [
-      { href: '/recruiter', label: 'Tổng quan', icon: LayoutDashboard },
-      { href: '/recruiter/sourcing', label: 'Săn nhân sự', icon: Crosshair },
-    ],
+    items: [{ href: '/recruiter', label: 'Tổng quan', icon: LayoutDashboard }],
   },
   {
-    title: 'Nguồn & Tin tuyển dụng',
+    title: 'Tuyển dụng',
     items: [
       { href: '/jobs/manage', label: 'Tin tuyển dụng', icon: Briefcase },
-      { href: '/jobs/new', label: 'AI viết JD', icon: FileText },
+      { href: '/recruiter/sourcing', label: 'Săn nhân sự', icon: Crosshair },
       { href: '/search', label: 'Tìm ứng viên AI', icon: Target },
+      { href: '/jobs/new', label: 'AI viết JD', icon: FileText },
     ],
   },
   {
-    title: 'Ứng viên & Quy trình',
+    title: 'Quản lý ứng viên & Quy trình',
     items: [
       { href: '/recruiter/inbox', label: 'Hộp thư ứng viên', icon: Users },
       { href: '/recruiter/chat', label: 'Tin nhắn (Chat)', icon: MessageCircle },
       { href: '/recruiter/email', label: 'Gửi email hàng loạt', icon: Mail },
-      { href: '/recruiter/calendar', label: 'Lịch phỏng vấn', icon: Calendar },
-      { href: '/recruiter/offers', label: 'Đề nghị làm việc', icon: Gift },
-      { href: '/recruiter/onboarding', label: 'Nhận việc', icon: UserPlus },
+      { href: '/recruiter/pipeline', label: 'Quy trình tuyển dụng', icon: Calendar },
     ],
   },
   {
@@ -137,6 +133,15 @@ const GUIDE_TARGET: Record<string, string> = {
 function navMatches(href: string, path: string) {
   if (href === '#') return false;
   if (href === '/recruiter') return path === '/recruiter';
+  if (href === '/recruiter/pipeline') {
+    return (
+      path === '/recruiter/pipeline' ||
+      path.startsWith('/recruiter/pipeline/') ||
+      path.startsWith('/recruiter/calendar') ||
+      path.startsWith('/recruiter/offers') ||
+      path.startsWith('/recruiter/onboarding')
+    );
+  }
   return path === href || path.startsWith(`${href}/`);
 }
 

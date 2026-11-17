@@ -5,6 +5,8 @@ import {
   BRAND_ADMIN_SITE_URL,
   BRAND_CRM_HOST,
   BRAND_CRM_SITE_URL,
+  BRAND_CTV_HOST,
+  BRAND_CTV_SITE_URL,
   BRAND_RECRUITER_HOST,
   BRAND_RECRUITER_SITE_URL,
   BRAND_SITE_HOST,
@@ -62,6 +64,18 @@ export function isCrmHostname(hostname = currentHostname()): boolean {
 
 export function crmSiteUrl(): string {
   return (process.env.NEXT_PUBLIC_CRM_SITE_URL || BRAND_CRM_SITE_URL).replace(/\/$/, '');
+}
+
+export function isCtvHostname(hostname = currentHostname()): boolean {
+  return hostname === BRAND_CTV_HOST || hostname.startsWith('ctv.');
+}
+
+export function ctvSiteUrl(): string {
+  return (process.env.NEXT_PUBLIC_CTV_SITE_URL || BRAND_CTV_SITE_URL).replace(/\/$/, '');
+}
+
+export function goToCtvApp(path = '/ctv'): void {
+  navigateToOrigin(ctvSiteUrl(), path);
 }
 
 export function isPublicHostname(hostname = currentHostname()): boolean {

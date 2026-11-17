@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { BRAND_ADMIN_HOST, BRAND_CRM_HOST, BRAND_RECRUITER_HOST, BRAND_SITE_HOST } from '@/lib/brand';
+import {
+  BRAND_ADMIN_HOST,
+  BRAND_CRM_HOST,
+  BRAND_CTV_HOST,
+  BRAND_RECRUITER_HOST,
+  BRAND_SITE_HOST,
+} from '@/lib/brand';
 import {
   isAdminAppPath,
   isCandidatePublicPath,
   isCrmAppPath,
+  isCtvAppPath,
   isRecruiterAppPath,
 } from '@/lib/hosts-paths';
 
@@ -74,6 +81,7 @@ export function middleware(req: NextRequest) {
   const isRecruiterHost = host === BRAND_RECRUITER_HOST || host.startsWith('tuyendung.');
   const isAdminHost = host === BRAND_ADMIN_HOST || host.startsWith('admin.');
   const isCrmHost = host === BRAND_CRM_HOST || host.startsWith('crm.');
+  const isCtvHost = host === BRAND_CTV_HOST || host.startsWith('ctv.');
   const isPublicHost = host === BRAND_SITE_HOST || host === `www.${BRAND_SITE_HOST}`;
   const isCandidateViewPath = pathname === '/candidates' || pathname.startsWith('/candidates/');
 
@@ -124,6 +132,29 @@ export function middleware(req: NextRequest) {
     return nextWithRequestHeaders(req);
   }
 
+  if (isCtvHost) {
+    if (pathname === '/' || pathname === '') {
+      const dest = req.nextUrl.clone();
+      dest.pathname = '/ctv';
+      return applyNoStore(NextResponse.redirect(dest));
+    }
+    if (isAdminAppPath(pathname)) {
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`));
+    }
+    if (isCrmAppPath(pathname)) {
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_CRM_HOST}${pathname}${search}`));
+    }
+    if (isRecruiterAppPath(pathname)) {
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_RECRUITER_HOST}${pathname}${search}`));
+    }
+    if (!isCtvAppPath(pathname) && pathname !== '/login' && pathname !== '/register') {
+      const dest = req.nextUrl.clone();
+      dest.pathname = '/ctv';
+      return applyNoStore(NextResponse.redirect(dest));
+    }
+    return nextWithRequestHeaders(req);
+  }
+
   if (isRecruiterHost) {
     if (pathname === '/' || pathname === '') {
       const dest = req.nextUrl.clone();
@@ -143,6 +174,9 @@ export function middleware(req: NextRequest) {
   }
 
   if (isPublicHost) {
+    if (isCtvAppPath(pathname)) {
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_CTV_HOST}${pathname}${search}`));
+    }
     if (isAdminAppPath(pathname)) {
       return applyNoStore(NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`));
     }

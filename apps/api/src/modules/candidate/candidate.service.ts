@@ -58,6 +58,7 @@ import { SourcingService } from '../billing/sourcing.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
+import type { GenerateCoverLetterDto } from './dto/generate-cover-letter.dto';
 import { mergeCvDraftViews, profileSourceToCvDraft } from './merge-cv-draft';
 import { ExtractTextError, extractResumeText } from './resume/extract-text.util';
 import { candidateAcceptsOutreachEmail } from './outreach-email';
@@ -1944,6 +1945,164 @@ export class CandidateService {
       }
       this.logger.warn(`Failed to record credit ledger for ${input.action}: ${String(err)}`);
     }
+  }
+
+  async generateCoverLetter(
+    user: AuthenticatedUser,
+    dto: GenerateCoverLetterDto,
+  ): Promise<{ content: string; usedAi: boolean }> {
+    await this.ensureForUser(user);
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { userId: user.id },
+      include: {
+        user: { select: { email: true, displayName: true } },
+        profile: true,
+        skills: { include: { skill: true } },
+        experiences: { orderBy: [{ sortOrder: 'asc' }, { startYear: 'desc' }] },
+      },
+    });
+    if (!candidate) {
+      throw new NotFoundException('Chưa có hồ sơ ứng viên');
+    }
+
+    const targetJob = dto.jobId
+      ? await this.prisma.job.findFirst({
+          where: { id: dto.jobId, isDeleted: false },
+          select: {
+            title: true,
+            industry: true,
+            description: true,
+            requirements: true,
+            company: { select: { name: true } },
+          },
+        })
+      : null;
+
+    const fullName = candidate.displayName || candidate.user.displayName || 'Ứng viên';
+    const p = candidate.profile;
+    const role = dto.targetRole?.trim() || targetJob?.title || p?.currentPosition || 'vị trí ứng tuyển';
+    const companyName = dto.targetCompany?.trim() || targetJob?.company?.name || '';
+    const tone = dto.tone ?? 'pro';
+    const focus = dto.focus ?? 'balanced';
+
+    const expLines = candidate.experiences.slice(0, 3).map((e) => {
+      const period = `${e.startYear ?? '?'}–${e.isCurrent ? 'Hiện tại' : (e.endYear ?? '?')}`;
+      const metrics = [
+        e.latestRevenue ? `doanh số ${(e.latestRevenue / 1_000_000).toFixed(0)} triệu/năm` : '',
+        e.kpiAchievementPct ? `đạt ${Math.round(e.kpiAchievementPct)}% KPI` : '',
+        e.productsSold?.length ? `sản phẩm: ${e.productsSold.slice(0, 3).join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      return `- ${e.jobTitle} tại ${e.companyName} (${period})${metrics ? ` — ${metrics}` : ''}`;
+    });
+
+    const skills = candidate.skills
+      .map((s) => s.skill?.name)
+      .filter((n): n is string => Boolean(n))
+      .slice(0, 8);
+    const products = p?.productsSold?.slice(0, 5) ?? [];
+    const segments = p?.customerSegments?.slice(0, 4) ?? [];
+    const contactLine = [p?.phone, candidate.user.email].filter(Boolean).join(' · ');
+
+    const toneInstruction =
+      tone === 'concise'
+        ? 'Ngắn gọn, súc tích (150–190 từ), đi thẳng vào năng lực và thành tích.'
+        : tone === 'enthusiastic'
+          ? 'Nhiệt huyết, chủ động, chuyên nghiệp (200–250 từ), thể hiện khát khao đóng góp.'
+          : 'Trang trọng, chuyên nghiệp chuẩn doanh nghiệp công nghiệp B2B (220–270 từ).';
+
+    const focusInstruction =
+      focus === 'sales_kpi'
+        ? 'Nhấn mạnh mạnh mẽ thành tích doanh số, % KPI, phát triển khách hàng và sản phẩm từng bán.'
+        : focus === 'technical'
+          ? 'Nhấn mạnh năng lực kỹ thuật, thiết bị/hệ thống vận hành, dự án thực tế và chứng chỉ.'
+          : 'Cân bằng hài hòa giữa kinh nghiệm thực chiến, kỹ năng chuyên môn và sự phù hợp với doanh nghiệp.';
+
+    const system = [
+      'Bạn là chuyên gia tư vấn tuyển dụng ngành công nghiệp B2B tại Việt Nam (nền tảng Inlink).',
+      'Hãy viết một bức Thư xin việc (Cover Letter) bằng tiếng Việt tự nhiên, chân thực, KHÔNG dùng markdown (không dấu *, không #), chỉ dùng văn bản thuần phân đoạn rõ ràng.',
+      'TUYỆT ĐỐI KHÔNG bịa thêm số liệu hay tên công ty không có trong dữ liệu được cung cấp.',
+      'Nếu không có tên công ty cụ thể, tránh lặp lại cụm "Quý Công ty" quá 2 lần trong toàn bức thư.',
+      toneInstruction,
+      focusInstruction,
+    ].join('\n');
+
+    const userPrompt = [
+      `HỒ SƠ ỨNG VIÊN:`,
+      `- Họ tên: ${fullName}`,
+      `- Vị trí hiện tại: ${p?.currentPosition ?? 'Chưa cập nhật'}`,
+      `- Số năm kinh nghiệm: ${p?.totalExperienceYears ?? 'Chưa rõ'}`,
+      `- Ngành nghề: ${p?.industry ?? 'Công nghiệp'}`,
+      products.length ? `- Sản phẩm / thiết bị: ${products.join(', ')}` : '',
+      segments.length ? `- Nhóm khách hàng: ${segments.join(', ')}` : '',
+      skills.length ? `- Kỹ năng: ${skills.join(', ')}` : '',
+      expLines.length ? `- Kinh nghiệm:\n${expLines.join('\n')}` : '',
+      contactLine ? `- Liên hệ: ${contactLine}` : '',
+      ``,
+      `MỤC TIÊU ỨNG TUYỂN:`,
+      `- Vị trí ứng tuyển: ${role}`,
+      `- Công ty mục tiêu: ${companyName || '(chưa nêu tên cụ thể — gọi chung là Quý Doanh nghiệp / Anh/Chị)'}`,
+      targetJob?.industry ? `- Ngành của JD: ${targetJob.industry}` : '',
+      targetJob?.requirements
+        ? `- Tóm tắt yêu cầu JD: ${targetJob.requirements.replace(/<[^>]+>/g, ' ').slice(0, 450)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    try {
+      const aiText = (await this.ai.chat({ system, user: userPrompt })).trim();
+      if (aiText && aiText.length >= 80 && !aiText.includes('[Mock]')) {
+        return { content: aiText, usedAi: true };
+      }
+    } catch (err) {
+      this.logger.warn(`generateCoverLetter fallback: ${String(err)}`);
+    }
+
+    // Fallback chất lượng cao khi provider ở chế độ mock hoặc tạm gián đoạn
+    const topExp = candidate.experiences[0];
+    const hasMetrics = Boolean(p?.latestRevenue || topExp?.latestRevenue || p?.kpiAchievementPct || topExp?.kpiAchievementPct);
+    const revenueVal = topExp?.latestRevenue ?? p?.latestRevenue;
+    const kpiVal = topExp?.kpiAchievementPct ?? p?.kpiAchievementPct;
+    const metricPhrase = [
+      revenueVal ? `quy mô doanh số ${(revenueVal / 1_000_000).toFixed(0)} triệu` : '',
+      kpiVal ? `đạt ${Math.round(kpiVal)}% KPI` : '',
+    ]
+      .filter(Boolean)
+      .join(' và ');
+
+    const addressee = companyName ? `Bộ phận Tuyển dụng ${companyName}` : 'Anh/Chị Phụ trách Tuyển dụng';
+    const companyRef = companyName || 'Quý Doanh nghiệp';
+
+    const paragraphs = [
+      `Kính gửi ${addressee},`,
+      '',
+      tone === 'enthusiastic'
+        ? `Tôi rất quan tâm và hào hứng khi ứng tuyển vào vị trí ${role}${companyName ? ` tại ${companyName}` : ''}. Với nền tảng thực chiến trong lĩnh vực ${p?.industry?.split('/')[0]?.trim() || 'công nghiệp B2B'}, tôi tin mình có thể đóng góp thiết thực ngay từ những tuần đầu làm việc.`
+        : `Qua nền tảng Inlink, tôi được biết ${companyRef} đang tìm kiếm nhân sự cho vị trí ${role} và xin gửi hồ sơ bày tỏ nguyện vọng ứng tuyển.`,
+      [
+        p?.totalExperienceYears
+          ? `Tôi có ${p.totalExperienceYears} năm kinh nghiệm chuyên môn`
+          : 'Tôi có nền tảng kinh nghiệm thực tế',
+        topExp ? `gần nhất đảm nhiệm vai trò ${topExp.jobTitle} tại ${topExp.companyName}` : '',
+        products.length ? `trực tiếp phụ trách mảng ${products.slice(0, 3).join(', ')}` : '',
+        hasMetrics && metricPhrase ? `với kết quả nổi bật (${metricPhrase})` : '',
+      ]
+        .filter(Boolean)
+        .join(', ') + '.',
+      skills.length ? `Thế mạnh cốt lõi của tôi gồm: ${skills.slice(0, 5).join(', ')}.` : '',
+      '',
+      `Rất mong có cơ hội trao đổi trực tiếp cùng ${companyName || 'Anh/Chị'} để chia sẻ chi tiết hơn về kinh nghiệm và phương án đóng góp cho vị trí ${role}.`,
+      '',
+      'Trân trọng,',
+      fullName,
+      contactLine,
+    ]
+      .filter((line, idx, arr) => !(line === '' && arr[idx - 1] === ''))
+      .join('\n');
+
+    return { content: paragraphs, usedAi: false };
   }
 
   private async getCandidateByUser(user: AuthenticatedUser) {

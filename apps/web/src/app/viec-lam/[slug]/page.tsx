@@ -5,7 +5,7 @@ import {
   jobPublicPath,
 } from '@industriallink/contracts';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { INDEX_ROBOTS, NOINDEX_ROBOTS } from '@/lib/seo-robots';
 import { fetchPublicJob, fetchPublishedJobs } from '@/lib/public-job-api';
 import { apiPublicBase, siteUrl } from '@/lib/public-paths';
@@ -37,6 +37,9 @@ export default async function PublicJobPage({
   const { slug } = await params;
   const job = await fetchPublicJob(slug);
   if (!job) notFound();
+  if (job.slug && slug !== job.slug) {
+    permanentRedirect(jobPublicPath(job));
+  }
 
   const expired = isJobExpiredForSeo(job);
   const origin = siteUrl();

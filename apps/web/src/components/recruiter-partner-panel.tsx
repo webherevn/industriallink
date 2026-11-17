@@ -24,7 +24,7 @@ import { createMyPartnerClaim, fetchMyPartner, registerMyPartner } from '@/lib/c
 
 type HistoryFilter = 'all' | 'month';
 
-export function RecruiterPartnerPanel() {
+export function RecruiterPartnerPanel({ embedded = false }: { embedded?: boolean }) {
   const qc = useQueryClient();
   const mine = useQuery({ queryKey: ['recruiter-partner'], queryFn: fetchMyPartner });
   const [phone, setPhone] = useState('');
@@ -57,9 +57,8 @@ export function RecruiterPartnerPanel() {
   const monthEntries = entries.filter((entry) => inThisMonth(entry.paidAt));
   const monthTotal = sumVnd(monthEntries);
 
-  return (
-    <RecruiterShell>
-      <div className="ntd-form recruiter-dash space-y-5">
+  const content = (
+    <div className="ntd-form recruiter-dash space-y-5">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-sm ring-1 ring-slate-200">
             <Link2 className="h-5 w-5" />
@@ -214,8 +213,10 @@ export function RecruiterPartnerPanel() {
           </>
         ) : null}
       </div>
-    </RecruiterShell>
   );
+
+  if (embedded) return content;
+  return <RecruiterShell>{content}</RecruiterShell>;
 }
 
 function Stat({

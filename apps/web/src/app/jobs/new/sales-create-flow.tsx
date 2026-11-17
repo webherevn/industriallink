@@ -22,7 +22,7 @@ import {
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { AppShell } from '@/components/app-shell';
 import { JdCreateGuide } from '@/components/jd-create-guide';
-import { JdFileDrop } from '@/components/jd-file-drop';
+import { JdSourceStep } from './jd-source-step';
 import { JdSalesForm } from '@/components/jd-sales-form';
 import { JobTrackToggle } from '@/components/job-track-toggle';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
@@ -166,123 +166,77 @@ export function JdSalesCreateFlow({
         </Button>
       </div>
 
-      <div className="mt-4">
-        <JobTrackToggle value={JobTrack.Sales} onChange={onSwitchTrack} />
-      </div>
+      {step !== 1 && (
+        <>
+          <div className="mt-4">
+            <JobTrackToggle value={JobTrack.Sales} onChange={onSwitchTrack} />
+          </div>
 
-      <nav className="mt-6 overflow-x-auto">
-        <ol data-guide="jd-steps" className="flex min-w-max items-center gap-1 sm:gap-2">
-          {STEPS.map((s, idx) => {
-            const active = step === s.id;
-            const done = step > s.id;
-            return (
-              <li key={s.id} className="flex items-center gap-1 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(s.id)}
-                  className={clsx(
-                    'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
-                    active && 'bg-brand-600 text-white',
-                    !active && done && 'bg-brand-50 text-brand-700',
-                    !active && !done && 'bg-slate-100 text-slate-500',
-                  )}
-                >
-                  <span
-                    className={clsx(
-                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
-                      active && 'bg-white/20',
-                      !active && done && 'bg-brand-600 text-white',
-                      !active && !done && 'bg-slate-200 text-slate-600',
+          <nav className="mt-6 overflow-x-auto">
+            <ol data-guide="jd-steps" className="flex min-w-max items-center gap-1 sm:gap-2">
+              {STEPS.map((s, idx) => {
+                const active = step === s.id;
+                const done = step > s.id;
+                return (
+                  <li key={s.id} className="flex items-center gap-1 sm:gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(s.id)}
+                      className={clsx(
+                        'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
+                        active && 'bg-brand-600 text-white',
+                        !active && done && 'bg-brand-50 text-brand-700',
+                        !active && !done && 'bg-slate-100 text-slate-500',
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
+                          active && 'bg-white/20',
+                          !active && done && 'bg-brand-600 text-white',
+                          !active && !done && 'bg-slate-200 text-slate-600',
+                        )}
+                      >
+                        {done && !active ? <Check className="h-3.5 w-3.5" /> : s.id}
+                      </span>
+                      <span className="hidden md:inline">{s.label}</span>
+                    </button>
+                    {idx < STEPS.length - 1 && (
+                      <span className="hidden h-px w-6 bg-slate-200 sm:block lg:w-10" />
                     )}
-                  >
-                    {done && !active ? <Check className="h-3.5 w-3.5" /> : s.id}
-                  </span>
-                  <span className="hidden md:inline">{s.label}</span>
-                </button>
-                {idx < STEPS.length - 1 && (
-                  <span className="hidden h-px w-6 bg-slate-200 sm:block lg:w-10" />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           {step === 1 && (
-            <div
-              data-guide="jd-source"
-              className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <JdFileDrop
-                busy={busy}
-                pending={fileMutation.isPending}
-                uploadedName={uploadedName}
-                onFile={(file) => {
-                  setParseError(null);
-                  fileMutation.mutate(file);
-                }}
-                onReject={setParseError}
-              />
-
-              <div className="relative my-2">
-                <div className="absolute inset-0 flex items-center" aria-hidden>
-                  <div className="w-full border-t border-slate-200" />
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="bg-white px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    hoặc dán nội dung JD
-                  </span>
-                </div>
-              </div>
-
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={10}
-                placeholder="Dán mô tả tin tuyển dụng tại đây (tối thiểu ~40 ký tự)…"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none ring-brand-500/30 focus:ring-2"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  data-guide="jd-ai"
-                  disabled={busy || text.trim().length < 40}
-                  onClick={() => textMutation.mutate()}
-                >
-                  {textMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-4 w-4" />
-                  )}
-                  AI điền 22 trường
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => {
-                    setText(SAMPLE_JD);
-                  }}
-                >
-                  Dùng mẫu
-                </Button>
-                <button
-                  type="button"
-                  className="text-[13px] font-semibold text-slate-500 hover:text-brand-700"
-                  onClick={() => setStep(2)}
-                >
-                  Bỏ qua, điền tay →
-                </button>
-              </div>
-              {parseError && (
-                <p className="flex items-start gap-2 text-[13px] text-rose-600">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {parseError}
-                </p>
-              )}
-            </div>
+            <JdSourceStep
+              track={JobTrack.Sales}
+              onSwitchTrack={onSwitchTrack}
+              step={step}
+              onStep={setStep}
+              text={text}
+              onTextChange={setText}
+              sampleJd={SAMPLE_JD}
+              exampleSnippet="Công ty cần tuyển Nhân viên kinh doanh B2B, phụ trách phát triển khách hàng nhà máy, tư vấn thiết bị máy nén khí, chăm sóc khách hàng và đạt chỉ tiêu doanh số..."
+              busy={busy}
+              filePending={fileMutation.isPending}
+              textPending={textMutation.isPending}
+              uploadedName={uploadedName}
+              parseError={parseError}
+              onFile={(file) => {
+                setParseError(null);
+                fileMutation.mutate(file);
+              }}
+              onRejectFile={setParseError}
+              onAnalyzeText={() => textMutation.mutate()}
+              onSkipManual={() => setStep(2)}
+            />
           )}
 
           {step === 2 && (

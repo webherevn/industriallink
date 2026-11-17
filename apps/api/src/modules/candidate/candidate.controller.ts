@@ -36,6 +36,7 @@ import { ConnectionChatService } from './connection-chat.service';
 import { SendConnectionMessageDto } from './dto/send-connection-message.dto';
 import { CompanySuggestService } from './company-suggest.service';
 import { CvDraftFromTextDto } from './dto/cv-draft-from-text.dto';
+import { GenerateCoverLetterDto } from './dto/generate-cover-letter.dto';
 import { SaveCvDraftDto } from './dto/save-cv-draft.dto';
 import { UpdateCandidateProfileDto } from './dto/update-candidate-profile.dto';
 
@@ -277,6 +278,18 @@ export class CandidateController {
       user,
       body.draft as unknown as import('@industriallink/contracts').CvDraftView,
     );
+  }
+
+  @Post('me/cover-letter/generate')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({
+    summary: 'Sinh thư xin việc B2B bằng AI từ hồ sơ ứng viên và tin tuyển dụng mục tiêu',
+  })
+  generateCoverLetter(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: GenerateCoverLetterDto,
+  ) {
+    return this.candidates.generateCoverLetter(user, body);
   }
 
   @Post('me/avatar')

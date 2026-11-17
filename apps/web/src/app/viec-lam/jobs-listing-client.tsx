@@ -3,16 +3,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  ArrowRight,
+  BadgeCheck,
+  Banknote,
   Bookmark,
   Briefcase,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Factory,
+  Info,
   MapPin,
+  Package,
   Search,
+  Send,
   SlidersHorizontal,
   Sparkles,
+  User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -39,23 +48,26 @@ import { IndustryPicker } from '@/components/industry-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { Badge, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
-import { tokenStore } from '@/lib/api';
+import { ApiError, tokenStore } from '@/lib/api';
 import { getMyCandidate } from '@/lib/candidate';
 import { apiPublicBase, companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import {
   APPLICATION_STATUS_LABEL,
+  EXPERIENCE_LABEL,
+  formatJobLevel,
   formatSalary,
   statusTone,
 } from '@/lib/format';
 import {
   addJobBookmark,
+  applyToJob,
   listBookmarkedJobs,
   listPublishedJobs,
   fetchJobPositionStats,
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
-import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
 import { composeJobBoard, LISTING_ROTATE_MS, listingTier } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
@@ -147,8 +159,10 @@ function matchToJob(match: JobMatchView, known?: JobListItem): JobListItem {
     companyId: match.companyId,
     companySlug: match.companySlug,
     companyName: match.companyName,
+    companyHasLogo: match.companyHasLogo,
+    companyVerified: match.companyVerified,
     industry: match.industry,
-    subIndustry: null,
+    subIndustry: match.subIndustry ?? null,
     jobLevel: match.jobLevel,
     location: match.location,
     employmentType: null,
@@ -157,10 +171,13 @@ function matchToJob(match: JobMatchView, known?: JobListItem): JobListItem {
     salaryMax: match.salaryMax,
     status: JobStatus.Published,
     jobTrack: null,
+    products: match.products,
     skills: match.skills ?? [],
     createdAt: match.publishedAt ?? '',
     publishedAt: match.publishedAt,
-    isNew: false,
+    isNew: match.publishedAt
+      ? Date.now() - new Date(match.publishedAt).getTime() < 48 * 60 * 60 * 1000
+      : false,
   };
 }
 
@@ -390,6 +407,26 @@ function JobsPageInner({
     () => new Set((bookmarks ?? []).map((job) => job.id)),
     [bookmarks],
   );
+  const appliedIdSet = useMemo(
+    () => new Set((applications ?? []).map((a) => a.jobId)),
+    [applications],
+  );
+  const [applyFeedback, setApplyFeedback] = useState<{ jobId: string; tone: 'ok' | 'err'; text: string } | null>(null);
+  const applyMutation = useMutation({
+    mutationFn: async (jobId: string) => applyToJob(jobId, {}),
+    onSuccess: (_data, jobId) => {
+      setApplyFeedback({ jobId, tone: 'ok', text: 'Đã gửi hồ sơ ứng tuyển!' });
+      queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs-match-preview'] });
+    },
+    onError: (err, jobId) => {
+      setApplyFeedback({
+        jobId,
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không gửi được hồ sơ',
+      });
+    },
+  });
 
   const bookmarkMutation = useMutation({
     mutationFn: async ({ id, saved }: { id: string; saved: boolean }) => {
@@ -970,15 +1007,19 @@ function JobsPageInner({
                     job={job}
                     spacious={!filtersOpen}
                     saved={bookmarks ? savedIdSet.has(job.id) : Boolean(job.isBookmarked)}
+                    applied={appliedIdSet.has(job.id)}
                     match={matchByJobId.get(job.id)}
                     matchRing={listAi}
                     busy={bookmarkMutation.isPending}
+                    applying={applyMutation.isPending && applyMutation.variables === job.id}
+                    applyFeedback={applyFeedback?.jobId === job.id ? applyFeedback : null}
                     onToggleBookmark={() =>
                       bookmarkMutation.mutate({
                         id: job.id,
                         saved: bookmarks ? savedIdSet.has(job.id) : Boolean(job.isBookmarked),
                       })
                     }
+                    onApply={() => applyMutation.mutate(job.id)}
                   />
                 ))}
               </ul>
@@ -1403,105 +1444,329 @@ function MatchPctRing({ score }: { score: number }) {
   );
 }
 
+function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return '';
+  const diff = Date.now() - ts;
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${Math.max(1, minutes)} phút trước`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} ngày trước`;
+  return new Date(iso).toLocaleDateString('vi-VN');
+}
+
+function listingMatchLabel(score: number): string {
+  if (score >= 80) return 'Phù hợp cao';
+  if (score >= 55) return 'Phù hợp khá';
+  return 'Gợi ý thêm';
+}
+
 function JobCard({
   job,
   match,
   busy,
   saved,
+  applied = false,
+  applying = false,
+  applyFeedback = null,
   spacious = false,
   matchRing = false,
   onToggleBookmark,
+  onApply,
 }: {
   job: JobListItem;
   match?: JobMatchView;
   busy: boolean;
   saved: boolean;
+  applied?: boolean;
+  applying?: boolean;
+  applyFeedback?: { tone: 'ok' | 'err'; text: string } | null;
   spacious?: boolean;
   matchRing?: boolean;
   onToggleBookmark: () => void;
+  onApply?: () => void;
 }) {
   const tone = TIER_STYLE[listingTier(job.planCode)];
+  const productsText =
+    job.products && job.products.length > 0
+      ? job.products.join(', ')
+      : job.subIndustry?.trim() || null;
+  const expText = job.experienceBand
+    ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ?? job.experienceBand
+    : 'Không yêu cầu';
+  const postedLabel = formatRelativeTime(job.publishedAt || job.createdAt);
+  const skillsList = (job.skills ?? []).filter(Boolean).slice(0, 5);
+  const showAiPanel = Boolean(match && matchRing);
 
   return (
     <li className="flex min-w-0">
       <article
         className={clsx(
-          'flex h-full w-full rounded-xl border transition-[padding,gap,transform,box-shadow] duration-500 ease-soft hover:-translate-y-0.5 hover:shadow-lg hover:duration-200 motion-reduce:transition-none',
-          spacious ? 'gap-3.5 p-4' : 'gap-3 p-3',
+          'flex h-full w-full flex-col rounded-2xl border transition-[padding,gap,transform,box-shadow] duration-500 ease-soft hover:-translate-y-0.5 hover:shadow-lg hover:duration-200 motion-reduce:transition-none',
+          spacious ? 'p-4' : 'p-3.5',
           tone.card,
         )}
       >
-        <CompanyMark job={job} markClass={tone.mark} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-10 items-start gap-2">
-            <Link
-              href={jobPublicPath(job)}
+        <div
+          className={clsx(
+            'flex min-w-0 flex-1 flex-col gap-3',
+            showAiPanel && (spacious ? 'md:flex-row md:items-stretch' : '2xl:flex-row 2xl:items-stretch'),
+          )}
+        >
+          <div className="flex min-w-0 flex-1 gap-3">
+            <CompanyMark job={job} markClass={tone.mark} />
+
+            <div className="flex min-w-0 flex-1 flex-col">
+              {/* Hàng 1: Badge (AI match nếu có / gói Nổi bật-Ưu tiên ở lọc thường) + Mới + Thời gian + Bookmark */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  {match ? (
+                    <span
+                      className={clsx(
+                        'rounded-md px-2 py-0.5 text-[10.5px] font-semibold',
+                        matchBadgeTone(match.match.score),
+                      )}
+                    >
+                      {listingMatchLabel(match.match.score)}
+                    </span>
+                  ) : tone.badge ? (
+                    <span
+                      className={clsx(
+                        'shrink-0 rounded-md px-2 py-0.5 text-[10.5px] font-semibold',
+                        tone.badgeClass,
+                      )}
+                    >
+                      {tone.badge}
+                    </span>
+                  ) : null}
+                  {job.isNew && (
+                    <span className="rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      Mới
+                    </span>
+                  )}
+                  {postedLabel && (
+                    <span className="text-[11px] text-slate-400">{postedLabel}</span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
+                  onClick={onToggleBookmark}
+                  className={clsx(
+                    '-mr-1 -mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition',
+                    saved
+                      ? 'text-amber-500 hover:bg-amber-50'
+                      : 'text-slate-400 hover:bg-slate-100 hover:text-amber-500',
+                  )}
+                >
+                  <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} strokeWidth={1.75} />
+                </button>
+              </div>
+
+              {/* Hàng 2: Tên vị trí + Tên công ty + Tích xanh xác minh */}
+              <div className="mt-1">
+                <Link
+                  href={jobPublicPath(job)}
+                  className={clsx(
+                    'line-clamp-2 font-bold leading-snug text-slate-900 hover:text-brand-600',
+                    spacious ? 'text-[15px]' : 'text-[14px]',
+                  )}
+                >
+                  {job.title}
+                </Link>
+                <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12.5px] font-medium text-slate-600">
+                  {job.companyId ? (
+                    <Link
+                      href={companyPublicPath(job)}
+                      className="truncate hover:text-brand-600 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {job.companyName}
+                    </Link>
+                  ) : (
+                    <span className="truncate">{job.companyName}</span>
+                  )}
+                  {job.companyVerified ? (
+                    <BadgeCheck
+                      className="h-3.5 w-3.5 shrink-0 fill-[#1D9BF0] text-white"
+                      aria-label="Công ty đã xác minh"
+                    />
+                  ) : null}
+                </p>
+              </div>
+
+              {/* Hàng 3: Ngành & Sản phẩm */}
+              {(job.industry || productsText) && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-slate-600">
+                  {job.industry && (
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+                      <Factory className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">
+                        <strong className="font-semibold text-slate-700">Ngành:</strong> {job.industry}
+                      </span>
+                    </span>
+                  )}
+                  {job.industry && productsText && (
+                    <span className="hidden h-3 w-px bg-slate-200 sm:inline-block" aria-hidden />
+                  )}
+                  {productsText && (
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+                      <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">
+                        <strong className="font-semibold text-slate-700">Sản phẩm:</strong> {productsText}
+                      </span>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm, Cấp bậc */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
+                </span>
+                <span className="sr-only"> · </span>
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+                  <Banknote className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                  {formatSalary(job.salaryMin, job.salaryMax)}
+                </span>
+                <span className="sr-only"> · </span>
+                <span className="inline-flex items-center gap-1">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {expText}
+                </span>
+                {job.jobLevel && (
+                  <>
+                    <span className="sr-only"> · </span>
+                    <span className="inline-flex items-center gap-1">
+                      <User className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {formatJobLevel(job.jobLevel)}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Hàng 5: Kỹ năng */}
+              {skillsList.length > 0 && (
+                <ul className="m-0 mt-auto flex list-none flex-wrap gap-1.5 p-0 pt-2.5">
+                  {skillsList.map((skill, idx) => (
+                    <li
+                      key={skill}
+                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
+                    >
+                      {skill}
+                      {idx < skillsList.length - 1 ? <span className="sr-only">, </span> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {applyFeedback && (
+                <p
+                  className={clsx(
+                    'mt-2 text-[11.5px] font-medium',
+                    applyFeedback.tone === 'ok' ? 'text-emerald-700' : 'text-rose-600',
+                  )}
+                >
+                  {applyFeedback.text}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Khối AI bên phải (responsive: cột dọc khi đủ rộng, hàng ngang gọn khi hẹp/mobile) */}
+          {showAiPanel && match ? (
+            <div
               className={clsx(
-                'line-clamp-2 min-h-10 min-w-0 flex-1 font-semibold leading-5 text-brand-700 hover:text-accent-600',
-                spacious ? 'text-sm' : 'text-[13px]',
+                'flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 pt-3',
+                spacious
+                  ? 'md:w-[144px] md:flex-col md:justify-center md:gap-3.5 md:border-l md:border-t-0 md:pl-3.5 md:pt-0'
+                  : '2xl:w-[138px] 2xl:flex-col 2xl:justify-center 2xl:gap-3.5 2xl:border-l 2xl:border-t-0 2xl:pl-3 2xl:pt-0',
               )}
             >
-              {job.title}
-            </Link>
-            {tone.badge ? (
-              <span
+              <div className="flex flex-col items-center">
+                <div className="relative h-14 w-14">
+                  <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="26"
+                      fill="none"
+                      stroke="#e2e8f0"
+                      strokeWidth="5.5"
+                    />
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="26"
+                      fill="none"
+                      stroke={matchRingColor(match.match.score)}
+                      strokeWidth="5.5"
+                      strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 26}
+                      strokeDashoffset={
+                        2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, match.match.score / 100)))
+                      }
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span
+                      className="text-[13px] font-extrabold leading-none tracking-tight tabular-nums"
+                      style={{ color: matchRingColor(match.match.score) }}
+                    >
+                      {formatMatchPct(match.match.score)}
+                      <span className="text-[9.5px] font-bold">%</span>
+                    </span>
+                  </span>
+                </div>
+                <span
+                  className="mt-1 inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-slate-700"
+                  title={matchRingLabel(match.match.score)}
+                >
+                  Mức độ phù hợp
+                  <Info className="h-3 w-3 shrink-0 text-slate-400" />
+                </span>
+              </div>
+
+              <div
                 className={clsx(
-                  'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-4',
-                  tone.badgeClass,
+                  'flex flex-1 flex-col gap-1.5',
+                  spacious ? 'md:w-full md:flex-none' : '2xl:w-full 2xl:flex-none',
                 )}
               >
-                {tone.badge}
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
-            {job.companyId ? (
-              <Link
-                href={companyPublicPath(job)}
-                className="hover:text-brand-600 hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {job.companyName}
-              </Link>
-            ) : (
-              job.companyName
-            )}
-          </p>
-          <div className="mt-auto flex items-center gap-1.5 pt-2">
-            <span
-              className={clsx(
-                'max-w-[48%] shrink-0 truncate rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                tone.salary,
-              )}
-            >
-              {formatSalary(job.salaryMin, job.salaryMax)}
-            </span>
-            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-slate-600">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-accent-500" />
-              <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
-            </span>
-            {match && !matchRing && (
-              <span className="shrink-0 text-[11px] font-semibold text-brand-600">
-                {formatMatchPct(match.match.score)}%
-              </span>
-            )}
-            <button
-              type="button"
-              disabled={busy}
-              aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
-              onClick={onToggleBookmark}
-              className={clsx(
-                'ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-white transition',
-                saved
-                  ? 'border-brand-200 text-brand-500'
-                  : 'border-slate-200 text-slate-400 hover:border-brand-200 hover:text-brand-500',
-              )}
-            >
-              <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} strokeWidth={1.75} />
-            </button>
-          </div>
+                {applied ? (
+                  <span className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-xl bg-emerald-50 px-2.5 text-[11.5px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    Đã ứng tuyển
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={applying}
+                    onClick={onApply}
+                    className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl bg-[#E8872A] px-2.5 text-[11.5px] font-bold text-white shadow-2xs transition hover:bg-[#d4761d] disabled:opacity-60"
+                  >
+                    <Send className="h-3 w-3 shrink-0" />
+                    {applying ? 'Đang gửi...' : 'Ứng tuyển'}
+                  </button>
+                )}
+                <Link
+                  href={jobPublicPath(job)}
+                  className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 text-[11.5px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span>Xem chi tiết</span>
+                  <ArrowRight className="h-3 w-3 shrink-0" />
+                </Link>
+              </div>
+            </div>
+          ) : null}
         </div>
-        {match && matchRing ? <MatchPctRing score={match.match.score} /> : null}
       </article>
     </li>
   );

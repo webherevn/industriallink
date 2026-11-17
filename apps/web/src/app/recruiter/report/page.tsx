@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -19,7 +21,9 @@ import {
   Filter,
   Headphones,
   Minus,
+  PieChart,
   Printer,
+  RefreshCw,
   Search,
   Sparkles,
   Target,
@@ -63,6 +67,7 @@ const FUNNEL_BAR = [
 export default function RecruiterReportPage() {
   const [days, setDays] = useState<number>(30);
   const [selectedJobId, setSelectedJobId] = useState<string>('all');
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const report = useQuery({
     queryKey: ['recruiter', 'recruitment-report', days],
@@ -84,24 +89,60 @@ export default function RecruiterReportPage() {
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
-              Báo cáo điều hành & HR
+              Báo cáo &amp; Phân tích
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-brand-800">
               Báo cáo tuyển dụng
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Tổng hợp hiệu quả phễu chuyển đổi, nguồn ứng viên Săn nhân sự AI, chi phí Credit và hiệu suất từng vị trí.
+              Tổng hợp kết quả, hiệu quả nguồn ứng viên và chi phí tuyển dụng theo từng vị trí.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {jobsList.length > 0 ? (
-              <div className="relative">
+          {report.data?.hasCompany ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => exportRecruitmentCsv(report.data!, selectedJobId)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-brand-300 hover:bg-slate-50 active:scale-95"
+                title="Tải file Excel (.csv) báo cáo tuyển dụng"
+              >
+                <Download className="h-3.5 w-3.5 text-brand-600" />
+                <span>Xuất Excel</span>
+              </button>
+              <button
+                type="button"
+                disabled={exportingPdf}
+                onClick={() => {
+                  setExportingPdf(true);
+                  void exportRecruitmentPdf(report.data!, selectedJobId).finally(() =>
+                    setExportingPdf(false),
+                  );
+                }}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-brand-800 active:scale-95 disabled:opacity-60"
+                title="Tải file PDF báo cáo tuyển dụng chuẩn A4"
+              >
+                <Printer className="h-3.5 w-3.5 text-[#E8872A]" />
+                <span>{exportingPdf ? 'Đang xuất PDF…' : 'Xuất PDF'}</span>
+              </button>
+            </div>
+          ) : null}
+        </header>
+
+        {/* Thanh lọc vị trí & khoảng thời gian */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                <Briefcase className="h-4 w-4" />
+              </span>
+              <div>
+                <span className="block text-[10.5px] font-medium text-slate-400">Tin tuyển dụng</span>
                 <select
                   aria-label="Lọc theo vị trí tuyển dụng"
                   value={selectedJobId}
                   onChange={(e) => setSelectedJobId(e.target.value)}
-                  className="h-9 rounded-full border border-slate-200 bg-white pl-3.5 pr-8 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 focus:border-brand-500 focus:outline-none"
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-[#072348] outline-none"
                 >
                   <option value="all">Tất cả vị trí ({jobsList.length})</option>
                   {jobsList.map((job) => (
@@ -111,50 +152,58 @@ export default function RecruiterReportPage() {
                   ))}
                 </select>
               </div>
-            ) : null}
+            </div>
 
-            <div className="flex rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                <CalendarDays className="h-4 w-4" />
+              </span>
+              <div>
+                <span className="block text-[10.5px] font-medium text-slate-400">Khoảng thời gian</span>
+                <select
+                  aria-label="Khoảng thời gian"
+                  value={days}
+                  onChange={(e) => setDays(Number(e.target.value))}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-[#072348] outline-none"
+                >
+                  {PERIODS.map((p) => (
+                    <option key={p.days} value={p.days}>
+                      {p.label} qua
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-full bg-slate-100 p-1">
               {PERIODS.map((period) => (
                 <button
                   key={period.days}
                   type="button"
                   onClick={() => setDays(period.days)}
                   className={clsx(
-                    'rounded-full px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition duration-200 active:scale-95',
+                    'rounded-full px-3 py-1 text-xs font-semibold transition',
                     days === period.days
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-100',
+                      ? 'bg-[#072348] text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900',
                   )}
                 >
                   {period.label}
                 </button>
               ))}
             </div>
-
-            {report.data?.hasCompany ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => exportRecruitmentCsv(report.data!, selectedJobId)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:bg-slate-50 active:scale-95"
-                  title="Tải file Excel (.csv) báo cáo tuyển dụng"
-                >
-                  <Download className="h-3.5 w-3.5 text-brand-600" />
-                  <span>Xuất Excel</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openExecutivePrintReport(report.data!, selectedJobId)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand-700 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-800 active:scale-95"
-                  title="Mở bản báo cáo chuẩn A4 để in hoặc lưu PDF trình Sếp"
-                >
-                  <Printer className="h-3.5 w-3.5 text-[#E8872A]" />
-                  <span>Xuất PDF trình Sếp</span>
-                </button>
-              </div>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => void report.refetch()}
+              title="Làm mới số liệu"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+            >
+              <RefreshCw className={clsx('h-3.5 w-3.5', report.isFetching && 'animate-spin')} />
+            </button>
           </div>
-        </header>
+        </div>
 
         {report.isLoading && !report.data ? <ReportSkeleton /> : null}
         {report.isError && !report.data ? (
@@ -193,6 +242,25 @@ function ReportBody({
   refreshing: boolean;
 }) {
   const [funnelMode, setFunnelMode] = useState<'cumulative' | 'current'>('cumulative');
+  const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'month'>('day');
+  const [resourceTab, setResourceTab] = useState<'credit' | 'sourcing'>('credit');
+
+  const groupedTrend = useMemo(() => {
+    const pts = report.trend ?? [];
+    if (trendGranularity === 'day' || pts.length <= 2) return pts;
+    const bucketSize = trendGranularity === 'week' ? 7 : 30;
+    const out: RecruitmentReportView['trend'] = [];
+    for (let i = 0; i < pts.length; i += bucketSize) {
+      const slice = pts.slice(i, i + bucketSize);
+      out.push({
+        key: slice[0]!.key,
+        label: slice.length > 1 ? `${slice[0]!.label}–${slice[slice.length - 1]!.label}` : slice[0]!.label,
+        applications: slice.reduce((s, p) => s + p.applications, 0),
+        hires: slice.reduce((s, p) => s + p.hires, 0),
+      });
+    }
+    return out;
+  }, [report.trend, trendGranularity]);
 
   const updated = new Date(report.generatedAt).toLocaleString('vi-VN', {
     hour: '2-digit',
@@ -444,83 +512,171 @@ function ReportBody({
         </div>
       </section>
 
-      {/* 2. 6 THẺ KPI QUY TRÌNH & NGUỒN CHỦ ĐỘNG */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Kpi
-          icon={<Users className="h-4 w-4" />}
-          tone="bg-brand-50 text-brand-700"
-          label="Hồ sơ ứng tuyển (Inbound)"
-          value={appsCount}
-          hint={
-            selectedJob ? (
-              <span>{highMatchCount} hồ sơ đạt độ khớp cao ≥70%</span>
-            ) : (
-              <Delta current={report.applications} previous={report.applicationsPrev} />
-            )
-          }
-          delay="0ms"
-        />
-        <Kpi
-          icon={<Sparkles className="h-4 w-4" />}
-          tone="bg-amber-50 text-amber-700"
-          label="Ứng viên Săn AI (Outbound)"
-          value={outboundCandidatesTotal}
-          hint={
-            <span>
-              {sourcing.scanRoundsInPeriod} đợt quét · {sourcing.shortlistedCount} Shortlist ·{' '}
-              {sourcing.outreachCount} giao Inlink
+      {/* 2. KẾT QUẢ TUYỂN DỤNG (6 Ô) + CƠ CẤU NGUỒN ỨNG VIÊN (DONUT) */}
+      <section className="grid gap-4 lg:grid-cols-12">
+        <Panel className="p-5 lg:col-span-7" delay="60ms">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-[#E8872A]">
+              <BarChart3 className="h-4 w-4" />
             </span>
-          }
-          delay="60ms"
-        />
-        <Kpi
-          icon={<FileText className="h-4 w-4" />}
-          tone="bg-[#e7eef8] text-brand-600"
-          label="Đang xử lý trong phễu"
-          value={inPipeline}
-          hint={
-            <span>
-              {screeningCount} sàng lọc · {interviewsCount} phỏng vấn · {offersCount} đề nghị
+            <div>
+              <h2 className="text-base font-bold text-brand-800">Kết quả tuyển dụng</h2>
+              <p className="text-xs text-slate-500">Tổng quan hồ sơ và tiến độ trong quy trình.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <Users className="h-3.5 w-3.5 text-[#0B468C]" />
+                <span>Hồ sơ tự ứng tuyển</span>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tabular-nums text-[#072348]">
+                  <RisingNumber value={appsCount} />
+                </span>
+                {!selectedJob && (
+                  <Delta current={report.applications} previous={report.applicationsPrev} />
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                <span>Ứng viên AI đề xuất</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+                <RisingNumber value={outboundCandidatesTotal} />
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <Filter className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Đang trong phễu</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+                <RisingNumber value={inPipeline} />
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <CalendarDays className="h-3.5 w-3.5 text-violet-600" />
+                <span>Phỏng vấn</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+                <RisingNumber value={interviewHeadline} />
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <FileText className="h-3.5 w-3.5 text-[#E8872A]" />
+                <span>Đề nghị làm việc</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+                <RisingNumber value={offerHeadline} />
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
+                <span>Nhận việc</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-emerald-700">
+                <RisingNumber value={hiresCount} />
+              </p>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="flex flex-col justify-between p-5 lg:col-span-5" delay="100ms">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-[#0B468C]">
+              <PieChart className="h-4 w-4" />
             </span>
-          }
-          delay="120ms"
-        />
-        <Kpi
-          icon={<CalendarDays className="h-4 w-4" />}
-          tone="bg-sky-50 text-sky-700"
-          label="Phỏng vấn"
-          value={interviewHeadline}
-          hint={
-            <span>
-              {report.interviewSessions} buổi lịch hẹn · {interviewsCount} hồ sơ đang ở bước PV
-            </span>
-          }
-          delay="180ms"
-        />
-        <Kpi
-          icon={<Briefcase className="h-4 w-4" />}
-          tone="bg-accent-100 text-accent-700"
-          label="Đề nghị (Offer)"
-          value={offerHeadline}
-          hint={
-            <span>
-              {offersCount} hồ sơ ở bước Đề nghị · {report.offersSent} thư Offer đã tạo
-            </span>
-          }
-          delay="240ms"
-        />
-        <Kpi
-          icon={<UserCheck className="h-4 w-4" />}
-          tone="bg-emerald-50 text-emerald-700"
-          label="Nhận việc & Kết thúc"
-          value={hiresCount}
-          hint={
-            <span>
-              {hiresCount} nhận việc · {report.rejected} từ chối · {report.withdrawn} rút hồ sơ
-            </span>
-          }
-          delay="300ms"
-        />
+            <div>
+              <h2 className="text-base font-bold text-brand-800">Cơ cấu nguồn ứng viên</h2>
+              <p className="text-xs text-slate-500">Tỷ trọng hồ sơ theo nguồn.</p>
+            </div>
+          </div>
+
+          {(() => {
+            const totalSources = appsCount + outboundCandidatesTotal;
+            const inboundPct = totalSources > 0 ? Math.round((appsCount / totalSources) * 1000) / 10 : 0;
+            const outboundPct = totalSources > 0 ? Math.round((outboundCandidatesTotal / totalSources) * 1000) / 10 : 0;
+            const r = 42;
+            const c = 2 * Math.PI * r;
+            const inboundDash = totalSources > 0 ? (appsCount / totalSources) * c : 0;
+            const outboundDash = totalSources > 0 ? (outboundCandidatesTotal / totalSources) * c : 0;
+            return (
+              <div className="my-auto flex flex-wrap items-center justify-center gap-6 py-4 sm:justify-between">
+                <div className="relative h-32 w-32 shrink-0">
+                  <svg viewBox="0 0 110 110" className="h-full w-full -rotate-90">
+                    <circle cx="55" cy="55" r={r} fill="none" stroke="#f1f5f9" strokeWidth="14" />
+                    {totalSources > 0 && (
+                      <>
+                        <circle
+                          cx="55"
+                          cy="55"
+                          r={r}
+                          fill="none"
+                          stroke="#E8872A"
+                          strokeWidth="14"
+                          strokeDasharray={`${outboundDash} ${c}`}
+                          strokeDashoffset={0}
+                        />
+                        <circle
+                          cx="55"
+                          cy="55"
+                          r={r}
+                          fill="none"
+                          stroke="#0B468C"
+                          strokeWidth="14"
+                          strokeDasharray={`${inboundDash} ${c}`}
+                          strokeDashoffset={-outboundDash}
+                        />
+                      </>
+                    )}
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-2xl font-extrabold tabular-nums leading-none text-[#072348]">
+                      {totalSources}
+                    </span>
+                    <span className="mt-1 text-[11px] font-medium text-slate-500">Hồ sơ</span>
+                  </div>
+                </div>
+
+                <div className="min-w-[170px] flex-1 space-y-3 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 font-medium text-slate-700">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#0B468C]" />
+                      Tự ứng tuyển (Inbound)
+                    </span>
+                    <span className="font-bold tabular-nums text-[#072348]">
+                      {appsCount}{' '}
+                      <span className="font-medium text-slate-400">({inboundPct}%)</span>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 font-medium text-slate-700">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#E8872A]" />
+                      Săn nhân sự AI (Outbound)
+                    </span>
+                    <span className="font-bold tabular-nums text-[#072348]">
+                      {outboundCandidatesTotal}{' '}
+                      <span className="font-medium text-slate-400">({outboundPct}%)</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </Panel>
       </section>
 
       {/* 3. CẶP BIỂU ĐỒ TRUNG TÂM: PHỄU CHUYỂN ĐỔI LŨY KẾ + BIỂU ĐỒ XU HƯỚNG MƯỢT */}
@@ -657,18 +813,43 @@ function ReportBody({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
-                  Hồ sơ mới ({report.applications})
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-accent-500" />
-                  Nhận việc ({report.hires})
-                </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-semibold">
+                  {(
+                    [
+                      { key: 'day', label: 'Ngày' },
+                      { key: 'week', label: 'Tuần' },
+                      { key: 'month', label: 'Tháng' },
+                    ] as const
+                  ).map((g) => (
+                    <button
+                      key={g.key}
+                      type="button"
+                      onClick={() => setTrendGranularity(g.key)}
+                      className={clsx(
+                        'rounded-md px-2.5 py-1 transition',
+                        trendGranularity === g.key
+                          ? 'bg-[#072348] text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900',
+                      )}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
+                    Hồ sơ mới ({report.applications})
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-accent-500" />
+                    Nhận việc ({report.hires})
+                  </span>
+                </div>
               </div>
             </div>
-            <TrendChart points={report.trend} />
+            <TrendChart points={groupedTrend} />
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-center text-xs">
@@ -778,47 +959,112 @@ function ReportBody({
             </Link>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
-              <p className="text-[11px] font-medium text-slate-500">Số dư Credit hiện tại</p>
-              <p className="mt-1 text-xl font-bold text-brand-800">
-                {credits.balance.toLocaleString('vi-VN')} <span className="text-xs font-medium text-slate-500">Credit</span>
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                Đã dùng {credits.consumedInPeriod} Credit trong kỳ
-              </p>
-            </div>
+          <div className="mt-3 inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setResourceTab('credit')}
+              className={clsx(
+                'rounded-lg px-3 py-1.5 transition',
+                resourceTab === 'credit'
+                  ? 'bg-white text-[#072348] shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900',
+              )}
+            >
+              Sử dụng Credit
+            </button>
+            <button
+              type="button"
+              onClick={() => setResourceTab('sourcing')}
+              className={clsx(
+                'rounded-lg px-3 py-1.5 transition',
+                resourceTab === 'sourcing'
+                  ? 'bg-white text-[#072348] shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900',
+              )}
+            >
+              {sourcing.planName ?? 'Gói Săn nhân sự'}
+            </button>
+          </div>
 
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
-              <p className="text-[11px] font-medium text-slate-500">Hồ sơ đã mở khóa</p>
-              <p className="mt-1 text-xl font-bold text-[#E8872A]">
-                {credits.profilesUnlockedInPeriod} <span className="text-xs font-medium text-slate-500">hồ sơ</span>
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                {sourcing.shortlistedCount} ứng viên đã lưu Shortlist
-              </p>
-            </div>
+          {resourceTab === 'credit' ? (
+            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium text-slate-500">Số dư hiện tại</p>
+                <p className="mt-1 text-xl font-bold text-brand-800">
+                  {credits.balance.toLocaleString('vi-VN')}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Credit khả dụng</p>
+              </div>
 
-            <div className="col-span-2 rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Headphones className="h-4 w-4 text-emerald-700" />
-                  <span className="text-xs font-bold text-emerald-950">
-                    Đội CSKH Inlink hỗ trợ liên hệ ứng viên
-                  </span>
-                </div>
-                <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                  {sourcing.outreachQuota > 0
-                    ? `${sourcing.outreachCount} / ${sourcing.outreachQuota} ứng viên`
-                    : `${sourcing.outreachCount} ứng viên`}
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium text-slate-500">Đã sử dụng</p>
+                <p className="mt-1 text-xl font-bold text-slate-800">
+                  {credits.consumedInPeriod}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Credit trong kỳ</p>
+              </div>
+
+              <div className="col-span-2 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 sm:col-span-1">
+                <p className="text-[11px] font-medium text-slate-500">Hồ sơ đã mở khóa</p>
+                <p className="mt-1 text-xl font-bold text-[#E8872A]">
+                  {credits.profilesUnlockedInPeriod}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  {sourcing.shortlistedCount} Shortlist
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium text-slate-500">Đợt quét AI</p>
+                <p className="mt-1 text-xl font-bold text-brand-800">
+                  {sourcing.scanRoundsInPeriod}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  {sourcing.activeEngagements} tin săn đang chạy
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium text-slate-500">AI đề xuất</p>
+                <p className="mt-1 text-xl font-bold text-[#E8872A]">
+                  {sourcing.scannedCandidatesCount}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  {sourcing.shortlistedCount} Shortlist
+                </p>
+              </div>
+
+              <div className="col-span-2 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 sm:col-span-1">
+                <p className="text-[11px] font-medium text-slate-500">Kết nối ứng viên</p>
+                <p className="mt-1 text-xl font-bold text-emerald-700">
+                  {sourcing.connectionsAccepted}/{sourcing.connectionsSent}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Đã đồng ý kết nối</p>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3 rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Headphones className="h-4 w-4 text-emerald-700" />
+                <span className="text-xs font-bold text-emerald-950">
+                  Đội CSKH Inlink hỗ trợ liên hệ ứng viên
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-emerald-900/80">
+              <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
                 {sourcing.outreachQuota > 0
-                  ? `Gói ${sourcing.planName ?? 'Săn nhân sự'} còn ${Math.max(0, sourcing.outreachQuota - sourcing.outreachCount)} lượt giao Inlink liên hệ trực tiếp ứng viên tiềm năng.`
-                  : 'Sử dụng tính năng Giao Inlink liên hệ ở mục Săn nhân sự để đội ngũ CSKH kết nối giúp bạn.'}
-              </p>
+                  ? `${sourcing.outreachCount} / ${sourcing.outreachQuota} ứng viên`
+                  : `${sourcing.outreachCount} ứng viên`}
+              </span>
             </div>
+            <p className="mt-1 text-[11px] text-emerald-900/80">
+              {sourcing.outreachQuota > 0
+                ? `Gói ${sourcing.planName ?? 'Săn nhân sự'} còn ${Math.max(0, sourcing.outreachQuota - sourcing.outreachCount)} lượt giao Inlink liên hệ trực tiếp ứng viên tiềm năng.`
+                : 'Sử dụng tính năng Giao Inlink liên hệ ở mục Săn nhân sự để đội ngũ CSKH kết nối giúp bạn.'}
+            </p>
           </div>
         </Panel>
       </section>
@@ -1481,164 +1727,159 @@ function exportRecruitmentCsv(report: RecruitmentReportView, selectedJobId: stri
   URL.revokeObjectURL(url);
 }
 
-/** Mở cửa sổ in / lưu PDF chuẩn A4 trình Sếp. */
-function openExecutivePrintReport(report: RecruitmentReportView, selectedJobId: string) {
-  const win = window.open('', '_blank', 'width=1024,height=800');
-  if (!win) return;
-
+/** Xuất trực tiếp file PDF báo cáo tuyển dụng chuẩn A4 bằng html2canvas + jsPDF. */
+async function exportRecruitmentPdf(report: RecruitmentReportView, selectedJobId: string): Promise<void> {
   const periodLabel = report.days === 365 ? '12 tháng' : `${report.days} ngày`;
   const sourcing = report.sourcing;
-  const credits = report.credits;
   const jobs = report.jobs.filter((j) => selectedJobId === 'all' || j.jobId === selectedJobId);
   const dateStr = new Date(report.generatedAt).toLocaleString('vi-VN');
 
-  const html = `<!DOCTYPE html>
-<html lang="vi">
-<head>
-<meta charset="utf-8" />
-<title>Báo cáo tuyển dụng - ${report.companyName ?? 'Doanh nghiệp'}</title>
-<style>
-  @page { size: A4 portrait; margin: 14mm; }
-  * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
-  body { margin: 0; color: #0f172a; font-size: 12px; line-height: 1.45; background: #fff; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #072348; padding-bottom: 12px; margin-bottom: 16px; }
-  .brand { font-size: 11px; font-weight: 700; color: #E8872A; text-transform: uppercase; letter-spacing: 0.08em; }
-  .title { font-size: 20px; font-weight: 800; color: #072348; margin: 4px 0; }
-  .subtitle { font-size: 12px; color: #475569; }
-  .meta { text-align: right; font-size: 11px; color: #475569; }
-  .section-title { font-size: 13px; font-weight: 700; color: #072348; text-transform: uppercase; margin: 16px 0 8px; border-left: 4px solid #E8872A; padding-left: 8px; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-  .kpi-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; background: #f8fafc; }
-  .kpi-label { font-size: 11px; color: #64748b; font-weight: 600; }
-  .kpi-val { font-size: 20px; font-weight: 800; color: #072348; margin: 4px 0 2px; }
-  .kpi-sub { font-size: 10px; color: #475569; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11.5px; }
-  th, td { border: 1px solid #cbd5e1; padding: 7px 9px; text-align: left; }
-  th { background: #072348; color: #fff; font-weight: 600; font-size: 11px; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tr:nth-child(even) td { background: #f8fafc; }
-  .sign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; text-align: center; }
-  .sign-box { padding-top: 4px; }
-  .sign-note { font-size: 10px; color: #64748b; font-style: italic; margin-bottom: 54px; }
-  @media print { .no-print { display: none !important; } }
-</style>
-</head>
-<body>
-  <div class="no-print" style="background:#072348;color:#fff;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-radius:8px;">
-    <span>Bản xem trước Báo cáo Tuyển dụng chuẩn A4 trình Ban Giám đốc</span>
-    <button onclick="window.print()" style="background:#E8872A;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;">In / Lưu PDF ngay</button>
-  </div>
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-99999px';
+  container.style.top = '0';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  container.style.padding = '32px';
+  container.style.color = '#0f172a';
+  container.style.fontFamily = "'Segoe UI', Roboto, Arial, sans-serif";
+  container.style.fontSize = '12px';
+  container.style.lineHeight = '1.45';
 
-  <div class="header">
-    <div>
-      <div class="brand">Hệ thống Tuyển dụng Công nghiệp Inlink</div>
-      <div class="title">BÁO CÁO HIỆU QUẢ TUYỂN DỤNG NHÂN SỰ</div>
-      <div class="subtitle">Đơn vị: <strong>${report.companyName ?? 'Doanh nghiệp'}</strong> ${sourcing?.planName ? `· Gói dịch vụ: <strong>${sourcing.planName}</strong>` : ''}</div>
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #072348;padding-bottom:12px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#E8872A;text-transform:uppercase;letter-spacing:0.08em;">Hệ thống Tuyển dụng Công nghiệp Inlink</div>
+        <div style="font-size:20px;font-weight:800;color:#072348;margin:4px 0;">BÁO CÁO HIỆU QUẢ TUYỂN DỤNG NHÂN SỰ</div>
+        <div style="font-size:12px;color:#475569;">Đơn vị: <strong>${report.companyName ?? 'Doanh nghiệp'}</strong>${sourcing?.planName ? ` · Gói dịch vụ: <strong>${sourcing.planName}</strong>` : ''}</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#475569;">
+        <div>Kỳ báo cáo: <strong>${periodLabel} qua</strong></div>
+        <div>Trích xuất: ${dateStr}</div>
+      </div>
     </div>
-    <div class="meta">
-      <div>Kỳ báo cáo: <strong>${periodLabel} qua</strong></div>
-      <div>Thời điểm trích xuất: ${dateStr}</div>
-    </div>
-  </div>
 
-  <div class="section-title">1. Chỉ số tổng quan điều hành (Executive Summary)</div>
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-label">Hồ sơ ứng tuyển (Inbound)</div>
-      <div class="kpi-val">${report.applications}</div>
-      <div class="kpi-sub">Kỳ trước: ${report.applicationsPrev} hồ sơ · Khớp ≥70%: ${report.highMatchCount ?? 0}</div>
+    <div style="font-size:13px;font-weight:700;color:#072348;text-transform:uppercase;margin:16px 0 8px;border-left:4px solid #E8872A;padding-left:8px;">1. Chỉ số tổng quan điều hành</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;">
+      <div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;background:#f8fafc;">
+        <div style="font-size:11px;color:#64748b;font-weight:600;">Hồ sơ ứng tuyển (Inbound)</div>
+        <div style="font-size:20px;font-weight:800;color:#072348;margin:4px 0 2px;">${report.applications}</div>
+        <div style="font-size:10px;color:#475569;">Kỳ trước: ${report.applicationsPrev} · Khớp ≥70%: ${report.highMatchCount ?? 0}</div>
+      </div>
+      <div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;background:#f8fafc;">
+        <div style="font-size:11px;color:#64748b;font-weight:600;">Nguồn Săn AI (Outbound)</div>
+        <div style="font-size:20px;font-weight:800;color:#072348;margin:4px 0 2px;">${Math.max(sourcing?.scannedCandidatesCount ?? 0, (sourcing?.shortlistedCount ?? 0) + (sourcing?.outreachCount ?? 0))}</div>
+        <div style="font-size:10px;color:#475569;">${sourcing?.scanRoundsInPeriod ?? 0} đợt quét · ${sourcing?.outreachCount ?? 0} giao Inlink</div>
+      </div>
+      <div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;background:#f8fafc;">
+        <div style="font-size:11px;color:#64748b;font-weight:600;">Phỏng vấn & Đề nghị</div>
+        <div style="font-size:20px;font-weight:800;color:#072348;margin:4px 0 2px;">${Math.max(report.interviewSessions, report.interviews)} PV / ${Math.max(report.offers, report.offersSent)} Offer</div>
+        <div style="font-size:10px;color:#475569;">${report.screening} hồ sơ đang sàng lọc</div>
+      </div>
+      <div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;background:#f8fafc;">
+        <div style="font-size:11px;color:#64748b;font-weight:600;">Nhận việc & Độ khớp AI</div>
+        <div style="font-size:20px;font-weight:800;color:#072348;margin:4px 0 2px;">${report.hires} (${report.conversionPct ?? 0}%)</div>
+        <div style="font-size:10px;color:#475569;">Độ khớp cao nhất: ${report.topMatchScore ?? report.avgMatchScore ?? 0}%</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Nguồn Săn AI (Outbound)</div>
-      <div class="kpi-val">${Math.max(sourcing?.scannedCandidatesCount ?? 0, (sourcing?.shortlistedCount ?? 0) + (sourcing?.outreachCount ?? 0))}</div>
-      <div class="kpi-sub">${sourcing?.scanRoundsInPeriod ?? 0} đợt quét · ${sourcing?.outreachCount ?? 0} giao Inlink</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Phỏng vấn & Đề nghị</div>
-      <div class="kpi-val">${Math.max(report.interviewSessions, report.interviews)} PV / ${Math.max(report.offers, report.offersSent)} Offer</div>
-      <div class="kpi-sub">${report.screening} hồ sơ đang sàng lọc</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Nhận việc & Độ khớp AI</div>
-      <div class="kpi-val">${report.hires} (${report.conversionPct ?? 0}%)</div>
-      <div class="kpi-sub">Độ khớp cao nhất: ${report.topMatchScore ?? report.avgMatchScore ?? 0}%</div>
-    </div>
-  </div>
 
-  <div class="section-title">2. Phễu chuyển đổi tuyển dụng & Khai thác ngân sách</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Giai đoạn quy trình</th>
-        <th class="num">Số lượng lũy kế qua vòng</th>
-        <th class="num">Đang xử lý tại bước</th>
-        <th class="num">Tỷ lệ chuyển đổi so với đầu vào</th>
-        <th class="num">Tỷ lệ qua vòng liền trước</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${report.funnel
-        .map(
-          (step) => `<tr>
-        <td><strong>${step.label}</strong></td>
-        <td class="num"><strong>${step.cumulativeCount ?? step.count}</strong></td>
-        <td class="num">${step.currentCount ?? step.count}</td>
-        <td class="num">${step.conversionFromStartPct ?? 0}%</td>
-        <td class="num">${step.stepPassRatePct ?? 0}%</td>
-      </tr>`,
-        )
-        .join('')}
-    </tbody>
-  </table>
+    <div style="font-size:13px;font-weight:700;color:#072348;text-transform:uppercase;margin:16px 0 8px;border-left:4px solid #E8872A;padding-left:8px;">2. Phễu chuyển đổi tuyển dụng</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:11.5px;">
+      <thead>
+        <tr>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:left;">Giai đoạn quy trình</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Lũy kế qua vòng</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Đang ở bước</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Tỷ lệ từ đầu</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Qua vòng trước</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${report.funnel
+          .map(
+            (step) => `<tr>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;"><strong>${step.label}</strong></td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;"><strong>${step.cumulativeCount ?? step.count}</strong></td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${step.currentCount ?? step.count}</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${step.conversionFromStartPct ?? 0}%</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${step.stepPassRatePct ?? 0}%</td>
+        </tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>
 
-  <div class="section-title">3. Hiệu suất chi tiết theo từng vị trí tuyển dụng</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Vị trí tuyển dụng</th>
-        <th>Trạng thái</th>
-        <th class="num">Hồ sơ nộp</th>
-        <th class="num">Sàng lọc</th>
-        <th class="num">Phỏng vấn</th>
-        <th class="num">Đề nghị</th>
-        <th class="num">Nhận việc</th>
-        <th class="num">Quét AI / Giao Inlink</th>
-        <th class="num">Độ khớp TB / Top</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${jobs
-        .map(
-          (j) => `<tr>
-        <td><strong>${formatJobTitle(j.title)}</strong>${j.location ? `<br/><span style="font-size:10px;color:#64748b;">${j.location}</span>` : ''}</td>
-        <td>${JOB_STATUS_LABEL[j.status] ?? j.status}</td>
-        <td class="num"><strong>${j.applications}</strong></td>
-        <td class="num">${j.screening}</td>
-        <td class="num">${j.interviews}</td>
-        <td class="num">${j.offers}</td>
-        <td class="num"><strong>${j.hires}</strong></td>
-        <td class="num">${j.sourcingScans ?? 0} đợt / ${j.outreachCount ?? 0} UV</td>
-        <td class="num">${j.avgMatchScore != null ? `${j.avgMatchScore}% (Top ${j.topMatchScore ?? j.avgMatchScore}%)` : '—'}</td>
-      </tr>`,
-        )
-        .join('')}
-    </tbody>
-  </table>
+    <div style="font-size:13px;font-weight:700;color:#072348;text-transform:uppercase;margin:16px 0 8px;border-left:4px solid #E8872A;padding-left:8px;">3. Hiệu suất theo từng vị trí tuyển dụng</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:11.5px;">
+      <thead>
+        <tr>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:left;">Vị trí tuyển dụng</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:left;">Trạng thái</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Hồ sơ</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Sàng lọc</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Phỏng vấn</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Đề nghị</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Nhận việc</th>
+          <th style="border:1px solid #cbd5e1;padding:7px 9px;background:#072348;color:#fff;text-align:right;">Độ khớp TB</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${jobs
+          .map(
+            (j) => `<tr>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;"><strong>${formatJobTitle(j.title)}</strong>${j.location ? `<br/><span style="font-size:10px;color:#64748b;">${j.location}</span>` : ''}</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;">${JOB_STATUS_LABEL[j.status] ?? j.status}</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;"><strong>${j.applications}</strong></td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${j.screening}</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${j.interviews}</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${j.offers}</td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;"><strong>${j.hires}</strong></td>
+          <td style="border:1px solid #cbd5e1;padding:7px 9px;text-align:right;">${j.avgMatchScore != null ? `${j.avgMatchScore}%` : '—'}</td>
+        </tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>
 
-  <div class="sign-grid">
-    <div class="sign-box">
-      <strong>NGƯỜI LẬP BÁO CÁO (HR / TUYỂN DỤNG)</strong>
-      <div class="sign-note">(Ký và ghi rõ họ tên)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:28px;text-align:center;">
+      <div><strong>NGƯỜI LẬP BÁO CÁO (HR / TUYỂN DỤNG)</strong><div style="font-size:10px;color:#64748b;font-style:italic;margin-top:4px;">(Ký và ghi rõ họ tên)</div></div>
+      <div><strong>PHÊ DUYỆT CỦA BAN GIÁM ĐỐC</strong><div style="font-size:10px;color:#64748b;font-style:italic;margin-top:4px;">(Ký và ghi rõ họ tên)</div></div>
     </div>
-    <div class="sign-box">
-      <strong>PHÊ DUYỆT CỦA BAN GIÁM ĐỐC</strong>
-      <div class="sign-note">(Ký và ghi rõ họ tên)</div>
-    </div>
-  </div>
-</body>
-</html>`;
+  `;
 
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  document.body.appendChild(container);
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    });
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const fileDate = new Date().toISOString().slice(0, 10);
+    pdf.save(`bao-cao-tuyen-dung-${report.days}ngay-${fileDate}.pdf`);
+  } finally {
+    document.body.removeChild(container);
+  }
 }

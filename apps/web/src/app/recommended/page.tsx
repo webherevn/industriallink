@@ -3,18 +3,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  ArrowRight,
+  BadgeCheck,
+  Banknote,
   Bookmark,
   Briefcase,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Eye,
+  Factory,
   FileText,
+  Info,
   MapPin,
+  Package,
   RefreshCw,
   Send,
   Settings2,
   Sparkles,
   TrendingUp,
+  User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
@@ -23,6 +31,8 @@ import {
   SkillLevel,
   trackOfLevel,
   JOB_TRACK_LABEL,
+  SALES_MATCH_FIELD_LABEL,
+  TECH_MATCH_FIELD_LABEL,
   isJobLevelCode,
   type CandidateView,
   type JobMatchView,
@@ -31,7 +41,8 @@ import { plainLabel } from '@/lib/plain-label';
 import { locationMatchesProvince } from '@/lib/profile-province';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
-import { companyPublicPath, jobPublicPath } from '@/lib/public-paths';
+import { companyPublicPath, jobPublicPath, apiPublicBase } from '@/lib/public-paths';
+import { ApiError } from '@/lib/api';
 import { CopilotRobot } from '@/components/copilot-robot';
 import { fetchMe } from '@/lib/auth';
 import { myApplications } from '@/lib/applications';
@@ -43,6 +54,7 @@ import {
 } from '@/lib/format';
 import {
   addJobBookmark,
+  applyToJob,
   listBookmarkedJobs,
   removeJobBookmark,
 } from '@/lib/jobs';
@@ -158,6 +170,82 @@ function buildInsights(candidate: CandidateView | undefined, jobs: JobMatchView[
   return insights.slice(0, 3);
 }
 
+function toNaturalPhrase(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) return '';
+  // Giữ nguyên nếu viết tắt/tên riêng bắt đầu bằng nhiều chữ hoa (OTE, B2B, PLC...)
+  if (/^[A-Z0-9]{2,}/.test(trimmed)) return trimmed;
+  return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+}
+
+function joinNaturalVi(items: string[]): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} và ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')} và ${items[items.length - 1]}`;
+}
+
+function buildCandidateAiSuggestion(job: JobMatchView): string | null {
+  const { match } = job;
+  if (!match) return null;
+
+  if (match.salesMatch?.dat_loc_cung === false || match.technicalMatch?.dat_loc_cung === false) {
+    return match.reason || null;
+  }
+
+  const bestCompany =
+    match.salesMatch?.cong_ty_tot_nhat?.ten?.trim() ||
+    match.technicalMatch?.cong_ty_tot_nhat?.ten?.trim() ||
+    null;
+
+  const topCriteria = (match.criteria ?? [])
+    .filter((c): c is typeof c & { score: number } => c.score != null && c.score >= 0.65 && c.label.trim().length > 0)
+    .sort((a, b) => b.score * (b.weight || 0.05) - a.score * (a.weight || 0.05))
+    .slice(0, 3)
+    .map((c) => toNaturalPhrase(c.label));
+
+  const strengthLabels =
+    topCriteria.length > 0
+      ? topCriteria
+      : match.matchedSkills.slice(0, 3).map((s) => s.trim()).filter(Boolean);
+
+  const rawGaps = match.salesMatch
+    ? match.salesMatch.khoang_thieu.map((k) => SALES_MATCH_FIELD_LABEL[k]).filter(Boolean)
+    : match.technicalMatch
+      ? match.technicalMatch.khoang_thieu.map((k) => TECH_MATCH_FIELD_LABEL[k]).filter(Boolean)
+      : match.missingSkills;
+
+  const gapLabels = Array.from(new Set(rawGaps.map(toNaturalPhrase).filter(Boolean))).slice(0, 2);
+
+  const sentences: string[] = [];
+
+  if (bestCompany && strengthLabels.length > 0) {
+    sentences.push(
+      `Kinh nghiệm tại ${bestCompany} khớp tốt về ${joinNaturalVi(strengthLabels)}.`,
+    );
+  } else if (strengthLabels.length > 0) {
+    sentences.push(`Hồ sơ của bạn khớp tốt về ${joinNaturalVi(strengthLabels)}.`);
+  } else if (bestCompany) {
+    sentences.push(`Kinh nghiệm tại ${bestCompany} có nhiều điểm tương đồng với vị trí này.`);
+  }
+
+  if (gapLabels.length > 0) {
+    sentences.push(
+      sentences.length > 0
+        ? `Bạn chỉ cần cân nhắc thêm về ${joinNaturalVi(gapLabels)}.`
+        : `Cần cân nhắc thêm về ${joinNaturalVi(gapLabels)} khi ứng tuyển.`,
+    );
+  } else if (match.score >= 80 && sentences.length > 0) {
+    sentences.push('Rất phù hợp để bạn ứng tuyển ngay.');
+  }
+
+  if (sentences.length > 0) {
+    return sentences.join(' ');
+  }
+
+  return match.reason || null;
+}
+
 function bestFitGroup(jobs: JobMatchView[], candidate: CandidateView | undefined): string {
   const votes = new Map<string, number>();
   for (const j of jobs.slice(0, 8)) {
@@ -232,6 +320,27 @@ export default function RecommendedPage() {
     () => new Set((bookmarks ?? []).map((b) => b.id)),
     [bookmarks],
   );
+  const appliedIds = useMemo(
+    () => new Set((applications ?? []).map((a) => a.jobId)),
+    [applications],
+  );
+
+  const [applyFeedback, setApplyFeedback] = useState<{ jobId: string; tone: 'ok' | 'err'; text: string } | null>(null);
+  const applyMutation = useMutation({
+    mutationFn: async (jobId: string) => applyToJob(jobId, {}),
+    onSuccess: (_data, jobId) => {
+      setApplyFeedback({ jobId, tone: 'ok', text: 'Đã gửi hồ sơ ứng tuyển thành công!' });
+      queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['recommended-jobs'] });
+    },
+    onError: (err, jobId) => {
+      setApplyFeedback({
+        jobId,
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không gửi được hồ sơ ứng tuyển',
+      });
+    },
+  });
 
   const bookmarkMutation = useMutation({
     mutationFn: async ({ id, saved }: { id: string; saved: boolean }) => {
@@ -523,13 +632,17 @@ export default function RecommendedPage() {
                 key={job.jobId}
                 job={job}
                 saved={bookmarkedIds.has(job.jobId)}
+                applied={appliedIds.has(job.jobId)}
                 busy={bookmarkMutation.isPending}
+                applying={applyMutation.isPending && applyMutation.variables === job.jobId}
+                applyFeedback={applyFeedback?.jobId === job.jobId ? applyFeedback : null}
                 onToggleBookmark={() =>
                   bookmarkMutation.mutate({
                     id: job.jobId,
                     saved: bookmarkedIds.has(job.jobId),
                   })
                 }
+                onApply={() => applyMutation.mutate(job.jobId)}
               />
             ))}
           </ul>
@@ -688,58 +801,111 @@ export default function RecommendedPage() {
   );
 }
 
+function splitBenefitTags(raw?: string | null): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/[\n•;,]+/)
+    .map((s) => s.replace(/^[\-\*\s]+/, '').trim())
+    .filter((s) => s.length >= 2 && s.length <= 40)
+    .slice(0, 4);
+}
+
 function MatchJobCard({
   job,
   saved,
+  applied,
   busy,
+  applying,
+  applyFeedback,
   onToggleBookmark,
+  onApply,
 }: {
   job: JobMatchView;
   saved: boolean;
+  applied: boolean;
   busy: boolean;
+  applying: boolean;
+  applyFeedback: { tone: 'ok' | 'err'; text: string } | null;
   onToggleBookmark: () => void;
+  onApply: () => void;
 }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const label = matchLabel(job.match.score);
+  const showLogo = Boolean(job.companyHasLogo && job.companyId && !logoFailed);
+  const productsText =
+    job.products && job.products.length > 0
+      ? job.products.join(', ')
+      : job.subIndustry?.trim() || null;
+  const expText = job.experienceBand
+    ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ?? job.experienceBand
+    : 'Không yêu cầu';
+  const skillTags = (job.skills ?? []).map((s) => plainLabel(s)).filter(Boolean).slice(0, 5);
+  const benefitTags = skillTags.length === 0 ? splitBenefitTags(job.benefits) : [];
 
   return (
     <li>
-      <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-amber-200 hover:shadow-md">
-        <div className="flex gap-3.5">
-          <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-sm font-bold text-slate-500">
-            {companyInitials(job.companyName)}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={clsx(
-                  'rounded px-2 py-0.5 text-[11px] font-semibold',
-                  label.tone === 'high' && 'bg-emerald-50 text-emerald-700',
-                  label.tone === 'medium' && 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
-                  label.tone === 'low' && 'bg-slate-100 text-slate-600',
-                )}
-              >
-                {label.text}
-              </span>
-              {isNewJob(job.publishedAt) && (
-                <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
-                  Mới
-                </span>
+      <article className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-amber-200 hover:shadow-md sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+          {/* Khối trái: Logo + Nội dung chi tiết */}
+          <div className="flex min-w-0 flex-1 gap-3.5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 text-sm font-bold text-slate-600">
+              {showLogo ? (
+                <img
+                  src={`${apiPublicBase()}/companies/${job.companyId}/logo`}
+                  alt={job.companyName}
+                  className="h-full w-full object-contain p-1"
+                  onError={() => setLogoFailed(true)}
+                />
+              ) : (
+                companyInitials(job.companyName)
               )}
-              <span className="text-[11px] text-slate-400">
-                {formatRelativeTime(job.publishedAt)}
-              </span>
             </div>
 
-            <div className="mt-1 flex items-start justify-between gap-2">
-              <div className="min-w-0">
+            <div className="min-w-0 flex-1">
+              {/* Hàng 1: Badge mốc phù hợp (giữ đồng bộ tone cũ) + Mới + Thời gian + Bookmark */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={clsx(
+                      'rounded-md px-2 py-0.5 text-[11px] font-semibold',
+                      matchBadgeTone(job.match.score),
+                    )}
+                  >
+                    {label.text}
+                  </span>
+                  {isNewJob(job.publishedAt) && (
+                    <span className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10.5px] font-bold text-white">
+                      Mới
+                    </span>
+                  )}
+                  <span className="text-[11.5px] text-slate-400">
+                    {formatRelativeTime(job.publishedAt)}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
+                  onClick={onToggleBookmark}
+                  className={clsx(
+                    'shrink-0 rounded-md p-1 transition',
+                    saved ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500',
+                  )}
+                >
+                  <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} />
+                </button>
+              </div>
+
+              {/* Hàng 2: Tên vị trí + Tên công ty + Tích xanh xác minh */}
+              <div className="mt-1.5">
                 <Link
                   href={jobPublicPath(job)}
-                  className="text-[15px] font-semibold text-slate-900 hover:text-brand-500"
+                  className="block text-[16px] font-bold leading-snug text-slate-900 hover:text-brand-600"
                 >
                   {job.title}
                 </Link>
-                <p className="mt-0.5 text-sm text-slate-500">
+                <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[13.5px] text-slate-600">
                   {job.companyId ? (
                     <Link
                       href={companyPublicPath(job)}
@@ -748,75 +914,130 @@ function MatchJobCard({
                       {job.companyName}
                     </Link>
                   ) : (
-                    job.companyName
+                    <span>{job.companyName}</span>
                   )}
+                  {job.companyVerified ? (
+                    <BadgeCheck
+                      className="h-4 w-4 shrink-0 fill-[#1D9BF0] text-white"
+                      aria-label="Công ty đã xác minh"
+                    />
+                  ) : null}
                 </p>
               </div>
-              <button
-                type="button"
-                disabled={busy}
-                aria-label={saved ? 'Bỏ lưu' : 'Lưu tin'}
-                onClick={onToggleBookmark}
-                className={clsx(
-                  'rounded-md p-1',
-                  saved ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500',
-                )}
-              >
-                <Bookmark className={clsx('h-4 w-4', saved && 'fill-current')} />
-              </button>
-            </div>
 
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-500">
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                {job.location ?? 'Linh hoạt'}
-              </span>
-              <span>{formatSalary(job.salaryMin, job.salaryMax)}</span>
-              <span>
-                {job.experienceBand
-                  ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ?? job.experienceBand
-                  : 'Không yêu cầu'}
-              </span>
-              {job.jobLevel && <span>{formatJobLevel(job.jobLevel)}</span>}
-            </div>
+              {/* Hàng 3: Ngành & Sản phẩm */}
+              {(job.industry || productsText) && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                  {job.industry && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Factory className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span>
+                        <strong className="font-semibold text-slate-700">Ngành:</strong> {job.industry}
+                      </span>
+                    </span>
+                  )}
+                  {job.industry && productsText && (
+                    <span className="hidden h-3 w-px bg-slate-200 sm:inline-block" aria-hidden />
+                  )}
+                  {productsText && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span>
+                        <strong className="font-semibold text-slate-700">Sản phẩm:</strong> {productsText}
+                      </span>
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {(job.skills?.length ?? 0) > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {(job.skills ?? [])
-                  .map((s) => plainLabel(s))
-                  .filter(Boolean)
-                  .slice(0, 5)
-                  .map((s) => (
-                  <span
-                    key={s}
-                    className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
-                  >
-                    {s}
+              {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm, Cấp bậc */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-slate-600">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {job.location ?? 'Linh hoạt'}
+                </span>
+                <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+                  <Banknote className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                  {formatSalary(job.salaryMin, job.salaryMax)}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {expText}
+                </span>
+                {job.jobLevel && (
+                  <span className="inline-flex items-center gap-1">
+                    <User className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    {formatJobLevel(job.jobLevel)}
                   </span>
-                ))}
+                )}
               </div>
-            )}
-            {job.match.reason && (
-              <p className="mt-2 line-clamp-2 text-xs text-slate-500">{job.match.reason}</p>
-            )}
+
+              {/* Hàng 5: Kỹ năng hoặc Phúc lợi */}
+              {skillTags.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {skillTags.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11.5px] font-medium text-slate-600"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {skillTags.length === 0 && benefitTags.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {benefitTags.map((b) => (
+                    <span
+                      key={b}
+                      className="rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11.5px] font-medium text-slate-600"
+                    >
+                      {b}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Hàng 6: Hộp AI gợi ý */}
+              {(() => {
+                const aiSuggestion = buildCandidateAiSuggestion(job);
+                if (!aiSuggestion) return null;
+                return (
+                  <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-emerald-50/75 px-3 py-2 text-xs leading-relaxed text-slate-700 ring-1 ring-emerald-100/80">
+                    <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    <p className="line-clamp-2">
+                      <strong className="font-semibold text-slate-900">AI gợi ý:</strong>{' '}
+                      {aiSuggestion}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {applyFeedback && (
+                <p
+                  className={clsx(
+                    'mt-2 text-xs font-medium',
+                    applyFeedback.tone === 'ok' ? 'text-emerald-700' : 'text-rose-600',
+                  )}
+                >
+                  {applyFeedback.text}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Match ring — điểm nhấn cam ILink */}
-          <div className="hidden shrink-0 flex-col items-center sm:flex">
-            <div className="relative flex h-[72px] w-[72px] items-center justify-center">
-              <div
-                className="pointer-events-none absolute inset-0 rounded-full bg-amber-400/25 blur-[10px]"
-                aria-hidden
-              />
-              <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-amber-50 to-white p-0.5 shadow-sm ring-1 ring-amber-200/80">
+          {/* Khối phải: Vòng tròn % phù hợp (đồng bộ màu cũ) + Nút Ứng tuyển & Xem chi tiết */}
+          <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-slate-100 pt-3 sm:w-[164px] sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+            <div className="flex flex-col items-center">
+              <div className="relative h-16 w-16">
                 <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
                   <circle
                     cx="32"
                     cy="32"
                     r="26"
                     fill="none"
-                    stroke="#fde68a"
-                    strokeWidth="6"
+                    stroke="#e2e8f0"
+                    strokeWidth="5.5"
                   />
                   <circle
                     cx="32"
@@ -824,23 +1045,58 @@ function MatchJobCard({
                     r="26"
                     fill="none"
                     stroke={matchRingColor(job.match.score)}
-                    strokeWidth="6"
+                    strokeWidth="5.5"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 26}
-                    strokeDashoffset={2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, job.match.score / 100)))}
+                    strokeDashoffset={
+                      2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, job.match.score / 100)))
+                    }
                   />
                 </svg>
-                <span className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[15px] font-extrabold leading-none tracking-tight" style={{ color: matchRingColor(job.match.score) }}>
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span
+                    className="text-[14px] font-extrabold leading-none tracking-tight tabular-nums"
+                    style={{ color: matchRingColor(job.match.score) }}
+                  >
                     {formatMatchPct(job.match.score)}
                     <span className="text-[10px] font-bold">%</span>
                   </span>
                 </span>
               </div>
+              <span
+                className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-slate-700"
+                title={matchRingLabel(job.match.score)}
+              >
+                Mức độ phù hợp
+                <Info className="h-3.5 w-3.5 text-slate-400" />
+              </span>
             </div>
-            <p className="mt-1.5 text-center text-[10px] font-semibold" style={{ color: matchRingColor(job.match.score) }}>
-              {matchRingLabel(job.match.score)}
-            </p>
+
+            <div className="flex w-full flex-col gap-2">
+              {applied ? (
+                <span className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Đã ứng tuyển
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  disabled={applying}
+                  onClick={onApply}
+                  className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-[#E8872A] px-3 text-xs font-bold text-white shadow-2xs transition hover:bg-[#d4761d] disabled:opacity-60"
+                >
+                  <Send className="h-3.5 w-3.5 shrink-0" />
+                  {applying ? 'Đang gửi...' : 'Ứng tuyển'}
+                </button>
+              )}
+              <Link
+                href={jobPublicPath(job)}
+                className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <span>Xem chi tiết</span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+              </Link>
+            </div>
           </div>
         </div>
       </article>

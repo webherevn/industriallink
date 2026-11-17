@@ -1,13 +1,73 @@
-import { nextUniqueSlug, toSeoSlug } from '@industriallink/contracts';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  generateB2BJobSlug,
+  nextUniqueSlug,
+  toSeoSlug,
+  type B2BJobSlugInput,
+} from '@industriallink/contracts';
 import type { PrismaService } from '../infrastructure/prisma/prisma.service';
 
+export interface AllocateJobSlugOptions {
+  code?: string | null;
+  id?: string | null;
+  industry?: string | null;
+  location?: string | null;
+  companyName?: string | null;
+}
+
+let cachedLegacySlugMap: Map<string, string> | null = null;
+
+function getLegacySlugMap(): Map<string, string> {
+  if (cachedLegacySlugMap) return cachedLegacySlugMap;
+  const candidates = [
+    join(__dirname, 'legacy-job-slugs.json'),
+    join(process.cwd(), 'src/shared/seo/legacy-job-slugs.json'),
+    join(process.cwd(), 'apps/api/src/shared/seo/legacy-job-slugs.json'),
+  ];
+  for (const filePath of candidates) {
+    if (existsSync(filePath)) {
+      try {
+        const raw = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, string>;
+        cachedLegacySlugMap = new Map(Object.entries(raw));
+        return cachedLegacySlugMap;
+      } catch {
+        // Ignore malformed file and fall back to empty map
+      }
+    }
+  }
+  cachedLegacySlugMap = new Map();
+  return cachedLegacySlugMap;
+}
+
+export function resolveLegacyJobRef(slug: string): string | null {
+  const key = slug.trim().toLowerCase();
+  if (!key) return null;
+  return getLegacySlugMap().get(key) ?? null;
+}
 
 export async function allocateUniqueJobSlug(
   prisma: PrismaService,
-  title: string,
+  titleOrJob: string | B2BJobSlugInput,
   excludeId?: string,
+  options?: AllocateJobSlugOptions,
 ): Promise<string> {
-  const base = toSeoSlug(title);
+  const input: B2BJobSlugInput =
+    typeof titleOrJob === 'string'
+      ? {
+          title: titleOrJob,
+          code: options?.code,
+          id: options?.id ?? excludeId,
+          industry: options?.industry,
+          location: options?.location,
+        }
+      : titleOrJob;
+
+  const base =
+    input.code || input.industry || options?.companyName
+      ? generateB2BJobSlug(input, { name: options?.companyName })
+      : toSeoSlug(input.title);
+
   const rows = await prisma.job.findMany({
     where: {
       slug: { startsWith: base },

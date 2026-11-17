@@ -4,74 +4,41 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   Award,
-  BadgeCheck,
-  BarChart3,
   Briefcase,
+  Calendar,
   CheckCircle2,
   ChevronRight,
+  Download,
+  Eye,
   FileText,
   GraduationCap,
   Heart,
-  LayoutGrid,
-  Linkedin,
+  Loader2,
   Mail,
   MapPin,
   Pencil,
+  Phone,
   Plus,
-  Quote,
-  Settings2,
-  Sparkles,
-  Target,
-  Upload,
-  Wallet,
+  UserRound,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  ApplicationStatus,
   CandidateStatus,
-  SkillLevel,
   JOB_READINESS_LABEL,
-  type ApplicationView,
+  type CandidateExperienceView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
-import { PaginationBar } from '@/components/pagination-bar';
+import { CvPreview } from '@/components/cv-preview';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { fetchMe } from '@/lib/auth';
-import { myApplications } from '@/lib/applications';
 import { getMyCandidate } from '@/lib/candidate';
-import {
-  APPLICATION_STATUS_LABEL,
-  formatJobLevel,
-  formatSalary,
-} from '@/lib/format';
-
-type ProfileTab =
-  | 'overview'
-  | 'experience'
-  | 'education'
-  | 'skills'
-  | 'certificates'
-  | 'interests';
-
-const ACTIVITY_PAGE_SIZE = 4;
-
-const SKILL_LEVEL_PCT: Record<SkillLevel, number> = {
-  [SkillLevel.Beginner]: 35,
-  [SkillLevel.Intermediate]: 60,
-  [SkillLevel.Advanced]: 82,
-  [SkillLevel.Expert]: 95,
-};
-
-const TABS: { id: ProfileTab; label: string }[] = [
-  { id: 'overview', label: 'Tổng quan' },
-  { id: 'experience', label: 'Kinh nghiệm' },
-  { id: 'education', label: 'Học vấn' },
-  { id: 'skills', label: 'Kỹ năng' },
-  { id: 'certificates', label: 'Chứng chỉ' },
-  { id: 'interests', label: 'Sở thích' },
-];
+import { draftFromCandidate } from '@/lib/cv-from-profile';
+import { CV_TEMPLATES } from '@/lib/cv-templates';
+import { downloadElementAsPdf } from '@/lib/download-cv';
+import { formatSalary } from '@/lib/format';
 
 function statusLookingLabel(status: CandidateStatus | undefined): {
   text: string;
@@ -92,40 +59,55 @@ function statusLookingLabel(status: CandidateStatus | undefined): {
       };
     default:
       return {
-        text: 'Đang hoàn thiện hồ sơ',
+        text: 'Đang hoàn thiện',
         className: 'bg-amber-50 text-amber-700 ring-amber-200',
       };
   }
 }
 
-function appStatusBadge(status: ApplicationView['status']): string {
-  switch (status) {
-    case ApplicationStatus.Interview:
-      return 'bg-violet-50 text-violet-700';
-    case ApplicationStatus.Offer:
-      return 'bg-orange-50 text-orange-700';
-    case ApplicationStatus.Hired:
-      return 'bg-teal-50 text-teal-700';
-    case ApplicationStatus.Rejected:
-    case ApplicationStatus.Withdrawn:
-      return 'bg-slate-100 text-slate-600';
-    case ApplicationStatus.Screening:
-      return 'bg-sky-50 text-sky-700';
-    default:
-      return 'bg-emerald-50 text-emerald-700';
+function formatBirthDate(birthDate?: string | null, birthYear?: number | null): string {
+  if (birthDate) {
+    const d = new Date(birthDate);
+    if (!Number.isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
   }
+  if (birthYear) return String(birthYear);
+  return 'Chưa cập nhật';
+}
+
+function parseCertificate(raw: string): {
+  name: string;
+  issuer: string | null;
+  date: string | null;
+} {
+  const parts = raw
+    .split('|')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length >= 3) {
+    return { name: parts[0], issuer: parts[1], date: parts[2] };
+  }
+  if (parts.length === 2) {
+    return { name: parts[0], issuer: parts[1], date: null };
+  }
+  return { name: raw.trim(), issuer: null, date: null };
+}
+
+function formatExperiencePeriod(exp: CandidateExperienceView): string {
+  const start = exp.startYear ?? '?';
+  const end = exp.isCurrent ? 'Hiện tại' : (exp.endYear ?? '?');
+  return `${start} – ${end}`;
 }
 
 export default function ProfilePage() {
-  const [tab, setTab] = useState<ProfileTab>('overview');
-
-  useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get('tab');
-    if (requested && TABS.some((item) => item.id === requested)) {
-      setTab(requested as ProfileTab);
-    }
-  }, []);
-  const [activityPage, setActivityPage] = useState(1);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [downloadingCv, setDownloadingCv] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const cvExportRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
   const { data: candidate, isLoading } = useQuery({
@@ -133,58 +115,59 @@ export default function ProfilePage() {
     queryFn: getMyCandidate,
     retry: false,
   });
-  const { data: applications } = useQuery({
-    queryKey: ['my-applications'],
-    queryFn: myApplications,
-    retry: false,
-  });
 
-  const hasAnalysis = Boolean(
-    candidate?.aiProfile?.summary || candidate?.profile?.summary || (candidate?.skills?.length ?? 0) > 0,
+  const cvDraft = useMemo(
+    () => (candidate ? draftFromCandidate(candidate, me?.email ?? '') : null),
+    [candidate, me?.email],
   );
+
+  async function onDownloadCv() {
+    if (!candidate || !cvDraft || !cvExportRef.current || downloadingCv) return;
+    setDownloadError(null);
+    setDownloadingCv(true);
+    try {
+      await downloadElementAsPdf(cvExportRef.current, `CV-${displayName}`);
+    } catch {
+      setDownloadError('Không xuất được file PDF CV. Vui lòng thử lại.');
+    } finally {
+      setDownloadingCv(false);
+    }
+  }
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (!requested) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(requested)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setPreviewOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [previewOpen]);
 
   const looking = statusLookingLabel(candidate?.status);
-  const displayName = (candidate?.displayName ?? me?.displayName ?? 'Ứng viên').replace(
-    /\r/g,
-    '',
-  );
-  const position = candidate?.profile?.currentPosition ?? 'Chưa cập nhật vị trí';
-  const about =
-    candidate?.profile?.summary ||
-    candidate?.aiProfile?.summary ||
-    candidate?.profile?.careerObjective ||
-    null;
-  const sales = candidate?.profile?.sales ?? null;
-  const experiences = candidate?.experiences ?? [];
+  const displayName = (candidate?.displayName ?? me?.displayName ?? 'Ứng viên').replace(/\r/g, '');
+  const profile = candidate?.profile;
+  const sales = profile?.sales ?? null;
+  const position = profile?.currentPosition ?? 'Chưa cập nhật vị trí';
+  const industryBadge = profile?.specialization || profile?.industry?.split('/')[0]?.trim() || null;
+  const about = profile?.summary || candidate?.aiProfile?.summary || profile?.careerObjective || null;
+  const experiences = useMemo(() => candidate?.experiences ?? [], [candidate?.experiences]);
+  const skills = useMemo(() => candidate?.skills ?? [], [candidate?.skills]);
+  const certificates = useMemo(() => profile?.certificates ?? [], [profile?.certificates]);
+  const hobbies = useMemo(() => profile?.hobbies ?? [], [profile?.hobbies]);
 
-  const technicalSkills = useMemo(() => {
-    const list = candidate?.skills ?? [];
-    return [...list].sort(
-      (a, b) => SKILL_LEVEL_PCT[b.level] - SKILL_LEVEL_PCT[a.level],
-    );
-  }, [candidate?.skills]);
-
-  const softSkills = useMemo(() => {
-    const fromAi = candidate?.aiProfile?.strengths ?? [];
-    if (fromAi.length) return fromAi.slice(0, 8);
-    return [] as string[];
-  }, [candidate?.aiProfile?.strengths]);
-
-  const featuredSkills = technicalSkills.slice(0, 10);
-
-  const recentApps = useMemo(() => {
-    const list = [...(applications ?? [])].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-    return list;
-  }, [applications]);
-
-  const activityTotalPages = Math.max(1, Math.ceil(recentApps.length / ACTIVITY_PAGE_SIZE));
-  const activityPageSafe = Math.min(activityPage, activityTotalPages);
-  const activityItems = recentApps.slice(
-    (activityPageSafe - 1) * ACTIVITY_PAGE_SIZE,
-    activityPageSafe * ACTIVITY_PAGE_SIZE,
-  );
+  const locationText =
+    [profile?.ward, profile?.district, profile?.currentCity].filter(Boolean).join(', ') ||
+    'Chưa cập nhật';
+  const shortLocation = profile?.currentCity || locationText;
 
   const salaryLabel = (() => {
     const min = sales?.expectedSalaryMin ?? null;
@@ -200,18 +183,11 @@ export default function ProfilePage() {
     (JOB_READINESS_LABEL[sales.jobReadiness as keyof typeof JOB_READINESS_LABEL] ??
       sales.jobReadiness);
 
-  const hasSalesData = Boolean(
-    sales &&
-      ((sales.productsSold?.length ?? 0) > 0 ||
-        (sales.customerSegments?.length ?? 0) > 0 ||
-        (sales.marketsCovered?.length ?? 0) > 0 ||
-        (sales.sellingStages?.length ?? 0) > 0 ||
-        sales.latestRevenue != null ||
-        sales.kpiAchievementPct != null ||
-        (sales.desiredPositions?.length ?? 0) > 0 ||
-        sales.expectedSalaryMin != null ||
-        sales.expectedOte != null ||
-        Boolean(sales.salesHighlights)),
+  const hasEducation = Boolean(
+    profile?.educationSchool ||
+      profile?.educationMajor ||
+      profile?.educationLevel ||
+      profile?.educationClassification,
   );
 
   if (isLoading) {
@@ -227,895 +203,628 @@ export default function ProfilePage() {
       <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
         <CandidateSidebar
           displayName={displayName}
-          position={candidate?.profile?.currentPosition}
+          position={profile?.currentPosition}
           profileCompletion={candidate?.profileCompletion}
           showProfileCard={false}
         />
 
-        <div className="min-w-0 space-y-4 animate-soft-rise">
-        {/* Header profile */}
-        <section className="profile-card relative overflow-hidden p-5 sm:p-6">
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 w-1/2 opacity-60"
-            style={{
-              background:
-                'radial-gradient(ellipse at 80% 20%, rgba(245,158,11,0.12), transparent 50%), radial-gradient(ellipse at 90% 80%, rgba(7,35,72,0.08), transparent 45%)',
-            }}
-          />
-          <div className="relative flex flex-wrap items-start gap-5">
-            <ProfileAvatar
-              displayName={displayName}
-              email={me?.email}
-              hasAvatar={Boolean(candidate?.hasAvatar)}
-            />
-
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">
-                  {displayName}
-                </h1>
-                {(candidate?.status === CandidateStatus.Verified ||
-                  candidate?.status === CandidateStatus.Searching) && (
-                  <BadgeCheck className="h-5 w-5 text-brand-500" aria-label="Đã xác thực" />
-                )}
-                <span
-                  className={clsx(
-                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
-                    looking.className,
-                  )}
-                >
-                  {looking.text}
-                </span>
-              </div>
-
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium text-slate-600">{position}</p>
-                {candidate?.profile?.specialization || candidate?.profile?.industry ? (
-                  <span className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 ring-1 ring-brand-100">
-                    {candidate?.profile?.specialization ||
-                      candidate?.profile?.industry?.split('/')[0]}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="mt-3 grid gap-x-6 gap-y-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
-                <Meta
-                  icon={<MapPin className="h-3.5 w-3.5" />}
-                  text={
-                    [candidate?.profile?.ward, candidate?.profile?.currentCity]
-                      .filter(Boolean)
-                      .join(', ') || 'Chưa cập nhật nơi ở'
-                  }
-                />
-                <Meta
-                  icon={<Briefcase className="h-3.5 w-3.5" />}
-                  text={
-                    candidate?.profile?.totalExperienceYears
-                      ? `${candidate.profile.totalExperienceYears} năm kinh nghiệm`
-                      : experiences.length > 0
-                        ? `${experiences.length} công ty đã làm`
-                        : 'Chưa cập nhật KN'
-                  }
-                />
-                <Meta
-                  icon={<Target className="h-3.5 w-3.5" />}
-                  text={
-                    typeof candidate?.profileCompletion === 'number'
-                      ? `Hồ sơ ${candidate.profileCompletion}%`
-                      : 'Đang hoàn thiện'
-                  }
-                />
-                <Meta
-                  icon={<Mail className="h-3.5 w-3.5" />}
-                  text={
-                    candidate?.profile?.phone
-                      ? candidate.profile.phone
-                      : (me?.email ?? 'Chưa có email')
-                  }
-                />
-                <Meta
-                  icon={<Sparkles className="h-3.5 w-3.5" />}
-                  text={
-                    readinessLabel
-                      ? String(readinessLabel)
-                      : // TODO: replace with match.score / matchScore from matching engine when available in this context
-                        'Chưa cập nhật sẵn sàng'
-                  }
-                />
-                <Meta
-                  icon={<Linkedin className="h-3.5 w-3.5" />}
-                  text={candidate?.code ? `Mã UV: ${candidate.code}` : '—'}
-                />
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-start gap-2">
-              <Link
-                href="/profile/edit"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-500/25 transition hover:bg-brand-600 hover:shadow-md active:scale-[0.98]"
-              >
-                <Pencil className="h-4 w-4" />
-                Chỉnh sửa hồ sơ
-              </Link>
-              <Link
-                href="/account"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
-                title="Cài đặt tài khoản"
-              >
-                <Settings2 className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Quick stats */}
-          <div className="relative mt-6 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-            <QuickStat
-              icon={<Wallet className="h-4 w-4" />}
-              label="Thu nhập kỳ vọng"
-              value={salaryLabel}
-              accent
-            />
-            <QuickStat
-              icon={<BarChart3 className="h-4 w-4" />}
-              label="Doanh số gần nhất"
-              value={
-                sales?.latestRevenue != null
-                  ? formatSalary(sales.latestRevenue, sales.latestRevenue)
-                  : 'Chưa cập nhật'
-              }
-            />
-            <QuickStat
-              icon={<Briefcase className="h-4 w-4" />}
-              label="Vị trí / cấp bậc"
-              value={
-                candidate?.profile?.currentPosition ||
-                (candidate?.profile?.jobLevel
-                  ? formatJobLevel(candidate.profile.jobLevel)
-                  : 'Chưa cập nhật')
-              }
-            />
-            <QuickStat
-              icon={<LayoutGrid className="h-4 w-4" />}
-              label="Vị trí mong muốn"
-              value={
-                sales?.desiredPositions?.length
-                  ? sales.desiredPositions.slice(0, 2).join(', ')
-                  : candidate?.profile?.industry ?? 'Chưa cập nhật'
-              }
-            />
-          </div>
-        </section>
-
-        {/* Tabs */}
-        <div className="overflow-x-auto border-b border-slate-200">
-          <nav className="flex min-w-max gap-0.5" aria-label="Mục hồ sơ">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={clsx(
-                  'relative px-4 py-3 text-[13px] font-semibold transition-colors duration-200',
-                  tab === t.id
-                    ? 'text-amber-700'
-                    : 'text-slate-500 hover:text-slate-800',
-                )}
-              >
-                {t.label}
-                <span
-                  className={clsx(
-                    'absolute inset-x-3 bottom-0 h-[2.5px] rounded-full bg-amber-500 transition-all duration-200',
-                    tab === t.id ? 'scale-x-100 opacity-100' : 'scale-x-50 opacity-0',
-                  )}
-                />
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Body */}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="min-w-0 space-y-4">
-            {(tab === 'overview' || tab === 'experience') && (
-              <>
-                {tab === 'overview' && (
-                  <ProfileCard title="Giới thiệu bản thân" icon={<Quote className="h-4 w-4" />}>
-                    {about ? (
-                      <p className="text-sm leading-relaxed text-slate-600">{about}</p>
-                    ) : (
-                      <EmptyHint
-                        text="Chưa có phần giới thiệu. Hãy viết tóm tắt hồ sơ hoặc tải CV để AI hỗ trợ."
-                        href="/profile/edit"
-                        cta="Chỉnh sửa hồ sơ"
-                      />
-                    )}
-                  </ProfileCard>
-                )}
-
-                <ProfileCard
-                  title={tab === 'overview' ? 'Kinh nghiệm công ty' : 'Kinh nghiệm'}
-                  icon={<Briefcase className="h-4 w-4" />}
-                >
-                  {tab === 'overview' && (
-                    <>
-                      {experiences.length === 0 ? (
-                        <EmptyHint
-                          text="Chưa có kinh nghiệm công ty. Thêm trong chỉnh sửa hồ sơ."
-                          href="/profile/edit"
-                          cta="Thêm kinh nghiệm"
-                        />
-                      ) : (
-                        <ul className="space-y-4">
-                          {experiences.slice(0, 3).map((exp) => (
-                            <li key={exp.id} className="border-l-2 border-amber-200 pl-3">
-                              <p className="text-sm font-bold text-slate-900">
-                                {exp.jobTitle} · {exp.companyName}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-slate-500">
-                                {exp.startYear ?? '?'} –{' '}
-                                {exp.isCurrent ? 'Hiện tại' : (exp.endYear ?? '?')}
-                                {exp.latestRevenue != null
-                                  ? ` · DS ${formatSalary(exp.latestRevenue, exp.latestRevenue)}`
-                                  : ''}
-                                {exp.kpiAchievementPct != null
-                                  ? ` · KPI ${Math.round(exp.kpiAchievementPct)}%`
-                                  : ''}
-                              </p>
-                              {exp.productsSold.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {exp.productsSold.slice(0, 4).map((p) => (
-                                    <span key={p} className="profile-skill-pill">
-                                      {p}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {exp.sellingStages.length > 0 && (
-                                <p className="mt-1.5 text-[11px] text-slate-500">
-                                  Chu trình bán: {exp.sellingStages.length} giai đoạn
-                                </p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {experiences.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setTab('experience')}
-                          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-amber-600 transition hover:gap-1.5 hover:text-amber-700"
-                        >
-                          Xem toàn bộ kinh nghiệm
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  {tab === 'experience' && (
-                    <>
-                      {experiences.length === 0 && (
-                        <EmptyHint
-                          text="Chưa có dữ liệu kinh nghiệm. Thêm công ty đã làm trong hồ sơ."
-                          href="/profile/edit"
-                          cta="Chỉnh sửa hồ sơ"
-                        />
-                      )}
-                      {experiences.length > 0 && (
-                        <ul className="mb-6 space-y-4">
-                          {experiences.map((exp) => (
-                            <li
-                              key={exp.id}
-                              className="rounded-xl border border-slate-100 bg-slate-50/80 p-3"
-                            >
-                              <p className="text-sm font-bold text-slate-900">
-                                {exp.jobTitle} · {exp.companyName}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-slate-500">
-                                {exp.startYear ?? '?'} –{' '}
-                                {exp.isCurrent ? 'Hiện tại' : (exp.endYear ?? '?')}
-                              </p>
-                              <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
-                                {exp.latestRevenue != null && (
-                                  <p>
-                                    Doanh số:{' '}
-                                    {formatSalary(exp.latestRevenue, exp.latestRevenue)}
-                                  </p>
-                                )}
-                                {exp.kpiAchievementPct != null && (
-                                  <p>KPI: {Math.round(exp.kpiAchievementPct)}%</p>
-                                )}
-                                {exp.newCustomerRatioPct != null && (
-                                  <p>KH tự tìm: {Math.round(exp.newCustomerRatioPct)}%</p>
-                                )}
-                                {exp.typicalDealValue != null && (
-                                  <p>
-                                    Thương vụ điển hình:{' '}
-                                    {formatSalary(exp.typicalDealValue, exp.typicalDealValue)}
-                                  </p>
-                                )}
-                              </div>
-                              {exp.productsSold.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {exp.productsSold.map((p) => (
-                                    <span key={p} className="profile-skill-pill">
-                                      {p}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {exp.customerSegments.length > 0 && (
-                                <p className="mt-1.5 text-[11px] text-slate-500">
-                                  Tệp KH: {exp.customerSegments.join(', ')}
-                                </p>
-                              )}
-                              {exp.marketsCovered.length > 0 && (
-                                <p className="mt-1 text-[11px] text-slate-500">
-                                  Thị trường: {exp.marketsCovered.join(', ')}
-                                </p>
-                              )}
-                              {exp.sellingStages.length > 0 && (
-                                <p className="mt-1 text-[11px] text-slate-500">
-                                  Giai đoạn bán: {exp.sellingStages.join(' → ')}
-                                </p>
-                              )}
-                              {(exp.jobDescription || exp.highlights) && (
-                                <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-600">
-                                  {exp.jobDescription || exp.highlights}
-                                </p>
-                              )}
-                              {exp.jobDescription &&
-                                exp.highlights &&
-                                exp.highlights !== exp.jobDescription && (
-                                  <p className="mt-1.5 text-[11px] font-medium text-slate-500">
-                                    Thành tích: {exp.highlights}
-                                  </p>
-                                )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </>
-                  )}
-                </ProfileCard>
-
-                {tab === 'overview' && (
-                  <>
-                    <ProfileCard title="Hồ sơ Sales B2B" icon={<Target className="h-4 w-4" />}>
-                      {!hasSalesData || !sales ? (
-                        <EmptyHint
-                          text="Chưa có dữ liệu Sales B2B. Bổ sung sản phẩm, tệp KH, doanh số trong chỉnh sửa hồ sơ."
-                          href="/profile/edit"
-                          cta="Cập nhật hồ sơ"
-                        />
-                      ) : (
-                        <div className="space-y-3 text-sm text-slate-600">
-                          {(sales.expectedSalaryMin != null ||
-                            sales.expectedSalaryMax != null ||
-                            sales.expectedOte != null) && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Thu nhập kỳ vọng: </span>
-                              {salaryLabel}
-                              {sales.expectedOte != null
-                                ? ` (OTE ${formatSalary(sales.expectedOte, sales.expectedOte)})`
-                                : ''}
-                            </p>
-                          )}
-                          {sales.desiredPositions.length > 0 && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Vị trí mong muốn: </span>
-                              {sales.desiredPositions.join(', ')}
-                            </p>
-                          )}
-                          {sales.desiredLocations.length > 0 && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Địa điểm: </span>
-                              {sales.desiredLocations.join(', ')}
-                            </p>
-                          )}
-                          {sales.latestRevenue != null && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Doanh số: </span>
-                              {formatSalary(sales.latestRevenue, sales.latestRevenue)}
-                              {sales.kpiAchievementPct != null
-                                ? ` · KPI ${Math.round(sales.kpiAchievementPct)}%`
-                                : ''}
-                            </p>
-                          )}
-                          {sales.productsSold.length > 0 && (
-                            <div>
-                              <p className="mb-1.5 font-semibold text-slate-800">Sản phẩm bán</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {sales.productsSold.map((p) => (
-                                  <span key={p} className="profile-skill-pill">
-                                    {p}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {sales.customerSegments.length > 0 && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Tệp khách hàng: </span>
-                              {sales.customerSegments.join(', ')}
-                            </p>
-                          )}
-                          {sales.marketsCovered.length > 0 && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Thị trường: </span>
-                              {sales.marketsCovered.join(', ')}
-                            </p>
-                          )}
-                          {sales.sellingStages.length > 0 && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Chu trình bán: </span>
-                              {sales.sellingStages.join(' → ')}
-                            </p>
-                          )}
-                          {sales.languages.length > 0 && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Ngoại ngữ: </span>
-                              {sales.languages.join(', ')}
-                            </p>
-                          )}
-                          {readinessLabel && (
-                            <p>
-                              <span className="font-semibold text-slate-800">Sẵn sàng: </span>
-                              {readinessLabel}
-                            </p>
-                          )}
-                          {sales.salesHighlights && (
-                            <div className="rounded-xl bg-amber-50/80 px-3 py-2 text-amber-900 ring-1 ring-amber-100">
-                              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-amber-800/80">
-                                Nổi bật Sales
-                              </p>
-                              <ul className="space-y-1 pl-4">
-                                {sales.salesHighlights
-                                  .split(/\n|•|·/)
-                                  .map((s) => s.replace(/^[-–—*]\s*/, '').trim())
-                                  .filter(Boolean)
-                                  .map((line, i) => (
-                                    <li key={`${i}-${line.slice(0, 20)}`} className="list-disc text-sm">
-                                      {line}
-                                    </li>
-                                  ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </ProfileCard>
-
-                    <ProfileCard title="Kỹ năng nổi bật" icon={<Award className="h-4 w-4" />}>
-                      {featuredSkills.length === 0 ? (
-                        <EmptyHint
-                          text="Chưa có kỹ năng. Thêm thủ công hoặc tải CV để AI trích xuất."
-                          href="/profile/edit"
-                          cta="Thêm kỹ năng"
-                        />
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {featuredSkills.map((s) => (
-                            <span key={s.name} className="profile-skill-pill">
-                              {s.name}
-                            </span>
-                          ))}
-                          <Link
-                            href="/profile/edit"
-                            className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-amber-600 transition hover:bg-amber-50"
-                          >
-                            <Plus className="h-3 w-3" /> Thêm kỹ năng
-                          </Link>
-                        </div>
-                      )}
-                    </ProfileCard>
-                  </>
-                )}
-              </>
-            )}
-
-            {tab === 'skills' && (
-              <ProfileCard title="Toàn bộ kỹ năng" icon={<Award className="h-4 w-4" />}>
-                {technicalSkills.length === 0 ? (
-                  <EmptyHint text="Chưa có kỹ năng." href="/profile/edit" cta="Chỉnh sửa hồ sơ" />
-                ) : (
-                  <ul className="space-y-3">
-                    {technicalSkills.map((s) => (
-                      <SkillBar key={s.name} name={s.name} pct={SKILL_LEVEL_PCT[s.level]} />
-                    ))}
-                  </ul>
-                )}
-              </ProfileCard>
-            )}
-
-            {tab === 'education' && (
-              <ProfileCard title="Học vấn" icon={<GraduationCap className="h-4 w-4" />}>
-                {candidate?.profile?.educationLevel ||
-                candidate?.profile?.educationSchool ||
-                candidate?.profile?.educationMajor ? (
-                  <div className="space-y-1 text-sm text-slate-600">
-                    {candidate.profile.educationLevel && (
-                      <p className="font-semibold text-slate-900">
-                        {candidate.profile.educationLevel}
-                      </p>
-                    )}
-                    {candidate.profile.educationSchool && (
-                      <p>{candidate.profile.educationSchool}</p>
-                    )}
-                    {candidate.profile.educationMajor && (
-                      <p className="text-xs text-slate-500">
-                        Chuyên ngành: {candidate.profile.educationMajor}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <EmptyHint
-                    text="Chưa có học vấn. Bổ sung trong chỉnh sửa hồ sơ."
-                    href="/profile/edit"
-                    cta="Cập nhật học vấn"
+        <div className="min-w-0 space-y-4">
+          {/* Header Profile Card */}
+          <section className="relative overflow-hidden rounded-2xl border border-[#dce6f4] bg-gradient-to-r from-white via-[#F9FBFF] to-[#EEF5FF] p-5 shadow-xs sm:p-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="w-fit shrink-0">
+                  <ProfileAvatar
+                    displayName={displayName}
+                    email={me?.email}
+                    hasAvatar={Boolean(candidate?.hasAvatar)}
                   />
-                )}
-              </ProfileCard>
-            )}
+                </div>
 
-            {tab === 'certificates' && (
-              <ProfileCard title="Chứng chỉ" icon={<BadgeCheck className="h-4 w-4" />}>
-                {(candidate?.profile?.certificates?.length ?? 0) > 0 ? (
-                  <ul className="space-y-2">
-                    {candidate!.profile!.certificates.map((c) => (
-                      <li
-                        key={c}
-                        className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm text-slate-700"
-                      >
-                        {c}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <h1 className="text-2xl font-extrabold tracking-tight text-[#072348] sm:text-[26px]">
+                      {displayName}
+                    </h1>
+                    <span
+                      className={clsx(
+                        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                        looking.className,
+                      )}
+                    >
+                      <CheckCircle2 className="h-3 w-3 shrink-0" />
+                      {looking.text}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-semibold text-brand-700 ring-1 ring-sky-100">
+                      {position}
+                    </span>
+                    {industryBadge ? (
+                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                        {industryBadge}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-600">
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {shortLocation}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {profile?.totalExperienceYears
+                        ? `${profile.totalExperienceYears}+ năm kinh nghiệm`
+                        : experiences.length > 0
+                          ? `${experiences.length} công ty đã làm`
+                          : 'Chưa cập nhật KN'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {profile?.phone || 'Chưa cập nhật SĐT'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {me?.email || 'Chưa có email'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 nút hành động phải */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <Link
+                  href="/profile/edit"
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d3468]"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Chỉnh sửa hồ sơ</span>
+                </Link>
+                <button
+                  type="button"
+                  disabled={downloadingCv || !cvDraft}
+                  onClick={onDownloadCv}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {downloadingCv ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  <span>{downloadingCv ? 'Đang tạo PDF...' : 'Tải CV'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(true)}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Xem trước hồ sơ</span>
+                </button>
+              </div>
+            </div>
+            {downloadError ? (
+              <p className="mt-3 text-xs font-medium text-rose-600">{downloadError}</p>
+            ) : null}
+          </section>
+
+          {/* Bản render ẩn khổ A4 dùng cho nút Tải CV PDF */}
+          {cvDraft ? (
+            <div
+              className="pointer-events-none fixed -left-[9999px] top-0 z-[-1]"
+              aria-hidden
+            >
+              <div ref={cvExportRef}>
+                <CvPreview
+                  draft={cvDraft}
+                  template={CV_TEMPLATES[0]}
+                  exportWidth={794}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* Layout 2 cột chính */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(290px,0.9fr)]">
+            {/* Cột trái */}
+            <div className="space-y-4">
+              {/* 1. Thông tin cá nhân */}
+              <SectionCard
+                title="Thông tin cá nhân"
+                icon={<UserRound className="h-4 w-4" />}
+                editHref="/profile/edit"
+              >
+                <dl className="divide-y divide-slate-100 text-[13px]">
+                  <InfoRow
+                    label="Ngày sinh"
+                    value={formatBirthDate(profile?.birthDate, profile?.birthYear)}
+                  />
+                  <InfoRow label="Địa chỉ" value={locationText} />
+                  <InfoRow label="Điện thoại" value={profile?.phone || 'Chưa cập nhật'} />
+                  <InfoRow label="Email" value={me?.email || 'Chưa cập nhật'} />
+                  <InfoRow label="Thu nhập kỳ vọng" value={salaryLabel} />
+                  {readinessLabel ? (
+                    <InfoRow label="Sẵn sàng nhận việc" value={String(readinessLabel)} />
+                  ) : null}
+                </dl>
+              </SectionCard>
+
+              {/* 2. Giới thiệu bản thân (ngay sau Thông tin cá nhân) */}
+              <SectionCard
+                title="Giới thiệu bản thân"
+                icon={<FileText className="h-4 w-4" />}
+                editHref="/profile/edit"
+              >
+                {about ? (
+                  <p className="whitespace-pre-line text-[13px] leading-relaxed text-slate-700">
+                    {about}
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-slate-400">
+                    Chưa có phần giới thiệu. Hãy cập nhật tóm tắt chuyên môn hoặc tải CV để AI hỗ trợ.
+                  </p>
+                )}
+              </SectionCard>
+
+              {/* 3. Kinh nghiệm làm việc */}
+              <SectionCard
+                id="experience"
+                title="Kinh nghiệm làm việc"
+                icon={<Briefcase className="h-4 w-4" />}
+                editHref="/profile/edit"
+              >
+                {experiences.length === 0 ? (
+                  <p className="text-[13px] text-slate-400">
+                    Chưa có kinh nghiệm làm việc. Thêm công ty bạn đã từng công tác để tăng độ khớp.
+                  </p>
+                ) : (
+                  <ul className="relative space-y-4 pl-5 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-slate-200">
+                    {experiences.map((exp) => (
+                      <li key={exp.id} className="relative">
+                        <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-brand-600 ring-4 ring-white" />
+                        <Link
+                          href="/profile/edit"
+                          className="group flex items-start justify-between gap-3 rounded-xl p-1.5 -m-1.5 transition hover:bg-slate-50"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[14px] font-bold text-[#072348] group-hover:text-brand-600">
+                              {exp.jobTitle}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-600">{exp.companyName}</p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-slate-500">
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="h-3 w-3 text-slate-400" />
+                                {formatExperiencePeriod(exp)}
+                              </span>
+                              {exp.latestRevenue != null && (
+                                <>
+                                  <span className="text-slate-300">•</span>
+                                  <span>
+                                    DS quản lý:{' '}
+                                    <strong className="font-semibold text-slate-700">
+                                      {formatSalary(exp.latestRevenue, exp.latestRevenue)}
+                                    </strong>
+                                  </span>
+                                </>
+                              )}
+                              {exp.kpiAchievementPct != null && (
+                                <>
+                                  <span className="text-slate-300">•</span>
+                                  <span>
+                                    KPI:{' '}
+                                    <strong className="font-semibold text-slate-700">
+                                      {Math.round(exp.kpiAchievementPct)}%
+                                    </strong>
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600" />
+                        </Link>
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  <EmptyHint
-                    text="Chưa có chứng chỉ. Thêm trong chỉnh sửa hồ sơ (bước kỹ năng / học vấn)."
-                    href="/profile/edit"
-                    cta="Thêm chứng chỉ"
-                  />
                 )}
-              </ProfileCard>
-            )}
 
-            {tab === 'interests' && (
-              <ProfileCard title="Định hướng & sở thích" icon={<Heart className="h-4 w-4" />}>
-                {candidate?.profile?.careerObjective ||
-                (candidate?.profile?.hobbies?.length ?? 0) > 0 ||
-                candidate?.aiProfile?.careerPath ||
-                sales?.salesBehavior ||
-                (sales?.careerMotivations?.length ?? 0) > 0 ||
-                (sales?.workStyles?.length ?? 0) > 0 ||
-                (sales?.careerOrientations?.length ?? 0) > 0 ||
-                sales?.careerOrientation ? (
-                  <div className="space-y-3 text-sm text-slate-600">
-                    {candidate?.profile?.careerObjective && (
-                      <div>
-                        <p className="font-semibold text-slate-800">Mục tiêu nghề nghiệp</p>
-                        <p className="mt-1 whitespace-pre-line">
-                          {candidate.profile.careerObjective}
+                <div className="mt-4 pt-1">
+                  <Link
+                    href="/profile/edit"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-900"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Thêm kinh nghiệm</span>
+                  </Link>
+                </div>
+              </SectionCard>
+
+              {/* 4. Học vấn */}
+              <SectionCard
+                id="education"
+                title="Học vấn"
+                icon={<GraduationCap className="h-4 w-4" />}
+                editHref="/profile/edit"
+              >
+                {!hasEducation ? (
+                  <p className="text-[13px] text-slate-400">
+                    Chưa cập nhật thông tin học vấn. Bổ sung trường học và chuyên ngành của bạn.
+                  </p>
+                ) : (
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-brand-700">
+                        <GraduationCap className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-bold text-[#072348]">
+                          {profile?.educationSchool || 'Đã tốt nghiệp'}
                         </p>
+                        {(profile?.educationLevel || profile?.educationMajor) && (
+                          <p className="mt-0.5 text-xs text-slate-600">
+                            {[profile?.educationLevel, profile?.educationMajor]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                        )}
+                        {profile?.educationClassification && (
+                          <p className="mt-1 text-[11.5px] text-slate-500">
+                            Xếp loại:{' '}
+                            <strong className="font-semibold text-slate-700">
+                              {profile.educationClassification}
+                            </strong>
+                          </p>
+                        )}
                       </div>
-                    )}
-                    {(candidate?.profile?.hobbies?.length ?? 0) > 0 && (
-                      <p>
-                        <span className="font-semibold text-slate-800">Sở thích: </span>
-                        {candidate!.profile!.hobbies.join(', ')}
-                      </p>
-                    )}
-                    {sales?.desiredPositions && sales.desiredPositions.length > 0 && (
-                      <p>
-                        <span className="font-semibold text-slate-800">Vị trí mong muốn: </span>
-                        {sales.desiredPositions.join(', ')}
-                      </p>
-                    )}
-                    {(sales?.salesBehavior || sales?.customerDevStyle) && (
-                      <p>
-                        <span className="font-semibold text-slate-800">
-                          Phong cách & hành vi Sales:{' '}
-                        </span>
-                        {sales?.salesBehavior || sales?.customerDevStyle}
-                      </p>
-                    )}
-                    {sales?.careerMotivations && sales.careerMotivations.length > 0 && (
-                      <p>
-                        <span className="font-semibold text-slate-800">Động lực nghề nghiệp: </span>
-                        {sales.careerMotivations.join(', ')}
-                      </p>
-                    )}
-                    {sales?.workStyles && sales.workStyles.length > 0 && (
-                      <div>
-                        <p className="font-semibold text-slate-800">Phù hợp văn hóa:</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-5">
-                          {sales.workStyles.map((style) => (
-                            <li key={style}>{style}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {((sales?.careerOrientations?.length ?? 0) > 0 ||
-                      sales?.careerOrientation) && (
-                      <p>
-                        <span className="font-semibold text-slate-800">Định hướng nghề nghiệp: </span>
-                        {(sales?.careerOrientations?.length
-                          ? sales.careerOrientations
-                          : sales?.careerOrientation
-                            ? sales.careerOrientation.split(/\s*\|\s*/).map((s) => s.trim())
-                            : []
-                        ).join(', ')}
-                      </p>
-                    )}
-                    {candidate?.aiProfile?.careerPath && (
-                      <p className="rounded-xl bg-amber-50/80 px-3 py-2 text-amber-800 ring-1 ring-amber-100">
-                        <span className="font-semibold">AI gợi ý: </span>
-                        {candidate.aiProfile.careerPath}
-                      </p>
-                    )}
+                    </div>
+                    <Link
+                      href="/profile/edit"
+                      aria-label="Chỉnh sửa học vấn"
+                      className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-brand-600"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+
+            {/* Cột phải */}
+            <div className="space-y-4">
+              {/* 1. Kỹ năng */}
+              <SectionCard
+                id="skills"
+                title="Kỹ năng"
+                icon={<SparklesIcon />}
+                editHref="/profile/edit"
+              >
+                {skills.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((s) => (
+                      <span
+                        key={`${s.skillId ?? s.name}-${s.name}`}
+                        className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+                      >
+                        {s.name}
+                      </span>
+                    ))}
                   </div>
                 ) : (
-                  <EmptyHint text="Chưa có định hướng nghề." href="/profile/edit" cta="Chỉnh sửa hồ sơ" />
+                  <p className="text-xs text-slate-400">Chưa có kỹ năng nào được thêm.</p>
                 )}
-              </ProfileCard>
-            )}
-          </div>
 
-          {/* Sidebar */}
-          <aside className="space-y-4">
-            <ProfileCard title="Kỹ năng chuyên môn" icon={<BarChart3 className="h-4 w-4" />}>
-              {technicalSkills.length === 0 ? (
-                <p className="text-xs text-slate-500">Chưa có kỹ năng chuyên môn.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {technicalSkills.slice(0, 6).map((s) => (
-                    <SkillBar key={s.name} name={s.name} pct={SKILL_LEVEL_PCT[s.level]} compact />
-                  ))}
-                </ul>
-              )}
-            </ProfileCard>
-
-            {softSkills.length > 0 && (
-              <ProfileCard title="Điểm mạnh (AI)" icon={<Sparkles className="h-4 w-4" />}>
-                <div className="flex flex-wrap gap-2">
-                  {softSkills.map((s) => (
-                    <span key={s} className="profile-skill-pill">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </ProfileCard>
-            )}
-
-            <ProfileCard title="CV của tôi" icon={<FileText className="h-4 w-4" />}>
-              <div className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3 transition hover:border-amber-200 hover:bg-amber-50/40">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 ring-1 ring-rose-100">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-800">
-                    {hasAnalysis ? 'CV đã phân tích' : 'Chưa có CV'}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    {candidate?.aiProfile?.lastAnalyzedAt
-                      ? `Cập nhật: ${new Date(candidate.aiProfile.lastAnalyzedAt).toLocaleDateString('vi-VN')}`
-                      : 'Tải lên để AI tạo hồ sơ số'}
-                  </p>
-                </div>
-              </div>
-              <Link
-                href="/upload"
-                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-3 py-2.5 text-xs font-semibold text-white shadow-sm shadow-brand-500/25 transition hover:bg-brand-600 hover:shadow-md active:scale-[0.98]"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                {hasAnalysis ? 'Tải CV mới' : 'Tạo hồ sơ từ CV'}
-              </Link>
-            </ProfileCard>
-
-            <ProfileCard title="Hoạt động gần đây" icon={<CheckCircle2 className="h-4 w-4" />}>
-              {activityItems.length === 0 ? (
-                <p className="text-xs text-slate-500">
-                  Chưa có hoạt động ứng tuyển.{' '}
-                  <Link href="/viec-lam" className="font-semibold text-amber-600 hover:underline">
-                    Tìm việc
+                <div className="mt-3">
+                  <Link
+                    href="/profile/edit"
+                    className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Thêm kỹ năng</span>
                   </Link>
-                </p>
-              ) : (
-                <ul className="space-y-2.5">
-                  {activityItems.map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex items-start gap-2.5 rounded-lg px-1 py-1 transition hover:bg-slate-50"
-                    >
-                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-                        <Briefcase className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold text-slate-800">
-                          {a.jobTitle}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-500">{a.companyName}</p>
-                      </div>
-                      <span
-                        className={clsx(
-                          'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                          appStatusBadge(a.status),
-                        )}
-                      >
-                        {APPLICATION_STATUS_LABEL[a.status]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {recentApps.length > ACTIVITY_PAGE_SIZE && (
-                <PaginationBar
-                  page={activityPageSafe}
-                  totalPages={activityTotalPages}
-                  totalItems={recentApps.length}
-                  pageSize={ACTIVITY_PAGE_SIZE}
-                  itemLabel="hoạt động"
-                  onChange={setActivityPage}
-                />
-              )}
-              {recentApps.length > 0 && (
-                <Link
-                  href="/applications"
-                  className="mt-2 flex items-center justify-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700"
-                >
-                  Xem tất cả đơn <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              )}
-            </ProfileCard>
+                </div>
+              </SectionCard>
 
-            <div className="profile-card overflow-hidden bg-gradient-to-br from-amber-50 via-white to-brand-50 p-4 ring-1 ring-amber-100">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">Gợi ý cải thiện hồ sơ</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-                    {typeof candidate?.profileCompletion === 'number' &&
-                    candidate.profileCompletion < 100
-                      ? `Hồ sơ đang ${candidate.profileCompletion}%. Bổ sung CV và kỹ năng để AI gợi ý việc chính xác hơn.`
-                      : 'Xem việc AI gợi ý dựa trên kỹ năng và cấp bậc của bạn.'}
-                  </p>
-                </div>
-              </div>
-              <Link
-                href="/recommended"
-                className="mt-3 flex w-full items-center justify-center rounded-xl bg-brand-500 px-3 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-600"
+              {/* 2. Chứng chỉ */}
+              <SectionCard
+                id="certificates"
+                title="Chứng chỉ"
+                icon={<Award className="h-4 w-4" />}
+                editHref="/profile/edit"
               >
-                Xem gợi ý việc làm AI
-              </Link>
+                {certificates.length > 0 ? (
+                  <ul className="space-y-2.5">
+                    {certificates.map((raw) => {
+                      const cert = parseCertificate(raw);
+                      return (
+                        <li
+                          key={raw}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5"
+                        >
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-brand-600">
+                              <FileText className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-bold text-[#072348]">
+                                {cert.name}
+                              </p>
+                              {cert.issuer && (
+                                <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                                  {cert.issuer}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {cert.date && (
+                            <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200/70">
+                              {cert.date}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-400">Chưa có chứng chỉ nào được thêm.</p>
+                )}
+
+                <div className="mt-3">
+                  <Link
+                    href="/profile/edit"
+                    className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Thêm chứng chỉ</span>
+                  </Link>
+                </div>
+              </SectionCard>
+
+              {/* 3. Sở thích */}
+              <SectionCard
+                id="interests"
+                title="Sở thích"
+                icon={<Heart className="h-4 w-4" />}
+                editHref="/profile/edit"
+              >
+                {hobbies.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {hobbies.map((hobby) => (
+                      <span
+                        key={hobby}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-slate-700"
+                      >
+                        <Heart className="h-3 w-3 text-slate-400" />
+                        {hobby}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Chưa có sở thích nào được thêm.</p>
+                )}
+
+                <div className="mt-3">
+                  <Link
+                    href="/profile/edit"
+                    className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Thêm sở thích</span>
+                  </Link>
+                </div>
+              </SectionCard>
             </div>
-          </aside>
-        </div>
+          </div>
         </div>
       </div>
+
+      {/* Modal Xem trước hồ sơ */}
+      {previewOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-preview-title"
+          onClick={() => setPreviewOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#072348]/45 p-4 backdrop-blur-[2px]"
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#dce6f4] bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-[#072348] px-5 py-4 text-white">
+              <div>
+                <h2 id="profile-preview-title" className="text-base font-bold">
+                  Xem trước hồ sơ ứng viên
+                </h2>
+                <p className="text-xs text-white/75">
+                  Bản hiển thị tổng quan thông tin chuyên môn của bạn
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng"
+                onClick={() => setPreviewOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 overflow-y-auto p-5 sm:p-6">
+              <div className="flex flex-wrap items-center gap-4 border-b border-slate-100 pb-4">
+                <ProfileAvatar
+                  displayName={displayName}
+                  email={me?.email}
+                  hasAvatar={Boolean(candidate?.hasAvatar)}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-extrabold text-[#072348]">{displayName}</h3>
+                    <span
+                      className={clsx(
+                        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                        looking.className,
+                      )}
+                    >
+                      {looking.text}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm font-medium text-brand-700">
+                    {position}
+                    {industryBadge ? ` · ${industryBadge}` : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {shortLocation} · {profile?.phone || 'Chưa cập nhật SĐT'} ·{' '}
+                    {me?.email || 'Chưa có email'} · Thu nhập kỳ vọng: {salaryLabel}
+                  </p>
+                </div>
+              </div>
+
+              {about && (
+                <div>
+                  <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    Giới thiệu bản thân
+                  </h4>
+                  <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                    {about}
+                  </p>
+                </div>
+              )}
+
+              {experiences.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    Kinh nghiệm làm việc
+                  </h4>
+                  <ul className="mt-2 space-y-2.5">
+                    {experiences.map((exp) => (
+                      <li
+                        key={exp.id}
+                        className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="text-sm font-bold text-[#072348]">{exp.jobTitle}</p>
+                          <span className="text-xs text-slate-500">
+                            {formatExperiencePeriod(exp)}
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-slate-600">{exp.companyName}</p>
+                        {(exp.jobDescription || exp.highlights) && (
+                          <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-slate-600">
+                            {exp.jobDescription || exp.highlights}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {hasEducation && (
+                  <div className="rounded-xl border border-slate-100 p-3.5">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                      Học vấn
+                    </h4>
+                    <p className="mt-1.5 text-sm font-bold text-[#072348]">
+                      {profile?.educationSchool || 'Đã tốt nghiệp'}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      {[profile?.educationLevel, profile?.educationMajor]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                )}
+
+                {skills.length > 0 && (
+                  <div className="rounded-xl border border-slate-100 p-3.5">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                      Kỹ năng ({skills.length})
+                    </h4>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {skills.map((s) => (
+                        <span
+                          key={`${s.skillId ?? s.name}-${s.name}`}
+                          className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                        >
+                          {s.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Đóng
+              </button>
+              <Link
+                href="/profile/edit"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2 text-xs font-bold text-white hover:bg-[#0d3468]"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Chỉnh sửa hồ sơ
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
 
-function Meta({ icon, text }: { icon: ReactNode; text: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 truncate">
-      <span className="text-slate-400">{icon}</span>
-      <span className="truncate">{text}</span>
-    </span>
-  );
-}
-
-function QuickStat({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="group flex items-start gap-3 rounded-xl px-1 py-1 transition hover:bg-slate-50/80">
-      <div
-        className={clsx(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105',
-          accent
-            ? 'bg-amber-50 text-amber-600 ring-1 ring-amber-100'
-            : 'bg-brand-50 text-brand-600 ring-1 ring-brand-100',
-        )}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] text-slate-500">{label}</p>
-        <p className="mt-0.5 truncate text-sm font-semibold text-slate-800">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function ProfileCard({
+function SectionCard({
+  id,
   title,
   icon,
+  editHref,
   children,
 }: {
+  id?: string;
   title: string;
-  icon?: ReactNode;
+  icon: ReactNode;
+  editHref: string;
   children: ReactNode;
 }) {
   return (
-    <section className="profile-card p-5">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-          {icon && <span className="text-amber-500">{icon}</span>}
-          {title}
+    <section
+      id={id}
+      className="scroll-mt-24 rounded-2xl border border-[#dce6f4] bg-white p-5 shadow-xs"
+    >
+      <div className="flex items-center justify-between gap-3 pb-3">
+        <h2 className="flex items-center gap-2 text-[15px] font-bold text-[#072348]">
+          <span className="text-brand-600">{icon}</span>
+          <span>{title}</span>
         </h2>
+        <Link
+          href={editHref}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 transition hover:text-brand-800"
+        >
+          <Pencil className="h-3 w-3" />
+          <span>Chỉnh sửa</span>
+        </Link>
       </div>
       {children}
     </section>
   );
 }
 
-function EmptyHint({
-  text,
-  href,
-  cta,
-}: {
-  text: string;
-  href: string;
-  cta: string;
-}) {
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-5 text-center">
-      <p className="text-xs leading-relaxed text-slate-500">{text}</p>
-      <Link
-        href={href}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-brand-500/25 transition hover:bg-brand-600 hover:shadow-md active:scale-[0.98]"
-      >
-        <Upload className="h-3.5 w-3.5" />
-        {cta}
-        <ChevronRight className="h-3.5 w-3.5" />
-      </Link>
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-2 first:pt-0 last:pb-0 sm:grid-cols-[140px_minmax(0,1fr)]">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-medium text-slate-800">{value}</dd>
     </div>
   );
 }
 
-function SkillBar({
-  name,
-  pct,
-  compact,
-}: {
-  name: string;
-  pct: number;
-  compact?: boolean;
-}) {
-  return (
-    <li>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span
-          className={clsx(
-            'truncate font-medium text-slate-700',
-            compact ? 'text-xs' : 'text-sm',
-          )}
-        >
-          {name}
-        </span>
-        <span className="shrink-0 text-[11px] font-semibold tabular-nums text-amber-600">
-          {pct}%
-        </span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </li>
-  );
+function SparklesIcon() {
+  return <Award className="h-4 w-4" />;
 }
-
