@@ -1498,7 +1498,6 @@ function JobCard({
     ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ?? job.experienceBand
     : 'Không yêu cầu';
   const postedLabel = formatRelativeTime(job.publishedAt || job.createdAt);
-  const skillsList = (job.skills ?? []).filter(Boolean).slice(0, 5);
   const showAiPanel = Boolean(match && matchRing);
 
   return (
@@ -1625,7 +1624,7 @@ function JobCard({
                 </div>
               )}
 
-              {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm, Cấp bậc */}
+              {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm */}
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
                 <span className="inline-flex min-w-0 items-center gap-1">
                   <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -1641,31 +1640,7 @@ function JobCard({
                   <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   {expText}
                 </span>
-                {job.jobLevel && (
-                  <>
-                    <span className="sr-only"> · </span>
-                    <span className="inline-flex items-center gap-1">
-                      <User className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {formatJobLevel(job.jobLevel)}
-                    </span>
-                  </>
-                )}
               </div>
-
-              {/* Hàng 5: Kỹ năng */}
-              {skillsList.length > 0 && (
-                <ul className="m-0 mt-auto flex list-none flex-wrap gap-1.5 p-0 pt-2.5">
-                  {skillsList.map((skill, idx) => (
-                    <li
-                      key={skill}
-                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
-                    >
-                      {skill}
-                      {idx < skillsList.length - 1 ? <span className="sr-only">, </span> : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
 
               {applyFeedback && (
                 <p

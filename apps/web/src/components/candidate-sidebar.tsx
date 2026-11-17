@@ -175,11 +175,6 @@ export function CandidateSidebar({
               }
             />
             <NavItem
-              href="/profile?tab=skills"
-              label="Kỹ năng & Chứng chỉ"
-              icon={BadgeCheck}
-            />
-            <NavItem
               href="/saved-jobs"
               label="Việc làm đã lưu"
               icon={Bookmark}

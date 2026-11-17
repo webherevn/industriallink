@@ -137,7 +137,12 @@ export default function RecruiterPipelinePage() {
   }, [openMenuKey]);
 
   const dateWindow = useMemo(() => {
-    if (rangeDays === 0) return {};
+    if (rangeDays === 0) {
+      return {
+        from: '2020-01-01T00:00:00.000Z',
+        to: '2099-12-31T23:59:59.999Z',
+      };
+    }
     const from = new Date();
     from.setDate(from.getDate() - 30);
     from.setHours(0, 0, 0, 0);
@@ -220,19 +225,26 @@ export default function RecruiterPipelinePage() {
 
   const rows = useMemo<PipelineRow[]>(() => {
     const list: PipelineRow[] = [];
+    const nowMs = Date.now();
     const scheduledAppIds = new Set((interviews ?? []).map((iv) => iv.applicationId));
 
     // 1. Lịch phỏng vấn đã lên lịch
     for (const iv of interviews ?? []) {
+      const isPastScheduled =
+        iv.status === InterviewStatus.Scheduled && new Date(iv.scheduledAt).getTime() < nowMs;
       const tone =
         iv.status === InterviewStatus.Scheduled
-          ? 'sky'
+          ? isPastScheduled
+            ? 'amber'
+            : 'sky'
           : iv.status === InterviewStatus.Completed
             ? 'emerald'
             : 'rose';
       const statusText =
         iv.status === InterviewStatus.Scheduled
-          ? 'Sắp diễn ra'
+          ? isPastScheduled
+            ? 'Đã qua lịch'
+            : 'Sắp diễn ra'
           : iv.status === InterviewStatus.Completed
             ? 'Đã kết thúc'
             : iv.status === InterviewStatus.NoShow
@@ -353,13 +365,23 @@ export default function RecruiterPipelinePage() {
   }, [interviews, inbox, offers, onboardings, jobId, roleByCandidateId]);
 
   const counts = useMemo(() => {
+    const nowMs = Date.now();
     const ivRows = rows.filter((r) => r.stage === 'interview');
     const ofRows = rows.filter((r) => r.stage === 'offer');
     const obRows = rows.filter((r) => r.stage === 'onboarding');
     return {
       all: rows.length,
       interview: ivRows.length,
-      interviewUpcoming: ivRows.filter((r) => r.interview?.status === InterviewStatus.Scheduled).length,
+      interviewUpcoming: ivRows.filter(
+        (r) =>
+          r.interview?.status === InterviewStatus.Scheduled &&
+          new Date(r.interview.scheduledAt).getTime() >= nowMs,
+      ).length,
+      interviewOverdue: ivRows.filter(
+        (r) =>
+          r.interview?.status === InterviewStatus.Scheduled &&
+          new Date(r.interview.scheduledAt).getTime() < nowMs,
+      ).length,
       offer: ofRows.length,
       offerPending: ofRows.filter((r) => r.offer?.status === OfferStatus.Pending).length,
       onboarding: obRows.length,
@@ -401,23 +423,24 @@ export default function RecruiterPipelinePage() {
   return (
     <AppShell>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
-            <span className="h-4 w-1 rounded-full bg-accent-500" />
-            Tuyển dụng
-          </p>
-          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-[#072348]">
-            Quy trình tuyển dụng
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Quản lý toàn bộ các bước sau phỏng vấn: Lịch phỏng vấn, Đề nghị làm việc và Nhận việc.
-          </p>
+      <section className="brand-hero-surface relative overflow-hidden rounded-2xl p-5 sm:p-6">
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              Tuyển dụng
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">
+              Quy trình tuyển dụng
+            </h1>
+            <p className="mt-1 max-w-xl text-sm text-white/70">
+              Quản lý toàn bộ các bước sau phỏng vấn: Lịch phỏng vấn, Đề nghị làm việc và Nhận việc.
+            </p>
+          </div>
+          <div className="hidden w-24 shrink-0 sm:block" aria-hidden>
+            <CopilotRobot />
+          </div>
         </div>
-        <div className="hidden w-24 shrink-0 sm:block" aria-hidden>
-          <CopilotRobot />
-        </div>
-      </div>
+      </section>
 
       {/* 3 thẻ KPI tóm tắt */}
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -428,22 +451,29 @@ export default function RecruiterPipelinePage() {
             setPage(1);
           }}
           className={clsx(
-            'flex items-center gap-3.5 rounded-2xl border bg-white p-4 text-left shadow-2xs transition hover:border-brand-200',
-            stageFilter === 'interview' ? 'border-brand-300 ring-2 ring-brand-200/70' : 'border-slate-200/80',
+            'group flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all',
+            stageFilter === 'interview'
+              ? 'border-[#0B468C] bg-gradient-to-br from-sky-50/90 via-white to-indigo-50/30 ring-2 ring-[#0B468C]/15 shadow-sm'
+              : 'border-slate-200/80 bg-white shadow-xs hover:border-sky-200 hover:bg-sky-50/20',
           )}
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-[#0B468C]">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-[#0B468C] text-white shadow-sm shadow-sky-900/15">
             <CalendarDays className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium text-slate-600">Lịch phỏng vấn</p>
-            <div className="mt-1 flex items-center gap-2.5">
+            <p className="text-[13px] font-semibold text-slate-600">Lịch phỏng vấn</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="text-2xl font-bold tabular-nums text-[#072348]">
                 {counts.interview}
               </span>
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-[#0B468C]">
                 {counts.interviewUpcoming} sắp diễn ra
               </span>
+              {counts.interviewOverdue > 0 && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  {counts.interviewOverdue} đã qua lịch
+                </span>
+              )}
             </div>
           </div>
         </button>
@@ -455,20 +485,22 @@ export default function RecruiterPipelinePage() {
             setPage(1);
           }}
           className={clsx(
-            'flex items-center gap-3.5 rounded-2xl border bg-white p-4 text-left shadow-2xs transition hover:border-brand-200',
-            stageFilter === 'offer' ? 'border-brand-300 ring-2 ring-brand-200/70' : 'border-slate-200/80',
+            'group flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all',
+            stageFilter === 'offer'
+              ? 'border-accent-500 bg-gradient-to-br from-accent-50/90 via-white to-amber-50/30 ring-2 ring-accent-500/15 shadow-sm'
+              : 'border-slate-200/80 bg-white shadow-xs hover:border-accent-200 hover:bg-accent-50/20',
           )}
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-[#E8872A]">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-sm shadow-accent-600/20">
             <FileText className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium text-slate-600">Đề nghị làm việc</p>
-            <div className="mt-1 flex items-center gap-2.5">
+            <p className="text-[13px] font-semibold text-slate-600">Đề nghị làm việc</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="text-2xl font-bold tabular-nums text-[#072348]">
                 {counts.offer}
               </span>
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+              <span className="rounded-full border border-accent-200 bg-accent-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent-800">
                 {counts.offerPending} chờ phản hồi
               </span>
             </div>
@@ -482,20 +514,22 @@ export default function RecruiterPipelinePage() {
             setPage(1);
           }}
           className={clsx(
-            'flex items-center gap-3.5 rounded-2xl border bg-white p-4 text-left shadow-2xs transition hover:border-brand-200',
-            stageFilter === 'onboarding' ? 'border-brand-300 ring-2 ring-brand-200/70' : 'border-slate-200/80',
+            'group flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all',
+            stageFilter === 'onboarding'
+              ? 'border-emerald-500 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/30 ring-2 ring-emerald-500/15 shadow-sm'
+              : 'border-slate-200/80 bg-white shadow-xs hover:border-emerald-200 hover:bg-emerald-50/20',
           )}
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-700/20">
             <Briefcase className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium text-slate-600">Nhận việc</p>
-            <div className="mt-1 flex items-center gap-2.5">
+            <p className="text-[13px] font-semibold text-slate-600">Nhận việc</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="text-2xl font-bold tabular-nums text-[#072348]">
                 {counts.onboarding}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
                 <Check className="h-3 w-3" />
                 {counts.onboardingDone} đã hoàn tất
               </span>
@@ -526,10 +560,10 @@ export default function RecruiterPipelinePage() {
                   setPage(1);
                 }}
                 className={clsx(
-                  'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition',
+                  'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-all',
                   active
-                    ? 'bg-[#072348] text-white shadow-xs'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                    ? 'bg-gradient-to-r from-[#072348] to-[#0B468C] text-white shadow-sm shadow-sky-900/15'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/50 hover:text-[#0B468C]',
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -545,8 +579,8 @@ export default function RecruiterPipelinePage() {
           className={clsx(
             'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition',
             advancedOpen || statusOnlyPending
-              ? 'border-[#1D4ED8] bg-[#EFF6FF] text-[#1D4ED8]'
-              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+              ? 'border-[#0B468C] bg-sky-50 text-[#0B468C] shadow-xs'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/40',
           )}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -555,8 +589,8 @@ export default function RecruiterPipelinePage() {
       </div>
 
       {/* Khối tìm kiếm + Bộ lọc + Bảng dữ liệu */}
-      <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-end">
+      <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_24px_-10px_rgba(7,35,72,0.07)]">
+        <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/40 p-4 lg:flex-row lg:items-end">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -566,13 +600,13 @@ export default function RecruiterPipelinePage() {
                 setPage(1);
               }}
               placeholder="Tìm theo tên ứng viên, vị trí, tin tuyển dụng..."
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-sm outline-none transition focus:border-brand-300 focus:bg-white"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#0B468C] focus:ring-2 focus:ring-sky-500/15"
             />
           </div>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:flex lg:shrink-0 lg:items-end">
             <div className="min-w-0 sm:w-56">
-              <span className="mb-1 block text-[11px] font-medium text-slate-400">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 Tin tuyển dụng
               </span>
               <select
@@ -581,7 +615,7 @@ export default function RecruiterPipelinePage() {
                   setJobId(e.target.value);
                   setPage(1);
                 }}
-                className="h-10 w-full truncate rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none"
+                className="h-10 w-full truncate rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none transition focus:border-[#0B468C]"
               >
                 <option value="all">Tất cả tin</option>
                 {(jobs ?? []).map((j) => (
@@ -593,7 +627,7 @@ export default function RecruiterPipelinePage() {
             </div>
 
             <div className="min-w-0 sm:w-44">
-              <span className="mb-1 block text-[11px] font-medium text-slate-400">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 Khoảng thời gian
               </span>
               <select
@@ -602,7 +636,7 @@ export default function RecruiterPipelinePage() {
                   setRangeDays(Number(e.target.value) as 14 | 30 | 90 | 0);
                   setPage(1);
                 }}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none transition focus:border-[#0B468C]"
               >
                 <option value={14}>14 ngày tới</option>
                 <option value={30}>30 ngày tới</option>
@@ -614,8 +648,8 @@ export default function RecruiterPipelinePage() {
         </div>
 
         {advancedOpen && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs">
-            <label className="inline-flex cursor-pointer items-center gap-2 font-medium text-slate-700">
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-sky-50/40 px-4 py-2.5 text-xs">
+            <label className="inline-flex cursor-pointer items-center gap-2 font-medium text-[#072348]">
               <input
                 type="checkbox"
                 checked={statusOnlyPending}
@@ -623,7 +657,7 @@ export default function RecruiterPipelinePage() {
                   setStatusOnlyPending(e.target.checked);
                   setPage(1);
                 }}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-slate-300 text-[#0B468C]"
               />
               Chỉ hiển thị hồ sơ cần xử lý / sắp diễn ra
             </label>
@@ -634,7 +668,7 @@ export default function RecruiterPipelinePage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-[12px] font-semibold text-slate-500">
+              <tr className="border-b border-slate-100 bg-slate-50/80 text-[11.5px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
@@ -681,7 +715,7 @@ export default function RecruiterPipelinePage() {
                   const avatarTone = AVATAR_TONES[idx % AVATAR_TONES.length];
                   const menuOpen = openMenuKey === row.key;
                   return (
-                    <tr key={row.key} className="transition hover:bg-slate-50/70">
+                    <tr key={row.key} className="transition hover:bg-sky-50/35">
                       <td className="px-4 py-3.5">
                         <input
                           type="checkbox"
@@ -722,10 +756,10 @@ export default function RecruiterPipelinePage() {
                       <td className="px-3 py-3.5">
                         <span
                           className={clsx(
-                            'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold',
-                            row.stage === 'interview' && 'bg-sky-50 text-[#0B468C]',
-                            row.stage === 'offer' && 'bg-amber-50 text-amber-800',
-                            row.stage === 'onboarding' && 'bg-emerald-50 text-emerald-700',
+                            'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                            row.stage === 'interview' && 'border-sky-200 bg-sky-50 text-[#0B468C]',
+                            row.stage === 'offer' && 'border-accent-200 bg-accent-50 text-accent-800',
+                            row.stage === 'onboarding' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
                           )}
                         >
                           {row.stage === 'interview' && <CalendarDays className="h-3.5 w-3.5" />}
@@ -754,12 +788,12 @@ export default function RecruiterPipelinePage() {
                       <td className="px-3 py-3.5">
                         <span
                           className={clsx(
-                            'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                            row.statusTone === 'sky' && 'bg-sky-50 text-[#1D4ED8]',
-                            row.statusTone === 'amber' && 'bg-amber-50 text-amber-800',
-                            row.statusTone === 'emerald' && 'bg-emerald-50 text-emerald-700',
-                            row.statusTone === 'rose' && 'bg-rose-50 text-rose-600',
-                            row.statusTone === 'slate' && 'bg-slate-100 text-slate-600',
+                            'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+                            row.statusTone === 'sky' && 'border-sky-200 bg-sky-50 text-[#0B468C]',
+                            row.statusTone === 'amber' && 'border-amber-200 bg-amber-50 text-amber-800',
+                            row.statusTone === 'emerald' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                            row.statusTone === 'rose' && 'border-rose-200 bg-rose-50 text-rose-600',
+                            row.statusTone === 'slate' && 'border-slate-200 bg-slate-100 text-slate-600',
                           )}
                         >
                           {row.statusText}

@@ -1298,36 +1298,40 @@ export function SearchPageClient() {
     <AppShell>
       <div className="animate-soft-rise space-y-4 pb-24 lg:pb-10">
         {/* Banner Tìm ứng viên AI */}
-        <header className="relative overflow-hidden rounded-2xl border border-[#dce6f4] bg-gradient-to-r from-[#eef5ff] via-[#f5f9ff] to-[#eaf2ff] px-5 py-5 shadow-xs sm:px-6">
+        <header className="relative overflow-hidden rounded-2xl border border-[#0B468C]/20 bg-gradient-to-r from-[#072348] via-[#0B468C] to-[#1354a6] px-5 py-6 text-white shadow-[0_12px_32px_-12px_rgba(7,35,72,0.35)] sm:px-6">
           <div className="pointer-events-none absolute -right-2 bottom-0 top-0 hidden w-44 items-end justify-center lg:flex">
-            <CopilotRobot className="w-36" />
+            <CopilotRobot className="w-36 drop-shadow-[0_8px_20px_rgba(0,0,0,0.25)]" />
           </div>
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-8 top-0 h-40 w-56 rounded-full bg-sky-200/40 blur-3xl"
+            className="pointer-events-none absolute -right-8 top-0 h-44 w-60 rounded-full bg-sky-400/20 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-48 rounded-full bg-accent-400/15 blur-2xl"
           />
           <div className="relative max-w-2xl">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0B468C]">
-              <span className="h-3.5 w-1 rounded-full bg-[#0B468C]" />
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-accent-300">
+              <span className="h-3.5 w-1 rounded-full bg-accent-400" />
               Tìm ứng viên AI
               {matching && (
-                <span className="inline-flex items-center gap-1 normal-case tracking-normal text-amber-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 normal-case tracking-normal text-amber-200">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   đang chấm matching
                 </span>
               )}
             </p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#072348] sm:text-[1.75rem] sm:leading-snug">
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-[1.75rem] sm:leading-snug">
               {showResultsDashboard ? (
                 'Tìm và kết quả ứng viên phù hợp'
               ) : (
                 <>
                   Tìm ứng viên phù hợp với{' '}
-                  <span className="text-[#1D4ED8]">nhu cầu tuyển dụng</span>
+                  <span className="text-accent-300">nhu cầu tuyển dụng</span>
                 </>
               )}
             </h1>
-            <p className="mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-slate-600">
+            <p className="mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-sky-100/90">
               {showResultsDashboard
                 ? 'Chọn tin tuyển dụng, lựa chọn cách tìm và xem ngay danh sách ứng viên được AI xếp hạng.'
                 : 'Chọn tin tuyển dụng, sau đó tìm ngay bằng AI hoặc tùy chỉnh bộ lọc theo nhu cầu.'}
@@ -1338,46 +1342,46 @@ export function SearchPageClient() {
         {/* Thanh 2 bước (chỉ hiện khi chưa xem kết quả matching) */}
         {!showResultsDashboard && (
           <div className="flex items-center justify-center gap-3 sm:gap-5">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#e8f0fe] px-3.5 py-1.5 text-[13px] font-semibold text-[#0B468C]">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
-              <ClipboardList className="h-3.5 w-3.5" />
-            </span>
-            <span>1</span>
-            <span>Chọn tin tuyển dụng</span>
-          </div>
-          <div className="flex items-center">
-            <span className="h-[1.5px] w-10 bg-[#3B82F6]/60 sm:w-16" />
-            <ArrowRight className="-ml-1 h-3.5 w-3.5 text-[#3B82F6]" />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (searchMode === 'auto' && selectedJobId) {
-                runMatch(selectedJobId);
-              } else {
-                setFiltersOpen(true);
-                filterAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-            }}
-            className={clsx(
-              'inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition',
-              stepTwoActive
-                ? 'bg-[#e8f0fe] text-[#0B468C]'
-                : 'bg-slate-100 text-slate-500 hover:bg-slate-200/70',
-            )}
-          >
-            <span
+            <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#072348] to-[#0B468C] px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm shadow-sky-900/15">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-accent-300">
+                <ClipboardList className="h-3.5 w-3.5" />
+              </span>
+              <span>1</span>
+              <span>Chọn tin tuyển dụng</span>
+            </div>
+            <div className="flex items-center">
+              <span className="h-[2px] w-10 rounded-full bg-gradient-to-r from-[#0B468C] to-accent-400 sm:w-16" />
+              <ArrowRight className="-ml-1 h-3.5 w-3.5 text-accent-500" />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (searchMode === 'auto' && selectedJobId) {
+                  runMatch(selectedJobId);
+                } else {
+                  setFiltersOpen(true);
+                  filterAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
               className={clsx(
-                'flex h-6 w-6 items-center justify-center rounded-full',
-                stepTwoActive ? 'bg-[#1D4ED8] text-white' : 'bg-slate-200 text-slate-500',
+                'inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[13px] font-semibold transition',
+                stepTwoActive
+                  ? 'bg-gradient-to-r from-accent-500 to-accent-600 text-white shadow-sm shadow-accent-500/20'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-[#0B468C]',
               )}
             >
-              <Search className="h-3.5 w-3.5" />
-            </span>
-            <span>2</span>
-            <span>Tìm ứng viên</span>
-          </button>
-        </div>
+              <span
+                className={clsx(
+                  'flex h-6 w-6 items-center justify-center rounded-full',
+                  stepTwoActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500',
+                )}
+              >
+                <Search className="h-3.5 w-3.5" />
+              </span>
+              <span>2</span>
+              <span>Tìm ứng viên</span>
+            </button>
+          </div>
         )}
 
         {/* Khối 1: Chọn tin tuyển dụng (khi chưa bấm Tìm) */}
@@ -1410,10 +1414,10 @@ export function SearchPageClient() {
           )}
 
           {(jobsQuery.isLoading || jdList.length > 0) && !jobsForbidden && (
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_-10px_rgba(7,35,72,0.07)] sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8] text-xs font-bold text-white">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#072348] to-[#0B468C] text-xs font-bold text-white shadow-xs">
                     1
                   </span>
                   <div>
@@ -1434,11 +1438,11 @@ export function SearchPageClient() {
                         value={jobQuery}
                         onChange={(e) => setJobQuery(e.target.value)}
                         placeholder="Lọc tên tin, mã…"
-                        className="w-full rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-[12.5px] outline-none transition focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-100"
+                        className="w-full rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-[12.5px] outline-none transition focus:border-[#0B468C] focus:bg-white focus:ring-2 focus:ring-sky-500/15"
                       />
                     </div>
                   )}
-                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[12px] font-semibold text-[#0B468C]">
+                  <span className="rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-indigo-50 px-3 py-1 text-[12px] font-semibold text-[#0B468C]">
                     {jdList.length} tin tuyển dụng
                   </span>
                 </div>
@@ -1469,30 +1473,30 @@ export function SearchPageClient() {
                         aria-checked={selected}
                         onClick={() => selectJob(job.id)}
                         className={clsx(
-                          'group flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition',
+                          'group flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-all',
                           selected
-                            ? 'border-[#1D4ED8] bg-[#F8FBFF] ring-1 ring-[#1D4ED8]/20'
-                            : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/60',
+                            ? 'border-[#0B468C] bg-gradient-to-r from-sky-50/85 via-[#F8FBFF] to-indigo-50/35 ring-2 ring-[#0B468C]/15 shadow-sm'
+                            : 'border-slate-200/90 bg-white hover:border-sky-200 hover:bg-sky-50/25',
                         )}
                       >
                         {/* Radio circle */}
                         <span
                           className={clsx(
                             'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition',
-                            selected ? 'border-[#1D4ED8]' : 'border-slate-300',
+                            selected ? 'border-[#0B468C]' : 'border-slate-300 group-hover:border-sky-400',
                           )}
                           aria-hidden
                         >
-                          {selected && <span className="h-2.5 w-2.5 rounded-full bg-[#1D4ED8]" />}
+                          {selected && <span className="h-2.5 w-2.5 rounded-full bg-[#0B468C]" />}
                         </span>
 
                         {/* Icon */}
                         <span
                           className={clsx(
-                            'hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border sm:flex',
+                            'hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors sm:flex',
                             selected
-                              ? 'border-sky-200 bg-white text-[#0B468C]'
-                              : 'border-slate-200 bg-slate-50 text-slate-500',
+                              ? 'border-transparent bg-gradient-to-br from-[#072348] to-[#0B468C] text-white shadow-sm'
+                              : 'border-slate-200 bg-slate-50 text-slate-500 group-hover:border-sky-200 group-hover:bg-sky-50 group-hover:text-[#0B468C]',
                           )}
                           aria-hidden
                         >
@@ -1509,8 +1513,8 @@ export function SearchPageClient() {
                               className={clsx(
                                 'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
                                 job.status === JobStatus.Published
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : 'bg-amber-50 text-amber-700',
+                                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : 'border border-amber-200 bg-amber-50 text-amber-700',
                               )}
                             >
                               {job.status === JobStatus.Published ? 'Đang tuyển' : 'Tạm dừng'}
@@ -1528,21 +1532,21 @@ export function SearchPageClient() {
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-slate-600">
                             {track && (
                               <span className="inline-flex items-center gap-1">
-                                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                                <Briefcase className="h-3.5 w-3.5 text-[#0B468C]/70" />
                                 {formatJobTrack(track)}
                               </span>
                             )}
                             <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                              <MapPin className="h-3.5 w-3.5 text-sky-600/75" />
                               {job.location ?? '—'}
                             </span>
                             <span className="inline-flex items-center gap-1">
-                              <Wallet className="h-3.5 w-3.5 text-slate-400" />
+                              <Wallet className="h-3.5 w-3.5 text-emerald-600/80" />
                               {formatSalary(job.salaryMin, job.salaryMax)}
                             </span>
                             {job.employmentType && (
                               <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                <Clock className="h-3.5 w-3.5 text-accent-500/80" />
                                 {EMPLOYMENT_LABEL[job.employmentType] ?? job.employmentType}
                               </span>
                             )}
@@ -1550,8 +1554,8 @@ export function SearchPageClient() {
                         </div>
 
                         {selected && (
-                          <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-[#e8f0fe] px-3 py-1 text-[12px] font-semibold text-[#0B468C] sm:inline-flex">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-[#1D4ED8]" />
+                          <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-[#072348] to-[#0B468C] px-3 py-1 text-[12px] font-semibold text-white shadow-xs sm:inline-flex">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-accent-300" />
                             Đang được chọn
                           </span>
                         )}
@@ -1571,9 +1575,9 @@ export function SearchPageClient() {
 
         {/* Khối 2: Chọn cách tìm ứng viên (khi chưa bấm Tìm) */}
         {!showResultsDashboard && !jobsForbidden && (
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_-10px_rgba(7,35,72,0.07)] sm:p-5">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8] text-xs font-bold text-white">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-accent-600 text-xs font-bold text-white shadow-xs">
                 2
               </span>
               <h2 className="text-[15px] font-bold text-[#072348]">Chọn cách tìm ứng viên</h2>
@@ -1588,31 +1592,33 @@ export function SearchPageClient() {
                   setFiltersOpen(false);
                 }}
                 className={clsx(
-                  'flex items-start gap-3 rounded-xl border p-4 text-left transition',
+                  'group flex items-start gap-3 rounded-xl border p-4 text-left transition-all',
                   searchMode === 'auto'
-                    ? 'border-[#1D4ED8] bg-[#F8FBFF] ring-1 ring-[#1D4ED8]/20'
-                    : 'border-slate-200 bg-white hover:border-slate-300',
+                    ? 'border-[#0B468C] bg-gradient-to-br from-sky-50/90 via-white to-indigo-50/40 ring-2 ring-[#0B468C]/15 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/20',
                 )}
               >
                 <span
                   className={clsx(
                     'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
-                    searchMode === 'auto' ? 'border-[#1D4ED8]' : 'border-slate-300',
+                    searchMode === 'auto' ? 'border-[#0B468C]' : 'border-slate-300',
                   )}
                 >
-                  {searchMode === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-[#1D4ED8]" />}
+                  {searchMode === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-[#0B468C]" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Zap className="h-4 w-4 text-amber-500" />
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+                      <Zap className="h-4 w-4" />
+                    </span>
                     <span className="text-[14px] font-bold text-[#072348]">
                       Tìm ngay (tự động)
                     </span>
-                    <span className="rounded-full bg-[#e8f0fe] px-2.5 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
+                    <span className="rounded-full bg-gradient-to-r from-accent-500 to-accent-600 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-xs">
                       Khuyên dùng
                     </span>
                   </div>
-                  <p className="mt-1 text-[12.5px] leading-relaxed text-slate-500">
+                  <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-500">
                     AI tự phân tích toàn bộ JD và tìm, xếp hạng ứng viên phù hợp nhất. Nhanh và đơn giản.
                   </p>
                 </div>
@@ -1629,28 +1635,30 @@ export function SearchPageClient() {
                   }, 50);
                 }}
                 className={clsx(
-                  'flex items-start gap-3 rounded-xl border p-4 text-left transition',
+                  'group flex items-start gap-3 rounded-xl border p-4 text-left transition-all',
                   searchMode === 'filter'
-                    ? 'border-[#1D4ED8] bg-[#F8FBFF] ring-1 ring-[#1D4ED8]/20'
-                    : 'border-slate-200 bg-white hover:border-slate-300',
+                    ? 'border-indigo-500 bg-gradient-to-br from-indigo-50/80 via-white to-sky-50/40 ring-2 ring-indigo-500/15 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/20',
                 )}
               >
                 <span
                   className={clsx(
                     'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
-                    searchMode === 'filter' ? 'border-[#1D4ED8]' : 'border-slate-300',
+                    searchMode === 'filter' ? 'border-indigo-600' : 'border-slate-300',
                   )}
                 >
-                  {searchMode === 'filter' && <span className="h-2.5 w-2.5 rounded-full bg-[#1D4ED8]" />}
+                  {searchMode === 'filter' && <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="h-4 w-4 text-[#1D4ED8]" />
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </span>
                     <span className="text-[14px] font-bold text-[#072348]">
                       Tìm bằng bộ lọc (tùy chọn)
                     </span>
                   </div>
-                  <p className="mt-1 text-[12.5px] leading-relaxed text-slate-500">
+                  <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-500">
                     Tự điều chỉnh thêm tiêu chí (địa điểm, ngành nghề, kinh nghiệm, mức lương, sẵn sàng nhận việc...).
                   </p>
                 </div>
@@ -1658,9 +1666,9 @@ export function SearchPageClient() {
             </div>
 
             {/* Thanh AI sẽ giúp bạn */}
-            <div className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl bg-slate-50/90 px-4 py-2.5 text-[12.5px] text-slate-600">
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-accent-200/80 bg-gradient-to-r from-accent-50/75 via-amber-50/40 to-sky-50/40 px-4 py-3 text-[12.5px] text-slate-700">
               <span className="inline-flex items-center gap-1.5 font-semibold text-[#072348]">
-                <Sparkles className="h-4 w-4 text-amber-500" />
+                <Sparkles className="h-4 w-4 text-accent-500" />
                 AI sẽ giúp bạn:
               </span>
               <span className="inline-flex items-center gap-1.5">
@@ -1693,12 +1701,12 @@ export function SearchPageClient() {
                     filterAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
                 }}
-                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0B468C] to-[#1D4ED8] px-6 py-2.5 text-[14px] font-semibold text-white shadow-sm transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#072348] via-[#0B468C] to-[#1258ad] px-6 py-2.5 text-[14px] font-semibold text-white shadow-md shadow-[#072348]/25 transition-all hover:shadow-lg hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {matching ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4 text-accent-300" />
                 )}
                 {matching ? 'Đang tìm ứng viên…' : 'Tìm ứng viên ngay'}
                 <ArrowRight className="h-4 w-4" />

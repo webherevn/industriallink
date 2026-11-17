@@ -839,8 +839,6 @@ function MatchJobCard({
   const expText = job.experienceBand
     ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand] ?? job.experienceBand
     : 'Không yêu cầu';
-  const skillTags = (job.skills ?? []).map((s) => plainLabel(s)).filter(Boolean).slice(0, 5);
-  const benefitTags = skillTags.length === 0 ? splitBenefitTags(job.benefits) : [];
 
   return (
     <li>
@@ -950,7 +948,7 @@ function MatchJobCard({
                 </div>
               )}
 
-              {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm, Cấp bậc */}
+              {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm */}
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-slate-600">
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -964,39 +962,7 @@ function MatchJobCard({
                   <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   {expText}
                 </span>
-                {job.jobLevel && (
-                  <span className="inline-flex items-center gap-1">
-                    <User className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    {formatJobLevel(job.jobLevel)}
-                  </span>
-                )}
               </div>
-
-              {/* Hàng 5: Kỹ năng hoặc Phúc lợi */}
-              {skillTags.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {skillTags.map((s) => (
-                    <span
-                      key={s}
-                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11.5px] font-medium text-slate-600"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {skillTags.length === 0 && benefitTags.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {benefitTags.map((b) => (
-                    <span
-                      key={b}
-                      className="rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11.5px] font-medium text-slate-600"
-                    >
-                      {b}
-                    </span>
-                  ))}
-                </div>
-              )}
 
               {/* Hàng 6: Hộp AI gợi ý */}
               {(() => {
