@@ -347,6 +347,7 @@ export class BillingService implements OnModuleInit {
   async assignCompanyPlan(
     actor: AuthenticatedUser,
     input: AdminAssignCompanyPlanRequest,
+    opts: { forceGrant?: boolean; preserveRemainingQuota?: boolean; reserveOnly?: boolean } = {},
   ): Promise<BillingCompanyPlanView> {
     const plan = await this.prisma.billingPlatformPlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new NotFoundException('Không tìm thấy gói');
@@ -358,16 +359,21 @@ export class BillingService implements OnModuleInit {
     if (!company) throw new NotFoundException('Không tìm thấy công ty');
 
     const startsAt = input.startsAt ? new Date(input.startsAt) : new Date();
-    const endsAt =
-      input.endsAt === undefined
+    const reserveOnly = Boolean(opts.reserveOnly && plan.code !== STARTER_PLAN_CODE && plan.code !== 'ENTERPRISE');
+    const endsAt = reserveOnly
+      ? null
+      : input.endsAt === undefined
         ? this.planCycleEndsAt(plan, startsAt)
         : input.endsAt
           ? new Date(input.endsAt)
           : null;
+    const activatedAt = reserveOnly ? null : startsAt;
+    const reserveEndsAt = reserveOnly ? addUtcDays(startsAt, 365) : null;
 
     const actorId = looksLikeUuid(actor.id) ? actor.id : null;
     const before = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId: input.companyId },
+      include: { plan: true },
     });
     const isEnterprise = plan.code === 'ENTERPRISE';
     const toOptInt = (v: number | null | undefined): number | null => {
@@ -396,10 +402,43 @@ export class BillingService implements OnModuleInit {
         : toOptInt(input.customDurationDays)
       : null;
 
-    const shouldGrant = this.shouldGrantPlanQuota(before, {
-      planId: input.planId,
-      isActive: input.isActive ?? true,
-    });
+    let extraJobPostQuota = 0;
+    const now = new Date();
+    const beforeValid =
+      before &&
+      before.isActive &&
+      before.plan &&
+      before.plan.code !== STARTER_PLAN_CODE &&
+      (!before.endsAt || before.endsAt >= now) &&
+      (!before.reserveEndsAt || before.activatedAt != null || before.reserveEndsAt >= now);
+    if (opts.preserveRemainingQuota && beforeValid) {
+      const oldBase = before.customJobPostQuota ?? before.plan.jobPostQuota ?? null;
+      if (oldBase != null) {
+        const oldCountActive =
+          before.plan.code === 'DOANH_NGHIEP' || before.plan.code === 'ENTERPRISE';
+        const oldUsed = await this.prisma.job.count({
+          where: oldCountActive
+            ? { companyId: input.companyId, isDeleted: false, status: 'published' }
+            : {
+                companyId: input.companyId,
+                isDeleted: false,
+                status: { not: 'draft' },
+                createdAt: {
+                  gte: before.startsAt,
+                  ...(before.endsAt ? { lte: before.endsAt } : {}),
+                },
+              },
+        });
+        extraJobPostQuota = Math.max(0, oldBase + (before.extraJobPostQuota ?? 0) - oldUsed);
+      }
+    }
+
+    const shouldGrant =
+      Boolean(opts.forceGrant) ||
+      this.shouldGrantPlanQuota(before, {
+        planId: input.planId,
+        isActive: input.isActive ?? true,
+      });
     const effectiveQuota = isEnterprise
       ? (customCreditQuota ?? plan.creditQuota ?? 0)
       : (plan.creditQuota ?? 0);
@@ -421,11 +460,14 @@ export class BillingService implements OnModuleInit {
           planId: input.planId,
           startsAt,
           endsAt,
+          activatedAt,
+          reserveEndsAt,
           isActive: input.isActive ?? true,
           note: input.note ?? null,
           customJobPostQuota,
           customCreditQuota,
           customDurationDays,
+          extraJobPostQuota,
           createdBy: actorId,
           updatedBy: actorId,
         },
@@ -433,11 +475,14 @@ export class BillingService implements OnModuleInit {
           planId: input.planId,
           startsAt,
           endsAt,
+          activatedAt,
+          reserveEndsAt,
           isActive: input.isActive ?? true,
           note: input.note === undefined ? undefined : input.note,
           customJobPostQuota,
           customCreditQuota,
           customDurationDays,
+          extraJobPostQuota,
           updatedBy: actorId,
         },
         include: { plan: true },
@@ -568,9 +613,21 @@ export class BillingService implements OnModuleInit {
       existing.plan.code !== STARTER_PLAN_CODE &&
       existing.plan.code !== 'ENTERPRISE'
     ) {
+      // Đang bảo lưu (chưa kích hoạt tin đầu tiên): không tính hết hạn theo durationDays, chỉ hết hạn sau 365 ngày bảo lưu.
+      if (!existing.activatedAt && existing.reserveEndsAt) {
+        if (existing.reserveEndsAt < now) {
+          return this.provisionStarterPlan(companyId, {
+            renew: true,
+            note: `Về gói Khám phá vì gói ${existing.plan.name} hết hạn bảo lưu 365 ngày`,
+          });
+        }
+        await this.safeBackfillPlanGrant(companyId, existing);
+        return this.mapCompanyPlan(existing);
+      }
+
       let cycleEnd = existing.endsAt;
       if (!cycleEnd && existing.plan.durationDays != null && existing.plan.durationDays > 0) {
-        cycleEnd = addUtcDays(existing.startsAt, existing.plan.durationDays);
+        cycleEnd = addUtcDays(existing.activatedAt ?? existing.startsAt, existing.plan.durationDays);
         const restored = await this.prisma.billingCompanyPlan.update({
           where: { companyId },
           data: { endsAt: cycleEnd },
@@ -726,7 +783,9 @@ export class BillingService implements OnModuleInit {
       );
     }
 
-    const quota = assignment?.customJobPostQuota ?? assignment?.plan?.jobPostQuota ?? null;
+    const baseQuota = assignment?.customJobPostQuota ?? assignment?.plan?.jobPostQuota ?? null;
+    const quota =
+      baseQuota == null ? null : baseQuota + (assignment?.extraJobPostQuota ?? 0);
     const effectiveCreditQuota = assignment?.customCreditQuota ?? assignment?.plan?.creditQuota ?? null;
     const effectiveDisplayDays = assignment?.customDurationDays ?? assignment?.plan?.durationDays ?? null;
     const countActiveJobs =
@@ -738,6 +797,7 @@ export class BillingService implements OnModuleInit {
             : {
                 companyId,
                 isDeleted: false,
+                status: { not: 'draft' },
                 createdAt: {
                   gte: assignment.startsAt,
                   ...(assignment.endsAt ? { lte: assignment.endsAt } : {}),
@@ -1102,7 +1162,8 @@ export class BillingService implements OnModuleInit {
   }
 
   /**
-   * NTD thanh toán / SuperAdmin duyệt → gán gói. Khám phá hạn 14 ngày; gói tin khác không hạn ngày.
+   * NTD thanh toán / SuperAdmin duyệt → gán gói.
+   * Gói trả phí được bảo lưu tối đa 365 ngày nếu chưa đăng tin, và cộng dồn lượt còn dư từ gói trả phí trước.
    */
   async activatePurchasedPlan(
     actor: AuthenticatedUser,
@@ -1116,11 +1177,49 @@ export class BillingService implements OnModuleInit {
     if (plan.code === 'ENTERPRISE') {
       throw new BadRequestException('Gói Enterprise liên hệ sales — không tự thanh toán');
     }
-    return this.assignCompanyPlan(actor, {
-      companyId,
-      planId: plan.id,
-      isActive: true,
-      note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt`,
+    const isStarter = plan.code === STARTER_PLAN_CODE;
+    return this.assignCompanyPlan(
+      actor,
+      {
+        companyId,
+        planId: plan.id,
+        isActive: true,
+        note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt`,
+      },
+      isStarter
+        ? {}
+        : {
+            forceGrant: true,
+            preserveRemainingQuota: true,
+            reserveOnly: true,
+          },
+    );
+  }
+
+  /** Kích hoạt đếm hạn gói khi NTD xuất bản tin tuyển dụng đầu tiên (kết thúc trạng thái bảo lưu). */
+  async markPlatformPlanActivated(companyId: string): Promise<void> {
+    const row = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (
+      !row ||
+      !row.isActive ||
+      row.activatedAt != null ||
+      row.plan.code === STARTER_PLAN_CODE ||
+      row.plan.code === 'ENTERPRISE'
+    ) {
+      return;
+    }
+    const now = new Date();
+    const durationDays = row.customDurationDays ?? row.plan.durationDays;
+    const endsAt = durationDays != null && durationDays > 0 ? addUtcDays(now, durationDays) : null;
+    await this.prisma.billingCompanyPlan.update({
+      where: { companyId },
+      data: {
+        activatedAt: now,
+        endsAt,
+      },
     });
   }
 
@@ -1966,11 +2065,14 @@ export class BillingService implements OnModuleInit {
       planName: row.plan.name,
       startsAt: row.startsAt.toISOString(),
       endsAt: row.endsAt?.toISOString() ?? null,
+      activatedAt: row.activatedAt?.toISOString() ?? null,
+      reserveEndsAt: row.reserveEndsAt?.toISOString() ?? null,
       isActive: row.isActive,
       note: row.note,
       customJobPostQuota: row.customJobPostQuota ?? null,
       customCreditQuota: row.customCreditQuota ?? null,
       customDurationDays: row.customDurationDays ?? null,
+      extraJobPostQuota: row.extraJobPostQuota ?? 0,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

@@ -787,8 +787,10 @@ model Job {
   moderatedBy       String?   @map("moderated_by") @db.Uuid
   // Embedding cá»§a mÃ´ táº£ cÃ´ng viá»‡c (JD) cho AI Matching, ghi/Ä‘á»c qua raw SQL.
   embedding      Unsupported("vector(768)")?
-  publishedAt    DateTime? @map("published_at")
-  viewCount      Int       @default(0) @map("view_count")
+  publishedAt        DateTime? @map("published_at")
+  pausedAt           DateTime? @map("paused_at")
+  remainingDisplayMs BigInt?   @map("remaining_display_ms")
+  viewCount          Int       @default(0) @map("view_count")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid
@@ -1395,15 +1397,19 @@ model BillingCompanyPlan {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId String    @unique @map("company_id") @db.Uuid
   planId    String    @map("plan_id") @db.Uuid
-  startsAt  DateTime  @default(now()) @map("starts_at")
-  endsAt    DateTime? @map("ends_at")
-  isActive  Boolean   @default(true) @map("is_active")
-  note      String?
+  startsAt      DateTime  @default(now()) @map("starts_at")
+  endsAt        DateTime? @map("ends_at")
+  activatedAt   DateTime? @map("activated_at")
+  reserveEndsAt DateTime? @map("reserve_ends_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  note          String?
 
   /// Hạn mức ghi đè riêng theo hợp đồng của từng doanh nghiệp (Enterprise; null = kế thừa từ gói).
   customJobPostQuota Int? @map("custom_job_post_quota")
   customCreditQuota  Int? @map("custom_credit_quota")
   customDurationDays Int? @map("custom_duration_days")
+  /// Lượt đăng tin cộng dồn khi mua thêm / nâng cấp từ gói trả phí còn lượt.
+  extraJobPostQuota  Int  @default(0) @map("extra_job_post_quota")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid
@@ -1464,15 +1470,23 @@ model BillingCompanySourcingPlan {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId String    @unique @map("company_id") @db.Uuid
   planId    String    @map("plan_id") @db.Uuid
-  startsAt  DateTime  @default(now()) @map("starts_at")
-  endsAt    DateTime? @map("ends_at")
-  isActive  Boolean   @default(true) @map("is_active")
-  note      String?
+  startsAt      DateTime  @default(now()) @map("starts_at")
+  endsAt        DateTime? @map("ends_at")
+  activatedAt   DateTime? @map("activated_at")
+  reserveEndsAt DateTime? @map("reserve_ends_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  note          String?
 
-  positionsUsed    Int @default(0) @map("positions_used")
-  searchRoundsUsed Int @default(0) @map("search_rounds_used")
-  shortlistsUsed   Int @default(0) @map("shortlists_used")
-  revisionsUsed    Int @default(0) @map("revisions_used")
+  positionsUsed         Int @default(0) @map("positions_used")
+  searchRoundsUsed      Int @default(0) @map("search_rounds_used")
+  shortlistsUsed        Int @default(0) @map("shortlists_used")
+  revisionsUsed         Int @default(0) @map("revisions_used")
+  /// Hạn mức cộng dồn khi mua thêm / nâng cấp từ gói Săn còn lượt.
+  extraPositionQuota    Int @default(0) @map("extra_position_quota")
+  extraSearchRoundQuota Int @default(0) @map("extra_search_round_quota")
+  extraShortlistQuota   Int @default(0) @map("extra_shortlist_quota")
+  extraRevisionQuota    Int @default(0) @map("extra_revision_quota")
+  extraCreditQuota      Int @default(0) @map("extra_credit_quota")
 
   createdAt DateTime @default(now()) @map("created_at")
   createdBy String?  @map("created_by") @db.Uuid

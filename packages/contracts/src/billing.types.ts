@@ -85,11 +85,14 @@ export interface BillingCompanyPlanView {
   planName: string;
   startsAt: string;
   endsAt: string | null;
+  activatedAt?: string | null;
+  reserveEndsAt?: string | null;
   isActive: boolean;
   note: string | null;
   customJobPostQuota?: number | null;
   customCreditQuota?: number | null;
   customDurationDays?: number | null;
+  extraJobPostQuota?: number;
   updatedAt: string;
 }
 
@@ -369,8 +372,15 @@ export interface BillingCompanySourcingPlanView {
   planName: string;
   startsAt: string;
   endsAt: string | null;
+  activatedAt?: string | null;
+  reserveEndsAt?: string | null;
   isActive: boolean;
   note: string | null;
+  extraPositionQuota?: number;
+  extraSearchRoundQuota?: number;
+  extraShortlistQuota?: number;
+  extraRevisionQuota?: number;
+  extraCreditQuota?: number;
   updatedAt: string;
 }
 

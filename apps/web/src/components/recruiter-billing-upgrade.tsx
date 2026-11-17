@@ -189,23 +189,34 @@ export function RecruiterPlanUpgrade() {
                     errorClassName="mt-2 text-xs text-rose-600"
                   />
                 </div>
-              ) : isCurrent ? (
+              ) : isCurrent && isFree ? (
                 <p className="mt-6 text-sm text-emerald-800">
-                  Bạn đang dùng gói này đến {fmtDate(current?.endsAt ?? null)}.
+                  Bạn đang dùng gói Khám phá đến {fmtDate(current?.endsAt ?? null)}.
                 </p>
               ) : (
-                <Button
-                  className="mt-6 w-full"
-                  disabled={activate.isPending}
-                  onClick={() => activate.mutate()}
-                >
-                  {activate.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4" />
+                <div className="mt-6 space-y-3">
+                  {isCurrent && (
+                    <p className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs font-medium text-emerald-900">
+                      Bạn đang dùng gói này. Mua thêm sẽ <strong>cộng dồn lượt tin còn lại</strong> và bảo lưu tối đa <strong>365 ngày</strong> nếu chưa đăng tin.
+                    </p>
                   )}
-                  {isFree ? 'Kích hoạt gói Khám phá' : 'Thanh toán gói'}
-                </Button>
+                  <Button
+                    className="w-full"
+                    disabled={activate.isPending}
+                    onClick={() => activate.mutate()}
+                  >
+                    {activate.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )}
+                    {isFree
+                      ? 'Kích hoạt gói Khám phá'
+                      : isCurrent
+                        ? 'Mua thêm gói này (Cộng dồn lượt)'
+                        : 'Thanh toán gói'}
+                  </Button>
+                </div>
               )}
             </Card>
 

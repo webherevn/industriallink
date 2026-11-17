@@ -291,14 +291,28 @@ export class JobService {
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
     });
     if (!job) return;
+    await this.billing.markPlatformPlanActivated(job.companyId);
     const publishedAt = job.publishedAt ?? new Date();
-    const deadline = await this.resolveJobDeadline(job.companyId, job.deadline, publishedAt);
-    if (deadline && (!job.deadline || job.deadline.getTime() !== deadline.getTime())) {
+    const restoredDeadline =
+      job.remainingDisplayMs != null && Number(job.remainingDisplayMs) > 0
+        ? new Date(Date.now() + Number(job.remainingDisplayMs))
+        : null;
+    const deadline =
+      restoredDeadline ?? (await this.resolveJobDeadline(job.companyId, job.deadline, publishedAt));
+    if (
+      (deadline && (!job.deadline || job.deadline.getTime() !== deadline.getTime())) ||
+      job.pausedAt != null ||
+      job.remainingDisplayMs != null
+    ) {
       await this.prisma.job.update({
         where: { id: job.id },
-        data: { deadline },
+        data: {
+          ...(deadline ? { deadline } : {}),
+          pausedAt: null,
+          remainingDisplayMs: null,
+        },
       });
-      job.deadline = deadline;
+      if (deadline) job.deadline = deadline;
     }
     await this.embedAndPublish(job, correlationId);
     void this.indexing.notifyJob(job, 'URL_UPDATED');
@@ -463,8 +477,8 @@ export class JobService {
     const willPublish = dto.publish === true;
     if (willPublish) {
       await this.companies.assertCompanyCanPost(company.companyId);
+      await this.billing.assertJobQuota(company.companyId);
     }
-    await this.billing.assertJobQuota(company.companyId);
     const code = await this.codeGen.next('JOB');
 
 
@@ -580,6 +594,9 @@ export class JobService {
     await this.companies.assertCompanyCanPost(job.companyId);
     if (job.status === JobStatus.Published) {
       return this.toView(job);
+    }
+    if (job.status === JobStatus.Draft) {
+      await this.billing.assertJobQuota(job.companyId);
     }
     const updated = await this.prisma.job.update({
       where: { id: job.id },
@@ -752,12 +769,18 @@ export class JobService {
     }
 
     // Các chuyển trạng thái còn lại: nháp / tạm dừng / đóng.
+    const pausingFromPublished =
+      status === JobStatus.Paused && job.status === JobStatus.Published && job.deadline != null;
+    const remainingDisplayMs = pausingFromPublished
+      ? BigInt(Math.max(0, job.deadline!.getTime() - Date.now()))
+      : undefined;
     const updated = await this.prisma.job.update({
       where: { id: job.id },
       data: {
         status,
         publishedAt: job.publishedAt,
         deadline: job.deadline,
+        ...(pausingFromPublished ? { pausedAt: new Date(), remainingDisplayMs } : {}),
         updatedBy: user.id,
       },
       include: { skills: true, company: { select: JOB_COMPANY_SELECT } },

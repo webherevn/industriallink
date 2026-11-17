@@ -148,7 +148,10 @@ export class SourcingService {
       }
     }
 
-    const quota = row.plan.positionQuota;
+    const quota =
+      row.plan.positionQuota != null
+        ? row.plan.positionQuota + (row.extraPositionQuota ?? 0)
+        : null;
     if (quota != null && quota > 0 && candidatesToKeep.length > quota) {
       const surplus = candidatesToKeep.slice(quota);
       for (const s of surplus) {
@@ -329,7 +332,7 @@ export class SourcingService {
   async assignCompanyPlan(
     actor: AuthenticatedUser,
     input: AdminAssignCompanySourcingPlanRequest,
-    opts: { restartCycle?: boolean } = {},
+    opts: { restartCycle?: boolean; preserveRemaining?: boolean; reserveOnly?: boolean } = {},
   ): Promise<BillingCompanySourcingPlanView> {
     const plan = await this.prisma.billingSourcingPlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new NotFoundException('Không tìm thấy gói Săn');
@@ -344,14 +347,63 @@ export class SourcingService {
     const actorId = looksLikeUuid(actor.id) ? actor.id : null;
     const before = await this.prisma.billingCompanySourcingPlan.findUnique({
       where: { companyId: input.companyId },
+      include: { plan: true },
     });
     const switching = Boolean(opts.restartCycle) || !before || before.planId !== input.planId || !before.isActive;
-    const cycleEnd =
-      input.endsAt === undefined
+    const reserveOnly = Boolean(opts.reserveOnly);
+    const cycleEnd = reserveOnly
+      ? null
+      : input.endsAt === undefined
         ? addUtcDays(startsAt, SOURCING_CYCLE_DAYS)
         : input.endsAt
           ? new Date(input.endsAt)
           : null;
+    const activatedAt = reserveOnly ? null : startsAt;
+    const reserveEndsAt = reserveOnly ? addUtcDays(startsAt, 365) : null;
+
+    let extraPositionQuota = before?.extraPositionQuota ?? 0;
+    let extraSearchRoundQuota = before?.extraSearchRoundQuota ?? 0;
+    let extraShortlistQuota = before?.extraShortlistQuota ?? 0;
+    let extraRevisionQuota = before?.extraRevisionQuota ?? 0;
+    let extraCreditQuota = before?.extraCreditQuota ?? 0;
+    const now = new Date();
+    const beforeValid =
+      before &&
+      before.isActive &&
+      before.plan &&
+      (!before.endsAt || before.endsAt >= now) &&
+      (!before.reserveEndsAt || before.activatedAt != null || before.reserveEndsAt >= now);
+
+    if (opts.preserveRemaining && beforeValid) {
+      const oldOpensUsed = await this.countIncludedOpens(before.id, before.startsAt);
+      extraPositionQuota =
+        before.plan.positionQuota != null
+          ? Math.max(0, before.plan.positionQuota + (before.extraPositionQuota ?? 0) - before.positionsUsed)
+          : 0;
+      extraSearchRoundQuota =
+        before.plan.searchRoundQuota != null
+          ? Math.max(0, before.plan.searchRoundQuota + (before.extraSearchRoundQuota ?? 0) - before.searchRoundsUsed)
+          : 0;
+      extraShortlistQuota =
+        before.plan.shortlistQuota != null
+          ? Math.max(0, before.plan.shortlistQuota + (before.extraShortlistQuota ?? 0) - before.shortlistsUsed)
+          : 0;
+      extraRevisionQuota =
+        before.plan.revisionQuota != null
+          ? Math.max(0, before.plan.revisionQuota + (before.extraRevisionQuota ?? 0) - before.revisionsUsed)
+          : 0;
+      extraCreditQuota =
+        before.plan.creditQuota != null
+          ? Math.max(0, before.plan.creditQuota + (before.extraCreditQuota ?? 0) - oldOpensUsed)
+          : 0;
+    } else if (switching) {
+      extraPositionQuota = 0;
+      extraSearchRoundQuota = 0;
+      extraShortlistQuota = 0;
+      extraRevisionQuota = 0;
+      extraCreditQuota = 0;
+    }
+
     const row = await this.prisma.$transaction(async (tx) => {
       const assigned = await tx.billingCompanySourcingPlan.upsert({
         where: { companyId: input.companyId },
@@ -360,17 +412,31 @@ export class SourcingService {
           planId: input.planId,
           startsAt,
           endsAt: cycleEnd,
+          activatedAt,
+          reserveEndsAt,
           isActive: input.isActive ?? true,
           note: input.note ?? 'Kích hoạt gói Săn nhân sự',
+          extraPositionQuota,
+          extraSearchRoundQuota,
+          extraShortlistQuota,
+          extraRevisionQuota,
+          extraCreditQuota,
           createdBy: actorId,
           updatedBy: actorId,
         },
         update: {
           planId: input.planId,
           startsAt: switching ? startsAt : undefined,
-          endsAt: switching || input.endsAt !== undefined ? cycleEnd : undefined,
+          endsAt: switching || input.endsAt !== undefined || reserveOnly ? cycleEnd : undefined,
+          activatedAt: switching || reserveOnly ? activatedAt : undefined,
+          reserveEndsAt: switching || reserveOnly ? reserveEndsAt : undefined,
           isActive: input.isActive ?? true,
           note: input.note ?? 'Kích hoạt gói Săn nhân sự',
+          extraPositionQuota,
+          extraSearchRoundQuota,
+          extraShortlistQuota,
+          extraRevisionQuota,
+          extraCreditQuota,
           updatedBy: actorId,
           ...(switching
             ? { positionsUsed: 0, searchRoundsUsed: 0, shortlistsUsed: 0, revisionsUsed: 0 }
@@ -378,8 +444,8 @@ export class SourcingService {
         },
         include: { plan: true },
       });
-      // Lượt mở không cộng vào ví. Còn lại = creditQuota SuperAdmin đang đặt − hồ sơ đã mở trong kỳ.
-      if (switching) {
+      // Chỉ xoá engagement cũ khi admin reset thủ công; khi NTD mua cộng dồn thì giữ nguyên các vị trí đang chạy.
+      if (switching && !opts.preserveRemaining) {
         await tx.billingSourcingUsage.deleteMany({
           where: { companyId: input.companyId, assignmentId: assigned.id },
         });
@@ -420,11 +486,11 @@ export class SourcingService {
         companyId,
         planId: plan.id,
         startsAt: startsAt.toISOString(),
-        endsAt: addUtcDays(startsAt, SOURCING_CYCLE_DAYS).toISOString(),
+        endsAt: null,
         isActive: true,
-        note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt`,
+        note: `Kích hoạt gói ${plan.name} sau thanh toán / duyệt (bảo lưu tối đa 365 ngày)`,
       },
-      { restartCycle: true },
+      { restartCycle: true, preserveRemaining: true, reserveOnly: true },
     );
   }
 
@@ -521,18 +587,39 @@ export class SourcingService {
         if (dupEngagement) {
           throw new BadRequestException('Tin tuyển dụng (JD) này đã được kích hoạt trong Danh sách Tin Săn.');
         }
-        if (assignment.plan.positionQuota != null && assignment.plan.positionQuota > 0) {
+        const effectivePosQuota =
+          assignment.plan.positionQuota != null
+            ? assignment.plan.positionQuota + (assignment.extraPositionQuota ?? 0)
+            : null;
+        if (effectivePosQuota != null && effectivePosQuota > 0) {
           const currentEngagementCount = await tx.billingSourcingEngagement.count({
-            where: { companyId, assignmentId: assignment.id, jobId: { not: null }, status: { not: 'closed' } },
+            where: {
+              companyId,
+              assignmentId: assignment.id,
+              jobId: { not: null },
+              status: { not: 'closed' },
+              createdAt: { gte: assignment.startsAt },
+            },
           });
-          if (currentEngagementCount >= assignment.plan.positionQuota) {
+          if (currentEngagementCount >= effectivePosQuota) {
             throw new ForbiddenException({
               code: 'SOURCING_QUOTA_EXCEEDED',
-              message: `Gói ${assignment.plan.name} chỉ cho phép tối đa ${assignment.plan.positionQuota} Tin Săn hoạt động cùng lúc.`,
+              message: `Gói ${assignment.plan.name} chỉ cho phép tối đa ${effectivePosQuota} Tin Săn hoạt động cùng lúc.`,
               kind,
               planCode: assignment.plan.code,
             });
           }
+        }
+        // Kết thúc trạng thái bảo lưu khi NTD kích hoạt Tin Săn đầu tiên.
+        if (!assignment.activatedAt) {
+          const actNow = new Date();
+          await tx.billingCompanySourcingPlan.update({
+            where: { id: assignment.id },
+            data: {
+              activatedAt: actNow,
+              endsAt: addUtcDays(actNow, SOURCING_CYCLE_DAYS),
+            },
+          });
         }
         const existingJob = await tx.job.findFirst({
           where: { id: validJobId, companyId, isDeleted: false },
@@ -857,7 +944,25 @@ export class SourcingService {
       where: { companyId },
       include: { plan: true },
     });
-    if (!row?.plan || !row.isActive || !row.endsAt || row.endsAt.getTime() > Date.now()) return row;
+    if (!row?.plan || !row.isActive) return row;
+    const nowMs = Date.now();
+    // Đang bảo lưu (chưa kích hoạt Tin Săn đầu tiên): chỉ hết hạn khi quá 365 ngày bảo lưu.
+    if (!row.activatedAt && row.reserveEndsAt) {
+      if (row.reserveEndsAt.getTime() > nowMs) return row;
+      return this.prisma.billingCompanySourcingPlan.update({
+        where: { companyId },
+        data: {
+          isActive: false,
+          positionsUsed: 0,
+          searchRoundsUsed: 0,
+          shortlistsUsed: 0,
+          revisionsUsed: 0,
+          note: 'Gói Săn hết hạn bảo lưu 365 ngày chưa sử dụng',
+        },
+        include: { plan: true },
+      });
+    }
+    if (!row.endsAt || row.endsAt.getTime() > nowMs) return row;
     return this.prisma.billingCompanySourcingPlan.update({
       where: { companyId },
       data: {
@@ -928,7 +1033,19 @@ export class SourcingService {
       scopeCodes.includes('outreach') ||
       plan.code === 'SAN_CHUYEN_SAU' ||
       (plan.shortlistQuota != null && plan.shortlistQuota > 0);
-    const outreachQuota = hasOutreach ? (plan.shortlistQuota ?? 15) : 0;
+    const positionQuota =
+      plan.positionQuota != null ? plan.positionQuota + (row.extraPositionQuota ?? 0) : null;
+    const searchRoundQuota =
+      plan.searchRoundQuota != null
+        ? plan.searchRoundQuota + (row.extraSearchRoundQuota ?? 0)
+        : null;
+    const shortlistQuota =
+      plan.shortlistQuota != null ? plan.shortlistQuota + (row.extraShortlistQuota ?? 0) : null;
+    const revisionQuota =
+      plan.revisionQuota != null ? plan.revisionQuota + (row.extraRevisionQuota ?? 0) : null;
+    const creditQuota =
+      plan.creditQuota != null ? plan.creditQuota + (row.extraCreditQuota ?? 0) : null;
+    const outreachQuota = hasOutreach ? (shortlistQuota ?? 15) : 0;
     const outreachRemaining = hasOutreach ? Math.max(0, outreachQuota - outreachUsed) : 0;
     return {
       assignment: this.mapAssignment(row),
@@ -937,21 +1054,21 @@ export class SourcingService {
       feeVnd: plan.feeVnd.toString(),
       serviceScope: scopeCodes,
       scopeItems,
-      positionQuota: plan.positionQuota,
-      searchRoundQuota: plan.searchRoundQuota,
-      shortlistQuota: plan.shortlistQuota,
-      revisionQuota: plan.revisionQuota,
-      creditQuota: plan.creditQuota,
+      positionQuota,
+      searchRoundQuota,
+      shortlistQuota,
+      revisionQuota,
+      creditQuota,
       positionsUsed: row.positionsUsed,
       searchRoundsUsed: row.searchRoundsUsed,
       shortlistsUsed: row.shortlistsUsed,
       revisionsUsed: row.revisionsUsed,
       profileOpensUsed,
-      positionsRemaining: this.remaining(plan.positionQuota, row.positionsUsed),
-      searchRoundsRemaining: this.remaining(plan.searchRoundQuota, row.searchRoundsUsed),
-      shortlistsRemaining: this.remaining(plan.shortlistQuota, row.shortlistsUsed),
-      revisionsRemaining: this.remaining(plan.revisionQuota, row.revisionsUsed),
-      profileOpensRemaining: this.remaining(plan.creditQuota, profileOpensUsed),
+      positionsRemaining: this.remaining(positionQuota, row.positionsUsed),
+      searchRoundsRemaining: this.remaining(searchRoundQuota, row.searchRoundsUsed),
+      shortlistsRemaining: this.remaining(shortlistQuota, row.shortlistsUsed),
+      revisionsRemaining: this.remaining(revisionQuota, row.revisionsUsed),
+      profileOpensRemaining: this.remaining(creditQuota, profileOpensUsed),
       outreachQuota,
       outreachUsed,
       outreachRemaining,
@@ -969,8 +1086,15 @@ export class SourcingService {
       planName: row.plan.name,
       startsAt: row.startsAt.toISOString(),
       endsAt: row.endsAt?.toISOString() ?? null,
+      activatedAt: row.activatedAt?.toISOString() ?? null,
+      reserveEndsAt: row.reserveEndsAt?.toISOString() ?? null,
       isActive: row.isActive,
       note: row.note,
+      extraPositionQuota: row.extraPositionQuota ?? 0,
+      extraSearchRoundQuota: row.extraSearchRoundQuota ?? 0,
+      extraShortlistQuota: row.extraShortlistQuota ?? 0,
+      extraRevisionQuota: row.extraRevisionQuota ?? 0,
+      extraCreditQuota: row.extraCreditQuota ?? 0,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

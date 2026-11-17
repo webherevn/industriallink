@@ -286,8 +286,8 @@ export default function ManageJobsPage() {
 
       {/* Thanh tìm kiếm, lọc trạng thái, lọc thời gian & sắp xếp */}
       <div className="brand-panel mt-5 p-3.5 sm:p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="relative min-w-0 flex-1 xl:max-w-md">
+        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <div className="relative min-w-0 flex-1 2xl:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={q}
@@ -297,7 +297,7 @@ export default function ManageJobsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               {STATUS_FILTERS.map((f) => {
                 const active = statusFilter === f.value;
@@ -307,7 +307,7 @@ export default function ManageJobsPage() {
                     type="button"
                     onClick={() => setStatusFilter(f.value)}
                     className={clsx(
-                      'rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
+                      'whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
                       active
                         ? 'bg-[#072348] text-white shadow-xs'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
@@ -319,12 +319,12 @@ export default function ManageJobsPage() {
               })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 xl:ml-1">
-              <div className="w-40">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="min-w-[168px] shrink-0">
                 <Select
                   value={timeFilter}
                   onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
-                  className="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs font-medium text-slate-700"
+                  className="h-9 w-full whitespace-nowrap rounded-xl border-slate-200 bg-white pl-3 pr-8 text-xs font-medium text-slate-700"
                 >
                   <option value="all">Tất cả thời gian</option>
                   <option value="7d">7 ngày qua</option>
@@ -333,13 +333,13 @@ export default function ManageJobsPage() {
                 </Select>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500">Sắp xếp:</span>
-                <div className="w-32">
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="whitespace-nowrap text-xs text-slate-500">Sắp xếp:</span>
+                <div className="min-w-[132px]">
                   <Select
                     value={sort}
                     onChange={(e) => setSort(e.target.value === 'old' ? 'old' : 'new')}
-                    className="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348]"
+                    className="h-9 w-full whitespace-nowrap rounded-xl border-slate-200 bg-white pl-3 pr-8 text-xs font-semibold text-[#072348]"
                   >
                     <option value="new">Mới nhất</option>
                     <option value="old">Cũ nhất</option>
@@ -547,12 +547,7 @@ function JobManageCard({
                 {visibleSkills.map((s) => (
                   <span
                     key={s}
-                    className={clsx(
-                      'rounded-md px-2.5 py-0.5 text-[11px] font-medium',
-                      job.isSourcingActive
-                        ? 'border border-slate-200 bg-slate-50 text-slate-700'
-                        : 'bg-emerald-50 text-emerald-700',
-                    )}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-700"
                   >
                     {s}
                   </span>
@@ -576,10 +571,10 @@ function JobManageCard({
                 </span>
               </span>
               <span className="text-slate-300">|</span>
-              <span className="inline-flex items-center gap-1 font-medium text-slate-600">
-                <Eye className="h-3.5 w-3.5 text-slate-400" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-gradient-to-r from-sky-50 to-indigo-50/70 px-2.5 py-0.5 text-[11px] font-medium text-[#0B468C]">
+                <Eye className="h-3.5 w-3.5 text-[#0B468C]" />
                 <span>
-                  <strong className="font-semibold text-[#072348]">{job.viewCount ?? 0}</strong> lượt xem tin
+                  <strong className="font-bold text-[#072348]">{job.viewCount ?? 0}</strong> lượt xem tin
                 </span>
               </span>
             </div>
@@ -589,19 +584,13 @@ function JobManageCard({
         {/* Cột phải: Tiến độ tuyển dụng + Hàng nút hành động */}
         <div className="flex flex-col gap-3 border-t border-slate-100 pt-3.5 lg:w-[27rem] lg:shrink-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
           <div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs font-bold text-[#072348]">Tiến độ tuyển dụng</p>
-                <span
-                  title="Thống kê số lượng hồ sơ ứng viên đang ở từng giai đoạn của tin tuyển dụng này"
-                  className="text-slate-400"
-                >
-                  <Info className="h-3.5 w-3.5" />
-                </span>
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                <Eye className="h-3 w-3 text-slate-400" />
-                {job.viewCount ?? 0} lượt xem
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-bold text-[#072348]">Tiến độ tuyển dụng</p>
+              <span
+                title="Thống kê số lượng hồ sơ ứng viên đang ở từng giai đoạn của tin tuyển dụng này"
+                className="text-slate-400"
+              >
+                <Info className="h-3.5 w-3.5" />
               </span>
             </div>
 

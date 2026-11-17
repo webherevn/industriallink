@@ -303,6 +303,8 @@ export function RecruiterBillingHub() {
                   planName={planName}
                   isActive={plan.isActive}
                   expiresAt={plan.endsAt}
+                  activatedAt={plan.activatedAt ?? null}
+                  reserveEndsAt={plan.reserveEndsAt ?? null}
                   jobsUsed={entitlements?.jobsUsed ?? 0}
                   jobPostQuota={entitlements?.jobPostQuota ?? null}
                   creditQuota={entitlements?.creditQuota ?? null}
@@ -602,6 +604,8 @@ function PlatformPlanCard({
   planName,
   isActive,
   expiresAt,
+  activatedAt,
+  reserveEndsAt,
   jobsUsed,
   jobPostQuota,
   creditQuota,
@@ -611,12 +615,15 @@ function PlatformPlanCard({
   planName: string;
   isActive: boolean;
   expiresAt: string | null;
+  activatedAt?: string | null;
+  reserveEndsAt?: string | null;
   jobsUsed: number;
   jobPostQuota: number | null;
   creditQuota: number | null;
   jobDisplayDays: number | null;
 }) {
-  const daysLeft = daysRemaining(expiresAt);
+  const isReserved = Boolean(isActive && !activatedAt && reserveEndsAt);
+  const daysLeft = daysRemaining(isReserved ? reserveEndsAt! : expiresAt);
   const pct =
     jobPostQuota && jobPostQuota > 0
       ? Math.min(100, Math.round((jobsUsed / jobPostQuota) * 100))
@@ -642,10 +649,17 @@ function PlatformPlanCard({
               </p>
               <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-slate-500">
                 <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                <span>
-                  Hạn đến: <strong className="text-slate-700">{fmtDate(expiresAt)}</strong>
-                  {daysLeft != null ? ` (còn ${daysLeft} ngày)` : ''}
-                </span>
+                {isReserved ? (
+                  <span>
+                    Đang bảo lưu đến: <strong className="text-sky-700">{fmtDate(reserveEndsAt!)}</strong>
+                    {daysLeft != null ? ` (còn ${daysLeft}/365 ngày)` : ''}
+                  </span>
+                ) : (
+                  <span>
+                    Hạn đến: <strong className="text-slate-700">{fmtDate(expiresAt)}</strong>
+                    {daysLeft != null ? ` (còn ${daysLeft} ngày)` : ''}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -653,10 +667,14 @@ function PlatformPlanCard({
             <span
               className={clsx(
                 'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
-                isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600',
+                isReserved
+                  ? 'bg-sky-50 text-[#0B468C]'
+                  : isActive
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600',
               )}
             >
-              {isActive ? 'Đang hoạt động' : 'Đã tắt'}
+              {isReserved ? 'Đang bảo lưu' : isActive ? 'Đang hoạt động' : 'Đã tắt'}
             </span>
           )}
         </div>
@@ -713,7 +731,10 @@ function SourcingPlanCard({
   >;
 }) {
   const expiresAt = sourcing.assignment?.endsAt ?? null;
-  const daysLeft = daysRemaining(expiresAt);
+  const activatedAt = sourcing.assignment?.activatedAt ?? null;
+  const reserveEndsAt = sourcing.assignment?.reserveEndsAt ?? null;
+  const isReserved = Boolean(sourcing.assignment?.isActive && !activatedAt && reserveEndsAt);
+  const daysLeft = daysRemaining(isReserved ? reserveEndsAt : expiresAt);
   const posQuota = sourcing.positionQuota ?? 0;
   const posPct =
     posQuota > 0 ? Math.min(100, Math.round((sourcing.positionsUsed / posQuota) * 100)) : 50;
@@ -740,10 +761,18 @@ function SourcingPlanCard({
               </p>
               <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-slate-500">
                 <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                <span>
-                  Hạn đến: <strong className="text-slate-700">{fmtDate(expiresAt)}</strong>
-                  {daysLeft != null ? ` (còn ${daysLeft} ngày)` : ''}
-                </span>
+                {isReserved ? (
+                  <span>
+                    Đang bảo lưu đến:{' '}
+                    <strong className="text-accent-700">{fmtDate(reserveEndsAt)}</strong>
+                    {daysLeft != null ? ` (còn ${daysLeft}/365 ngày)` : ''}
+                  </span>
+                ) : (
+                  <span>
+                    Hạn đến: <strong className="text-slate-700">{fmtDate(expiresAt)}</strong>
+                    {daysLeft != null ? ` (còn ${daysLeft} ngày)` : ''}
+                  </span>
+                )}
               </p>
             </div>
           </div>

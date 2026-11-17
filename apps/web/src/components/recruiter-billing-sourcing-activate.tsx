@@ -170,11 +170,14 @@ export function RecruiterSourcingActivate() {
                 </li>
               </ul>
 
-              {isCurrent ? (
-                <p className="mt-6 text-sm text-emerald-800">Bạn đang dùng gói này.</p>
-              ) : (
+              <div className="mt-6 space-y-3">
+                {isCurrent && (
+                  <p className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs font-medium text-emerald-900">
+                    Bạn đang dùng gói Săn này. Mua thêm sẽ <strong>cộng dồn vị trí &amp; lượt còn lại</strong> và bảo lưu tối đa <strong>365 ngày</strong> nếu chưa chạy Tin Săn.
+                  </p>
+                )}
                 <Button
-                  className="mt-6 w-full"
+                  className="w-full"
                   disabled={activate.isPending}
                   onClick={() => activate.mutate()}
                 >
@@ -183,9 +186,9 @@ export function RecruiterSourcingActivate() {
                   ) : (
                     <CreditCard className="h-4 w-4" />
                   )}
-                  Thanh toán gói Săn
+                  {isCurrent ? 'Mua thêm gói Săn (Cộng dồn)' : 'Thanh toán gói Săn'}
                 </Button>
-              )}
+              </div>
             </Card>
 
             <CurrentSourcingCard currentName={current?.planName ?? null} requested={plan} />
