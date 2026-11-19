@@ -53,7 +53,8 @@ ss -ltnp 2>/dev/null | grep -E ':(3000|3001)\b' || echo "WARN: thiếu port 3000
 
 echo "=== db schema check ==="
 # Verify các bảng mới của refactor Săn nhân sự đã tồn tại trong DB production
-node "$ROOT/apps/api/scripts/check-hunt-schema.cjs" \
+# Chạy từ apps/api để Node resolve được @prisma/client (pnpm symlink nằm ở đó).
+(cd "$ROOT/apps/api" && node scripts/check-hunt-schema.cjs) \
   || echo "WARN: kiểm tra schema DB thất bại — xem log ở trên"
 
 echo "=== live check ==="
