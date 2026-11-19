@@ -17,7 +17,6 @@ import {
   MapPin,
   MoreHorizontal,
   Package,
-  Pause,
   PauseCircle,
   Pencil,
   Play,
@@ -140,6 +139,18 @@ function getDeadlineBadge(deadline: string | null | undefined): {
 
 const MODERATION_POLL_MS = 3000;
 
+/**
+ * Badge "Mới": chỉ hiển thị cho tin đang Tuyển (PUBLISHED) được tạo trong 7 ngày gần nhất.
+ * Tin đã đóng / đã hết hạn không hiển thị "Mới".
+ */
+const NEW_BADGE_DAYS = 7;
+function showNewBadge(job: JobListItem): boolean {
+  if (job.status !== JobStatus.Published) return false;
+  const created = new Date(job.createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created < NEW_BADGE_DAYS * 24 * 60 * 60 * 1000;
+}
+
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
   { value: JobStatus.Published, label: 'Đang tuyển' },
@@ -197,13 +208,19 @@ export default function ManageJobsPage() {
 
   const stats = useMemo(() => {
     const list = jobs ?? [];
+    const counts: Record<string, number> = {
+      all: list.length,
+      [JobStatus.Published]: 0,
+      [JobStatus.Draft]: 0,
+      [JobStatus.Paused]: 0,
+      [JobStatus.Closed]: 0,
+    };
+    for (const j of list) {
+      counts[j.status] = (counts[j.status] ?? 0) + 1;
+    }
     return {
       total: list.length,
-      published: list.filter((j) => j.status === JobStatus.Published).length,
-      draft: list.filter(
-        (j) => j.status === JobStatus.Draft && !isModerating(j) && !isAwaitingAdmin(j),
-      ).length,
-      paused: list.filter((j) => j.status === JobStatus.Paused).length,
+      counts,
     };
   }, [jobs]);
 
@@ -237,6 +254,8 @@ export default function ManageJobsPage() {
 
   return (
     <AppShell>
+      {/* pb-24: chừa chỗ cho nút chat nổi góc dưới phải, tránh che card gói / nút hành động. */}
+      <div className="pb-24">
       <section className="brand-hero-surface relative rounded-2xl p-5 sm:p-6">
         <div className="pointer-events-none absolute -right-2 bottom-0 top-0 hidden w-52 items-center justify-end pr-8 opacity-20 lg:flex">
           <Laptop className="h-28 w-28" strokeWidth={1.1} />
@@ -292,41 +311,6 @@ export default function ManageJobsPage() {
         </div>
       ) : null}
 
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          icon={<Briefcase className="h-4 w-4" />}
-          label="Tổng tin"
-          value={stats.total}
-          tone="bg-brand-50 text-brand-700"
-          active={statusFilter === 'all'}
-          onClick={() => setStatusFilter('all')}
-        />
-        <StatCard
-          icon={<UserCheck className="h-4 w-4" />}
-          label="Đang tuyển"
-          value={stats.published}
-          tone="bg-emerald-50 text-emerald-700"
-          active={statusFilter === JobStatus.Published}
-          onClick={() => setStatusFilter(JobStatus.Published)}
-        />
-        <StatCard
-          icon={<FileText className="h-4 w-4" />}
-          label="Bản nháp"
-          value={stats.draft}
-          tone="bg-accent-50 text-accent-700"
-          active={statusFilter === JobStatus.Draft}
-          onClick={() => setStatusFilter(JobStatus.Draft)}
-        />
-        <StatCard
-          icon={<Pause className="h-4 w-4" />}
-          label="Tạm dừng"
-          value={stats.paused}
-          tone="bg-amber-50 text-amber-700"
-          active={statusFilter === JobStatus.Paused}
-          onClick={() => setStatusFilter(JobStatus.Paused)}
-        />
-      </div>
-
       {/* Thanh tìm kiếm, lọc trạng thái, lọc thời gian & sắp xếp */}
       <div className="brand-panel mt-5 p-3.5 sm:p-4">
         <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
@@ -356,7 +340,7 @@ export default function ManageJobsPage() {
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
                     )}
                   >
-                    {f.label}
+                    {`${f.label} (${stats.counts[f.value] ?? 0})`}
                   </button>
                 );
               })}
@@ -458,6 +442,7 @@ export default function ManageJobsPage() {
           />
         ))}
       </div>
+      </div>
     </AppShell>
   );
 }
@@ -517,6 +502,10 @@ function JobManageCard({
   // Tin đã đóng, đã hết hạn hoặc đang dùng gói Khám phá → được đăng lại bằng gói trả phí.
   const deadlinePassed =
     !!job.deadline && new Date(job.deadline).getTime() < Date.now();
+  // Tin đã đóng hoặc đã hết hạn → không cho tạo Tin săn, chỉ cho "Đăng lại tin".
+  const isClosedOrExpired =
+    job.status === JobStatus.Closed ||
+    (job.status === JobStatus.Published && deadlinePassed);
   const canRepost =
     !job.isSourcingActive &&
     (job.status === JobStatus.Closed ||
@@ -582,7 +571,7 @@ function JobManageCard({
                 </span>
               ) : null}
 
-              {job.isNew && <Badge tone="accent">Mới</Badge>}
+              {showNewBadge(job) && <Badge tone="accent">Mới</Badge>}
             </div>
 
             <p className="mt-1 text-[12px] font-medium text-slate-400">{job.code}</p>
@@ -688,31 +677,47 @@ function JobManageCard({
               </span>
             </Link>
 
-            <Link href="/recruiter/sourcing" className="flex-1 sm:flex-initial">
-              <span
-                className={clsx(
-                  'inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border px-3 text-[12.5px] font-semibold transition sm:w-auto',
-                  job.isSourcingActive
-                    ? 'border-[#FFD0A3] bg-[#FFF8F1] text-[#072348] hover:border-[#E8872A] hover:bg-[#FFEEDB]'
-                    : 'border-slate-200 bg-slate-50 text-[#072348] hover:border-brand-300 hover:bg-slate-100',
-                )}
-              >
-                <Settings
+            {/* Tin đã đóng / đã hết hạn → KHÔNG cho tạo Tin săn.
+                Nếu đang có chiến dịch săn thì vẫn xem được ("Quản lý Tin săn"),
+                ngược lại chỉ hiện nút "Đăng lại tin" nổi bật tại đúng vị trí này. */}
+            {isClosedOrExpired && !job.isSourcingActive ? (
+              canRepost ? (
+                <button
+                  type="button"
+                  onClick={() => setRepostOpen(true)}
+                  className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-[#E8872A] px-3.5 text-[12.5px] font-semibold text-white shadow-xs transition hover:bg-[#d6761b]"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Đăng lại tin
+                </button>
+              ) : null
+            ) : (
+              <Link href="/recruiter/sourcing" className="flex-1 sm:flex-initial">
+                <span
                   className={clsx(
-                    'h-3.5 w-3.5',
-                    job.isSourcingActive ? 'text-[#E8872A]' : 'text-brand-600',
+                    'inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-3 text-[12.5px] font-semibold transition sm:w-auto',
+                    job.isSourcingActive
+                      ? 'border-[#FFD0A3] bg-[#FFF8F1] text-[#072348] hover:border-[#E8872A] hover:bg-[#FFEEDB]'
+                      : 'border-slate-200 bg-slate-50 text-[#072348] hover:border-brand-300 hover:bg-slate-100',
                   )}
-                />
-                {job.isSourcingActive ? 'Quản lý Tin săn' : 'Tạo Tin săn'}
-              </span>
-            </Link>
+                >
+                  <Settings
+                    className={clsx(
+                      'h-3.5 w-3.5',
+                      job.isSourcingActive ? 'text-[#E8872A]' : 'text-brand-600',
+                    )}
+                  />
+                  {job.isSourcingActive ? 'Quản lý Tin săn' : 'Tạo Tin săn'}
+                </span>
+              </Link>
+            )}
 
-            {/* Tin đã đóng / hết hạn → đăng lại bằng gói tin đăng. */}
-            {canRepost ? (
+            {/* Tin nháp / tạm dừng → đăng lại bằng gói tin đăng. */}
+            {canRepost && !isClosedOrExpired ? (
               <button
                 type="button"
                 onClick={() => setRepostOpen(true)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3 text-[12.5px] font-semibold text-[#C25E12] transition hover:border-[#E8872A] hover:bg-[#FFEEDB]"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3 text-[12.5px] font-semibold text-[#C25E12] transition hover:border-[#E8872A] hover:bg-[#FFEEDB]"
               >
                 <RefreshCw className="h-3.5 w-3.5 text-[#E8872A]" />
                 Đăng lại tin
@@ -903,45 +908,5 @@ function ResultStat({
       </p>
       <p className="mt-1 text-[10.5px] font-medium text-slate-500">{label}</p>
     </div>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  tone,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx(
-        'group rounded-2xl border bg-white p-4 text-left shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.28)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-200',
-        active ? 'border-brand-300 ring-1 ring-brand-200/70' : 'border-slate-200/80',
-      )}
-    >
-      <div className="flex items-center gap-2.5">
-        <span
-          className={clsx(
-            'flex h-9 w-9 items-center justify-center rounded-xl transition duration-200 group-hover:scale-105',
-            tone,
-          )}
-        >
-          {icon}
-        </span>
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-      </div>
-      <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-[#E8872A]">{value}</p>
-    </button>
   );
 }
