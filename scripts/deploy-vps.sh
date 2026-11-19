@@ -33,6 +33,11 @@ if ! pnpm --filter @industriallink/api db:migrate:deploy; then
   pnpm --filter @industriallink/api db:push
 fi
 
+# 2b) Seed billing (idempotent) — đồng bộ mô tả gói Doanh nghiệp "03 tin tuyển dụng
+#     trong 30 ngày" + bảng giá/hạn mức credit sau khi đổi seed.
+pnpm --filter @industriallink/api db:seed-billing \
+  || echo "WARN: seed billing thất bại — xem log o tren"
+
 # 3) Build packages dùng chung TRƯỚC (dist bị .gitignore — bỏ qua bước này sẽ dẫn tới
 #    TS error kiểu contracts cũ, vd "Property 'jobPackageName' does not exist on type 'JobListItem'")
 pnpm --filter @industriallink/contracts build

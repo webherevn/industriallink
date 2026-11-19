@@ -76,6 +76,18 @@ const TABLES = [
       bad++;
     }
 
+    // P2 (B6): gói Săn chờ kích hoạt (UNUSED) có hạn chót riêng.
+    const act = await p.$queryRawUnsafe(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'billing' AND table_name = 'billing_hunt_package'
+         AND column_name = 'activation_deadline_at'`,
+    );
+    if (act.length) console.log('OK: billing_hunt_package.activation_deadline_at');
+    else {
+      console.log('FAIL: thieu cot billing_hunt_package.activation_deadline_at');
+      bad++;
+    }
+
     // Bang cu da duoc drop sau refactor — chi bao loi neu con ton tai.
     const old = await p.$queryRawUnsafe(
       `SELECT table_name FROM information_schema.tables
