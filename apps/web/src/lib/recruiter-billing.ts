@@ -18,7 +18,9 @@ import type {
   RecruiterSourcingWorkspace,
   BillingCompanySourcingPlanView,
   RecruiterJobPackageListResponse,
-  RecruiterActivateJobPackageRequest,
+  RecruiterApplyJobPackageRequest,
+  RecruiterApplyJobPackageResponse,
+  RecruiterApplicableJobView,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
 
@@ -80,14 +82,28 @@ export async function fetchRecruiterJobPackages(): Promise<RecruiterJobPackageLi
   return apiRequest<RecruiterJobPackageListResponse>('/billing/job-packages');
 }
 
-/** Chuyển sang dùng gói tin đăng đã mua. Không cấp lại Credit. */
-export async function activateRecruiterJobPackage(
-  code: string,
-): Promise<RecruiterJobPackageListResponse> {
-  return apiRequest<RecruiterJobPackageListResponse>('/billing/job-packages/activate', {
-    method: 'POST',
-    body: { code } as RecruiterActivateJobPackageRequest,
-  });
+/**
+ * Gắn gói tin đăng vào 1 tin tuyển dụng có sẵn.
+ *
+ * Nếu gói đang `UNUSED` → kích hoạt gói + cộng Credit + đăng tin, tất cả trong
+ * 1 transaction. Nếu gói đã `ACTIVE` → chỉ trừ 1 lượt đăng (KHÔNG cộng lại Credit).
+ */
+export async function applyJobPackageToJob(
+  packageId: string,
+  jobId: string,
+): Promise<RecruiterApplyJobPackageResponse> {
+  return apiRequest<RecruiterApplyJobPackageResponse>(
+    `/billing/job-packages/${packageId}/apply-job`,
+    {
+      method: 'POST',
+      body: { jobId } as RecruiterApplyJobPackageRequest,
+    },
+  );
+}
+
+/** Danh sách tin tuyển dụng có thể áp dụng gói (nháp / đã đóng / hết hạn / gói khám phá). */
+export async function fetchApplicableJobs(): Promise<RecruiterApplicableJobView[]> {
+  return apiRequest<RecruiterApplicableJobView[]>('/billing/job-packages/applicable-jobs');
 }
 
 export async function consumeRecruiterSourcing(

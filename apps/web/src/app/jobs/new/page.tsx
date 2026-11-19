@@ -58,6 +58,8 @@ function CompanyRequiredGate() {
 export default function NewJobPage() {
   const searchParams = useSearchParams();
   const copyFrom = searchParams.get('from') ?? '';
+  // Gói tin đăng được chọn sẵn từ luồng "Đăng tin từ gói" / "Sử dụng gói này".
+  const packageCode = searchParams.get('packageCode') ?? '';
   const [pickedTrack, setPickedTrack] = useState<JobTrack | null>(null);
 
   // Auth do RecruiterShell lo — chỉ kiểm tra hồ sơ công ty
@@ -106,6 +108,7 @@ export default function NewJobPage() {
         onSwitchTrack={setPickedTrack}
         initialForm={initial ? { ...initial, deadline: openDeadline(initial.deadline) } : undefined}
         copiedTitle={initial ? copiedTitle : undefined}
+        initialPackageCode={packageCode || null}
       />
     );
   }
@@ -115,6 +118,7 @@ export default function NewJobPage() {
       onSwitchTrack={setPickedTrack}
       initialForm={initial ? { ...initial, deadline: openDeadline(initial.deadline) } : undefined}
       copiedTitle={initial ? copiedTitle : undefined}
+      initialPackageCode={packageCode || null}
     />
   );
 }

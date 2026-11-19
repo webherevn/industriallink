@@ -148,6 +148,8 @@ export interface JobListItem {
   jobPackageCode?: string | null;
   /** Tên gói tin đăng đã dùng lượt đăng cho tin này. */
   jobPackageName?: string | null;
+  /** Id gói tin đăng đã dùng lượt đăng cho tin này (dùng để lọc "Xem tin đã gắn"). */
+  jobPackageId?: string | null;
   /** Kết quả tuyển dụng hiện tại. Chỉ có ở danh sách tin của nhà tuyển dụng. */
   recruitment?: JobRecruitmentResult;
 }

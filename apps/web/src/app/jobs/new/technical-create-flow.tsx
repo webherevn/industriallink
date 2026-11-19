@@ -68,6 +68,7 @@ export function JdTechnicalCreateFlow({
   onSwitchTrack,
   initialForm,
   copiedTitle,
+  initialPackageCode,
   embedded = false,
   onCreated,
   onCancel,
@@ -75,6 +76,8 @@ export function JdTechnicalCreateFlow({
   onSwitchTrack: (track: JobTrack) => void;
   initialForm?: JdTechnicalFormState;
   copiedTitle?: string;
+  /** Mã gói tin đăng được chọn sẵn (từ luồng "Đăng tin từ gói"). */
+  initialPackageCode?: string | null;
   embedded?: boolean;
   onCreated?: (job: JobView) => void;
   onCancel?: () => void;
@@ -87,7 +90,7 @@ export function JdTechnicalCreateFlow({
   const [uncertainKeys, setUncertainKeys] = useState<JdTechnicalFieldKey[]>([]);
   const [parseNote, setParseNote] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [jobPackageCode, setJobPackageCode] = useState<string | null>(null);
+  const [jobPackageCode, setJobPackageCode] = useState<string | null>(initialPackageCode ?? null);
 
   const progress = useMemo(() => countFilledJdTechnicalFields(form), [form]);
 

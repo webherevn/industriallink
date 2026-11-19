@@ -235,10 +235,50 @@ export interface RecruiterCreateSourcingCheckoutRequest {
   planCode: string;
 }
 
-/** Recruiter bấm "Sử dụng" trên 1 gói tin đăng đã mua (mã gói JD-xxxxxx). */
-export interface RecruiterActivateJobPackageRequest {
-  /** Mã gói hiển thị, vd "JD-ST-000029". */
+/**
+ * Recruiter gắn 1 gói tin đăng vào 1 tin tuyển dụng có sẵn.
+ *
+ * Dùng cho 2 trường hợp (cùng 1 transaction):
+ * - Gói `UNUSED`: kích hoạt gói (ACTIVE + hạn 30 ngày + cộng Credit) rồi gắn vào tin.
+ * - Gói `ACTIVE` còn lượt: chỉ trừ 1 lượt đăng rồi gắn vào tin (KHÔNG cộng lại Credit).
+ */
+export interface RecruiterApplyJobPackageRequest {
+  /** Id tin tuyển dụng cần gắn gói. Tin phải thuộc công ty và còn hiệu lực để đăng lại. */
+  jobId: string;
+}
+
+/** Kết quả gắn gói cho 1 tin. */
+export interface RecruiterApplyJobPackageResponse {
+  /** Id gói đã áp dụng. */
+  packageId: string;
+  /** Mã gói (vd "JD-ST-000029"). */
+  packageCode: string;
+  /** Id tin đã gắn gói. */
+  jobId: string;
+  /** Số lượt đăng còn lại của gói sau khi áp dụng. */
+  jobsRemaining: number | null;
+  /** true = gói vừa được kích hoạt (UNUSED → ACTIVE) trong lần này. */
+  activated: boolean;
+  /** Số Credit vừa được cộng vào ví (0 = không cộng thêm). */
+  creditsGranted: number;
+  /** Ngày hết hạn của gói sau khi áp dụng (null = không xác định). */
+  expiresAt: string | null;
+}
+
+/** 1 tin tuyển dụng có thể áp dụng gói (dùng cho modal "Áp dụng cho tin có sẵn"). */
+export interface RecruiterApplicableJobView {
+  id: string;
   code: string;
+  title: string;
+  /** Trạng thái hiện tại của tin (draft / published / closed / expired...). */
+  status: string;
+  /** Mã gói đang gắn với tin này (null = tin dùng gói FREE / chưa gắn gói). */
+  jobPackageCode: string | null;
+  /** Ngày hết hạn hiện tại của tin. */
+  deadline: string | null;
+  /** Ngày đăng. */
+  publishedAt: string | null;
+  createdAt: string;
 }
 
 export interface AdminAssignCompanySourcingPlanRequest {

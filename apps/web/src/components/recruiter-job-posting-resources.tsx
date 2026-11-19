@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   BadgeCheck,
@@ -8,28 +8,32 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDollarSign,
+  Clock,
+  FileBarChart,
+  Link2,
+  ListChecks,
   Package,
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 import type {
   RecruiterJobPackageStatus,
   RecruiterJobPackageView,
 } from '@industriallink/contracts';
-import { ApiError } from '@/lib/api';
 import { formatVndAmount } from '@/lib/format';
 import {
-  activateRecruiterJobPackage,
   fetchRecruiterEntitlements,
   fetchRecruiterJobPackages,
 } from '@/lib/recruiter-billing';
+import { JobPackageApplyModal } from '@/components/job-package-apply-modal';
 
 const PACKAGE_STATUS_META: Record<
   RecruiterJobPackageStatus,
   { label: string; className: string }
 > = {
   active: {
-    label: 'Đang dùng',
+    label: 'Đang sử dụng',
     className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   unused: {
@@ -37,7 +41,7 @@ const PACKAGE_STATUS_META: Record<
     className: 'bg-amber-50 text-amber-700 border-amber-200',
   },
   expired: {
-    label: 'Đã hết hiệu lực',
+    label: 'Đã hết hạn',
     className: 'bg-slate-100 text-slate-500 border-slate-200',
   },
 };
@@ -123,21 +127,20 @@ export function JobPostingResourcePanel() {
  * Mỗi gói là 1 lần mua độc lập. Nhiều gói có thể cùng chạy (ACTIVE); bấm "Sử dụng gói này"
  * để kích hoạt đúng gói đó, không ảnh hưởng các gói khác.
  */
-export function JobPackageList() {
+export function JobPackageList({
+  onFilterJobs,
+}: {
+  /** Gọi khi NTD bấm "Xem tin đã gắn" → lọc danh sách tin bên dưới theo gói. */
+  onFilterJobs?: (packageId: string) => void;
+}) {
   const queryClient = useQueryClient();
+  const [activePkg, setActivePkg] = useState<RecruiterJobPackageView | null>(null);
+  const [activeMode, setActiveMode] = useState<'choose' | 'existing'>('choose');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['recruiter-job-packages'],
     queryFn: fetchRecruiterJobPackages,
     retry: false,
-  });
-
-  const activateMutation = useMutation({
-    mutationFn: (code: string) => activateRecruiterJobPackage(code),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recruiter-job-packages'] });
-      queryClient.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
-    },
   });
 
   const items = data?.items ?? [];
@@ -191,36 +194,53 @@ export function JobPackageList() {
           <JobPackageCard
             key={pkg.code}
             pkg={pkg}
-            busy={activateMutation.isPending}
-            onActivate={() => activateMutation.mutate(pkg.code)}
+            onUse={(mode) => {
+              setActiveMode(mode);
+              setActivePkg(pkg);
+            }}
+            onViewJobs={() => {
+              onFilterJobs?.(pkg.id);
+              document
+                .getElementById('recruiter-job-list')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
           />
         ))}
       </div>
 
-      {activateMutation.isError && (
-        <p className="mt-2.5 text-[12.5px] text-rose-600">
-          {activateMutation.error instanceof ApiError
-            ? activateMutation.error.message
-            : 'Không chuyển được gói. Vui lòng thử lại.'}
-        </p>
-      )}
+      {activePkg ? (
+        <JobPackageApplyModal
+          pkg={activePkg}
+          initialMode={activeMode}
+          onClose={() => setActivePkg(null)}
+          onApplied={() => {
+            queryClient.invalidateQueries({ queryKey: ['recruiter-job-packages'] });
+            queryClient.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+            queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
+          }}
+        />
+      ) : null}
     </section>
   );
 }
 
 function JobPackageCard({
   pkg,
-  busy,
-  onActivate,
+  onUse,
+  onViewJobs,
 }: {
   pkg: RecruiterJobPackageView;
-  busy: boolean;
-  onActivate: () => void;
+  onUse: (mode: 'choose' | 'existing') => void;
+  onViewJobs: () => void;
 }) {
   const statusMeta = PACKAGE_STATUS_META[pkg.status];
   // Chỉ gói UNUSED còn hạn mới kích hoạt được. Gói ACTIVE dùng song song với các gói khác.
   const canActivate = pkg.status === 'unused' && pkg.canActivate;
   const activationDays = daysUntil(pkg.activationDeadlineAt);
+  // remainingJobs = totalJobs - usedJobs (null quota = không giới hạn).
+  const remainingJobs =
+    pkg.jobPostQuota == null ? null : Math.max(0, pkg.jobPostQuota - (pkg.jobsUsed ?? 0));
+  const hasRemaining = remainingJobs == null || remainingJobs > 0;
 
   return (
     <article
@@ -235,6 +255,7 @@ function JobPackageCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[14px] font-bold text-[#072348]">{pkg.planName}</p>
+            {/* DUY NHẤT 1 badge trạng thái cạnh tên gói. */}
             <span
               className={clsx(
                 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
@@ -243,12 +264,6 @@ function JobPackageCard({
             >
               {statusMeta.label}
             </span>
-            {pkg.status === 'active' && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#072348] px-2.5 py-0.5 text-[11px] font-semibold text-white">
-                <BadgeCheck className="h-3 w-3" />
-                Đang chạy
-              </span>
-            )}
           </div>
 
           <p className="mt-1 text-[11.5px] font-medium text-slate-400">{pkg.code}</p>
@@ -289,12 +304,12 @@ function JobPackageCard({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2.5 lg:w-[15rem] lg:justify-end">
-          {pkg.status === 'active' && pkg.jobsRemaining != null && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5 lg:w-[19rem] lg:justify-end">
+          {pkg.status === 'active' && remainingJobs != null && (
             <div className="text-right">
               <p className="text-[11px] font-medium text-slate-500">Lượt tin còn lại</p>
               <p className="text-[15px] font-bold tabular-nums text-[#072348]">
-                {pkg.jobsRemaining}
+                {remainingJobs}
                 <span className="ml-1 text-[11.5px] font-medium text-slate-400">
                   / {pkg.jobPostQuota ?? '∞'}
                 </span>
@@ -302,25 +317,69 @@ function JobPackageCard({
             </div>
           )}
 
-          {pkg.status === 'active' ? (
-            <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3.5 text-[12.5px] font-semibold text-emerald-700">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Đang dùng
-            </span>
-          ) : (
+          {/* CTA động theo trạng thái + số lượt còn lại. */}
+          {pkg.status === 'unused' ? (
             <button
               type="button"
-              disabled={!canActivate || busy}
-              onClick={onActivate}
+              disabled={!canActivate}
+              onClick={() => onUse('choose')}
               title={
                 canActivate
                   ? `Kích hoạt gói ${pkg.planName} (${pkg.code})`
                   : 'Gói này không còn hiệu lực để kích hoạt'
               }
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[12.5px] font-semibold text-[#072348] transition hover:border-brand-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#E8872A] px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-[#d6761b] disabled:cursor-not-allowed disabled:opacity-50"
             >
+              <Package className="h-3.5 w-3.5" />
               Sử dụng gói này
             </button>
+          ) : pkg.status === 'active' && hasRemaining ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onUse('choose')}
+                title={`Đăng tin mới bằng gói ${pkg.planName} (${pkg.code})`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#E8872A] px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-[#d6761b]"
+              >
+                <Briefcase className="h-3.5 w-3.5" />
+                Đăng tin từ gói
+              </button>
+              <button
+                type="button"
+                onClick={() => onUse('existing')}
+                title="Gắn gói này vào 1 tin tuyển dụng có sẵn"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[12.5px] font-semibold text-[#072348] transition hover:border-brand-300 hover:bg-slate-50"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Gắn vào tin có sẵn
+              </button>
+            </div>
+          ) : pkg.status === 'active' ? (
+            // Gói đã dùng hết lượt → xem tin đã gắn + báo cáo gói.
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onViewJobs}
+                title="Xem các tin đã dùng lượt đăng của gói này"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[12.5px] font-semibold text-[#072348] transition hover:border-brand-300 hover:bg-slate-50"
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                Xem tin đã gắn
+              </button>
+              <Link
+                href="/recruiter/billing"
+                title="Báo cáo sử dụng gói tin đăng"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[12.5px] font-semibold text-[#072348] transition hover:border-brand-300 hover:bg-slate-50"
+              >
+                <FileBarChart className="h-3.5 w-3.5" />
+                Báo cáo gói
+              </Link>
+            </div>
+          ) : (
+            <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 text-[12.5px] font-semibold text-slate-500">
+              <Clock className="h-3.5 w-3.5" />
+              Đã hết hạn
+            </span>
           )}
         </div>
       </div>

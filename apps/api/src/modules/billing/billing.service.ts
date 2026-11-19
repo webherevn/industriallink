@@ -59,6 +59,8 @@ import type {
   RecruiterJobPackageStatus,
   RecruiterJobPackageType,
   RecruiterJobPackageView,
+  RecruiterApplyJobPackageResponse,
+  RecruiterApplicableJobView,
 } from '@industriallink/contracts';
 import {
   BILLING_PLAN_BILLABLE_ACTIONS,
@@ -823,6 +825,9 @@ export class BillingService implements OnModuleInit {
 
     // Gói tin đăng multi-active: nếu công ty có gói ACTIVE thì quota lấy từ gói
     // (mỗi gói 1 lượt đăng riêng). Không có gói ACTIVE → fallback về BillingCompanyPlan.
+    //
+    // Gói `UNUSED` (chờ kích hoạt) CŨNG cấp lượt đăng: NTD chọn gói đó khi đăng tin
+    // → gói được kích hoạt ngay trong transaction tạo tin (chống "kích hoạt rỗng").
     const activePackages = await this.jobPackages.activeSummary(companyId).catch((err) => {
       this.logger.error(
         `Đọc gói tin đăng thất bại cho ${companyId}: ${String(err)}`,
@@ -830,10 +835,29 @@ export class BillingService implements OnModuleInit {
       );
       return null;
     });
-    if (activePackages && activePackages.activePackages.length > 0) {
+    // Gói UNUSED còn hạn kích hoạt → tính vào quota đăng tin.
+    const unusedPackages = await this.prisma.billingJobPackage.findMany({
+      where: {
+        companyId,
+        status: 'UNUSED',
+        OR: [{ activationDeadlineAt: null }, { activationDeadlineAt: { gte: new Date() } }],
+      },
+      select: { totalJobs: true, usedJobs: true },
+    });
+    if (
+      (activePackages && activePackages.activePackages.length > 0) ||
+      unusedPackages.length > 0
+    ) {
+      const rows = [
+        ...(activePackages?.activePackages ?? []).map((p) => ({
+          totalJobs: p.totalJobs,
+          usedJobs: p.usedJobs,
+        })),
+        ...unusedPackages.map((p) => ({ totalJobs: p.totalJobs, usedJobs: p.usedJobs })),
+      ];
       let pkgTotal: number | null = 0;
       let pkgUsed = 0;
-      for (const pkg of activePackages.activePackages) {
+      for (const pkg of rows) {
         if (pkg.totalJobs == null) {
           pkgTotal = null;
           break;
@@ -842,8 +866,8 @@ export class BillingService implements OnModuleInit {
         pkgUsed += pkg.usedJobs;
       }
       const pkgRemaining = pkgTotal == null ? null : Math.max(0, pkgTotal - pkgUsed);
-      // Số tin đã dùng = tổng `usedJobs` của các gói ACTIVE (không đếm lại theo gói 1:1).
-      const pkgDisplayDays = activePackages.activePackages
+      // Số tin đã dùng = tổng `usedJobs` của các gói (không đếm lại theo gói 1:1).
+      const pkgDisplayDays = activePackages?.activePackages
         .map((p) => (p.durationDays > 0 ? p.durationDays : null))
         .filter((d): d is number => d != null)
         .sort((a, b) => b - a)[0];
@@ -941,35 +965,78 @@ export class BillingService implements OnModuleInit {
   }
 
   /**
-   * Recruiter bấm "Sử dụng gói này" trên 1 gói tin đăng đã mua.
+   * Gắn 1 gói tin đăng vào 1 tin tuyển dụng có sẵn — chống "kích hoạt rỗng".
    *
-   * Chuyển gói UNUSED → ACTIVE. Credit đi kèm gói được cộng ĐÚNG 1 LẦN vào ví
-   * dùng chung (cờ `creditsGranted` chống cộng trùng), kèm 1 lô Credit có hạn
-   * khớp hạn gói để trừ FIFO.
+   * Trong 1 transaction duy nhất:
+   * - Gói `UNUSED`: kích hoạt (ACTIVE + hạn `durationDays` từ lúc kích hoạt) + cộng
+   *   Credit vào ví dùng chung (đúng 1 lần qua cờ `creditsGranted`).
+   * - Gói `ACTIVE` còn lượt: KHÔNG cộng lại Credit, chỉ trừ 1 lượt đăng.
    *
-   * Kích hoạt gói mới KHÔNG tạm dừng hay ghi đè các gói đang chạy.
+   * Sau đó: `usedJobs + 1`, `Job.jobPackageId = gói`, tin chuyển `PUBLISHED`
+   * và `Job.deadline = package.expiresAt` (hiển thị đủ 30 ngày).
    */
-  async activateJobPackage(
+  async applyJobPackageToJob(
     actor: AuthenticatedUser,
     companyId: string,
-    code: string,
-  ): Promise<RecruiterJobPackageListResponse> {
-    const result = await this.jobPackages.activate(actor, companyId, code);
-    await this.writeAudit(
-      actor,
-      'job_package',
-      result.packageId,
-      'activate',
-      null,
-      { packageCode: result.code, creditsGranted: result.creditsGranted },
-    );
-    return this.listJobPackages(companyId);
+    packageId: string,
+    jobId: string,
+  ): Promise<RecruiterApplyJobPackageResponse> {
+    const result = await this.jobPackages.activateAndApply(actor, companyId, packageId, jobId);
+    return {
+      packageId: result.packageId,
+      packageCode: result.packageCode,
+      jobId: result.jobId,
+      jobsRemaining: result.jobsRemaining,
+      activated: result.activated,
+      creditsGranted: result.creditsGranted,
+      expiresAt: result.expiresAt ? result.expiresAt.toISOString() : null,
+    };
   }
 
   /**
-   * Chọn gói tin đăng ACTIVE để dùng lượt đăng cho 1 tin mới.
+   * Danh sách tin tuyển dụng của công ty có thể áp dụng gói tin đăng.
    *
-   * - Có `code` → dùng đúng gói NTD chọn (lỗi nếu gói không còn hiệu lực/hết lượt).
+   * Gồm tin nháp (DRAFT), tin đã đóng/hết hạn, và tin đang dùng gói FREE
+   * (khám phá) — những tin có thể "đăng lại" bằng gói trả phí.
+   */
+  async listApplicableJobs(companyId: string): Promise<RecruiterApplicableJobView[]> {
+    const now = new Date();
+    const rows = await this.prisma.job.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        OR: [
+          // Tin nháp (DRAFT) hoặc tin đã đóng.
+          { status: { in: ['draft', 'closed'] } },
+          // Tin đã đăng nhưng đã hết hạn (deadline < now).
+          { status: 'published', deadline: { not: null, lt: now } },
+          // Tin đang dùng gói FREE (khám phá) → có thể nâng lên gói trả phí.
+          { jobPackage: { packageType: 'FREE' } },
+          // Tin chưa gắn gói nào.
+          { jobPackageId: null },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      include: { jobPackage: { select: { code: true, packageType: true } } },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      title: row.title,
+      status: row.status,
+      jobPackageCode: row.jobPackage?.code ?? null,
+      deadline: row.deadline ? row.deadline.toISOString() : null,
+      publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Chọn gói tin đăng để dùng lượt đăng cho 1 tin mới.
+   *
+   * - Có `code` → dùng đúng gói NTD chọn. Gói `UNUSED` được chấp nhận (sẽ được
+   *   kích hoạt trong cùng transaction tạo tin — chống "kích hoạt rỗng").
    * - Không có `code` → tự chọn gói ACTIVE còn lượt, ưu tiên gói hết hạn sớm nhất.
    *
    * Trả `null` khi công ty không có gói tin đăng nào (luồng gói cũ 1:1 vẫn chạy).
@@ -986,12 +1053,39 @@ export class BillingService implements OnModuleInit {
   /**
    * Trừ 1 lượt đăng của gói (transaction). Ném lỗi nếu gói hết lượt/hết hạn.
    * Gọi trong cùng transaction với việc tạo tin để không mất lượt khi tạo tin lỗi.
-   */
-  async consumeJobPackageSlot(
+   */  async consumeJobPackageSlot(
     tx: Prisma.TransactionClient,
     packageId: string,
   ): Promise<void> {
     await this.jobPackages.consumePostingSlot(tx, packageId);
+  }
+
+  /**
+   * Kích hoạt gói tin đăng `UNUSED` (nếu cần) — gọi TRONG transaction tạo tin.
+   *
+   * Chống "kích hoạt rỗng": gói UNUSED chỉ được kích hoạt khi tạo tin đi kèm,
+   * và cả 2 cùng commit/rollback.
+   *
+   * @returns `expiresAt` của gói sau kích hoạt (để đặt hạn cho tin) hoặc `null` nếu gói vốn đã ACTIVE.
+   */
+  async activateJobPackageInTx(
+    tx: Prisma.TransactionClient,
+    actor: AuthenticatedUser,
+    companyId: string,
+    packageId: string,
+  ): Promise<{ expiresAt: Date | null }> {
+    const pkg = await this.jobPackages.lockPackageRow(tx, packageId);
+    if (pkg.company_id !== companyId) {
+      throw new NotFoundException('Không tìm thấy gói tin đăng này');
+    }
+    const result = await this.jobPackages.activatePackageInTx(
+      tx,
+      pkg,
+      actor,
+      companyId,
+      new Date(),
+    );
+    return { expiresAt: result.expiresAt };
   }
 
   /** Hoàn 1 lượt đăng khi tin bị xoá (đồng bộ `usedJobs` của gói). */

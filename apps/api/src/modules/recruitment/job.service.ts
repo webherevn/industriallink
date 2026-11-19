@@ -93,6 +93,7 @@ type JobWithRelations = Job & {
     profile: Prisma.JsonValue | null;
     status: string;
   };
+  jobPackage?: { id: string; code: string; packageName: string } | null;
 };
 
 /** Hạn tin không vượt mốc trần của gói đang gán (so sánh theo ngày dương lịch giờ VN). */
@@ -516,14 +517,31 @@ export class JobService {
     // Chọn gói (theo `jobPackageCode` nếu NTD chỉ định, không thì hệ thống chọn gói
     // ACTIVE còn lượt, hết hạn sớm nhất) rồi trừ lượt + gắn `jobPackageId` trong
     // CÙNG transaction với việc tạo tin → không mất lượt khi tạo tin lỗi.
+    //
+    // Gói `UNUSED` được NTD chọn cũng được chấp nhận: gói được kích hoạt NGAY TRONG
+    // transaction tạo tin (cộng Credit + đặt hạn theo gói) → không có tình trạng
+    // "kích hoạt rỗng" (kích hoạt gói mà không gắn vào tin nào).
     const pickedPackage = willPublish
       ? await this.billing.pickJobPackageForPosting(company.companyId, dto.jobPackageCode)
       : null;
 
     const job = await this.prisma.$transaction(async (tx) => {
+      // Kích hoạt gói UNUSED (nếu có) — cùng transaction với việc tạo tin.
+      const activation = pickedPackage
+        ? await this.billing.activateJobPackageInTx(
+            tx,
+            user,
+            company.companyId,
+            pickedPackage.id,
+          )
+        : null;
       if (pickedPackage) {
         await this.billing.consumeJobPackageSlot(tx, pickedPackage.id);
       }
+      // Tin dùng gói trả phí → hạn theo hạn gói (đủ 30 ngày), không theo hạn plan.
+      const packageDeadline = activation?.expiresAt
+        ? toVnCalendarDate(activation.expiresAt)
+        : null;
       return tx.job.create({
         data: {
           code,
@@ -544,11 +562,13 @@ export class JobService {
           employmentType: dto.employmentType ?? null,
           location: dto.location ?? null,
           headcount: dto.headcount ?? 1,
-          deadline: await this.resolveJobDeadline(
-            company.companyId,
-            dto.deadline ? toVnCalendarDate(dto.deadline) : null,
-            new Date(),
-          ),
+          deadline: packageDeadline
+            ? packageDeadline
+            : await this.resolveJobDeadline(
+                company.companyId,
+                dto.deadline ? toVnCalendarDate(dto.deadline) : null,
+                new Date(),
+              ),
           experienceBand: dto.experienceBand ?? null,
           salaryMin: dto.salaryMin ?? null,
           salaryMax: dto.salaryMax ?? null,
@@ -614,13 +634,28 @@ export class JobService {
       await this.billing.assertJobQuota(job.companyId);
     }
     // Tin nháp lúc tạo chưa dùng lượt đăng → khi bấm "Đăng tin" mới chọn gói và trừ lượt.
+    // Nếu gói được chọn là `UNUSED` → kích hoạt NGAY TRONG transaction (chống kích hoạt rỗng).
     let jobPackageId = job.jobPackageId;
     if (job.status === JobStatus.Draft && !jobPackageId) {
       const picked = await this.billing.pickJobPackageForPosting(job.companyId);
       if (picked) {
         await this.prisma.$transaction(async (tx) => {
+          const activation = await this.billing.activateJobPackageInTx(
+            tx,
+            user,
+            job.companyId,
+            picked.id,
+          );
           await this.billing.consumeJobPackageSlot(tx, picked.id);
-          await tx.job.update({ where: { id: job.id }, data: { jobPackageId: picked.id } });
+          await tx.job.update({
+            where: { id: job.id },
+            data: {
+              jobPackageId: picked.id,
+              ...(activation.expiresAt
+                ? { deadline: toVnCalendarDate(activation.expiresAt) }
+                : {}),
+            },
+          });
         });
         jobPackageId = picked.id;
       }
@@ -909,7 +944,7 @@ export class JobService {
       include: {
         company: { select: JOB_COMPANY_SELECT },
         skills: { select: { name: true }, take: 6 },
-        jobPackage: { select: { code: true, packageName: true } },
+        jobPackage: { select: { id: true, code: true, packageName: true } },
       },
     });
     await backfillMissingJobSlugs(this.prisma, jobs);
@@ -1323,7 +1358,7 @@ export class JobService {
       company: { id?: string; name: string; slug?: string | null; profile?: Prisma.JsonValue | null };
       skills?: { name: string }[];
       publishedAt?: Date | null;
-      jobPackage?: { code: string; packageName: string } | null;
+      jobPackage?: { id?: string; code: string; packageName: string } | null;
     },
     companyName: string,
     extras?: {
@@ -1375,6 +1410,7 @@ export class JobService {
         ? {
             jobPackageCode: job.jobPackage.code,
             jobPackageName: job.jobPackage.packageName,
+            jobPackageId: job.jobPackage.id ?? null,
           }
         : {}),
       ...(extras?.recruitment ? { recruitment: extras.recruitment } : {}),

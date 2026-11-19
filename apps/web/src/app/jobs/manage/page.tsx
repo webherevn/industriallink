@@ -22,6 +22,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Search,
   Settings,
   Trash2,
@@ -37,6 +38,7 @@ import {
   JobPackageList,
   JobPostingResourcePanel,
 } from '@/components/recruiter-job-posting-resources';
+import { JobRepostPackageModal } from '@/components/job-repost-package-modal';
 import { Badge, Button, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EMPLOYMENT_LABEL, formatJobLevel, formatSalary } from '@/lib/format';
@@ -154,6 +156,8 @@ export default function ManageJobsPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [sort, setSort] = useState<'new' | 'old'>('new');
   const [q, setQ] = useState('');
+  /** Lọc danh sách tin theo gói (từ nút "Xem tin đã gắn" của card gói). */
+  const [packageFilterId, setPackageFilterId] = useState<string | null>(null);
 
   const { data: jobs, isLoading, isError, error } = useQuery({
     queryKey: ['my-jobs'],
@@ -208,6 +212,9 @@ export default function ManageJobsPage() {
     if (statusFilter !== 'all') {
       list = list.filter((j) => j.status === statusFilter);
     }
+    if (packageFilterId) {
+      list = list.filter((j) => j.jobPackageId === packageFilterId);
+    }
     if (timeFilter !== 'all') {
       const days = timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : 90;
       const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
@@ -226,7 +233,7 @@ export default function ManageJobsPage() {
       const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return sort === 'new' ? diff : -diff;
     });
-  }, [jobs, statusFilter, timeFilter, q, sort]);
+  }, [jobs, statusFilter, timeFilter, q, sort, packageFilterId]);
 
   return (
     <AppShell>
@@ -261,14 +268,29 @@ export default function ManageJobsPage() {
 
       {/* Phần 2 — Danh sách gói tin đăng của tôi */}
       <div className="mt-3.5">
-        <JobPackageList />
+        <JobPackageList onFilterJobs={setPackageFilterId} />
       </div>
 
       {/* Phần 3 — Danh sách tin đăng */}
-      <h2 className="mt-5 text-[15px] font-bold text-[#072348]">
+      <h2 id="recruiter-job-list" className="mt-5 scroll-mt-4 text-[15px] font-bold text-[#072348]">
         Danh sách tin đăng
         <span className="ml-1.5 text-slate-400">({stats.total})</span>
       </h2>
+
+      {packageFilterId ? (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-3.5 py-2.5">
+          <p className="text-[12.5px] font-medium text-[#072348]">
+            Đang lọc danh sách tin theo gói đã chọn ({filtered.length} tin).
+          </p>
+          <button
+            type="button"
+            onClick={() => setPackageFilterId(null)}
+            className="text-[12.5px] font-semibold text-[#E8872A] hover:text-[#d6761b]"
+          >
+            Bỏ lọc
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
@@ -458,6 +480,7 @@ function JobManageCard({
   onDelete: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [repostOpen, setRepostOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -490,6 +513,15 @@ function JobManageCard({
   const cleanSkills = job.skills.map((s) => plainLabel(s)).filter(Boolean);
   const visibleSkills = cleanSkills.slice(0, 4);
   const extraSkillCount = Math.max(0, cleanSkills.length - visibleSkills.length);
+
+  // Tin đã đóng, đã hết hạn hoặc đang dùng gói Khám phá → được đăng lại bằng gói trả phí.
+  const deadlinePassed =
+    !!job.deadline && new Date(job.deadline).getTime() < Date.now();
+  const canRepost =
+    !job.isSourcingActive &&
+    (job.status === JobStatus.Closed ||
+      (job.status === JobStatus.Published && deadlinePassed) ||
+      (job.status === JobStatus.Draft && !inReview && !isRejected(job)));
 
   return (
     <article className="brand-panel group relative p-4 transition duration-200 hover:border-brand-200 hover:shadow-[0_12px_30px_-16px_rgba(7,35,72,0.28)] sm:p-5">
@@ -544,6 +576,9 @@ function JobManageCard({
                 >
                   <Package className="h-3 w-3 text-[#E8872A]" />
                   Từ gói: {job.jobPackageName}
+                  {job.jobPackageCode ? (
+                    <span className="font-medium text-[#E8872A]"> · {job.jobPackageCode}</span>
+                  ) : null}
                 </span>
               ) : null}
 
@@ -672,6 +707,18 @@ function JobManageCard({
               </span>
             </Link>
 
+            {/* Tin đã đóng / hết hạn → đăng lại bằng gói tin đăng. */}
+            {canRepost ? (
+              <button
+                type="button"
+                onClick={() => setRepostOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3 text-[12.5px] font-semibold text-[#C25E12] transition hover:border-[#E8872A] hover:bg-[#FFEEDB]"
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-[#E8872A]" />
+                Đăng lại tin
+              </button>
+            ) : null}
+
             {/* Menu 3 chấm */}
             <div ref={menuRef} className="relative ml-auto">
               <button
@@ -797,6 +844,14 @@ function JobManageCard({
           </div>
         </div>
       </div>
+
+      {repostOpen && (
+        <JobRepostPackageModal
+          jobId={job.id}
+          jobTitle={job.title}
+          onClose={() => setRepostOpen(false)}
+        />
+      )}
     </article>
   );
 }

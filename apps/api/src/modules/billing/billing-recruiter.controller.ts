@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -14,8 +14,10 @@ import type {
   RecruiterBillingEntitlements,
   RecruiterConsumeSourcingRequest,
   RecruiterSourcingWorkspace,
-  RecruiterActivateJobPackageRequest,
   RecruiterJobPackageListResponse,
+  RecruiterApplyJobPackageRequest,
+  RecruiterApplyJobPackageResponse,
+  RecruiterApplicableJobView,
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
@@ -78,14 +80,27 @@ export class BillingRecruiterController {
     return this.billing.listJobPackages(companyId);
   }
 
-  @Post('job-packages/activate')
-  @ApiOperation({ summary: 'Chuyển sang dùng gói tin đăng đã mua (mã TD-xxxxxx)' })
-  async activateJobPackage(
+  @Get('job-packages/applicable-jobs')
+  @ApiOperation({ summary: 'Danh sách tin tuyển dụng có thể áp dụng gói tin đăng (nháp / đã đóng / gói khám phá)' })
+  async listApplicableJobs(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: RecruiterActivateJobPackageRequest,
-  ): Promise<RecruiterJobPackageListResponse> {
+  ): Promise<RecruiterApplicableJobView[]> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
-    return this.billing.activateJobPackage(user, companyId, dto.code);
+    return this.billing.listApplicableJobs(companyId);
+  }
+
+  @Post('job-packages/:id/apply-job')
+  @ApiOperation({
+    summary:
+      'Gắn gói tin đăng vào tin tuyển dụng (kích hoạt gói UNUSED + đăng tin trong 1 transaction)',
+  })
+  async applyJobPackage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RecruiterApplyJobPackageRequest,
+  ): Promise<RecruiterApplyJobPackageResponse> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.billing.applyJobPackageToJob(user, companyId, id, dto.jobId);
   }
 
   @Post('sourcing/consume')

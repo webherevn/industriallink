@@ -8,6 +8,7 @@ import type {
   RecruiterJobPackageView,
 } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { toVnCalendarDate } from '../../shared/domain/vn-date.util';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 
 /** Tiền tố mã gói theo loại: JD-ST (Tin đăng), JD-PL (Plus), JD-DN (Doanh nghiệp), JD-FR (Khám phá). */
@@ -51,6 +52,22 @@ function addUtcDays(from: Date, days: number): Date {
   const end = new Date(from);
   end.setUTCDate(end.getUTCDate() + days);
   return end;
+}
+
+/** Dòng gói tin đăng sau khi `SELECT ... FOR UPDATE` (đã khoá dòng). */
+interface LockedJobPackageRow {
+  id: string;
+  code: string;
+  status: string;
+  company_id: string;
+  package_name: string;
+  total_jobs: number | null;
+  used_jobs: number;
+  credits_granted: boolean;
+  credits_included: number;
+  duration_days: number;
+  expires_at: Date | null;
+  activation_deadline_at: Date | null;
 }
 
 /**
@@ -353,160 +370,24 @@ export class JobPackageService {
   }
 
   /**
-   * Kích hoạt gói UNUSED → ACTIVE.
+   * Chọn gói tin đăng để đăng tin.
    *
-   * Chuyển đổi chạy trong 1 transaction: kích hoạt gói + cấp Credit đúng 1 lần
-   * (chống cộng trùng qua cờ `creditsGranted`).
-   */
-  async activate(
-    actor: AuthenticatedUser,
-    companyId: string,
-    code: string,
-  ): Promise<{ packageId: string; code: string; creditsGranted: number }> {
-    const row = await this.findByCode(companyId, code);
-    const now = new Date();
-
-    if (row.status === 'ACTIVE') {
-      return { packageId: row.id, code: row.code, creditsGranted: 0 };
-    }
-    if (row.status === 'EXPIRED') {
-      throw new BadRequestException('Gói tin đăng này đã hết hạn kích hoạt');
-    }
-    if (row.activationDeadlineAt && row.activationDeadlineAt.getTime() < now.getTime()) {
-      throw new BadRequestException('Gói tin đăng này đã quá hạn kích hoạt');
-    }
-
-    const expiresAt = addUtcDays(now, row.durationDays > 0 ? row.durationDays : 30);
-    const credits = row.creditsIncluded;
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Khoá dòng gói để 2 request cùng lúc không cấp Credit trùng.
-      const locked = await tx.$queryRaw<Array<{ id: string; status: string; credits_granted: boolean }>>`
-        SELECT id, status, credits_granted FROM billing.billing_job_package
-        WHERE id = ${row.id}::uuid FOR UPDATE
-      `;
-      const current = locked[0];
-      if (!current) throw new NotFoundException('Không tìm thấy gói tin đăng này');
-      if (current.status === 'ACTIVE') {
-        return { packageId: row.id, code: row.code, creditsGranted: 0 };
-      }
-      if (current.status !== 'UNUSED') {
-        throw new BadRequestException('Gói tin đăng này không còn hiệu lực');
-      }
-
-      let granted = 0;
-      if (!current.credits_granted && credits > 0) {
-        granted = credits;
-        const company = await tx.company.findUnique({
-          where: { id: companyId },
-          select: { tenantId: true },
-        });
-        const tenantId = company?.tenantId ?? 'default';
-        const account = await tx.billingCreditAccount.upsert({
-          where: { companyId },
-          create: { companyId, tenantId },
-          update: {},
-        });
-        await tx.$queryRaw`SELECT id FROM billing.billing_credit_account WHERE id = ${account.id}::uuid FOR UPDATE`;
-        const updated = await tx.billingCreditAccount.update({
-          where: { id: account.id },
-          data: {
-            balance: { increment: credits },
-            lifetimeGranted: { increment: credits },
-            lastActivityAt: now,
-          },
-        });
-        // Lô Credit có hạn khớp hạn gói → FIFO trừ lô sắp hết hạn trước.
-        await tx.billingCreditLot.create({
-          data: {
-            companyId,
-            accountId: account.id,
-            sourceType: 'package',
-            sourceKey: row.code,
-            granted: credits,
-            consumed: 0,
-            expiresAt,
-          },
-        });
-        await tx.billingCreditTransaction.create({
-          data: {
-            tenantId,
-            companyId,
-            accountId: account.id,
-            type: 'grant',
-            action: 'plan_grant',
-            creditDelta: credits,
-            balanceAfter: updated.balance,
-            costPerUnit: 0,
-            quantity: 1,
-            actorUserId: actor.id,
-            actorEmail: actor.email ?? null,
-            note: `Cấp ${credits} Credit khi kích hoạt gói tin đăng ${row.packageName}`,
-            metadata: {
-              source: 'job_package_activate',
-              packageCode: row.code,
-              packageId: row.id,
-              expiresAt: expiresAt.toISOString(),
-            },
-            enforced: true,
-          },
-        });
-        await tx.billingAuditLog.create({
-          data: {
-            entity: 'credit_ledger',
-            entityKey: companyId,
-            action: 'package_grant',
-            diff: {
-              packageCode: row.code,
-              packageId: row.id,
-              creditDelta: credits,
-              expiresAt: expiresAt.toISOString(),
-            },
-            actorId: actor.id,
-            actorEmail: actor.email ?? null,
-          },
-        });
-      }
-
-      await tx.billingJobPackage.update({
-        where: { id: row.id },
-        data: {
-          status: 'ACTIVE',
-          activatedAt: now,
-          expiresAt,
-          creditsGranted: granted > 0 ? true : current.credits_granted,
-        },
-      });
-
-      return { packageId: row.id, code: row.code, creditsGranted: granted };
-    });
-
-    await this.prisma.billingAuditLog.create({
-      data: {
-        entity: 'job_package',
-        entityKey: result.packageId,
-        action: 'activate',
-        diff: {
-          packageCode: result.code,
-          companyId,
-          creditsGranted: result.creditsGranted,
-        },
-        actorId: actor.id,
-        actorEmail: actor.email ?? null,
-      },
-    });
-
-    return result;
-  }
-
-  /**
-   * Chọn gói ACTIVE còn lượt để đăng tin.
-   * Ưu tiên gói hết hạn sớm nhất (dùng trước để không lãng phí gói dài hạn).
+   * - Có `code` → dùng đúng gói NTD chọn:
+   *   - Gói `UNUSED` còn hạn kích hoạt → chấp nhận (sẽ kích hoạt trong cùng
+   *     transaction tạo tin, chống "kích hoạt rỗng").
+   *   - Gói `ACTIVE` → phải còn lượt đăng và còn hiệu lực.
+   * - Không có `code` → tự chọn gói ACTIVE còn lượt, ưu tiên gói hết hạn sớm nhất.
    */
   async pickForPosting(companyId: string, code?: string | null): Promise<BillingJobPackage | null> {
     const now = new Date();
     if (code) {
       const row = await this.findByCode(companyId, code);
+      if (row.status === 'UNUSED') {
+        if (row.activationDeadlineAt && row.activationDeadlineAt.getTime() < now.getTime()) {
+          throw new BadRequestException('Gói tin đăng đã chọn đã quá hạn kích hoạt');
+        }
+        return row;
+      }
       if (row.status !== 'ACTIVE' || (row.expiresAt && row.expiresAt < now)) {
         throw new BadRequestException('Gói tin đăng đã chọn không còn hiệu lực');
       }
@@ -527,7 +408,269 @@ export class JobPackageService {
     const usable = candidates.find(
       (p) => p.totalJobs == null || p.usedJobs < p.totalJobs,
     );
-    return usable ?? null;
+    if (usable) return usable;
+
+    // Không còn gói ACTIVE còn lượt → dùng gói UNUSED còn hạn kích hoạt.
+    // Gói sẽ được kích hoạt trong cùng transaction tạo/đăng tin (không kích hoạt rỗng).
+    const unused = await this.prisma.billingJobPackage.findFirst({
+      where: {
+        companyId,
+        status: 'UNUSED',
+        OR: [{ activationDeadlineAt: null }, { activationDeadlineAt: { gte: now } }],
+      },
+      orderBy: [{ purchasedAt: 'asc' }],
+    });
+    return unused ?? null;
+  }
+
+  /**
+   * Kích hoạt gói (nếu đang UNUSED) + gắn gói vào 1 tin tuyển dụng — TRONG 1 TRANSACTION.
+   *
+   * Đây là API chống "kích hoạt rỗng": không bao giờ kích hoạt gói mà không gắn vào tin.
+   *
+   * - Gói `UNUSED`: chuyển `status = ACTIVE`, set `activatedAt = now`,
+   *   `expiresAt = now + durationDays`, cộng `creditsIncluded` vào Ví Credit chung
+   *   (chỉ 1 lần qua cờ `creditsGranted`), rồi trừ 1 lượt đăng + gắn `Job.jobPackageId`.
+   * - Gói `ACTIVE` còn lượt: KHÔNG cộng lại Credit, chỉ trừ 1 lượt đăng + gắn tin.
+   *
+   * Tin được publish và đặt hạn theo `expiresAt` của gói.
+   */
+  async activateAndApply(
+    actor: AuthenticatedUser,
+    companyId: string,
+    packageId: string,
+    jobId: string,
+  ): Promise<{
+    packageId: string;
+    packageCode: string;
+    jobId: string;
+    jobsRemaining: number | null;
+    activated: boolean;
+    creditsGranted: number;
+    expiresAt: Date | null;
+  }> {
+    const now = new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      // Khoá dòng gói: chặn 2 request đồng thời dùng trùng 1 lượt / cộng trùng Credit.
+      const pkg = await this.lockPackageRow(tx, packageId);
+      if (pkg.company_id !== companyId) {
+        throw new NotFoundException('Không tìm thấy gói tin đăng này');
+      }
+
+      // Tin phải thuộc công ty.
+      const job = await tx.job.findFirst({
+        where: { id: jobId, companyId, isDeleted: false },
+        select: { id: true, code: true, title: true, status: true, jobPackageId: true },
+      });
+      if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng cần gắn gói.');
+
+      // --- Kích hoạt gói nếu đang UNUSED (cộng Credit đúng 1 lần) ---
+      const activation = await this.activatePackageInTx(tx, pkg, actor, companyId, now);
+
+      // --- Trừ 1 lượt đăng (dùng chung cho cả 2 nhánh UNUSED / ACTIVE) ---
+      const afterConsume = await this.consumePostingSlot(tx, pkg.id);
+
+      // Tin đang gắn gói khác → hoàn lượt đăng của gói cũ (giữ đồng bộ `usedJobs`).
+      // Dùng GREATEST để không bao giờ âm.
+      if (job.jobPackageId && job.jobPackageId !== pkg.id) {
+        await tx.$queryRaw`
+          UPDATE billing.billing_job_package
+          SET used_jobs = GREATEST(used_jobs - 1, 0)
+          WHERE id = ${job.jobPackageId}::uuid
+        `;
+      }
+
+      // --- Gắn gói vào tin + publish + đặt hạn theo gói ---
+      await tx.job.update({
+        where: { id: job.id },
+        data: {
+          jobPackageId: pkg.id,
+          status: 'published',
+          moderationStatus: 'approved',
+          publishedAt: job.status === 'published' ? undefined : now,
+          deadline: activation.expiresAt
+            ? toVnCalendarDate(activation.expiresAt)
+            : undefined,
+        },
+      });
+
+      await tx.billingAuditLog.create({
+        data: {
+          entity: 'job_package',
+          entityKey: pkg.id,
+          action: 'apply_job',
+          diff: {
+            packageCode: pkg.code,
+            packageId: pkg.id,
+            jobId: job.id,
+            jobCode: job.code,
+            activated: activation.activated,
+            creditsGranted: activation.creditsGranted,
+            expiresAt: activation.expiresAt ? activation.expiresAt.toISOString() : null,
+          },
+          actorId: actor.id,
+          actorEmail: actor.email ?? null,
+        },
+      });
+
+      return {
+        packageId: pkg.id,
+        packageCode: pkg.code,
+        jobId: job.id,
+        jobsRemaining:
+          afterConsume.totalJobs == null
+            ? null
+            : Math.max(0, afterConsume.totalJobs - afterConsume.usedJobs),
+        activated: activation.activated,
+        creditsGranted: activation.creditsGranted,
+        expiresAt: activation.expiresAt,
+      };
+    });
+  }
+
+  /**
+   * Khoá dòng gói (`FOR UPDATE`) để tránh race khi 2 request dùng cùng 1 gói.
+   */
+  async lockPackageRow(
+    tx: Prisma.TransactionClient,
+    packageId: string,
+  ): Promise<LockedJobPackageRow> {
+    const locked = await tx.$queryRaw<LockedJobPackageRow[]>`
+      SELECT id, code, status, company_id, package_name, total_jobs, used_jobs,
+             credits_granted, credits_included, duration_days, expires_at, activation_deadline_at
+      FROM billing.billing_job_package
+      WHERE id = ${packageId}::uuid FOR UPDATE
+    `;
+    const row = locked[0];
+    if (!row) throw new NotFoundException('Không tìm thấy gói tin đăng này');
+    return row;
+  }
+
+  /**
+   * Kích hoạt gói `UNUSED` → `ACTIVE` TRONG transaction đang chạy.
+   *
+   * - `status = ACTIVE`, `activatedAt = now`, `expiresAt = now + durationDays`.
+   * - Cộng `creditsIncluded` vào Ví Credit chung — CHỈ 1 LẦN (cờ `creditsGranted`).
+   *
+   * Nếu gói đã `ACTIVE`: giữ nguyên hạn, KHÔNG cộng lại Credit.
+   *
+   * @returns `activated` = gói vừa được kích hoạt, `creditsGranted` = số Credit vừa cộng.
+   */
+  async activatePackageInTx(
+    tx: Prisma.TransactionClient,
+    pkg: LockedJobPackageRow,
+    actor: AuthenticatedUser,
+    companyId: string,
+    now: Date,
+  ): Promise<{ activated: boolean; creditsGranted: number; expiresAt: Date | null }> {
+    if (pkg.status === 'ACTIVE') {
+      if (pkg.expires_at && new Date(pkg.expires_at).getTime() < now.getTime()) {
+        throw new BadRequestException('Gói tin đăng đã hết hạn.');
+      }
+      // Gói đã chạy: KHÔNG cộng lại Credit.
+      return {
+        activated: false,
+        creditsGranted: 0,
+        expiresAt: pkg.expires_at ? new Date(pkg.expires_at) : null,
+      };
+    }
+
+    if (pkg.status !== 'UNUSED') {
+      throw new BadRequestException('Gói tin đăng này không còn hiệu lực.');
+    }
+    if (pkg.activation_deadline_at && new Date(pkg.activation_deadline_at).getTime() < now.getTime()) {
+      throw new BadRequestException('Gói tin đăng này đã quá hạn kích hoạt.');
+    }
+
+    const durationDays = pkg.duration_days > 0 ? pkg.duration_days : 30;
+    const expiresAt = addUtcDays(now, durationDays);
+    let creditsGranted = 0;
+
+    // Cộng Credit vào ví chung (đúng 1 lần).
+    if (!pkg.credits_granted && pkg.credits_included > 0) {
+      creditsGranted = pkg.credits_included;
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { tenantId: true },
+      });
+      const tenantId = company?.tenantId ?? 'default';
+      const account = await tx.billingCreditAccount.upsert({
+        where: { companyId },
+        create: { companyId, tenantId },
+        update: {},
+      });
+      await tx.$queryRaw`SELECT id FROM billing.billing_credit_account WHERE id = ${account.id}::uuid FOR UPDATE`;
+      const updated = await tx.billingCreditAccount.update({
+        where: { id: account.id },
+        data: {
+          balance: { increment: creditsGranted },
+          lifetimeGranted: { increment: creditsGranted },
+          lastActivityAt: now,
+        },
+      });
+      await tx.billingCreditLot.create({
+        data: {
+          companyId,
+          accountId: account.id,
+          sourceType: 'package',
+          sourceKey: pkg.code,
+          granted: creditsGranted,
+          consumed: 0,
+          expiresAt,
+        },
+      });
+      await tx.billingCreditTransaction.create({
+        data: {
+          tenantId,
+          companyId,
+          accountId: account.id,
+          type: 'grant',
+          action: 'plan_grant',
+          creditDelta: creditsGranted,
+          balanceAfter: updated.balance,
+          costPerUnit: 0,
+          quantity: 1,
+          actorUserId: actor.id,
+          actorEmail: actor.email ?? null,
+          note: `Cấp ${creditsGranted} Credit khi kích hoạt gói tin đăng ${pkg.package_name}`,
+          metadata: {
+            source: 'job_package_activate',
+            packageCode: pkg.code,
+            packageId: pkg.id,
+            expiresAt: expiresAt.toISOString(),
+          },
+          enforced: true,
+        },
+      });
+      await tx.billingAuditLog.create({
+        data: {
+          entity: 'credit_ledger',
+          entityKey: companyId,
+          action: 'package_grant',
+          diff: {
+            packageCode: pkg.code,
+            packageId: pkg.id,
+            creditDelta: creditsGranted,
+            expiresAt: expiresAt.toISOString(),
+          },
+          actorId: actor.id,
+          actorEmail: actor.email ?? null,
+        },
+      });
+    }
+
+    await tx.billingJobPackage.update({
+      where: { id: pkg.id },
+      data: {
+        status: 'ACTIVE',
+        activatedAt: now,
+        expiresAt,
+        creditsGranted: pkg.credits_granted || creditsGranted > 0,
+      },
+    });
+
+    return { activated: true, creditsGranted, expiresAt };
   }
 
   /**
