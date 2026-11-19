@@ -575,6 +575,87 @@ export interface RecruiterBillingEntitlements {
 }
 
 // =========================================================================
+// GÓI TIN ĐĂNG CỦA TÔI (danh sách gói NTD đã mua)
+// =========================================================================
+
+/**
+ * Trạng thái 1 gói tin đăng trong danh sách "Gói tin đăng của tôi".
+ * - `unused`  : gói đã mua nhưng chưa kích hoạt (chờ NTD bấm "Sử dụng")
+ * - `active`  : gói đang chạy (đã kích hoạt, còn hiệu lực)
+ * - `expired` : gói đã hết hạn
+ */
+export type RecruiterJobPackageStatus = 'unused' | 'active' | 'expired';
+
+/** Loại gói tin đăng. */
+export type RecruiterJobPackageType = 'FREE' | 'STANDARD' | 'PLUS' | 'ENTERPRISE';
+
+/** Một gói tin đăng NTD đã mua — 1 bản ghi độc lập, tách theo từng lần mua. */
+export interface RecruiterJobPackageView {
+  /** Id gói trong DB. */
+  id: string;
+  /** Mã gói hiển thị, vd "JD-ST-000029". */
+  code: string;
+  /** Id đơn hàng đã mua gói này (null = gói khám phá / do SuperAdmin cấp). */
+  orderId: string | null;
+  planCode: string | null;
+  planName: string;
+  packageType: RecruiterJobPackageType;
+  status: RecruiterJobPackageStatus;
+  /** true = gói này đang chạy (ACTIVE). Nhiều gói có thể cùng ACTIVE. */
+  isCurrent: boolean;
+  /** Số tin được đăng của gói này (null = không giới hạn). */
+  jobPostQuota: number | null;
+  /** Credit đi kèm gói (null = không cấp riêng). */
+  creditQuota: number | null;
+  /** Số ngày tin được hiển thị. */
+  displayDays: number | null;
+  /** Số tin đã dùng trong chu kỳ của gói này. */
+  jobsUsed: number | null;
+  /** Số tin còn lại của gói này. null = không giới hạn, hoặc gói chưa kích hoạt. */
+  jobsRemaining: number | null;
+  /** Giá đã trả (chưa VAT), VND. */
+  priceVnd: string;
+  purchasedAt: string;
+  paidAt: string | null;
+  /** Ngày hết hạn gói. */
+  endsAt: string | null;
+  /** Hạn cuối để kích hoạt gói UNUSED. */
+  activationDeadlineAt: string | null;
+  /** Thời điểm kích hoạt gói. */
+  activatedAt: string | null;
+  /** true = Credit của gói đã được cộng vào ví (chống cộng trùng). */
+  creditsGranted: boolean;
+  /** Có thể bấm "Sử dụng gói này" (UNUSED + còn hạn kích hoạt). */
+  canActivate: boolean;
+  /** Còn lượt đăng để đăng tin từ gói này. */
+  canPostJob: boolean;
+}
+
+/** Tổng hợp tài nguyên tin đăng — query trực tiếp từ các gói tin đăng. */
+export interface RecruiterJobPackageSummary {
+  /** Tổng số gói đã mua (mọi trạng thái). */
+  totalPackages: number;
+  /** Số gói đang chạy (ACTIVE). */
+  activePackages: number;
+  /** Số gói chờ kích hoạt (UNUSED). */
+  unusedPackages: number;
+  /** Tổng lượt đăng còn lại của gói ACTIVE + UNUSED. null = không giới hạn. */
+  jobsRemaining: number | null;
+  /** Số ngày còn lại của gói ACTIVE hết hạn sớm nhất. null = không có gói nào. */
+  daysRemaining: number | null;
+  /** Gói cấp cao nhất đang ACTIVE (DOANH_NGHIEP > TIN_DANG_PLUS > TIN_DANG > KHAM_PHA). */
+  topPackageName: string | null;
+  /** Mã gói cấp cao nhất đang ACTIVE. */
+  topPackageCode: string | null;
+}
+
+export interface RecruiterJobPackageListResponse {
+  items: RecruiterJobPackageView[];
+  total: number;
+  summary: RecruiterJobPackageSummary;
+}
+
+// =========================================================================
 // PAYMENT (Bước 7)
 // =========================================================================
 

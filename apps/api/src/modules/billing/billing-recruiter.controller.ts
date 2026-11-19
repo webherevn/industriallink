@@ -14,6 +14,8 @@ import type {
   RecruiterBillingEntitlements,
   RecruiterConsumeSourcingRequest,
   RecruiterSourcingWorkspace,
+  RecruiterActivateJobPackageRequest,
+  RecruiterJobPackageListResponse,
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
@@ -65,6 +67,25 @@ export class BillingRecruiterController {
   ): Promise<RecruiterSourcingWorkspace> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.sourcing.getWorkspace(companyId);
+  }
+
+  @Get('job-packages')
+  @ApiOperation({ summary: 'Danh sách gói tin đăng đã mua của công ty' })
+  async listJobPackages(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RecruiterJobPackageListResponse> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.billing.listJobPackages(companyId);
+  }
+
+  @Post('job-packages/activate')
+  @ApiOperation({ summary: 'Chuyển sang dùng gói tin đăng đã mua (mã TD-xxxxxx)' })
+  async activateJobPackage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RecruiterActivateJobPackageRequest,
+  ): Promise<RecruiterJobPackageListResponse> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.billing.activateJobPackage(user, companyId, dto.code);
   }
 
   @Post('sourcing/consume')

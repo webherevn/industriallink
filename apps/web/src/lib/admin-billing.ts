@@ -11,6 +11,8 @@ import type {
   AdminUpdateCreditTopupRequest,
   AdminUpdateCreditPolicyRequest,
   AdminUpdateCurrencyConfigRequest,
+  AdminUpdateVatSettingRequest,
+  AdminVatSettingView,
   BillingPlatformPlanView,
   BillingSourcingPlanView,
   BillingCreditTopupView,
@@ -204,6 +206,19 @@ export async function updateAdminCurrency(
   body: AdminUpdateCurrencyConfigRequest
 ): Promise<BillingCurrencyDisplay> {
   return apiRequest<BillingCurrencyDisplay>('/admin/billing/currency', { method: 'PATCH', body });
+}
+
+// =========================================================================
+// ADMIN — VAT
+// =========================================================================
+export async function fetchAdminVatSetting(): Promise<AdminVatSettingView> {
+  return apiRequest<AdminVatSettingView>('/admin/billing/vat');
+}
+
+export async function updateAdminVatSetting(
+  body: AdminUpdateVatSettingRequest,
+): Promise<AdminVatSettingView> {
+  return apiRequest<AdminVatSettingView>('/admin/billing/vat', { method: 'PATCH', body });
 }
 
 // =========================================================================

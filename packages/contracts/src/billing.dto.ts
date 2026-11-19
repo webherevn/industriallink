@@ -119,6 +119,18 @@ export interface AdminUpdateCurrencyConfigRequest {
   usdToVndRateHundredths?: number | string | null;
 }
 
+/** Thuế suất VAT hiển thị trên bảng giá (SuperAdmin đặt ở Admin → Billing → Policy & tiền tệ). */
+export interface AdminVatSettingView {
+  /** Null khi chưa đặt. Giá niêm yết luôn là giá chưa VAT. */
+  percent: number | null;
+  updatedAt: string | null;
+}
+
+export interface AdminUpdateVatSettingRequest {
+  /** Số nguyên 0–100. */
+  percent: number;
+}
+
 /** SuperAdmin chỉnh copy / SEO / FAQ / liên hệ trang /bang-gia. */
 export interface AdminUpdatePageContentRequest {
   seoTitle?: string;
@@ -221,6 +233,12 @@ export interface RecruiterCreatePlanCheckoutRequest {
 /** Recruiter thanh toán / kích hoạt gói Săn nhân sự. */
 export interface RecruiterCreateSourcingCheckoutRequest {
   planCode: string;
+}
+
+/** Recruiter bấm "Sử dụng" trên 1 gói tin đăng đã mua (mã gói JD-xxxxxx). */
+export interface RecruiterActivateJobPackageRequest {
+  /** Mã gói hiển thị, vd "JD-ST-000029". */
+  code: string;
 }
 
 export interface AdminAssignCompanySourcingPlanRequest {

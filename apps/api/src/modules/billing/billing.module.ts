@@ -9,6 +9,7 @@ import { BillingMockPaymentController } from './billing-mock-payment.controller'
 import { BillingStripeWebhookController } from './billing-stripe-webhook.controller';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
+import { JobPackageService } from './job-package.service';
 import { PaymentService } from './payment.service';
 import { SourcingService } from './sourcing.service';
 import { CrmModule } from '../crm/crm.module';
@@ -24,8 +25,14 @@ import { CompanyModule } from '../company/company.module';
     BillingMockPaymentController,
     BillingStripeWebhookController,
   ],
-  providers: [SourcingService, BillingService, CreditService, PaymentService],
-  exports: [BillingService, CreditService, PaymentService, SourcingService],
+  providers: [
+    SourcingService,
+    JobPackageService,
+    BillingService,
+    CreditService,
+    PaymentService,
+  ],
+  exports: [BillingService, CreditService, PaymentService, SourcingService, JobPackageService],
 })
 export class BillingModule implements OnModuleInit {
   constructor(

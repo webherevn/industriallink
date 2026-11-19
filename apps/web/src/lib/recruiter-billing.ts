@@ -17,6 +17,8 @@ import type {
   RecruiterConsumeSourcingRequest,
   RecruiterSourcingWorkspace,
   BillingCompanySourcingPlanView,
+  RecruiterJobPackageListResponse,
+  RecruiterActivateJobPackageRequest,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
 
@@ -71,6 +73,21 @@ export async function activateRecruiterSourcingPlan(
 
 export async function fetchRecruiterSourcing(): Promise<RecruiterSourcingWorkspace> {
   return apiRequest<RecruiterSourcingWorkspace>('/billing/sourcing');
+}
+
+/** Danh sách gói tin đăng đã mua của công ty (mã TD-xxxxxx). */
+export async function fetchRecruiterJobPackages(): Promise<RecruiterJobPackageListResponse> {
+  return apiRequest<RecruiterJobPackageListResponse>('/billing/job-packages');
+}
+
+/** Chuyển sang dùng gói tin đăng đã mua. Không cấp lại Credit. */
+export async function activateRecruiterJobPackage(
+  code: string,
+): Promise<RecruiterJobPackageListResponse> {
+  return apiRequest<RecruiterJobPackageListResponse>('/billing/job-packages/activate', {
+    method: 'POST',
+    body: { code } as RecruiterActivateJobPackageRequest,
+  });
 }
 
 export async function consumeRecruiterSourcing(

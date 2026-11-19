@@ -7,7 +7,6 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
-  Clock,
   Coins,
   Eye,
   Info,
@@ -96,6 +95,18 @@ export function SourcingOverviewDashboard({
     for (const p of packages) map.set(p.id, p);
     return map;
   }, [packages]);
+
+  /** Gom chiến dịch theo gói đã mua: 1 gói có thể mở nhiều vị trí (positionQuota). */
+  const engagementsByPackage = useMemo(() => {
+    const map = new Map<string, RecruiterSourcingEngagementView[]>();
+    for (const eng of engagements) {
+      if (!eng.packageId) continue;
+      const list = map.get(eng.packageId);
+      if (list) list.push(eng);
+      else map.set(eng.packageId, [eng]);
+    }
+    return map;
+  }, [engagements]);
 
   // Tính chỉ số theo từng chiến dịch dựa trên scanRounds, shortlist, usages (open:), outreach
   const statsByEngagement = useMemo(() => {
@@ -274,23 +285,23 @@ export function SourcingOverviewDashboard({
             <MiniStatBox
               icon={<Layers className="h-4 w-4 text-[#E8872A]" />}
               iconBg="bg-amber-50"
-              label="Tổng gói đã mua"
+              label="Gói đã mua"
               value={packageCounts.all}
               valueColor="text-[#E8872A]"
             />
             <MiniStatBox
               icon={<PlayCircle className="h-4 w-4 text-emerald-600" />}
               iconBg="bg-emerald-50"
-              label="Đang sử dụng"
+              label="Gói đang dùng"
               value={packageCounts.active}
               valueColor="text-emerald-600"
             />
             <MiniStatBox
-              icon={<Clock className="h-4 w-4 text-slate-600" />}
-              iconBg="bg-slate-100"
-              label="Chưa kích hoạt"
-              value={packageCounts.reserved}
-              valueColor="text-[#072348]"
+              icon={<Briefcase className="h-4 w-4 text-[#0B468C]" />}
+              iconBg="bg-sky-50"
+              label="Chiến dịch đang chạy"
+              value={activeEngagements.length}
+              valueColor="text-[#0B468C]"
             />
             <div className="flex flex-col justify-between rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 to-orange-50/50 p-3">
               <div>
@@ -318,13 +329,16 @@ export function SourcingOverviewDashboard({
         {/* Cột trái: Gói Tin săn của tôi */}
         <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <h2 className="text-[15px] font-bold text-[#072348]">Gói Tin săn của tôi</h2>
               <span
-                title="Danh sách từng gói Tin săn bạn đã mua. Gói chưa kích hoạt được bảo lưu tối đa 365 ngày."
+                title="Danh sách từng gói Tin săn bạn đã mua. Gói chưa kích hoạt được bảo lưu tối đa 365 ngày. Mỗi gói cho phép mở nhiều vị trí, mỗi vị trí là 1 chiến dịch."
                 className="text-slate-400"
               >
                 <Info className="h-3.5 w-3.5" />
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-500">
+                1 gói → nhiều chiến dịch
               </span>
             </div>
             <Link
@@ -373,6 +387,12 @@ export function SourcingOverviewDashboard({
                 const isActive = pkg.status === 'active';
                 const isExpired = pkg.status === 'expired';
                 const daysLeft = daysLeftOf(isReserved ? pkg.reserveEndsAt : pkg.endsAt);
+                // Các chiến dịch đã mở từ gói này (1 gói có thể mở nhiều vị trí).
+                const pkgEngagements = engagementsByPackage.get(pkg.id) ?? [];
+                const usedPositions = pkgEngagements.length;
+                const positionQuota = pkg.positionQuota ?? null;
+                const positionsLeft =
+                  positionQuota == null ? null : Math.max(0, positionQuota - usedPositions);
 
                 return (
                   <div
@@ -451,13 +471,24 @@ export function SourcingOverviewDashboard({
                         >
                           Kích hoạt gói
                         </button>
-                      ) : pkg.engagementId ? (
-                        <Link
-                          href={`/recruiter/sourcing/${pkg.engagementId}`}
-                          className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#072348] transition hover:border-sky-300 hover:bg-sky-50/40"
-                        >
-                          Xem chiến dịch
-                        </Link>
+                      ) : pkgEngagements.length > 0 ? (
+                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                          {pkgEngagements.slice(0, 2).map((eng) => (
+                            <Link
+                              key={eng.id}
+                              href={`/recruiter/sourcing/${eng.id}`}
+                              title={`Quản lý chiến dịch: ${formatJobTitle(eng.title)}`}
+                              className="max-w-[180px] truncate rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#072348] transition hover:border-sky-300 hover:bg-sky-50/40"
+                            >
+                              {formatJobTitle(eng.title)}
+                            </Link>
+                          ))}
+                          {pkgEngagements.length > 2 ? (
+                            <span className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600">
+                              +{pkgEngagements.length - 2} chiến dịch
+                            </span>
+                          ) : null}
+                        </div>
                       ) : isActive && canOpenMorePositions ? (
                         <button
                           type="button"
@@ -483,7 +514,19 @@ export function SourcingOverviewDashboard({
                         )}
                       </span>
                       <span>
-                        <strong className="text-[#E8872A]">{pkg.positionQuota ?? 1}</strong> Vị trí
+                        <strong className="text-[#E8872A]">{usedPositions}</strong>
+                        {positionQuota == null ? (
+                          <> / không giới hạn Vị trí đã mở</>
+                        ) : (
+                          <>
+                            /{positionQuota} Vị trí đã mở
+                            {positionsLeft != null && positionsLeft > 0 ? (
+                              <span className="ml-1 text-slate-400">
+                                (còn {positionsLeft} vị trí)
+                              </span>
+                            ) : null}
+                          </>
+                        )}
                       </span>
                       <span>
                         <strong className="text-[#072348]">{pkg.creditQuota ?? 0}</strong> Credit
@@ -512,7 +555,7 @@ export function SourcingOverviewDashboard({
             <div className="flex items-center gap-1.5">
               <h2 className="text-[15px] font-bold text-[#072348]">Chiến dịch Tin săn đang chạy</h2>
               <span
-                title="Bấm Quản lý chiến dịch để xem danh sách ứng viên ứng tuyển và ứng viên tiềm năng của vị trí"
+                title="Mỗi chiến dịch tương ứng 1 vị trí đang săn. Bấm Quản lý chiến dịch để xem danh sách ứng viên ứng tuyển và ứng viên tiềm năng của vị trí đó."
                 className="text-slate-400"
               >
                 <Info className="h-3.5 w-3.5" />
@@ -579,6 +622,12 @@ export function SourcingOverviewDashboard({
                               <span className="font-mono text-slate-600">{linkedJob.code} · </span>
                             ) : null}
                             {linkedPkg?.planName ?? entitlements.planName ?? 'Gói Săn nhân sự'}
+                            {linkedPkg?.code ? (
+                              <>
+                                {' · '}
+                                <span className="font-mono text-slate-500">{linkedPkg.code}</span>
+                              </>
+                            ) : null}
                           </p>
                         </div>
                       </div>

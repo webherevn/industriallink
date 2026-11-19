@@ -23,13 +23,14 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import type { BillingPlatformPlanView } from '@industriallink/contracts';
+import type { BillingPlatformPlanView, RecruiterJobPackageView } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { ApiError } from '@/lib/api';
 import {
   fetchRecruiterCreditTransactions,
   fetchRecruiterEntitlements,
+  fetchRecruiterJobPackages,
   fetchRecruiterOrders,
 } from '@/lib/recruiter-billing';
 
@@ -103,17 +104,25 @@ export function RecruiterBillingHub() {
     retry: false,
   });
 
+  const { data: packagesData } = useQuery({
+    queryKey: ['recruiter-job-packages'],
+    queryFn: fetchRecruiterJobPackages,
+    retry: false,
+  });
+
   const plan = entitlements?.plan ?? null;
   const planName = plan?.planName ?? entitlements?.planName ?? 'Khám phá';
   const credits = entitlements?.credits;
   const sourcing = entitlements?.sourcing ?? null;
 
+  // Gói tin đăng multi-active: danh sách gói đang chạy (mỗi gói 1 lượt đăng riêng).
+  const activeJobPackages = (packagesData?.items ?? []).filter((p) => p.status === 'active');
   const hasSourcing = Boolean(sourcing?.assignment?.isActive && sourcing?.planName);
-  const isPaidPlatform = Boolean(
-    plan?.isActive && entitlements?.planCode && entitlements.planCode !== 'KHAM_PHA',
+  // Ưu tiên hiển thị gói tin đăng multi-active; không có thì mới dùng gói nền tảng gán 1:1.
+  const showJobPackages = activeJobPackages.length > 0;
+  const showPlatformCard = Boolean(
+    showJobPackages || (plan && (!hasSourcing || entitlements?.planCode !== 'KHAM_PHA')),
   );
-  // Hiển thị gói nền tảng khi không có gói Săn (Case 1) HOẶC khi đã nâng cấp gói nền tảng trả phí (Case cả 2 gói)
-  const showPlatformCard = Boolean(plan && (!hasSourcing || isPaidPlatform));
   const showSourcingCard = hasSourcing;
   const activePackageCount = (showPlatformCard ? 1 : 0) + (showSourcingCard ? 1 : 0);
 
@@ -260,7 +269,7 @@ export function RecruiterBillingHub() {
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[15px] font-bold text-[#072348]">
-              Gói đang sử dụng ({activePackageCount})
+              Gói đang sử dụng ({showJobPackages ? activeJobPackages.length : activePackageCount})
             </h2>
             <Link
               href="/recruiter/pricing"
@@ -297,19 +306,24 @@ export function RecruiterBillingHub() {
               )}
             >
               {/* Thẻ Gói Tin đăng / Nền tảng */}
-              {showPlatformCard && plan && (
-                <PlatformPlanCard
-                  compact={activePackageCount >= 2}
-                  planName={planName}
-                  isActive={plan.isActive}
-                  expiresAt={plan.endsAt}
-                  activatedAt={plan.activatedAt ?? null}
-                  reserveEndsAt={plan.reserveEndsAt ?? null}
-                  jobsUsed={entitlements?.jobsUsed ?? 0}
-                  jobPostQuota={entitlements?.jobPostQuota ?? null}
-                  creditQuota={entitlements?.creditQuota ?? null}
-                  jobDisplayDays={entitlements?.jobDisplayDays ?? null}
-                />
+              {showJobPackages ? (
+                <JobPackagesCard packages={activeJobPackages} />
+              ) : (
+                showPlatformCard &&
+                plan && (
+                  <PlatformPlanCard
+                    compact={activePackageCount >= 2}
+                    planName={planName}
+                    isActive={plan.isActive}
+                    expiresAt={plan.endsAt}
+                    activatedAt={plan.activatedAt ?? null}
+                    reserveEndsAt={plan.reserveEndsAt ?? null}
+                    jobsUsed={entitlements?.jobsUsed ?? 0}
+                    jobPostQuota={entitlements?.jobPostQuota ?? null}
+                    creditQuota={entitlements?.creditQuota ?? null}
+                    jobDisplayDays={entitlements?.jobDisplayDays ?? null}
+                  />
+                )
               )}
 
               {/* Thẻ Gói Săn nhân sự */}
@@ -361,7 +375,11 @@ export function RecruiterBillingHub() {
                   icon={<Coins className="h-4 w-4 text-amber-500" />}
                   label="Tổng Credit gói"
                   value={`${fmtNum(
-                    (showPlatformCard ? (entitlements.creditQuota ?? 0) : 0) +
+                    (showJobPackages
+                      ? activeJobPackages.reduce((sum, p) => sum + (p.creditQuota ?? 0), 0)
+                      : showPlatformCard
+                        ? (entitlements.creditQuota ?? 0)
+                        : 0) +
                       (showSourcingCard ? (sourcing?.creditQuota ?? 0) : 0),
                   )} Credit`}
                 />
@@ -596,6 +614,109 @@ export function RecruiterBillingHub() {
         </div>
       </div>
     </RecruiterShell>
+  );
+}
+
+/**
+ * Gói tin đăng multi-active: mỗi gói là 1 lần mua độc lập, cấp lượt đăng cho 1 tin riêng.
+ */
+function JobPackagesCard({ packages }: { packages: RecruiterJobPackageView[] }) {
+  const totalJobs = packages.reduce((sum, p) => sum + (p.jobPostQuota ?? 0), 0);
+  const usedJobs = packages.reduce((sum, p) => sum + (p.jobsUsed ?? 0), 0);
+  const totalCredits = packages.reduce((sum, p) => sum + (p.creditQuota ?? 0), 0);
+  const displayDays = packages
+    .map((p) => p.displayDays ?? 0)
+    .filter((d) => d > 0)
+    .sort((a, b) => b - a)[0];
+
+  return (
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-[#1D4ED8]">
+            <Briefcase className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-[15px] font-bold text-[#072348]">
+              Gói tin đăng đang chạy ({packages.length})
+            </p>
+            <p className="text-xs text-slate-500">
+              Mỗi gói cấp lượt đăng cho 1 tin riêng — không gói nào dùng chung lượt.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <ul className="mt-4 space-y-2">
+        {packages.map((pkg) => {
+          const pct =
+            pkg.jobPostQuota && pkg.jobPostQuota > 0
+              ? Math.min(100, Math.round(((pkg.jobsUsed ?? 0) / pkg.jobPostQuota) * 100))
+              : 0;
+          const daysLeft = daysRemaining(pkg.endsAt);
+          return (
+            <li
+              key={pkg.code}
+              className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[13.5px] font-bold text-[#072348]">{pkg.planName}</p>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  Đang hoạt động
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">{pkg.code}</p>
+              <div className="mt-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-slate-600">Lượt tin đã dùng</span>
+                  <span className="font-bold text-[#072348]">
+                    {pkg.jobsUsed ?? 0} / {pkg.jobPostQuota ?? '∞'} tin
+                  </span>
+                </div>
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-200/70">
+                  <div
+                    className="h-full rounded-full bg-[#1D4ED8]"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-500">
+                {pkg.creditQuota ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Coins className="h-3 w-3 text-slate-400" />
+                    {pkg.creditQuota} Credit
+                  </span>
+                ) : null}
+                {displayDays ? (
+                  <span className="inline-flex items-center gap-1">
+                    <CalendarDays className="h-3 w-3 text-slate-400" />
+                    Hiển thị {displayDays} ngày
+                  </span>
+                ) : null}
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="h-3 w-3 text-slate-400" />
+                  Hạn đến {fmtDate(pkg.endsAt)}
+                  {daysLeft != null ? ` (còn ${daysLeft} ngày)` : ''}
+                </span>
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+        <span>
+          Tổng lượt tin:{' '}
+          <strong className="text-[#072348]">
+            {usedJobs} / {totalJobs} tin
+          </strong>
+        </span>
+        <span>
+          Tổng Credit gói:{' '}
+          <strong className="text-[#072348]">{fmtNum(totalCredits)} Credit</strong>
+        </span>
+      </div>
+    </section>
   );
 }
 

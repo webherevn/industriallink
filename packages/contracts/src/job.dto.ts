@@ -38,6 +38,11 @@ export interface CreateJobRequest {
   /** true để đăng công khai ngay; false để lưu nháp. */
   /** true khi điều chỉnh tiêu chí săn từ bảng Điều chỉnh Tin Săn (/recruiter/sourcing). */
   fromSourcingRevision?: boolean;
+  /**
+   * Mã gói tin đăng (billing.billing_job_package.code) dùng lượt đăng cho tin này.
+   * Bỏ trống = hệ thống tự chọn gói ACTIVE còn lượt (gói hết hạn sớm nhất).
+   */
+  jobPackageCode?: string;
   publish?: boolean;
 }
 
@@ -139,6 +144,10 @@ export interface JobListItem {
   isBookmarked?: boolean;
   /** Tin đang hoạt động trong gói Săn nhân sự (hiển thị nhãn "Đang hoạt động săn tin" và khóa sửa ở Tin tuyển dụng). */
   isSourcingActive?: boolean;
+  /** Mã gói tin đăng đã dùng lượt đăng cho tin này (vd "JD-ST-000029"). */
+  jobPackageCode?: string | null;
+  /** Tên gói tin đăng đã dùng lượt đăng cho tin này. */
+  jobPackageName?: string | null;
   /** Kết quả tuyển dụng hiện tại. Chỉ có ở danh sách tin của nhà tuyển dụng. */
   recruitment?: JobRecruitmentResult;
 }

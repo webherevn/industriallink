@@ -791,6 +791,8 @@ model Job {
   pausedAt           DateTime? @map("paused_at")
   remainingDisplayMs BigInt?   @map("remaining_display_ms")
   viewCount          Int       @default(0) @map("view_count")
+  /// Id gói tin đăng đã dùng lượt đăng cho tin này (billing.billing_job_package).
+  jobPackageId       String?   @map("job_package_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String?   @map("created_by") @db.Uuid
@@ -808,10 +810,13 @@ model Job {
   offers       Offer[]
   onboardings  Onboarding[]
   bookmarks    JobBookmark[]
+  /// Gói tin đăng đã dùng để đăng tin này. Mỗi gói 1 lượt đăng → 1 tin.
+  jobPackage   BillingJobPackage? @relation(fields: [jobPackageId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
   @@index([companyId])
   @@index([jobTrack])
+  @@index([jobPackageId])
   @@index([moderationStatus])
   @@map("job")
   @@schema("recruitment")
@@ -1365,6 +1370,7 @@ model BillingPlatformPlan {
 
   actionCosts     BillingPlanActionCost[]
   companyPlans    BillingCompanyPlan[]
+  jobPackages     BillingJobPackage[]
 
   @@map("billing_platform_plan")
   @@schema("billing")
@@ -1420,6 +1426,57 @@ model BillingCompanyPlan {
 
   @@index([planId, isActive])
   @@map("billing_company_plan")
+  @@schema("billing")
+}
+
+/// Gói tin đăng đã mua (multi-active).
+/// Mỗi lần mua 1 gói nền tảng = 1 bản ghi độc lập, tách biệt theo công ty.
+/// Nhiều gói có thể cùng ACTIVE; mỗi gói dùng lượt đăng cho 1 tin riêng (Job.jobPackageId).
+model BillingJobPackage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Mã gói hiển thị: JD-ST-xxxxxx | JD-PL-xxxxxx | JD-DN-xxxxxx | JD-FR-xxxxxx.
+  code      String   @unique
+  companyId String   @map("company_id") @db.Uuid
+  /// Đơn hàng đã trả sinh ra gói này (null = gói khám phá / do SuperAdmin cấp).
+  orderId   String?  @map("order_id") @db.Uuid
+  /// Gói nền tảng gốc (null = gói khám phá không gắn gói).
+  planId    String?  @map("plan_id") @db.Uuid
+
+  /// FREE | STANDARD | PLUS | ENTERPRISE
+  packageType String @map("package_type")
+  packageName String @map("package_name")
+
+  /// UNUSED | ACTIVE | EXPIRED
+  status        String    @default("UNUSED")
+  /// Tổng lượt đăng tin của gói (null = không giới hạn).
+  totalJobs     Int?      @map("total_jobs")
+  /// Số lượt đã dùng (Job.jobPackageId trỏ về gói này).
+  usedJobs      Int       @default(0) @map("used_jobs")
+  /// Số Credit đi kèm gói.
+  creditsIncluded Int     @default(0) @map("credits_included")
+  /// Thời hạn hiển thị (ngày) của gói.
+  durationDays  Int       @default(30) @map("duration_days")
+  /// Hạn cuối để kích hoạt gói UNUSED (mặc định +30 ngày từ ngày mua).
+  activationDeadlineAt DateTime? @map("activation_deadline_at")
+  activatedAt   DateTime? @map("activated_at")
+  /// Ngày hết hạn gói (tính từ lúc kích hoạt).
+  expiresAt     DateTime? @map("expires_at")
+  /// Đã cấp Credit cho gói này chưa (chống cộng trùng).
+  creditsGranted Boolean  @default(false) @map("credits_granted")
+  /// Giá gói đã trả (chưa VAT).
+  priceVnd      BigInt    @default(0) @map("price_vnd")
+  purchasedAt   DateTime  @default(now()) @map("purchased_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  plan BillingPlatformPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  order BillingOrder?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  jobs Job[]
+
+  @@index([companyId, status])
+  @@index([orderId])
+  @@map("billing_job_package")
   @@schema("billing")
 }
 
@@ -1812,6 +1869,31 @@ model BillingCreditAccount {
   @@schema("billing")
 }
 
+/// Lô Credit (Credit Lot) — 1 lần cấp Credit gắn với 1 gói có hạn.
+/// Trừ dần theo FIFO: lô sắp hết hạn được trừ trước.
+model BillingCreditLot {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  /// 'package' | 'plan' | 'topup' | 'manual'
+  sourceType String  @map("source_type")
+  /// Mã gói / mã đơn / id nguồn (vd "JD-ST-000029").
+  sourceKey  String? @map("source_key")
+  /// Tổng Credit được cấp trong lô này.
+  granted    Int     @default(0)
+  /// Đã trừ bao nhiêu từ lô này.
+  consumed   Int     @default(0)
+  /// Hạn lô (null = vô thời hạn, vd top-up).
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, expiresAt])
+  @@index([accountId])
+  @@map("billing_credit_lot")
+  @@schema("billing")
+}
+
 /// Nhật ký mọi thao tác liên quan đến Credit (chỉ ghi log, chưa trừ thật ở bước này).
 model BillingCreditTransaction {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1925,6 +2007,7 @@ model BillingOrder {
   commissionEntry          CrmCommissionEntry?
   orderInvoice             CrmOrderInvoice?
   paidActivity             CrmActivity?
+  jobPackages              BillingJobPackage[]
 
   @@index([companyId, createdAt])
   @@index([status])

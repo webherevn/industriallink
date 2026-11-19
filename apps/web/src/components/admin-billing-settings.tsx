@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 import type {
   AdminUpdateCreditPolicyRequest,
   AdminUpdateCurrencyConfigRequest,
+  AdminUpdateVatSettingRequest,
+  AdminVatSettingView,
   BillingCreditPolicyView,
   BillingCurrencyDisplay,
 } from '@industriallink/contracts';
@@ -16,8 +18,10 @@ import { ApiError } from '@/lib/api';
 import {
   fetchAdminCreditPolicy,
   fetchAdminCurrency,
+  fetchAdminVatSetting,
   updateAdminCreditPolicy,
   updateAdminCurrency,
+  updateAdminVatSetting,
 } from '@/lib/admin-billing';
 
 export function AdminBillingSettings() {
@@ -29,6 +33,10 @@ export function AdminBillingSettings() {
   const { data: currency, isLoading: curLoading } = useQuery({
     queryKey: ['admin-billing-currency'],
     queryFn: fetchAdminCurrency,
+  });
+  const { data: vat, isLoading: vatLoading } = useQuery({
+    queryKey: ['admin-billing-vat'],
+    queryFn: fetchAdminVatSetting,
   });
 
   return (
@@ -58,6 +66,18 @@ export function AdminBillingSettings() {
             <CurrencyForm currency={currency} onSaved={() => qc.invalidateQueries({ queryKey: ['admin-billing-currency'] })} />
           )}
         </div>
+
+        {vatLoading || !vat ? (
+          <div className="admin-dash-skel h-52" />
+        ) : (
+          <VatForm
+            vat={vat}
+            onSaved={() => {
+              qc.invalidateQueries({ queryKey: ['admin-billing-vat'] });
+              qc.invalidateQueries({ queryKey: ['billing-public-config'] });
+            }}
+          />
+        )}
 
         <Card className="border-rose-200 bg-rose-50/40 p-5">
           <h3 className="text-sm font-bold text-rose-900">10 nguyên tắc V1 — không được phá</h3>
@@ -374,6 +394,111 @@ function CurrencyForm({
         <Button type="button" onClick={() => save.mutate(form)} disabled={save.isPending}>
           {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           Lưu cấu hình
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Thuế suất VAT hiển thị trên bảng giá.
+ * Giá niêm yết luôn là giá CHƯA VAT; thuế suất chỉ cộng thêm khi NTD thanh toán.
+ */
+function VatForm({ vat, onSaved }: { vat: AdminVatSettingView; onSaved: () => void }) {
+  const [percent, setPercent] = useState('');
+  const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    setPercent('');
+  }, [vat.percent]);
+
+  const save = useMutation({
+    mutationFn: (body: AdminUpdateVatSettingRequest) => updateAdminVatSetting(body),
+    onSuccess: (row) => {
+      setBanner({
+        tone: 'ok',
+        text: `Đã lưu thuế suất ${row.percent ?? 0}%. Bảng giá hiển thị giá chưa VAT.`,
+      });
+      setPercent('');
+      onSaved();
+    },
+    onError: (err) =>
+      setBanner({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Lưu thất bại',
+      }),
+  });
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Thuế suất VAT</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Giá trên bảng giá luôn là giá <strong>chưa VAT</strong>. Khi NTD bấm mua gói, màn
+            thanh toán cộng thêm đúng mức này và ghi vào đơn.
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            Đang đặt
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-[#072348]">
+            {vat.percent == null ? 'Chưa đặt' : `${vat.percent}%`}
+          </p>
+        </div>
+      </div>
+
+      {banner ? (
+        <div
+          className={clsx(
+            'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs',
+            banner.tone === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800',
+          )}
+        >
+          {banner.tone === 'ok' ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <X className="h-3.5 w-3.5" />
+          )}
+          {banner.text}
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field
+          label="Thuế suất VAT (%)"
+          description="Số nguyên 0–100. Không tự điền 8% hay 10%."
+        >
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            placeholder="0–100"
+            value={percent}
+            onChange={(e) => {
+              setPercent(e.target.value);
+              setBanner(null);
+            }}
+          />
+        </Field>
+      </div>
+
+      <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+        <Button
+          type="button"
+          onClick={() => save.mutate({ percent: Number(percent) })}
+          disabled={save.isPending || percent.trim() === ''}
+        >
+          {save.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          Lưu thuế suất
         </Button>
       </div>
     </Card>

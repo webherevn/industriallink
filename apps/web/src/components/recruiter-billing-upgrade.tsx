@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { BillingPlatformPlanView } from '@industriallink/contracts';
 import { EnterpriseConsultButton } from '@/components/enterprise-consult-button';
 import { RecruiterShell } from '@/components/recruiter-shell';
@@ -24,7 +24,11 @@ import { ApiError } from '@/lib/api';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { formatPriceVnd } from '@/lib/format-billing';
 import { VatPayLines } from '@/components/vat-pay-lines';
-import { createPlanCheckout, fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
+import {
+  createPlanCheckout,
+  fetchRecruiterEntitlements,
+  fetchRecruiterJobPackages,
+} from '@/lib/recruiter-billing';
 
 function fmtDate(iso: string | null) {
   if (!iso) return 'Không giới hạn';
@@ -46,9 +50,26 @@ export function RecruiterPlanUpgrade() {
     queryKey: ['recruiter-billing-entitlements'],
     queryFn: fetchRecruiterEntitlements,
   });
+  const { data: packages } = useQuery({
+    queryKey: ['recruiter-job-packages'],
+    queryFn: fetchRecruiterJobPackages,
+    retry: false,
+  });
 
   const plan = pub?.platformPlans.find((p) => p.code === planCode && p.isActive) ?? null;
-  const current = entitlements?.plan ?? null;
+  // Multi-active: gói hiện tại = gói cấp cao nhất đang chạy (nếu có), fallback về gói gán 1:1.
+  const current = useMemo(() => {
+    const top = packages?.summary?.topPackageName;
+    if (!top) return entitlements?.plan ?? null;
+    const topPkg = packages?.items.find((i) => i.planName === top);
+    return {
+      planName: top,
+      planCode: topPkg?.planCode ?? entitlements?.planCode ?? '',
+      startsAt: topPkg?.activatedAt ?? entitlements?.plan?.startsAt ?? '',
+      endsAt: topPkg?.endsAt ?? entitlements?.plan?.endsAt ?? null,
+      isActive: true,
+    };
+  }, [packages, entitlements]);
   const isCurrent = Boolean(plan && current?.planCode === plan.code && current.isActive);
   const isEnterprise = plan?.code === 'ENTERPRISE';
   const isFree = plan?.code === 'KHAM_PHA';
@@ -162,7 +183,7 @@ export function RecruiterPlanUpgrade() {
                 ) : plan.code !== 'ENTERPRISE' ? (
                   <li className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-slate-400" />
-                    Hạn gói <strong>{plan.durationDays ?? 30} ngày</strong>. Không gia hạn thì về gói Khám phá, Credit về 0.
+                    Hạn gói <strong>{plan.durationDays ?? 30} ngày</strong>. Mua thêm gói không ảnh hưởng các gói đang chạy.
                   </li>
                 ) : null}
                 <li className="flex items-center gap-2">
@@ -255,7 +276,7 @@ function CurrentPlanCard({
                 ? ', dùng thử 14 ngày, hết hạn Credit về 0'
                 : requested.code === 'ENTERPRISE'
                   ? ''
-                  : `, hạn ${requested.durationDays ?? 30} ngày, không gia hạn thì về gói Khám phá`}
+                  : `, hạn ${requested.durationDays ?? 30} ngày, chạy song song các gói đang dùng`}
               {requested.durationDays != null
                 ? `, tin hiển thị ${requested.durationDays} ngày`
                 : ''}

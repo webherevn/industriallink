@@ -15,6 +15,8 @@ import type {
   AdminUpdateCreditTopupRequest,
   AdminUpdateCreditPolicyRequest,
   AdminUpdateCurrencyConfigRequest,
+  AdminUpdateVatSettingRequest,
+  AdminVatSettingView,
   BillingPlatformPlanView,
   BillingSourcingPlanView,
   BillingCreditTopupView,
@@ -270,6 +272,24 @@ export class BillingAdminController {
     @Body() dto: AdminUpdateCurrencyConfigRequest
   ): Promise<BillingCurrencyDisplay> {
     return this.billing.updateCurrencyConfig(user, dto);
+  }
+
+  // =========================================================================
+  // VAT SETTING
+  // =========================================================================
+  @Get('vat')
+  @ApiOperation({ summary: 'Xem thuế suất VAT hiển thị trên bảng giá' })
+  getVatSetting(): Promise<AdminVatSettingView> {
+    return this.billing.getVatSetting();
+  }
+
+  @Patch('vat')
+  @ApiOperation({ summary: 'Đặt thuế suất VAT cho bảng giá (giá niêm yết là chưa VAT)' })
+  updateVatSetting(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AdminUpdateVatSettingRequest,
+  ): Promise<AdminVatSettingView> {
+    return this.billing.updateVatSetting(user, dto);
   }
 
   // =========================================================================

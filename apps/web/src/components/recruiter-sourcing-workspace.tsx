@@ -48,10 +48,10 @@ import { JdSalesCreateFlow } from '@/app/jobs/new/sales-create-flow';
 import { JdTechnicalCreateFlow } from '@/app/jobs/new/technical-create-flow';
 import {
   SourcingCandidateDrawer,
-  SourcingJdRevisionModal,
-  SourcingProgressReportModal,
   type SourcingDrawerSection,
-} from '@/components/recruiter-sourcing-all-in-one';
+} from '@/components/sourcing-candidate-drawer';
+import { SourcingJdRevisionModal } from '@/components/sourcing-jd-revision-modal';
+import { SourcingProgressReportModal } from '@/components/sourcing-progress-report-modal';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { SourcingOverviewDashboard } from '@/components/sourcing-overview-dashboard';
 import { Button, Input } from '@/components/ui';
@@ -335,6 +335,14 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
       : activeId && validEngagements.some((eng) => eng.id === activeId)
         ? activeId
         : validEngagements[0]?.id ?? null;
+  /**
+   * Người dùng mở /recruiter/sourcing/<id> nhưng id không thuộc chiến dịch nào
+   * (sai link, chiến dịch đã bị xoá). Không nên fallback sang chiến dịch khác
+   * một cách âm thầm — hiển thị thông báo rõ ràng thay vì hiển thị sai dữ liệu.
+   * Dùng cùng điều kiện với `selected` để URL và nội dung luôn khớp nhau.
+   */
+  const campaignNotFound =
+    Boolean(campaignId) && !validEngagements.some((eng) => eng.id === campaignId);
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
   const hasOutreach =
@@ -450,18 +458,38 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           <div className="relative flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
-                Săn nhân sự · All-in-One
+                {campaignId ? (
+                  <span className="inline-flex flex-wrap items-center gap-1.5 normal-case tracking-normal">
+                    <Link
+                      href="/recruiter/sourcing"
+                      className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20"
+                    >
+                      <ArrowLeft className="h-3 w-3" />
+                      Săn nhân sự
+                    </Link>
+                    <span className="text-white/40">/</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+                      Chiến dịch
+                    </span>
+                  </span>
+                ) : (
+                  'Săn nhân sự · All-in-One'
+                )}
               </p>
               <h1 className="mt-1.5 text-2xl font-bold uppercase tracking-tight sm:text-3xl">
-                {campaignId && selectedEngagement
-                  ? formatJobTitle(selectedEngagement.title)
+                {campaignId
+                  ? selectedEngagement
+                    ? formatJobTitle(selectedEngagement.title)
+                    : 'Chiến dịch không tồn tại'
                   : hasPlan && e?.planName
                     ? e.planName
                     : 'Gói Săn & hạn mức'}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-white/80">
-                {campaignId && selectedEngagement
-                  ? 'Quản lý danh sách ứng viên ứng tuyển, ứng viên tiềm năng AI Matching, shortlist và mời phỏng vấn cho chiến dịch này.'
+                {campaignId
+                  ? selectedEngagement
+                    ? 'Quản lý danh sách ứng viên ứng tuyển, ứng viên tiềm năng AI Matching, shortlist và mời phỏng vấn cho chiến dịch này.'
+                    : 'Không tìm thấy chiến dịch này trong dữ liệu hiện tại.'
                   : hasPlan
                     ? ended
                       ? 'Kỳ gói đã kết thúc.'
@@ -494,15 +522,6 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
             )}
 
             <div className="flex flex-wrap items-center gap-2.5">
-              {campaignId ? (
-                <Link
-                  href="/recruiter/sourcing"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-xs transition hover:bg-white/20"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Tổng quan Săn nhân sự
-                </Link>
-              ) : null}
               {hasPlan ? (
                 <button
                   type="button"
@@ -569,6 +588,22 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
               className="mt-5 inline-flex items-center rounded-xl bg-[#E8872A] px-4 py-2.5 text-sm font-bold text-[#072348] shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-400"
             >
               Xem gói Săn nhân sự
+            </Link>
+          </section>
+        ) : campaignNotFound ? (
+          <section className="rounded-3xl border border-amber-200 bg-white p-6 shadow-sm sm:p-8">
+            <AlertTriangle className="h-6 w-6 text-amber-500" />
+            <p className="mt-3 text-xl font-bold text-[#072348]">Không tìm thấy chiến dịch này</p>
+            <p className="mt-1 max-w-lg text-sm text-slate-500">
+              Chiến dịch có thể đã bị xoá hoặc link không còn đúng. Quay lại tổng quan Săn nhân sự để
+              chọn chiến dịch khác.
+            </p>
+            <Link
+              href="/recruiter/sourcing"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#072348] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#0d3b80]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Về tổng quan Săn nhân sự
             </Link>
           </section>
         ) : (

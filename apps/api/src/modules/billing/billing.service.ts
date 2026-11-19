@@ -33,6 +33,8 @@ import type {
   AdminUpdateCreditTopupRequest,
   AdminUpdateCreditPolicyRequest,
   AdminUpdateCurrencyConfigRequest,
+  AdminUpdateVatSettingRequest,
+  AdminVatSettingView,
   AdminUpdatePlanActionCostsRequest,
   AdminAssignCompanyPlanRequest,
   BillingPlatformPlanView,
@@ -53,6 +55,10 @@ import type {
   BillingCompareTable,
   BillingCompareRow,
   RecruiterBillingEntitlements,
+  RecruiterJobPackageListResponse,
+  RecruiterJobPackageStatus,
+  RecruiterJobPackageType,
+  RecruiterJobPackageView,
 } from '@industriallink/contracts';
 import {
   BILLING_PLAN_BILLABLE_ACTIONS,
@@ -65,11 +71,8 @@ import {
   UserRole,
   looksLikeUuid,
 } from '@industriallink/contracts';
-import {
-  defaultActionCostRows,
-  isBillableAction,
-  policyCostForAction,
-} from './billing-action-cost';
+import { defaultActionCostRows, isBillableAction, policyCostForAction } from './billing-action-cost';
+import { JobPackageService, PACKAGE_TIER } from './job-package.service';
 import { SourcingService } from './sourcing.service';
 
 type PlatformPlanWithCosts = BillingPlatformPlan & { actionCosts?: BillingPlanActionCost[] };
@@ -149,6 +152,7 @@ export class BillingService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppConfig, true>,
     private readonly sourcing: SourcingService,
+    private readonly jobPackages: JobPackageService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -347,7 +351,16 @@ export class BillingService implements OnModuleInit {
   async assignCompanyPlan(
     actor: AuthenticatedUser,
     input: AdminAssignCompanyPlanRequest,
-    opts: { forceGrant?: boolean; preserveRemainingQuota?: boolean; reserveOnly?: boolean } = {},
+    opts: {
+      forceGrant?: boolean;
+      preserveRemainingQuota?: boolean;
+      reserveOnly?: boolean;
+      /**
+       * Không cấp lại Credit kèm gói. Dùng khi chuyển sang 1 gói ĐÃ MUA & ĐÃ TRẢ
+       * (Credit đã được cấp lúc thanh toán) — tránh cấp trùng.
+       */
+      skipCreditGrant?: boolean;
+    } = {},
   ): Promise<BillingCompanyPlanView> {
     const plan = await this.prisma.billingPlatformPlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new NotFoundException('Không tìm thấy gói');
@@ -434,11 +447,12 @@ export class BillingService implements OnModuleInit {
     }
 
     const shouldGrant =
-      Boolean(opts.forceGrant) ||
-      this.shouldGrantPlanQuota(before, {
-        planId: input.planId,
-        isActive: input.isActive ?? true,
-      });
+      !opts.skipCreditGrant &&
+      (Boolean(opts.forceGrant) ||
+        this.shouldGrantPlanQuota(before, {
+          planId: input.planId,
+          isActive: input.isActive ?? true,
+        }));
     const effectiveQuota = isEnterprise
       ? (customCreditQuota ?? plan.creditQuota ?? 0)
       : (plan.creditQuota ?? 0);
@@ -784,13 +798,13 @@ export class BillingService implements OnModuleInit {
     }
 
     const baseQuota = assignment?.customJobPostQuota ?? assignment?.plan?.jobPostQuota ?? null;
-    const quota =
+    let quota =
       baseQuota == null ? null : baseQuota + (assignment?.extraJobPostQuota ?? 0);
     const effectiveCreditQuota = assignment?.customCreditQuota ?? assignment?.plan?.creditQuota ?? null;
-    const effectiveDisplayDays = assignment?.customDurationDays ?? assignment?.plan?.durationDays ?? null;
+    let effectiveDisplayDays = assignment?.customDurationDays ?? assignment?.plan?.durationDays ?? null;
     const countActiveJobs =
       assignment?.plan?.code === 'DOANH_NGHIEP' || assignment?.plan?.code === 'ENTERPRISE';
-    const jobsUsed = assignment
+    let jobsUsed = assignment
       ? await this.prisma.job.count({
           where: countActiveJobs
             ? { companyId, isDeleted: false, status: 'published' }
@@ -805,7 +819,40 @@ export class BillingService implements OnModuleInit {
               },
         })
       : 0;
-    const jobsRemaining = quota == null ? null : Math.max(0, quota - jobsUsed);
+    let jobsRemaining = quota == null ? null : Math.max(0, quota - jobsUsed);
+
+    // Gói tin đăng multi-active: nếu công ty có gói ACTIVE thì quota lấy từ gói
+    // (mỗi gói 1 lượt đăng riêng). Không có gói ACTIVE → fallback về BillingCompanyPlan.
+    const activePackages = await this.jobPackages.activeSummary(companyId).catch((err) => {
+      this.logger.error(
+        `Đọc gói tin đăng thất bại cho ${companyId}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      return null;
+    });
+    if (activePackages && activePackages.activePackages.length > 0) {
+      let pkgTotal: number | null = 0;
+      let pkgUsed = 0;
+      for (const pkg of activePackages.activePackages) {
+        if (pkg.totalJobs == null) {
+          pkgTotal = null;
+          break;
+        }
+        pkgTotal += pkg.totalJobs;
+        pkgUsed += pkg.usedJobs;
+      }
+      const pkgRemaining = pkgTotal == null ? null : Math.max(0, pkgTotal - pkgUsed);
+      // Số tin đã dùng = tổng `usedJobs` của các gói ACTIVE (không đếm lại theo gói 1:1).
+      const pkgDisplayDays = activePackages.activePackages
+        .map((p) => (p.durationDays > 0 ? p.durationDays : null))
+        .filter((d): d is number => d != null)
+        .sort((a, b) => b - a)[0];
+
+      quota = pkgTotal;
+      jobsRemaining = pkgRemaining;
+      jobsUsed = pkgUsed;
+      if (pkgDisplayDays != null) effectiveDisplayDays = pkgDisplayDays;
+    }
 
     const [policy, sourcing] = await Promise.all([
       this.ensureCreditPolicy(),
@@ -824,10 +871,30 @@ export class BillingService implements OnModuleInit {
     );
     const usePolicyCostsOnly =
       !assignment?.plan || (assignment.plan.code === STARTER_PLAN_CODE && hasActiveSourcing);
+    // Gói cấp cao nhất đang ACTIVE thay cho tên gói gán 1:1 (multi-active).
+    const topPackage = activePackages?.activePackages.length
+      ? activePackages.activePackages.reduce((best, cur) => {
+          const tierBest = PACKAGE_TIER[best.packageType as RecruiterJobPackageType] ?? 0;
+          const tierCur = PACKAGE_TIER[cur.packageType as RecruiterJobPackageType] ?? 0;
+          return tierCur > tierBest ? cur : best;
+        })
+      : null;
+    // Multi-active: action costs lấy theo gói cấp cao nhất đang ACTIVE (nếu có),
+    // fallback về gói đang gán 1:1 → fallback về policy.
+    const topPackagePlan = topPackage?.planId
+      ? await this.prisma.billingPlatformPlan.findUnique({
+          where: { id: topPackage.planId },
+          include: { actionCosts: true },
+        })
+      : null;
+    const actionCostSource =
+      topPackagePlan?.actionCosts?.length
+        ? topPackagePlan.actionCosts
+        : assignment?.plan?.actionCosts ?? [];
     const actionCosts = usePolicyCostsOnly
       ? defaultActionCostRows(this.mapCreditPolicy(policy))
       : defaultActionCostRows(this.mapCreditPolicy(policy)).map((fallback) => {
-          const row = assignment.plan.actionCosts?.find((c) => c.action === fallback.action);
+          const row = actionCostSource.find((c) => c.action === fallback.action);
           if (!row) return fallback;
           return {
             action: row.action as BillingPlanBillableAction,
@@ -838,8 +905,14 @@ export class BillingService implements OnModuleInit {
 
     return {
       plan: planView ?? (assignment?.plan ? this.mapCompanyPlan(assignment) : null),
-      planCode: assignment?.plan?.code ?? planView?.planCode ?? null,
-      planName: assignment?.plan?.name ?? planView?.planName ?? null,
+      planCode:
+        topPackage?.planId != null
+          ? (await this.prisma.billingPlatformPlan
+              .findUnique({ where: { id: topPackage.planId }, select: { code: true } }))
+              ?.code ?? assignment?.plan?.code ?? planView?.planCode ?? null
+          : assignment?.plan?.code ?? planView?.planCode ?? null,
+      planName:
+        topPackage?.packageName ?? assignment?.plan?.name ?? planView?.planName ?? null,
       creditQuota: effectiveCreditQuota,
       jobPostQuota: quota,
       credits: {
@@ -857,6 +930,75 @@ export class BillingService implements OnModuleInit {
     };
   }
 
+  /**
+   * Danh sách gói tin đăng đã mua của công ty + tổng hợp tài nguyên tin đăng.
+   *
+   * Nguồn sự thật = bảng `billing.billing_job_package`. Mỗi lần mua 1 gói nền tảng
+   * = 1 bản ghi độc lập. Nhiều gói có thể cùng ACTIVE (multi-active).
+   */
+  async listJobPackages(companyId: string): Promise<RecruiterJobPackageListResponse> {
+    return this.jobPackages.listForCompany(companyId);
+  }
+
+  /**
+   * Recruiter bấm "Sử dụng gói này" trên 1 gói tin đăng đã mua.
+   *
+   * Chuyển gói UNUSED → ACTIVE. Credit đi kèm gói được cộng ĐÚNG 1 LẦN vào ví
+   * dùng chung (cờ `creditsGranted` chống cộng trùng), kèm 1 lô Credit có hạn
+   * khớp hạn gói để trừ FIFO.
+   *
+   * Kích hoạt gói mới KHÔNG tạm dừng hay ghi đè các gói đang chạy.
+   */
+  async activateJobPackage(
+    actor: AuthenticatedUser,
+    companyId: string,
+    code: string,
+  ): Promise<RecruiterJobPackageListResponse> {
+    const result = await this.jobPackages.activate(actor, companyId, code);
+    await this.writeAudit(
+      actor,
+      'job_package',
+      result.packageId,
+      'activate',
+      null,
+      { packageCode: result.code, creditsGranted: result.creditsGranted },
+    );
+    return this.listJobPackages(companyId);
+  }
+
+  /**
+   * Chọn gói tin đăng ACTIVE để dùng lượt đăng cho 1 tin mới.
+   *
+   * - Có `code` → dùng đúng gói NTD chọn (lỗi nếu gói không còn hiệu lực/hết lượt).
+   * - Không có `code` → tự chọn gói ACTIVE còn lượt, ưu tiên gói hết hạn sớm nhất.
+   *
+   * Trả `null` khi công ty không có gói tin đăng nào (luồng gói cũ 1:1 vẫn chạy).
+   */
+  async pickJobPackageForPosting(
+    companyId: string,
+    code?: string | null,
+  ): Promise<{ id: string; code: string; planName: string } | null> {
+    const pkg = await this.jobPackages.pickForPosting(companyId, code ?? null);
+    if (!pkg) return null;
+    return { id: pkg.id, code: pkg.code, planName: pkg.packageName };
+  }
+
+  /**
+   * Trừ 1 lượt đăng của gói (transaction). Ném lỗi nếu gói hết lượt/hết hạn.
+   * Gọi trong cùng transaction với việc tạo tin để không mất lượt khi tạo tin lỗi.
+   */
+  async consumeJobPackageSlot(
+    tx: Prisma.TransactionClient,
+    packageId: string,
+  ): Promise<void> {
+    await this.jobPackages.consumePostingSlot(tx, packageId);
+  }
+
+  /** Hoàn 1 lượt đăng khi tin bị xoá (đồng bộ `usedJobs` của gói). */
+  async releaseJobPackageSlot(packageId: string): Promise<void> {
+    await this.jobPackages.releasePostingSlot(packageId);
+  }
+
   /** Số ngày tin được phép hiển thị — lấy customDurationDays (nếu có) hoặc durationDays SuperAdmin của gói đang gán. */
   async getJobDisplayDays(companyId: string): Promise<number | null> {
     await this.ensureCompanyPlan(companyId);
@@ -864,11 +1006,27 @@ export class BillingService implements OnModuleInit {
       where: { companyId },
       include: { plan: { select: { code: true, durationDays: true } } },
     });
+    // Multi-active: ưu tiên số ngày hiển thị của gói tin đăng đang chạy (cao nhất).
+    const pkgDays = await this.activePackageDisplayDays(companyId);
+    if (pkgDays != null) return pkgDays;
     const days = row?.customDurationDays ?? row?.plan?.durationDays;
     if (row?.plan?.code === STARTER_PLAN_CODE && (await this.hasActiveSourcingPlan(companyId))) {
       return Math.max(days ?? 0, 30);
     }
     return days != null && days > 0 ? days : null;
+  }
+
+  /** Số ngày hiển thị lớn nhất trong các gói tin đăng đang ACTIVE (null = không có gói ACTIVE). */
+  private async activePackageDisplayDays(companyId: string): Promise<number | null> {
+    const active = await this.jobPackages
+      .activeSummary(companyId)
+      .catch(() => null);
+    if (!active || active.activePackages.length === 0) return null;
+    const days = active.activePackages
+      .map((p) => (p.durationDays > 0 ? p.durationDays : null))
+      .filter((d): d is number => d != null)
+      .sort((a, b) => b - a)[0];
+    return days ?? null;
   }
 
   /**
@@ -882,6 +1040,11 @@ export class BillingService implements OnModuleInit {
       where: { companyId },
       include: { plan: { select: { code: true, durationDays: true } } },
     });
+    // Multi-active: gói tin đăng đang chạy quyết định số ngày hiển thị của tin mới.
+    const pkgDays = await this.activePackageDisplayDays(companyId);
+    if (pkgDays != null) {
+      return addVnCalendarDays(from, pkgDays);
+    }
     if (row?.plan?.code === STARTER_PLAN_CODE && (await this.hasActiveSourcingPlan(companyId))) {
       return addVnCalendarDays(from, 30);
     }
@@ -1178,6 +1341,10 @@ export class BillingService implements OnModuleInit {
       throw new BadRequestException('Gói Enterprise liên hệ sales — không tự thanh toán');
     }
     const isStarter = plan.code === STARTER_PLAN_CODE;
+    // Gói lẻ (Tin đăng / Tin đăng Plus): KHÔNG cấp Credit lúc thanh toán.
+    // Credit chỉ cấp khi NTD bấm "Sử dụng gói này" (JobPackageService.activate) —
+    // tránh cấp trùng khi gói được kích hoạt thủ công.
+    const isOneOffJobPackage = this.jobPackages.isOneOffPlan(plan.code);
     return this.assignCompanyPlan(
       actor,
       {
@@ -1189,9 +1356,10 @@ export class BillingService implements OnModuleInit {
       isStarter
         ? {}
         : {
-            forceGrant: true,
+            forceGrant: !isOneOffJobPackage,
             preserveRemainingQuota: true,
             reserveOnly: true,
+            skipCreditGrant: isOneOffJobPackage,
           },
     );
   }
@@ -1608,6 +1776,51 @@ export class BillingService implements OnModuleInit {
       this.diffCurrency(after)
     );
     return this.mapCurrency(after);
+  }
+
+  // =========================================================================
+  // VAT (SuperAdmin đặt thuế suất cho bảng giá)
+  // =========================================================================
+  /**
+   * Thuế suất VAT đang đặt. Giá niêm yết luôn là giá CHƯA VAT.
+   * Dùng chung bảng `crm.crm_vat_setting` với CRM để báo giá/đơn và bảng giá
+   * không lệch nhau.
+   */
+  async getVatSetting(): Promise<AdminVatSettingView> {
+    const row = await this.prisma.crmVatSetting.findUnique({
+      where: { id: 'default' },
+      select: { percent: true, updatedAt: true },
+    });
+    return {
+      percent: vatPercentOrEmpty(row?.percent),
+      updatedAt: row?.updatedAt.toISOString() ?? null,
+    };
+  }
+
+  /** SuperAdmin đặt thuế suất VAT. Không đổi giá niêm yết, không cộng vào đơn đã tạo. */
+  async updateVatSetting(
+    actor: AuthenticatedUser,
+    input: AdminUpdateVatSettingRequest,
+  ): Promise<AdminVatSettingView> {
+    const percent = vatPercentOrEmpty(input.percent);
+    if (percent == null) {
+      throw new BadRequestException('Thuế suất là số nguyên từ 0 đến 100');
+    }
+    const before = await this.getVatSetting();
+    await this.prisma.crmVatSetting.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', percent, updatedByUserId: actor.id },
+      update: { percent, updatedByUserId: actor.id },
+    });
+    await this.writeAudit(
+      actor,
+      'vat_setting',
+      'default',
+      'update',
+      { percent: before.percent },
+      { percent },
+    );
+    return this.getVatSetting();
   }
 
   // =========================================================================

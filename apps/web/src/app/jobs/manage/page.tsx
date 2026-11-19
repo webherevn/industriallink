@@ -16,6 +16,7 @@ import {
   Lock,
   MapPin,
   MoreHorizontal,
+  Package,
   Pause,
   PauseCircle,
   Pencil,
@@ -32,6 +33,10 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { JobModerationStatus, JobStatus, type JobListItem } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
+import {
+  JobPackageList,
+  JobPostingResourcePanel,
+} from '@/components/recruiter-job-posting-resources';
 import { Badge, Button, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EMPLOYMENT_LABEL, formatJobLevel, formatSalary } from '@/lib/format';
@@ -249,7 +254,23 @@ export default function ManageJobsPage() {
         </div>
       </section>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Phần 1 — Hiển thị tài nguyên tin đăng */}
+      <div className="mt-5">
+        <JobPostingResourcePanel />
+      </div>
+
+      {/* Phần 2 — Danh sách gói tin đăng của tôi */}
+      <div className="mt-3.5">
+        <JobPackageList />
+      </div>
+
+      {/* Phần 3 — Danh sách tin đăng */}
+      <h2 className="mt-5 text-[15px] font-bold text-[#072348]">
+        Danh sách tin đăng
+        <span className="ml-1.5 text-slate-400">({stats.total})</span>
+      </h2>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={<Briefcase className="h-4 w-4" />}
           label="Tổng tin"
@@ -511,6 +532,20 @@ function JobManageCard({
                   Tin săn: Chưa tạo
                 </span>
               )}
+
+              {job.jobPackageName ? (
+                <span
+                  title={
+                    job.jobPackageCode
+                      ? `Dùng lượt đăng từ gói ${job.jobPackageCode}`
+                      : undefined
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]"
+                >
+                  <Package className="h-3 w-3 text-[#E8872A]" />
+                  Từ gói: {job.jobPackageName}
+                </span>
+              ) : null}
 
               {job.isNew && <Badge tone="accent">Mới</Badge>}
             </div>

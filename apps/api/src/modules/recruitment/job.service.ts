@@ -511,52 +511,67 @@ export class JobService {
       location: dto.location ?? null,
       companyName: companyRow?.name ?? null,
     });
-    const job = await this.prisma.job.create({
-      data: {
-        code,
-        slug,
-        tenantId: user.tenantId,
-        companyId: company.companyId,
-        title: dto.title,
-        description: dto.description,
-        requirements: dto.requirements ?? null,
-        benefits: dto.benefits ?? null,
-        industry: normalizeIndustry(primaryIndustry) ?? primaryIndustry ?? null,
-        subIndustry: dto.subIndustry?.trim() || null,
-        department,
-        jobLevel: inferredLevel ?? null,
-        jobTrack: track,
-        salesCriteria: criteria,
-        technicalCriteria: techCriteria,
-        employmentType: dto.employmentType ?? null,
-        location: dto.location ?? null,
-        headcount: dto.headcount ?? 1,
-        deadline: await this.resolveJobDeadline(
-          company.companyId,
-          dto.deadline ? toVnCalendarDate(dto.deadline) : null,
-          new Date(),
-        ),
-        experienceBand: dto.experienceBand ?? null,
-        salaryMin: dto.salaryMin ?? null,
-        salaryMax: dto.salaryMax ?? null,
-        // Tin chỉ public sau khi qua kiểm duyệt. Khi "đăng", đưa vào hàng đợi
-        // (status=Draft + moderation=pending), worker mới quyết định publish.
-        status: JobStatus.Draft,
-        moderationStatus: willPublish
-          ? JobModerationStatus.Pending
-          : JobModerationStatus.Draft,
-        publishedAt: null,
-        createdBy: user.id,
-        skills: {
-          create: skillData.map((s) => ({
-            skillId: s.skillId,
-            name: s.name,
-            required: s.required,
-            weight: s.weight,
-          })),
+
+    // Gói tin đăng multi-active: mỗi gói cấp lượt đăng cho 1 tin riêng.
+    // Chọn gói (theo `jobPackageCode` nếu NTD chỉ định, không thì hệ thống chọn gói
+    // ACTIVE còn lượt, hết hạn sớm nhất) rồi trừ lượt + gắn `jobPackageId` trong
+    // CÙNG transaction với việc tạo tin → không mất lượt khi tạo tin lỗi.
+    const pickedPackage = willPublish
+      ? await this.billing.pickJobPackageForPosting(company.companyId, dto.jobPackageCode)
+      : null;
+
+    const job = await this.prisma.$transaction(async (tx) => {
+      if (pickedPackage) {
+        await this.billing.consumeJobPackageSlot(tx, pickedPackage.id);
+      }
+      return tx.job.create({
+        data: {
+          code,
+          slug,
+          tenantId: user.tenantId,
+          companyId: company.companyId,
+          title: dto.title,
+          description: dto.description,
+          requirements: dto.requirements ?? null,
+          benefits: dto.benefits ?? null,
+          industry: normalizeIndustry(primaryIndustry) ?? primaryIndustry ?? null,
+          subIndustry: dto.subIndustry?.trim() || null,
+          department,
+          jobLevel: inferredLevel ?? null,
+          jobTrack: track,
+          salesCriteria: criteria,
+          technicalCriteria: techCriteria,
+          employmentType: dto.employmentType ?? null,
+          location: dto.location ?? null,
+          headcount: dto.headcount ?? 1,
+          deadline: await this.resolveJobDeadline(
+            company.companyId,
+            dto.deadline ? toVnCalendarDate(dto.deadline) : null,
+            new Date(),
+          ),
+          experienceBand: dto.experienceBand ?? null,
+          salaryMin: dto.salaryMin ?? null,
+          salaryMax: dto.salaryMax ?? null,
+          // Tin chỉ public sau khi qua kiểm duyệt. Khi "đăng", đưa vào hàng đợi
+          // (status=Draft + moderation=pending), worker mới quyết định publish.
+          status: JobStatus.Draft,
+          moderationStatus: willPublish
+            ? JobModerationStatus.Pending
+            : JobModerationStatus.Draft,
+          publishedAt: null,
+          createdBy: user.id,
+          jobPackageId: pickedPackage?.id ?? null,
+          skills: {
+            create: skillData.map((s) => ({
+              skillId: s.skillId,
+              name: s.name,
+              required: s.required,
+              weight: s.weight,
+            })),
+          },
         },
-      },
-      include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+        include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+      });
     });
 
     await this.audit.record({
@@ -597,6 +612,18 @@ export class JobService {
     }
     if (job.status === JobStatus.Draft) {
       await this.billing.assertJobQuota(job.companyId);
+    }
+    // Tin nháp lúc tạo chưa dùng lượt đăng → khi bấm "Đăng tin" mới chọn gói và trừ lượt.
+    let jobPackageId = job.jobPackageId;
+    if (job.status === JobStatus.Draft && !jobPackageId) {
+      const picked = await this.billing.pickJobPackageForPosting(job.companyId);
+      if (picked) {
+        await this.prisma.$transaction(async (tx) => {
+          await this.billing.consumeJobPackageSlot(tx, picked.id);
+          await tx.job.update({ where: { id: job.id }, data: { jobPackageId: picked.id } });
+        });
+        jobPackageId = picked.id;
+      }
     }
     const updated = await this.prisma.job.update({
       where: { id: job.id },
@@ -831,6 +858,10 @@ export class JobService {
         updatedBy: user.id,
       },
     });
+    // Hoàn 1 lượt đăng về gói đã dùng cho tin này.
+    if (job.jobPackageId) {
+      await this.billing.releaseJobPackageSlot(job.jobPackageId);
+    }
     void this.indexing.notifyJob(job, 'URL_DELETED');
     this.events.publish(
       createDomainEvent({
@@ -878,6 +909,7 @@ export class JobService {
       include: {
         company: { select: JOB_COMPANY_SELECT },
         skills: { select: { name: true }, take: 6 },
+        jobPackage: { select: { code: true, packageName: true } },
       },
     });
     await backfillMissingJobSlugs(this.prisma, jobs);
@@ -1291,6 +1323,7 @@ export class JobService {
       company: { id?: string; name: string; slug?: string | null; profile?: Prisma.JsonValue | null };
       skills?: { name: string }[];
       publishedAt?: Date | null;
+      jobPackage?: { code: string; packageName: string } | null;
     },
     companyName: string,
     extras?: {
@@ -1338,6 +1371,12 @@ export class JobService {
       isNew,
       ...(extras?.isBookmarked != null ? { isBookmarked: extras.isBookmarked } : {}),
       ...(extras?.planCode != null ? { planCode: extras.planCode } : {}),
+      ...(job.jobPackage?.code
+        ? {
+            jobPackageCode: job.jobPackage.code,
+            jobPackageName: job.jobPackage.packageName,
+          }
+        : {}),
       ...(extras?.recruitment ? { recruitment: extras.recruitment } : {}),
       ...(extras?.isSourcingActive ? { isSourcingActive: true } : {}),
     };

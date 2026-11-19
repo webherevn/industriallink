@@ -26,6 +26,7 @@ import { JdSourceStep } from './jd-source-step';
 import { JdSalesForm } from '@/components/jd-sales-form';
 import { JobTrackToggle } from '@/components/job-track-toggle';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { JobPackagePicker } from '@/components/job-package-picker';
 import { Button } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL, formatSalary } from '@/lib/format';
@@ -81,6 +82,7 @@ export function JdSalesCreateFlow({
   const [uncertainKeys, setUncertainKeys] = useState<JdSalesFieldKey[]>([]);
   const [parseNote, setParseNote] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [jobPackageCode, setJobPackageCode] = useState<string | null>(null);
 
   const progress = useMemo(() => countFilledJdFields(form), [form]);
 
@@ -125,7 +127,11 @@ export function JdSalesCreateFlow({
   });
 
   const saveMutation = useMutation({
-    mutationFn: (publish: boolean) => createJob(formToCreateJobRequest(form, publish)),
+    mutationFn: (publish: boolean) =>
+      createJob({
+        ...formToCreateJobRequest(form, publish),
+        ...(publish && jobPackageCode ? { jobPackageCode } : {}),
+      }),
     onSuccess: (job) => {
       if (onCreated) {
         onCreated(job);
@@ -321,6 +327,9 @@ export function JdSalesCreateFlow({
               <PreviewBlock title="Yêu cầu" body={form.requirements} />
               {form.skills.trim() && <PreviewBlock title="Kỹ năng" body={form.skills} />}
               <PreviewBlock title="Quyền lợi" body={form.benefits} />
+              <div className="mt-5 border-t border-slate-200/80 pt-4">
+                <JobPackagePicker value={jobPackageCode} onChange={setJobPackageCode} disabled={busy} />
+              </div>
             </div>
           )}
 

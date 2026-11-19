@@ -22,6 +22,7 @@ import { UserRole, payableVnd, vatAmountVnd } from '@industriallink/contracts';
 import { vatPercentOrEmpty } from '../crm/commission-notices';
 import { decryptSecret, encryptSecret, keyPreview } from '../ai/ai-settings.cipher';
 import { BillingService } from './billing.service';
+import { JobPackageService } from './job-package.service';
 import { SourcingService } from './sourcing.service';
 import { CrmService } from '../crm/crm.service';
 import {
@@ -43,6 +44,7 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<AppConfig, true>,
     private readonly billing: BillingService,
+    private readonly jobPackages: JobPackageService,
     private readonly sourcing: SourcingService,
     private readonly crm: CrmService,
   ) {}
@@ -617,13 +619,30 @@ export class PaymentService {
 
     const kind = fresh.kind === 'platform' || fresh.kind === 'sourcing' ? fresh.kind : 'topup';
     const planCode = fresh.planCode;
-    if ((kind === 'platform' || kind === 'sourcing') && planCode) {
+    // Gói lẻ (Tin đăng / Tin đăng Plus): KHÔNG gán gói 1:1 lúc thanh toán.
+    // Gói này nằm ở trạng thái "chờ kích hoạt" cho tới khi NTD bấm "Sử dụng gói này",
+    // lúc đó mới cấp Credit + mở lượt đăng (không ghi đè các gói khác đang chạy).
+    const isOneOffJobPackage =
+      kind === 'platform' && planCode ? this.jobPackages.isOneOffPlan(planCode) : false;
+    if ((kind === 'platform' || kind === 'sourcing') && planCode && !isOneOffJobPackage) {
       const actor = this.actorFromOrder(fresh);
       if (kind === 'platform') {
         await this.billing.activatePurchasedPlan(actor, fresh.companyId, planCode);
       } else {
         await this.sourcing.activatePurchasedPlan(actor, fresh.companyId, planCode);
       }
+    }
+
+    // Gói tin đăng multi-active: mỗi đơn gói nền tảng đã trả = 1 gói độc lập.
+    // Gói lẻ (Tin đăng / Tin đăng Plus) → UNUSED, chờ NTD bấm "Sử dụng gói này".
+    // Gói Doanh nghiệp → ACTIVE ngay (đã cấp Credit lúc thanh toán).
+    if (kind === 'platform' && planCode) {
+      await this.createJobPackageForOrder(fresh).catch((err) => {
+        this.logger.error(
+          `Không tạo được gói tin đăng cho đơn ${fresh.id}: ${String(err)}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+      });
     }
 
     const paid = await this.prisma.$transaction(async (tx) => {
@@ -765,6 +784,47 @@ export class PaymentService {
       displayName: 'Thanh toán',
       status: 'active',
     };
+  }
+
+  /**
+   * Tạo 1 gói tin đăng độc lập cho đơn gói nền tảng đã trả.
+   *
+   * Idempotent theo `orderId`: bấm thanh toán lại nhiều lần chỉ có 1 gói.
+   */
+  private async createJobPackageForOrder(order: {
+    id: string;
+    tenantId: string;
+    companyId: string;
+    planCode: string | null;
+    planName: string | null;
+    priceVndSnapshot: bigint;
+    paidAt: Date | null;
+  }): Promise<void> {
+    const existing = await this.prisma.billingJobPackage.findFirst({
+      where: { orderId: order.id },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const plan = order.planCode
+      ? await this.prisma.billingPlatformPlan.findFirst({
+          where: { code: order.planCode },
+        })
+      : null;
+
+    await this.jobPackages.createForOrder({
+      orderId: order.id,
+      companyId: order.companyId,
+      tenantId: order.tenantId,
+      planCode: order.planCode,
+      planName: order.planName ?? plan?.name ?? null,
+      planId: plan?.id ?? null,
+      jobPostQuota: plan?.jobPostQuota ?? null,
+      creditQuota: plan?.creditQuota ?? null,
+      durationDays: plan?.durationDays ?? null,
+      priceVnd: order.priceVndSnapshot,
+      paidAt: order.paidAt ?? new Date(),
+    });
   }
 
   // =====================================================================

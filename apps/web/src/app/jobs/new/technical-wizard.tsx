@@ -38,6 +38,7 @@ import { EMPLOYMENT_LABEL, EXPERIENCE_LABEL, formatJobLevel, formatSalary } from
 import { applyJobDepartmentChange, applyJobTrackChange } from '@/lib/job-org-fields';
 import { createJob, generateJobDraft } from '@/lib/jobs';
 import { JobTrackToggle } from '@/components/job-track-toggle';
+import { JobPackagePicker } from '@/components/job-package-picker';
 
 const STEPS = [
   { id: 1, label: 'Thông tin cơ bản' },
@@ -119,6 +120,7 @@ export function NewJobTechnicalWizard({
   const [step, setStep] = useState(1);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [salaryHint, setSalaryHint] = useState<string | null>(null);
+  const [jobPackageCode, setJobPackageCode] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     title: '',
     industry: '',
@@ -208,6 +210,7 @@ export function NewJobTechnicalWizard({
           .filter(Boolean)
           .map((name) => ({ name, required: true })),
         publish,
+        ...(publish && jobPackageCode ? { jobPackageCode } : {}),
       }),
     onSuccess: () => router.push('/recruiter'),
   });
@@ -848,6 +851,13 @@ export function NewJobTechnicalWizard({
                   <PreviewBlock title="Kỹ năng" body={form.skills} />
                 )}
                 <PreviewBlock title="Quyền lợi & phúc lợi" body={form.benefits} />
+                <div className="mt-5 border-t border-slate-200/80 pt-4">
+                  <JobPackagePicker
+                    value={jobPackageCode}
+                    onChange={setJobPackageCode}
+                    disabled={busy}
+                  />
+                </div>
               </div>
             </div>
           )}

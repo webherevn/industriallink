@@ -33,7 +33,7 @@ import { ProfileAvatar } from '@/components/profile-avatar';
 import { PublicHeader } from '@/components/public-header';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { SiteFooter } from '@/components/site-footer';
-import { restoreSession, tokenStore } from '@/lib/api';
+import { restoreSession, tokenStore, ApiError } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
 import { bounceIfWrongHost } from '@/lib/hosts';
@@ -103,10 +103,22 @@ export function AppShell({
 
   const hasToken = hydrated && Boolean(tokenStore.get());
 
-  const { data: user, isError, isLoading } = useQuery({
+  const {
+    data: user,
+    isError,
+    isLoading,
+    error: meError,
+    refetch: refetchMe,
+  } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: hasToken,
+    // 429 là lỗi tạm thời (rate limit) — thử lại vài lần thay vì đá về /login.
+    retry: (count, err) => {
+      if (err instanceof ApiError && err.status === 429) return count < 2;
+      return false;
+    },
+    retryDelay: (n) => Math.min(1500 * 2 ** n, 6000),
   });
 
   const { data: candidate } = useQuery({
@@ -115,6 +127,9 @@ export function AppShell({
     enabled: hasToken && user?.role === UserRole.Candidate,
     retry: false,
   });
+
+  const meRateLimited = isError && meError instanceof ApiError && meError.status === 429;
+  const meServerError = isError && meError instanceof ApiError && meError.status >= 500;
 
   useEffect(() => {
     if (allowGuest) return;
@@ -125,8 +140,10 @@ export function AppShell({
 
   useEffect(() => {
     if (allowGuest) return;
+    // 429 / 5xx: lỗi tạm thời của máy chủ — không đá về /login (tránh mất phiên oan).
+    if (meRateLimited || meServerError) return;
     if (isError) router.replace('/login');
-  }, [isError, router, allowGuest]);
+  }, [isError, meRateLimited, meServerError, router, allowGuest]);
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
@@ -163,6 +180,25 @@ export function AppShell({
   }
 
   if (!allowGuest && (!hydrated || isLoading || !user)) {
+    // Lỗi tạm thời (429 / 5xx): hiện màn hình thử lại thay vì đá về /login.
+    if (hasToken && !user && (meRateLimited || meServerError)) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#F8FAFC] px-6 text-center">
+          <p className="text-sm text-slate-600">
+            {meRateLimited
+              ? 'Máy chủ đang giới hạn truy cập (quá nhiều request). Đợi vài giây rồi thử lại.'
+              : 'Không kết nối được máy chủ. Thử lại sau.'}
+          </p>
+          <button
+            type="button"
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            onClick={() => void refetchMe()}
+          >
+            Thử lại
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-slate-500">
         Đang tải...

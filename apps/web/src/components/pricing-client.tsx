@@ -116,6 +116,15 @@ function PlanPriceMeta({ children }: { children?: ReactNode }) {
   return <p className="mt-1.5 min-h-[16px] text-xs font-medium leading-4 text-slate-500">{children ?? '\u00a0'}</p>;
 }
 
+/** Nhãn giá chưa VAT dưới giá niêm yết. */
+function PriceVatNote({ percent }: { percent: number | null | undefined }) {
+  return (
+    <p className="mt-1 text-[11px] font-medium leading-4 text-slate-400">
+      {percent == null ? 'Giá chưa gồm VAT' : `Giá chưa gồm VAT (${percent}%)`}
+    </p>
+  );
+}
+
 function SalePrice({
   list,
   sale,
@@ -949,6 +958,7 @@ function PlatformPlansView({
               highlighted={highlightedId === domId}
               plan={p}
               featured={isPlanFeatured(p)}
+              vatPercent={vatPercent}
               {...cardProps}
             />
           );
@@ -980,6 +990,7 @@ function PlatformPlansView({
                 highlighted={highlightedId === domId}
                 plan={p}
                 featured={Boolean(p.isFeatured)}
+                vatPercent={vatPercent}
                 {...cardProps}
               />
             );
@@ -1012,6 +1023,7 @@ function PlatformPlanCard({
   plan,
   featured,
   currency,
+  vatPercent,
   isRecruiter,
   checkoutReady,
   planCtaHref,
@@ -1025,6 +1037,7 @@ function PlatformPlanCard({
   plan: BillingPlatformPlanView;
   featured: boolean;
   currency: BillingCurrencyDisplay;
+  vatPercent: number | null;
   isRecruiter: boolean;
   checkoutReady: boolean;
   planCtaHref: (code: string) => string;
@@ -1111,6 +1124,7 @@ function PlatformPlanCard({
           />
         )}
         <PlanPriceMeta>{platformPriceMetaText(plan)}</PlanPriceMeta>
+        {!isEnterprise && !isFree ? <PriceVatNote percent={vatPercent} /> : null}
         {currency.showReferenceUsd && !isEnterprise && !isFree ? (
           <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
             {formatReferenceUsd(
@@ -1355,6 +1369,7 @@ function SourcingPlansView({
               highlighted={highlightedId === domId}
               plan={p}
               currency={currency}
+              vatPercent={vatPercent}
               planCtaHref={planCtaHref}
             />
           );
@@ -1384,6 +1399,7 @@ function SourcingPlanCard({
   highlighted = false,
   plan,
   currency,
+  vatPercent,
   planCtaHref,
 }: {
   domId?: string;
@@ -1391,6 +1407,7 @@ function SourcingPlanCard({
   highlighted?: boolean;
   plan: BillingSourcingPlanView;
   currency: BillingCurrencyDisplay;
+  vatPercent: number | null;
   planCtaHref: (code: string) => string;
 }) {
   const featured = plan.isFeatured;
@@ -1441,6 +1458,7 @@ function SourcingPlanCard({
           stacked
         />
         <p className="mt-1.5 text-xs font-medium text-slate-500">Phí dịch vụ / vị trí · Triển khai 30 ngày</p>
+        <PriceVatNote percent={vatPercent} />
         {currency.showReferenceUsd ? (
           <p className="mt-0.5 text-[10px] text-slate-400">
             {formatReferenceUsd(plan.promoPriceVnd && plan.promoPercent ? plan.promoPriceVnd : plan.feeVnd, currency)}
@@ -1579,6 +1597,7 @@ function CreditTopupView({
             topup={t}
             maxUnitPrice={maxUnitPrice}
             currency={currency}
+            vatPercent={vatPercent}
             topupCtaHref={topupCtaHref}
           />
         ))}
@@ -1611,12 +1630,14 @@ function CreditTopupCard({
   topup,
   maxUnitPrice,
   currency,
+  vatPercent,
   topupCtaHref,
 }: {
   index?: number;
   topup: BillingCreditTopupView;
   maxUnitPrice: number;
   currency: BillingCurrencyDisplay;
+  vatPercent: number | null;
   topupCtaHref: (id: string) => string;
 }) {
   const featured = topup.isFeatured;
@@ -1671,6 +1692,7 @@ function CreditTopupCard({
         {currency.showReferenceUsd ? (
           <p className="mt-0.5 text-[10px] text-slate-400">{formatReferenceUsd(topup.priceVnd, currency)}</p>
         ) : null}
+        <PriceVatNote percent={vatPercent} />
         <p className="mt-1.5 text-xs text-slate-600">
           Đơn giá tương đương:{' '}
           <strong className="text-[#072348]">

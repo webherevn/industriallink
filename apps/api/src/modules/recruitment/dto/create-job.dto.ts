@@ -323,6 +323,12 @@ export class CreateJobDto {
   @IsBoolean()
   fromSourcingRevision?: boolean;
 
+  @ApiPropertyOptional({ description: 'Mã gói tin đăng dùng lượt đăng (vd "JD-ST-000029")' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  jobPackageCode?: string;
+
   @ApiPropertyOptional({ default: false, description: 'true để đăng công khai ngay' })
   @IsOptional()
   @IsBoolean()

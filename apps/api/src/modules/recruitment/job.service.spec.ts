@@ -16,6 +16,9 @@ describe('JobService', () => {
   };
   const billing = {
     assertJobQuota: jest.fn().mockResolvedValue(undefined),
+    pickJobPackageForPosting: jest.fn().mockResolvedValue(null),
+    consumeJobPackageSlot: jest.fn().mockResolvedValue(undefined),
+    releaseJobPackageSlot: jest.fn().mockResolvedValue(undefined),
     getJobDisplayDays: jest.fn().mockResolvedValue(14),
     getJobDeadlineCeiling: jest.fn().mockResolvedValue(new Date('2026-07-15T00:00:00.000Z')),
   };
@@ -28,6 +31,19 @@ describe('JobService', () => {
   const indexing = { notifyJob: jest.fn().mockResolvedValue(undefined) };
   const moderationQueue = { add: jest.fn().mockResolvedValue(undefined) };
 
+  /** Prisma mock có sẵn `$transaction` để hỗ trợ luồng tạo tin + trừ lượt gói. */
+  function withTransaction(prisma: Record<string, unknown>): Record<string, unknown> {
+    const tx = {
+      job: (prisma as { job: Record<string, unknown> }).job,
+      billingJobPackage: (prisma as { billingJobPackage?: Record<string, unknown> })
+        .billingJobPackage,
+    };
+    return {
+      ...prisma,
+      $transaction: jest.fn(async (cb: (client: typeof tx) => unknown) => cb(tx)),
+    };
+  }
+
   function buildService(prisma: Record<string, unknown>) {
     events.publish.mockClear();
     audit.record.mockClear();
@@ -35,6 +51,10 @@ describe('JobService', () => {
     skills.resolveSkillId.mockClear();
     companies.requireUserCompany.mockClear();
     billing.assertJobQuota.mockClear();
+    billing.pickJobPackageForPosting.mockClear();
+    billing.pickJobPackageForPosting.mockResolvedValue(null);
+    billing.consumeJobPackageSlot.mockClear();
+    billing.releaseJobPackageSlot.mockClear();
     billing.getJobDisplayDays.mockClear();
     billing.getJobDisplayDays.mockResolvedValue(14);
     billing.getJobDeadlineCeiling.mockClear();
@@ -110,7 +130,10 @@ describe('JobService', () => {
   describe('createJob', () => {
     it('tạo tin ở trạng thái Nháp, không gọi embedding khi publish=false', async () => {
       const create = jest.fn().mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft });
-      const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: jest.fn() };
+      const prisma = withTransaction({
+        job: { create, findMany: jest.fn().mockResolvedValue([]) },
+        $executeRaw: jest.fn(),
+      });
       const service = buildService(prisma);
 
       const result = await service.createJob(
@@ -129,7 +152,10 @@ describe('JobService', () => {
         .fn()
         .mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft, moderationStatus: 'pending' });
       const executeRaw = jest.fn().mockResolvedValue(undefined);
-      const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: executeRaw };
+      const prisma = withTransaction({
+        job: { create, findMany: jest.fn().mockResolvedValue([]) },
+        $executeRaw: executeRaw,
+      });
       const service = buildService(prisma);
 
       await service.createJob(
@@ -156,7 +182,10 @@ describe('JobService', () => {
       const create = jest
         .fn()
         .mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft, moderationStatus: 'draft' });
-      const prisma = { job: { create, findMany: jest.fn().mockResolvedValue([]) }, $executeRaw: jest.fn() };
+      const prisma = withTransaction({
+        job: { create, findMany: jest.fn().mockResolvedValue([]) },
+        $executeRaw: jest.fn(),
+      });
       const service = buildService(prisma);
 
       await expect(

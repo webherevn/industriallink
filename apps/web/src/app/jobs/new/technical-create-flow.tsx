@@ -27,6 +27,7 @@ import { JdTechnicalForm } from '@/components/jd-technical-form';
 import { JobTrackToggle } from '@/components/job-track-toggle';
 import { JdSourceStep } from './jd-source-step';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { JobPackagePicker } from '@/components/job-package-picker';
 import { Button } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EXPERIENCE_LABEL, formatSalary } from '@/lib/format';
@@ -86,6 +87,7 @@ export function JdTechnicalCreateFlow({
   const [uncertainKeys, setUncertainKeys] = useState<JdTechnicalFieldKey[]>([]);
   const [parseNote, setParseNote] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [jobPackageCode, setJobPackageCode] = useState<string | null>(null);
 
   const progress = useMemo(() => countFilledJdTechnicalFields(form), [form]);
 
@@ -130,7 +132,11 @@ export function JdTechnicalCreateFlow({
   });
 
   const saveMutation = useMutation({
-    mutationFn: (publish: boolean) => createJob(formToCreateTechnicalJobRequest(form, publish)),
+    mutationFn: (publish: boolean) =>
+      createJob({
+        ...formToCreateTechnicalJobRequest(form, publish),
+        ...(publish && jobPackageCode ? { jobPackageCode } : {}),
+      }),
     onSuccess: (created) => {
       if (onCreated) {
         onCreated(created);
@@ -319,6 +325,9 @@ export function JdTechnicalCreateFlow({
               <PreviewBlock title="Mô tả công việc" body={form.description} />
               <PreviewBlock title="Yêu cầu" body={form.requirements} />
               <PreviewBlock title="Quyền lợi" body={form.benefits} />
+              <div className="mt-5 border-t border-slate-200/80 pt-4">
+                <JobPackagePicker value={jobPackageCode} onChange={setJobPackageCode} disabled={busy} />
+              </div>
             </div>
           )}
 
