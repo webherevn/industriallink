@@ -345,13 +345,32 @@ function extractSalaryFromText(text: string): { min: number | null; max: number 
 }
 
 function extractTitleFromText(text: string): string {
+  // 1) Ưu tiên dòng tiêu đề JD (dòng đầu / dòng "Tuyển ...") — đây là nguồn chính xác nhất.
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const headingLine = lines.find(
+    (l) =>
+      l.length <= 120 &&
+      /^(tin tuyển dụng|tuyển dụng|tuyển|vị trí)\b/i.test(l) &&
+      !/^(ngành|hình thức|địa điểm|kinh nghiệm|mức lương|số lượng|yêu cầu|mô tả|quyền lợi|phạm vi|mô tả công việc)\b/i.test(l),
+  );
+  if (headingLine) {
+    const stripped = headingLine
+      .replace(/^(tin tuyển dụng|tuyển dụng|tuyển|vị trí)[:\s-]*/i, '')
+      .slice(0, 120)
+      .trim();
+    if (stripped) {
+      const matched = DESIRED_POSITIONS.find(
+        (pos) => pos.toLowerCase() === stripped.toLowerCase(),
+      );
+      return matched ?? stripped;
+    }
+  }
+
+  // 2) Quét các vị trí chuẩn trong toàn bộ text.
   for (const pos of DESIRED_POSITIONS) {
     if (text.toLowerCase().includes(pos.toLowerCase())) return pos;
   }
-  const line = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .find((l) => /tuyển|vị trí|nhân viên kinh doanh|sales/i.test(l) && l.length <= 120);
+  const line = lines.find((l) => /tuyển|vị trí|nhân viên kinh doanh|sales/i.test(l) && l.length <= 120);
   if (line) {
     return line.replace(/^(tin tuyển dụng|tuyển dụng|vị trí)[:\s-]*/i, '').slice(0, 120);
   }
