@@ -143,7 +143,7 @@ pnpm install
 | `apps/web/**` | `pnpm --filter @industriallink/web build` |
 | `apps/api/**` | `pnpm --filter @industriallink/api build` |
 | `packages/contracts/**` | `pnpm --filter @industriallink/contracts build` |
-| `prisma/**` (schema thay đổi) | `pnpm --filter @industriallink/api db:generate && pnpm --filter @industriallink/api db:push` |
+| `prisma/**` (schema thay đổi) | `pnpm --filter @industriallink/api db:generate && pnpm --filter @industriallink/api db:migrate:deploy` (fallback `db:push`) |
 | Cả 2 | `pnpm --filter @industriallink/web build && pnpm --filter @industriallink/api build` |
 
 > **Quan trọng — không dùng `pnpm --filter web build`.** Tên package là `@industriallink/web`.
@@ -208,6 +208,13 @@ sleep 3 && \
 curl -sI -m 10 https://inlink.vn/ | head -1 && \
 curl -sI -m 10 http://127.0.0.1:3001/api/v1/cms/site-code | head -1
 ```
+
+> `db:push` đã kèm `--accept-data-loss` — **bắt buộc**, vì các refactor có DROP bảng cũ
+> (`billing_sourcing_usage` / `_engagement` / `_package`). Thiếu cờ này `prisma db push`
+> sẽ dừng với lỗi *"There might be data loss ... Use the --accept-data-loss flag"*.
+>
+> Script đầy đủ `bash scripts/deploy-vps.sh` sẽ ưu tiên `prisma migrate deploy` (có lịch sử
+> migration) và tự fallback sang `db push` nếu DB production chưa từng chạy migrate.
 
 > `pnpm --filter @industriallink/web build` đã bao gồm bước build `@industriallink/contracts`
 > và `@industriallink/vn-admin` (script `build` của `apps/web` gọi chúng trước). Không cần

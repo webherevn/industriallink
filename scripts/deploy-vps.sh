@@ -17,9 +17,16 @@ echo "GIT=$(git log -1 --oneline)"
 # 1) Cài dependency
 pnpm install --frozen-lockfile
 
-# 2) Prisma: generate client + đồng bộ schema (migration mới đã nằm trong prisma/migrations)
+# 2) Prisma: generate client + đồng bộ schema.
+#    Ưu tiên `prisma migrate deploy` (đọc prisma/migrations — có lịch sử, rollback được).
+#    Nếu lỗi vì DB production chưa từng chạy migrate (drift), fallback sang
+#    `db push --accept-data-loss` để đồng bộ schema nhanh (cần --accept-data-loss vì các
+#    refactor có DROP bảng cũ: billing_sourcing_usage / _engagement / _package).
 pnpm --filter @industriallink/api db:generate
-pnpm --filter @industriallink/api db:push
+if ! pnpm --filter @industriallink/api db:migrate:deploy; then
+  echo "WARN: migrate deploy thất bại — fallback sang db push --accept-data-loss"
+  pnpm --filter @industriallink/api db:push
+fi
 
 # 3) Build packages dùng chung TRƯỚC (dist bị .gitignore — bỏ qua bước này sẽ dẫn tới
 #    TS error kiểu contracts cũ, vd "Property 'jobPackageName' does not exist on type 'JobListItem'")
@@ -43,6 +50,11 @@ pm2 status
 
 echo "=== ports ==="
 ss -ltnp 2>/dev/null | grep -E ':(3000|3001)\b' || echo "WARN: thiếu port 3000/3001"
+
+echo "=== db schema check ==="
+# Verify các bảng mới của refactor Săn nhân sự đã tồn tại trong DB production
+node "$ROOT/apps/api/scripts/check-hunt-schema.cjs" \
+  || echo "WARN: kiểm tra schema DB thất bại — xem log ở trên"
 
 echo "=== live check ==="
 curl -sI -m 10 https://inlink.vn/ | head -1 || true
