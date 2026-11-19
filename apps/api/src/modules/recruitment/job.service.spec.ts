@@ -17,6 +17,10 @@ describe('JobService', () => {
   const billing = {
     assertJobQuota: jest.fn().mockResolvedValue(undefined),
     pickJobPackageForPosting: jest.fn().mockResolvedValue(null),
+    activateJobPackageInTx: jest.fn().mockResolvedValue({
+      expiresAt: null,
+      displayDeadline: null,
+    }),
     consumeJobPackageSlot: jest.fn().mockResolvedValue(undefined),
     releaseJobPackageSlot: jest.fn().mockResolvedValue(undefined),
     getJobDisplayDays: jest.fn().mockResolvedValue(14),
@@ -55,6 +59,11 @@ describe('JobService', () => {
     billing.pickJobPackageForPosting.mockResolvedValue(null);
     billing.consumeJobPackageSlot.mockClear();
     billing.releaseJobPackageSlot.mockClear();
+    billing.activateJobPackageInTx.mockClear();
+    billing.activateJobPackageInTx.mockResolvedValue({
+      expiresAt: null,
+      displayDeadline: null,
+    });
     billing.getJobDisplayDays.mockClear();
     billing.getJobDisplayDays.mockResolvedValue(14);
     billing.getJobDeadlineCeiling.mockClear();
@@ -410,6 +419,102 @@ describe('JobService', () => {
           }),
         ]),
       );
+    });
+  });
+
+  describe('submitForModeration — lượt đăng gói', () => {
+    it('trừ 1 lượt đăng khi nộp lại tin đã bị từ chối kiểm duyệt', async () => {
+      const update = jest.fn().mockResolvedValue({ ...baseJobRow });
+      const prisma = withTransaction({
+        job: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...baseJobRow,
+            status: JobStatus.Draft,
+            moderationStatus: 'rejected_auto',
+            jobPackageId: 'pkg-1',
+          }),
+          update,
+        },
+      });
+      const service = buildService(prisma);
+
+      await service.submitForModeration(recruiter, 'job-1', 'corr-reject-1');
+
+      expect(billing.consumeJobPackageSlot).toHaveBeenCalledTimes(1);
+      expect(billing.consumeJobPackageSlot).toHaveBeenCalledWith(expect.anything(), 'pkg-1');
+      // KHÔNG cấp lại Credit (không gọi activateJobPackageInTx / pickJobPackageForPosting).
+      expect(billing.pickJobPackageForPosting).not.toHaveBeenCalled();
+    });
+
+    it('KHÔNG trừ lượt khi tin chưa từng bị từ chối', async () => {
+      const update = jest.fn().mockResolvedValue({ ...baseJobRow });
+      const prisma = withTransaction({
+        job: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...baseJobRow,
+            status: JobStatus.Draft,
+            moderationStatus: 'draft',
+            jobPackageId: 'pkg-1',
+          }),
+          update,
+        },
+      });
+      const service = buildService(prisma);
+
+      await service.submitForModeration(recruiter, 'job-1', 'corr-reject-2');
+
+      expect(billing.consumeJobPackageSlot).not.toHaveBeenCalled();
+    });
+
+    it('chọn gói UNUSED và trừ lượt khi tin nháp chưa gắn gói', async () => {
+      const update = jest.fn().mockResolvedValue({ ...baseJobRow });
+      const prisma = withTransaction({
+        job: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...baseJobRow,
+            status: JobStatus.Draft,
+            moderationStatus: 'draft',
+            jobPackageId: null,
+          }),
+          update,
+        },
+      });
+      const service = buildService(prisma);
+      billing.pickJobPackageForPosting.mockResolvedValue({
+        id: 'pkg-new',
+        code: 'JD-ST-1',
+        planName: 'Gói tiêu chuẩn',
+      });
+      billing.activateJobPackageInTx.mockResolvedValue({
+        expiresAt: new Date('2026-07-31T00:00:00.000Z'),
+        displayDeadline: new Date('2026-07-31T00:00:00.000Z'),
+      });
+
+      await service.submitForModeration(recruiter, 'job-1', 'corr-reject-3');
+
+      expect(billing.consumeJobPackageSlot).toHaveBeenCalledTimes(1);
+      expect(billing.consumeJobPackageSlot).toHaveBeenCalledWith(expect.anything(), 'pkg-new');
+    });
+  });
+
+  describe('deleteJob — không hoàn lượt đăng', () => {
+    it('không gọi releaseJobPackageSlot khi NTD tự xoá tin', async () => {
+      const prisma = withTransaction({
+        job: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...baseJobRow,
+            status: JobStatus.Published,
+            jobPackageId: 'pkg-1',
+          }),
+          update: jest.fn().mockResolvedValue({ ...baseJobRow }),
+        },
+        huntCampaign: { findFirst: jest.fn().mockResolvedValue(null) },
+      });
+      const service = buildService(prisma);
+
+      await service.deleteJob(recruiter, 'job-1', 'corr-del-1');
+
+      expect(billing.releaseJobPackageSlot).not.toHaveBeenCalled();
     });
   });
 

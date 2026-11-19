@@ -650,14 +650,26 @@ export class JobService {
             where: { id: job.id },
             data: {
               jobPackageId: picked.id,
-              ...(activation.expiresAt
-                ? { deadline: toVnCalendarDate(activation.expiresAt) }
+              ...(activation.displayDeadline
+                ? { deadline: toVnCalendarDate(activation.displayDeadline) }
                 : {}),
             },
           });
         });
         jobPackageId = picked.id;
       }
+    }
+
+    // ⚠ Tin bị TỪ CHỐI kiểm duyệt đã được HOÀN 1 lượt đăng (xem JobModerationService.refundPostingSlot).
+    // Khi NTD sửa JD rồi nộp lại → phải TRỪ LẠI 1 lượt đăng để không lạm dụng slot.
+    // TUYỆT ĐỐI KHÔNG cấp lại Credit (không reset `creditsGranted`).
+    const wasRejected =
+      job.moderationStatus === JobModerationStatus.RejectedAuto ||
+      job.moderationStatus === JobModerationStatus.RejectedManual;
+    if (job.status === JobStatus.Draft && jobPackageId && wasRejected) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.billing.consumeJobPackageSlot(tx, jobPackageId!);
+      });
     }
     const updated = await this.prisma.job.update({
       where: { id: job.id },

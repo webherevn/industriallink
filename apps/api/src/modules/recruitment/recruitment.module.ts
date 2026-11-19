@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, type OnModuleInit } from '@nestjs/common';
+import { DomainEvents, type DomainEventEnvelope } from '@industriallink/contracts';
+import { AppEventBus } from '../../shared/events/event-bus';
 import { AiModule } from '../ai/ai.module';
 import { BillingModule } from '../billing/billing.module';
 import { CompanyModule } from '../company/company.module';
@@ -63,4 +65,23 @@ import { jobModerationQueueProvider } from './moderation/job-moderation.queue';
     OnboardingService,
   ],
 })
-export class RecruitmentModule {}
+export class RecruitmentModule implements OnModuleInit {
+  constructor(
+    private readonly events: AppEventBus,
+    private readonly jobs: JobService,
+  ) {}
+
+  onModuleInit(): void {
+    // (A3) Tin tuyển dụng được gắn gói tin đăng → đưa vào hàng đợi kiểm duyệt
+    // (KHÔNG publish thẳng). Sự kiện phát từ module Billing để tránh phụ thuộc vòng.
+    this.events.subscribe(DomainEvents.JobPackageApplied, (event: DomainEventEnvelope) => {
+      const payload = event.payload as { jobId?: string };
+      if (!payload.jobId) return;
+      return this.jobs.enqueueModeration(
+        payload.jobId,
+        event.tenantId,
+        event.correlationId,
+      );
+    });
+  }
+}

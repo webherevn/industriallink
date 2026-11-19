@@ -22,6 +22,8 @@ export const DomainEvents = {
 
   // Recruitment
   JobSubmittedForModeration: 'recruitment.JobSubmittedForModeration.v1',
+  /** Tin tuyển dụng vừa được gắn gói tin đăng → cần đưa vào hàng đợi kiểm duyệt. */
+  JobPackageApplied: 'recruitment.JobPackageApplied.v1',
   JobModerated: 'recruitment.JobModerated.v1',
   JobPublished: 'recruitment.JobPublished.v1',
   JobUpdated: 'recruitment.JobUpdated.v1',

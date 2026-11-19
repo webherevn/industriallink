@@ -133,11 +133,24 @@ export function JobPackageApplyModal({
           {mode === 'choose' ? (
             <div className="space-y-2.5">
               <p className="text-[13px] leading-relaxed text-slate-600">
-                Gói sẽ được kích hoạt và cấp{' '}
-                <strong className="font-semibold text-[#072348]">
-                  {pkg.creditQuota ?? 0} Credit
-                </strong>{' '}
-                ngay khi tin được đăng. Chọn cách bạn muốn dùng gói này:
+                {pkg.creditsGranted ? (
+                  <>
+                    Credit của gói đã được cộng vào ví dùng chung (
+                    <strong className="font-semibold text-[#072348]">
+                      {pkg.creditQuota ?? 0} Credit
+                    </strong>
+                    ). Chọn cách bạn muốn dùng gói này:
+                  </>
+                ) : (
+                  <>
+                    Gói sẽ được kích hoạt và cộng{' '}
+                    <strong className="font-semibold text-[#072348]">
+                      {pkg.creditQuota ?? 0} Credit
+                    </strong>{' '}
+                    vào ví dùng chung ngay khi tin được đăng. Chọn cách bạn muốn dùng gói
+                    này:
+                  </>
+                )}
               </p>
 
               <OptionCard

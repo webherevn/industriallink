@@ -46,6 +46,25 @@ const SCOPE_FOR_KIND: Record<SourcingQuotaKind, string[] | null> = {
   revision: null,
 };
 
+/**
+ * Phạm vi dịch vụ theo LOẠI GÓI SĂN của chiến dịch (B3).
+ *
+ * ⚠ KHÔNG dùng scope của gói Săn đầu tiên (assignment.plan) — mỗi gói có
+ * 1 chiến dịch riêng, mọi quyền lợi phải suy ra từ gói của chiến dịch đó.
+ */
+const PACKAGE_SCOPE: Record<string, string[]> = {
+  BASIC: ['ai_match', 'filter_rank', 'shortlist'],
+  STANDARD: ['ai_match', 'filter_rank', 'shortlist', 'strengths_gaps', 'priority'],
+  DEEP: [
+    'ai_match',
+    'filter_rank',
+    'shortlist',
+    'strengths_gaps',
+    'priority',
+    'outreach',
+  ],
+};
+
 const SOURCING_CYCLE_DAYS = 30;
 
 function addUtcDays(from: Date, days: number): Date {
@@ -643,6 +662,7 @@ export class SourcingService {
       }
       // ⚠ KHÔNG chặn theo `assignment.endsAt`: mỗi gói Săn có hạn riêng và 1-1 với chiến dịch.
       // Hạn của gói/chiến dịch được kiểm tra bên dưới theo `pkg.expiresAt`.
+
       this.assertScope(assignment.plan, kind);
       const actorId = looksLikeUuid(actor.id) ? actor.id : null;
       let campaignId = input.campaignId ?? null;
@@ -745,6 +765,9 @@ export class SourcingService {
             message: 'Gói Săn đã hết hạn. Hãy gia hạn để dùng tiếp.',
           });
         }
+
+        // (B3) Phạm vi dịch vụ lấy theo GÓI CỦA CHIẾN DỊCH — không theo gói đầu tiên.
+        this.assertCampaignScope(pkg, kind);
 
         if (kind === 'search_round' && campaign.status === 'open') {
           await tx.huntCampaign.update({
@@ -1082,6 +1105,26 @@ export class SourcingService {
       message: `Gói ${plan.name} không gồm ${SOURCING_QUOTA_LABELS[kind].toLowerCase()}. Hãy nâng cấp gói Săn.`,
       kind,
       planCode: plan.code,
+    });
+  }
+
+  /**
+   * Chặn theo phạm vi của GÓI SĂN CỦA CHIẾN DỊCH (B3).
+   *
+   * Thay vì dùng scope của gói Săn đầu tiên (assignment.plan), mọi gate nghiệp vụ
+   * phải dựa trên gói đang gắn với chiến dịch — cô lập 100% theo chiến dịch.
+   */
+  private assertCampaignScope(pkg: BillingHuntPackage, kind: SourcingQuotaKind): void {
+    const required = SCOPE_FOR_KIND[kind];
+    if (!required) return;
+    const scope = PACKAGE_SCOPE[pkg.packageType] ?? [];
+    if (scope.length === 0) return;
+    if (required.some((s) => scope.includes(s))) return;
+    throw new ForbiddenException({
+      code: 'SOURCING_SCOPE_FORBIDDEN',
+      message: `Gói ${pkg.packageName} không gồm ${SOURCING_QUOTA_LABELS[kind].toLowerCase()}. Hãy nâng cấp gói Săn.`,
+      kind,
+      packageCode: pkg.code,
     });
   }
 

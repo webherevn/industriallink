@@ -482,7 +482,11 @@ export class JobPackageService {
       const activation = await this.activatePackageInTx(tx, pkg, actor, companyId, now);
 
       // --- Trừ 1 lượt đăng (dùng chung cho cả 2 nhánh UNUSED / ACTIVE) ---
-      const afterConsume = await this.consumePostingSlot(tx, pkg.id);
+      // Idempotent: tin đã gắn chính gói này rồi → không trừ thêm lượt.
+      const samePackageAlready = job.jobPackageId === pkg.id;
+      const afterConsume = samePackageAlready
+        ? { totalJobs: pkg.total_jobs, usedJobs: pkg.used_jobs }
+        : await this.consumePostingSlot(tx, pkg.id);
 
       // Tin đang gắn gói khác → hoàn lượt đăng của gói cũ (giữ đồng bộ `usedJobs`).
       // Dùng GREATEST để không bao giờ âm.
@@ -494,18 +498,20 @@ export class JobPackageService {
         `;
       }
 
-      // --- Gắn gói vào tin + publish + đặt hạn theo gói ---
+      // --- Gắn gói vào tin ---
       // Hạn hiển thị tin = now + durationDays của gói (KHÔNG phụ thuộc hạn gói).
       // `package.expiresAt` = hạn cuối để tiêu hết lượt đăng trong gói (vận hành).
       const durationDays = pkg.duration_days > 0 ? pkg.duration_days : 30;
       const displayDeadline = toVnCalendarDate(addUtcDays(now, durationDays));
+      // ⚠ (A3) Tin KHÔNG được publish thẳng — phải qua hàng đợi kiểm duyệt
+      // (AI/moderation) giống luồng đăng tin thông thường.
       await tx.job.update({
         where: { id: job.id },
         data: {
           jobPackageId: pkg.id,
-          status: 'published',
-          moderationStatus: 'approved',
-          publishedAt: job.status === 'published' ? undefined : now,
+          status: 'draft',
+          moderationStatus: 'pending',
+          publishedAt: null,
           deadline: displayDeadline,
         },
       });
@@ -725,7 +731,6 @@ export class JobPackageService {
     return updated;
   }
 
-  /** Hoàn lượt đăng khi tin bị xoá (đồng bộ với usedJobs). */
   /**
    * Hoàn 1 lượt đăng của gói (dùng khi tin bị hệ thống TỪ CHỐI kiểm duyệt).
    *

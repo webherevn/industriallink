@@ -69,11 +69,14 @@ import {
   DEFAULT_BILLING_PAGE_HOW_STEPS,
   DEFAULT_BILLING_PAGE_FAQ,
   DEFAULT_BILLING_PAGE_TRUST,
+  DomainEvents,
   includedScopeCodes,
   parseSourcingScope,
   UserRole,
   looksLikeUuid,
 } from '@industriallink/contracts';
+import { createDomainEvent } from '../../shared/domain/domain-event';
+import { AppEventBus } from '../../shared/events/event-bus';
 import { defaultActionCostRows, isBillableAction, policyCostForAction } from './billing-action-cost';
 import { JobPackageService, PACKAGE_TIER } from './job-package.service';
 import { SourcingService } from './sourcing.service';
@@ -156,6 +159,7 @@ export class BillingService implements OnModuleInit {
     private readonly config: ConfigService<AppConfig, true>,
     private readonly sourcing: SourcingService,
     private readonly jobPackages: JobPackageService,
+    private readonly events: AppEventBus,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -520,17 +524,19 @@ export class BillingService implements OnModuleInit {
             lastActivityAt: new Date(),
           },
         });
+        // Lô Credit để FIFO trừ khớp với balance.
+        // - Gói Khám phá (plan_grant): lô CÓ hạn = hạn chu kỳ (được phép thu hồi khi hết hạn).
+        // - Gói trả phí (package_grant): lô VÔ THỜI HẠN (giữ lại trong ví dùng chung).
+        const isStarter = plan.code === STARTER_PLAN_CODE;
         await tx.billingCreditLot.create({
           data: {
             companyId: company.id,
             accountId: account.id,
-            sourceType: 'package',
+            sourceType: isStarter ? 'plan' : 'package',
             sourceKey: `${plan.code}:${assigned.id}`,
             granted: quota,
             consumed: 0,
-            // Gói Doanh nghiệp (trả phí) → lô VÔ THỜI HẠN (giữ lại trong ví dùng chung).
-            // Gói Khám phá (Free) → lô CÓ hạn = hạn chu kỳ (được phép thu hồi khi hết hạn).
-            expiresAt: plan.code === STARTER_PLAN_CODE ? (endsAt ?? null) : null,
+            expiresAt: isStarter ? (endsAt ?? null) : null,
           },
         });
         await tx.billingCreditTransaction.create({
@@ -552,8 +558,7 @@ export class BillingService implements OnModuleInit {
               ? `${shouldGrant ? 'Cấp' : 'Cấp bổ sung'} ${quota} Credit theo hợp đồng ${plan.name}`
               : `Tặng ${quota} Credit khi gán gói ${plan.name}`,
             metadata: {
-              source:
-                plan.code === STARTER_PLAN_CODE ? 'plan_grant' : 'package_grant',
+              source: plan.code === STARTER_PLAN_CODE ? 'plan_grant' : 'package_grant',
               planId: plan.id,
               planCode: plan.code,
               assignmentId: assigned.id,
@@ -992,8 +997,9 @@ export class BillingService implements OnModuleInit {
    *   Credit vào ví dùng chung (đúng 1 lần qua cờ `creditsGranted`).
    * - Gói `ACTIVE` còn lượt: KHÔNG cộng lại Credit, chỉ trừ 1 lượt đăng.
    *
-   * Sau đó: `usedJobs + 1`, `Job.jobPackageId = gói`, tin chuyển `PUBLISHED`
-   * và `Job.deadline = package.expiresAt` (hiển thị đủ 30 ngày).
+   * Sau đó: `usedJobs + 1`, `Job.jobPackageId = gói`, tin được đưa vào hàng đợi
+   * kiểm duyệt (`moderationStatus = pending`) và `Job.deadline = now + durationDays`
+   * (hiển thị đủ 30 ngày, độc lập hạn gói).
    */
   async applyJobPackageToJob(
     actor: AuthenticatedUser,
@@ -1002,6 +1008,24 @@ export class BillingService implements OnModuleInit {
     jobId: string,
   ): Promise<RecruiterApplyJobPackageResponse> {
     const result = await this.jobPackages.activateAndApply(actor, companyId, packageId, jobId);
+
+    // (A3) Tin gắn gói KHÔNG publish thẳng → đẩy vào hàng đợi kiểm duyệt.
+    // Dùng Event Bus để tránh phụ thuộc vòng (Billing ↔ Recruitment).
+    const job = await this.prisma.job.findUnique({
+      where: { id: result.jobId },
+      select: { id: true, code: true, title: true, tenantId: true },
+    });
+    if (job) {
+      this.events.publish(
+        createDomainEvent({
+          name: DomainEvents.JobPackageApplied,
+          tenantId: job.tenantId,
+          correlationId: `job-package-apply-${job.id}`,
+          payload: { jobId: job.id, code: job.code, title: job.title },
+        }),
+      );
+    }
+
     return {
       packageId: result.packageId,
       packageCode: result.packageCode,
@@ -1086,7 +1110,8 @@ export class BillingService implements OnModuleInit {
    * Chống "kích hoạt rỗng": gói UNUSED chỉ được kích hoạt khi tạo tin đi kèm,
    * và cả 2 cùng commit/rollback.
    *
-   * @returns `expiresAt` của gói sau kích hoạt (để đặt hạn cho tin) hoặc `null` nếu gói vốn đã ACTIVE.
+   * @returns `expiresAt` của gói (hạn dùng lượt đăng) + `displayDeadline` (hạn hiển thị tin
+   *          = now + durationDays, ĐỘC LẬP với hạn gói).
    */
   async activateJobPackageInTx(
     tx: Prisma.TransactionClient,
@@ -1106,13 +1131,16 @@ export class BillingService implements OnModuleInit {
       companyId,
       now,
     );
-    // Hạn hiển thị tin = now + durationDays (ĐỘC LẬP với hạn gói).
     const durationDays = pkg.duration_days > 0 ? pkg.duration_days : 30;
     const displayDeadline = toVnCalendarDate(addUtcDays(now, durationDays));
     return { expiresAt: result.expiresAt, displayDeadline };
   }
 
-  /** Hoàn 1 lượt đăng khi tin bị xoá (đồng bộ `usedJobs` của gói). */
+  /**
+   * Hoàn 1 lượt đăng khi tin bị hệ thống TỪ CHỐI kiểm duyệt.
+   *
+   * ⚠ KHÔNG gọi khi NTD tự xoá / tự đóng tin — lượt đăng đã tiêu là mất.
+   */
   async releaseJobPackageSlot(packageId: string): Promise<void> {
     await this.jobPackages.releasePostingSlot(packageId);
   }
@@ -1222,8 +1250,14 @@ export class BillingService implements OnModuleInit {
   }
 
   /**
-   * Khi hết hạn gói nền tảng: chỉ thu hồi phần Credit được tặng kèm gói (plan_grant) chưa dùng hết trong chu kỳ đó.
-   * Toàn bộ Credit mua từ gói Top-up (type = 'topup') và cấp thủ công được bảo lưu vô thời hạn.
+   * Khi hết hạn gói nền tảng: chỉ thu hồi phần Credit được tặng kèm gói KHÁM PHÁ
+   * (`action = 'plan_grant'`, `metadata.planCode = 'KHAM_PHA'`) chưa dùng hết trong chu kỳ đó.
+   *
+   * ⚠ TUYỆT ĐỐI KHÔNG thu hồi:
+   * - `package_grant` (Credit tặng kèm gói tin đăng lẻ / gói Doanh nghiệp / gói Săn đã mua)
+   * - `topup` (Credit nạp tiền)
+   * - `manual_grant` (SuperAdmin cấp thêm)
+   * Tất cả số Credit này GIỮ LẠI vô thời hạn trong Ví dùng chung.
    */
   private async zeroStarterCredit(
     companyId: string,
@@ -1268,8 +1302,7 @@ export class BillingService implements OnModuleInit {
             companyId,
             action: 'plan_grant',
             creditDelta: { gt: 0 },
-            // Chỉ tính Credit tặng kèm gói KHÁM PHÁ (plan_grant).
-            // Credit của gói đã mua (`package_grant`) và Credit nạp tiền (`topup`) giữ lại vô thời hạn.
+            // Chỉ tính Credit tặng kèm gói KHÁM PHÁ.
             metadata: { path: ['planCode'], equals: STARTER_PLAN_CODE },
             createdAt: { gte: windowStart, lte: cycleEnd },
           },
@@ -1409,6 +1442,7 @@ export class BillingService implements OnModuleInit {
         lastActivityAt: new Date(),
       },
     });
+    // Lô Credit khớp balance: lô có hạn cho gói Khám phá, vô thời hạn cho gói trả phí.
     await this.prisma.billingCreditLot.create({
       data: {
         companyId,

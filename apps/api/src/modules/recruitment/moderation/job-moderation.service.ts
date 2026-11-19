@@ -23,6 +23,7 @@ import {
 import { PrismaService } from '../../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../../shared/security/security.types';
 import { AiGatewayService } from '../../ai/ai-gateway.service';
+import { BillingService } from '../../billing/billing.service';
 import { stripHtml } from '../html.util';
 import { JobService } from '../job.service';
 import { runJobStaticFilter } from './job-static-filter';
@@ -65,6 +66,7 @@ export class JobModerationService {
     private readonly audit: AuditService,
     private readonly jobs: JobService,
     private readonly email: EmailService,
+    private readonly billing: BillingService,
   ) {}
 
   /** Đẩy lại các tin còn 'pending' (vd. từng lỗi khi enqueue); bản trùng trong queue sẽ tự bỏ qua. */
@@ -289,6 +291,8 @@ export class JobModerationService {
           ...(dto.note ? { moderationNote: dto.note } : {}),
         },
       });
+      // Hoàn 1 lượt đăng cho NTD sửa JD và nộp lại (không thu hồi Credit).
+      await this.refundPostingSlot(jobId);
     } else if (dto.decision === JobModerationDecision.BanUser) {
       await this.prisma.job.update({
         where: { id: jobId },
@@ -413,6 +417,28 @@ export class JobModerationService {
         moderatedAt: new Date(),
       },
     });
+
+    // ⚠ RÀNG BUỘC: khi tin bị TỪ CHỐI kiểm duyệt → hoàn LẠI 1 lượt đăng
+    // (GREATEST(used_jobs - 1, 0)) để NTD sửa JD và nộp lại.
+    // TUYỆT ĐỐI KHÔNG thu hồi / KHÔNG reset `creditsGranted` của gói
+    // → không cấp lại Credit lần 2.
+    await this.refundPostingSlot(jobId);
+  }
+
+  /**
+   * Hoàn 1 lượt đăng của gói cho tin bị từ chối kiểm duyệt.
+   * Idempotent: `releasePostingSlot` dùng `GREATEST(used_jobs - 1, 0)`.
+   */
+  private async refundPostingSlot(jobId: string): Promise<void> {
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId },
+      select: { id: true, jobPackageId: true },
+    });
+    if (!job?.jobPackageId) return;
+    await this.billing.releaseJobPackageSlot(job.jobPackageId);
+    this.logger.log(
+      `Đã hoàn 1 lượt đăng của gói ${job.jobPackageId} do tin bị từ chối kiểm duyệt.`,
+    );
   }
 
   private async bumpTrust(companyId: string, delta: number): Promise<void> {
