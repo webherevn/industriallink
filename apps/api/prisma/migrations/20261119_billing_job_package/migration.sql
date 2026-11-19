@@ -86,6 +86,61 @@ CREATE INDEX IF NOT EXISTS billing_credit_lot_account_id_idx
 
 -- Backfill: mỗi đơn nền tảng đã trả (kind='platform', status='paid') = 1 gói tin đăng.
 -- creditsGranted = TRUE vì hệ thống cũ đã cấp Credit lúc thanh toán.
+--
+-- LƯU Ý MÃ GÓI: `billing_job_package.code` là UNIQUE TOÀN CỤC (không phải theo công ty).
+-- Vì vậy phải đánh số theo TIỀN TỐ gói (ST/PL/DN/FR) và tiếp tục từ mã lớn nhất đã tồn tại
+-- (gói do ứng dụng tạo lúc thanh toán), nếu không sẽ trùng `billing_job_package_code_key`.
+WITH src AS (
+  SELECT
+    o.id                  AS order_id,
+    o.company_id          AS company_id,
+    o.plan_name           AS order_plan_name,
+    o.price_vnd_snapshot  AS price_vnd_snapshot,
+    o.paid_at             AS paid_at,
+    o.created_at          AS created_at,
+    p.id                  AS plan_id,
+    p.name                AS plan_name,
+    p.job_post_quota      AS job_post_quota,
+    p.credit_quota        AS credit_quota,
+    p.duration_days       AS duration_days,
+    CASE o.plan_code
+      WHEN 'TIN_DANG' THEN 'STANDARD'
+      WHEN 'TIN_DANG_PLUS' THEN 'PLUS'
+      WHEN 'DOANH_NGHIEP' THEN 'ENTERPRISE'
+      WHEN 'ENTERPRISE' THEN 'ENTERPRISE'
+      ELSE 'FREE'
+    END AS package_type,
+    CASE o.plan_code
+      WHEN 'TIN_DANG' THEN 'ST'
+      WHEN 'TIN_DANG_PLUS' THEN 'PL'
+      WHEN 'DOANH_NGHIEP' THEN 'DN'
+      WHEN 'ENTERPRISE' THEN 'DN'
+      ELSE 'FR'
+    END AS prefix,
+    CASE o.plan_code
+      WHEN 'KHAM_PHA' THEN TRUE
+      WHEN 'DOANH_NGHIEP' THEN TRUE
+      WHEN 'ENTERPRISE' THEN TRUE
+      ELSE FALSE
+    END AS auto_activate
+  FROM billing.billing_order o
+  JOIN billing.billing_platform_plan p ON p.code = o.plan_code
+  WHERE o.kind = 'platform' AND o.status = 'paid'
+    AND NOT EXISTS (
+      SELECT 1 FROM billing.billing_job_package jpk WHERE jpk.order_id = o.id
+    )
+),
+numbered AS (
+  SELECT s.*, ROW_NUMBER() OVER (PARTITION BY s.prefix ORDER BY s.created_at, s.order_id) AS rn
+  FROM src s
+),
+existing_max AS (
+  SELECT
+    split_part(code, '-', 2) AS prefix,
+    COALESCE(MAX((substring(code from '-(\d+)$'))::int), 0) AS max_n
+  FROM billing.billing_job_package
+  GROUP BY 1
+)
 INSERT INTO billing.billing_job_package (
   code, company_id, order_id, plan_id, package_type, package_name, status,
   total_jobs, used_jobs, credits_included, duration_days,
@@ -93,51 +148,38 @@ INSERT INTO billing.billing_job_package (
   price_vnd, purchased_at, created_at, updated_at
 )
 SELECT
-  'JD-' || CASE p.code
-      WHEN 'TIN_DANG' THEN 'ST'
-      WHEN 'TIN_DANG_PLUS' THEN 'PL'
-      WHEN 'DOANH_NGHIEP' THEN 'DN'
-      ELSE 'FR'
-    END || '-' || LPAD(ROW_NUMBER() OVER (PARTITION BY o.company_id ORDER BY o.created_at)::text, 6, '0'),
-  o.company_id,
-  o.id,
-  p.id,
-  CASE p.code
-    WHEN 'TIN_DANG' THEN 'STANDARD'
-    WHEN 'TIN_DANG_PLUS' THEN 'PLUS'
-    WHEN 'DOANH_NGHIEP' THEN 'ENTERPRISE'
-    ELSE 'FREE'
-  END,
-  COALESCE(o.plan_name, p.name, 'Gói tin đăng'),
+  'JD-' || n.prefix || '-' || LPAD((COALESCE(e.max_n, 0) + n.rn)::text, 6, '0'),
+  n.company_id,
+  n.order_id,
+  n.plan_id,
+  n.package_type,
+  COALESCE(n.order_plan_name, n.plan_name, 'Gói tin đăng'),
   CASE
-    WHEN p.code IN ('DOANH_NGHIEP', 'KHAM_PHA') THEN 'ACTIVE'
+    WHEN n.auto_activate THEN 'ACTIVE'
     ELSE 'UNUSED'
   END,
-  p.job_post_quota,
+  n.job_post_quota,
   0,
-  COALESCE(p.credit_quota, 0),
-  COALESCE(p.duration_days, 30),
+  COALESCE(n.credit_quota, 0),
+  COALESCE(n.duration_days, 30),
   CASE
-    WHEN p.code IN ('DOANH_NGHIEP', 'KHAM_PHA') THEN NULL
-    ELSE COALESCE(o.paid_at, o.created_at) + INTERVAL '30 days'
+    WHEN n.auto_activate THEN NULL
+    ELSE COALESCE(n.paid_at, n.created_at) + INTERVAL '30 days'
   END,
   CASE
-    WHEN p.code IN ('DOANH_NGHIEP', 'KHAM_PHA') THEN COALESCE(o.paid_at, o.created_at)
+    WHEN n.auto_activate THEN COALESCE(n.paid_at, n.created_at)
     ELSE NULL
   END,
   CASE
-    WHEN p.code IN ('DOANH_NGHIEP', 'KHAM_PHA')
-      THEN COALESCE(o.paid_at, o.created_at) + (COALESCE(p.duration_days, 30) || ' days')::interval
+    WHEN n.auto_activate
+      THEN COALESCE(n.paid_at, n.created_at) + (COALESCE(n.duration_days, 30) || ' days')::interval
     ELSE NULL
   END,
   TRUE,
-  o.price_vnd_snapshot,
-  o.created_at,
-  o.created_at,
+  n.price_vnd_snapshot,
+  n.created_at,
+  n.created_at,
   now()
-FROM billing.billing_order o
-JOIN billing.billing_platform_plan p ON p.code = o.plan_code
-WHERE o.kind = 'platform' AND o.status = 'paid'
-  AND NOT EXISTS (
-    SELECT 1 FROM billing.billing_job_package jpk WHERE jpk.order_id = o.id
-  );
+FROM numbered n
+LEFT JOIN existing_max e ON e.prefix = n.prefix
+ON CONFLICT (code) DO NOTHING;

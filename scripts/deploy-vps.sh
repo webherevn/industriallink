@@ -23,6 +23,11 @@ pnpm install --frozen-lockfile
 #    `db push --accept-data-loss` để đồng bộ schema nhanh (cần --accept-data-loss vì các
 #    refactor có DROP bảng cũ: billing_sourcing_usage / _engagement / _package).
 pnpm --filter @industriallink/api db:generate
+# 2a) Phục hồi migration đã fail (nếu có) để `migrate deploy` không bị chặn bởi
+#     lỗi "New migrations cannot be applied before the error is recovered from".
+#     Script tự quyết định: schema đã khớp → --applied, chưa khớp → --rolled-back (chạy lại).
+(cd "$ROOT/apps/api" && node scripts/resolve-failed-migrations.cjs) \
+  || echo "WARN: phuc hoi migration that bac — xem log o tren"
 if ! pnpm --filter @industriallink/api db:migrate:deploy; then
   echo "WARN: migrate deploy thất bại — fallback sang db push --accept-data-loss"
   pnpm --filter @industriallink/api db:push

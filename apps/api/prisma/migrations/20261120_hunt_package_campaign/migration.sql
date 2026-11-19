@@ -175,16 +175,16 @@ BEGIN
     note, created_by, created_at, updated_at
   )
   SELECT
-    p.code,
-    p.company_id,
-    p.plan_id,
-    CASE sp.code
+    sp.code,
+    sp.company_id,
+    sp.plan_id,
+    CASE pl.code
       WHEN 'SAN_CO_BAN' THEN 'BASIC'
       WHEN 'SAN_TIEU_CHUAN' THEN 'STANDARD'
       WHEN 'SAN_CHUYEN_SAU' THEN 'DEEP'
       ELSE 'BASIC'
     END,
-    sp.name,
+    pl.name,
     CASE sp.status
       WHEN 'active' THEN 'ACTIVE'
       WHEN 'completed' THEN 'COMPLETED'
@@ -201,7 +201,7 @@ BEGIN
     0,
     COALESCE(pl.search_round_quota, 0),
     0,
-    CASE WHEN sp.code = 'SAN_CHUYEN_SAU' THEN COALESCE(pl.shortlist_quota, 15) ELSE 0 END,
+    CASE WHEN pl.code = 'SAN_CHUYEN_SAU' THEN COALESCE(pl.shortlist_quota, 15) ELSE 0 END,
     0,
     sp.note,
     sp.created_by,
@@ -218,7 +218,9 @@ BEGIN
     created_at, created_by, updated_at
   )
   SELECT
-    'HD-' || LPAD(ROW_NUMBER() OVER (PARTITION BY e.company_id ORDER BY e.created_at)::text, 6, '0'),
+    'HD-' || LPAD((COALESCE((SELECT COALESCE(MAX((substring(code from '-(\d+)$'))::int), 0)
+                            FROM billing.hunt_campaign), 0)
+                   + ROW_NUMBER() OVER (ORDER BY e.created_at, e.id))::text, 6, '0'),
     e.company_id,
     e.assignment_id,
     hp.id,
@@ -229,11 +231,13 @@ BEGIN
     e.created_by,
     e.updated_at
   FROM billing.billing_sourcing_engagement e
-  JOIN billing.billing_hunt_package hp ON hp.company_id = e.company_id AND hp.code = (
-      SELECT p2.code FROM billing.billing_sourcing_package p2
-      WHERE p2.id = e.package_id
-    )
-  ON CONFLICT (hunt_package_id) DO NOTHING;
+  JOIN billing.billing_hunt_package hp
+    ON hp.company_id = e.company_id
+   AND hp.code = (
+       SELECT p2.code FROM billing.billing_sourcing_package p2
+       WHERE p2.id::text = (to_jsonb(e) ->> 'package_id')
+     )
+  ON CONFLICT DO NOTHING;
 
   -- Ledger hoạt động: gắn campaignId theo engagement cũ.
   IF to_regclass('billing.billing_sourcing_usage') IS NOT NULL THEN
@@ -251,7 +255,17 @@ BEGIN
       u.created_at,
       u.created_by
     FROM billing.billing_sourcing_usage u
-    JOIN billing.hunt_campaign hc ON hc.job_id = u.job_id AND hc.company_id = u.company_id
+    JOIN billing.hunt_campaign hc
+      ON hc.company_id = u.company_id
+     AND hc.id = (
+         SELECT hc2.id
+         FROM billing.hunt_campaign hc2
+         JOIN billing.billing_sourcing_engagement e2
+           ON e2.id::text = (to_jsonb(u) ->> 'engagement_id')
+         WHERE hc2.assignment_id = u.assignment_id
+           AND hc2.job_id IS NOT DISTINCT FROM u.job_id
+         LIMIT 1
+       )
     ON CONFLICT (id) DO NOTHING;
   END IF;
 END $$;
