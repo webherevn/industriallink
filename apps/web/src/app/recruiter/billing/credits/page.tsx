@@ -23,6 +23,8 @@ const ACTION_LABEL: Record<string, string> = {
   manual_grant: 'Cấp thêm',
   manual_adjust: 'Điều chỉnh',
   plan_grant: 'Tặng gói',
+  package_grant: 'Cộng Credit gói',
+  topup: 'Nạp tiền',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -36,6 +38,8 @@ const ACTION_COLOR: Record<string, string> = {
   manual_grant: 'bg-emerald-50 text-emerald-700',
   manual_adjust: 'bg-slate-100 text-slate-700',
   plan_grant: 'bg-emerald-50 text-emerald-700',
+  package_grant: 'bg-teal-50 text-teal-700',
+  topup: 'bg-brand-50 text-brand-700',
 };
 
 function fmt(iso: string) {

@@ -27,6 +27,8 @@ const ACTION_META: Record<string, { color: string; label: string }> = {
   manual_grant: { color: 'bg-emerald-100 text-emerald-700', label: 'Cấp thêm' },
   manual_adjust: { color: 'bg-rose-100 text-rose-700', label: 'Trừ bớt' },
   plan_grant: { color: 'bg-lime-100 text-lime-700', label: 'Tặng gói' },
+  package_grant: { color: 'bg-emerald-100 text-emerald-700', label: 'Cộng Credit gói' },
+  topup: { color: 'bg-teal-100 text-teal-700', label: 'Nạp tiền' },
 };
 
 function fmt(iso: string) {

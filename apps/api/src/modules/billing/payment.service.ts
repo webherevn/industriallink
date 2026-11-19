@@ -680,6 +680,18 @@ export class PaymentService {
             lastActivityAt: new Date(),
           },
         });
+        // Lô Credit nạp tiền → vô thời hạn, GIỮ LẠI trong ví dùng chung.
+        await tx.billingCreditLot.create({
+          data: {
+            companyId: order.companyId,
+            accountId: account.id,
+            sourceType: 'topup',
+            sourceKey: order.id,
+            granted: order.creditCountSnapshot,
+            consumed: 0,
+            expiresAt: null,
+          },
+        });
 
         await tx.billingCreditTransaction.create({
           data: {
@@ -687,7 +699,7 @@ export class PaymentService {
             companyId: order.companyId,
             accountId: account.id,
             type: 'topup',
-            action: 'manual_grant',
+            action: 'topup',
             creditDelta: order.creditCountSnapshot,
             balanceAfter: updatedAccount.balance,
             costPerUnit: 0,

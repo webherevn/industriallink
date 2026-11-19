@@ -8,6 +8,7 @@ import { BillingRecruiterPaymentController } from './billing-recruiter-payment.c
 import { BillingMockPaymentController } from './billing-mock-payment.controller';
 import { BillingStripeWebhookController } from './billing-stripe-webhook.controller';
 import { BillingService } from './billing.service';
+import { CreditLotExpiryService } from './credit-lot-expiry.service';
 import { CreditService } from './credit.service';
 import { HuntPackageService } from './hunt-package.service';
 import { JobPackageService } from './job-package.service';
@@ -32,6 +33,7 @@ import { CompanyModule } from '../company/company.module';
     JobPackageService,
     BillingService,
     CreditService,
+    CreditLotExpiryService,
     PaymentService,
   ],
   exports: [

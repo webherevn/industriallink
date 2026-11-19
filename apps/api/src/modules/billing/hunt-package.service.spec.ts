@@ -115,7 +115,7 @@ describe('HuntPackageService', () => {
       expect(pkgUpdate.expiresAt).toBeInstanceOf(Date);
       expect(pkgUpdate.creditsGranted).toBe(true);
 
-      // 3) Credit cộng vào ví dùng chung, lô có hạn = hạn gói
+      // 3) Credit cộng vào ví dùng chung, lô VÔ THỜI HẠN (giữ lại khi gói hết hạn)
       expect(tx.billingCreditAccount.update).toHaveBeenCalledTimes(1);
       const acctUpdate = tx.billingCreditAccount.update.mock.calls[0][0].data;
       expect(acctUpdate.balance).toEqual({ increment: 30 });
@@ -125,7 +125,8 @@ describe('HuntPackageService', () => {
       expect(lotArg.granted).toBe(30);
       expect(lotArg.sourceType).toBe('package');
       expect(lotArg.sourceKey).toBe('TS-000101');
-      expect(lotArg.expiresAt).toBeInstanceOf(Date);
+      // Credit của gói mua → GIỮ LẠI vô thời hạn trong ví dùng chung.
+      expect(lotArg.expiresAt).toBeNull();
 
       // 4) Ledger ghi nhận cấp Credit có campaignId
       const grantTx = tx.billingCreditTransaction.create.mock.calls[0][0].data;

@@ -256,7 +256,12 @@ export type CreditAction =
   | 'view_match_summary'
   | 'manual_grant'
   | 'manual_adjust'
+  /** Cấp Credit kèm gói Khám phá / gói Free (gán 1:1 vào công ty). Thu hồi được khi hết chu kỳ. */
   | 'plan_grant'
+  /** Cấp Credit kèm gói đã mua (gói tin đăng lẻ, gói Doanh nghiệp, gói Săn). GIỮ LẠI vô thời hạn. */
+  | 'package_grant'
+  /** Nạp Credit mua thêm (top-up). GIỮ LẠI vô thời hạn. */
+  | 'topup'
   | 'trial_reset';
 
 /** View model: BillingCreditAccount. */

@@ -319,7 +319,7 @@ export class HuntPackageService {
           lastActivityAt: now,
         },
       });
-      // Lô Credit có hạn khớp hạn gói → FIFO trừ lô sắp hết hạn trước.
+      // Lô Credit vô thời hạn → Credit của gói Săn GIỮ LẠI trong ví dùng chung.
       await tx.billingCreditLot.create({
         data: {
           companyId: input.companyId,
@@ -328,7 +328,7 @@ export class HuntPackageService {
           sourceKey: row.code,
           granted,
           consumed: 0,
-          expiresAt,
+          expiresAt: null,
         },
       });
       await tx.billingCreditTransaction.create({
@@ -337,7 +337,7 @@ export class HuntPackageService {
           companyId: input.companyId,
           accountId: account.id,
           type: 'grant',
-          action: 'plan_grant',
+          action: 'package_grant',
           creditDelta: granted,
           balanceAfter: updated.balance,
           costPerUnit: 0,
@@ -347,11 +347,12 @@ export class HuntPackageService {
           actorEmail: input.actorEmail,
           note: `Cấp ${granted} Credit khi kích hoạt gói Săn ${row.package_name}`,
           metadata: {
-            source: 'hunt_package_activate',
+            source: 'package_grant',
+            grantSource: 'hunt_package_activate',
             packageCode: row.code,
             packageId: row.id,
             campaignId: campaign.id,
-            expiresAt: expiresAt.toISOString(),
+            packageExpiresAt: expiresAt.toISOString(),
           },
           enforced: true,
         },

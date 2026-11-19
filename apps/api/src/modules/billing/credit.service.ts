@@ -247,6 +247,43 @@ export class CreditService {
   }
 
   /**
+   * Đồng bộ `billing_credit_account.balance` với TỔNG LÔ CREDIT còn khả dụng.
+   *
+   * Nguồn sự thật = `billing_credit_lot` (granted - consumed của các lô còn hạn).
+   * `balance` chỉ là bản cache → mỗi lần gọi sẽ khớp tuyệt đối.
+   *
+   * ⚠ Bỏ qua công ty chưa có lô nào (balance có thể do seed cũ tạo) → giữ nguyên.
+   */
+  async reconcileBalance(companyId: string): Promise<{ before: number; after: number } | null> {
+    const account = await this.prisma.billingCreditAccount.findUnique({
+      where: { companyId },
+      select: { id: true, balance: true },
+    });
+    if (!account) return null;
+
+    const agg = await this.prisma.billingCreditLot.aggregate({
+      where: {
+        companyId,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      _sum: { granted: true, consumed: true },
+    });
+    const lotsTotal = Number(agg._sum.granted ?? 0) - Number(agg._sum.consumed ?? 0);
+    // Chưa có lô nào → không đụng balance (tránh xoá số dư seed cũ).
+    if (!Number(agg._sum.granted)) return null;
+    if (lotsTotal === account.balance) return { before: account.balance, after: lotsTotal };
+
+    await this.prisma.billingCreditAccount.update({
+      where: { id: account.id },
+      data: { balance: lotsTotal, lastActivityAt: new Date() },
+    });
+    this.logger.warn(
+      `Đồng bộ Credit của công ty ${companyId}: balance ${account.balance} → ${lotsTotal} (khớp tổng lô).`,
+    );
+    return { before: account.balance, after: lotsTotal };
+  }
+
+  /**
    * Lấy snapshot quy tắc credit hiện tại (từ BillingCreditPolicy).
    * Trả về null nếu chưa có policy.
    */
@@ -595,6 +632,21 @@ export class CreditService {
           lastActivityAt: new Date(),
         },
       });
+
+      // Lô Credit cho phần cấp thêm (vô thời hạn) để FIFO khớp balance.
+      if (creditDelta > 0) {
+        await tx.billingCreditLot.create({
+          data: {
+            companyId,
+            accountId: acc.id,
+            sourceType: 'manual',
+            sourceKey: `manual:${acc.id}`,
+            granted: creditDelta,
+            consumed: 0,
+            expiresAt: null,
+          },
+        });
+      }
 
       const createdTx = await tx.billingCreditTransaction.create({
         data: {

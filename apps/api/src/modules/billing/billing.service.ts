@@ -61,6 +61,7 @@ import type {
   RecruiterJobPackageView,
   RecruiterApplyJobPackageResponse,
   RecruiterApplicableJobView,
+  CreditAction,
 } from '@industriallink/contracts';
 import {
   BILLING_PLAN_BILLABLE_ACTIONS,
@@ -429,8 +430,9 @@ export class BillingService implements OnModuleInit {
     if (opts.preserveRemainingQuota && beforeValid) {
       const oldBase = before.customJobPostQuota ?? before.plan.jobPostQuota ?? null;
       if (oldBase != null) {
-        const oldCountActive =
-          before.plan.code === 'DOANH_NGHIEP' || before.plan.code === 'ENTERPRISE';
+        // Chỉ Enterprise (theo hợp đồng) đếm tin ĐANG HOẠT ĐỘNG.
+        // Gói Doanh nghiệp = 3 lượt đăng tích luỹ trong 30 ngày → đếm tích luỹ.
+        const oldCountActive = before.plan.code === 'ENTERPRISE';
         const oldUsed = await this.prisma.job.count({
           where: oldCountActive
             ? { companyId: input.companyId, isDeleted: false, status: 'published' }
@@ -518,13 +520,28 @@ export class BillingService implements OnModuleInit {
             lastActivityAt: new Date(),
           },
         });
+        await tx.billingCreditLot.create({
+          data: {
+            companyId: company.id,
+            accountId: account.id,
+            sourceType: 'package',
+            sourceKey: `${plan.code}:${assigned.id}`,
+            granted: quota,
+            consumed: 0,
+            // Gói Doanh nghiệp (trả phí) → lô VÔ THỜI HẠN (giữ lại trong ví dùng chung).
+            // Gói Khám phá (Free) → lô CÓ hạn = hạn chu kỳ (được phép thu hồi khi hết hạn).
+            expiresAt: plan.code === STARTER_PLAN_CODE ? (endsAt ?? null) : null,
+          },
+        });
         await tx.billingCreditTransaction.create({
           data: {
             tenantId: company.tenantId,
             companyId: company.id,
             accountId: account.id,
             type: 'grant',
-            action: 'plan_grant',
+            // Gói Khám phá (Free) → `plan_grant` (thu hồi được khi hết chu kỳ).
+            // Gói trả phí → `package_grant` (giữ lại vô thời hạn trong ví dùng chung).
+            action: plan.code === STARTER_PLAN_CODE ? 'plan_grant' : 'package_grant',
             creditDelta: quota,
             balanceAfter: updatedAccount.balance,
             costPerUnit: 0,
@@ -535,7 +552,8 @@ export class BillingService implements OnModuleInit {
               ? `${shouldGrant ? 'Cấp' : 'Cấp bổ sung'} ${quota} Credit theo hợp đồng ${plan.name}`
               : `Tặng ${quota} Credit khi gán gói ${plan.name}`,
             metadata: {
-              source: 'plan_assign',
+              source:
+                plan.code === STARTER_PLAN_CODE ? 'plan_grant' : 'package_grant',
               planId: plan.id,
               planCode: plan.code,
               assignmentId: assigned.id,
@@ -804,8 +822,10 @@ export class BillingService implements OnModuleInit {
       baseQuota == null ? null : baseQuota + (assignment?.extraJobPostQuota ?? 0);
     const effectiveCreditQuota = assignment?.customCreditQuota ?? assignment?.plan?.creditQuota ?? null;
     let effectiveDisplayDays = assignment?.customDurationDays ?? assignment?.plan?.durationDays ?? null;
-    const countActiveJobs =
-      assignment?.plan?.code === 'DOANH_NGHIEP' || assignment?.plan?.code === 'ENTERPRISE';
+    // Gói Doanh nghiệp: 3 LƯỢT ĐĂNG tích luỹ trong 30 ngày (KHÔNG phải 3 tin đồng thời).
+    // → đếm TÍCH LUỸ (tin đã đăng trong chu kỳ), giống các gói khác.
+    // Chỉ Enterprise (theo hợp đồng) mới đếm tin ĐANG HOẠT ĐỘNG.
+    const countActiveJobs = assignment?.plan?.code === 'ENTERPRISE';
     let jobsUsed = assignment
       ? await this.prisma.job.count({
           where: countActiveJobs
@@ -1073,19 +1093,23 @@ export class BillingService implements OnModuleInit {
     actor: AuthenticatedUser,
     companyId: string,
     packageId: string,
-  ): Promise<{ expiresAt: Date | null }> {
+  ): Promise<{ expiresAt: Date | null; displayDeadline: Date | null }> {
     const pkg = await this.jobPackages.lockPackageRow(tx, packageId);
     if (pkg.company_id !== companyId) {
       throw new NotFoundException('Không tìm thấy gói tin đăng này');
     }
+    const now = new Date();
     const result = await this.jobPackages.activatePackageInTx(
       tx,
       pkg,
       actor,
       companyId,
-      new Date(),
+      now,
     );
-    return { expiresAt: result.expiresAt };
+    // Hạn hiển thị tin = now + durationDays (ĐỘC LẬP với hạn gói).
+    const durationDays = pkg.duration_days > 0 ? pkg.duration_days : 30;
+    const displayDeadline = toVnCalendarDate(addUtcDays(now, durationDays));
+    return { expiresAt: result.expiresAt, displayDeadline };
   }
 
   /** Hoàn 1 lượt đăng khi tin bị xoá (đồng bộ `usedJobs` của gói). */
@@ -1244,6 +1268,9 @@ export class BillingService implements OnModuleInit {
             companyId,
             action: 'plan_grant',
             creditDelta: { gt: 0 },
+            // Chỉ tính Credit tặng kèm gói KHÁM PHÁ (plan_grant).
+            // Credit của gói đã mua (`package_grant`) và Credit nạp tiền (`topup`) giữ lại vô thời hạn.
+            metadata: { path: ['planCode'], equals: STARTER_PLAN_CODE },
             createdAt: { gte: windowStart, lte: cycleEnd },
           },
           _sum: { creditDelta: true },
@@ -1305,6 +1332,11 @@ export class BillingService implements OnModuleInit {
         (e.sourcing.positionsRemaining == null || e.sourcing.positionsRemaining > 0),
     );
     if (hasSourcingQuota) return;
+    // ⚠ Thứ tự: kiểm tra quota GÓI TIN ĐĂNG (đã mua) TRƯỚC khi xét trial cooldown.
+    // Công ty đã mua gói tin đăng (gói UNUSED/ACTIVE) → `jobsRemaining > 0` → được đăng tin
+    // dù gói Khám phá đã hết hạn. Không được chặn nhầm.
+    if (e.jobsRemaining == null) return;
+    if (e.jobsRemaining > 0) return;
     if (
       e.planCode === STARTER_PLAN_CODE &&
       e.plan?.endsAt &&
@@ -1315,15 +1347,13 @@ export class BillingService implements OnModuleInit {
         message: `Gói Khám phá đã hết ${STARTER_CYCLE_DAYS} ngày. Có thể đăng tin thử lại sau ${TRIAL_COOLDOWN_DAYS} ngày kể từ ngày kết thúc, hoặc đăng ký gói tin đăng.`,
       });
     }
-    if (e.jobsRemaining == null) return;
-    if (e.jobsRemaining > 0) return;
     throw new ForbiddenException({
       code: 'JOB_QUOTA_EXCEEDED',
       message:
         e.planCode === STARTER_PLAN_CODE
           ? `Gói Khám phá chỉ được đăng ${e.jobPostQuota} tin trong ${STARTER_CYCLE_DAYS} ngày. Hết hạn phải đợi ${TRIAL_COOLDOWN_DAYS} ngày hoặc đăng ký gói tin đăng.`
           : e.planCode === 'DOANH_NGHIEP'
-            ? `Gói Doanh nghiệp chỉ được có ${e.jobPostQuota} tin đang hoạt động. Đóng bớt tin hoặc nâng cấp để đăng thêm.`
+            ? `Gói Doanh nghiệp chỉ được đăng ${e.jobPostQuota} lượt trong 30 ngày. Hết lượt, hãy nâng cấp để đăng thêm.`
             : `Gói ${e.planName ?? 'hiện tại'} chỉ được đăng ${e.jobPostQuota} tin. Hãy nâng cấp để đăng thêm.`,
       used: e.jobsUsed,
       quota: e.jobPostQuota,
@@ -1350,8 +1380,11 @@ export class BillingService implements OnModuleInit {
   ): Promise<void> {
     const quota = assignment.customCreditQuota ?? assignment.plan.creditQuota ?? 0;
     if (quota <= 0) return;
+    // Gói Khám phá (Free) → `plan_grant`; gói trả phí → `package_grant`.
+    const isStarter = assignment.plan.code === STARTER_PLAN_CODE;
+    const grantAction: CreditAction = isStarter ? 'plan_grant' : 'package_grant';
     const granted = await this.prisma.billingCreditTransaction.findFirst({
-      where: { companyId, action: 'plan_grant' },
+      where: { companyId, action: grantAction },
       select: { id: true },
     });
     if (granted) return;
@@ -1376,13 +1409,24 @@ export class BillingService implements OnModuleInit {
         lastActivityAt: new Date(),
       },
     });
+    await this.prisma.billingCreditLot.create({
+      data: {
+        companyId,
+        accountId: account.id,
+        sourceType: isStarter ? 'plan' : 'package',
+        sourceKey: `${assignment.plan.code}:${assignment.id}:backfill`,
+        granted: quota,
+        consumed: 0,
+        expiresAt: isStarter ? (assignment.endsAt ?? null) : null,
+      },
+    });
     await this.prisma.billingCreditTransaction.create({
       data: {
         tenantId: company.tenantId,
         companyId,
         accountId: account.id,
         type: 'grant',
-        action: 'plan_grant',
+        action: grantAction,
         creditDelta: quota,
         balanceAfter: updated.balance,
         costPerUnit: 0,
@@ -1390,7 +1434,7 @@ export class BillingService implements OnModuleInit {
         actorEmail: 'system:plan-backfill',
         note: `Tặng ${quota} Credit (bổ sung) theo gói ${assignment.plan.name}`,
         metadata: {
-          source: 'plan_backfill',
+          source: isStarter ? 'plan_grant' : 'package_grant',
           planId: assignment.planId,
           planCode: assignment.plan.code,
           assignmentId: assignment.id,

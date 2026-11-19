@@ -154,17 +154,30 @@ export class JobPackageService {
     });
   }
 
-  /** Sinh mã gói kế tiếp theo loại: JD-ST-000001, JD-PL-000001… */
+  /**
+   * Sinh mã gói kế tiếp theo loại: JD-ST-000001, JD-PL-000001…
+   *
+   * Có retry khi trùng mã (2 đơn mua song song có thể cùng sinh 1 số) — tránh
+   * lỗi unique constraint `billing_job_package_code_key`.
+   */
   private async nextCode(packageType: RecruiterJobPackageType): Promise<string> {
     const prefix = PACKAGE_PREFIX[packageType];
-    const latest = await this.prisma.billingJobPackage.findFirst({
-      where: { code: { startsWith: `JD-${prefix}-` } },
-      orderBy: { code: 'desc' },
-      select: { code: true },
-    });
-    const m = latest?.code.match(/(\d+)$/);
-    const next = m ? Number(m[1]) + 1 : 1;
-    return `JD-${prefix}-${String(next).padStart(6, '0')}`;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const latest = await this.prisma.billingJobPackage.findFirst({
+        where: { code: { startsWith: `JD-${prefix}-` } },
+        orderBy: { code: 'desc' },
+        select: { code: true },
+      });
+      const m = latest?.code.match(/(\d+)$/);
+      const next = m ? Number(m[1]) + 1 + attempt : 1;
+      const code = `JD-${prefix}-${String(next).padStart(6, '0')}`;
+      const exists = await this.prisma.billingJobPackage.findFirst({
+        where: { code },
+        select: { id: true },
+      });
+      if (!exists) return code;
+    }
+    throw new BadRequestException('Không sinh được mã gói tin đăng, vui lòng thử lại.');
   }
 
   /**
@@ -482,6 +495,10 @@ export class JobPackageService {
       }
 
       // --- Gắn gói vào tin + publish + đặt hạn theo gói ---
+      // Hạn hiển thị tin = now + durationDays của gói (KHÔNG phụ thuộc hạn gói).
+      // `package.expiresAt` = hạn cuối để tiêu hết lượt đăng trong gói (vận hành).
+      const durationDays = pkg.duration_days > 0 ? pkg.duration_days : 30;
+      const displayDeadline = toVnCalendarDate(addUtcDays(now, durationDays));
       await tx.job.update({
         where: { id: job.id },
         data: {
@@ -489,9 +506,7 @@ export class JobPackageService {
           status: 'published',
           moderationStatus: 'approved',
           publishedAt: job.status === 'published' ? undefined : now,
-          deadline: activation.expiresAt
-            ? toVnCalendarDate(activation.expiresAt)
-            : undefined,
+          deadline: displayDeadline,
         },
       });
 
@@ -617,7 +632,8 @@ export class JobPackageService {
           sourceKey: pkg.code,
           granted: creditsGranted,
           consumed: 0,
-          expiresAt,
+          // Credit của gói mua → GIỮ LẠI trong ví dùng chung, không hết hạn theo hạn gói.
+          expiresAt: null,
         },
       });
       await tx.billingCreditTransaction.create({
@@ -626,7 +642,7 @@ export class JobPackageService {
           companyId,
           accountId: account.id,
           type: 'grant',
-          action: 'plan_grant',
+          action: 'package_grant',
           creditDelta: creditsGranted,
           balanceAfter: updated.balance,
           costPerUnit: 0,
@@ -635,10 +651,11 @@ export class JobPackageService {
           actorEmail: actor.email ?? null,
           note: `Cấp ${creditsGranted} Credit khi kích hoạt gói tin đăng ${pkg.package_name}`,
           metadata: {
-            source: 'job_package_activate',
+            source: 'package_grant',
+            grantSource: 'job_package_activate',
             packageCode: pkg.code,
             packageId: pkg.id,
-            expiresAt: expiresAt.toISOString(),
+            packageExpiresAt: expiresAt.toISOString(),
           },
           enforced: true,
         },
@@ -709,14 +726,20 @@ export class JobPackageService {
   }
 
   /** Hoàn lượt đăng khi tin bị xoá (đồng bộ với usedJobs). */
+  /**
+   * Hoàn 1 lượt đăng của gói (dùng khi tin bị hệ thống TỪ CHỐI kiểm duyệt).
+   *
+   * Dùng raw SQL `GREATEST(used_jobs - 1, 0)` để không bao giờ âm.
+   *
+   * ⚠ KHÔNG gọi khi NTD tự xoá / tự đóng tin: lượt đăng đã tiêu là mất.
+   */
   async releasePostingSlot(packageId: string): Promise<void> {
-    await this.prisma.billingJobPackage
-      .update({
-        where: { id: packageId },
-        data: { usedJobs: { decrement: 1 } },
-      })
-      .catch((err) => {
-        this.logger.warn(`Không hoàn được lượt đăng của gói ${packageId}: ${String(err)}`);
-      });
+    await this.prisma.$queryRaw`
+      UPDATE billing.billing_job_package
+      SET used_jobs = GREATEST(used_jobs - 1, 0)
+      WHERE id = ${packageId}::uuid
+    `.catch((err) => {
+      this.logger.warn(`Không hoàn được lượt đăng của gói ${packageId}: ${String(err)}`);
+    });
   }
 }

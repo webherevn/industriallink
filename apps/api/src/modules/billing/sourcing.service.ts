@@ -129,6 +129,12 @@ export class SourcingService {
       });
     }
 
+    // Số gói Săn CHỜ kích hoạt (UNUSED) → quyết định có thể tạo thêm chiến dịch hay không.
+    // Đây là nguồn sự thật duy nhất (không dựa vào `assignment.endsAt`).
+    const unusedPackages = await this.prisma.billingHuntPackage.count({
+      where: { companyId, status: 'UNUSED' },
+    });
+
     const activeJobIds = campaigns
       .filter((c) => c.status !== 'closed')
       .map((c) => c.jobId)
@@ -165,7 +171,7 @@ export class SourcingService {
         include: { plan: true },
       });
     }
-    return this.toEntitlements(row, primaryPkg, opensUsed, outreachUsed);
+    return this.toEntitlements(row, primaryPkg, opensUsed, outreachUsed, unusedPackages);
   }
 
   async getWorkspace(companyId: string): Promise<RecruiterSourcingWorkspace> {
@@ -635,13 +641,8 @@ export class SourcingService {
           message: 'Bạn chưa có gói Săn nhân sự. Hãy chọn gói trên bảng giá.',
         });
       }
-      if (!this.cycleOpen(assignment.endsAt)) {
-        throw new ForbiddenException({
-          code: 'SOURCING_CYCLE_ENDED',
-          message: 'Gói Săn đã hết hạn. Hãy gia hạn để dùng tiếp.',
-        });
-      }
-
+      // ⚠ KHÔNG chặn theo `assignment.endsAt`: mỗi gói Săn có hạn riêng và 1-1 với chiến dịch.
+      // Hạn của gói/chiến dịch được kiểm tra bên dưới theo `pkg.expiresAt`.
       this.assertScope(assignment.plan, kind);
       const actorId = looksLikeUuid(actor.id) ? actor.id : null;
       let campaignId = input.campaignId ?? null;
@@ -677,9 +678,13 @@ export class SourcingService {
 
         // === 1 TRANSACTION DUY NHẤT ===
         // Tạo chiến dịch + chuyển gói UNUSED → ACTIVE + cộng Credit vào Ví dùng chung.
+        const company = await tx.company.findUnique({
+          where: { id: companyId },
+          select: { tenantId: true },
+        });
         const activated = await this.huntPackages.activateWithCampaign(tx, {
           companyId,
-          tenantId: 'default',
+          tenantId: company?.tenantId ?? 'default',
           packageId: targetPkg.id,
           assignmentId: assignment.id,
           jobId: validJobId,
@@ -974,7 +979,15 @@ export class SourcingService {
    * Mô hình mới (1-1 gói ↔ chiến dịch + Ví Credit dùng chung):
    * Credit của gói Săn được cộng vào Ví Credit dùng chung ngay khi kích hoạt gói,
    * nên không còn "kho Credit riêng của gói" nữa.
-   * - 'repeat' : đã mở hồ sơ này rồi trong kỳ gói → không trừ thêm Credit.
+   *
+   * ⚠ RÀNG BUỘC (B5): KHÔNG còn cơ chế "miễn phí mở hồ sơ theo assignment/gói".
+   * Mở hồ sơ ứng viên TIỀM NĂNG luôn trừ Credit từ Ví dùng chung.
+   * Chỉ MIỄN PHÍ cho:
+   *   (a) ứng viên TỰ ỨNG TUYỂN (`applied`) — xử lý ở `candidate.service.ts`;
+   *   (b) tối đa 15 lượt bàn giao Inlink ở gói Tin săn Chuyên sâu (DEEP) —
+   *       được đánh dấu `profile_open` với cost 0 trong nhánh `outreach:` của `consume`.
+   *
+   * - 'repeat' : ứng viên này đã được mở (miễn phí) trong CHÍNH chiến dịch này → không trừ thêm.
    * - 'skip'   : mở mới → người gọi TRỪ Credit từ Ví dùng chung (FIFO lot),
    *              sau đó gọi `recordProfileOpen` để ghi vào ledger chiến dịch.
    */
@@ -986,14 +999,24 @@ export class SourcingService {
     cost?: number;
   }): Promise<'included' | 'repeat' | 'skip'> {
     const assignment = await this.settleExpiredPlan(input.companyId);
-    if (!assignment?.plan || !assignment.isActive || !this.cycleOpen(assignment.endsAt)) {
-      return 'skip';
-    }
+    if (!assignment?.plan || !assignment.isActive) return 'skip';
+
+    // ⚠ RÀNG BUỘC (B5): KHÔNG có cơ chế "miễn phí mở hồ sơ theo assignment/gói".
+    // Mở hồ sơ ứng viên TIỀM NĂNG luôn trừ Credit từ Ví dùng chung.
+    // Chỉ MIỄN PHÍ cho:
+    //   (a) ứng viên TỰ ỨNG TUYỂN (`applied`) — xử lý ở `candidate.service.ts`;
+    //   (b) tối đa 15 lượt bàn giao Inlink ở gói Tin săn Chuyên sâu (DEEP) —
+    //       được đánh dấu `profile_open` với cost 0 trong nhánh `outreach:` của `consume`.
+    //
+    // Không có `campaignId` → không có mốc "đã mở miễn phí" nào → luôn trừ Credit.
+    if (!input.campaignId) return 'skip';
 
     const prefix = `open:${input.candidateId}`;
+    // ⚠ Cô lập theo CHIẾN DỊCH: mở ở chiến dịch A không được miễn phí ở chiến dịch B.
     const openRows = await this.prisma.huntCampaignActivity.findMany({
       where: {
         assignmentId: assignment.id,
+        campaignId: input.campaignId,
         kind: 'profile_open',
         createdAt: { gte: assignment.startsAt },
       },
@@ -1080,7 +1103,14 @@ export class SourcingService {
     return Math.max(0, quota - used);
   }
 
-  /** Hết hạn mà không gia hạn thì tắt gói Săn và đưa hạn mức đã dùng về 0. */
+  /**
+   * Hết hạn mà không gia hạn thì tắt gói Săn và đưa hạn mức đã dùng về 0.
+   *
+   * ⚠ Vòng đời gói Săn KHÔNG còn bị gắn với `assignment.endsAt`:
+   * mỗi gói Săn có hạn riêng (`BillingHuntPackage.expiresAt`) và 1-1 với chiến dịch.
+   * Vì vậy chỉ tắt assignment khi KHÔNG còn gói Săn nào đang chạy và không còn
+   * chiến dịch hợp lệ — để gói mới mua / chiến dịch mới không bị giết oan.
+   */
   private async settleExpiredPlan(companyId: string) {
     const row = await this.prisma.billingCompanySourcingPlan.findUnique({
       where: { companyId },
@@ -1091,6 +1121,11 @@ export class SourcingService {
     // Đang bảo lưu (chưa kích hoạt Tin Săn đầu tiên): chỉ hết hạn khi quá 365 ngày bảo lưu.
     if (!row.activatedAt && row.reserveEndsAt) {
       if (row.reserveEndsAt.getTime() > nowMs) return row;
+      // Vẫn còn gói Săn chờ kích hoạt (UNUSED) → giữ assignment hoạt động.
+      const unusedLeft = await this.prisma.billingHuntPackage.count({
+        where: { companyId, status: 'UNUSED' },
+      });
+      if (unusedLeft > 0) return row;
       return this.prisma.billingCompanySourcingPlan.update({
         where: { companyId },
         data: {
@@ -1105,6 +1140,23 @@ export class SourcingService {
       });
     }
     if (!row.endsAt || row.endsAt.getTime() > nowMs) return row;
+
+    // Chu kỳ cấp gói đã kết thúc, nhưng còn gói Săn đang chạy / chiến dịch còn hiệu lực
+    // → KHÔNG tắt assignment (chỉ mất quyền tạo chiến dịch mới khi hết gói).
+    const [activePackages, validCampaigns] = await Promise.all([
+      this.prisma.billingHuntPackage.count({
+        where: {
+          companyId,
+          status: 'ACTIVE',
+          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+        },
+      }),
+      this.prisma.huntCampaign.count({
+        where: { companyId, assignmentId: row.id, status: { not: 'closed' } },
+      }),
+    ]);
+    if (activePackages > 0 || validCampaigns > 0) return row;
+
     return this.prisma.billingCompanySourcingPlan.update({
       where: { companyId },
       data: {
@@ -1168,6 +1220,7 @@ export class SourcingService {
     primaryPkg: BillingHuntPackage | null,
     profileOpensUsed = 0,
     outreachUsed = 0,
+    unusedPackages = 0,
   ): RecruiterSourcingEntitlements {
     const plan = row.plan;
     const scopeItems = parseSourcingScope(plan.serviceScope);
@@ -1207,7 +1260,9 @@ export class SourcingService {
       shortlistsUsed: row.shortlistsUsed,
       revisionsUsed: row.revisionsUsed,
       profileOpensUsed,
-      positionsRemaining: this.remaining(positionQuota, row.positionsUsed),
+      // Số vị trí còn mở = số gói Săn CHỜ kích hoạt (UNUSED) — 1 gói = 1 chiến dịch.
+      // KHÔNG dựa vào `assignment.endsAt` (hạn chu kỳ) để tránh chặn nhầm gói mới.
+      positionsRemaining: positionQuota == null ? null : unusedPackages,
       searchRoundsRemaining: this.remaining(searchRoundQuota, row.searchRoundsUsed),
       shortlistsRemaining: this.remaining(shortlistQuota, row.shortlistsUsed),
       revisionsRemaining: this.remaining(revisionQuota, row.revisionsUsed),

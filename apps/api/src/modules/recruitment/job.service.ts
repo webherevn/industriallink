@@ -538,10 +538,9 @@ export class JobService {
       if (pickedPackage) {
         await this.billing.consumeJobPackageSlot(tx, pickedPackage.id);
       }
-      // Tin dùng gói trả phí → hạn theo hạn gói (đủ 30 ngày), không theo hạn plan.
-      const packageDeadline = activation?.expiresAt
-        ? toVnCalendarDate(activation.expiresAt)
-        : null;
+      // Hạn hiển thị tin = now + durationDays của gói (30 ngày gói trả phí, 14 ngày gói Khám phá),
+      // ĐỘC LẬP với `package.expiresAt` (hạn cuối để tiêu hết lượt đăng trong gói).
+      const packageDeadline = activation?.displayDeadline ?? null;
       return tx.job.create({
         data: {
           code,
@@ -893,10 +892,9 @@ export class JobService {
         updatedBy: user.id,
       },
     });
-    // Hoàn 1 lượt đăng về gói đã dùng cho tin này.
-    if (job.jobPackageId) {
-      await this.billing.releaseJobPackageSlot(job.jobPackageId);
-    }
+    // ⚠ KHÔNG hoàn lượt đăng khi NTD tự xoá tin.
+    // Lượt đăng đã tiêu là mất — chỉ hoàn khi tin bị hệ thống TỪ CHỐI kiểm duyệt
+    // (xem JobModerationService.finalizeReject) để NTD sửa JD và nộp lại.
     void this.indexing.notifyJob(job, 'URL_DELETED');
     this.events.publish(
       createDomainEvent({

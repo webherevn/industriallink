@@ -330,7 +330,6 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
 
   const e = data?.entitlements;
   const hasPlan = Boolean(e?.assignment?.isActive);
-  const ended = cycleEnded(e?.assignment?.endsAt);
   const validCampaigns = useMemo(
     () => (data?.campaigns ?? []).filter((camp) => Boolean(camp.jobId)),
     [data?.campaigns],
@@ -353,6 +352,12 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
   const selectedCampaign = validCampaigns.find((camp) => camp.id === selected) ?? null;
   const huntJobId = selectedCampaign?.jobId ?? null;
+
+  /**
+   * Gói Săn của CHIẾN DỊCH đang mở quyết định trạng thái "đã hết hạn".
+   * KHÔNG dùng `assignment.endsAt` (hạn chu kỳ cấp gói) vì mỗi gói Săn có hạn riêng.
+   */
+  const ended = Boolean(selectedCampaign && selectedCampaign.packageStatus !== 'ACTIVE');
 
   /** Tài nguyên RIÊNG của chiến dịch đang mở (đọc từ đúng 1 BillingHuntPackage gắn với nó). */
   const campaignResource = useMemo(
@@ -477,9 +482,11 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
     [data?.packages],
   );
 
-  // Mô hình 1-1: mỗi chiến dịch mới cần 1 gói Săn chờ kích hoạt (UNUSED).
-  const canOpenMorePositions =
-    hasPlan && !ended && unusedPackages.length > 0 && (e?.positionsRemaining === null || (e?.positionsRemaining ?? 0) > 0);
+  /**
+   * Mô hình 1-1: mỗi chiến dịch mới cần 1 gói Săn chờ kích hoạt (UNUSED).
+   * Nguồn sự thật = số gói UNUSED còn lại, KHÔNG phụ thuộc hạn chu kỳ gói.
+   */
+  const canOpenMorePositions = hasPlan && unusedPackages.length > 0;
 
   return (
     <RecruiterShell pinSidebar>
@@ -2554,7 +2561,9 @@ function QuotaGrid({
     },
   ];
 
-  const ended = pkgExpired || cycleEnded(e.assignment?.endsAt);
+  // Gói Săn của chiến dịch là nguồn sự thật về hạn. Chỉ fallback về hạn chu kỳ
+  // cấp gói khi chưa có tài nguyên chiến dịch (VD màn hình tổng quan).
+  const ended = resource ? pkgExpired : cycleEnded(e.assignment?.endsAt);
   const endLabel = pkgExpiryLabel ?? (e.assignment?.endsAt
     ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(e.assignment.endsAt))
     : null);
