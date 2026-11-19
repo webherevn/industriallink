@@ -699,7 +699,7 @@ export function SourcingProgressReportModal({
       };
       return consumeRecruiterSourcing({
         kind: 'search_round',
-        engagementId,
+        campaignId: engagementId,
         jobId: jobId ?? undefined,
         note: `report:${JSON.stringify(reportPayload)}`,
       });

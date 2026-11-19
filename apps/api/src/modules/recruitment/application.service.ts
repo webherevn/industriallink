@@ -546,14 +546,14 @@ export class ApplicationService {
             where: { companyId },
             include: {
               plan: true,
-              engagements: {
+              huntCampaigns: {
                 where: { jobId: { not: null }, status: { not: 'closed' } },
               },
             },
           })
         : Promise.resolve(null),
-      this.prisma.billingSourcingUsage?.findMany
-        ? this.prisma.billingSourcingUsage.findMany({
+      this.prisma.huntCampaignActivity?.findMany
+        ? this.prisma.huntCampaignActivity.findMany({
             where: { companyId, createdAt: { gte: from } },
             select: { kind: true, jobId: true, note: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
@@ -723,7 +723,7 @@ export class ApplicationService {
     }
 
     const uniqueEngagementsByJob = new Set(
-      (sourcingPlan?.engagements ?? [])
+      (sourcingPlan?.huntCampaigns ?? [])
         .map((e) => e.jobId)
         .filter((id): id is string => Boolean(id)),
     );

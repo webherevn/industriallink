@@ -1835,10 +1835,10 @@ export class CrmService {
       allowedCompanyIds = scoped;
     }
 
-    const outreachUsages = await this.prisma.billingSourcingUsage.findMany({
+    const outreachUsages = await this.prisma.huntCampaignActivity.findMany({
       where: {
         kind: 'shortlist',
-        engagementId: { not: null },
+        campaignId: { not: null },
         note: { startsWith: 'outreach:' },
         ...(allowedCompanyIds ? { companyId: { in: allowedCompanyIds } } : {}),
       },
@@ -1851,7 +1851,7 @@ export class CrmService {
     }
 
     const engagementIds = [
-      ...new Set(outreachUsages.map((u) => u.engagementId).filter((id): id is string => Boolean(id))),
+      ...new Set(outreachUsages.map((u) => u.campaignId).filter((id): id is string => Boolean(id))),
     ];
     const companyIds = [...new Set(outreachUsages.map((u) => u.companyId))];
     const assignmentIds = [...new Set(outreachUsages.map((u) => u.assignmentId))];
@@ -1864,10 +1864,10 @@ export class CrmService {
     ];
 
     const [statusUsages, companies, assignments, engagements, candidates] = await Promise.all([
-      this.prisma.billingSourcingUsage.findMany({
+      this.prisma.huntCampaignActivity.findMany({
         where: {
           kind: 'shortlist',
-          engagementId: { in: engagementIds },
+          campaignId: { in: engagementIds },
           note: { startsWith: 'outreach_status:' },
         },
         orderBy: { createdAt: 'desc' },
@@ -1880,7 +1880,7 @@ export class CrmService {
         where: { id: { in: assignmentIds } },
         include: { plan: { select: { code: true, name: true } } },
       }),
-      this.prisma.billingSourcingEngagement.findMany({
+      this.prisma.huntCampaign.findMany({
         where: { id: { in: engagementIds } },
         select: { id: true, title: true, jobId: true },
       }),
@@ -1942,11 +1942,11 @@ export class CrmService {
 
     const statusByEngCand = new Map<string, { status: SourcingOutreachStatus; updatedAt: Date }>();
     for (const su of statusUsages) {
-      if (!su.engagementId || !su.note) continue;
+      if (!su.campaignId || !su.note) continue;
       const parts = su.note.split(':');
       const cid = parts[1]?.trim();
       const st = parts[2]?.trim() as SourcingOutreachStatus | undefined;
-      const key = `${su.engagementId}:${cid}`;
+      const key = `${su.campaignId}:${cid}`;
       if (cid && st && st in SOURCING_OUTREACH_STATUS_META && !statusByEngCand.has(key)) {
         statusByEngCand.set(key, { status: st, updatedAt: su.createdAt });
       }
@@ -1955,11 +1955,11 @@ export class CrmService {
     const seenEngCand = new Set<string>();
     const allItems: CrmSourcingOutreachItemView[] = [];
     for (const u of outreachUsages) {
-      if (!u.engagementId || !u.note) continue;
+      if (!u.campaignId || !u.note) continue;
       const parts = u.note.split(':');
       const cid = parts[1]?.trim();
       if (!cid) continue;
-      const key = `${u.engagementId}:${cid}`;
+      const key = `${u.campaignId}:${cid}`;
       if (seenEngCand.has(key)) continue;
       seenEngCand.add(key);
 
@@ -1967,7 +1967,7 @@ export class CrmService {
       const noteText = parts.slice(3).join(':').trim() || null;
       const company = companyMap.get(u.companyId);
       const assignment = assignmentMap.get(u.assignmentId);
-      const engagement = engagementMap.get(u.engagementId);
+      const engagement = engagementMap.get(u.campaignId);
       const jobId = engagement?.jobId ?? u.jobId ?? null;
       const job = jobId ? jobMap.get(jobId) : undefined;
       const cand = candidateMap.get(cid);
@@ -1988,7 +1988,7 @@ export class CrmService {
         assignmentId: u.assignmentId,
         planCode: assignment?.plan.code ?? 'SAN_CHUYEN_SAU',
         planName: assignment?.plan.name ?? 'Tin săn Chuyên sâu',
-        engagementId: u.engagementId,
+        engagementId: u.campaignId,
         engagementTitle: engagement?.title ?? job?.title ?? 'Vị trí săn nhân sự',
         jobId,
         jobTitle: job?.title ?? engagement?.title ?? null,
@@ -2072,7 +2072,7 @@ export class CrmService {
 
     await this.assertCompanyVisible(actor, companyId);
 
-    const engagement = await this.prisma.billingSourcingEngagement.findFirst({
+    const engagement = await this.prisma.huntCampaign.findFirst({
       where: { id: engagementId, companyId },
     });
     if (!engagement) {
@@ -2080,20 +2080,20 @@ export class CrmService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.billingSourcingUsage.deleteMany({
+      await tx.huntCampaignActivity.deleteMany({
         where: {
           companyId,
           assignmentId: engagement.assignmentId,
-          engagementId: engagement.id,
+          campaignId: engagement.id,
           kind: 'shortlist',
           note: { startsWith: `outreach_status:${candidateId}:` },
         },
       });
-      await tx.billingSourcingUsage.create({
+      await tx.huntCampaignActivity.create({
         data: {
           companyId,
           assignmentId: engagement.assignmentId,
-          engagementId: engagement.id,
+          campaignId: engagement.id,
           kind: 'shortlist',
           jobId: engagement.jobId,
           note: `outreach_status:${candidateId}:${status}`,
@@ -2102,11 +2102,11 @@ export class CrmService {
       });
 
       if (input.note !== undefined) {
-        const outreachRow = await tx.billingSourcingUsage.findFirst({
+        const outreachRow = await tx.huntCampaignActivity.findFirst({
           where: {
             companyId,
             assignmentId: engagement.assignmentId,
-            engagementId: engagement.id,
+            campaignId: engagement.id,
             kind: 'shortlist',
             note: { startsWith: `outreach:${candidateId}:` },
           },
@@ -2116,7 +2116,7 @@ export class CrmService {
           const parts = outreachRow.note.split(':');
           const cname = (parts[2] ?? 'Ứng viên').replace(/:/g, ' ').trim();
           const cleanNote = (input.note ?? '').trim();
-          await tx.billingSourcingUsage.update({
+          await tx.huntCampaignActivity.update({
             where: { id: outreachRow.id },
             data: {
               note: cleanNote

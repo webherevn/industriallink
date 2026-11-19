@@ -1048,6 +1048,9 @@ export interface CrmSourcingOutreachItemView {
   planName: string;
   engagementId: string;
   engagementTitle: string;
+  /** Mã gói Săn (TS-xxxxxx) gắn với chiến dịch. */
+  packageCode?: string | null;
+  packageName?: string | null;
   jobId: string | null;
   jobTitle: string | null;
   jobLocation: string | null;

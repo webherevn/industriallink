@@ -812,6 +812,8 @@ model Job {
   bookmarks    JobBookmark[]
   /// Gói tin đăng đã dùng để đăng tin này. Mỗi gói 1 lượt đăng → 1 tin.
   jobPackage   BillingJobPackage? @relation(fields: [jobPackageId], references: [id], onDelete: SetNull)
+  /// Chiến dịch Săn nhân sự gắn với tin này (nếu có).
+  huntCampaigns HuntCampaign[]
 
   @@index([tenantId, status])
   @@index([companyId])
@@ -1518,7 +1520,7 @@ model BillingSourcingPlan {
   updatedBy String?  @map("updated_by") @db.Uuid
 
   companyAssignments BillingCompanySourcingPlan[]
-  packages           BillingSourcingPackage[]
+  huntPackages      BillingHuntPackage[]
 
   @@map("billing_sourcing_plan")
   @@schema("billing")
@@ -1553,84 +1555,120 @@ model BillingCompanySourcingPlan {
   updatedAt DateTime @updatedAt @map("updated_at")
   updatedBy String?  @map("updated_by") @db.Uuid
 
-  plan         BillingSourcingPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
-  engagements  BillingSourcingEngagement[]
-  usages       BillingSourcingUsage[]
+  plan        BillingSourcingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  huntCampaigns     HuntCampaign[]
+  huntActivities    HuntCampaignActivity[]
 
   @@index([planId, isActive])
   @@map("billing_company_sourcing_plan")
   @@schema("billing")
 }
 
-/// Từng gói Tin Săn đã mua/gán riêng biệt cho công ty (TS-000101, TS-000102...).
-model BillingSourcingPackage {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code          String    @unique
-  companyId     String    @map("company_id") @db.Uuid
-  planId        String    @map("plan_id") @db.Uuid
-  /// 'reserved' | 'active' | 'completed' | 'expired'
-  status        String    @default("reserved")
-  durationDays  Int       @default(30) @map("duration_days")
-  purchasedAt   DateTime  @default(now()) @map("purchased_at")
-  activatedAt   DateTime? @map("activated_at")
-  reserveEndsAt DateTime? @map("reserve_ends_at")
-  endsAt        DateTime? @map("ends_at")
-  note          String?
-  createdBy     String?   @map("created_by") @db.Uuid
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+/// Gói Săn nhân sự đã mua (multi-package).
+/// Mỗi lần mua 1 gói Săn = 1 bản ghi độc lập. Ràng buộc 1-1 với chiến dịch:
+/// 1 gói Săn gắn tối đa 1 chiến dịch (hunt_campaign.hunt_package_id UNIQUE).
+/// Gói chỉ chuyển UNUSED → ACTIVE khi NTD tạo chiến dịch (1 transaction duy nhất),
+/// đồng thời cộng `creditsIncluded` vào Ví Credit dùng chung của doanh nghiệp.
+model BillingHuntPackage {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Mã gói hiển thị: TS-xxxxxx.
+  code      String  @unique
+  companyId String  @map("company_id") @db.Uuid
+  planId    String  @map("plan_id") @db.Uuid
+  /// Đơn hàng đã trả sinh ra gói này (null = gói do SuperAdmin cấp).
+  orderId   String? @map("order_id") @db.Uuid
 
-  plan        BillingSourcingPlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
-  engagements BillingSourcingEngagement[]
+  /// BASIC | STANDARD | DEEP
+  packageType String @map("package_type")
+  packageName String @map("package_name")
+
+  /// UNUSED | ACTIVE | EXPIRED | COMPLETED
+  status       String    @default("UNUSED")
+  /// Thời hạn sử dụng (ngày) tính từ lúc kích hoạt.
+  durationDays Int       @default(30) @map("duration_days")
+  purchasedAt  DateTime  @default(now()) @map("purchased_at")
+  activatedAt  DateTime? @map("activated_at")
+  expiresAt    DateTime? @map("expires_at")
+
+  /// Credit đi kèm gói. Cộng vào Ví Credit dùng chung đúng 1 lần (chống cộng trùng).
+  creditsIncluded Int    @default(0) @map("credits_included")
+  creditsGranted  Boolean @default(false) @map("credits_granted")
+
+  /// Tổng lượt điều chỉnh tiêu chí của riêng gói này.
+  totalCriteriaEdits Int @default(0) @map("total_criteria_edits")
+  usedCriteriaEdits  Int @default(0) @map("used_criteria_edits")
+  /// Tổng lượt báo cáo của riêng gói này.
+  totalReports Int @default(0) @map("total_reports")
+  usedReports  Int @default(0) @map("used_reports")
+  /// Tổng lượt bàn giao ứng viên cho Inlink (chỉ gói DEEP).
+  totalHandovers Int @default(0) @map("total_handovers")
+  usedHandovers  Int @default(0) @map("used_handovers")
+
+  note      String?  @map("note")
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  plan     BillingSourcingPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  order    BillingOrder?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  campaign HuntCampaign?
 
   @@index([companyId, status, purchasedAt])
-  @@map("billing_sourcing_package")
+  @@map("billing_hunt_package")
   @@schema("billing")
 }
 
-/// Một vị trí Săn đã mở trong gói đang gán (trừ 1 positionQuota).
-model BillingSourcingEngagement {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId    String   @map("company_id") @db.Uuid
-  assignmentId String   @map("assignment_id") @db.Uuid
-  packageId    String?  @map("package_id") @db.Uuid
-  jobId        String?  @map("job_id") @db.Uuid
+/// Một chiến dịch Săn nhân sự (1-1 với đúng 1 BillingHuntPackage).
+model HuntCampaign {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Mã chiến dịch hiển thị: HD-xxxxxx.
+  code         String  @unique
+  companyId    String  @map("company_id") @db.Uuid
+  assignmentId String  @map("assignment_id") @db.Uuid
+  /// Gói Săn gắn với chiến dịch này. UNIQUE → 1 gói chỉ gắn tối đa 1 chiến dịch.
+  huntPackageId String  @unique @map("hunt_package_id") @db.Uuid
+  jobId        String? @map("job_id") @db.Uuid
   title        String
   /// 'open' | 'in_progress' | 'shortlisted' | 'closed'
   status       String   @default("open")
   createdAt    DateTime @default(now()) @map("created_at")
   createdBy    String?  @map("created_by") @db.Uuid
   updatedAt    DateTime @updatedAt @map("updated_at")
+  updatedBy    String?  @map("updated_by") @db.Uuid
 
   assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  package    BillingSourcingPackage?    @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  usages     BillingSourcingUsage[]
-
+  package    BillingHuntPackage          @relation(fields: [huntPackageId], references: [id], onDelete: Restrict)
+  job        Job?                       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  activities HuntCampaignActivity[]
   @@index([companyId, createdAt])
   @@index([assignmentId])
-  @@map("billing_sourcing_engagement")
+  @@index([jobId])
+  @@map("hunt_campaign")
   @@schema("billing")
 }
 
-/// Ledger trừ hạn mức Săn (vị trí / đợt tìm / shortlist / điều chỉnh).
-model BillingSourcingUsage {
+/// Ledger hoạt động của chiến dịch Săn (quét / báo cáo / shortlist / bàn giao / điều chỉnh).
+model HuntCampaignActivity {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId    String   @map("company_id") @db.Uuid
   assignmentId String   @map("assignment_id") @db.Uuid
-  engagementId String?  @map("engagement_id") @db.Uuid
-  /// 'position' | 'search_round' | 'shortlist' | 'revision'
+  /// Chiến dịch mà hoạt động này thuộc về.
+  campaignId   String?  @map("campaign_id") @db.Uuid
+  /// 'position' | 'search_round' | 'shortlist' | 'revision' | 'profile_open' | 'auto_scan'
   kind         String
   jobId        String?  @map("job_id") @db.Uuid
   note         String?
   createdAt    DateTime @default(now()) @map("created_at")
   createdBy    String?  @map("created_by") @db.Uuid
 
-  assignment BillingCompanySourcingPlan  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  engagement BillingSourcingEngagement?  @relation(fields: [engagementId], references: [id], onDelete: SetNull)
+  assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  campaign   HuntCampaign?              @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdAt])
   @@index([assignmentId, kind])
-  @@map("billing_sourcing_usage")
+  @@index([campaignId, createdAt])
+  @@map("hunt_campaign_activity")
   @@schema("billing")
 }
 
@@ -1913,6 +1951,8 @@ model BillingCreditTransaction {
   quantity     Int      @default(1)
   candidateId  String?  @map("candidate_id") @db.Uuid
   jobId        String?  @map("job_id") @db.Uuid
+  /// Chiến dịch Săn nhân sự liên quan (nếu giao dịch phát sinh từ 1 chiến dịch cụ thể).
+  campaignId   String?  @map("campaign_id") @db.Uuid
   connectionId String?  @map("connection_id") @db.Uuid
   actorUserId  String?  @map("actor_user_id") @db.Uuid
   actorEmail   String?  @map("actor_email")
@@ -1928,6 +1968,7 @@ model BillingCreditTransaction {
   @@index([companyId, createdAt])
   @@index([type, action])
   @@index([candidateId])
+  @@index([campaignId])
   @@index([createdAt])
   @@map("billing_credit_transaction")
   @@schema("billing")
@@ -2008,6 +2049,7 @@ model BillingOrder {
   orderInvoice             CrmOrderInvoice?
   paidActivity             CrmActivity?
   jobPackages              BillingJobPackage[]
+  huntPackages             BillingHuntPackage[]
 
   @@index([companyId, createdAt])
   @@index([status])

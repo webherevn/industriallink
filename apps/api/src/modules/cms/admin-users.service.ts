@@ -303,8 +303,9 @@ export class AdminUsersService {
         });
 
         // 2. Dữ liệu giao dịch Billing (Ví, Gói gán công ty, Đơn hàng) — giữ nguyên bảng giá cấu hình
-        await tx.billingSourcingUsage.deleteMany({});
-        await tx.billingSourcingEngagement.deleteMany({});
+        await tx.huntCampaignActivity.deleteMany({});
+        await tx.huntCampaign.deleteMany({});
+        await tx.billingHuntPackage.deleteMany({});
         await tx.billingCompanySourcingPlan.deleteMany({});
         await tx.billingCompanyPlan.deleteMany({});
         await tx.billingCreditTransaction.deleteMany({});

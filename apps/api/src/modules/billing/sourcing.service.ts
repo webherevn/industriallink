@@ -7,9 +7,9 @@ import {
 } from '@nestjs/common';
 import type {
   BillingCompanySourcingPlan,
-  BillingSourcingEngagement,
-  BillingSourcingPackage,
+  BillingHuntPackage,
   BillingSourcingPlan,
+  HuntCampaign,
   Prisma,
 } from '@prisma/client';
 import {
@@ -18,11 +18,12 @@ import {
   SOURCING_OUTREACH_STATUS_META,
   SOURCING_QUOTA_LABELS,
   type AdminAssignCompanySourcingPlanRequest,
+  type HuntPackageType,
   type RecruiterConsumeSourcingRequest,
-  type RecruiterSourcingEngagementView,
+  type RecruiterHuntCampaignResourceView,
+  type RecruiterHuntCampaignView,
   type RecruiterSourcingEntitlements,
   type RecruiterSourcingOutreachItem,
-  type RecruiterSourcingPackageView,
   type RecruiterSourcingScanCandidateItem,
   type RecruiterSourcingScanRoundView,
   type RecruiterSourcingReportView,
@@ -36,6 +37,7 @@ import {
 import { looksLikeUuid } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { HuntPackageService } from './hunt-package.service';
 
 const SCOPE_FOR_KIND: Record<SourcingQuotaKind, string[] | null> = {
   position: null,
@@ -63,7 +65,10 @@ const USED_FIELD: Record<SourcingQuotaKind, keyof BillingCompanySourcingPlan> = 
 export class SourcingService {
   private readonly logger = new Logger(SourcingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly huntPackages: HuntPackageService,
+  ) {}
 
   emptyEntitlements(): RecruiterSourcingEntitlements {
     return {
@@ -98,70 +103,24 @@ export class SourcingService {
     let row = await this.settleExpiredPlan(companyId);
     if (!row?.plan || !row.isActive) return this.emptyEntitlements();
 
-    const allEngagements = await this.prisma.billingSourcingEngagement.findMany({
+    const campaigns = await this.prisma.huntCampaign.findMany({
       where: { companyId, assignmentId: row.id },
-      include: { _count: { select: { usages: true } } },
+      include: { package: true },
       orderBy: { createdAt: 'desc' },
     });
 
-    const toDeleteIds: string[] = [];
-    const byJobId = new Map<string, typeof allEngagements>();
+    // Mỗi gói Săn chỉ gắn 1 chiến dịch (ràng buộc UNIQUE ở DB).
+    // Hạn mức vận hành lấy từ gói ACTIVE có hạn dài nhất.
+    const activePackages = campaigns
+      .map((c) => c.package)
+      .filter((p): p is BillingHuntPackage => p.status === 'ACTIVE')
+      .sort(
+        (a, b) => (b.expiresAt?.getTime() ?? 0) - (a.expiresAt?.getTime() ?? 0),
+      );
+    const primaryPkg = activePackages[0] ?? null;
 
-    for (const eng of allEngagements) {
-      if (!eng.jobId) {
-        toDeleteIds.push(eng.id);
-        continue;
-      }
-      const list = byJobId.get(eng.jobId) ?? [];
-      list.push(eng);
-      byJobId.set(eng.jobId, list);
-    }
-
-    const deduplicated: typeof allEngagements = [];
-    for (const [, group] of byJobId) {
-      group.sort((a, b) => {
-        if (b._count.usages !== a._count.usages) return b._count.usages - a._count.usages;
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      });
-      const primary = group[0]!;
-      deduplicated.push(primary);
-      for (const dup of group.slice(1)) {
-        if (dup._count.usages > 0) {
-          await this.prisma.billingSourcingUsage.updateMany({
-            where: { engagementId: dup.id },
-            data: { engagementId: primary.id },
-          });
-        }
-        toDeleteIds.push(dup.id);
-      }
-    }
-
-    deduplicated.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-    let candidatesToKeep = deduplicated;
-
-    const quota =
-      row.plan.positionQuota != null
-        ? row.plan.positionQuota + (row.extraPositionQuota ?? 0)
-        : null;
-    if (quota != null && quota > 0 && candidatesToKeep.length > quota) {
-      const surplus = candidatesToKeep.slice(quota);
-      for (const s of surplus) {
-        toDeleteIds.push(s.id);
-      }
-      candidatesToKeep = candidatesToKeep.slice(0, quota);
-    }
-
-    if (toDeleteIds.length > 0) {
-      await this.prisma.billingSourcingUsage.deleteMany({
-        where: { engagementId: { in: toDeleteIds } },
-      });
-      await this.prisma.billingSourcingEngagement.deleteMany({
-        where: { id: { in: toDeleteIds } },
-      });
-    }
-
-    const validPositions = candidatesToKeep.length;
+    // Số vị trí đang mở = số chiến dịch ACTIVE (1 gói = 1 chiến dịch).
+    const validPositions = campaigns.filter((c) => c.status !== 'closed').length;
     if (row.positionsUsed !== validPositions) {
       row = await this.prisma.billingCompanySourcingPlan.update({
         where: { id: row.id },
@@ -170,9 +129,9 @@ export class SourcingService {
       });
     }
 
-    const activeJobIds = candidatesToKeep
-      .filter((e) => e.status !== 'closed')
-      .map((e) => e.jobId)
+    const activeJobIds = campaigns
+      .filter((c) => c.status !== 'closed')
+      .map((c) => c.jobId)
       .filter((id): id is string => Boolean(id));
     if (activeJobIds.length > 0) {
       await this.prisma.job.updateMany({
@@ -193,6 +152,7 @@ export class SourcingService {
         },
       });
     }
+
     const [opensUsed, outreachUsed, bookmarkShortlistsUsed] = await Promise.all([
       this.countIncludedOpens(row.id, row.startsAt),
       this.countOutreachUsed(row.id, row.startsAt),
@@ -205,67 +165,76 @@ export class SourcingService {
         include: { plan: true },
       });
     }
-    return this.toEntitlements(row, opensUsed, outreachUsed);
+    return this.toEntitlements(row, primaryPkg, opensUsed, outreachUsed);
   }
 
   async getWorkspace(companyId: string): Promise<RecruiterSourcingWorkspace> {
     const entitlements = await this.getEntitlements(companyId);
     const assignmentId = entitlements.assignment?.id;
     if (!assignmentId) {
-      return { entitlements, engagements: [], usages: [], scanRounds: [] };
+      return {
+        entitlements,
+        campaigns: [],
+        packages: [],
+        campaignResources: [],
+        usages: [],
+        scanRounds: [],
+      };
     }
-    const [engagements, usages] = await Promise.all([
-      this.prisma.billingSourcingEngagement.findMany({
+    const [campaigns, usages] = await Promise.all([
+      this.prisma.huntCampaign.findMany({
         where: { companyId, assignmentId, jobId: { not: null } },
+        include: { package: true },
         orderBy: { createdAt: 'desc' },
         take: 50,
       }),
-      this.prisma.billingSourcingUsage.findMany({
+      this.prisma.huntCampaignActivity.findMany({
         where: { companyId, assignmentId },
         orderBy: { createdAt: 'desc' },
         take: 120,
       }),
     ]);
     const scanRounds = usages
-      .filter((u) => u.kind === 'auto_scan' && u.engagementId)
+      .filter((u) => u.kind === 'auto_scan' && u.campaignId)
       .map((u) => this.parseScanRound(u))
       .filter((r): r is RecruiterSourcingScanRoundView => r !== null);
     const reports = usages
       .filter((u) => u.kind === 'search_round' && u.note?.startsWith('report:'))
       .map((u) => this.parseReport(u))
       .filter((r): r is RecruiterSourcingReportView => r !== null);
-    const shortlistedByEngagement: Record<string, string[]> = {};
-    const outreachByEngagement: Record<string, RecruiterSourcingOutreachItem[]> = {};
-    const statusByEngagementCandidate = new Map<string, SourcingOutreachStatus>();
+    const shortlistedByCampaign: Record<string, string[]> = {};
+    const outreachByCampaign: Record<string, RecruiterSourcingOutreachItem[]> = {};
+    const statusByCampaignCandidate = new Map<string, SourcingOutreachStatus>();
     for (const u of usages) {
-      if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('outreach_status:')) {
+      if (u.kind === 'shortlist' && u.campaignId && u.note?.startsWith('outreach_status:')) {
         const parts = u.note.split(':');
         const cid = parts[1]?.trim();
         const st = parts[2]?.trim() as SourcingOutreachStatus | undefined;
-        const key = `${u.engagementId}:${cid}`;
-        if (cid && st && st in SOURCING_OUTREACH_STATUS_META && !statusByEngagementCandidate.has(key)) {
-          statusByEngagementCandidate.set(key, st);
+        const key = `${u.campaignId}:${cid}`;
+        if (cid && st && st in SOURCING_OUTREACH_STATUS_META && !statusByCampaignCandidate.has(key)) {
+          statusByCampaignCandidate.set(key, st);
         }
       }
     }
     for (const u of usages) {
-      if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('shortlist:')) {
+      if (u.kind === 'shortlist' && u.campaignId && u.note?.startsWith('shortlist:')) {
         const parts = u.note.split(':');
         const cid = parts[1]?.trim();
         if (cid) {
-          const list = shortlistedByEngagement[u.engagementId] ?? [];
+          const list = shortlistedByCampaign[u.campaignId] ?? [];
           if (!list.includes(cid)) list.push(cid);
-          shortlistedByEngagement[u.engagementId] = list;
+          shortlistedByCampaign[u.campaignId] = list;
         }
-      } else if (u.kind === 'shortlist' && u.engagementId && u.note?.startsWith('outreach:')) {
+      } else if (u.kind === 'shortlist' && u.campaignId && u.note?.startsWith('outreach:')) {
         const parts = u.note.split(':');
         const cid = parts[1]?.trim();
         const cname = parts[2]?.trim() || 'Ứng viên';
         const cnote = parts.slice(3).join(':').trim() || null;
         if (cid) {
-          const list = outreachByEngagement[u.engagementId] ?? [];
+          const list = outreachByCampaign[u.campaignId] ?? [];
           if (!list.some((item) => item.candidateId === cid)) {
-            const st = statusByEngagementCandidate.get(`${u.engagementId}:${cid}`) ?? 'pending_contact';
+            const st =
+              statusByCampaignCandidate.get(`${u.campaignId}:${cid}`) ?? 'pending_contact';
             list.push({
               candidateId: cid,
               candidateName: cname,
@@ -274,25 +243,25 @@ export class SourcingService {
               createdAt: u.createdAt.toISOString(),
             });
           }
-          outreachByEngagement[u.engagementId] = list;
+          outreachByCampaign[u.campaignId] = list;
         }
       }
     }
 
-    // Tự động đồng bộ trạng thái 'applied' nếu ứng viên đã nộp đơn vào JD của vị trí săn
-    const engagementJobMap = new Map<string, string>();
-    for (const eng of engagements) {
-      if (eng.jobId) engagementJobMap.set(eng.id, eng.jobId);
+    // Tự động đồng bộ trạng thái 'applied' nếu ứng viên đã nộp đơn vào JD của chiến dịch
+    const campaignJobMap = new Map<string, string>();
+    for (const c of campaigns) {
+      if (c.jobId) campaignJobMap.set(c.id, c.jobId);
     }
-    const outreachJobIds = [...new Set([...engagementJobMap.values()])];
+    const outreachJobIds = [...new Set([...campaignJobMap.values()])];
     if (outreachJobIds.length > 0) {
       const apps = await this.prisma.application.findMany({
         where: { jobId: { in: outreachJobIds }, isDeleted: false },
         select: { jobId: true, candidateId: true },
       });
       const appliedJobCandSet = new Set(apps.map((a) => `${a.jobId}:${a.candidateId}`));
-      for (const [engId, items] of Object.entries(outreachByEngagement)) {
-        const jId = engagementJobMap.get(engId);
+      for (const [campId, items] of Object.entries(outreachByCampaign)) {
+        const jId = campaignJobMap.get(campId);
         if (!jId) continue;
         for (const item of items) {
           if (appliedJobCandSet.has(`${jId}:${item.candidateId}`)) {
@@ -301,134 +270,72 @@ export class SourcingService {
         }
       }
     }
-    const packages = await this.syncAndListPackages(companyId, entitlements, engagements);
+    const packages = await this.huntPackages.listForCompany(companyId);
+
+    // Tài nguyên RIÊNG của từng chiến dịch (đọc đúng 1 gói đang gắn, không cộng dồn).
+    const campaignResources = (
+      await Promise.all(campaigns.map((c) => this.getCampaignResource(companyId, c.id)))
+    ).filter((r): r is RecruiterHuntCampaignResourceView => r !== null);
 
     return {
       entitlements,
       packages,
-      engagements: engagements.map((e) => this.mapEngagement(e)),
+      campaigns: campaigns.map((c) => this.mapCampaign(c)),
+      campaignResources,
       usages: usages.map((u) => this.mapUsage(u)),
       scanRounds,
-      shortlistedByEngagement,
-      outreachByEngagement,
+      shortlistedByCampaign,
+      outreachByCampaign,
       reports,
     };
   }
 
-  private async nextPackageCode(tx: Prisma.TransactionClient): Promise<string> {
-    const latest = await tx.billingSourcingPackage.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { code: true },
+  /**
+   * Tài nguyên dịch vụ của RIÊNG 1 chiến dịch.
+   * Đọc đúng 1 bản ghi `BillingHuntPackage` gắn với chiến dịch (không cộng dồn toàn công ty).
+   */
+  async getCampaignResource(companyId: string, campaignId: string): Promise<RecruiterHuntCampaignResourceView | null> {
+    const campaign = await this.prisma.huntCampaign.findFirst({
+      where: { id: campaignId, companyId },
+      include: { package: true },
     });
-    const m = latest?.code.match(/TS-(\d+)/);
-    const nextNum = m ? Math.max(101, Number(m[1]) + 1) : 101;
-    return `TS-${String(nextNum).padStart(6, '0')}`;
-  }
+    if (!campaign) return null;
 
-  private async syncAndListPackages(
-    companyId: string,
-    entitlements: RecruiterSourcingEntitlements,
-    engagements: BillingSourcingEngagement[],
-  ): Promise<RecruiterSourcingPackageView[]> {
-    let rows = await this.prisma.billingSourcingPackage.findMany({
-      where: { companyId },
-      include: {
-        plan: true,
-        engagements: {
-          select: { id: true, title: true, status: true },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-      orderBy: { purchasedAt: 'desc' },
-    });
+    const pkg = campaign.package;
+    const [scanRoundCount, creditBalance, creditConsumed] = await Promise.all([
+      this.prisma.huntCampaignActivity.count({
+        where: { campaignId, kind: 'auto_scan' },
+      }),
+      this.prisma.billingCreditAccount
+        .findUnique({ where: { companyId }, select: { balance: true } })
+        .then((a) => a?.balance ?? 0),
+      this.prisma.billingCreditTransaction.aggregate({
+        where: { campaignId, creditDelta: { lt: 0 } },
+        _sum: { creditDelta: true },
+      }),
+    ]);
 
-    // Backfill 1 gói cho dữ liệu cũ nếu công ty đã có gói Săn nhưng chưa có bản ghi BillingSourcingPackage.
-    if (rows.length === 0 && entitlements.assignment?.isActive) {
-      const a = entitlements.assignment;
-      const plan = await this.prisma.billingSourcingPlan.findUnique({ where: { id: a.planId } });
-      if (plan) {
-        const isReserved = !a.activatedAt && Boolean(a.reserveEndsAt);
-        const createdPkg = await this.prisma.$transaction(async (tx) => {
-          const code = await this.nextPackageCode(tx);
-          const pkg = await tx.billingSourcingPackage.create({
-            data: {
-              code,
-              companyId,
-              planId: plan.id,
-              status: isReserved ? 'reserved' : 'active',
-              durationDays: plan.durationDays ?? SOURCING_CYCLE_DAYS,
-              purchasedAt: new Date(a.startsAt),
-              activatedAt: a.activatedAt ? new Date(a.activatedAt) : isReserved ? null : new Date(a.startsAt),
-              reserveEndsAt: a.reserveEndsAt ? new Date(a.reserveEndsAt) : null,
-              endsAt: a.endsAt ? new Date(a.endsAt) : null,
-              note: a.note ?? null,
-            },
-          });
-          if (engagements.length > 0) {
-            await tx.billingSourcingEngagement.updateMany({
-              where: { companyId, packageId: null },
-              data: { packageId: pkg.id },
-            });
-          }
-          return pkg;
-        });
-        if (createdPkg) {
-          rows = await this.prisma.billingSourcingPackage.findMany({
-            where: { companyId },
-            include: {
-              plan: true,
-              engagements: {
-                select: { id: true, title: true, status: true },
-                orderBy: { createdAt: 'desc' },
-              },
-            },
-            orderBy: { purchasedAt: 'desc' },
-          });
-        }
-      }
-    }
+    const expiresAt = pkg.expiresAt?.toISOString() ?? null;
+    const daysRemaining = pkg.expiresAt
+      ? Math.max(0, Math.ceil((pkg.expiresAt.getTime() - Date.now()) / 86_400_000))
+      : null;
 
-    const nowMs = Date.now();
-    const expiredIds: string[] = [];
-    for (const r of rows) {
-      if (r.status === 'reserved' && r.reserveEndsAt && r.reserveEndsAt.getTime() < nowMs) {
-        expiredIds.push(r.id);
-        r.status = 'expired';
-      } else if (r.status === 'active' && r.endsAt && r.endsAt.getTime() < nowMs) {
-        expiredIds.push(r.id);
-        r.status = 'expired';
-      }
-    }
-    if (expiredIds.length > 0) {
-      await this.prisma.billingSourcingPackage.updateMany({
-        where: { id: { in: expiredIds } },
-        data: { status: 'expired' },
-      });
-    }
-
-    return rows.map((r) => {
-      const primaryEng = r.engagements[0] ?? null;
-      return {
-        id: r.id,
-        code: r.code,
-        planId: r.planId,
-        planCode: r.plan.code,
-        planName: r.plan.name,
-        status: (r.status as RecruiterSourcingPackageView['status']) ?? 'reserved',
-        durationDays: r.durationDays,
-        positionQuota: r.plan.positionQuota,
-        searchRoundQuota: r.plan.searchRoundQuota,
-        shortlistQuota: r.plan.shortlistQuota,
-        revisionQuota: r.plan.revisionQuota,
-        creditQuota: r.plan.creditQuota,
-        purchasedAt: r.purchasedAt.toISOString(),
-        activatedAt: r.activatedAt?.toISOString() ?? null,
-        reserveEndsAt: r.reserveEndsAt?.toISOString() ?? null,
-        endsAt: r.endsAt?.toISOString() ?? null,
-        engagementId: primaryEng?.id ?? null,
-        engagementTitle: primaryEng?.title ?? null,
-      };
-    });
+    return {
+      campaignId: campaign.id,
+      packageId: pkg.id,
+      packageCode: pkg.code,
+      packageName: pkg.packageName,
+      packageType: pkg.packageType as HuntPackageType,
+      expiresAt,
+      daysRemaining,
+      scanRoundCount,
+      criteriaEditsRemaining: Math.max(0, pkg.totalCriteriaEdits - pkg.usedCriteriaEdits),
+      reportsRemaining: Math.max(0, pkg.totalReports - pkg.usedReports),
+      handoversRemaining: Math.max(0, pkg.totalHandovers - pkg.usedHandovers),
+      handoversApplicable: pkg.totalHandovers > 0,
+      creditBalance,
+      creditConsumedByCampaign: Math.abs(Number(creditConsumed._sum.creditDelta ?? 0)),
+    };
   }
 
   async getCompanyAssignment(companyId: string): Promise<BillingCompanySourcingPlanView | null> {
@@ -460,7 +367,8 @@ export class SourcingService {
       where: { companyId: input.companyId },
       include: { plan: true },
     });
-    const switching = Boolean(opts.restartCycle) || !before || before.planId !== input.planId || !before.isActive;
+    const switching =
+      Boolean(opts.restartCycle) || !before || before.planId !== input.planId || !before.isActive;
     const reserveOnly = Boolean(opts.reserveOnly);
     const cycleEnd = reserveOnly
       ? null
@@ -486,9 +394,9 @@ export class SourcingService {
       (!before.reserveEndsAt || before.activatedAt != null || before.reserveEndsAt >= now);
 
     if (opts.preserveRemaining && beforeValid) {
-      const [oldOpensUsed, activeEngCount] = await Promise.all([
+      const [oldOpensUsed, activeCampaignCount] = await Promise.all([
         this.countIncludedOpens(before.id, before.startsAt),
-        this.prisma.billingSourcingEngagement.count({
+        this.prisma.huntCampaign.count({
           where: {
             companyId: input.companyId,
             assignmentId: before.id,
@@ -502,20 +410,29 @@ export class SourcingService {
           ? before.plan.positionQuota + (before.extraPositionQuota ?? 0)
           : null;
       const remainingOldPos =
-        oldPosQuota != null ? Math.max(0, oldPosQuota - activeEngCount) : 0;
+        oldPosQuota != null ? Math.max(0, oldPosQuota - activeCampaignCount) : 0;
       extraPositionQuota =
-        plan.positionQuota != null ? activeEngCount + remainingOldPos : 0;
+        plan.positionQuota != null ? activeCampaignCount + remainingOldPos : 0;
       extraSearchRoundQuota =
         before.plan.searchRoundQuota != null
-          ? Math.max(0, before.plan.searchRoundQuota + (before.extraSearchRoundQuota ?? 0) - before.searchRoundsUsed)
+          ? Math.max(
+              0,
+              before.plan.searchRoundQuota + (before.extraSearchRoundQuota ?? 0) - before.searchRoundsUsed,
+            )
           : 0;
       extraShortlistQuota =
         before.plan.shortlistQuota != null
-          ? Math.max(0, before.plan.shortlistQuota + (before.extraShortlistQuota ?? 0) - before.shortlistsUsed)
+          ? Math.max(
+              0,
+              before.plan.shortlistQuota + (before.extraShortlistQuota ?? 0) - before.shortlistsUsed,
+            )
           : 0;
       extraRevisionQuota =
         before.plan.revisionQuota != null
-          ? Math.max(0, before.plan.revisionQuota + (before.extraRevisionQuota ?? 0) - before.revisionsUsed)
+          ? Math.max(
+              0,
+              before.plan.revisionQuota + (before.extraRevisionQuota ?? 0) - before.revisionsUsed,
+            )
           : 0;
       extraCreditQuota =
         before.plan.creditQuota != null
@@ -569,33 +486,13 @@ export class SourcingService {
         },
         include: { plan: true },
       });
-      // Chỉ xoá engagement cũ khi admin reset thủ công; khi NTD mua cộng dồn thì giữ nguyên các vị trí đang chạy.
+      // Chỉ xoá chiến dịch cũ khi admin reset thủ công; khi NTD mua cộng dồn thì giữ nguyên.
       if (switching && !opts.preserveRemaining) {
-        await tx.billingSourcingUsage.deleteMany({
+        await tx.huntCampaignActivity.deleteMany({
           where: { companyId: input.companyId, assignmentId: assigned.id },
         });
-        await tx.billingSourcingEngagement.deleteMany({
+        await tx.huntCampaign.deleteMany({
           where: { companyId: input.companyId, assignmentId: assigned.id },
-        });
-      }
-      // Tạo bản ghi gói độc lập (TS-000101...) mỗi lần mua hoặc gán gói mới.
-      if (switching || opts.reserveOnly) {
-        const pkgCode = await this.nextPackageCode(tx);
-        const pkgDuration = plan.durationDays ?? SOURCING_CYCLE_DAYS;
-        await tx.billingSourcingPackage.create({
-          data: {
-            code: pkgCode,
-            companyId: input.companyId,
-            planId: plan.id,
-            status: reserveOnly ? 'reserved' : 'active',
-            durationDays: pkgDuration,
-            purchasedAt: startsAt,
-            activatedAt: reserveOnly ? null : startsAt,
-            reserveEndsAt: reserveOnly ? reserveEndsAt : null,
-            endsAt: reserveOnly ? null : cycleEnd ?? addUtcDays(startsAt, pkgDuration),
-            note: input.note ?? null,
-            createdBy: actorId,
-          },
         });
       }
       return assigned;
@@ -615,6 +512,10 @@ export class SourcingService {
     return this.mapAssignment(row);
   }
 
+  /**
+   * Sau khi thanh toán gói Săn: tạo 1 bản ghi gói UNUSED độc lập (TS-xxxxxx).
+   * Gói chỉ chuyển ACTIVE khi NTD tạo chiến dịch.
+   */
   async activatePurchasedPlan(
     actor: AuthenticatedUser,
     companyId: string,
@@ -637,6 +538,21 @@ export class SourcingService {
       },
       { restartCycle: true, preserveRemaining: true, reserveOnly: true },
     );
+  }
+
+  /**
+   * Tạo gói Săn UNUSED cho 1 đơn đã trả (gọi từ PaymentService).
+   */
+  async createPackageForOrder(input: {
+    orderId: string;
+    companyId: string;
+    planId: string;
+    planCode: string | null;
+    planName: string | null;
+    durationDays: number | null;
+    paidAt: Date | null;
+  }): Promise<void> {
+    await this.huntPackages.createForOrder(input);
   }
 
   async unassignCompanyPlan(actor: AuthenticatedUser, companyId: string): Promise<void> {
@@ -690,34 +606,8 @@ export class SourcingService {
       }
 
       this.assertScope(assignment.plan, kind);
-      const entitlements = this.toEntitlements(assignment);
-      const remaining = this.remainingFor(kind, entitlements);
-      const isUnshortlist =
-        kind === 'shortlist' && Boolean(input.note?.startsWith('unshortlist:'));
-      const isOutreach =
-        kind === 'shortlist' && Boolean(input.note?.startsWith('outreach:'));
-      const isOutreachStatus =
-        kind === 'shortlist' && Boolean(input.note?.startsWith('outreach_status:'));
-      const isBookmarkShortlist =
-        kind === 'shortlist' && Boolean(input.note?.startsWith('shortlist:'));
-      if (
-        !isUnshortlist &&
-        !isOutreach &&
-        !isOutreachStatus &&
-        !isBookmarkShortlist &&
-        remaining !== null &&
-        remaining <= 0
-      ) {
-        throw new ForbiddenException({
-          code: 'SOURCING_QUOTA_EXCEEDED',
-          message: `Gói ${assignment.plan.name} đã hết ${SOURCING_QUOTA_LABELS[kind].toLowerCase()}. Hãy nâng cấp gói Săn.`,
-          kind,
-          planCode: assignment.plan.code,
-        });
-      }
-
       const actorId = looksLikeUuid(actor.id) ? actor.id : null;
-      let engagementId = input.engagementId ?? null;
+      let campaignId = input.campaignId ?? null;
 
       if (kind === 'position') {
         const validJobId = input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null;
@@ -726,73 +616,15 @@ export class SourcingService {
             'Vui lòng chọn một tin tuyển dụng (JD) có sẵn hoặc tạo JD mới để kích hoạt Tin Săn.',
           );
         }
-        const dupEngagement = await tx.billingSourcingEngagement.findFirst({
+        const dupCampaign = await tx.huntCampaign.findFirst({
           where: { companyId, assignmentId: assignment.id, jobId: validJobId, status: { not: 'closed' } },
         });
-        if (dupEngagement) {
-          throw new BadRequestException('Tin tuyển dụng (JD) này đã được kích hoạt trong Danh sách Tin Săn.');
+        if (dupCampaign) {
+          throw new BadRequestException(
+            'Tin tuyển dụng (JD) này đã được kích hoạt trong Danh sách Tin Săn.',
+          );
         }
-        const effectivePosQuota =
-          assignment.plan.positionQuota != null
-            ? assignment.plan.positionQuota + (assignment.extraPositionQuota ?? 0)
-            : null;
-        if (effectivePosQuota != null && effectivePosQuota > 0) {
-          const currentEngagementCount = await tx.billingSourcingEngagement.count({
-            where: {
-              companyId,
-              assignmentId: assignment.id,
-              jobId: { not: null },
-              status: { not: 'closed' },
-            },
-          });
-          if (currentEngagementCount >= effectivePosQuota) {
-            throw new ForbiddenException({
-              code: 'SOURCING_QUOTA_EXCEEDED',
-              message: `Gói ${assignment.plan.name} chỉ cho phép tối đa ${effectivePosQuota} Tin Săn hoạt động cùng lúc.`,
-              kind,
-              planCode: assignment.plan.code,
-            });
-          }
-        }
-        // Tìm gói Tin Săn cụ thể (theo packageId truyền lên, hoặc ưu tiên gói Chưa kích hoạt cũ nhất).
-        const targetPkg = input.packageId
-          ? await tx.billingSourcingPackage.findFirst({
-              where: { id: input.packageId, companyId, status: { in: ['reserved', 'active'] } },
-              include: { plan: true },
-            })
-          : (await tx.billingSourcingPackage.findFirst({
-              where: { companyId, status: 'reserved' },
-              orderBy: { purchasedAt: 'asc' },
-              include: { plan: true },
-            })) ??
-            (await tx.billingSourcingPackage.findFirst({
-              where: { companyId, status: 'active' },
-              orderBy: { purchasedAt: 'desc' },
-              include: { plan: true },
-            }));
-        const pkgDuration =
-          targetPkg?.durationDays ?? assignment.plan.durationDays ?? SOURCING_CYCLE_DAYS;
-        const actNow = new Date();
-        if (targetPkg && targetPkg.status === 'reserved') {
-          await tx.billingSourcingPackage.update({
-            where: { id: targetPkg.id },
-            data: {
-              status: 'active',
-              activatedAt: actNow,
-              endsAt: addUtcDays(actNow, pkgDuration),
-            },
-          });
-        }
-        // Kết thúc trạng thái bảo lưu khi NTD kích hoạt Tin Săn đầu tiên.
-        if (!assignment.activatedAt) {
-          await tx.billingCompanySourcingPlan.update({
-            where: { id: assignment.id },
-            data: {
-              activatedAt: actNow,
-              endsAt: addUtcDays(actNow, pkgDuration),
-            },
-          });
-        }
+
         const existingJob = await tx.job.findFirst({
           where: { id: validJobId, companyId, isDeleted: false },
           select: { id: true, title: true, deadline: true, status: true, publishedAt: true },
@@ -800,61 +632,95 @@ export class SourcingService {
         if (!existingJob) {
           throw new NotFoundException('Không tìm thấy tin tuyển dụng (JD) đã chọn.');
         }
-        const linkedJobTitle = existingJob.title;
+
+        // Chọn gói Săn cụ thể: theo packageId truyền lên, hoặc gói UNUSED lâu nhất.
+        const targetPkg = await this.huntPackages.findUnused(companyId, input.packageId ?? null);
+        const pkgDuration = targetPkg.durationDays > 0 ? targetPkg.durationDays : SOURCING_CYCLE_DAYS;
+        const title = existingJob.title || input.title?.trim() || 'Tin Săn tuyển dụng';
+
+        // === 1 TRANSACTION DUY NHẤT ===
+        // Tạo chiến dịch + chuyển gói UNUSED → ACTIVE + cộng Credit vào Ví dùng chung.
+        const activated = await this.huntPackages.activateWithCampaign(tx, {
+          companyId,
+          tenantId: 'default',
+          packageId: targetPkg.id,
+          assignmentId: assignment.id,
+          jobId: validJobId,
+          title,
+          actorUserId: actorId,
+          actorEmail: actor.email ?? null,
+        });
+        campaignId = activated.campaignId;
+
+        // Kết thúc trạng thái bảo lưu khi NTD kích hoạt Tin Săn đầu tiên.
+        if (!assignment.activatedAt) {
+          await tx.billingCompanySourcingPlan.update({
+            where: { id: assignment.id },
+            data: {
+              activatedAt: new Date(),
+              endsAt: addUtcDays(new Date(), pkgDuration),
+            },
+          });
+        }
+
         const baseDate =
           existingJob.deadline && existingJob.deadline.getTime() > Date.now()
             ? existingJob.deadline
             : new Date();
-        const preservedDeadline = addUtcDays(baseDate, pkgDuration);
         await tx.job.update({
           where: { id: existingJob.id },
           data: {
-            deadline: preservedDeadline,
+            deadline: addUtcDays(baseDate, pkgDuration),
             status: 'published',
             moderationStatus: 'approved',
             publishedAt: existingJob.publishedAt ?? new Date(),
           },
         });
-        const title = linkedJobTitle || input.title?.trim() || 'Tin Săn tuyển dụng';
-        const engagement = await tx.billingSourcingEngagement.create({
-          data: {
-            companyId,
-            assignmentId: assignment.id,
-            packageId: targetPkg?.id ?? null,
-            jobId: validJobId,
-            title,
-            status: 'open',
-            createdBy: actorId,
-          },
-        });
-        engagementId = engagement.id;
       } else {
-        if (!engagementId) {
-          throw new BadRequestException('Chọn vị trí Săn đang mở để ghi đợt tìm / shortlist / điều chỉnh');
+        if (!campaignId) {
+          throw new BadRequestException(
+            'Chọn chiến dịch đang mở để ghi đợt tìm / shortlist / điều chỉnh',
+          );
         }
-        const engagement = await tx.billingSourcingEngagement.findFirst({
-          where: { id: engagementId, companyId, assignmentId: assignment.id },
+        const campaign = await tx.huntCampaign.findFirst({
+          where: { id: campaignId, companyId, assignmentId: assignment.id },
+          include: { package: true },
         });
-        if (!engagement) throw new NotFoundException('Không tìm thấy vị trí Săn');
-        if (engagement.status === 'closed') {
-          throw new BadRequestException('Vị trí Săn đã đóng');
+        if (!campaign) throw new NotFoundException('Không tìm thấy chiến dịch Săn');
+        if (campaign.status === 'closed') {
+          throw new BadRequestException('Chiến dịch Săn đã đóng');
         }
-        if (kind === 'search_round' && engagement.status === 'open') {
-          await tx.billingSourcingEngagement.update({
-            where: { id: engagement.id },
+        const pkg = campaign.package;
+        if (!pkg || pkg.status !== 'ACTIVE') {
+          throw new ForbiddenException({
+            code: 'SOURCING_PACKAGE_INACTIVE',
+            message: 'Gói Săn của chiến dịch này không còn hiệu lực.',
+          });
+        }
+        if (pkg.expiresAt && pkg.expiresAt.getTime() < Date.now()) {
+          throw new ForbiddenException({
+            code: 'SOURCING_CYCLE_ENDED',
+            message: 'Gói Săn đã hết hạn. Hãy gia hạn để dùng tiếp.',
+          });
+        }
+
+        if (kind === 'search_round' && campaign.status === 'open') {
+          await tx.huntCampaign.update({
+            where: { id: campaign.id },
             data: { status: 'in_progress' },
           });
         }
+
         if (kind === 'shortlist') {
           if (input.note?.startsWith('unshortlist:')) {
             const parts = input.note.split(':');
             const candidateId = parts[1]?.trim();
             if (candidateId) {
-              const deleted = await tx.billingSourcingUsage.deleteMany({
+              const deleted = await tx.huntCampaignActivity.deleteMany({
                 where: {
                   companyId,
                   assignmentId: assignment.id,
-                  engagementId: engagement.id,
+                  campaignId: campaign.id,
                   kind: 'shortlist',
                   note: { startsWith: `shortlist:${candidateId}:` },
                 },
@@ -876,20 +742,20 @@ export class SourcingService {
             if (!candidateId || !status || !(status in SOURCING_OUTREACH_STATUS_META)) {
               throw new BadRequestException('Trạng thái liên hệ ứng viên không hợp lệ.');
             }
-            await tx.billingSourcingUsage.deleteMany({
+            await tx.huntCampaignActivity.deleteMany({
               where: {
                 companyId,
                 assignmentId: assignment.id,
-                engagementId: engagement.id,
+                campaignId: campaign.id,
                 kind: 'shortlist',
                 note: { startsWith: `outreach_status:${candidateId}:` },
               },
             });
-            await tx.billingSourcingUsage.create({
+            await tx.huntCampaignActivity.create({
               data: {
                 companyId,
                 assignmentId: assignment.id,
-                engagementId: engagement.id,
+                campaignId: campaign.id,
                 kind: 'shortlist',
                 jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
                 note: `outreach_status:${candidateId}:${status}`,
@@ -899,25 +765,29 @@ export class SourcingService {
             return;
           }
           if (input.note?.startsWith('outreach:')) {
-            const scopeCodes = includedScopeCodes(parseSourcingScope(assignment.plan.serviceScope));
-            const hasOutreach =
-              scopeCodes.includes('outreach') ||
-              assignment.plan.code === 'SAN_CHUYEN_SAU' ||
-              (assignment.plan.shortlistQuota != null && assignment.plan.shortlistQuota > 0);
-            if (!hasOutreach) {
+            // Bàn giao Inlink: kiểm tra hạn mức riêng của GÓI (totalHandovers / usedHandovers).
+            // Không trừ thêm Credit của doanh nghiệp.
+            if (pkg.totalHandovers <= 0) {
               throw new ForbiddenException({
                 code: 'SOURCING_OUTREACH_FORBIDDEN',
                 message:
                   'Gói hiện tại không bao gồm tính năng Giao Inlink liên hệ ứng viên. Vui lòng nâng cấp lên gói Tin săn Chuyên sâu.',
               });
             }
+            const lockedPkg = await this.huntPackages.lockPackage(tx, pkg.id);
+            if (lockedPkg.used_handovers >= lockedPkg.total_handovers) {
+              throw new ForbiddenException({
+                code: 'SOURCING_OUTREACH_QUOTA_EXCEEDED',
+                message: `Gói ${pkg.packageName} đã dùng hết ${lockedPkg.total_handovers}/${lockedPkg.total_handovers} lượt Giao Inlink liên hệ ứng viên.`,
+              });
+            }
             const parts = input.note.split(':');
             const candidateId = parts[1]?.trim();
             if (candidateId) {
-              const dup = await tx.billingSourcingUsage.findFirst({
+              const dup = await tx.huntCampaignActivity.findFirst({
                 where: {
                   assignmentId: assignment.id,
-                  engagementId: engagement.id,
+                  campaignId: campaign.id,
                   kind: 'shortlist',
                   note: { startsWith: `outreach:${candidateId}:` },
                 },
@@ -926,24 +796,14 @@ export class SourcingService {
                 return;
               }
             }
-            const outreachQuota = assignment.plan.shortlistQuota ?? 15;
-            const usedOutreach = await tx.billingSourcingUsage.count({
-              where: {
-                assignmentId: assignment.id,
-                kind: 'shortlist',
-                note: { startsWith: 'outreach:' },
-                createdAt: { gte: assignment.startsAt },
-              },
+            // Ghi nhận lượt bàn giao của riêng gói này.
+            await tx.billingHuntPackage.update({
+              where: { id: pkg.id },
+              data: { usedHandovers: { increment: 1 } },
             });
-            if (usedOutreach >= outreachQuota) {
-              throw new ForbiddenException({
-                code: 'SOURCING_OUTREACH_QUOTA_EXCEEDED',
-                message: `Gói ${assignment.plan.name} đã dùng hết ${outreachQuota}/${outreachQuota} lượt Giao Inlink liên hệ ứng viên.`,
-              });
-            }
             if (candidateId) {
               const openPrefix = `open:${candidateId}`;
-              const alreadyOpened = await tx.billingSourcingUsage.findFirst({
+              const alreadyOpened = await tx.huntCampaignActivity.findFirst({
                 where: {
                   assignmentId: assignment.id,
                   kind: 'profile_open',
@@ -952,11 +812,11 @@ export class SourcingService {
                 },
               });
               if (!alreadyOpened) {
-                await tx.billingSourcingUsage.create({
+                await tx.huntCampaignActivity.create({
                   data: {
                     companyId,
                     assignmentId: assignment.id,
-                    engagementId: engagement.id,
+                    campaignId: campaign.id,
                     kind: 'profile_open',
                     jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
                     note: `${openPrefix}:0`,
@@ -970,10 +830,10 @@ export class SourcingService {
             const parts = input.note.split(':');
             const candidateId = parts[1]?.trim();
             if (candidateId) {
-              const dup = await tx.billingSourcingUsage.findFirst({
+              const dup = await tx.huntCampaignActivity.findFirst({
                 where: {
                   assignmentId: assignment.id,
-                  engagementId: engagement.id,
+                  campaignId: campaign.id,
                   kind: 'shortlist',
                   note: { startsWith: `shortlist:${candidateId}:` },
                 },
@@ -983,25 +843,55 @@ export class SourcingService {
               }
             }
           }
-          await tx.billingSourcingEngagement.update({
-            where: { id: engagement.id },
+          await tx.huntCampaign.update({
+            where: { id: campaign.id },
             data: { status: 'shortlisted' },
+          });
+        }
+
+        // Trừ lượt theo gói RIÊNG của chiến dịch (báo cáo / điều chỉnh).
+        if (kind === 'revision') {
+          const lockedPkg = await this.huntPackages.lockPackage(tx, pkg.id);
+          if (lockedPkg.used_criteria_edits >= lockedPkg.total_criteria_edits) {
+            throw new ForbiddenException({
+              code: 'SOURCING_QUOTA_EXCEEDED',
+              message: `Gói ${pkg.packageName} đã hết lượt điều chỉnh tiêu chí.`,
+              kind,
+            });
+          }
+          await tx.billingHuntPackage.update({
+            where: { id: pkg.id },
+            data: { usedCriteriaEdits: { increment: 1 } },
+          });
+        }
+        if (kind === 'search_round') {
+          const lockedPkg = await this.huntPackages.lockPackage(tx, pkg.id);
+          if (lockedPkg.used_reports >= lockedPkg.total_reports) {
+            throw new ForbiddenException({
+              code: 'SOURCING_QUOTA_EXCEEDED',
+              message: `Gói ${pkg.packageName} đã hết lượt báo cáo tiến độ.`,
+              kind,
+            });
+          }
+          await tx.billingHuntPackage.update({
+            where: { id: pkg.id },
+            data: { usedReports: { increment: 1 } },
           });
         }
       }
 
-      if (!isOutreach) {
+      if (!input.note?.startsWith('outreach:')) {
         const field = USED_FIELD[kind];
         await tx.billingCompanySourcingPlan.update({
           where: { id: assignment.id },
           data: { [field]: { increment: 1 }, updatedBy: actorId },
         });
       }
-      await tx.billingSourcingUsage.create({
+      await tx.huntCampaignActivity.create({
         data: {
           companyId,
           assignmentId: assignment.id,
-          engagementId,
+          campaignId,
           kind,
           jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
           note: input.note?.trim() || this.defaultNote(kind),
@@ -1014,13 +904,19 @@ export class SourcingService {
   }
 
   /**
-   * Hồ sơ mở khi công ty đang có gói Săn còn hạn.
-   * included / repeat: trừ vào creditQuota của gói (< 80% = 1 Credit, ≥ 80% = 2 Credit), không trừ ví Credit.
-   * skip: không còn đủ Credit của gói, người gọi trừ ví (top-up hoặc gói tin).
+   * Kiểm tra lần mở hồ sơ ứng viên tiềm năng trong kỳ gói Săn.
+   *
+   * Mô hình mới (1-1 gói ↔ chiến dịch + Ví Credit dùng chung):
+   * Credit của gói Săn được cộng vào Ví Credit dùng chung ngay khi kích hoạt gói,
+   * nên không còn "kho Credit riêng của gói" nữa.
+   * - 'repeat' : đã mở hồ sơ này rồi trong kỳ gói → không trừ thêm Credit.
+   * - 'skip'   : mở mới → người gọi TRỪ Credit từ Ví dùng chung (FIFO lot),
+   *              sau đó gọi `recordProfileOpen` để ghi vào ledger chiến dịch.
    */
   async coverIncludedOpen(input: {
     companyId: string;
     candidateId: string;
+    campaignId?: string | null;
     actorUserId?: string;
     cost?: number;
   }): Promise<'included' | 'repeat' | 'skip'> {
@@ -1028,41 +924,49 @@ export class SourcingService {
     if (!assignment?.plan || !assignment.isActive || !this.cycleOpen(assignment.endsAt)) {
       return 'skip';
     }
-    const quota = assignment.plan.creditQuota;
-    if (quota != null && quota <= 0) return 'skip';
+
+    const prefix = `open:${input.candidateId}`;
+    const openRows = await this.prisma.huntCampaignActivity.findMany({
+      where: {
+        assignmentId: assignment.id,
+        kind: 'profile_open',
+        createdAt: { gte: assignment.startsAt },
+      },
+      select: { id: true, note: true },
+    });
+    const already = openRows.some(
+      (r) => r.note === prefix || Boolean(r.note && r.note.startsWith(`${prefix}:`)),
+    );
+    return already ? 'repeat' : 'skip';
+  }
+
+  /**
+   * Ghi ledger "mở hồ sơ ứng viên tiềm năng" vào đúng CHIẾN DỊCH đang chạy.
+   * Được gọi sau khi Credit đã trừ thành công từ Ví dùng chung.
+   */
+  async recordProfileOpen(input: {
+    companyId: string;
+    candidateId: string;
+    campaignId?: string | null;
+    actorUserId?: string;
+    cost?: number;
+  }): Promise<void> {
+    const assignment = await this.settleExpiredPlan(input.companyId);
+    if (!assignment?.plan || !assignment.isActive) return;
 
     const cost = input.cost != null && input.cost > 0 ? Math.floor(input.cost) : 1;
     const prefix = `open:${input.candidateId}`;
     const marker = cost > 1 ? `${prefix}:${cost}` : prefix;
-    return this.prisma.$transaction(async (tx) => {
-      const openRows = await tx.billingSourcingUsage.findMany({
-        where: {
-          assignmentId: assignment.id,
-          kind: 'profile_open',
-          createdAt: { gte: assignment.startsAt },
-        },
-        select: { id: true, note: true },
-      });
-      const already = openRows.some(
-        (r) => r.note === prefix || Boolean(r.note && r.note.startsWith(`${prefix}:`)),
-      );
-      if (already) return 'repeat';
 
-      if (quota != null) {
-        const used = openRows.reduce((sum, r) => sum + this.parseOpenUsageCost(r.note), 0);
-        if (used + cost > quota) return 'skip';
-      }
-
-      await tx.billingSourcingUsage.create({
-        data: {
-          companyId: input.companyId,
-          assignmentId: assignment.id,
-          kind: 'profile_open',
-          note: marker,
-          createdBy: input.actorUserId && looksLikeUuid(input.actorUserId) ? input.actorUserId : null,
-        },
-      });
-      return 'included';
+    await this.prisma.huntCampaignActivity.create({
+      data: {
+        companyId: input.companyId,
+        assignmentId: assignment.id,
+        campaignId: input.campaignId ?? null,
+        kind: 'profile_open',
+        note: marker,
+        createdBy: input.actorUserId && looksLikeUuid(input.actorUserId) ? input.actorUserId : null,
+      },
     });
   }
 
@@ -1165,7 +1069,7 @@ export class SourcingService {
   }
 
   private async countIncludedOpens(assignmentId: string, startsAt: Date): Promise<number> {
-    const rows = await this.prisma.billingSourcingUsage.findMany({
+    const rows = await this.prisma.huntCampaignActivity.findMany({
       where: { assignmentId, kind: 'profile_open', createdAt: { gte: startsAt } },
       select: { note: true },
     });
@@ -1173,7 +1077,7 @@ export class SourcingService {
   }
 
   private async countOutreachUsed(assignmentId: string, startsAt: Date): Promise<number> {
-    return this.prisma.billingSourcingUsage.count({
+    return this.prisma.huntCampaignActivity.count({
       where: {
         assignmentId,
         kind: 'shortlist',
@@ -1184,7 +1088,7 @@ export class SourcingService {
   }
 
   private async countShortlistBookmarks(assignmentId: string, startsAt: Date): Promise<number> {
-    return this.prisma.billingSourcingUsage.count({
+    return this.prisma.huntCampaignActivity.count({
       where: {
         assignmentId,
         kind: 'shortlist',
@@ -1196,6 +1100,7 @@ export class SourcingService {
 
   private toEntitlements(
     row: BillingCompanySourcingPlan & { plan: BillingSourcingPlan },
+    primaryPkg: BillingHuntPackage | null,
     profileOpensUsed = 0,
     outreachUsed = 0,
   ): RecruiterSourcingEntitlements {
@@ -1272,23 +1177,31 @@ export class SourcingService {
     };
   }
 
-  private mapEngagement(e: BillingSourcingEngagement): RecruiterSourcingEngagementView {
+  private mapCampaign(
+    c: HuntCampaign & { package: BillingHuntPackage },
+  ): RecruiterHuntCampaignView {
     return {
-      id: e.id,
-      companyId: e.companyId,
-      assignmentId: e.assignmentId,
-      packageId: e.packageId ?? null,
-      jobId: e.jobId,
-      title: e.title,
-      status: e.status,
-      createdAt: e.createdAt.toISOString(),
+      id: c.id,
+      code: c.code,
+      companyId: c.companyId,
+      assignmentId: c.assignmentId,
+      huntPackageId: c.huntPackageId,
+      jobId: c.jobId,
+      title: c.title,
+      status: c.status,
+      createdAt: c.createdAt.toISOString(),
+      packageCode: c.package.code,
+      packageName: c.package.packageName,
+      packageType: c.package.packageType as HuntPackageType,
+      packageStatus: c.package.status as RecruiterHuntCampaignView['packageStatus'],
+      expiresAt: c.package.expiresAt?.toISOString() ?? null,
     };
   }
 
   private mapUsage(u: {
     id: string;
     kind: string;
-    engagementId: string | null;
+    campaignId: string | null;
     jobId: string | null;
     note: string | null;
     createdAt: Date;
@@ -1320,7 +1233,7 @@ export class SourcingService {
     return {
       id: u.id,
       kind: u.kind as SourcingUsageKind,
-      engagementId: u.engagementId,
+      campaignId: u.campaignId,
       jobId: u.jobId,
       note: displayNote,
       createdAt: u.createdAt.toISOString(),
@@ -1329,12 +1242,12 @@ export class SourcingService {
 
   private parseScanRound(u: {
     id: string;
-    engagementId: string | null;
+    campaignId: string | null;
     jobId: string | null;
     note: string | null;
     createdAt: Date;
   }): RecruiterSourcingScanRoundView | null {
-    if (!u.engagementId || !u.note) return null;
+    if (!u.campaignId || !u.note) return null;
     try {
       const raw = JSON.parse(u.note) as {
         roundNumber?: number;
@@ -1347,7 +1260,7 @@ export class SourcingService {
       const candidates = Array.isArray(raw.candidates) ? raw.candidates : [];
       return {
         id: u.id,
-        engagementId: u.engagementId,
+        campaignId: u.campaignId,
         jobId: u.jobId,
         roundNumber: typeof raw.roundNumber === 'number' && raw.roundNumber > 0 ? raw.roundNumber : 1,
         trigger: raw.trigger ?? 'cron',
@@ -1364,7 +1277,7 @@ export class SourcingService {
 
   private parseReport(u: {
     id: string;
-    engagementId: string | null;
+    campaignId: string | null;
     jobId: string | null;
     note: string | null;
     createdAt: Date;
@@ -1374,7 +1287,7 @@ export class SourcingService {
       const raw = JSON.parse(u.note.slice('report:'.length)) as Partial<RecruiterSourcingReportView>;
       return {
         id: u.id,
-        engagementId: u.engagementId,
+        campaignId: u.campaignId,
         jobId: u.jobId,
         reportNumber: typeof raw.reportNumber === 'number' && raw.reportNumber > 0 ? raw.reportNumber : 1,
         title: raw.title || 'Báo cáo tiến độ Săn nhân sự',

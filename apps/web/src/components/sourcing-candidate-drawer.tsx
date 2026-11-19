@@ -29,7 +29,7 @@ export function SourcingCandidateDrawer({
   candidateRow,
   initialSection = 'overview',
   onClose,
-  engagementId,
+  campaignId,
   engagementTitle,
   jobId,
   entitlements,
@@ -42,7 +42,7 @@ export function SourcingCandidateDrawer({
   candidateRow: CandidateMatchView | null;
   initialSection?: SourcingDrawerSection;
   onClose: () => void;
-  engagementId: string | null;
+  campaignId: string | null;
   engagementTitle: string;
   jobId: string | null;
   entitlements: RecruiterSourcingEntitlements;
@@ -125,7 +125,7 @@ export function SourcingCandidateDrawer({
   } = useQuery({
     queryKey: ['sourcing-candidate-drawer', candidateRow?.candidateId, unlocked],
     queryFn: async () => {
-      const res = await getCandidateById(candidateRow!.candidateId, 'sourcing', pctStr);
+      const res = await getCandidateById(candidateRow!.candidateId, 'sourcing', pctStr, campaignId);
       onProfileUnlocked();
       return res;
     },
@@ -136,7 +136,7 @@ export function SourcingCandidateDrawer({
   const unlockMutation = useMutation({
     mutationFn: async () => {
       if (!candidateRow) throw new Error('Chưa chọn ứng viên');
-      return getCandidateById(candidateRow.candidateId, 'sourcing', pctStr);
+      return getCandidateById(candidateRow.candidateId, 'sourcing', pctStr, campaignId);
     },
     onSuccess: (data) => {
       setUnlocked(true);
@@ -158,12 +158,12 @@ export function SourcingCandidateDrawer({
 
   const shortlistMutation = useMutation({
     mutationFn: async () => {
-      if (!candidateRow || !engagementId) throw new Error('Chưa chọn vị trí Săn');
+      if (!candidateRow || !campaignId) throw new Error('Chưa chọn vị trí Săn');
       if (isShortlisted) {
         await removeCandidateShortlist(candidateRow.candidateId).catch(() => null);
         const ws = await consumeRecruiterSourcing({
           kind: 'shortlist',
-          engagementId,
+          campaignId,
           jobId: jobId ?? undefined,
           note: `unshortlist:${candidateRow.candidateId}:${candidateRow.displayName}`,
         });
@@ -172,7 +172,7 @@ export function SourcingCandidateDrawer({
       await addCandidateShortlist(candidateRow.candidateId).catch(() => null);
       const ws = await consumeRecruiterSourcing({
         kind: 'shortlist',
-        engagementId,
+        campaignId,
         jobId: jobId ?? undefined,
         note: `shortlist:${candidateRow.candidateId}:${candidateRow.displayName}`,
       });
@@ -199,18 +199,21 @@ export function SourcingCandidateDrawer({
 
   const outreachMutation = useMutation({
     mutationFn: async () => {
-      if (!candidateRow || !engagementId) throw new Error('Chưa chọn vị trí Săn');
+      if (!candidateRow || !campaignId) throw new Error('Chưa chọn vị trí Săn');
       const cleanName = candidateRow.displayName.replace(/:/g, ' ');
       const cleanNote = outreachNote.trim().replace(/:/g, ' -');
       const ws = await consumeRecruiterSourcing({
         kind: 'shortlist',
-        engagementId,
+        campaignId,
         jobId: jobId ?? undefined,
         note: `outreach:${candidateRow.candidateId}:${cleanName}:${cleanNote}`,
       });
-      const detailRes = await getCandidateById(candidateRow.candidateId, 'sourcing', pctStr).catch(
-        () => null,
-      );
+      const detailRes = await getCandidateById(
+        candidateRow.candidateId,
+        'sourcing',
+        pctStr,
+        campaignId,
+      ).catch(() => null);
       return { ws, detailRes };
     },
     onSuccess: ({ ws, detailRes }) => {
@@ -238,10 +241,10 @@ export function SourcingCandidateDrawer({
 
   const outreachStatusMutation = useMutation({
     mutationFn: async (status: SourcingOutreachStatus) => {
-      if (!candidateRow || !engagementId) throw new Error('Chưa chọn vị trí Săn');
+      if (!candidateRow || !campaignId) throw new Error('Chưa chọn vị trí Săn');
       return consumeRecruiterSourcing({
         kind: 'shortlist',
-        engagementId,
+        campaignId,
         jobId: jobId ?? undefined,
         note: `outreach_status:${candidateRow.candidateId}:${status}`,
       });

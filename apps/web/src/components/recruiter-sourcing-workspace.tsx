@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -25,6 +25,7 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   Users,
   X,
@@ -38,6 +39,7 @@ import {
   SOURCING_QUOTA_LABELS,
   formatJobTitle,
   type CandidateMatchView,
+  type RecruiterHuntCampaignResourceView,
   type RecruiterSourcingEntitlements,
   type RecruiterSourcingOutreachItem,
   type RecruiterSourcingScanRoundView,
@@ -238,7 +240,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
         setSelectedPackageId(null);
         setCreateModalOpen(false);
         setModalMode('select');
-        const newest = ws.engagements[0]?.id;
+        const newest = ws.campaigns?.[0]?.id;
         if (newest) {
           setActiveId(newest);
           setSelectedRoundId('all');
@@ -257,7 +259,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
         await removeCandidateShortlist(cand.candidateId).catch(() => null);
         const ws = await consumeRecruiterSourcing({
           kind: 'shortlist',
-          engagementId: selected,
+          campaignId: selected,
           jobId: huntJobId ?? undefined,
           note: `unshortlist:${cand.candidateId}:${cand.displayName}`,
         });
@@ -266,7 +268,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
       await addCandidateShortlist(cand.candidateId).catch(() => null);
       const ws = await consumeRecruiterSourcing({
         kind: 'shortlist',
-        engagementId: selected,
+        campaignId: selected,
         jobId: huntJobId ?? undefined,
         note: `shortlist:${cand.candidateId}:${cand.displayName}`,
       });
@@ -295,7 +297,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
       const cleanName = cand.displayName.replace(/:/g, ' ');
       const ws = await consumeRecruiterSourcing({
         kind: 'shortlist',
-        engagementId: selected,
+        campaignId: selected,
         jobId: huntJobId ?? undefined,
         note: `outreach:${cand.candidateId}:${cleanName}:Nhờ CSKH Inlink liên hệ kết nối & thẩm định ứng viên`,
       });
@@ -303,6 +305,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
         cand.candidateId,
         'sourcing',
         formatMatchPct(cand.match.score),
+        selected,
       ).catch(() => null);
       return ws;
     },
@@ -325,16 +328,16 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
   const e = data?.entitlements;
   const hasPlan = Boolean(e?.assignment?.isActive);
   const ended = cycleEnded(e?.assignment?.endsAt);
-  const validEngagements = useMemo(
-    () => (data?.engagements ?? []).filter((eng) => Boolean(eng.jobId)),
-    [data?.engagements],
+  const validCampaigns = useMemo(
+    () => (data?.campaigns ?? []).filter((camp) => Boolean(camp.jobId)),
+    [data?.campaigns],
   );
   const selected =
-    campaignId && validEngagements.some((eng) => eng.id === campaignId)
+    campaignId && validCampaigns.some((camp) => camp.id === campaignId)
       ? campaignId
-      : activeId && validEngagements.some((eng) => eng.id === activeId)
+      : activeId && validCampaigns.some((camp) => camp.id === activeId)
         ? activeId
-        : validEngagements[0]?.id ?? null;
+        : validCampaigns[0]?.id ?? null;
   /**
    * Người dùng mở /recruiter/sourcing/<id> nhưng id không thuộc chiến dịch nào
    * (sai link, chiến dịch đã bị xoá). Không nên fallback sang chiến dịch khác
@@ -342,32 +345,38 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
    * Dùng cùng điều kiện với `selected` để URL và nội dung luôn khớp nhau.
    */
   const campaignNotFound =
-    Boolean(campaignId) && !validEngagements.some((eng) => eng.id === campaignId);
+    Boolean(campaignId) && !validCampaigns.some((camp) => camp.id === campaignId);
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
   const hasOutreach =
     scope.includes('outreach') ||
     e?.planCode === 'SAN_CHUYEN_SAU' ||
     (e?.outreachQuota != null && e.outreachQuota > 0);
-  const selectedEngagement = validEngagements.find((eng) => eng.id === selected) ?? null;
-  const huntJobId = selectedEngagement?.jobId ?? null;
+  const selectedCampaign = validCampaigns.find((camp) => camp.id === selected) ?? null;
+  const huntJobId = selectedCampaign?.jobId ?? null;
+
+  /** Tài nguyên RIÊNG của chiến dịch đang mở (đọc từ đúng 1 BillingHuntPackage gắn với nó). */
+  const campaignResource = useMemo(
+    () => (data?.campaignResources ?? []).find((r) => r.campaignId === selected) ?? null,
+    [data?.campaignResources, selected],
+  );
 
   const engagementScanRounds = useMemo(
     () =>
       (data?.scanRounds ?? [])
-        .filter((r) => r.engagementId === selected)
+        .filter((r) => r.campaignId === selected)
         .sort((a, b) => b.roundNumber - a.roundNumber),
     [data?.scanRounds, selected],
   );
 
   const engagementShortlistedIds = useMemo<string[]>(
-    () => (selected ? data?.shortlistedByEngagement?.[selected] ?? [] : []),
-    [data?.shortlistedByEngagement, selected],
+    () => (selected ? data?.shortlistedByCampaign?.[selected] ?? [] : []),
+    [data?.shortlistedByCampaign, selected],
   );
 
   const engagementOutreachList = useMemo<RecruiterSourcingOutreachItem[]>(
-    () => (selected ? data?.outreachByEngagement?.[selected] ?? [] : []),
-    [data?.outreachByEngagement, selected],
+    () => (selected ? data?.outreachByCampaign?.[selected] ?? [] : []),
+    [data?.outreachByCampaign, selected],
   );
 
   const engagementOutreachIds = useMemo<string[]>(
@@ -376,7 +385,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
   );
 
   const engagementReports = useMemo(
-    () => (data?.reports ?? []).filter((r) => !selected || r.engagementId === selected),
+    () => (data?.reports ?? []).filter((r) => !selected || r.campaignId === selected),
     [data?.reports, selected],
   );
 
@@ -447,8 +456,15 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
     };
   }, [engagementOutreachList, appliedCandidates]);
 
+  /** Gói Săn chờ kích hoạt (UNUSED) — dùng để chọn gói khi tạo chiến dịch mới. */
+  const unusedPackages = useMemo(
+    () => (data?.packages ?? []).filter((pkg) => pkg.status === 'UNUSED'),
+    [data?.packages],
+  );
+
+  // Mô hình 1-1: mỗi chiến dịch mới cần 1 gói Săn chờ kích hoạt (UNUSED).
   const canOpenMorePositions =
-    hasPlan && !ended && (e?.positionsRemaining === null || (e?.positionsRemaining ?? 0) > 0);
+    hasPlan && !ended && unusedPackages.length > 0 && (e?.positionsRemaining === null || (e?.positionsRemaining ?? 0) > 0);
 
   return (
     <RecruiterShell pinSidebar>
@@ -478,16 +494,14 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
               </p>
               <h1 className="mt-1.5 text-2xl font-bold uppercase tracking-tight sm:text-3xl">
                 {campaignId
-                  ? selectedEngagement
-                    ? formatJobTitle(selectedEngagement.title)
+                  ? selectedCampaign
+                    ? formatJobTitle(selectedCampaign.title)
                     : 'Chiến dịch không tồn tại'
-                  : hasPlan && e?.planName
-                    ? e.planName
-                    : 'Gói Săn & hạn mức'}
+                  : 'SĂN NHÂN SỰ'}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-white/80">
                 {campaignId
-                  ? selectedEngagement
+                  ? selectedCampaign
                     ? 'Quản lý danh sách ứng viên ứng tuyển, ứng viên tiềm năng AI Matching, shortlist và mời phỏng vấn cho chiến dịch này.'
                     : 'Không tìm thấy chiến dịch này trong dữ liệu hiện tại.'
                   : hasPlan
@@ -496,6 +510,32 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                       : 'iLink đối chiếu ứng viên theo tin bạn gắn, tự động quét 2h/lần và xử lý tuyển dụng từ A–Z ngay tại đây.'
                     : 'Kích hoạt gói để iLink săn ứng viên cho vị trí đang tuyển.'}
               </p>
+              {/* Chuyển nhanh giữa các chiến dịch */}
+              {campaignId && validCampaigns.length > 1 ? (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
+                    Chuyển chiến dịch
+                  </span>
+                  <select
+                    aria-label="Chuyển chiến dịch"
+                    value={selected ?? ''}
+                    onChange={(ev) => {
+                      const next = ev.target.value;
+                      if (!next) return;
+                      setActiveId(next);
+                      setSelectedRoundId('all');
+                      window.location.assign(`/recruiter/sourcing/${next}`);
+                    }}
+                    className="h-8 max-w-[260px] rounded-xl border border-white/20 bg-white/10 px-2.5 text-xs font-semibold text-white outline-none transition focus:border-white/50"
+                  >
+                    {validCampaigns.map((camp) => (
+                      <option key={camp.id} value={camp.id} className="text-[#072348]">
+                        {formatJobTitle(camp.title)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </div>
 
             {!campaignId && (
@@ -612,12 +652,12 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
               <SourcingOverviewDashboard
                 entitlements={e!}
                 packages={data?.packages ?? []}
-                engagements={validEngagements}
+                campaigns={data?.campaigns ?? []}
                 jobs={jobs ?? []}
                 usages={data?.usages ?? []}
                 scanRounds={data?.scanRounds ?? []}
-                shortlistedByEngagement={data?.shortlistedByEngagement ?? {}}
-                outreachByEngagement={data?.outreachByEngagement ?? {}}
+                shortlistedByCampaign={data?.shortlistedByCampaign ?? {}}
+                outreachByCampaign={data?.outreachByCampaign ?? {}}
                 creditBalance={billingEntitlements?.credits.balance ?? 0}
                 canOpenMorePositions={canOpenMorePositions}
                 onActivatePackage={(pkgId) => {
@@ -625,8 +665,8 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                   setModalMode('select');
                   setCreateModalOpen(true);
                 }}
-                onOpenRevision={(engId) => {
-                  setActiveId(engId);
+                onOpenRevision={(campId) => {
+                  setActiveId(campId);
                   setRevisionModalOpen(true);
                 }}
               />
@@ -634,6 +674,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
               <>
                 <QuotaGrid
               entitlements={e!}
+              resource={campaignResource}
               hasOutreach={hasOutreach}
               totalMatchedCount={potentialCandidates.length}
               highMatchCount={highMatchCount}
@@ -657,24 +698,90 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
               onFilterOutreach={selected && hasOutreach ? () => setSelectedRoundId('outreach') : undefined}
             />
 
-            {/* DANH SÁCH TIN SĂN */}
+            {/* THẺ TÓM TẮT CHIẾN DỊCH HIỆN TẠI (1 gói ↔ 1 chiến dịch) */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-extrabold uppercase tracking-tight text-slate-900">
-                    DANH SÁCH TIN SĂN
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Danh sách tin săn của bạn · Bấm vào ứng viên bên dưới để mở liên hệ, kết nối & đặt lịch phỏng vấn
-                    ngay tại chỗ
-                  </p>
-                </div>
-              </div>
+              {selectedCampaign ? (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-extrabold uppercase tracking-tight text-slate-900">
+                        {formatJobTitle(selectedCampaign.title)}
+                      </h2>
+                      <span
+                        className={clsx(
+                          'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                          selectedCampaign.packageStatus === 'ACTIVE'
+                            ? 'bg-emerald-100/90 text-emerald-700'
+                            : selectedCampaign.packageStatus === 'UNUSED'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-200 text-slate-600',
+                        )}
+                      >
+                        <span
+                          className={clsx(
+                            'h-1.5 w-1.5 rounded-full',
+                            selectedCampaign.packageStatus === 'ACTIVE'
+                              ? 'bg-emerald-500'
+                              : selectedCampaign.packageStatus === 'UNUSED'
+                                ? 'bg-amber-500'
+                                : 'bg-slate-400',
+                          )}
+                        />
+                        {selectedCampaign.packageStatus === 'ACTIVE'
+                          ? 'Đang hoạt động'
+                          : selectedCampaign.packageStatus === 'UNUSED'
+                            ? 'Chưa kích hoạt'
+                            : selectedCampaign.packageStatus === 'COMPLETED'
+                              ? 'Đã hoàn thành'
+                              : 'Hết hạn'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Mã gói:{' '}
+                      <span className="font-mono font-semibold text-slate-700">
+                        {campaignResource?.packageCode ?? selectedCampaign.packageCode}
+                      </span>{' '}
+                      · {campaignResource?.packageName ?? selectedCampaign.packageName} · Mã chiến
+                      dịch:{' '}
+                      <span className="font-mono font-semibold text-slate-700">
+                        {selectedCampaign.code}
+                      </span>
+                    </p>
+                  </div>
 
-              {validEngagements.length === 0 ? (
-                <div className="mt-4 flex flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!selectedCampaign.jobId}
+                      onClick={() => setViewCriteriaModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-sky-100/90 px-3.5 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-200/80 disabled:opacity-40"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Xem tiêu chí
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        ended ||
+                        !selectedCampaign.jobId ||
+                        (campaignResource !== null &&
+                          campaignResource.criteriaEditsRemaining <= 0)
+                      }
+                      onClick={() => setRevisionModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-100/90 px-3.5 py-1.5 text-xs font-semibold text-[#c96a12] transition hover:bg-amber-200/80 disabled:opacity-40"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      Điều chỉnh tiêu chí
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
                   <Sparkles className="h-6 w-6 text-[#E8872A]" />
-                  <p className="mt-2 text-sm font-medium text-slate-600">Danh sách tin săn hiển thị ở đây</p>
+                  <p className="mt-2 text-sm font-medium text-slate-600">
+                    Chưa có chiến dịch Săn nào. Bấm “Tạo Tin săn” để kích hoạt gói và mở chiến dịch
+                    đầu tiên.
+                  </p>
                   {canOpenMorePositions ? (
                     <button
                       type="button"
@@ -689,198 +796,13 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                     </button>
                   ) : null}
                 </div>
-              ) : (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  {validEngagements.map((eng) => {
-                    const isActive = selected === eng.id;
-                    const roundCount = (data?.scanRounds ?? []).filter((r) => r.engagementId === eng.id).length;
-                    const slCount = (data?.shortlistedByEngagement?.[eng.id] ?? []).length;
-                    const planPeriodInfo = getSourcingPlanPeriodInfo(e?.assignment);
-                    const linkedJob = (jobs ?? []).find((j) => j.id === eng.jobId);
-                    const linkedLocation = linkedJob?.location?.trim();
-                    const isRunning = eng.status !== 'closed' && !planPeriodInfo.expired && !ended;
-
-                    return (
-                      <div
-                        key={eng.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          setActiveId(eng.id);
-                          setSelectedRoundId('all');
-                        }}
-                        onKeyDown={(ev) => {
-                          if (ev.key === 'Enter' || ev.key === ' ') {
-                            ev.preventDefault();
-                            setActiveId(eng.id);
-                            setSelectedRoundId('all');
-                          }
-                        }}
-                        className={clsx(
-                          'group flex cursor-pointer flex-col justify-between rounded-2xl border p-4 sm:p-5 text-left transition',
-                          isActive
-                            ? 'border-[#072348] bg-[#072348] text-white shadow-md'
-                            : 'border-[#d7e3f2] bg-[#f8fafc] text-slate-800 hover:-translate-y-0.5 hover:border-[#52749a] hover:bg-white',
-                        )}
-                      >
-                        {/* TẦNG 1: TIÊU ĐỀ TIN SĂN & TRẠNG THÁI */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="line-clamp-1 text-[16px] font-bold leading-snug">
-                              {formatJobTitle(eng.title)}
-                            </p>
-                            <p
-                              className={clsx(
-                                'mt-1 line-clamp-1 text-[13px]',
-                                isActive ? 'text-white/75' : 'text-slate-500',
-                              )}
-                            >
-                              Tin săn{linkedLocation ? ` · ${linkedLocation}` : linkedJob?.title ? ` · ${formatJobTitle(linkedJob.title)}` : ''}
-                            </p>
-                          </div>
-
-                          <span
-                            className={clsx(
-                              'shrink-0 rounded-full px-3 py-1 text-xs font-semibold',
-                              isRunning
-                                ? isActive
-                                  ? 'bg-emerald-500/20 text-emerald-400'
-                                  : 'bg-emerald-100/90 text-emerald-700'
-                                : isActive
-                                  ? 'bg-white/15 text-white/80'
-                                  : 'bg-slate-200 text-slate-600',
-                            )}
-                          >
-                            {isRunning ? 'Đang hoạt động' : 'Đã kết thúc'}
-                          </span>
-                        </div>
-
-                        {/* TẦNG 2: THỜI GIAN GÓI SĂN & KẾT QUẢ TÌM KIẾM */}
-                        <div
-                          className={clsx(
-                            'my-4 grid grid-cols-2 items-start gap-3 border-y py-3.5',
-                            isActive ? 'border-white/15' : 'border-slate-200/80',
-                          )}
-                        >
-                          <div>
-                            <p
-                              className={clsx(
-                                'text-[13px]',
-                                isActive ? 'text-white/75' : 'text-slate-500',
-                              )}
-                            >
-                              Thời gian săn nhân sự
-                            </p>
-                            <p
-                              className={clsx(
-                                'mt-0.5 text-[15px] font-bold',
-                                isActive ? 'text-white' : 'text-slate-900',
-                              )}
-                            >
-                              {planPeriodInfo.remainingText}
-                            </p>
-                            <p
-                              className={clsx(
-                                'mt-0.5 text-[13px]',
-                                isActive ? 'text-white/75' : 'text-slate-500',
-                              )}
-                            >
-                              {planPeriodInfo.expiryDateText}
-                            </p>
-                          </div>
-
-                          <div className="text-right">
-                            <p
-                              className={clsx(
-                                'text-[13px]',
-                                isActive ? 'text-white/75' : 'text-slate-500',
-                              )}
-                            >
-                              Kết quả tìm kiếm
-                            </p>
-                            <p
-                              className={clsx(
-                                'mt-0.5 text-[15px] font-bold',
-                                isActive ? 'text-white' : 'text-slate-900',
-                              )}
-                            >
-                              {roundCount} lượt quét
-                            </p>
-                            <p
-                              className={clsx(
-                                'mt-0.5 text-[13px] font-medium',
-                                isActive ? 'text-amber-400' : 'text-[#d97706]',
-                              )}
-                            >
-                              ★ {slCount} ứng viên Shortlist
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* TẦNG 3: TIÊU CHÍ TUYỂN DỤNG & 2 NÚT XEM / ĐIỀU CHỈNH */}
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <span
-                            className={clsx(
-                              'text-[13px] leading-snug',
-                              isActive ? 'text-white/80' : 'text-slate-600',
-                            )}
-                          >
-                            Tiêu chí tuyển dụng đã được thiết lập
-                          </span>
-
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              disabled={!eng.jobId}
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                setActiveId(eng.id);
-                                setViewCriteriaModalOpen(true);
-                              }}
-                              className={clsx(
-                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40',
-                                isActive
-                                  ? 'bg-sky-500/20 text-sky-400 hover:bg-sky-500/30'
-                                  : 'bg-sky-100/90 text-sky-700 hover:bg-sky-200/80',
-                              )}
-                            >
-                              Xem tiêu chí
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={
-                                ended ||
-                                !eng.jobId ||
-                                (e!.revisionsRemaining !== null && e!.revisionsRemaining <= 0)
-                              }
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                setActiveId(eng.id);
-                                setRevisionModalOpen(true);
-                              }}
-                              className={clsx(
-                                'inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40',
-                                isActive
-                                  ? 'bg-[#E8872A]/20 text-[#FF9838] hover:bg-[#E8872A]/30'
-                                  : 'bg-amber-100/90 text-[#c96a12] hover:bg-amber-200/80',
-                              )}
-                            >
-                              Điều chỉnh tiêu chí
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               )}
             </section>
 
             {/* 2 CỘT ỨNG VIÊN: NỘP HỒ SƠ & TIỀM NĂNG */}
             <div className="grid gap-4 xl:grid-cols-2 xl:gap-3.5 2xl:gap-4">
               <AppliedCandidatesColumn
-                jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedEngagement?.title}
+                jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedCampaign?.title}
                 loading={Boolean(huntJobId) && hunt.isLoading}
                 error={
                   hunt.isError
@@ -898,7 +820,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
               />
 
               <PotentialCandidatesColumn
-                jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedEngagement?.title}
+                jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedCampaign?.title}
                 loading={Boolean(huntJobId) && hunt.isLoading}
                 error={
                   hunt.isError
@@ -931,7 +853,14 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
             {/* LỊCH SỬ (PHÂN TRANG 7 MỤC / TRANG) */}
             <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
               {(() => {
-                const allUsages = data?.usages ?? [];
+                // Trang chi tiết chiến dịch: chỉ hiển thị log của RIÊNG chiến dịch đang mở.
+                // Trang tổng quan: hiển thị toàn bộ log, có tiền tố tên/mã chiến dịch.
+                const allUsages = (data?.usages ?? []).filter(
+                  (u) => !campaignId || u.campaignId === campaignId,
+                );
+                const campaignLabelById = new Map(
+                  (data?.campaigns ?? []).map((c) => [c.id, formatJobTitle(c.title)]),
+                );
                 const pageSize = 7;
                 const totalPages = Math.max(1, Math.ceil(allUsages.length / pageSize));
                 const safePage = Math.min(Math.max(1, historyPage), totalPages);
@@ -961,6 +890,11 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                               className="flex items-center justify-between gap-3 rounded-2xl bg-[#f7f9fc] px-3.5 py-2.5 text-sm"
                             >
                               <span className="min-w-0">
+                                {!campaignId && u.campaignId ? (
+                                  <span className="mr-1.5 inline-flex items-center rounded-full bg-[#072348] px-2 py-0.5 text-[10.5px] font-bold text-white">
+                                    {campaignLabelById.get(u.campaignId) ?? 'Chiến dịch'}
+                                  </span>
+                                ) : null}
                                 <strong className="text-[#072348]">{usageLabel(u.kind)}</strong>
                                 {u.note?.startsWith('open:') ? (
                                   <span className="text-slate-500">
@@ -1099,6 +1033,31 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Gói Săn sẽ được kích hoạt
+                  </label>
+                  <select
+                    value={selectedPackageId ?? ''}
+                    onChange={(ev) => setSelectedPackageId(ev.target.value || null)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#072348] focus:ring-2 focus:ring-[#072348]/15"
+                  >
+                    <option value="">-- Tự động chọn gói chờ kích hoạt lâu nhất --</option>
+                    {unusedPackages.map((pkg) => (
+                      <option key={pkg.id} value={pkg.id}>
+                        {pkg.packageName} · {pkg.code} · {pkg.creditsIncluded} Credit ·{' '}
+                        {pkg.totalCriteriaEdits} lượt điều chỉnh · {pkg.totalReports} báo cáo
+                        {pkg.totalHandovers > 0 ? ` · ${pkg.totalHandovers} lượt bàn giao` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    1 gói Săn ↔ 1 chiến dịch. Gói sẽ chuyển sang “Đang sử dụng” và{' '}
+                    {unusedPackages.length > 0 ? 'credit của gói được cộng vào ví Credit dùng chung' : 'credit của gói được cộng vào ví Credit dùng chung'}
+                    .
+                  </p>
+                </div>
+
                 <div className="flex flex-col gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
                   <button
                     type="button"
@@ -1173,7 +1132,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           open={reportModalOpen}
           onClose={() => setReportModalOpen(false)}
           engagementId={selected}
-          engagementTitle={selectedEngagement?.title ?? ''}
+          engagementTitle={selectedCampaign?.title ?? ''}
           jobId={huntJobId}
           entitlements={e}
           allResults={allResults}
@@ -1194,7 +1153,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           open={viewCriteriaModalOpen}
           onClose={() => setViewCriteriaModalOpen(false)}
           jobId={huntJobId}
-          engagementTitle={selectedEngagement?.title ?? ''}
+          engagementTitle={selectedCampaign?.title ?? ''}
           revisionsRemaining={e.revisionsRemaining}
           onOpenRevision={() => {
             setViewCriteriaModalOpen(false);
@@ -1226,8 +1185,8 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           candidateRow={drawerCandidate}
           initialSection={drawerSection}
           onClose={() => setDrawerCandidate(null)}
-          engagementId={selected}
-          engagementTitle={selectedEngagement?.title ?? ''}
+          campaignId={selected}
+          engagementTitle={selectedCampaign?.title ?? ''}
           jobId={huntJobId}
           entitlements={e}
           isShortlisted={
@@ -2331,6 +2290,7 @@ function PotentialCandidatesColumn({
 
 function QuotaGrid({
   entitlements: e,
+  resource,
   hasOutreach,
   totalMatchedCount,
   highMatchCount,
@@ -2347,6 +2307,8 @@ function QuotaGrid({
   onFilterOutreach,
 }: {
   entitlements: RecruiterSourcingEntitlements;
+  /** Tài nguyên RIÊNG của chiến dịch đang mở (đọc từ đúng 1 BillingHuntPackage). */
+  resource: RecruiterHuntCampaignResourceView | null;
   hasOutreach: boolean;
   totalMatchedCount: number;
   highMatchCount: number;
@@ -2470,72 +2432,76 @@ function QuotaGrid({
     },
   ];
 
-  // HÀNG 3: TÀI NGUYÊN DỊCH VỤ (Chung cho mọi gói)
+  // HÀNG 3: TÀI NGUYÊN DỊCH VỤ — đọc RIÊNG từ 1 BillingHuntPackage gắn với chiến dịch này
+  // (KHÔNG cộng dồn toàn công ty).
+  const pkgExpiryLabel = resource?.expiresAt
+    ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(
+        new Date(resource.expiresAt),
+      )
+    : null;
+  const pkgExpired = resource?.expiresAt
+    ? new Date(resource.expiresAt).getTime() < Date.now()
+    : false;
+
   const resourceRows: KpiCardItem[] = [
     {
-      label: 'Vị trí còn',
-      value: e.positionQuota == null ? '∞' : String(e.positionsRemaining ?? 0),
-      badge: fmtQuota(e.positionsUsed, e.positionQuota, e.positionsRemaining),
-      icon: Briefcase,
+      label: 'Thời hạn gói',
+      value: resource ? (resource.daysRemaining != null ? `Còn ${resource.daysRemaining} ngày` : '—') : '—',
+      badge: pkgExpiryLabel ? `Hết hạn ${pkgExpiryLabel}` : undefined,
+      icon: Calendar,
       tone: 'bg-brand-50 text-brand-700',
-      actionHint: onOpenPosition
-        ? 'Số vị trí tuyển dụng doanh nghiệp còn được phép sử dụng · Bấm để tạo Tin Săn'
-        : 'Số vị trí tuyển dụng doanh nghiệp còn được phép sử dụng',
-      onClick: onOpenPosition,
-    },
-    {
-      label: 'Credit còn',
-      value: e.creditQuota == null ? '∞' : String(e.profileOpensRemaining ?? 0),
-      badge: fmtQuota(e.profileOpensUsed, e.creditQuota, e.profileOpensRemaining),
-      icon: Coins,
-      tone: 'bg-accent-50 text-accent-700',
-      actionHint: 'Số Credit còn lại trong gói để mở hồ sơ ứng viên (ưu tiên trừ trước ví lẻ)',
+      actionHint: 'Thời hạn của gói Săn đang gắn với chiến dịch này',
     },
     {
       label: 'Lượt điều chỉnh còn',
-      value: e.revisionQuota == null ? '∞' : String(e.revisionsRemaining ?? 0),
-      badge: fmtQuota(e.revisionsUsed, e.revisionQuota, e.revisionsRemaining),
+      value: resource ? String(resource.criteriaEditsRemaining) : '—',
       icon: RefreshCw,
       tone: 'bg-[#e7eef8] text-brand-700',
       actionHint: onOpenRevision
-        ? 'Số lượt còn được điều chỉnh tiêu chí tìm kiếm hoặc JD · Bấm để sửa tiêu chí'
-        : 'Số lượt còn được điều chỉnh tiêu chí tìm kiếm hoặc JD',
+        ? 'Số lượt còn được điều chỉnh tiêu chí của gói này · Bấm để sửa tiêu chí'
+        : 'Số lượt còn được điều chỉnh tiêu chí của gói này',
       onClick: onOpenRevision,
     },
     {
-      label: 'Lượt bàn giao Inlink còn',
-      value: hasOutreach
-        ? outreachQ == null
-          ? '∞'
-          : String(outreachR ?? 0)
-        : '0',
-      badge: hasOutreach
-        ? fmtQuota(outreachU, outreachQ ?? 15, outreachR ?? 0)
-        : 'Gói Chuyên sâu',
-      icon: Headphones,
-      tone: 'bg-indigo-50 text-indigo-700',
-      actionHint: hasOutreach
-        ? 'Số lượt doanh nghiệp còn được bàn giao ứng viên cho Inlink hỗ trợ liên hệ · Bấm để lọc danh sách'
-        : 'Nâng cấp gói Tin săn Chuyên sâu để bàn giao ứng viên cho Inlink hỗ trợ liên hệ',
-      onClick: hasOutreach ? onFilterOutreach : undefined,
-    },
-    {
       label: 'Báo cáo còn',
-      value: e.searchRoundQuota == null ? '∞' : String(e.searchRoundsRemaining ?? 0),
-      badge: fmtQuota(e.searchRoundsUsed, e.searchRoundQuota, e.searchRoundsRemaining),
+      value: resource ? String(resource.reportsRemaining) : '—',
       icon: FileSearch,
       tone: 'bg-emerald-50 text-emerald-700',
       actionHint: onOpenReport
-        ? 'Số lượt báo cáo doanh nghiệp còn được sử dụng theo gói dịch vụ · Bấm để xem báo cáo tiến độ'
-        : 'Số lượt báo cáo doanh nghiệp còn được sử dụng theo gói dịch vụ',
+        ? 'Số lượt báo cáo còn của gói này · Bấm để xem báo cáo tiến độ'
+        : 'Số lượt báo cáo còn của gói này',
       onClick: onOpenReport,
+    },
+    {
+      label: 'Lượt bàn giao Inlink còn',
+      value: resource ? (resource.handoversApplicable ? String(resource.handoversRemaining) : '0') : '—',
+      badge: resource && !resource.handoversApplicable ? 'Chỉ áp dụng gói Chuyên sâu' : undefined,
+      icon: Headphones,
+      tone: 'bg-indigo-50 text-indigo-700',
+      actionHint:
+        resource && resource.handoversApplicable
+          ? 'Số lượt bàn giao ứng viên cho Inlink hỗ trợ liên hệ còn lại của gói này · Bấm để lọc danh sách'
+          : 'Nâng cấp gói Tin săn Chuyên sâu để bàn giao ứng viên cho Inlink hỗ trợ liên hệ',
+      onClick: resource?.handoversApplicable ? onFilterOutreach : undefined,
+    },
+    {
+      label: 'Credit khả dụng',
+      value: resource ? String(resource.creditBalance) : '—',
+      badge:
+        resource && resource.creditConsumedByCampaign > 0
+          ? `Chiến dịch này đã dùng ${resource.creditConsumedByCampaign} Credit`
+          : 'Ví Credit dùng chung',
+      icon: Coins,
+      tone: 'bg-accent-50 text-accent-700',
+      actionHint:
+        'Số dư Credit trong ví dùng chung của doanh nghiệp (khớp với số dư trên Header)',
     },
   ];
 
-  const ended = cycleEnded(e.assignment?.endsAt);
-  const endLabel = e.assignment?.endsAt
+  const ended = pkgExpired || cycleEnded(e.assignment?.endsAt);
+  const endLabel = pkgExpiryLabel ?? (e.assignment?.endsAt
     ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(e.assignment.endsAt))
-    : null;
+    : null);
 
   const renderCardGrid = (items: KpiCardItem[]) => (
     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">

@@ -287,6 +287,8 @@ export interface BillingCreditTransactionView {
   quantity: number;
   candidateId: string | null;
   jobId: string | null;
+  /** Chiến dịch Săn nhân sự liên quan (nếu có). */
+  campaignId?: string | null;
   connectionId: string | null;
   actorUserId: string | null;
   actorEmail: string | null;
@@ -417,36 +419,63 @@ export interface RecruiterSourcingEntitlements {
   outreachRemaining?: number | null;
 }
 
-export interface RecruiterSourcingPackageView {
+/** Trạng thái gói Săn (1-1 với chiến dịch). */
+export type HuntPackageStatus = 'UNUSED' | 'ACTIVE' | 'EXPIRED' | 'COMPLETED';
+
+/** Loại gói Săn: BASIC | STANDARD | DEEP. */
+export type HuntPackageType = 'BASIC' | 'STANDARD' | 'DEEP';
+
+/**
+ * Gói Săn nhân sự đã mua (multi-package).
+ * Mỗi lần mua 1 gói Săn = 1 bản ghi độc lập. Ràng buộc 1-1 với chiến dịch:
+ * 1 gói gắn tối đa 1 chiến dịch.
+ */
+export interface RecruiterHuntPackageView {
   id: string;
   code: string;
   planId: string;
   planCode: string;
   planName: string;
-  status: 'reserved' | 'active' | 'completed' | 'expired';
+  packageType: HuntPackageType;
+  packageName: string;
+  status: HuntPackageStatus;
   durationDays: number;
-  positionQuota: number | null;
-  searchRoundQuota: number | null;
-  shortlistQuota: number | null;
-  revisionQuota: number | null;
-  creditQuota: number | null;
+  /** Credit đi kèm gói — cộng vào Ví Credit dùng chung khi kích hoạt. */
+  creditsIncluded: number;
+  creditsGranted: boolean;
+  totalCriteriaEdits: number;
+  usedCriteriaEdits: number;
+  totalReports: number;
+  usedReports: number;
+  totalHandovers: number;
+  usedHandovers: number;
   purchasedAt: string;
   activatedAt: string | null;
-  reserveEndsAt: string | null;
-  endsAt: string | null;
-  engagementId: string | null;
-  engagementTitle: string | null;
+  expiresAt: string | null;
+  /** Chiến dịch đang gắn với gói này (1-1). */
+  campaignId: string | null;
+  campaignTitle: string | null;
 }
 
-export interface RecruiterSourcingEngagementView {
+/** Chiến dịch Săn nhân sự (1-1 với đúng 1 BillingHuntPackage). */
+export interface RecruiterHuntCampaignView {
   id: string;
+  code: string;
   companyId: string;
   assignmentId: string;
-  packageId?: string | null;
+  huntPackageId: string;
   jobId: string | null;
   title: string;
   status: string;
   createdAt: string;
+  /** Mã gói Săn (TS-xxxxxx) gắn với chiến dịch. */
+  packageCode: string;
+  packageName: string;
+  packageType: HuntPackageType;
+  /** Trạng thái gói: UNUSED | ACTIVE | EXPIRED | COMPLETED. */
+  packageStatus: HuntPackageStatus;
+  /** Hạn gói (null = chưa kích hoạt). */
+  expiresAt: string | null;
 }
 
 export type SourcingUsageKind = SourcingQuotaKind | 'profile_open' | 'auto_scan';
@@ -459,7 +488,7 @@ export interface RecruiterSourcingScanCandidateItem {
 
 export interface RecruiterSourcingScanRoundView {
   id: string;
-  engagementId: string;
+  campaignId: string;
   jobId: string | null;
   roundNumber: number;
   trigger: 'initial' | 'cron' | 'manual';
@@ -473,7 +502,7 @@ export interface RecruiterSourcingScanRoundView {
 export interface RecruiterSourcingUsageView {
   id: string;
   kind: SourcingUsageKind;
-  engagementId: string | null;
+  campaignId: string | null;
   jobId: string | null;
   note: string | null;
   createdAt: string;
@@ -530,19 +559,50 @@ export interface RecruiterSourcingOutreachItem {
   createdAt: string;
 }
 
+/**
+ * Tài nguyên dịch vụ của RIÊNG 1 chiến dịch (đọc từ đúng 1 BillingHuntPackage gắn với chiến dịch).
+ * Không cộng dồn toàn công ty.
+ */
+export interface RecruiterHuntCampaignResourceView {
+  campaignId: string;
+  packageId: string;
+  packageCode: string;
+  packageName: string;
+  packageType: HuntPackageType;
+  /** Ngày hết hạn gói. */
+  expiresAt: string | null;
+  /** Số ngày còn lại của gói. */
+  daysRemaining: number | null;
+  /** Số lượt quét (đợt tìm) đã chạy cho chiến dịch này. */
+  scanRoundCount: number;
+  criteriaEditsRemaining: number;
+  reportsRemaining: number;
+  handoversRemaining: number;
+  /** false = gói không có tính năng bàn giao Inlink (chỉ gói Chuyên sâu). */
+  handoversApplicable: boolean;
+  /** Số dư Credit dùng chung của doanh nghiệp (khớp 100% với Header). */
+  creditBalance: number;
+  /** Credit đã tiêu thụ riêng cho chiến dịch này. */
+  creditConsumedByCampaign: number;
+}
+
 export interface RecruiterSourcingWorkspace {
   entitlements: RecruiterSourcingEntitlements;
-  packages?: RecruiterSourcingPackageView[];
-  engagements: RecruiterSourcingEngagementView[];
+  /** Gói Săn đã mua (multi-active). */
+  packages?: RecruiterHuntPackageView[];
+  /** Chiến dịch Săn (1-1 với gói). */
+  campaigns?: RecruiterHuntCampaignView[];
+  /** Tài nguyên riêng của từng chiến dịch (đọc từ đúng 1 gói đang gắn). */
+  campaignResources?: RecruiterHuntCampaignResourceView[];
   usages: RecruiterSourcingUsageView[];
   scanRounds?: RecruiterSourcingScanRoundView[];
-  shortlistedByEngagement?: Record<string, string[]>;
-  outreachByEngagement?: Record<string, RecruiterSourcingOutreachItem[]>;
+  shortlistedByCampaign?: Record<string, string[]>;
+  outreachByCampaign?: Record<string, RecruiterSourcingOutreachItem[]>;
   reports?: RecruiterSourcingReportView[];
 }
 export interface RecruiterSourcingReportView {
   id: string;
-  engagementId: string | null;
+  campaignId: string | null;
   jobId: string | null;
   reportNumber: number;
   title: string;

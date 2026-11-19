@@ -38,6 +38,8 @@ export interface RecordTransactionInput {
   quantity?: number;
   candidateId?: string;
   jobId?: string;
+  /** Chiến dịch Săn nhân sự liên quan (để lọc lịch sử theo chiến dịch). */
+  campaignId?: string;
   connectionId?: string;
   actorUserId?: string;
   actorEmail?: string;
@@ -64,6 +66,7 @@ export interface ConsumeActionInput {
   action: CreditAction;
   candidateId?: string;
   jobId?: string;
+  campaignId?: string;
   connectionId?: string;
   actorUserId?: string;
   actorEmail?: string;
@@ -123,6 +126,7 @@ export class CreditService {
       quantity: 1,
       candidateId: input.candidateId,
       jobId: input.jobId,
+      campaignId: input.campaignId,
       connectionId: input.connectionId,
       actorUserId: input.actorUserId,
       actorEmail: input.actorEmail,
@@ -159,6 +163,7 @@ export class CreditService {
     tenantId: string;
     companyId: string;
     candidateId: string;
+    campaignId?: string;
     actorUserId?: string;
     actorEmail?: string;
   }): Promise<void> {
@@ -167,6 +172,7 @@ export class CreditService {
       companyId: input.companyId,
       action: 'view_profile',
       candidateId: input.candidateId,
+      campaignId: input.campaignId,
       actorUserId: input.actorUserId,
       actorEmail: input.actorEmail,
     });
@@ -197,6 +203,7 @@ export class CreditService {
         quantity: 1,
         candidateId: input.candidateId,
         jobId: input.jobId,
+        campaignId: input.campaignId,
         connectionId: input.connectionId,
         actorUserId: input.actorUserId,
         actorEmail: input.actorEmail,
@@ -420,6 +427,7 @@ export class CreditService {
             quantity,
             candidateId: input.candidateId ?? null,
             jobId: input.jobId ?? null,
+            campaignId: input.campaignId ?? null,
             connectionId: input.connectionId ?? null,
             actorUserId: input.actorUserId ?? null,
             actorEmail: input.actorEmail ?? null,
@@ -443,6 +451,11 @@ export class CreditService {
           data: updateData,
         });
 
+        // Trừ theo FIFO: lô sắp hết hạn được trừ trước.
+        if (mode === 'enforce' && totalCost > 0) {
+          await this.consumeLotsFifo(tx, account.id, input.companyId, totalCost, now);
+        }
+
         return txRecord;
       });
     } catch (err) {
@@ -456,6 +469,46 @@ export class CreditService {
       }
       this.logger.warn(`Failed to record credit transaction: ${String(err)}`);
       return null;
+    }
+  }
+
+  /**
+   * Trừ Credit theo FIFO trên `billing_credit_lot`:
+   * lô sắp hết hạn (expiresAt ASC) được trừ trước, lô vô thời hạn (expiresAt NULL) cuối cùng.
+   * Lô đã hết hạn bị bỏ qua.
+   */
+  private async consumeLotsFifo(
+    tx: Prisma.TransactionClient,
+    accountId: string,
+    companyId: string,
+    amount: number,
+    now: Date,
+  ): Promise<void> {
+    let remaining = amount;
+    const lots = await tx.billingCreditLot.findMany({
+      where: {
+        accountId,
+        companyId,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+      select: { id: true, granted: true, consumed: true },
+    });
+    for (const lot of lots) {
+      if (remaining <= 0) break;
+      const available = Math.max(0, lot.granted - lot.consumed);
+      if (available <= 0) continue;
+      const take = Math.min(available, remaining);
+      await tx.billingCreditLot.update({
+        where: { id: lot.id },
+        data: { consumed: { increment: take } },
+      });
+      remaining -= take;
+    }
+    if (remaining > 0) {
+      this.logger.warn(
+        `Thiếu ${remaining} Credit trong các lô (company=${companyId}, account=${accountId}) — balance đã trừ nhưng lô chưa khớp.`,
+      );
     }
   }
 
@@ -813,6 +866,7 @@ export class CreditService {
       quantity: t.quantity,
       candidateId: t.candidateId,
       jobId: t.jobId,
+      campaignId: t.campaignId,
       connectionId: t.connectionId,
       actorUserId: t.actorUserId,
       actorEmail: t.actorEmail,

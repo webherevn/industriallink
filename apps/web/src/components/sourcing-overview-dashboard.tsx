@@ -21,10 +21,10 @@ import { useMemo, useState } from 'react';
 import {
   formatJobTitle,
   type JobListItem,
+  type RecruiterHuntCampaignView,
+  type RecruiterHuntPackageView,
   type RecruiterSourcingEntitlements,
-  type RecruiterSourcingEngagementView,
   type RecruiterSourcingOutreachItem,
-  type RecruiterSourcingPackageView,
   type RecruiterSourcingScanRoundView,
   type RecruiterSourcingUsageView,
 } from '@industriallink/contracts';
@@ -52,34 +52,34 @@ function openCandidateIdFromNote(note: string | null | undefined): string | null
   return parts[1]?.trim() || null;
 }
 
-type PackageStatusFilter = 'all' | 'active' | 'reserved' | 'completed' | 'expired';
+type PackageStatusFilter = 'all' | 'ACTIVE' | 'UNUSED' | 'COMPLETED' | 'EXPIRED';
 
 export function SourcingOverviewDashboard({
   entitlements,
   packages,
-  engagements,
+  campaigns,
   jobs,
   usages,
   scanRounds,
-  shortlistedByEngagement,
-  outreachByEngagement,
+  shortlistedByCampaign,
+  outreachByCampaign,
   creditBalance,
   canOpenMorePositions,
   onActivatePackage,
   onOpenRevision,
 }: {
   entitlements: RecruiterSourcingEntitlements;
-  packages: RecruiterSourcingPackageView[];
-  engagements: RecruiterSourcingEngagementView[];
+  packages: RecruiterHuntPackageView[];
+  campaigns: RecruiterHuntCampaignView[];
   jobs: JobListItem[];
   usages: RecruiterSourcingUsageView[];
   scanRounds: RecruiterSourcingScanRoundView[];
-  shortlistedByEngagement: Record<string, string[]>;
-  outreachByEngagement: Record<string, RecruiterSourcingOutreachItem[]>;
+  shortlistedByCampaign: Record<string, string[]>;
+  outreachByCampaign: Record<string, RecruiterSourcingOutreachItem[]>;
   creditBalance: number;
   canOpenMorePositions: boolean;
   onActivatePackage: (packageId: string) => void;
-  onOpenRevision: (engagementId: string) => void;
+  onOpenRevision: (campaignId: string) => void;
 }) {
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
   const [packageFilter, setPackageFilter] = useState<PackageStatusFilter>('all');
@@ -91,55 +91,54 @@ export function SourcingOverviewDashboard({
   }, [jobs]);
 
   const packageById = useMemo(() => {
-    const map = new Map<string, RecruiterSourcingPackageView>();
+    const map = new Map<string, RecruiterHuntPackageView>();
     for (const p of packages) map.set(p.id, p);
     return map;
   }, [packages]);
 
-  /** Gom chiến dịch theo gói đã mua: 1 gói có thể mở nhiều vị trí (positionQuota). */
-  const engagementsByPackage = useMemo(() => {
-    const map = new Map<string, RecruiterSourcingEngagementView[]>();
-    for (const eng of engagements) {
-      if (!eng.packageId) continue;
-      const list = map.get(eng.packageId);
-      if (list) list.push(eng);
-      else map.set(eng.packageId, [eng]);
+  /** Gom chiến dịch theo gói: 1 gói ↔ tối đa 1 chiến dịch (ràng buộc UNIQUE ở DB). */
+  const campaignsByPackage = useMemo(() => {
+    const map = new Map<string, RecruiterHuntCampaignView[]>();
+    for (const camp of campaigns) {
+      const list = map.get(camp.huntPackageId);
+      if (list) list.push(camp);
+      else map.set(camp.huntPackageId, [camp]);
     }
     return map;
-  }, [engagements]);
+  }, [campaigns]);
 
   // Tính chỉ số theo từng chiến dịch dựa trên scanRounds, shortlist, usages (open:), outreach
-  const statsByEngagement = useMemo(() => {
+  const statsByCampaign = useMemo(() => {
     const map = new Map<
       string,
       { matched: number; highMatch: number; shortlisted: number; opened: number; connected: number }
     >();
 
-    for (const eng of engagements) {
+    for (const camp of campaigns) {
       const rounds = scanRounds
-        .filter((r) => r.engagementId === eng.id)
+        .filter((r) => r.campaignId === camp.id)
         .sort((a, b) => b.roundNumber - a.roundNumber);
       const latestRound = rounds[0];
       const matched = latestRound?.totalMatched ?? 0;
       const highMatch = latestRound
         ? latestRound.candidates.filter((c) => c.score >= 80).length
         : 0;
-      const shortlisted = shortlistedByEngagement[eng.id]?.length ?? 0;
+      const shortlisted = shortlistedByCampaign[camp.id]?.length ?? 0;
 
       const openedSet = new Set<string>();
       for (const u of usages) {
-        if (u.kind === 'profile_open' && u.engagementId === eng.id) {
+        if (u.kind === 'profile_open' && u.campaignId === camp.id) {
           const cid = openCandidateIdFromNote(u.note);
           if (cid) openedSet.add(cid);
         }
       }
-      const outreachList = outreachByEngagement[eng.id] ?? [];
+      const outreachList = outreachByCampaign[camp.id] ?? [];
       for (const o of outreachList) openedSet.add(o.candidateId);
       const connected = outreachList.filter(
         (o) => o.status === 'agreed' || o.status === 'guided_pending_apply' || o.status === 'applied',
       ).length;
 
-      map.set(eng.id, {
+      map.set(camp.id, {
         matched,
         highMatch,
         shortlisted,
@@ -148,21 +147,21 @@ export function SourcingOverviewDashboard({
       });
     }
     return map;
-  }, [engagements, scanRounds, shortlistedByEngagement, usages, outreachByEngagement]);
+  }, [campaigns, scanRounds, shortlistedByCampaign, usages, outreachByCampaign]);
 
   const efficiencySummary = useMemo(() => {
     const targetList =
       campaignFilter === 'all'
-        ? engagements
-        : engagements.filter((e) => e.id === campaignFilter);
+        ? campaigns
+        : campaigns.filter((c) => c.id === campaignFilter);
 
     let matched = 0;
     let highMatch = 0;
     let shortlisted = 0;
     let opened = 0;
     let connected = 0;
-    for (const eng of targetList) {
-      const s = statsByEngagement.get(eng.id);
+    for (const camp of targetList) {
+      const s = statsByCampaign.get(camp.id);
       if (!s) continue;
       matched += s.matched;
       highMatch += s.highMatch;
@@ -171,20 +170,20 @@ export function SourcingOverviewDashboard({
       connected += s.connected;
     }
     return { matched, highMatch, shortlisted, opened, connected };
-  }, [campaignFilter, engagements, statsByEngagement]);
+  }, [campaignFilter, campaigns, statsByCampaign]);
 
   const packageCounts = useMemo(() => {
     let active = 0;
-    let reserved = 0;
+    let unused = 0;
     let completed = 0;
     let expired = 0;
     for (const p of packages) {
-      if (p.status === 'active') active += 1;
-      else if (p.status === 'reserved') reserved += 1;
-      else if (p.status === 'completed') completed += 1;
-      else if (p.status === 'expired') expired += 1;
+      if (p.status === 'ACTIVE') active += 1;
+      else if (p.status === 'UNUSED') unused += 1;
+      else if (p.status === 'COMPLETED') completed += 1;
+      else if (p.status === 'EXPIRED') expired += 1;
     }
-    return { all: packages.length, active, reserved, completed, expired };
+    return { all: packages.length, active, unused, completed, expired };
   }, [packages]);
 
   const filteredPackages = useMemo(
@@ -193,9 +192,12 @@ export function SourcingOverviewDashboard({
     [packages, packageFilter],
   );
 
-  const activeEngagements = useMemo(
-    () => engagements.filter((e) => e.status !== 'closed'),
-    [engagements],
+  /**
+   * Chỉ hiển thị chiến dịch có gói Săn đang ACTIVE → khớp tuyệt đối với KPI "Đang sử dụng".
+   */
+  const activeCampaigns = useMemo(
+    () => campaigns.filter((c) => c.packageStatus === 'ACTIVE' && c.status !== 'closed'),
+    [campaigns],
   );
 
   return (
@@ -222,9 +224,9 @@ export function SourcingOverviewDashboard({
               className="h-8 max-w-[210px] rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-[#072348] outline-none transition focus:border-[#0B468C]"
             >
               <option value="all">Toàn bộ chiến dịch</option>
-              {engagements.map((eng) => (
-                <option key={eng.id} value={eng.id}>
-                  {formatJobTitle(eng.title)}
+              {campaigns.map((camp) => (
+                <option key={camp.id} value={camp.id}>
+                  {formatJobTitle(camp.title)}
                 </option>
               ))}
             </select>
@@ -300,7 +302,7 @@ export function SourcingOverviewDashboard({
               icon={<Briefcase className="h-4 w-4 text-[#0B468C]" />}
               iconBg="bg-sky-50"
               label="Chiến dịch đang chạy"
-              value={activeEngagements.length}
+              value={activeCampaigns.length}
               valueColor="text-[#0B468C]"
             />
             <div className="flex flex-col justify-between rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 to-orange-50/50 p-3">
@@ -332,13 +334,13 @@ export function SourcingOverviewDashboard({
             <div className="flex flex-wrap items-center gap-1.5">
               <h2 className="text-[15px] font-bold text-[#072348]">Gói Tin săn của tôi</h2>
               <span
-                title="Danh sách từng gói Tin săn bạn đã mua. Gói chưa kích hoạt được bảo lưu tối đa 365 ngày. Mỗi gói cho phép mở nhiều vị trí, mỗi vị trí là 1 chiến dịch."
+                title="Danh sách từng gói Tin săn bạn đã mua. Gói chưa kích hoạt được bảo lưu tối đa 365 ngày. Mỗi gói gắn với đúng 1 chiến dịch Săn."
                 className="text-slate-400"
               >
                 <Info className="h-3.5 w-3.5" />
               </span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-500">
-                1 gói → nhiều chiến dịch
+                1 gói → 1 chiến dịch
               </span>
             </div>
             <Link
@@ -354,10 +356,10 @@ export function SourcingOverviewDashboard({
             {(
               [
                 { id: 'all', label: `Tất cả (${packageCounts.all})` },
-                { id: 'active', label: `Đang sử dụng (${packageCounts.active})` },
-                { id: 'reserved', label: `Chưa kích hoạt (${packageCounts.reserved})` },
-                { id: 'completed', label: `Đã hoàn thành (${packageCounts.completed})` },
-                { id: 'expired', label: `Hết hạn (${packageCounts.expired})` },
+                { id: 'ACTIVE', label: `Đang sử dụng (${packageCounts.active})` },
+                { id: 'UNUSED', label: `Chưa kích hoạt (${packageCounts.unused})` },
+                { id: 'COMPLETED', label: `Đã hoàn thành (${packageCounts.completed})` },
+                { id: 'EXPIRED', label: `Hết hạn (${packageCounts.expired})` },
               ] as const
             ).map((tab) => (
               <button
@@ -383,23 +385,19 @@ export function SourcingOverviewDashboard({
               </div>
             ) : (
               filteredPackages.map((pkg) => {
-                const isReserved = pkg.status === 'reserved';
-                const isActive = pkg.status === 'active';
-                const isExpired = pkg.status === 'expired';
-                const daysLeft = daysLeftOf(isReserved ? pkg.reserveEndsAt : pkg.endsAt);
-                // Các chiến dịch đã mở từ gói này (1 gói có thể mở nhiều vị trí).
-                const pkgEngagements = engagementsByPackage.get(pkg.id) ?? [];
-                const usedPositions = pkgEngagements.length;
-                const positionQuota = pkg.positionQuota ?? null;
-                const positionsLeft =
-                  positionQuota == null ? null : Math.max(0, positionQuota - usedPositions);
+                const isUnused = pkg.status === 'UNUSED';
+                const isActive = pkg.status === 'ACTIVE';
+                const isExpired = pkg.status === 'EXPIRED';
+                const daysLeft = daysLeftOf(pkg.expiresAt);
+                // 1 gói ↔ tối đa 1 chiến dịch.
+                const pkgCampaigns = campaignsByPackage.get(pkg.id) ?? [];
 
                 return (
                   <div
                     key={pkg.id}
                     className={clsx(
                       'rounded-2xl border p-3.5 transition',
-                      isReserved
+                      isUnused
                         ? 'border-amber-200/90 bg-gradient-to-br from-amber-50/50 via-white to-white'
                         : isActive
                           ? 'border-slate-200 bg-white hover:border-sky-200'
@@ -411,7 +409,7 @@ export function SourcingOverviewDashboard({
                         <span
                           className={clsx(
                             'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                            isReserved
+                            isUnused
                               ? 'bg-amber-100 text-amber-700'
                               : isActive
                                 ? 'bg-sky-50 text-[#0B468C]'
@@ -423,31 +421,31 @@ export function SourcingOverviewDashboard({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate text-[14px] font-bold text-[#072348]">
-                              {pkg.planName}
+                              {pkg.packageName}
                             </p>
                             <span
                               className={clsx(
                                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
-                                isReserved && 'bg-amber-100 text-amber-800',
+                                isUnused && 'bg-amber-100 text-amber-800',
                                 isActive && 'bg-emerald-50 text-emerald-700',
-                                pkg.status === 'completed' && 'bg-sky-50 text-[#0B468C]',
+                                pkg.status === 'COMPLETED' && 'bg-sky-50 text-[#0B468C]',
                                 isExpired && 'bg-rose-50 text-rose-600',
                               )}
                             >
                               <span
                                 className={clsx(
                                   'h-1.5 w-1.5 rounded-full',
-                                  isReserved && 'bg-amber-500',
+                                  isUnused && 'bg-amber-500',
                                   isActive && 'bg-emerald-500',
-                                  pkg.status === 'completed' && 'bg-sky-500',
+                                  pkg.status === 'COMPLETED' && 'bg-sky-500',
                                   isExpired && 'bg-rose-500',
                                 )}
                               />
-                              {isReserved
+                              {isUnused
                                 ? 'Chưa kích hoạt'
                                 : isActive
                                   ? 'Đang sử dụng'
-                                  : pkg.status === 'completed'
+                                  : pkg.status === 'COMPLETED'
                                     ? 'Đã hoàn thành'
                                     : 'Hết hạn'}
                             </span>
@@ -455,14 +453,14 @@ export function SourcingOverviewDashboard({
                           <p className="mt-0.5 text-[11.5px] text-slate-500">
                             Mã gói: <span className="font-mono font-semibold text-slate-700">{pkg.code}</span>
                             {' · '}
-                            {isReserved
+                            {isUnused
                               ? `Mua ngày: ${fmtDateShort(pkg.purchasedAt)}`
                               : `Kích hoạt: ${fmtDateShort(pkg.activatedAt ?? pkg.purchasedAt)}`}
                           </p>
                         </div>
                       </div>
 
-                      {isReserved ? (
+                      {isUnused ? (
                         <button
                           type="button"
                           disabled={!canOpenMorePositions}
@@ -471,76 +469,59 @@ export function SourcingOverviewDashboard({
                         >
                           Kích hoạt gói
                         </button>
-                      ) : pkgEngagements.length > 0 ? (
+                      ) : pkgCampaigns.length > 0 ? (
                         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                          {pkgEngagements.slice(0, 2).map((eng) => (
+                          {pkgCampaigns.slice(0, 2).map((camp) => (
                             <Link
-                              key={eng.id}
-                              href={`/recruiter/sourcing/${eng.id}`}
-                              title={`Quản lý chiến dịch: ${formatJobTitle(eng.title)}`}
+                              key={camp.id}
+                              href={`/recruiter/sourcing/${camp.id}`}
+                              title={`Quản lý chiến dịch: ${formatJobTitle(camp.title)}`}
                               className="max-w-[180px] truncate rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#072348] transition hover:border-sky-300 hover:bg-sky-50/40"
                             >
-                              {formatJobTitle(eng.title)}
+                              {formatJobTitle(camp.title)}
                             </Link>
                           ))}
-                          {pkgEngagements.length > 2 ? (
-                            <span className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600">
-                              +{pkgEngagements.length - 2} chiến dịch
-                            </span>
-                          ) : null}
                         </div>
-                      ) : isActive && canOpenMorePositions ? (
-                        <button
-                          type="button"
-                          onClick={() => onActivatePackage(pkg.id)}
-                          className="shrink-0 rounded-xl border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-[#0B468C] transition hover:bg-sky-100"
-                        >
-                          Gắn tin tuyển dụng
-                        </button>
                       ) : null}
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-2.5 text-[11.5px] text-slate-600">
                       <span className="inline-flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        {isReserved ? (
+                        {isUnused ? (
                           <>
                             Thời hạn: <strong>{pkg.durationDays} ngày</strong> (từ khi kích hoạt)
                           </>
                         ) : (
                           <>
-                            Còn <strong>{daysLeft ?? 0} ngày</strong> (đến {fmtDateShort(pkg.endsAt)})
+                            Còn <strong>{daysLeft ?? 0} ngày</strong> (đến {fmtDateShort(pkg.expiresAt)})
                           </>
                         )}
                       </span>
                       <span>
-                        <strong className="text-[#E8872A]">{usedPositions}</strong>
-                        {positionQuota == null ? (
-                          <> / không giới hạn Vị trí đã mở</>
-                        ) : (
-                          <>
-                            /{positionQuota} Vị trí đã mở
-                            {positionsLeft != null && positionsLeft > 0 ? (
-                              <span className="ml-1 text-slate-400">
-                                (còn {positionsLeft} vị trí)
-                              </span>
-                            ) : null}
-                          </>
-                        )}
+                        <strong className="text-[#E8872A]">{pkg.creditsIncluded}</strong> Credit
+                        {pkg.creditsGranted ? ' · đã cấp vào ví' : ' · chưa cấp'}
                       </span>
                       <span>
-                        <strong className="text-[#072348]">{pkg.creditQuota ?? 0}</strong> Credit
+                        <strong className="text-[#E8872A]">
+                          {Math.max(0, pkg.totalCriteriaEdits - pkg.usedCriteriaEdits)}
+                        </strong>{' '}
+                        Lượt điều chỉnh
                       </span>
-                      {pkg.revisionQuota != null && (
+                      <span>
+                        <strong className="text-[#E8872A]">
+                          {Math.max(0, pkg.totalReports - pkg.usedReports)}
+                        </strong>{' '}
+                        Báo cáo
+                      </span>
+                      {pkg.totalHandovers > 0 ? (
                         <span>
-                          <strong className="text-[#E8872A]">{pkg.revisionQuota}</strong> Lượt điều chỉnh
+                          <strong className="text-[#E8872A]">
+                            {Math.max(0, pkg.totalHandovers - pkg.usedHandovers)}
+                          </strong>{' '}
+                          Lượt bàn giao
                         </span>
-                      )}
-                      {pkg.shortlistQuota != null && (
-                        <span>
-                          <strong className="text-[#E8872A]">{pkg.shortlistQuota}</strong> Lượt bàn giao
-                        </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -555,19 +536,19 @@ export function SourcingOverviewDashboard({
             <div className="flex items-center gap-1.5">
               <h2 className="text-[15px] font-bold text-[#072348]">Chiến dịch Tin săn đang chạy</h2>
               <span
-                title="Mỗi chiến dịch tương ứng 1 vị trí đang săn. Bấm Quản lý chiến dịch để xem danh sách ứng viên ứng tuyển và ứng viên tiềm năng của vị trí đó."
+                title="Chỉ hiển thị chiến dịch có gói Săn đang hoạt động (ACTIVE). Bấm Quản lý chiến dịch để xem danh sách ứng viên ứng tuyển và ứng viên tiềm năng của vị trí đó."
                 className="text-slate-400"
               >
                 <Info className="h-3.5 w-3.5" />
               </span>
             </div>
             <span className="text-xs font-semibold text-slate-500">
-              {activeEngagements.length} chiến dịch
+              {activeCampaigns.length} chiến dịch
             </span>
           </div>
 
           <div className="mt-3.5 space-y-3">
-            {activeEngagements.length === 0 ? (
+            {activeCampaigns.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-10 text-center">
                 <Sparkles className="mx-auto h-6 w-6 text-[#E8872A]" />
                 <p className="mt-2 text-xs font-medium text-slate-600">
@@ -584,12 +565,12 @@ export function SourcingOverviewDashboard({
                 )}
               </div>
             ) : (
-              activeEngagements.map((eng) => {
-                const linkedJob = eng.jobId ? jobById.get(eng.jobId) : undefined;
-                const linkedPkg = eng.packageId ? packageById.get(eng.packageId) : undefined;
-                const pkgEndsAt = linkedPkg?.endsAt ?? entitlements.assignment?.endsAt ?? null;
+              activeCampaigns.map((camp) => {
+                const linkedJob = camp.jobId ? jobById.get(camp.jobId) : undefined;
+                const linkedPkg = packageById.get(camp.huntPackageId);
+                const pkgEndsAt = camp.expiresAt ?? linkedPkg?.expiresAt ?? null;
                 const daysLeft = daysLeftOf(pkgEndsAt);
-                const stats = statsByEngagement.get(eng.id) ?? {
+                const stats = statsByCampaign.get(camp.id) ?? {
                   matched: 0,
                   highMatch: 0,
                   shortlisted: 0,
@@ -599,7 +580,7 @@ export function SourcingOverviewDashboard({
 
                 return (
                   <div
-                    key={eng.id}
+                    key={camp.id}
                     className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-sky-200 hover:shadow-xs"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -610,7 +591,7 @@ export function SourcingOverviewDashboard({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate text-[14.5px] font-bold text-[#072348]">
-                              {formatJobTitle(linkedJob?.title ?? eng.title)}
+                              {formatJobTitle(linkedJob?.title ?? camp.title)}
                             </p>
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -621,11 +602,11 @@ export function SourcingOverviewDashboard({
                             {linkedJob?.code ? (
                               <span className="font-mono text-slate-600">{linkedJob.code} · </span>
                             ) : null}
-                            {linkedPkg?.planName ?? entitlements.planName ?? 'Gói Săn nhân sự'}
-                            {linkedPkg?.code ? (
+                            {camp.packageName}
+                            {camp.packageCode ? (
                               <>
                                 {' · '}
-                                <span className="font-mono text-slate-500">{linkedPkg.code}</span>
+                                <span className="font-mono text-slate-500">{camp.packageCode}</span>
                               </>
                             ) : null}
                           </p>
@@ -680,19 +661,15 @@ export function SourcingOverviewDashboard({
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Link
-                        href={`/recruiter/sourcing/${eng.id}`}
+                        href={`/recruiter/sourcing/${camp.id}`}
                         className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-3.5 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-[#0d3b80]"
                       >
                         Quản lý chiến dịch
                       </Link>
                       <button
                         type="button"
-                        disabled={
-                          !eng.jobId ||
-                          (entitlements.revisionsRemaining !== null &&
-                            entitlements.revisionsRemaining <= 0)
-                        }
-                        onClick={() => onOpenRevision(eng.id)}
+                        disabled={!camp.jobId}
+                        onClick={() => onOpenRevision(camp.id)}
                         className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-[#072348] transition hover:border-sky-300 hover:bg-sky-50/40 disabled:opacity-45"
                       >
                         <SlidersHorizontal className="h-3.5 w-3.5" />

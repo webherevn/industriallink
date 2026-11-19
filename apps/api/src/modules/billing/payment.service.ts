@@ -645,6 +645,17 @@ export class PaymentService {
       });
     }
 
+    // Gói Săn multi-active (1-1 với chiến dịch): mỗi đơn gói Săn đã trả = 1 gói UNUSED.
+    // Gói chỉ chuyển ACTIVE (kèm cấp Credit vào ví chung) khi NTD tạo chiến dịch.
+    if (kind === 'sourcing' && planCode) {
+      await this.createHuntPackageForOrder(fresh).catch((err) => {
+        this.logger.error(
+          `Không tạo được gói Săn cho đơn ${fresh.id}: ${String(err)}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+      });
+    }
+
     const paid = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.billingOrder.update({
         where: { id: order.id },
@@ -823,6 +834,43 @@ export class PaymentService {
       creditQuota: plan?.creditQuota ?? null,
       durationDays: plan?.durationDays ?? null,
       priceVnd: order.priceVndSnapshot,
+      paidAt: order.paidAt ?? new Date(),
+    });
+  }
+
+  /**
+   * Tạo 1 gói Săn UNUSED cho đơn gói Săn đã trả (1 gói ↔ 1 chiến dịch).
+   *
+   * Idempotent theo `orderId`: bấm thanh toán lại nhiều lần chỉ có 1 gói.
+   */
+  private async createHuntPackageForOrder(order: {
+    id: string;
+    tenantId: string;
+    companyId: string;
+    planCode: string | null;
+    planName: string | null;
+    paidAt: Date | null;
+  }): Promise<void> {
+    const existing = await this.prisma.billingHuntPackage.findFirst({
+      where: { orderId: order.id },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const plan = order.planCode
+      ? await this.prisma.billingSourcingPlan.findFirst({
+          where: { code: order.planCode },
+        })
+      : null;
+    if (!plan) return;
+
+    await this.sourcing.createPackageForOrder({
+      orderId: order.id,
+      companyId: order.companyId,
+      planId: plan.id,
+      planCode: plan.code,
+      planName: plan.name,
+      durationDays: plan.durationDays ?? null,
       paidAt: order.paidAt ?? new Date(),
     });
   }

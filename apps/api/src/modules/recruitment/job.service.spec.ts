@@ -279,6 +279,7 @@ describe('JobService', () => {
         job: { findFirst: jest.fn().mockResolvedValue(baseJobRow) },
         candidate: { findUnique: jest.fn().mockResolvedValue({ id: 'can-1' }) },
         application: { findUnique: jest.fn().mockResolvedValue({ id: 'app-1' }) },
+        huntCampaign: { findFirst: jest.fn().mockResolvedValue(null) },
       };
       const service = buildService(prisma);
 

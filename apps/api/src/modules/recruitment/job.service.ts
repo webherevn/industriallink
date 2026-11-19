@@ -663,7 +663,7 @@ export class JobService {
     const id = owned.id;
     // Sửa tin đang công khai → gỡ khỏi public và kiểm duyệt lại nội dung mới.
     const wasPublished = owned.status === JobStatus.Published;
-    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+    const sourcingEngagement = await this.prisma.huntCampaign.findFirst({
       where: { jobId: id, companyId: owned.companyId, status: { not: 'closed' } },
       select: { id: true },
     });
@@ -767,7 +767,7 @@ export class JobService {
     correlationId: string,
   ): Promise<JobView> {
     const job = await this.requireOwnedJob(user, jobId);
-    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+    const sourcingEngagement = await this.prisma.huntCampaign.findFirst({
       where: { jobId: job.id, companyId: job.companyId, status: { not: 'closed' } },
       select: { id: true },
     });
@@ -834,7 +834,7 @@ export class JobService {
     correlationId: string,
   ): Promise<{ message: string }> {
     const jobForSourcingCheck = await this.requireOwnedJob(user, jobId);
-    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+    const sourcingEngagement = await this.prisma.huntCampaign.findFirst({
       where: {
         jobId: jobForSourcingCheck.id,
         companyId: jobForSourcingCheck.companyId,
@@ -916,7 +916,7 @@ export class JobService {
     await backfillMissingCompanySlugs(this.prisma, jobs.map((j) => j.company));
     const [recruitment, activeSourcingRows] = await Promise.all([
       this.recruitmentByJob(jobs.map((job) => job.id)),
-      this.prisma.billingSourcingEngagement.findMany({
+      this.prisma.huntCampaign.findMany({
         where: { companyId: company.companyId, jobId: { not: null }, status: { not: 'closed' } },
         select: { jobId: true },
       }),
@@ -1158,7 +1158,7 @@ export class JobService {
     const job = await this.findJobByRef(ref);
     const withSlug = await this.ensureJobSlug(job);
     const view = this.toView(withSlug);
-    const sourcingEngagement = await this.prisma.billingSourcingEngagement.findFirst({
+    const sourcingEngagement = await this.prisma.huntCampaign.findFirst({
       where: { jobId: job.id, companyId: job.companyId, status: { not: 'closed' } },
       select: { id: true },
     });

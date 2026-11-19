@@ -566,6 +566,7 @@ export class CandidateService {
     candidateId: string,
     source?: string,
     matchScore?: string,
+    campaignId?: string,
   ): Promise<RecruiterCandidateView> {
     const candidate = await this.prisma.candidate.findFirst({
       where: {
@@ -649,6 +650,7 @@ export class CandidateService {
       applied,
       fromSourcing: source === 'sourcing',
       matchScore: resolvedMatchScore != null ? String(resolvedMatchScore) : matchScore,
+      campaignId: campaignId ?? null,
     });
 
     return {
@@ -1850,6 +1852,8 @@ export class CandidateService {
     applied: boolean;
     fromSourcing: boolean;
     matchScore?: string;
+    /** Chiến dịch Săn đang mở hồ sơ — ghi vào CreditTransaction để lọc lịch sử theo chiến dịch. */
+    campaignId?: string | null;
   }): Promise<void> {
     const matchPct = this.normalizeMatchScorePct(input.matchScore);
     const isHighMatch = matchPct != null && matchPct >= 80;
@@ -1870,6 +1874,7 @@ export class CandidateService {
         companyId: input.companyId,
         action,
         candidateId: input.candidateId,
+        campaignId: input.campaignId ?? undefined,
         actorUserId: input.actorUserId,
         actorEmail: input.actorEmail,
         note,
@@ -1896,30 +1901,49 @@ export class CandidateService {
     const cover = await this.sourcing.coverIncludedOpen({
       companyId: input.companyId,
       candidateId: input.candidateId,
+      campaignId: input.campaignId ?? null,
       actorUserId: input.actorUserId,
       cost: openCost > 0 ? openCost : 1,
     });
-    if (cover === 'included' || cover === 'repeat') {
+    if (cover === 'repeat') {
       await this.credit.rememberCoveredProfileView({
         tenantId: input.tenantId,
         companyId: input.companyId,
         candidateId: input.candidateId,
+        campaignId: input.campaignId ?? undefined,
         actorUserId: input.actorUserId,
         actorEmail: input.actorEmail,
       });
       return;
     }
 
+    // Trừ Credit từ Ví dùng chung (FIFO theo lô sắp hết hạn trước).
     await this.chargeCredit({
       tenantId: input.tenantId,
       companyId: input.companyId,
       action,
       candidateId: input.candidateId,
+      campaignId: input.campaignId ?? undefined,
       actorUserId: input.actorUserId,
       actorEmail: input.actorEmail,
       note,
       oncePerCandidate: true,
     });
+
+    // Ghi vào ledger của chiến dịch (sau khi đã trừ Credit thành công).
+    await this.sourcing
+      .recordProfileOpen({
+        companyId: input.companyId,
+        candidateId: input.candidateId,
+        campaignId: input.campaignId ?? null,
+        actorUserId: input.actorUserId,
+        cost: openCost > 0 ? openCost : 1,
+      })
+      .catch((err) => {
+        this.logger.warn(
+          `Không ghi được lượt mở hồ sơ cho chiến dịch: ${String(err)}`,
+        );
+      });
   }
 
   private async chargeCredit(input: {
@@ -1927,6 +1951,7 @@ export class CandidateService {
     companyId: string;
     action: CreditAction;
     candidateId: string;
+    campaignId?: string;
     actorUserId: string;
     actorEmail?: string;
     note?: string;

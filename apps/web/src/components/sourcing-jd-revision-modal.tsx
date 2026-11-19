@@ -310,7 +310,7 @@ export function SourcingJdRevisionModal({
           : 'Cập nhật mô tả & tối ưu trọng số tiêu chí JD';
       const updatedWs = await consumeRecruiterSourcing({
         kind: 'revision',
-        engagementId,
+        campaignId: engagementId,
         jobId,
         note: `Điều chỉnh Tin Săn «${isSales ? salesForm.title : techForm.title}»: ${changeSummary}`,
       });

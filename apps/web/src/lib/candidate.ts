@@ -165,10 +165,12 @@ export async function getCandidateById(
   candidateId: string,
   source?: 'sourcing',
   matchScore?: string | null,
+  campaignId?: string | null,
 ): Promise<RecruiterCandidateView> {
   const params = new URLSearchParams();
   if (source === 'sourcing') params.set('source', 'sourcing');
   if (matchScore != null && matchScore.trim() !== '') params.set('matchScore', matchScore.trim());
+  if (campaignId != null && campaignId.trim() !== '') params.set('campaignId', campaignId.trim());
   const qs = params.toString();
   const query = qs ? `?${qs}` : '';
   return normalizeCandidate(

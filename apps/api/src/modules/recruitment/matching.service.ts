@@ -251,7 +251,7 @@ export class MatchingService {
     if (!hasSourcingPlan || ranked.length === 0) return ranked;
     const assignmentId = entitlements.assignment?.id;
     if (!assignmentId) return ranked;
-    const opened = await this.prisma.billingSourcingUsage.findMany({
+    const opened = await this.prisma.huntCampaignActivity.findMany({
       where: { companyId, assignmentId, kind: 'profile_open' },
       select: { note: true },
     });
@@ -310,7 +310,7 @@ export class MatchingService {
         message: 'Bạn chưa có gói Săn nhân sự đang dùng.',
       });
     }
-    const linked = await this.prisma.billingSourcingEngagement.findFirst({
+    const linked = await this.prisma.huntCampaign.findFirst({
       where: { companyId, jobId, assignmentId: entitlements.assignment.id },
       select: { id: true, companyId: true, assignmentId: true, jobId: true, title: true },
     });
@@ -323,11 +323,11 @@ export class MatchingService {
     const ranked = await this.rankJobCandidates(user, jobId);
 
     // Nếu vị trí Săn vừa tạo chưa có đợt quét nào thì ghi nhận ngay Đợt tìm kiếm #1
-    const existingScans = await this.prisma.billingSourcingUsage.count({
+    const existingScans = await this.prisma.huntCampaignActivity.count({
       where: {
         companyId,
         assignmentId: entitlements.assignment.id,
-        engagementId: linked.id,
+        campaignId: linked.id,
         kind: 'auto_scan',
       },
     });
@@ -339,7 +339,7 @@ export class MatchingService {
     }
 
     if (ranked.length === 0) return ranked;
-    const opened = await this.prisma.billingSourcingUsage.findMany({
+    const opened = await this.prisma.huntCampaignActivity.findMany({
       where: {
         companyId,
         assignmentId: entitlements.assignment.id,
@@ -365,10 +365,11 @@ export class MatchingService {
   @Cron('0 0 8,10,12,14,16,18 * * 1-6', { timeZone: 'Asia/Ho_Chi_Minh' })
   async runScheduledSourcingScans(): Promise<void> {
     const now = new Date();
-    const activeEngagements = await this.prisma.billingSourcingEngagement.findMany({
+    const activeEngagements = await this.prisma.huntCampaign.findMany({
       where: {
         status: { not: 'closed' },
         jobId: { not: null },
+        package: { status: 'ACTIVE' },
         assignment: {
           isActive: true,
           OR: [{ endsAt: null }, { endsAt: { gte: now } }],
@@ -421,11 +422,11 @@ export class MatchingService {
       .filter((r) => !r.applied)
       .sort((a, b) => b.match.score - a.match.score);
 
-    const prevUsageRows = await this.prisma.billingSourcingUsage.findMany({
+    const prevUsageRows = await this.prisma.huntCampaignActivity.findMany({
       where: {
         companyId: engagement.companyId,
         assignmentId: engagement.assignmentId,
-        engagementId: engagement.id,
+        campaignId: engagement.id,
         kind: 'auto_scan',
       },
       orderBy: { createdAt: 'asc' },
@@ -500,11 +501,11 @@ export class MatchingService {
       candidates,
     };
 
-    await this.prisma.billingSourcingUsage.create({
+    await this.prisma.huntCampaignActivity.create({
       data: {
         companyId: engagement.companyId,
         assignmentId: engagement.assignmentId,
-        engagementId: engagement.id,
+        campaignId: engagement.id,
         jobId: engagement.jobId,
         kind: 'auto_scan',
         note: JSON.stringify(payload),

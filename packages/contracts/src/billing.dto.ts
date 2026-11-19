@@ -252,8 +252,9 @@ export interface AdminAssignCompanySourcingPlanRequest {
 
 export interface RecruiterConsumeSourcingRequest {
   kind: SourcingQuotaKind;
-  /** Bắt buộc với search_round / shortlist / revision. Mở vị trí có thể tạo engagement mới. */
-  engagementId?: string;
+  /** Bắt buộc với search_round / shortlist / revision. Mở vị trí có thể tạo chiến dịch mới. */
+  campaignId?: string;
+  /** Gói Săn sẽ được kích hoạt (mở vị trí Săn). 1 gói → tối đa 1 chiến dịch. */
   packageId?: string;
   jobId?: string;
   title?: string;
