@@ -52,11 +52,12 @@ pnpm install
 cp .env.example .env && nano .env   # điền DATABASE_URL, REDIS_URL, OPENAI_API_KEY, ...
 
 # Bật Prisma
-pnpm db:push
-pnpm db:seed
+pnpm --filter @industriallink/api db:generate
+pnpm --filter @industriallink/api db:push
+pnpm --filter @industriallink/api db:seed
 
-# Build cả hai
-pnpm --filter web build
+# Build cả hai (script build tự build contracts/vn-admin trước)
+pnpm --filter @industriallink/web build
 pnpm --filter @industriallink/api build
 ```
 
@@ -139,10 +140,18 @@ pnpm install
 
 | Thay đổi ở đâu | Lệnh build |
 | --- | --- |
-| `apps/web/**` | `pnpm --filter web build` |
+| `apps/web/**` | `pnpm --filter @industriallink/web build` |
 | `apps/api/**` | `pnpm --filter @industriallink/api build` |
-| `prisma/**` (schema thay đổi) | `pnpm --filter @industriallink/api db:generate && pnpm db:push` |
-| Cả 2 | `pnpm --filter web build && pnpm --filter @industriallink/api build` |
+| `packages/contracts/**` | `pnpm --filter @industriallink/contracts build` |
+| `prisma/**` (schema thay đổi) | `pnpm --filter @industriallink/api db:generate && pnpm --filter @industriallink/api db:push` |
+| Cả 2 | `pnpm --filter @industriallink/web build && pnpm --filter @industriallink/api build` |
+
+> **Quan trọng — không dùng `pnpm --filter web build`.** Tên package là `@industriallink/web`.
+>
+> Script `build` của `apps/web` và `apps/api` **đã tự build `@industriallink/contracts` và
+> `@industriallink/vn-admin` trước** (vì `packages/*/dist` bị `.gitignore`, nếu không build
+> contracts trước thì TypeScript sẽ báo sai kiểu contract cũ, ví dụ
+> `Property 'jobPackageName' does not exist on type 'JobListItem'`).
 
 ### Bước 5 — Restart qua PM2 (không downtime nếu dùng `reload`, ở đây dùng `restart` cho chắc)
 
@@ -188,15 +197,21 @@ tail -30 /www/wwwlogs/inlink.vn.error.log
 # === Deploy nhanh sau khi push code ===
 ssh root@<VPS_IP>
 cd /www/wwwroot/inlink && \
-  git pull origin main && \
-  pnpm install --frozen-lockfile && \
-  pnpm --filter web build && \
-  pnpm --filter @industriallink/api build && \
-  pm2 restart all && \
-  sleep 3 && \
-  curl -sI -m 10 https://inlink.vn/ | head -1 && \
-  curl -sI -m 10 http://127.0.0.1:3001/api/v1/cms/site-code | head -1
+git fetch origin && git reset --hard origin/main && \
+pnpm install --frozen-lockfile && \
+pnpm --filter @industriallink/api db:generate && \
+pnpm --filter @industriallink/api db:push && \
+pnpm --filter @industriallink/web build && \
+pnpm --filter @industriallink/api build && \
+pm2 restart all && \
+sleep 3 && \
+curl -sI -m 10 https://inlink.vn/ | head -1 && \
+curl -sI -m 10 http://127.0.0.1:3001/api/v1/cms/site-code | head -1
 ```
+
+> `pnpm --filter @industriallink/web build` đã bao gồm bước build `@industriallink/contracts`
+> và `@industriallink/vn-admin` (script `build` của `apps/web` gọi chúng trước). Không cần
+> build contracts riêng.
 
 Nếu 1 dòng trên trả về `HTTP/2 200` và dòng dưới `HTTP/1.1 200 OK` → deploy xong.
 
@@ -213,15 +228,16 @@ Nếu 1 dòng trên trả về `HTTP/2 200` và dòng dưới `HTTP/1.1 200 OK` 
 | Web chạy nhưng lỗi DB | Sai `DATABASE_URL` / Prisma chưa generate | `pnpm --filter @industriallink/api db:generate` |
 | Sau reboot VPS mà site chết | PM2 chưa được `startup` | Chạy lại lệnh `pm2 startup` sinh ra lúc cài |
 | Build API fail | TS error mới | `pnpm --filter @industriallink/api typecheck` xem chi tiết |
+| Build web fail vì thiếu field của contracts (vd `Property 'jobPackageName' does not exist on type 'JobListItem'`) | `packages/contracts/dist` bị gitignore → VPS còn bản cũ | `pnpm --filter @industriallink/contracts build && pnpm --filter @industriallink/web build` (script `build` của web đã tự làm bước này) |
 
 Reset toàn bộ nếu kẹt:
 
 ```bash
 pm2 delete all
 cd /www/wwwroot/inlink
-git pull origin main
-pnpm install
-pnpm --filter web build
+git fetch origin && git reset --hard origin/main
+pnpm install --frozen-lockfile
+pnpm --filter @industriallink/web build
 pnpm --filter @industriallink/api build
 pm2 start ecosystem.config.cjs
 pm2 save
