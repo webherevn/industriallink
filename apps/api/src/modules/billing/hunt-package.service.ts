@@ -38,6 +38,12 @@ const PACKAGE_QUOTA: Record<
 /** Thời hạn gói (ngày) tính từ lúc kích hoạt. */
 export const HUNT_PACKAGE_DURATION_DAYS = 30;
 
+/**
+ * (B6) Số ngày được phép GIỮ gói Săn ở trạng thái chờ kích hoạt (UNUSED).
+ * Quá hạn → gói chuyển EXPIRED, NTD không mất tiền âm thầm.
+ */
+export const HUNT_PACKAGE_ACTIVATION_DAYS = 30;
+
 function addUtcDays(from: Date, days: number): Date {
   const end = new Date(from);
   end.setUTCDate(end.getUTCDate() + days);
@@ -99,6 +105,8 @@ export class HuntPackageService {
         status: 'UNUSED',
         durationDays,
         purchasedAt: now,
+        // (B6) Hạn chót kích hoạt = ngày mua + 30 ngày (gói chờ kích hoạt không sống vô hạn).
+        activationDeadlineAt: addUtcDays(now, HUNT_PACKAGE_ACTIVATION_DAYS),
         creditsIncluded: quota.creditsIncluded,
         creditsGranted: false,
         totalCriteriaEdits: quota.totalCriteriaEdits,
@@ -196,17 +204,31 @@ export class HuntPackageService {
       purchasedAt: row.purchasedAt.toISOString(),
       activatedAt: row.activatedAt?.toISOString() ?? null,
       expiresAt: row.expiresAt?.toISOString() ?? null,
+      activationDeadlineAt: row.activationDeadlineAt?.toISOString() ?? null,
       campaignId: row.campaign?.id ?? null,
       campaignTitle: row.campaign?.title ?? null,
     };
   }
 
-  /** Chuyển gói hết hạn sang EXPIRED (không xoá — chiến dịch cần tra cứu lịch sử). */
+  /**
+   * Đồng bộ trạng thái gói hết hạn:
+   * - Gói `UNUSED` quá hạn kích hoạt (`activationDeadlineAt`) → `EXPIRED` (B6).
+   * - Gói `ACTIVE` quá hạn sử dụng (`expiresAt`) → `EXPIRED` (chiến dịch vẫn còn để tra cứu lịch sử).
+   */
   private async syncExpiredPackages(companyId: string): Promise<void> {
     const now = new Date();
     await this.prisma.billingHuntPackage.updateMany({
       where: { companyId, status: 'ACTIVE', expiresAt: { not: null, lt: now } },
       data: { status: 'EXPIRED' },
+    });
+    // (B6) Gói chờ kích hoạt quá hạn → hết hiệu lực.
+    await this.prisma.billingHuntPackage.updateMany({
+      where: {
+        companyId,
+        status: 'UNUSED',
+        activationDeadlineAt: { not: null, lt: now },
+      },
+      data: { status: 'EXPIRED', note: 'Gói Săn chờ kích hoạt đã quá hạn 30 ngày' },
     });
   }
 

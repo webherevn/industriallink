@@ -197,10 +197,12 @@ export class SourcingService {
     const entitlements = await this.getEntitlements(companyId);
     const assignmentId = entitlements.assignment?.id;
     if (!assignmentId) {
+      // (B6) Chưa có assignment (gói Săn chung) → vẫn PHẢI hiện gói Săn chờ kích hoạt
+      // (UNUSED) để NTD không mất tiền âm thầm.
       return {
         entitlements,
         campaigns: [],
-        packages: [],
+        packages: await this.huntPackages.listForCompany(companyId),
         campaignResources: [],
         usages: [],
         scanRounds: [],
@@ -531,6 +533,16 @@ export class SourcingService {
         });
         await tx.huntCampaign.deleteMany({
           where: { companyId: input.companyId, assignmentId: assigned.id },
+        });
+        // (B7) Gói Săn ACTIVE mồ côi (chiến dịch vừa bị xoá) → chuyển EXPIRED.
+        // Credit đã cấp vẫn nằm trong Ví dùng chung (không thu hồi) — nhưng gói
+        // không được để ở ACTIVE mà không có chiến dịch để dùng.
+        await tx.billingHuntPackage.updateMany({
+          where: { companyId: input.companyId, status: 'ACTIVE' },
+          data: {
+            status: 'EXPIRED',
+            note: 'Gói Săn bị vô hiệu hoá khi SuperAdmin gán lại gói Săn cho công ty',
+          },
         });
       }
       return assigned;

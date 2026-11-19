@@ -1589,6 +1589,9 @@ model BillingHuntPackage {
   purchasedAt  DateTime  @default(now()) @map("purchased_at")
   activatedAt  DateTime? @map("activated_at")
   expiresAt    DateTime? @map("expires_at")
+  /// Hạn CUỐI để kích hoạt gói (chỉ áp dụng khi status = UNUSED).
+  /// Quá hạn mà chưa kích hoạt → gói chuyển EXPIRED (B6) — NTD không mất tiền âm thầm.
+  activationDeadlineAt DateTime? @map("activation_deadline_at")
 
   /// Credit đi kèm gói. Cộng vào Ví Credit dùng chung đúng 1 lần (chống cộng trùng).
   creditsIncluded Int    @default(0) @map("credits_included")

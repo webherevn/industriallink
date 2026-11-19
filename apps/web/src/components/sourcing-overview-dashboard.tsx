@@ -389,6 +389,8 @@ export function SourcingOverviewDashboard({
                 const isActive = pkg.status === 'ACTIVE';
                 const isExpired = pkg.status === 'EXPIRED';
                 const daysLeft = daysLeftOf(pkg.expiresAt);
+                // (B6) Hạn chót kích hoạt cho gói chờ kích hoạt (UNUSED).
+                const activationDaysLeft = daysLeftOf(pkg.activationDeadlineAt);
                 // 1 gói ↔ tối đa 1 chiến dịch.
                 const pkgCampaigns = campaignsByPackage.get(pkg.id) ?? [];
 
@@ -491,6 +493,16 @@ export function SourcingOverviewDashboard({
                         {isUnused ? (
                           <>
                             Thời hạn: <strong>{pkg.durationDays} ngày</strong> (từ khi kích hoạt)
+                            {pkg.activationDeadlineAt ? (
+                              <>
+                                {' · '}
+                                kích hoạt trước{' '}
+                                <strong>{fmtDateShort(pkg.activationDeadlineAt)}</strong>
+                                {activationDaysLeft != null ? (
+                                  <> (còn {activationDaysLeft} ngày)</>
+                                ) : null}
+                              </>
+                            ) : null}
                           </>
                         ) : (
                           <>

@@ -457,6 +457,8 @@ export interface RecruiterHuntPackageView {
   purchasedAt: string;
   activatedAt: string | null;
   expiresAt: string | null;
+  /** Hạn chót kích hoạt gói (chỉ có khi gói còn ở trạng thái chờ kích hoạt). */
+  activationDeadlineAt: string | null;
   /** Chiến dịch đang gắn với gói này (1-1). */
   campaignId: string | null;
   campaignTitle: string | null;

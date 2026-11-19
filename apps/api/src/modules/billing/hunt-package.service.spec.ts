@@ -204,4 +204,53 @@ describe('HuntPackageService', () => {
       expect(tx.huntCampaign.create).not.toHaveBeenCalled();
     });
   });
+
+  describe('createForOrder — hạn chót kích hoạt (B6)', () => {
+    it('đặt activationDeadlineAt = purchasedAt + 30 ngày cho gói UNUSED', async () => {
+      const prisma = {
+        billingHuntPackage: {
+          create: jest.fn().mockResolvedValue({ id: 'pkg-1' }),
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+      };
+      const svc = new HuntPackageService(prisma as never);
+      const paidAt = new Date('2026-07-01T00:00:00.000Z');
+
+      await svc.createForOrder({
+        orderId: 'ord-1',
+        companyId: 'co-1',
+        planId: 'plan-1',
+        planCode: 'SAN_TIEU_CHUAN',
+        planName: 'Gói Săn Tiêu Chuẩn',
+        durationDays: null,
+        paidAt,
+      });
+
+      const arg = prisma.billingHuntPackage.create.mock.calls[0][0].data;
+      expect(arg.status).toBe('UNUSED');
+      expect(arg.activationDeadlineAt).toBeInstanceOf(Date);
+      const diffDays =
+        (arg.activationDeadlineAt.getTime() - paidAt.getTime()) / 86_400_000;
+      expect(diffDays).toBe(30);
+    });
+  });
+
+  describe('listForCompany — gói UNUSED quá hạn (B6)', () => {
+    it('chuyển gói UNUSED quá hạn kích hoạt sang EXPIRED', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      const prisma = {
+        billingHuntPackage: {
+          updateMany,
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+      const svc = new HuntPackageService(prisma as never);
+
+      await svc.listForCompany('co-1');
+
+      const calls = updateMany.mock.calls.map((c) => c[0].where);
+      expect(calls.some((w) => w.status === 'UNUSED')).toBe(true);
+      expect(calls.some((w) => w.status === 'ACTIVE')).toBe(true);
+    });
+  });
 });
