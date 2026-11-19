@@ -577,9 +577,29 @@ export interface RecruiterHuntCampaignResourceView {
   scanRoundCount: number;
   criteriaEditsRemaining: number;
   reportsRemaining: number;
+  /** Tổng lượt điều chỉnh tiêu chí của gói (campaign-level). */
+  totalCriteriaEdits: number;
+  /** Số lượt điều chỉnh tiêu chí đã dùng của gói (campaign-level). */
+  usedCriteriaEdits: number;
+  /** Tổng lượt báo cáo của gói (campaign-level). */
+  totalReports: number;
+  /** Số lượt báo cáo đã dùng của gói (campaign-level). */
+  usedReports: number;
   handoversRemaining: number;
   /** false = gói không có tính năng bàn giao Inlink (chỉ gói Chuyên sâu). */
   handoversApplicable: boolean;
+  /**
+   * true khi gói của CHIẾN DỊCH này là gói Chuyên sâu (packageType === 'DEEP').
+   * Mọi tính năng "hỗ trợ chuyên sâu" trên trang chi tiết phải bám cờ này,
+   * KHÔNG đọc từ cấp Company/User.
+   */
+  isDeepPackage: boolean;
+  /** true khi chiến dịch này được phép bàn giao ứng viên (gói DEEP + còn lượt). */
+  canHandover: boolean;
+  /** Tổng lượt bàn giao của gói (0 với gói không chuyên sâu). */
+  totalHandovers: number;
+  /** Số lượt bàn giao đã dùng của gói. */
+  usedHandovers: number;
   /** Số dư Credit dùng chung của doanh nghiệp (khớp 100% với Header). */
   creditBalance: number;
   /** Credit đã tiêu thụ riêng cho chiến dịch này. */

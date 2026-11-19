@@ -87,7 +87,7 @@ export class HuntPackageService {
     const now = input.paidAt ?? new Date();
     const durationDays =
       input.durationDays && input.durationDays > 0 ? input.durationDays : HUNT_PACKAGE_DURATION_DAYS;
-    const code = await this.nextCode();
+    const code = await this.nextUniqueCode();
     return this.prisma.billingHuntPackage.create({
       data: {
         code,
@@ -117,6 +117,30 @@ export class HuntPackageService {
     const m = latest?.code.match(/TS-(\d+)/);
     const nextNum = m ? Math.max(101, Number(m[1]) + 1) : 101;
     return `TS-${String(nextNum).padStart(6, '0')}`;
+  }
+
+  /**
+   * Sinh mã gói kế tiếp, tự thử lại khi trùng (2 đơn mua song sẽ có thể trùng số).
+   * Mã gói là duy nhất toàn hệ thống → mỗi lần mua = 1 bản ghi độc lập.
+   */
+  private async nextUniqueCode(): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const code = await this.nextCode();
+      const exists = await this.prisma.billingHuntPackage.findFirst({
+        where: { code },
+        select: { id: true },
+      });
+      if (!exists) return code;
+      // Trùng → dồn số lên 1 rồi thử lại.
+      const n = Number(code.slice(3)) + 1;
+      const bumped = `TS-${String(n).padStart(6, '0')}`;
+      const bumpedExists = await this.prisma.billingHuntPackage.findFirst({
+        where: { code: bumped },
+        select: { id: true },
+      });
+      if (!bumpedExists) return bumped;
+    }
+    throw new BadRequestException('Không sinh được mã gói Săn, vui lòng thử lại.');
   }
 
   /** Sinh mã chiến dịch kế tiếp: HD-000001… */

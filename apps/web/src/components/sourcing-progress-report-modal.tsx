@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { CheckCircle2, Download, FileBarChart2, Loader2, Printer, Sparkles, TrendingUp, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ExperienceBand, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterSourcingEntitlements, type RecruiterSourcingReportView, type RecruiterSourcingScanRoundView, type RecruiterSourcingWorkspace } from '@industriallink/contracts';
+import { ExperienceBand, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterHuntCampaignResourceView, type RecruiterSourcingEntitlements, type RecruiterSourcingReportView, type RecruiterSourcingScanRoundView, type RecruiterSourcingWorkspace } from '@industriallink/contracts';
 import { Button } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
@@ -37,9 +37,11 @@ export function SourcingProgressReportModal({
   open,
   onClose,
   campaignId,
-  campaignTitle,
+    campaignTitle,
   jobId,
   entitlements,
+  /** Tài nguyên RIÊNG của chiến dịch (campaign-level) — nguồn sự thật cho hạn mức báo cáo. */
+  resource,
   allResults,
   scanRounds,
   shortlistedIds,
@@ -47,11 +49,13 @@ export function SourcingProgressReportModal({
   onWorkspaceUpdated,
 }: {
   open: boolean;
-  onClose: () => void;
+    onClose: () => void;
   campaignId: string | null;
   campaignTitle: string;
   jobId: string | null;
   entitlements: RecruiterSourcingEntitlements;
+  /** Tài nguyên riêng của chiến dịch (đọc từ đúng 1 BillingHuntPackage). */
+  resource?: RecruiterHuntCampaignResourceView | null;
   allResults: CandidateMatchView[];
   scanRounds: RecruiterSourcingScanRoundView[];
   shortlistedIds: string[];
@@ -69,25 +73,28 @@ export function SourcingProgressReportModal({
 
   const analytics = useMemo(() => {
     const normPct = (s: number) => Math.max(0, Math.min(100, s));
-    const totalMatched = allResults.length;
-    const highMatch = allResults.filter((r) => normPct(r.match.score) >= 80);
-    const mediumMatch = allResults.filter((r) => {
+    // "Tổng phù hợp" = ứng viên TIỀM NĂNG AI (KHÔNG tính ứng viên tự ứng tuyển)
+    // → khớp đúng với KPI "Tổng phù hợp" trên trang chi tiết chiến dịch.
+    const potentialRows = allResults.filter((r) => !r.applied);
+    const totalMatched = potentialRows.length;
+    const highMatch = potentialRows.filter((r) => normPct(r.match.score) >= 80);
+    const mediumMatch = potentialRows.filter((r) => {
       const pct = normPct(r.match.score);
       return pct >= 60 && pct < 80;
     });
-    const lowMatch = allResults.filter((r) => normPct(r.match.score) < 60);
+    const lowMatch = potentialRows.filter((r) => normPct(r.match.score) < 60);
     const opened = allResults.filter((r) => r.viewed || r.applied);
     const applied = allResults.filter((r) => r.applied);
     const unviewedHigh = highMatch.filter((r) => !r.viewed && !r.applied);
 
-    const scores = allResults.map((r) => normPct(r.match.score));
+    const scores = potentialRows.map((r) => normPct(r.match.score));
     const avgScore =
       scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : 0;
     const maxScore = scores.length > 0 ? Math.round(Math.max(...scores) * 10) / 10 : 0;
 
     const missingFreq = new Map<string, number>();
     const matchedFreq = new Map<string, number>();
-    for (const r of allResults) {
+    for (const r of potentialRows) {
       for (const m of r.match.missingSkills ?? []) {
         const clean = m.trim();
         if (clean) missingFreq.set(clean, (missingFreq.get(clean) ?? 0) + 1);
@@ -718,7 +725,19 @@ export function SourcingProgressReportModal({
 
   const canSaveMore =
     Boolean(campaignId) &&
-    (entitlements.searchRoundsRemaining === null || entitlements.searchRoundsRemaining > 0);
+    (resource
+      ? resource.reportsRemaining > 0
+      : entitlements.searchRoundsRemaining === null || entitlements.searchRoundsRemaining > 0);
+  /** Hạn mức báo cáo còn lại của GÓI CHIẾN DỊCH (campaign-level). */
+  const reportsRemaining = resource
+    ? resource.reportsRemaining
+    : (entitlements.searchRoundsRemaining ?? 0);
+  const totalReports = resource
+    ? resource.totalReports
+    : (entitlements.searchRoundQuota ?? 0);
+  const usedReports = resource
+    ? resource.usedReports
+    : (entitlements.searchRoundsUsed ?? 0);
 
   const funnelSteps = [
     {
@@ -782,7 +801,7 @@ export function SourcingProgressReportModal({
               {jobSummary.titleText}
             </h3>
             <p className="mt-0.5 text-xs text-white/75">
-              Gói {entitlements.planName} · Đã chốt {entitlements.searchRoundsUsed}/{entitlements.searchRoundQuota ?? '∞'} kỳ báo cáo · Cập nhật thời gian thực
+              Gói {entitlements.planName} · Đã chốt {usedReports}/{totalReports || '∞'} kỳ báo cáo · Cập nhật thời gian thực
             </p>
           </div>
 
@@ -1109,7 +1128,7 @@ export function SourcingProgressReportModal({
                   ) : (
                     <FileBarChart2 className="h-4 w-4" />
                   )}
-                  Chốt & Lưu Báo cáo Kỳ #{savedReports.length + 1} (Còn {entitlements.searchRoundsRemaining ?? '∞'})
+                  Chốt & Lưu Báo cáo Kỳ #{savedReports.length + 1} (Còn {reportsRemaining || '∞'})
                 </Button>
               </div>
             </div>

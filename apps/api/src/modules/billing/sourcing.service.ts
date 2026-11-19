@@ -320,6 +320,11 @@ export class SourcingService {
       ? Math.max(0, Math.ceil((pkg.expiresAt.getTime() - Date.now()) / 86_400_000))
       : null;
 
+    // Cô lập quyền lợi 100% theo CHIẾN DỊCH: mọi cờ đều suy ra từ đúng 1
+    // `BillingHuntPackage` gắn qua `huntPackageId` — KHÔNG đọc cấp Company/User.
+    const isDeepPackage = pkg.packageType === 'DEEP';
+    const canHandover = isDeepPackage && pkg.totalHandovers > 0;
+
     return {
       campaignId: campaign.id,
       packageId: pkg.id,
@@ -330,9 +335,17 @@ export class SourcingService {
       daysRemaining,
       scanRoundCount,
       criteriaEditsRemaining: Math.max(0, pkg.totalCriteriaEdits - pkg.usedCriteriaEdits),
+      totalCriteriaEdits: pkg.totalCriteriaEdits,
+      usedCriteriaEdits: pkg.usedCriteriaEdits,
       reportsRemaining: Math.max(0, pkg.totalReports - pkg.usedReports),
+      totalReports: pkg.totalReports,
+      usedReports: pkg.usedReports,
       handoversRemaining: Math.max(0, pkg.totalHandovers - pkg.usedHandovers),
       handoversApplicable: pkg.totalHandovers > 0,
+      isDeepPackage,
+      canHandover,
+      totalHandovers: pkg.totalHandovers,
+      usedHandovers: pkg.usedHandovers,
       creditBalance,
       creditConsumedByCampaign: Math.abs(Number(creditConsumed._sum.creditDelta ?? 0)),
     };
@@ -515,6 +528,12 @@ export class SourcingService {
   /**
    * Sau khi thanh toán gói Săn: tạo 1 bản ghi gói UNUSED độc lập (TS-xxxxxx).
    * Gói chỉ chuyển ACTIVE khi NTD tạo chiến dịch.
+   *
+   * ⚠ KHÔNG BAO GIỜ ghi đè cấu hình gói Săn chung của công ty:
+   * - Nếu công ty ĐÃ có gói Săn đang gán (`BillingCompanySourcingPlan`),
+   *   giữ nguyên `planId` / `startsAt` / `endsAt` / `activatedAt` / các bộ đếm đã dùng.
+   * - Mỗi lần mua = 1 `BillingHuntPackage` độc lập (INSERT thuần) → nhiều gói
+   *   (kể cả khác loại) chạy song song mà không đè lên nhau.
    */
   async activatePurchasedPlan(
     actor: AuthenticatedUser,
@@ -525,6 +544,24 @@ export class SourcingService {
       where: { code: planCode, isActive: true },
     });
     if (!plan) throw new NotFoundException('Không tìm thấy gói Săn hoặc gói đã tắt');
+
+    // Đã có gói Săn chạy sẵn → KHÔNG upsert/ghi đè bản ghi chung của công ty.
+    const existing = await this.prisma.billingCompanySourcingPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (existing?.isActive) {
+      await this.writeAudit(
+        actor,
+        'company_sourcing_plan',
+        companyId,
+        'purchase_add_package',
+        { planId: existing.planId, isActive: existing.isActive },
+        { purchasedPlanCode: plan.code, note: 'Gói Săn mới sẽ tạo 1 chiến dịch riêng' },
+      );
+      return this.mapAssignment(existing);
+    }
+
     const startsAt = new Date();
     return this.assignCompanyPlan(
       actor,
@@ -822,6 +859,34 @@ export class SourcingService {
                     note: `${openPrefix}:0`,
                     createdBy: actorId,
                   },
+                });
+              }
+              // Tự động đánh dấu Shortlist khi NTD bàn giao (Giao Inlink).
+              // Đảm bảo ứng viên bàn giao luôn nằm trong danh sách shortlist của CHÍNH chiến dịch này.
+              const shortlistPrefix = `shortlist:${candidateId}`;
+              const alreadyShortlisted = await tx.huntCampaignActivity.findFirst({
+                where: {
+                  assignmentId: assignment.id,
+                  campaignId: campaign.id,
+                  kind: 'shortlist',
+                  note: { startsWith: `${shortlistPrefix}:` },
+                },
+              });
+              if (!alreadyShortlisted) {
+                await tx.huntCampaignActivity.create({
+                  data: {
+                    companyId,
+                    assignmentId: assignment.id,
+                    campaignId: campaign.id,
+                    kind: 'shortlist',
+                    jobId: input.jobId && looksLikeUuid(input.jobId) ? input.jobId : null,
+                    note: `${shortlistPrefix}:outreach`,
+                    createdBy: actorId,
+                  },
+                });
+                await tx.billingCompanySourcingPlan.update({
+                  where: { id: assignment.id },
+                  data: { shortlistsUsed: { increment: 1 }, updatedBy: actorId },
                 });
               }
             }

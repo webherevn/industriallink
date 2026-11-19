@@ -5,7 +5,7 @@ import { clsx } from 'clsx';
 import { AlertCircle, Bookmark, BookmarkCheck, Briefcase, Calendar, CheckCircle2, ChevronDown, ExternalLink, Headphones, Loader2, Lock, Mail, MapPin, MessageCircle, Phone, Sparkles, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ConnectionStatus, InterviewType, SALES_MATCH_FIELD_LABEL, SOURCING_OUTREACH_STATUS_META, TECH_MATCH_FIELD_LABEL, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterSourcingEntitlements, type RecruiterSourcingOutreachItem, type RecruiterSourcingWorkspace, type SourcingOutreachStatus } from '@industriallink/contracts';
+import { ConnectionStatus, InterviewType, SALES_MATCH_FIELD_LABEL, SOURCING_OUTREACH_STATUS_META, TECH_MATCH_FIELD_LABEL, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterHuntCampaignResourceView, type RecruiterSourcingEntitlements, type RecruiterSourcingOutreachItem, type RecruiterSourcingWorkspace, type SourcingOutreachStatus } from '@industriallink/contracts';
 import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -33,6 +33,8 @@ export function SourcingCandidateDrawer({
   campaignTitle,
   jobId,
   entitlements,
+  /** Tài nguyên RIÊNG của chiến dịch (campaign-level) — nguồn sự thật cho quyền lợi. */
+  resource,
   isShortlisted,
   outreachItem,
   onShortlistSuccess,
@@ -46,6 +48,8 @@ export function SourcingCandidateDrawer({
   campaignTitle: string;
   jobId: string | null;
   entitlements: RecruiterSourcingEntitlements;
+  /** Tài nguyên riêng của chiến dịch (đọc từ đúng 1 BillingHuntPackage). */
+  resource?: RecruiterHuntCampaignResourceView | null;
   isShortlisted: boolean;
   outreachItem?: RecruiterSourcingOutreachItem | null;
   onShortlistSuccess: (ws: RecruiterSourcingWorkspace, candidateName: string, removed?: boolean) => void;
@@ -70,16 +74,13 @@ export function SourcingCandidateDrawer({
   const [showAllCriteria, setShowAllCriteria] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
-  const hasOutreach = useMemo(() => {
-    const scope = entitlements.serviceScope ?? [];
-    return (
-      scope.includes('outreach') ||
-      entitlements.planCode === 'SAN_CHUYEN_SAU' ||
-      (entitlements.outreachQuota != null && entitlements.outreachQuota > 0)
-    );
-  }, [entitlements.outreachQuota, entitlements.planCode, entitlements.serviceScope]);
-  const outreachQuota = entitlements.outreachQuota ?? entitlements.shortlistQuota ?? 15;
-  const outreachRemaining = entitlements.outreachRemaining ?? entitlements.shortlistsRemaining ?? outreachQuota;
+  /**
+   * Quyền bàn giao Inlink: 100% theo CHIẾN DỊCH (gói gắn qua huntPackageId).
+   * Chỉ gói Chuyên sâu (DEEP) mới có; KHÔNG đọc cờ cấp Company/User.
+   */
+  const hasOutreach = resource?.canHandover === true;
+  const outreachQuota = resource?.totalHandovers ?? 0;
+  const outreachRemaining = resource?.handoversRemaining ?? 0;
   const isOutreached = Boolean(outreachItem);
 
   useEffect(() => {
@@ -676,8 +677,38 @@ export function SourcingCandidateDrawer({
             </div>
           ) : null}
 
-          {/* Form đặt lịch phỏng vấn nhanh tại chỗ */}
+          {/* Form đặt lịch phỏng vấn nhanh tại chỗ — PAYWALL: chỉ mở khi đã mở khóa hồ sơ */}
           {showInterviewForm ? (
+            !unlocked ? (
+              <div className="rounded-2xl border-2 border-[#E8872A]/40 bg-gradient-to-br from-amber-50/90 to-white p-4">
+                <div className="flex items-start gap-3">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#E8872A] text-white">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
+                      Cần mở khóa hồ sơ trước khi đặt lịch phỏng vấn
+                    </h4>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                      Ứng viên tiềm năng chưa mở khóa hồ sơ. Hãy dùng Credit mở khóa hồ sơ trước
+                      (nút «Mở khóa &amp; Liên hệ» bên dưới), sau đó quay lại đặt lịch phỏng vấn.
+                    </p>
+                    <Button
+                      className="mt-3"
+                      disabled={unlockMutation.isPending}
+                      onClick={() => unlockMutation.mutate()}
+                    >
+                      {unlockMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      Mở khóa hồ sơ ({creditCost} Credit)
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
@@ -748,6 +779,7 @@ export function SourcingCandidateDrawer({
                 </Button>
               </div>
             </div>
+            )
           ) : null}
 
           {/* Đối chiếu mức độ phù hợp JD (hiển thị ngay cả trước khi mở khóa) */}
@@ -1078,7 +1110,7 @@ export function SourcingCandidateDrawer({
                   <p className="mt-1 text-xs leading-relaxed text-slate-600">
                     Ứng viên này có tỉ lệ phù hợp <strong>{pctStr}%</strong> (mức mở hồ sơ:{' '}
                     <strong>{creditCost} Credit</strong>). Hệ thống sẽ{' '}
-                    <strong>ưu tiên trừ trực tiếp từ {entitlements.profileOpensRemaining ?? 0} Credit có sẵn trong Gói Săn</strong>{' '}
+                    <strong>ưu tiên trừ trực tiếp từ {resource?.creditBalance ?? entitlements.profileOpensRemaining ?? 0} Credit có sẵn trong Gói Săn</strong>{' '}
                     của bạn mà không làm tốn ví Credit mua lẻ.
                   </p>
                   <div

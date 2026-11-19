@@ -339,10 +339,12 @@ export class MatchingService {
     }
 
     if (ranked.length === 0) return ranked;
+    // Chỉ tính "đã mở hồ sơ" theo CHÍNH chiến dịch này (không rò sang chiến dịch khác).
     const opened = await this.prisma.huntCampaignActivity.findMany({
       where: {
         companyId,
         assignmentId: entitlements.assignment.id,
+        campaignId: linked.id,
         kind: 'profile_open',
       },
       select: { note: true },
@@ -495,7 +497,11 @@ export class MatchingService {
     const payload = {
       roundNumber,
       trigger,
-      totalMatched: candidates.length,
+      // "Tổng phù hợp" = toàn bộ ứng viên AI Matching của chiến dịch (không tính ứng viên
+      // tự ứng tuyển) → khớp đúng với KPI "Tổng phù hợp" trên trang chi tiết.
+      totalMatched: potentialRows.length,
+      // Số ứng viên thực sự đưa vào đợt quét này (dao động 10–15).
+      batchSize: candidates.length,
       newCount: newItems.length,
       emailSent,
       candidates,

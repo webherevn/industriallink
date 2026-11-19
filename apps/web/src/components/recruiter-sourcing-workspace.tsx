@@ -20,6 +20,7 @@ import {
   Headphones,
   ListChecks,
   Loader2,
+  Lock,
   MapPin,
   MoreHorizontal,
   Phone,
@@ -185,6 +186,8 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(campaignId ?? null);
   const [selectedRoundId, setSelectedRoundId] = useState<string>('all');
+  /** Tab danh sách ứng viên full-width: 'potential' (AI) | 'applied' (tự ứng tuyển). */
+  const [candidateTab, setCandidateTab] = useState<'potential' | 'applied'>('potential');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'select' | 'create'>('select');
   const [createTrack, setCreateTrack] = useState<JobTrack>(JobTrack.Sales);
@@ -348,10 +351,6 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
     Boolean(campaignId) && !validCampaigns.some((camp) => camp.id === campaignId);
   const scope = e?.serviceScope ?? [];
   const shortlistInScope = scope.length === 0 || scope.includes('shortlist');
-  const hasOutreach =
-    scope.includes('outreach') ||
-    e?.planCode === 'SAN_CHUYEN_SAU' ||
-    (e?.outreachQuota != null && e.outreachQuota > 0);
   const selectedCampaign = validCampaigns.find((camp) => camp.id === selected) ?? null;
   const huntJobId = selectedCampaign?.jobId ?? null;
 
@@ -360,6 +359,22 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
     () => (data?.campaignResources ?? []).find((r) => r.campaignId === selected) ?? null,
     [data?.campaignResources, selected],
   );
+
+  /**
+   * CÔ LẬP 100% THEO CHIẾN DỊCH.
+   * Mọi quyền lợi / tính năng / hạn mức trên trang chi tiết CHỈ suy ra từ
+   * `campaign.huntPackage` (gói gắn qua `huntPackageId`).
+   * TUYỆT ĐỐI KHÔNG đọc `company.huntPlan` / `company.hasDeepHunt` / `user.activePackage`.
+   */
+  const isDeepPackage = campaignResource?.isDeepPackage === true;
+  const canHandover = campaignResource?.canHandover === true;
+  /** Hạn mức bàn giao lấy từ gói của chiến dịch (không cộng dồn toàn công ty). */
+  const handoverQuota = campaignResource?.totalHandovers ?? 0;
+  const handoverUsed = campaignResource?.usedHandovers ?? 0;
+  const handoverRemaining = campaignResource?.handoversRemaining ?? 0;
+  /** Hạn mức điều chỉnh / báo cáo lấy từ gói của chiến dịch. */
+  const criteriaEditsRemaining = campaignResource?.criteriaEditsRemaining ?? null;
+  const reportsRemaining = campaignResource?.reportsRemaining ?? null;
 
   const engagementScanRounds = useMemo(
     () =>
@@ -468,7 +483,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
 
   return (
     <RecruiterShell pinSidebar>
-      <div className="ntd-form recruiter-dash space-y-5">
+      <div className="ntd-form recruiter-dash space-y-5 pb-28">
         <header className="brand-hero-surface recruiter-dash-rise rounded-3xl px-5 py-6 sm:px-7">
           <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
           <div className="relative flex flex-wrap items-center justify-between gap-4">
@@ -481,7 +496,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                       className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20"
                     >
                       <ArrowLeft className="h-3 w-3" />
-                      Săn nhân sự
+                      ← Tổng quan Săn nhân sự
                     </Link>
                     <span className="text-white/40">/</span>
                     <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
@@ -499,6 +514,34 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                     : 'Chiến dịch không tồn tại'
                   : 'SĂN NHÂN SỰ'}
               </h1>
+              {/* Badge gói + mã gói + trạng thái — gọn trong Banner */}
+              {campaignId && selectedCampaign ? (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span
+                    className={clsx(
+                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide',
+                      isDeepPackage
+                        ? 'bg-indigo-500/25 text-indigo-100 ring-1 ring-indigo-300/40'
+                        : 'bg-white/15 text-white ring-1 ring-white/25',
+                    )}
+                  >
+                    {isDeepPackage ? 'TIN SĂN CHUYÊN SÂU' : 'TIN SĂN TIÊU CHUẨN'}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-white/90">
+                    {campaignResource?.packageCode ?? selectedCampaign.packageCode}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 ring-1 ring-emerald-300/40">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                    {selectedCampaign.packageStatus === 'ACTIVE'
+                      ? 'Đang hoạt động'
+                      : selectedCampaign.packageStatus === 'UNUSED'
+                        ? 'Chưa kích hoạt'
+                        : selectedCampaign.packageStatus === 'COMPLETED'
+                          ? 'Đã hoàn thành'
+                          : 'Hết hạn'}
+                  </span>
+                </div>
+              ) : null}
               <p className="mt-2 max-w-2xl text-sm text-white/80">
                 {campaignId
                   ? selectedCampaign
@@ -562,7 +605,42 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
             )}
 
             <div className="flex flex-wrap items-center gap-2.5">
-              {hasPlan ? (
+              {campaignId && selectedCampaign ? (
+                /* Trang chi tiết: cụm nút hành động của CHÍNH chiến dịch này. */
+                <>
+                  <button
+                    type="button"
+                    disabled={!selectedCampaign.jobId}
+                    onClick={() => setViewCriteriaModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Xem tiêu chí
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      ended ||
+                      !selectedCampaign.jobId ||
+                      (criteriaEditsRemaining !== null && criteriaEditsRemaining <= 0)
+                    }
+                    onClick={() => setRevisionModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Điều chỉnh tiêu chí
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reportsRemaining !== null && reportsRemaining <= 0}
+                    onClick={() => setReportModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#E8872A] px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#d6761b] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                  >
+                    <FileSearch className="h-4 w-4 stroke-[2.5]" />
+                    Báo cáo chiến dịch
+                  </button>
+                </>
+              ) : hasPlan ? (
                 <button
                   type="button"
                   disabled={!canOpenMorePositions}
@@ -675,7 +753,8 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                 <QuotaGrid
               entitlements={e!}
               resource={campaignResource}
-              hasOutreach={hasOutreach}
+              isDeepPackage={isDeepPackage}
+              canHandover={canHandover}
               totalMatchedCount={potentialCandidates.length}
               highMatchCount={highMatchCount}
               shortlistedCount={engagementShortlistedIds.length}
@@ -690,163 +769,100 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                     }
                   : undefined
               }
-              onOpenReport={selected ? () => setReportModalOpen(true) : undefined}
+              onOpenReport={
+                selected && reportsRemaining !== null && reportsRemaining > 0
+                  ? () => setReportModalOpen(true)
+                  : undefined
+              }
               onOpenRevision={selected && huntJobId ? () => setRevisionModalOpen(true) : undefined}
               onFilterAllPotential={selected ? () => setSelectedRoundId('all') : undefined}
               onFilterViewed={selected ? () => setSelectedRoundId('viewed') : undefined}
               onFilterShortlist={selected ? () => setSelectedRoundId('shortlist') : undefined}
-              onFilterOutreach={selected && hasOutreach ? () => setSelectedRoundId('outreach') : undefined}
+              onFilterOutreach={selected && canHandover ? () => setSelectedRoundId('outreach') : undefined}
             />
 
-            {/* THẺ TÓM TẮT CHIẾN DỊCH HIỆN TẠI (1 gói ↔ 1 chiến dịch) */}
-            <section className="rounded-3xl border border-[#d7e3f2] bg-white p-5 shadow-sm sm:p-6">
-              {selectedCampaign ? (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-extrabold uppercase tracking-tight text-slate-900">
-                        {formatJobTitle(selectedCampaign.title)}
-                      </h2>
-                      <span
-                        className={clsx(
-                          'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
-                          selectedCampaign.packageStatus === 'ACTIVE'
-                            ? 'bg-emerald-100/90 text-emerald-700'
-                            : selectedCampaign.packageStatus === 'UNUSED'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-200 text-slate-600',
-                        )}
-                      >
-                        <span
-                          className={clsx(
-                            'h-1.5 w-1.5 rounded-full',
-                            selectedCampaign.packageStatus === 'ACTIVE'
-                              ? 'bg-emerald-500'
-                              : selectedCampaign.packageStatus === 'UNUSED'
-                                ? 'bg-amber-500'
-                                : 'bg-slate-400',
-                          )}
-                        />
-                        {selectedCampaign.packageStatus === 'ACTIVE'
-                          ? 'Đang hoạt động'
-                          : selectedCampaign.packageStatus === 'UNUSED'
-                            ? 'Chưa kích hoạt'
-                            : selectedCampaign.packageStatus === 'COMPLETED'
-                              ? 'Đã hoàn thành'
-                              : 'Hết hạn'}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Mã gói:{' '}
-                      <span className="font-mono font-semibold text-slate-700">
-                        {campaignResource?.packageCode ?? selectedCampaign.packageCode}
-                      </span>{' '}
-                      · {campaignResource?.packageName ?? selectedCampaign.packageName} · Mã chiến
-                      dịch:{' '}
-                      <span className="font-mono font-semibold text-slate-700">
-                        {selectedCampaign.code}
-                      </span>
-                    </p>
-                  </div>
+            {/* DANH SÁCH ỨNG VIÊN — FULL-WIDTH TABS */}
+            <section className="rounded-3xl border border-[#d7e3f2] bg-white p-4 shadow-sm sm:p-6">
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setCandidateTab('potential')}
+                  className={clsx(
+                    'inline-flex h-9 items-center gap-2 rounded-full px-4 text-xs font-bold transition',
+                    candidateTab === 'potential'
+                      ? 'bg-[#072348] text-white shadow-2xs'
+                      : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
+                  )}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Ứng viên tiềm năng AI ({potentialCandidates.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCandidateTab('applied')}
+                  className={clsx(
+                    'inline-flex h-9 items-center gap-2 rounded-full px-4 text-xs font-bold transition',
+                    candidateTab === 'applied'
+                      ? 'bg-[#072348] text-white shadow-2xs'
+                      : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
+                  )}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  Ứng viên tự ứng tuyển ({appliedCandidates.length})
+                </button>
+              </div>
 
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={!selectedCampaign.jobId}
-                      onClick={() => setViewCriteriaModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-sky-100/90 px-3.5 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-200/80 disabled:opacity-40"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      Xem tiêu chí
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        ended ||
-                        !selectedCampaign.jobId ||
-                        (campaignResource !== null &&
-                          campaignResource.criteriaEditsRemaining <= 0)
-                      }
-                      onClick={() => setRevisionModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-100/90 px-3.5 py-1.5 text-xs font-semibold text-[#c96a12] transition hover:bg-amber-200/80 disabled:opacity-40"
-                    >
-                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                      Điều chỉnh tiêu chí
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center rounded-2xl bg-[#f8fafc] px-4 py-10 text-center">
-                  <Sparkles className="h-6 w-6 text-[#E8872A]" />
-                  <p className="mt-2 text-sm font-medium text-slate-600">
-                    Chưa có chiến dịch Săn nào. Bấm “Tạo Tin săn” để kích hoạt gói và mở chiến dịch
-                    đầu tiên.
-                  </p>
-                  {canOpenMorePositions ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModalMode('select');
-                        setCreateModalOpen(true);
-                      }}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#072348] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0d3b80]"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Tạo Tin Săn ngay
-                    </button>
-                  ) : null}
-                </div>
-              )}
+              <div className="mt-4">
+                {candidateTab === 'potential' ? (
+                  <PotentialCandidatesColumn
+                    jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedCampaign?.title}
+                    loading={Boolean(huntJobId) && hunt.isLoading}
+                    error={
+                      hunt.isError
+                        ? hunt.error instanceof ApiError
+                          ? hunt.error.message
+                          : 'Không tải được danh sách'
+                        : null
+                    }
+                    results={potentialCandidates}
+                    scanRounds={engagementScanRounds}
+                    shortlistedIds={engagementShortlistedIds}
+                    shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
+                    canHandover={canHandover}
+                    handoverQuota={handoverQuota}
+                    handoverUsed={handoverUsed}
+                    outreachIds={engagementOutreachIds}
+                    outreachList={engagementOutreachList}
+                    outreachRemaining={handoverRemaining}
+                    outreachPending={quickOutreach.isPending}
+                    selectedRoundId={selectedRoundId}
+                    onSelectRound={setSelectedRoundId}
+                    onSelectCandidate={openCandidateDrawer}
+                    onQuickShortlist={(row) => quickShortlist.mutate(row)}
+                    onQuickOutreach={(row) => quickOutreach.mutate(row)}
+                    ready={Boolean(huntJobId) && !ended}
+                  />
+                ) : (
+                  <AppliedCandidatesColumn
+                    jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedCampaign?.title}
+                    loading={Boolean(huntJobId) && hunt.isLoading}
+                    error={
+                      hunt.isError
+                        ? hunt.error instanceof ApiError
+                          ? hunt.error.message
+                          : 'Không tải được danh sách'
+                        : null
+                    }
+                    results={appliedCandidates}
+                    shortlistedIds={engagementShortlistedIds}
+                    shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
+                    onSelectCandidate={openCandidateDrawer}
+                    onQuickShortlist={(row) => quickShortlist.mutate(row)}
+                    ready={Boolean(huntJobId) && !ended}
+                  />
+                )}
+              </div>
             </section>
-
-            {/* 2 CỘT ỨNG VIÊN: NỘP HỒ SƠ & TIỀM NĂNG */}
-            <div className="grid gap-4 xl:grid-cols-2 xl:gap-3.5 2xl:gap-4">
-              <AppliedCandidatesColumn
-                jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedCampaign?.title}
-                loading={Boolean(huntJobId) && hunt.isLoading}
-                error={
-                  hunt.isError
-                    ? hunt.error instanceof ApiError
-                      ? hunt.error.message
-                      : 'Không tải được danh sách'
-                    : null
-                }
-                results={appliedCandidates}
-                shortlistedIds={engagementShortlistedIds}
-                shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
-                onSelectCandidate={openCandidateDrawer}
-                onQuickShortlist={(row) => quickShortlist.mutate(row)}
-                ready={Boolean(huntJobId) && !ended}
-              />
-
-              <PotentialCandidatesColumn
-                jobTitle={(jobs ?? []).find((job) => job.id === huntJobId)?.title ?? selectedCampaign?.title}
-                loading={Boolean(huntJobId) && hunt.isLoading}
-                error={
-                  hunt.isError
-                    ? hunt.error instanceof ApiError
-                      ? hunt.error.message
-                      : 'Không tải được danh sách'
-                    : null
-                }
-                results={potentialCandidates}
-                scanRounds={engagementScanRounds}
-                shortlistedIds={engagementShortlistedIds}
-                shortlistRemaining={shortlistInScope ? e!.shortlistsRemaining : 0}
-                hasOutreach={hasOutreach}
-                outreachIds={engagementOutreachIds}
-                outreachList={engagementOutreachList}
-                outreachQuota={e!.outreachQuota ?? e!.shortlistQuota ?? 15}
-                outreachRemaining={e!.outreachRemaining ?? e!.shortlistsRemaining ?? 15}
-                outreachPending={quickOutreach.isPending}
-                selectedRoundId={selectedRoundId}
-                onSelectRound={setSelectedRoundId}
-                onSelectCandidate={openCandidateDrawer}
-                onQuickShortlist={(row) => quickShortlist.mutate(row)}
-                onQuickOutreach={(row) => quickOutreach.mutate(row)}
-                ready={Boolean(huntJobId) && !ended}
-              />
-            </div>
               </>
             )}
 
@@ -1135,6 +1151,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           campaignTitle={selectedCampaign?.title ?? ''}
           jobId={huntJobId}
           entitlements={e}
+          resource={campaignResource}
           allResults={allResults}
           scanRounds={engagementScanRounds}
           shortlistedIds={engagementShortlistedIds}
@@ -1154,7 +1171,9 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           onClose={() => setViewCriteriaModalOpen(false)}
           jobId={huntJobId}
           campaignTitle={selectedCampaign?.title ?? ''}
-          revisionsRemaining={e.revisionsRemaining}
+          revisionsRemaining={
+            campaignResource?.criteriaEditsRemaining ?? e.revisionsRemaining
+          }
           onOpenRevision={() => {
             setViewCriteriaModalOpen(false);
             setRevisionModalOpen(true);
@@ -1169,7 +1188,9 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           onClose={() => setRevisionModalOpen(false)}
           campaignId={selected}
           jobId={huntJobId}
-          revisionsRemaining={e.revisionsRemaining}
+          revisionsRemaining={
+            campaignResource?.criteriaEditsRemaining ?? e.revisionsRemaining
+          }
           allResults={allResults}
           onWorkspaceUpdated={(ws, msg) => {
             void qc.setQueryData(['recruiter-sourcing'], ws);
@@ -1189,6 +1210,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           campaignTitle={selectedCampaign?.title ?? ''}
           jobId={huntJobId}
           entitlements={e}
+          resource={campaignResource}
           isShortlisted={
             drawerCandidate ? engagementShortlistedIds.includes(drawerCandidate.candidateId) : false
           }
@@ -1584,10 +1606,11 @@ function PotentialCandidatesColumn({
   scanRounds,
   shortlistedIds,
   shortlistRemaining,
-  hasOutreach,
+  canHandover,
+  handoverQuota,
+  handoverUsed,
   outreachIds,
   outreachList,
-  outreachQuota,
   outreachRemaining,
   outreachPending,
   selectedRoundId,
@@ -1604,10 +1627,14 @@ function PotentialCandidatesColumn({
   scanRounds: RecruiterSourcingScanRoundView[];
   shortlistedIds: string[];
   shortlistRemaining: number | null;
-  hasOutreach: boolean;
+  /** true = gói của chiến dịch này là DEEP (được bàn giao Inlink). */
+  canHandover: boolean;
+  /** Tổng lượt bàn giao của gói chiến dịch (campaign-level). */
+  handoverQuota: number;
+  /** Số lượt bàn giao đã dùng của gói chiến dịch. */
+  handoverUsed: number;
   outreachIds: string[];
   outreachList: RecruiterSourcingOutreachItem[];
-  outreachQuota: number | null;
   outreachRemaining: number | null;
   outreachPending: boolean;
   selectedRoundId: string;
@@ -1749,7 +1776,7 @@ function PotentialCandidatesColumn({
       (results.length > 0 ||
         scanRounds.length > 0 ||
         shortlistedPotentialCount > 0 ||
-        hasOutreach ||
+        canHandover ||
         outreachedPotentialCount > 0) ? (
         <div className="mt-3.5 space-y-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -1776,7 +1803,7 @@ function PotentialCandidatesColumn({
                   : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
               )}
             >
-              Chưa xem {unviewedPotentialCount}
+              Chưa mở khóa {unviewedPotentialCount}
             </button>
 
             <button
@@ -1789,10 +1816,10 @@ function PotentialCandidatesColumn({
                   : 'bg-[#F1F3F5] text-slate-700 hover:bg-slate-200/80',
               )}
             >
-              Đã xem {viewedPotentialCount}
+              Đã mở hồ sơ {viewedPotentialCount}
             </button>
 
-            {hasOutreach || outreachedPotentialCount > 0 ? (
+            {canHandover ? (
               <button
                 type="button"
                 onClick={() => onSelectRound('outreach')}
@@ -1804,7 +1831,7 @@ function PotentialCandidatesColumn({
                 )}
               >
                 Đã giao Inlink {outreachedPotentialCount}
-                {outreachQuota != null ? `/${outreachQuota}` : ''}
+                {handoverQuota > 0 ? `/${handoverQuota}` : ''}
               </button>
             ) : null}
 
@@ -1933,11 +1960,11 @@ function PotentialCandidatesColumn({
                             {isUnlocked ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-600">
                                 <CheckCircle2 className="h-3 w-3 shrink-0 text-slate-500" />
-                                Đã xem
+                                Đã mở hồ sơ
                               </span>
                             ) : (
                               <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-medium text-slate-500">
-                                Chưa xem
+                                Chưa mở khóa
                               </span>
                             )}
 
@@ -2053,11 +2080,23 @@ function PotentialCandidatesColumn({
 
                         <button
                           type="button"
-                          onClick={() => onSelectCandidate(row, 'interview')}
+                          onClick={() =>
+                            isUnlocked
+                              ? onSelectCandidate(row, 'interview')
+                              : onSelectCandidate(row, 'unlock')
+                          }
+                          title={
+                            isUnlocked
+                              ? 'Đặt lịch phỏng vấn cho ứng viên này'
+                              : 'Cần mở khóa hồ sơ bằng Credit trước khi đặt lịch phỏng vấn'
+                          }
                           className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-[#072348] xl:px-1 xl:text-[11px] 2xl:px-2 2xl:text-xs"
                         >
                           <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400 xl:h-3 xl:w-3 2xl:h-3.5 2xl:w-3.5" />
                           <span>Đặt lịch PV</span>
+                          {!isUnlocked ? (
+                            <Lock className="h-3 w-3 shrink-0 text-amber-500 xl:h-2.5 xl:w-2.5 2xl:h-3 2xl:w-3" />
+                          ) : null}
                         </button>
 
                         <div className="relative shrink-0">
@@ -2106,10 +2145,14 @@ function PotentialCandidatesColumn({
 
                       {/* Cụm hành động chính bên phải: Giao Inlink + Mở/Xem hồ sơ */}
                       <div className="flex shrink-0 items-center gap-2 xl:gap-1.5 2xl:gap-2">
-                        {hasOutreach ? (
+                        {canHandover ? (
                           <button
                             type="button"
-                            disabled={(!isOutreached && !canOutreach) || outreachPending}
+                            disabled={
+                              (!isOutreached && !canOutreach) ||
+                              outreachPending ||
+                              (!isOutreached && !isShortlisted && !canShortlist)
+                            }
                             onClick={() => {
                               if (isOutreached) {
                                 onSelectCandidate(row, 'overview');
@@ -2120,7 +2163,9 @@ function PotentialCandidatesColumn({
                             title={
                               isOutreached
                                 ? 'Xem tiến độ CSKH Inlink đang liên hệ'
-                                : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${outreachQuota ?? 15} lượt)`
+                                : !isShortlisted && !canShortlist
+                                  ? 'Đã hết lượt Shortlist của gói — không thể bàn giao ứng viên mới'
+                                  : `Giao đội ngũ CSKH Inlink liên hệ kết nối & tự động mở khóa hồ sơ (Còn ${outreachRemaining ?? 0}/${handoverQuota} lượt của gói chiến dịch)`
                             }
                             className={clsx(
                               'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-semibold transition disabled:opacity-40 xl:h-7 xl:gap-1 xl:px-2.5 xl:text-[11px] 2xl:h-8 2xl:gap-1.5 2xl:px-3 2xl:text-xs',
@@ -2253,7 +2298,7 @@ function PotentialCandidatesColumn({
                     {formatPersonName(confirmOutreachRow.displayName)}
                   </span>
                   {outreachRemaining !== null
-                    ? ` · Còn ${outreachRemaining}/${outreachQuota ?? 15} lượt`
+                    ? ` · Còn ${outreachRemaining}/${handoverQuota} lượt của gói chiến dịch`
                     : ''}
                 </p>
               </div>
@@ -2291,7 +2336,8 @@ function PotentialCandidatesColumn({
 function QuotaGrid({
   entitlements: e,
   resource,
-  hasOutreach,
+  isDeepPackage,
+  canHandover,
   totalMatchedCount,
   highMatchCount,
   shortlistedCount,
@@ -2309,7 +2355,10 @@ function QuotaGrid({
   entitlements: RecruiterSourcingEntitlements;
   /** Tài nguyên RIÊNG của chiến dịch đang mở (đọc từ đúng 1 BillingHuntPackage). */
   resource: RecruiterHuntCampaignResourceView | null;
-  hasOutreach: boolean;
+  /** true = gói của CHIẾN DỊCH này là DEEP (Tin săn Chuyên sâu). */
+  isDeepPackage: boolean;
+  /** true = chiến dịch này được phép bàn giao ứng viên. */
+  canHandover: boolean;
   totalMatchedCount: number;
   highMatchCount: number;
   shortlistedCount: number;
@@ -2472,18 +2521,25 @@ function QuotaGrid({
         : 'Số lượt báo cáo còn của gói này',
       onClick: onOpenReport,
     },
-    {
-      label: 'Lượt bàn giao Inlink còn',
-      value: resource ? (resource.handoversApplicable ? String(resource.handoversRemaining) : '0') : '—',
-      badge: resource && !resource.handoversApplicable ? 'Chỉ áp dụng gói Chuyên sâu' : undefined,
-      icon: Headphones,
-      tone: 'bg-indigo-50 text-indigo-700',
-      actionHint:
-        resource && resource.handoversApplicable
-          ? 'Số lượt bàn giao ứng viên cho Inlink hỗ trợ liên hệ còn lại của gói này · Bấm để lọc danh sách'
-          : 'Nâng cấp gói Tin săn Chuyên sâu để bàn giao ứng viên cho Inlink hỗ trợ liên hệ',
-      onClick: resource?.handoversApplicable ? onFilterOutreach : undefined,
-    },
+    // Ô "Lượt bàn giao Inlink còn" CHỈ hiện với gói Chuyên sâu (DEEP).
+    // Gói Cơ bản / Tiêu chuẩn → còn đúng 4 ô: Thời hạn gói · Lượt điều chỉnh · Báo cáo · Credit.
+    ...(isDeepPackage
+      ? [
+          {
+            label: 'Lượt bàn giao Inlink còn',
+            value: resource ? String(resource.handoversRemaining) : '—',
+            badge:
+              resource && resource.totalHandovers > 0
+                ? `Đã dùng ${resource.usedHandovers}/${resource.totalHandovers}`
+                : undefined,
+            icon: Headphones,
+            tone: 'bg-indigo-50 text-indigo-700',
+            actionHint:
+              'Số lượt bàn giao ứng viên cho Inlink hỗ trợ liên hệ còn lại của gói chiến dịch này · Bấm để lọc danh sách',
+            onClick: onFilterOutreach,
+          } satisfies KpiCardItem,
+        ]
+      : []),
     {
       label: 'Credit khả dụng',
       value: resource ? String(resource.creditBalance) : '—',
@@ -2504,7 +2560,15 @@ function QuotaGrid({
     : null);
 
   const renderCardGrid = (items: KpiCardItem[]) => (
-    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+    <div
+      className={clsx(
+        'mt-3 grid gap-3',
+        // 4 ô → dàn đều 4 cột; 5 ô → 5 cột.
+        items.length === 4
+          ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4'
+          : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5',
+      )}
+    >
       {items.map((r) => {
         const Icon = r.icon;
         const Tag = r.onClick ? 'button' : 'div';
@@ -2563,8 +2627,9 @@ function QuotaGrid({
         {renderCardGrid(searchEffectivenessRows)}
       </div>
 
-      {/* 2. HIỆU QUẢ HỖ TRỢ CHUYÊN SÂU (Chỉ hiển thị khi gói Chuyên sâu / hasOutreach) */}
-      {hasOutreach ? (
+      {/* 2. HIỆU QUẢ HỖ TRỢ CHUYÊN SÂU — chỉ hiện với gói Chuyên sâu (DEEP) của CHIẾN DỊCH này.
+          Gói Cơ bản / Tiêu chuẩn → thay bằng 1 dòng gợi ý nâng cấp. */}
+      {isDeepPackage ? (
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
@@ -2579,14 +2644,28 @@ function QuotaGrid({
           </p>
           {renderCardGrid(outreachEffectivenessRows)}
         </div>
-      ) : null}
+      ) : (
+        /* Gói không chuyên sâu → 1 dòng gợi ý nâng cấp thay cho khối KPI chuyên sâu */
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200/90 bg-amber-50/70 px-4 py-3">
+          <p className="text-xs text-amber-950">
+            <strong className="font-bold">Gói Tin săn Chuyên sâu</strong> bổ sung hỗ trợ Inlink liên
+            hệ &amp; bàn giao ứng viên (15 lượt) cùng báo cáo hiệu quả tuyển dụng.
+          </p>
+          <Link
+            href="/recruiter/pricing"
+            className="inline-flex shrink-0 items-center rounded-full bg-[#E8872A] px-3.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#d6761b]"
+          >
+            Nâng cấp gói Chuyên sâu
+          </Link>
+        </div>
+      )}
 
       {/* 3. TÀI NGUYÊN DỊCH VỤ */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900">
-              {hasOutreach ? '3. TÀI NGUYÊN DỊCH VỤ' : '2. TÀI NGUYÊN DỊCH VỤ'}
+              {isDeepPackage ? '3. TÀI NGUYÊN DỊCH VỤ' : '2. TÀI NGUYÊN DỊCH VỤ'}
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
               Theo dõi số lượng tài nguyên và quyền lợi dịch vụ còn lại trong gói Tin săn.
