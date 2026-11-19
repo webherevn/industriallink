@@ -3,16 +3,19 @@
  * Chạy: node apps/api/scripts/check-hunt-schema.cjs
  * Exit 0 = OK, exit 1 = thiếu bảng/cột.
  *
- * Lưu ý: Prisma Client tự đọc `.env` từ thư mục `prisma/`. Trên VPS, `.env` nằm ở gốc
- * monorepo nên ta nạp thủ công từ `../../.env` (và `apps/api/.env` nếu có).
+ * Lưu ý: Prisma Client tự đọc `.env` từ thư mục `prisma/`. Trên VPS, `.env` chỉ nằm ở gốc
+ * monorepo (`/www/wwwroot/inlink/.env`) nên ta nạp thủ công. Script nằm ở `apps/api/scripts`
+ * → gốc monorepo là `../../../.env` (KHÔNG phải `../../.env` — cái đó trỏ tới `apps/.env`).
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
 function loadEnv() {
+  // Thứ tự: gần → xa. `process.env` đã có thì không ghi đè.
   const candidates = [
-    path.resolve(__dirname, '../../.env'),
-    path.resolve(__dirname, '../.env'),
+    path.resolve(__dirname, '../../../.env'), // gốc monorepo (VPS)
+    path.resolve(__dirname, '../../.env'), // apps/.env
+    path.resolve(__dirname, '../.env'), // apps/api/.env
   ];
   for (const file of candidates) {
     if (!fs.existsSync(file)) continue;
