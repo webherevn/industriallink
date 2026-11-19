@@ -1131,8 +1131,8 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
         <SourcingProgressReportModal
           open={reportModalOpen}
           onClose={() => setReportModalOpen(false)}
-          engagementId={selected}
-          engagementTitle={selectedCampaign?.title ?? ''}
+          campaignId={selected}
+          campaignTitle={selectedCampaign?.title ?? ''}
           jobId={huntJobId}
           entitlements={e}
           allResults={allResults}
@@ -1153,7 +1153,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           open={viewCriteriaModalOpen}
           onClose={() => setViewCriteriaModalOpen(false)}
           jobId={huntJobId}
-          engagementTitle={selectedCampaign?.title ?? ''}
+          campaignTitle={selectedCampaign?.title ?? ''}
           revisionsRemaining={e.revisionsRemaining}
           onOpenRevision={() => {
             setViewCriteriaModalOpen(false);
@@ -1167,7 +1167,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
         <SourcingJdRevisionModal
           open={revisionModalOpen}
           onClose={() => setRevisionModalOpen(false)}
-          engagementId={selected}
+          campaignId={selected}
           jobId={huntJobId}
           revisionsRemaining={e.revisionsRemaining}
           allResults={allResults}
@@ -1186,7 +1186,7 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
           initialSection={drawerSection}
           onClose={() => setDrawerCandidate(null)}
           campaignId={selected}
-          engagementTitle={selectedCampaign?.title ?? ''}
+          campaignTitle={selectedCampaign?.title ?? ''}
           jobId={huntJobId}
           entitlements={e}
           isShortlisted={
@@ -2612,14 +2612,14 @@ function SourcingViewCriteriaModal({
   open,
   onClose,
   jobId,
-  engagementTitle,
+  campaignTitle,
   revisionsRemaining,
   onOpenRevision,
 }: {
   open: boolean;
   onClose: () => void;
   jobId: string | null;
-  engagementTitle: string;
+  campaignTitle: string;
   revisionsRemaining: number | null;
   onOpenRevision: () => void;
 }) {
@@ -2707,7 +2707,7 @@ function SourcingViewCriteriaModal({
               Tiêu chí tuyển dụng đang áp dụng
             </span>
             <h3 className="mt-1.5 truncate text-lg font-extrabold">
-              {job?.title ? formatJobTitle(job.title) : formatJobTitle(engagementTitle)}
+              {job?.title ? formatJobTitle(job.title) : formatJobTitle(campaignTitle)}
             </h3>
             <p className="mt-0.5 text-xs text-white/75">
               Hệ thống AI Inlink đang quét tự động 2 giờ/lần dựa trên bộ tiêu chí bên dưới

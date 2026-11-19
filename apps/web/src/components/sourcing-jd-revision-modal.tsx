@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
@@ -149,7 +149,7 @@ function toggleArrayItem(arr: string[], item: string): string[] {
 export function SourcingJdRevisionModal({
   open,
   onClose,
-  engagementId,
+  campaignId,
   jobId,
   revisionsRemaining,
   allResults = [],
@@ -157,7 +157,7 @@ export function SourcingJdRevisionModal({
 }: {
   open: boolean;
   onClose: () => void;
-  engagementId: string | null;
+  campaignId: string | null;
   jobId: string | null;
   revisionsRemaining: number | null;
   allResults?: CandidateMatchView[];
@@ -296,7 +296,7 @@ export function SourcingJdRevisionModal({
 
   const reviseMutation = useMutation({
     mutationFn: async () => {
-      if (!jobId || !engagementId) throw new Error('Chưa có JD gắn với Tin Săn này');
+      if (!jobId || !campaignId) throw new Error('Chưa có JD gắn với Tin Săn này');
       if (isSales) {
         const { publish: _publish, ...payload } = formToCreateJobRequest(salesForm, false);
         await updateJob(jobId, { ...payload, fromSourcingRevision: true });
@@ -310,7 +310,7 @@ export function SourcingJdRevisionModal({
           : 'Cập nhật mô tả & tối ưu trọng số tiêu chí JD';
       const updatedWs = await consumeRecruiterSourcing({
         kind: 'revision',
-        campaignId: engagementId,
+        campaignId: campaignId,
         jobId,
         note: `Điều chỉnh Tin Săn «${isSales ? salesForm.title : techForm.title}»: ${changeSummary}`,
       });

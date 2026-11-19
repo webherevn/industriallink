@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
@@ -36,8 +36,8 @@ function csvCell(val: string | number | null | undefined): string {
 export function SourcingProgressReportModal({
   open,
   onClose,
-  engagementId,
-  engagementTitle,
+  campaignId,
+  campaignTitle,
   jobId,
   entitlements,
   allResults,
@@ -48,8 +48,8 @@ export function SourcingProgressReportModal({
 }: {
   open: boolean;
   onClose: () => void;
-  engagementId: string | null;
-  engagementTitle: string;
+  campaignId: string | null;
+  campaignTitle: string;
   jobId: string | null;
   entitlements: RecruiterSourcingEntitlements;
   allResults: CandidateMatchView[];
@@ -208,7 +208,7 @@ export function SourcingProgressReportModal({
   }, [allResults, scanRounds.length, shortlistedIds, entitlements]);
 
   const jobSummary = useMemo(() => {
-    const titleText = job?.title ? formatJobTitle(job.title) : engagementTitle || 'Vị trí Săn nhân sự';
+    const titleText = job?.title ? formatJobTitle(job.title) : campaignTitle || 'Vị trí Săn nhân sự';
     const locationText = job?.location || 'Theo tiêu chí JD';
     const salaryText =
       job?.salaryMin || job?.salaryMax
@@ -222,7 +222,7 @@ export function SourcingProgressReportModal({
         ? EXPERIENCE_LABEL[job.experienceBand as ExperienceBand]
         : 'Theo yêu cầu JD';
     return { titleText, locationText, salaryText, levelText, expText };
-  }, [job, engagementTitle]);
+  }, [job, campaignTitle]);
 
   const handleExportCsv = () => {
     const nowStr = new Date().toLocaleDateString('vi-VN');
@@ -683,11 +683,11 @@ export function SourcingProgressReportModal({
 
   const saveReportMutation = useMutation({
     mutationFn: () => {
-      if (!engagementId) throw new Error('Chưa chọn vị trí Tin Săn');
+      if (!campaignId) throw new Error('Chưa chọn vị trí Tin Săn');
       const nextNum = savedReports.length + 1;
       const reportPayload = {
         reportNumber: nextNum,
-        title: `Báo cáo tiến độ tuần #${nextNum} - ${engagementTitle}`,
+        title: `Báo cáo tiến độ tuần #${nextNum} - ${campaignTitle}`,
         totalScanned: analytics.totalScanned,
         highMatchCount: analytics.highMatchCount,
         mediumMatchCount: analytics.mediumMatchCount,
@@ -699,7 +699,7 @@ export function SourcingProgressReportModal({
       };
       return consumeRecruiterSourcing({
         kind: 'search_round',
-        campaignId: engagementId,
+        campaignId: campaignId,
         jobId: jobId ?? undefined,
         note: `report:${JSON.stringify(reportPayload)}`,
       });
@@ -717,7 +717,7 @@ export function SourcingProgressReportModal({
   if (!open) return null;
 
   const canSaveMore =
-    Boolean(engagementId) &&
+    Boolean(campaignId) &&
     (entitlements.searchRoundsRemaining === null || entitlements.searchRoundsRemaining > 0);
 
   const funnelSteps = [

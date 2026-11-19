@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
@@ -30,7 +30,7 @@ export function SourcingCandidateDrawer({
   initialSection = 'overview',
   onClose,
   campaignId,
-  engagementTitle,
+  campaignTitle,
   jobId,
   entitlements,
   isShortlisted,
@@ -43,7 +43,7 @@ export function SourcingCandidateDrawer({
   initialSection?: SourcingDrawerSection;
   onClose: () => void;
   campaignId: string | null;
-  engagementTitle: string;
+  campaignTitle: string;
   jobId: string | null;
   entitlements: RecruiterSourcingEntitlements;
   isShortlisted: boolean;
@@ -94,10 +94,10 @@ export function SourcingCandidateDrawer({
     if (!candidateRow) return;
     setUnlocked(Boolean(candidateRow.viewed || candidateRow.applied || outreachItem));
     setConnectMessage(
-      `Chào ${candidateRow.displayName}, công ty chúng tôi đang tuyển vị trí «${engagementTitle}» rất phù hợp với kinh nghiệm của bạn trên inlink. Mong được kết nối trao đổi thêm cùng bạn!`,
+      `Chào ${candidateRow.displayName}, công ty chúng tôi đang tuyển vị trí «${campaignTitle}» rất phù hợp với kinh nghiệm của bạn trên inlink. Mong được kết nối trao đổi thêm cùng bạn!`,
     );
     setOutreachNote(
-      `Nhờ CSKH Inlink liên hệ ứng viên ${candidateRow.displayName} cho vị trí «${engagementTitle}», thẩm định nhu cầu chuyển việc & mức lương kỳ vọng giúp doanh nghiệp.`,
+      `Nhờ CSKH Inlink liên hệ ứng viên ${candidateRow.displayName} cho vị trí «${campaignTitle}», thẩm định nhu cầu chuyển việc & mức lương kỳ vọng giúp doanh nghiệp.`,
     );
     setShowInterviewForm(initialSection === 'interview');
     setShowOutreachForm(false);
@@ -113,7 +113,7 @@ export function SourcingCandidateDrawer({
       }
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [candidateRow, engagementTitle, initialSection, outreachItem]);
+  }, [candidateRow, campaignTitle, initialSection, outreachItem]);
 
   const pctStr = candidateRow ? formatMatchPct(candidateRow.match.score) : '0';
   const creditCost = candidateRow ? potentialCreditCost(candidateRow.match.score) : 1;

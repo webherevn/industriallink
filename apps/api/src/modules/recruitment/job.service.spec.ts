@@ -132,6 +132,7 @@ describe('JobService', () => {
       const create = jest.fn().mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft });
       const prisma = withTransaction({
         job: { create, findMany: jest.fn().mockResolvedValue([]) },
+        company: { findUnique: jest.fn().mockResolvedValue({ name: 'Công ty ABC' }) },
         $executeRaw: jest.fn(),
       });
       const service = buildService(prisma);
@@ -154,6 +155,7 @@ describe('JobService', () => {
       const executeRaw = jest.fn().mockResolvedValue(undefined);
       const prisma = withTransaction({
         job: { create, findMany: jest.fn().mockResolvedValue([]) },
+        company: { findUnique: jest.fn().mockResolvedValue({ name: 'Công ty ABC' }) },
         $executeRaw: executeRaw,
       });
       const service = buildService(prisma);
@@ -184,6 +186,7 @@ describe('JobService', () => {
         .mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft, moderationStatus: 'draft' });
       const prisma = withTransaction({
         job: { create, findMany: jest.fn().mockResolvedValue([]) },
+        company: { findUnique: jest.fn().mockResolvedValue({ name: 'Công ty ABC' }) },
         $executeRaw: jest.fn(),
       });
       const service = buildService(prisma);
