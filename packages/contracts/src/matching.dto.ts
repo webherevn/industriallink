@@ -3,6 +3,8 @@
  * mà nêu lý do vì sao phù hợp (kỹ năng trùng, kỹ năng thiếu, tiêu chí B2B).
  */
 
+import type { JdMatchView } from './jd-match.dto';
+
 /** 16 trường có trọng số — Bảng quy tắc lập trình Engine Matching Sales B2B 10.09.2026. */
 export type SalesMatchFieldCode =
   | 'jd01a'
@@ -112,6 +114,35 @@ export interface MatchCriterionScore {
   note?: string;
 }
 
+/**
+ * Tiêu chí đã LỌC an toàn cho Nhà tuyển dụng.
+ *
+ * ⚠ BẢO MẬT: KHÔNG có `weight` — trọng số là công thức tính điểm, NTD không
+ * cần biết (và không nên biết) để ra quyết định sàng lọc.
+ */
+export interface RecruiterMatchCriterion {
+  key: string;
+  label: string;
+  /** Điểm tiêu chí 0–1 (null = không áp dụng / thiếu dữ liệu). */
+  score: number | null;
+  note?: string;
+}
+
+/**
+ * `MatchExplanation` rút gọn cho Nhà tuyển dụng — không chứa trọng số.
+ *
+ * Cùng hình dạng với `MatchExplanation` nhưng `criteria[]` dùng
+ * `RecruiterMatchCriterion` (không `weight`) và không kèm `salesMatch` /
+ * `technicalMatch` (bản đầy đủ có `trong_so` / `K` / `diem`).
+ */
+export interface RecruiterMatchExplanation {
+  score: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  reason: string;
+  criteria?: RecruiterMatchCriterion[];
+}
+
 export interface MatchExplanation {
   /** Điểm phù hợp 0-100. Engine Sales làm tròn 1 chữ số thập phân (H6). */
   score: number;
@@ -136,7 +167,18 @@ export interface CandidateMatchView {
   location: string | null;
   /** Tóm tắt chuyên môn chung ngắn gọn của ứng viên (độc lập với đối chiếu JD). */
   summary?: string | null;
-  match: MatchExplanation;
+  /**
+   * Kết quả khớp đã LỌC cho NTD — KHÔNG chứa trọng số (`weight`) hay
+   * `salesMatch` / `technicalMatch` (bản đầy đủ có công thức tính điểm).
+   */
+  match: RecruiterMatchExplanation;
+  /**
+   * Đối chiếu JD đã chuẩn hoá dành riêng cho NTD (Drawer hồ sơ ứng viên).
+   *
+   * KHÔNG chứa trọng số hay công thức tính điểm — chỉ trạng thái định tính
+   * (MATCHED / PARTIAL / MISMATCH / MISSING) + bằng chứng đối chiếu 2 vế.
+   */
+  jdMatch?: JdMatchView | null;
   /** Đã nộp hồ sơ vào đúng tin đang tìm. */
   applied?: boolean;
   /** Công ty đã mở hồ sơ ứng viên này. */

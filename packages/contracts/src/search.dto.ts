@@ -1,7 +1,7 @@
 /**
  * Kết quả AI Search ứng viên — điểm phù hợp kèm giải thích ngắn cho NTD.
  */
-import type { MatchCriterionScore } from './matching.dto';
+import type { RecruiterMatchCriterion } from './matching.dto';
 
 export interface CandidateSearchFilters {
   /** Ngôn ngữ tự nhiên (semantic). */
@@ -40,8 +40,13 @@ export interface CandidateSearchResult {
   reason: string;
   /** Kỹ năng khớp giữa truy vấn và hồ sơ. */
   matchedSkills: string[];
-  /** Chi tiết tiêu chí B2B (nếu có). */
-  criteria?: MatchCriterionScore[];
+  /**
+   * Chi tiết tiêu chí B2B (nếu có).
+   *
+   * ⚠ BẢO MẬT: dùng `RecruiterMatchCriterion` — KHÔNG có `weight` (trọng số
+   * là công thức tính điểm, NTD không cần biết).
+   */
+  criteria?: RecruiterMatchCriterion[];
   /** Đã nộp hồ sơ vào tin đang tìm. */
   applied?: boolean;
   /** Công ty đã mở hồ sơ. */

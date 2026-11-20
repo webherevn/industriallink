@@ -12,6 +12,7 @@ import {
   toB2bCandidateFromRecords,
 } from '../recruitment/matching.util';
 import { candidateMatchTrack } from '../recruitment/match-track.util';
+import { sanitizeMatchExplanationForRecruiter } from '../recruitment/match-sanitizer';
 
 function splitCsv(value?: string | string[]): string[] {
   if (!value) return [];
@@ -291,7 +292,8 @@ export class SearchService {
           score: Number((explanation.score / 100).toFixed(4)),
           reason: explanation.reason,
           matchedSkills: explanation.matchedSkills,
-          criteria: explanation.criteria,
+          // (1) Lọc trọng số + công thức tính điểm khỏi payload NTD.
+          criteria: sanitizeMatchExplanationForRecruiter(explanation).criteria,
           applied: flags.appliedIds.has(c.id),
           viewed: flags.viewedIds.has(c.id),
           isShortlisted: flags.shortlistedIds.has(c.id),

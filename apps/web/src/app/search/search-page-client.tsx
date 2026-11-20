@@ -398,9 +398,10 @@ function ResultCard({
   const isUnlockedOrFree = Boolean(result.viewed || result.applied);
   const fitLabel = scorePct >= 75 ? 'Phù hợp cao' : 'Phù hợp';
 
+  // (1) Không lộ trọng số — sắp xếp theo điểm tiêu chí thuần.
   const strongCriteria = criteria
     .filter((c) => (c.score ?? 0) >= 0.65)
-    .sort((a, b) => (b.score ?? 0) * (b.weight || 0.1) - (a.score ?? 0) * (a.weight || 0.1))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 3);
   const weakCriteria = criteria
     .filter((c) => (c.score ?? 0) < 0.55)

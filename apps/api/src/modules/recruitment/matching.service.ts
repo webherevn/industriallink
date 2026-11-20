@@ -3,9 +3,12 @@ import { Cron } from '@nestjs/schedule';
 import {
   JobStatus,
   looksLikeUuid,
+  normalizeJobSalesCriteria,
+  normalizeJobTechnicalCriteria,
   shouldUseSalesMatchEngine,
   shouldUseTechnicalMatchEngine,
   type CandidateMatchView,
+  type JdMatchView,
   type JobMatchView,
   type MatchExplanation,
   type OpenJobMatchBoard,
@@ -34,6 +37,9 @@ import {
 } from './matching.util';
 import { explainSalesJobCandidate } from './sales-match-explain';
 import { explainTechnicalJobCandidate } from './technical-match-explain';
+import { buildJdMatchView } from './jd-match.builder';
+import { buildSalesEvidence, buildTechnicalEvidence } from './jd-match.evidence';
+import { sanitizeMatchExplanationForRecruiter } from './match-sanitizer';
 import { plainLabel } from './html.util';
 
 const MATCH_LIMIT = 80;
@@ -137,6 +143,104 @@ export class MatchingService {
       }),
       job: jobToB2bMatchInput(job),
     });
+  }
+
+  /**
+   * Dựng khối "Đối chiếu mức độ phù hợp JD" đã chuẩn hoá cho NTD.
+   *
+   * ⚠ BẢO MẬT: kết quả KHÔNG chứa trọng số / công thức tính điểm.
+   * Chỉ trả trạng thái định tính + bằng chứng 2 vế để NTD đọc trong 3 giây.
+   */
+  private buildJdMatchForRecruiter(
+    job: Parameters<typeof jobToB2bMatchInput>[0] & {
+      salesCriteria?: unknown;
+      technicalCriteria?: unknown;
+    },
+    candidate: CandidateWithSales,
+    explanation: MatchExplanation,
+  ): JdMatchView {
+    const ctx = shouldUseTechnicalMatchEngine(job)
+      ? buildTechnicalEvidence({
+          jobTitle: job.title ?? null,
+          jobLocation: job.location ?? null,
+          experienceBand: job.experienceBand ?? null,
+          salaryMin: job.salaryMin ?? null,
+          salaryMax: job.salaryMax ?? null,
+          technicalCriteria: normalizeJobTechnicalCriteria(job.technicalCriteria ?? null),
+          candidate: {
+            desiredPositions: candidate.profile?.desiredPositions ?? undefined,
+            desiredLocations: candidate.profile?.desiredLocations ?? undefined,
+            currentCity: candidate.profile?.currentCity ?? null,
+            currentPosition: candidate.profile?.currentPosition ?? null,
+            totalExperienceYears: candidate.profile?.totalExperienceYears ?? null,
+            expectedSalaryMin: candidate.profile?.expectedSalaryMin ?? null,
+            expectedSalaryMax: candidate.profile?.expectedSalaryMax ?? null,
+            educationLevel: candidate.profile?.educationLevel ?? null,
+            educationMajor: candidate.profile?.educationMajor ?? null,
+            languages: candidate.profile?.languages ?? undefined,
+            driverLicenses: candidate.profile?.driverLicenses ?? undefined,
+            travelAbility: candidate.profile?.travelAbility ?? null,
+            shiftFlexibility: candidate.profile?.shiftFlexibility ?? null,
+            technicalTools: candidate.profile?.technicalTools ?? undefined,
+            documentLiteracy: candidate.profile?.documentLiteracy ?? undefined,
+            technicalAutonomyLevel: candidate.profile?.technicalAutonomyLevel ?? null,
+            industriesExperienced: candidate.profile?.industriesExperienced ?? undefined,
+            industry: candidate.profile?.industry ?? null,
+            productsSold: candidate.profile?.productsSold ?? undefined,
+            customerSegments: candidate.profile?.customerSegments ?? undefined,
+            sellingStages: candidate.profile?.sellingStages ?? undefined,
+          },
+          experiences: (candidate.experiences ?? []).map((e) => ({
+            companyName: e.companyName ?? null,
+            jobTitle: e.jobTitle ?? null,
+            industries: e.industries ?? [],
+            productsSold: e.productsSold ?? [],
+            customerSegments: e.customerSegments ?? [],
+            sellingStages: e.sellingStages ?? [],
+            technicalAutonomyLevel: e.technicalAutonomyLevel ?? null,
+          })),
+        })
+      : buildSalesEvidence({
+          jobTitle: job.title ?? null,
+          jobLocation: job.location ?? null,
+          experienceBand: job.experienceBand ?? null,
+          salaryMin: job.salaryMin ?? null,
+          salaryMax: job.salaryMax ?? null,
+          salesCriteria: normalizeJobSalesCriteria(job.salesCriteria ?? null),
+          candidate: {
+            desiredPositions: candidate.profile?.desiredPositions ?? undefined,
+            desiredLocations: candidate.profile?.desiredLocations ?? undefined,
+            currentCity: candidate.profile?.currentCity ?? null,
+            currentPosition: candidate.profile?.currentPosition ?? null,
+            totalExperienceYears: candidate.profile?.totalExperienceYears ?? null,
+            expectedSalaryMin: candidate.profile?.expectedSalaryMin ?? null,
+            expectedSalaryMax: candidate.profile?.expectedSalaryMax ?? null,
+            educationLevel: candidate.profile?.educationLevel ?? null,
+            educationMajor: candidate.profile?.educationMajor ?? null,
+            languages: candidate.profile?.languages ?? undefined,
+            driverLicenses: candidate.profile?.driverLicenses ?? undefined,
+            travelAbility: candidate.profile?.travelAbility ?? null,
+            industriesExperienced: candidate.profile?.industriesExperienced ?? undefined,
+            industry: candidate.profile?.industry ?? null,
+            productsSold: candidate.profile?.productsSold ?? undefined,
+            customerSegments: candidate.profile?.customerSegments ?? undefined,
+            dealTypes: candidate.profile?.dealTypes ?? undefined,
+            sellingStages: candidate.profile?.sellingStages ?? undefined,
+            marketsCovered: candidate.profile?.marketsCovered ?? undefined,
+          },
+          experiences: (candidate.experiences ?? []).map((e) => ({
+            companyName: e.companyName ?? null,
+            jobTitle: e.jobTitle ?? null,
+            industries: e.industries ?? [],
+            productsSold: e.productsSold ?? [],
+            customerSegments: e.customerSegments ?? [],
+            dealType: e.dealType ?? null,
+            sellingStages: e.sellingStages ?? [],
+            marketsCovered: e.marketsCovered ?? [],
+          })),
+        });
+
+    return buildJdMatchView(explanation, ctx);
   }
 
   /** Chấm điểm trực tiếp giữa một tin và một ứng viên (đồng bộ 100% giữa Tìm ứng viên AI, Săn nhân sự & Hộp thư ứng viên). */
@@ -764,6 +868,8 @@ export class MatchingService {
         location: candidateLocationLabel(c.profile),
         summary: candidateSummarySnippet(c),
         match: explanation,
+        // (1) Khối đối chiếu JD đã chuẩn hoá cho NTD — không lộ trọng số.
+        jdMatch: this.buildJdMatchForRecruiter(job, c, explanation),
         applied: appliedIds.has(c.id),
       };
     });
@@ -790,7 +896,9 @@ export class MatchingService {
         industry: row.industry,
         location: row.location,
         summary: row.summary,
-        match: row.match,
+        // (1) Lọc trọng số + công thức tính điểm khỏi payload NTD.
+        match: sanitizeMatchExplanationForRecruiter(row.match),
+        jdMatch: row.jdMatch,
         applied: row.applied,
         viewed: viewedIds.has(row.candidateId),
         connected: connectedIds.has(row.candidateId),

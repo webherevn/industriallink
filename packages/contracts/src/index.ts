@@ -37,6 +37,7 @@ export * from './offer.dto';
 export * from './onboarding.dto';
 export * from './notification.dto';
 export * from './matching.dto';
+export * from './jd-match.dto';
 export * from './search.dto';
 export * from './copilot.dto';
 export * from './seo-slug';

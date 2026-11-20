@@ -2,10 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { AlertCircle, Bookmark, BookmarkCheck, Briefcase, Calendar, CheckCircle2, ChevronDown, ExternalLink, Headphones, Loader2, Lock, Mail, MapPin, MessageCircle, Phone, Sparkles, UserPlus, X } from 'lucide-react';
+import { AlertCircle, Bookmark, BookmarkCheck, Briefcase, Calendar, CheckCircle2, ChevronDown, ExternalLink, Headphones, HelpCircle, Loader2, Lock, Mail, MapPin, MessageCircle, Phone, Sparkles, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ConnectionStatus, InterviewType, SALES_MATCH_FIELD_LABEL, SOURCING_OUTREACH_STATUS_META, TECH_MATCH_FIELD_LABEL, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterHuntCampaignResourceView, type RecruiterSourcingEntitlements, type RecruiterSourcingOutreachItem, type RecruiterSourcingWorkspace, type SourcingOutreachStatus } from '@industriallink/contracts';
+import { useEffect, useRef, useState } from 'react';
+import { ConnectionStatus, InterviewType, SOURCING_OUTREACH_STATUS_META, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterHuntCampaignResourceView, type RecruiterSourcingEntitlements, type RecruiterSourcingOutreachItem, type RecruiterSourcingWorkspace, type SourcingOutreachStatus } from '@industriallink/contracts';
 import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -71,7 +71,6 @@ export function SourcingCandidateDrawer({
   const [interviewLocation, setInterviewLocation] = useState('');
   const [interviewNote, setInterviewNote] = useState('');
   const [expandedExp, setExpandedExp] = useState(false);
-  const [showAllCriteria, setShowAllCriteria] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   /**
@@ -103,7 +102,6 @@ export function SourcingCandidateDrawer({
     setShowInterviewForm(initialSection === 'interview');
     setShowOutreachForm(false);
     setExpandedExp(false);
-    setShowAllCriteria(false);
     setFeedback(null);
 
     const timer = window.setTimeout(() => {
@@ -782,104 +780,77 @@ export function SourcingCandidateDrawer({
             )
           ) : null}
 
-          {/* Đối chiếu mức độ phù hợp JD (hiển thị ngay cả trước khi mở khóa) */}
+          {/* ============================================================
+              (1) ĐỐI CHIẾU MỨC ĐỘ PHÙ HỢP JD — TÁI THIẾT KẾ 3 TẦNG
+              KHÔNG hiển thị trọng số (%) hay lưới progress bar.
+              Tầng 1: tóm tắt 3s · Tầng 2: tín hiệu hành động · Tầng 3: bảng chi tiết
+              ============================================================ */}
           {(() => {
-            const salesMatch = candidateRow.match.salesMatch ?? null;
-            const technicalMatch = candidateRow.match.technicalMatch ?? null;
-            const engineResult = salesMatch ?? technicalMatch;
-            const trackLabel = technicalMatch
-              ? 'Kỹ thuật'
-              : salesMatch
-                ? 'Kinh doanh B2B'
-                : null;
-            const scoreNum = Math.max(0, Math.min(100, candidateRow.match.score ?? 0));
-            const scoreBadgeClass =
-              scoreNum >= 75
-                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80'
-                : scoreNum >= 50
-                  ? 'bg-amber-50 text-[#c96a12] ring-1 ring-amber-200/80'
-                  : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80';
+            const jd = candidateRow.jdMatch ?? null;
 
-            const rawCriteriaRows = engineResult
-              ? engineResult.chi_tiet.map((r, idx) => ({
-                  key: String(r.truong),
-                  label: r.label,
-                  weightPct: Math.round(r.trong_so),
-                  matchPct: Math.round(Math.max(0, Math.min(100, r.S))),
-                  order: idx,
-                }))
-              : (candidateRow.match.criteria ?? []).map((c, idx) => ({
-                  key: c.key,
-                  label: c.label,
-                  weightPct: Math.round((c.weight ?? 0) * 100),
-                  matchPct: Math.round(Math.max(0, Math.min(100, (c.score ?? 0) * 100))),
-                  order: idx,
-                }));
-
-            const sortedCriteria = [...rawCriteriaRows].sort(
-              (a, b) => b.weightPct - a.weightPct || a.order - b.order,
+            // Dữ liệu cũ (chưa có jdMatch) → fallback tối thiểu để không trắng màn.
+            const overallScore = jd?.overallScore ?? Math.round(candidateRow.match.score ?? 0);
+            const level = jd?.overallLevel ?? (overallScore >= 80 ? 'HIGH' : overallScore >= 60 ? 'MEDIUM' : overallScore >= 40 ? 'LOW' : 'POOR');
+            const levelLabel = jd?.overallLabel ?? (
+              level === 'HIGH' ? 'Rất phù hợp' : level === 'MEDIUM' ? 'Khá phù hợp' : level === 'LOW' ? 'Cân nhắc' : 'Chưa phù hợp'
             );
-            const INITIAL_CRITERIA_COUNT = 6;
-            const visibleCriteria = showAllCriteria
-              ? sortedCriteria
-              : sortedCriteria.slice(0, INITIAL_CRITERIA_COUNT);
+            const trackLabel = jd?.track === 'technical' ? 'Kỹ thuật' : jd?.track === 'sales' ? 'Kinh doanh B2B' : null;
 
-            const criteriaByKey = new Map(sortedCriteria.map((c) => [c.key, c]));
-            const fieldLabelLookup: Record<string, string> = {
-              ...SALES_MATCH_FIELD_LABEL,
-              ...TECH_MATCH_FIELD_LABEL,
+            const scoreBadgeClass =
+              level === 'HIGH'
+                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80'
+                : level === 'MEDIUM'
+                  ? 'bg-amber-50 text-[#c96a12] ring-1 ring-amber-200/80'
+                  : level === 'LOW'
+                    ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200/80'
+                    : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200/80';
+
+            const criteria = jd?.criteria ?? [];
+            const matchedCriteria = criteria.filter((c) => c.status === 'MATCHED' || c.status === 'PARTIAL');
+            const mismatchCriteria = criteria.filter((c) => c.status === 'MISMATCH');
+            const missingCriteria = criteria.filter((c) => c.status === 'MISSING');
+
+            const GROUP_META: Record<'EXPERIENCE' | 'CONDITION', { label: string; note: string | null }> = {
+              EXPERIENCE: {
+                label: 'Kinh nghiệm thực chiến',
+                note: jd?.groupSummary.experienceNote ?? null,
+              },
+              CONDITION: {
+                label: 'Điều kiện & kỳ vọng chung',
+                note: jd?.groupSummary.conditionNote ?? null,
+              },
             };
 
-            const strongTags =
-              sortedCriteria.length > 0
-                ? sortedCriteria
-                    .filter((c) => c.matchPct >= 70)
-                    .slice(0, 6)
-                    .map((c) => c.label)
-                : (candidateRow.match.matchedSkills ?? []);
+            const groupStatusLabel = (status: string | undefined): string =>
+              status === 'HIGH'
+                ? 'Khớp cao'
+                : status === 'PARTIAL'
+                  ? 'Khớp 1 phần'
+                  : status === 'LOW'
+                    ? 'Chưa đạt'
+                    : 'Thiếu dữ liệu';
 
-            const allGapTags = engineResult
-              ? [...engineResult.khoang_thieu]
-                  .map((code) => {
-                    const key = String(code);
-                    const hit = criteriaByKey.get(key);
-                    return {
-                      key,
-                      label: hit?.label ?? fieldLabelLookup[key] ?? key,
-                      weightPct: hit?.weightPct ?? 0,
-                    };
-                  })
-                  .sort((a, b) => b.weightPct - a.weightPct)
-                  .map((g) => g.label)
-              : (candidateRow.match.missingSkills ?? []);
+            const groupStatusClass = (status: string | undefined): string =>
+              status === 'HIGH'
+                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80'
+                : status === 'PARTIAL'
+                  ? 'bg-amber-50 text-[#c96a12] ring-1 ring-amber-200/80'
+                  : status === 'LOW'
+                    ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200/80'
+                    : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80';
 
-            const visibleGapTags = showAllCriteria ? allGapTags : allGapTags.slice(0, 6);
-            const hiddenGapCount = Math.max(0, allGapTags.length - visibleGapTags.length);
-
-            const expScore =
-              engineResult?.diem_kinh_nghiem != null
-                ? Math.round(Math.max(0, Math.min(100, engineResult.diem_kinh_nghiem)))
-                : null;
-            const commonScore =
-              engineResult?.diem_chung != null
-                ? Math.round(Math.max(0, Math.min(100, engineResult.diem_chung)))
-                : null;
-            const tenureBonusPct =
-              engineResult && engineResult.thuong_be_day > 0
-                ? Math.round(engineResult.thuong_be_day * 100)
-                : 0;
-            const rawBestCompany = engineResult?.cong_ty_tot_nhat?.ten?.trim() || null;
-            const hasRealCompany =
-              Boolean(rawBestCompany) &&
-              rawBestCompany !== 'Hồ sơ' &&
-              !/^Công ty \d+$/i.test(rawBestCompany!);
+            // Tầng 3 — bảng đối chiếu chi tiết (mặc định thu gọn).
+            const [showDetailTable, setShowDetailTable] = useState(false);
+            const MISSING_TAG_LIMIT = 6;
+            const visibleMissing = missingCriteria.slice(0, MISSING_TAG_LIMIT);
+            const hiddenMissingCount = Math.max(0, missingCriteria.length - MISSING_TAG_LIMIT);
 
             return (
               <div
                 ref={jdMatchRef}
                 className="space-y-3 rounded-2xl border border-[#d7e3f2] bg-white p-4"
               >
-                {/* Tầng 1: Tiêu đề + Tổng điểm */}
+                {/* ---------- TẦNG 1: TÓM TẮT TỔNG QUAN (đọc trong 3 giây) ---------- */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <h4 className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-[#072348]">
@@ -894,202 +865,226 @@ export function SourcingCandidateDrawer({
                   </div>
                   <span
                     className={clsx(
-                      'rounded-full px-2.5 py-0.5 text-[11px] font-bold tabular-nums',
+                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold tabular-nums',
                       scoreBadgeClass,
                     )}
                   >
-                    Độ phù hợp {pctStr}%
+                    Độ phù hợp {overallScore}%
+                    <span className="font-semibold opacity-80">· {levelLabel}</span>
                   </span>
                 </div>
 
-                {/* Cảnh báo lọc cứng hoặc Tóm tắt 2 trụ cột điểm số */}
-                {engineResult && !engineResult.dat_loc_cung ? (
+                {/* Hộp tóm tắt ngắn gọn */}
+                {jd?.aiSummary ? (
+                  <p className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5 text-xs leading-relaxed text-slate-700">
+                    {jd.aiSummary}
+                  </p>
+                ) : null}
+
+                {/* Cảnh báo chưa đạt lọc cứng */}
+                {jd && !jd.passesHardFilter ? (
                   <div className="flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-900">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#c96a12]" />
                     <div>
                       <p className="font-semibold">Chưa đáp ứng điều kiện bắt buộc của JD</p>
-                      {engineResult.ly_do_loai.length > 0 ? (
+                      {jd.rejectReasons.length > 0 ? (
                         <p className="mt-0.5 text-[11.5px] text-amber-800/90">
-                          {engineResult.ly_do_loai.join(' · ')}
+                          {jd.rejectReasons.join(' · ')}
                         </p>
                       ) : null}
                     </div>
                   </div>
-                ) : engineResult && (expScore !== null || commonScore !== null) ? (
-                  <div className="grid gap-2.5 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11.5px] font-semibold text-slate-700">
-                          Kinh nghiệm thực chiến
-                        </span>
-                        <span
-                          className={clsx(
-                            'text-xs font-extrabold tabular-nums',
-                            (expScore ?? 0) >= 75
-                              ? 'text-emerald-700'
-                              : (expScore ?? 0) >= 40
-                                ? 'text-[#c96a12]'
-                                : 'text-slate-600',
-                          )}
-                        >
-                          {expScore ?? 0}%
-                        </span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
-                        {unlocked
-                          ? hasRealCompany
-                            ? `Tại ${rawBestCompany}`
-                            : rawBestCompany
-                              ? 'Đánh giá trên dữ liệu kinh nghiệm hồ sơ'
-                              : 'Chưa cập nhật lịch sử doanh nghiệp'
-                          : rawBestCompany
-                            ? 'Doanh nghiệp phù hợp nhất lịch sử làm việc'
-                            : 'Chưa ghi nhận lịch sử doanh nghiệp'}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11.5px] font-semibold text-slate-700">
-                          Điều kiện &amp; kỳ vọng chung
-                        </span>
-                        <span
-                          className={clsx(
-                            'text-xs font-extrabold tabular-nums',
-                            (commonScore ?? 0) >= 75
-                              ? 'text-emerald-700'
-                              : (commonScore ?? 0) >= 40
-                                ? 'text-[#c96a12]'
-                                : 'text-slate-600',
-                          )}
-                        >
-                          {commonScore ?? 0}%
-                        </span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
-                        Địa điểm, thu nhập, năm KN, ngoại ngữ...
-                        {tenureBonusPct > 0 ? ` (+${tenureBonusPct}% bề dày)` : ''}
-                      </p>
-                    </div>
-                  </div>
                 ) : null}
 
-                {/* Tầng 2: Bảng thanh tiến độ từng tiêu chí theo Trọng số */}
-                {visibleCriteria.length > 0 ? (
-                  <div className="space-y-2">
-                    <div className="grid gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 bg-[#F8FAFC] p-3.5 sm:grid-cols-2">
-                      {visibleCriteria.map((c) => (
-                        <div key={c.key} className="space-y-1">
-                          <div className="flex items-center justify-between gap-2 text-[11.5px]">
-                            <span className="min-w-0 truncate font-medium text-slate-700" title={c.label}>
-                              {c.label}
-                              {c.weightPct > 0 ? (
-                                <span className="ml-1 font-normal text-slate-400">
-                                  · Trọng số {c.weightPct}%
-                                </span>
-                              ) : null}
-                            </span>
+                {/* 2 thẻ nhóm lớn — nhãn mức độ đáp ứng, KHÔNG số % rời rạc */}
+                {criteria.length > 0 ? (
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {(['EXPERIENCE', 'CONDITION'] as const).map((groupKey) => {
+                      const meta = GROUP_META[groupKey];
+                      const status = groupKey === 'EXPERIENCE' ? jd?.groupSummary.experience : jd?.groupSummary.condition;
+                      const groupItems = criteria.filter((c) => c.group === groupKey);
+                      if (groupItems.length === 0) return null;
+                      return (
+                        <div key={groupKey} className="rounded-xl border border-slate-100 bg-[#F8FAFC] px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11.5px] font-semibold text-slate-700">{meta.label}</span>
                             <span
                               className={clsx(
-                                'shrink-0 text-[11.5px] font-bold tabular-nums',
-                                c.matchPct >= 75
-                                  ? 'text-emerald-700'
-                                  : c.matchPct >= 35
-                                    ? 'text-[#c96a12]'
-                                    : 'text-slate-500',
+                                'rounded-full px-2 py-0.5 text-[10.5px] font-bold',
+                                groupStatusClass(status),
                               )}
                             >
-                              {c.matchPct}%
+                              {groupStatusLabel(status)}
                             </span>
                           </div>
-                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/75">
-                            <div
-                              className={clsx(
-                                'h-full rounded-full transition-all duration-300',
-                                c.matchPct >= 75
-                                  ? 'bg-emerald-500'
-                                  : c.matchPct >= 35
-                                    ? 'bg-[#E8872A]'
-                                    : 'bg-slate-400',
-                              )}
-                              style={{ width: `${c.matchPct}%` }}
-                            />
-                          </div>
+                          {meta.note ? (
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">
+                              {meta.note}
+                            </p>
+                          ) : null}
                         </div>
-                      ))}
-                    </div>
-
-                    {sortedCriteria.length > INITIAL_CRITERIA_COUNT ? (
-                      <div className="flex justify-center">
-                        <button
-                          type="button"
-                          onClick={() => setShowAllCriteria((v) => !v)}
-                          className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11.5px] font-semibold text-[#072348]/80 transition hover:bg-slate-100 hover:text-[#072348]"
-                        >
-                          <span>
-                            {showAllCriteria
-                              ? 'Thu gọn tiêu chí'
-                              : `Xem đầy đủ ${sortedCriteria.length} tiêu chí`}
-                          </span>
-                          <ChevronDown
-                            className={clsx(
-                              'h-3.5 w-3.5 transition-transform duration-200',
-                              showAllCriteria && 'rotate-180',
-                            )}
-                          />
-                        </button>
-                      </div>
-                    ) : null}
+                      );
+                    })}
                   </div>
-                ) : !engineResult && candidateRow.match.reason ? (
-                  <p className="text-xs leading-relaxed text-slate-600">{candidateRow.match.reason}</p>
                 ) : null}
 
-                {/* Tầng 3: Điểm mạnh đáp ứng & Cần thẩm định thêm */}
-                {strongTags.length > 0 || visibleGapTags.length > 0 ? (
-                  <div className="space-y-2 pt-0.5">
-                    {strongTags.length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] font-semibold text-slate-600">
-                          Điểm mạnh đáp ứng:
-                        </span>
-                        {strongTags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200/70"
-                          >
-                            ✓ {tag}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
+                {/* ---------- TẦNG 2: 3 NHÓM TÍN HIỆU HÀNH ĐỘNG (nhóm rỗng thì tự ẩn) ---------- */}
+                {matchedCriteria.length > 0 ? (
+                  <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2.5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-emerald-800">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Điểm khớp nổi bật
+                    </p>
+                    <ul className="mt-1.5 space-y-1">
+                      {matchedCriteria.map((c) => (
+                        <li key={c.key} className="text-[11.5px] leading-relaxed text-slate-700">
+                          <span className="font-semibold text-[#072348]">{c.label}:</span>{' '}
+                          {c.candidateEvidence ?? c.jdRequirement ?? 'Đáp ứng yêu cầu JD'}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
 
-                    {visibleGapTags.length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] font-semibold text-slate-600">
-                          Cần thẩm định thêm:
-                        </span>
-                        {visibleGapTags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center rounded-full bg-amber-50/90 px-2.5 py-0.5 text-[11px] font-medium text-[#b45309] ring-1 ring-amber-200/70"
-                          >
-                            ⚠ {tag}
+                {mismatchCriteria.length > 0 ? (
+                  <div className="rounded-xl border border-rose-200/70 bg-rose-50/50 px-3 py-2.5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-rose-800">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Điểm lệch cần lưu ý
+                    </p>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {mismatchCriteria.map((c) => (
+                        <li key={c.key} className="text-[11.5px] leading-relaxed text-slate-700">
+                          <span className="font-semibold text-[#072348]">{c.label}:</span>
+                          <span className="mt-0.5 block text-slate-600">
+                            <span className="font-medium text-rose-700">Ứng viên:</span>{' '}
+                            {c.candidateEvidence ?? 'Chưa có dữ liệu phù hợp'}
+                            {' · '}
+                            <span className="font-medium text-slate-700">JD yêu cầu:</span>{' '}
+                            {c.jdRequirement ?? 'Không mô tả rõ'}
                           </span>
-                        ))}
-                        {hiddenGapCount > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllCriteria(true)}
-                            title={allGapTags.slice(6).join(', ')}
-                            className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-200/80"
-                          >
-                            +{hiddenGapCount} tiêu chí khác
-                          </button>
-                        ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {missingCriteria.length > 0 ? (
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 px-3 py-2.5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-[#b45309]">
+                      <HelpCircle className="h-3.5 w-3.5" />
+                      Cần thẩm định thêm khi sàng lọc
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">
+                      Ứng viên chưa cập nhật các thông tin này — cần hỏi thêm khi trao đổi.
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {visibleMissing.map((c) => (
+                        <span
+                          key={c.key}
+                          className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-[#b45309] ring-1 ring-amber-200/70"
+                        >
+                          {c.label}
+                        </span>
+                      ))}
+                      {hiddenMissingCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowDetailTable(true)}
+                          title={missingCriteria.slice(MISSING_TAG_LIMIT).map((c) => c.label).join(', ')}
+                          className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-200/80"
+                        >
+                          +{hiddenMissingCount} tiêu chí khác
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* ---------- TẦNG 3: BẢNG ĐỐI CHIẾU CHI TIẾT (mặc định thu gọn) ---------- */}
+                {criteria.length > 0 ? (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDetailTable((v) => !v)}
+                      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11.5px] font-semibold text-[#072348]/80 transition hover:bg-slate-100 hover:text-[#072348]"
+                    >
+                      <span>{showDetailTable ? 'Ẩn bảng đối chiếu chi tiết' : 'Xem bảng đối chiếu chi tiết'}</span>
+                      <ChevronDown
+                        className={clsx(
+                          'h-3.5 w-3.5 transition-transform duration-200',
+                          showDetailTable && 'rotate-180',
+                        )}
+                      />
+                    </button>
+
+                    {showDetailTable ? (
+                      <div className="mt-2 overflow-x-auto rounded-xl border border-slate-100">
+                        <table className="w-full min-w-[520px] border-collapse text-left">
+                          <thead>
+                            <tr className="bg-[#F8FAFC]">
+                              <th className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
+                                Tiêu chí
+                              </th>
+                              <th className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
+                                Yêu cầu JD &amp; Hồ sơ ứng viên
+                              </th>
+                              <th className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
+                                Đánh giá
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {criteria.map((c) => (
+                              <tr key={c.key} className="border-t border-slate-100 align-top">
+                                <td className="px-3 py-2 text-[11.5px] font-semibold text-[#072348]">
+                                  {c.label}
+                                </td>
+                                <td className="px-3 py-2 text-[11.5px] leading-relaxed text-slate-600">
+                                  {c.jdRequirement ? (
+                                    <span className="block">
+                                      <span className="font-medium text-slate-700">JD yêu cầu:</span> {c.jdRequirement}
+                                    </span>
+                                  ) : null}
+                                  {c.candidateEvidence ? (
+                                    <span className="block">
+                                      <span className="font-medium text-slate-700">Ứng viên:</span> {c.candidateEvidence}
+                                    </span>
+                                  ) : (
+                                    <span className="block text-slate-400">Ứng viên chưa cập nhật</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span
+                                    className={clsx(
+                                      'inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-bold',
+                                      c.status === 'MATCHED'
+                                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80'
+                                        : c.status === 'PARTIAL'
+                                          ? 'bg-amber-50 text-[#c96a12] ring-1 ring-amber-200/80'
+                                          : c.status === 'MISMATCH'
+                                            ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200/80'
+                                            : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80',
+                                    )}
+                                  >
+                                    {c.status === 'MATCHED'
+                                      ? 'Khớp'
+                                      : c.status === 'PARTIAL'
+                                        ? 'Khớp một phần'
+                                        : c.status === 'MISMATCH'
+                                          ? 'Chưa khớp'
+                                          : 'Chưa cập nhật'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     ) : null}
                   </div>
+                ) : !candidateRow.match.reason ? (
+                  <p className="text-xs leading-relaxed text-slate-600">{candidateRow.match.reason}</p>
                 ) : null}
               </div>
             );
@@ -1171,23 +1166,27 @@ export function SourcingCandidateDrawer({
                   </h4>
                   <div className="mt-2.5 space-y-2 text-xs">
                     <p className="flex items-center gap-2 text-slate-700">
-                      <Mail className="h-3.5 w-3.5 text-[#E8872A]" />
-                      <span className="font-medium">{detail.email || 'Chưa cập nhật'}</span>
-                    </p>
-                    <p className="flex items-center gap-2 text-slate-700">
-                      <Phone className="h-3.5 w-3.5 text-[#E8872A]" />
+                      <Phone className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                      <span className="font-semibold text-slate-500">Điện thoại:</span>
                       <span className="font-medium">{detail.phone || 'Chưa cập nhật'}</span>
                     </p>
                     <p className="flex items-center gap-2 text-slate-700">
-                      <MapPin className="h-3.5 w-3.5 text-[#E8872A]" />
+                      <Mail className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                      <span className="font-semibold text-slate-500">Email:</span>
+                      <span className="font-medium">{detail.email || 'Chưa cập nhật'}</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-slate-700">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
+                      <span className="font-semibold text-slate-500">Địa điểm:</span>
                       <span>{detail.profile?.sales?.desiredLocations?.[0] || candidateRow.location || 'Chưa cập nhật'}</span>
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4">
+                  {/* Ứng viên đã nộp đơn → nhắn tin trao đổi, KHÔNG mời ứng tuyển. */}
                   <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Kết nối & Mời ứng tuyển
+                    {candidateRow.applied ? 'Nhắn tin trao đổi' : 'Kết nối & Mời ứng tuyển'}
                   </h4>
                   {connectionStatus === ConnectionStatus.Accepted && connectionId ? (
                     <div className="mt-2.5 space-y-2">
@@ -1213,7 +1212,11 @@ export function SourcingCandidateDrawer({
                         value={connectMessage}
                         onChange={(e) => setConnectMessage(e.target.value)}
                         className="w-full rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-[#072348]"
-                        placeholder="Lời nhắn mời ứng viên..."
+                        placeholder={
+                          candidateRow.applied
+                            ? 'Lời nhắn trao đổi với ứng viên...'
+                            : 'Lời nhắn mời ứng viên...'
+                        }
                       />
                       <Button
                         className="w-full"
@@ -1225,7 +1228,9 @@ export function SourcingCandidateDrawer({
                         ) : (
                           <UserPlus className="h-4 w-4" />
                         )}
-                        Gửi yêu cầu kết nối / Mời ứng tuyển
+                        {candidateRow.applied
+                          ? 'Gửi tin nhắn cho ứng viên'
+                          : 'Gửi yêu cầu kết nối / Mời ứng tuyển'}
                       </Button>
                     </div>
                   )}

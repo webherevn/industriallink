@@ -3,10 +3,11 @@ import type {
   JobMatchView,
   MatchExplanation,
   OpenJobMatchBoard,
+  RecruiterMatchExplanation,
 } from '@industriallink/contracts';
 import { apiRequest, asArray } from './api';
 
-function withMatch<T extends { match?: MatchExplanation }>(row: T): T {
+function withMatch<T extends { match?: RecruiterMatchExplanation | MatchExplanation }>(row: T): T {
   if (!row || typeof row !== 'object') return row;
   const next: T = { ...row };
   if ('skills' in row) {
@@ -17,7 +18,7 @@ function withMatch<T extends { match?: MatchExplanation }>(row: T): T {
       ...row.match,
       matchedSkills: asArray(row.match.matchedSkills),
       missingSkills: asArray(row.match.missingSkills),
-    };
+    } as T['match'];
   }
   return next;
 }
