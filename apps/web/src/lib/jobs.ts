@@ -12,6 +12,8 @@ import type {
   JobView,
   ListPublishedJobsQuery,
   ParseJobDescriptionResponse,
+  RecruiterJobSourceCounts,
+  RecruiterJobSourceFilter,
   UpdateJobRequest,
 } from '@industriallink/contracts';
 import { apiRequest, asArray } from './api';
@@ -61,8 +63,50 @@ export async function getJob(id: string): Promise<JobView> {
   return withJobSkills(await apiRequest<JobView>(`/jobs/${id}`));
 }
 
+/**
+ * (B) Danh sách tin của NTD. `source` lọc theo nguồn gói:
+ * - `HUNT`: tin thuộc chiến dịch Săn ACTIVE / do gói Săn tạo.
+ * - `STANDARD`: các tin còn lại (Khám phá, gói Tin đăng trả phí, nháp...).
+ *
+ * Lưu ý: hàm này được dùng trực tiếp làm `queryFn` của react-query, nên KHÔNG
+ * đặt tham số vị trí đầu (react-query truyền context vào đối số đầu).
+ */
 export async function listMyJobs(): Promise<JobListItem[]> {
   return asArray<JobListItem>(await apiRequest('/jobs/mine')).map(withJobSkills);
+}
+
+/** (B) Biến thể có lọc nguồn — dùng kèm `queryFn: () => listMyJobsBySource(source)`. */
+export async function listMyJobsBySource(
+  source: RecruiterJobSourceFilter,
+): Promise<JobListItem[]> {
+  const qs = source && source !== 'ALL' ? `?source=${encodeURIComponent(source)}` : '';
+  return asArray<JobListItem>(await apiRequest(`/jobs/mine${qs}`)).map(withJobSkills);
+}
+
+/**
+ * (B) Số đếm tin theo nguồn — tính theo bộ lọc hiện tại (từ khoá / thời gian / trạng thái).
+ * Bất biến: `standard + hunt === all`.
+ */
+export async function fetchMyJobSourceCounts(filter: {
+  status?: string | null;
+  keyword?: string | null;
+  createdAfter?: string | null;
+  packageId?: string | null;
+} = {}): Promise<RecruiterJobSourceCounts> {
+  const qs = new URLSearchParams();
+  if (filter.status && filter.status !== 'all') qs.set('status', filter.status);
+  if (filter.keyword) qs.set('keyword', filter.keyword);
+  if (filter.createdAfter) qs.set('createdAfter', filter.createdAfter);
+  if (filter.packageId) qs.set('packageId', filter.packageId);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const data = await apiRequest<RecruiterJobSourceCounts>(
+    `/jobs/mine/source-counts${suffix}`,
+  );
+  return {
+    all: data?.all ?? 0,
+    standard: data?.standard ?? 0,
+    hunt: data?.hunt ?? 0,
+  };
 }
 
 export async function listBookmarkedJobs(): Promise<JobListItem[]> {

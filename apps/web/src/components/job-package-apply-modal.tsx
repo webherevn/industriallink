@@ -198,15 +198,18 @@ export function JobPackageApplyModal({
                     <label
                       key={job.id}
                       className={clsx(
-                        'flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 transition',
-                        selectedJobId === job.id
-                          ? 'border-brand-300 bg-brand-50/60'
-                          : 'border-slate-200 bg-white hover:border-slate-300',
+                        'flex items-start gap-2.5 rounded-xl border px-3 py-2.5 transition',
+                        job.eligible === false
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-50/70 opacity-80'
+                          : selectedJobId === job.id
+                            ? 'cursor-pointer border-brand-300 bg-brand-50/60'
+                            : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300',
                       )}
                     >
                       <input
                         type="radio"
                         name="applicableJob"
+                        disabled={job.eligible === false}
                         checked={selectedJobId === job.id}
                         onChange={() => setSelectedJobId(job.id)}
                         className="mt-0.5 h-4 w-4 accent-[#E8872A]"
@@ -219,6 +222,11 @@ export function JobPackageApplyModal({
                           {job.code} · {jobStatusLabel(job.status)}
                           {job.jobPackageCode ? ` · gói ${job.jobPackageCode}` : ''}
                         </span>
+                        {job.eligible === false && job.disabledReason ? (
+                          <span className="mt-1 block text-[11px] font-medium leading-relaxed text-[#C25E12]">
+                            {job.disabledReason}
+                          </span>
+                        ) : null}
                       </span>
                     </label>
                   ))}

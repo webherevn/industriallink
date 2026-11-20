@@ -107,6 +107,17 @@ function openUsageCreditCount(note: string | null | undefined): number {
   return Number.isInteger(n) && n > 0 ? n : 1;
 }
 
+/**
+ * (A) Tin đang chạy bằng gói Tin đăng TRẢ PHÍ (STANDARD | PLUS | ENTERPRISE)
+ * → không thể gắn trực tiếp gói Tin săn, phải copy sang tin mới.
+ */
+function isPaidStandardJob(job: { status?: string; jobPackageType?: string | null } | undefined) {
+  if (!job) return false;
+  if (job.status !== 'published') return false;
+  const type = (job.jobPackageType ?? '').toUpperCase();
+  return type === 'STANDARD' || type === 'PLUS' || type === 'ENTERPRISE';
+}
+
 function cycleEnded(endsAt: string | null | undefined) {
   return Boolean(endsAt && new Date(endsAt).getTime() < Date.now());
 }
@@ -179,7 +190,10 @@ const STATUS_LABEL: Record<string, string> = {
   closed: 'Đã đóng',
 };
 
-export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string } = {}) {
+export function RecruiterSourcingWorkspace({
+  campaignId,
+  copyJobId,
+}: { campaignId?: string; copyJobId?: string } = {}) {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [jobId, setJobId] = useState('');
@@ -190,6 +204,8 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
   const [candidateTab, setCandidateTab] = useState<'potential' | 'applied'>('potential');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'select' | 'create'>('select');
+  /** (A) Tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn (copy JD). */
+  const [closeSourceJob, setCloseSourceJob] = useState(false);
   const [createTrack, setCreateTrack] = useState<JobTrack>(JobTrack.Sales);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
@@ -223,6 +239,24 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
     staleTime: 60_000,
   });
 
+  /**
+   * (A) Đến từ menu "Tạo Tin săn từ nội dung JD này" trên card tin đăng:
+   * tự động mở modal chọn JD và pre-select đúng tin đó.
+   */
+  useEffect(() => {
+    if (!copyJobId) return;
+    setModalMode('select');
+    setCreateModalOpen(true);
+    setJobId(copyJobId);
+  }, [copyJobId]);
+
+  // Tiêu đề tin được copy sang Tin săn mới.
+  useEffect(() => {
+    if (!copyJobId || title.trim()) return;
+    const matched = (jobs ?? []).find((j) => j.id === copyJobId);
+    if (matched) setTitle(matched.title);
+  }, [copyJobId, jobs, title]);
+
   const consume = useMutation({
     mutationFn: consumeRecruiterSourcing,
     onSuccess: (ws, vars) => {
@@ -230,7 +264,9 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
         tone: 'ok',
         text:
           vars.kind === 'position'
-            ? 'Đã tạo Tin Săn (bảo lưu hạn 45 ngày) và bắt đầu quét ứng viên phù hợp.'
+            ? vars.copyJdToNewJob
+              ? 'Đã tạo Tin Săn mới từ nội dung JD (tin cũ giữ nguyên) và bắt đầu quét ứng viên phù hợp.'
+              : 'Đã tạo Tin Săn (hiển thị 30 ngày) và bắt đầu quét ứng viên phù hợp.'
             : `Đã ghi ${usageLabel(vars.kind).toLowerCase()}.`,
       });
       void qc.setQueryData(['recruiter-sourcing'], ws);
@@ -358,6 +394,15 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
    * KHÔNG dùng `assignment.endsAt` (hạn chu kỳ cấp gói) vì mỗi gói Săn có hạn riêng.
    */
   const ended = Boolean(selectedCampaign && selectedCampaign.packageStatus !== 'ACTIVE');
+
+  /**
+   * (A) Tin đang chạy bằng gói Tin đăng TRẢ PHÍ → không gắn trực tiếp gói Tin săn được.
+   * Phải dùng luồng "Copy nội dung JD sang Tin săn mới".
+   */
+  const selectedJobLocked = useMemo(
+    () => isPaidStandardJob((jobs ?? []).find((j) => j.id === jobId)),
+    [jobs, jobId],
+  );
 
   /** Tài nguyên RIÊNG của chiến dịch đang mở (đọc từ đúng 1 BillingHuntPackage gắn với nó). */
   const campaignResource = useMemo(
@@ -1022,11 +1067,12 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                 {(jobs ?? []).length > 0 ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs leading-relaxed text-amber-950">
                     <p className="font-bold text-[#072348]">
-                      Bạn có muốn chuyển tin đăng này thành tin săn hay không?
+                      Chọn tin tuyển dụng (JD) để chuyển thành Tin Săn
                     </p>
                     <p className="mt-1 text-amber-900">
-                      * Việc chuyển sang tin săn sẽ bảo lưu thời hạn tin đăng cũ 45 ngày cho bạn đồng thời giúp tối ưu
-                      credit và gói tin của bạn tốt nhất.
+                      * Một tin chỉ có <strong>1 nguồn gói</strong>. Tin đang chạy bằng gói Tin đăng
+                      trả phí sẽ được <strong>copy sang 1 tin mới</strong> độc lập (tin cũ giữ nguyên),
+                      tránh chồng gói và tránh cộng dồn thời hạn.
                     </p>
                   </div>
                 ) : null}
@@ -1048,13 +1094,50 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#072348] focus:ring-2 focus:ring-[#072348]/15"
                   >
                     <option value="">-- Chọn JD có sẵn của doanh nghiệp --</option>
-                    {(jobs ?? []).map((j) => (
-                      <option key={j.id} value={j.id}>
-                        {j.title} ({j.status === 'published' ? 'Đang hiển thị' : 'Nháp / Hết hạn'})
-                      </option>
-                    ))}
+                    {(jobs ?? []).map((j) => {
+                      const locked = isPaidStandardJob(j);
+                      return (
+                        <option key={j.id} value={j.id}>
+                          {j.title} (
+                          {j.status === 'published' ? 'Đang hiển thị' : 'Nháp / Hết hạn'}
+                          {locked ? ' — sẽ copy sang tin mới' : ''})
+                        </option>
+                      );
+                    })}
                   </select>
+                  {selectedJobLocked ? (
+                    <div className="mt-2 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3 py-2.5 text-[11.5px] leading-relaxed text-[#C25E12]">
+                      <p className="font-semibold">
+                        Tin này đang chạy bằng gói Tin đăng trả phí — không thể gắn thêm gói Tin săn.
+                      </p>
+                      <p className="mt-1">
+                        Hệ thống sẽ <strong>copy nội dung JD sang 1 tin mới</strong> và gắn gói Săn
+                        vào tin mới. Tin cũ giữ nguyên toàn bộ dữ liệu.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
+
+                {/* (A) Tuỳ chọn: tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn. */}
+                {selectedJobLocked ? (
+                  <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={closeSourceJob}
+                      onChange={(ev) => setCloseSourceJob(ev.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-[#E8872A]"
+                    />
+                    <span>
+                      <span className="font-semibold text-[#072348]">
+                        Tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn
+                      </span>
+                      <span className="mt-0.5 block text-slate-500">
+                        Tránh hiển thị 2 tin trùng ngoài trang ứng viên. Tin cũ vẫn giữ nguyên lịch sử
+                        hồ sơ.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700">
@@ -1100,6 +1183,11 @@ export function RecruiterSourcingWorkspace({ campaignId }: { campaignId?: string
                         packageId: selectedPackageId ?? undefined,
                         jobId,
                         title: selectedJob?.title || undefined,
+                        // (A) Tin đang chạy gói Tin đăng trả phí → copy sang tin MỚI
+                        // độc lập, KHÔNG ghi đè tin cũ.
+                        ...(selectedJobLocked
+                          ? { copyJdToNewJob: true, closeSourceJob }
+                          : {}),
                       });
                     }}
                   >

@@ -32,6 +32,7 @@ import {
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { JobModerationStatus, JobStatus, type JobListItem } from '@industriallink/contracts';
+import type { RecruiterJobSourceFilter } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import {
   JobPackageList,
@@ -41,7 +42,13 @@ import { JobRepostPackageModal } from '@/components/job-repost-package-modal';
 import { Badge, Button, Input, Select } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EMPLOYMENT_LABEL, formatJobLevel, formatSalary } from '@/lib/format';
-import { deleteJob, listMyJobs, publishJob, updateJobStatus } from '@/lib/jobs';
+import {
+  deleteJob,
+  fetchMyJobSourceCounts,
+  listMyJobs,
+  publishJob,
+  updateJobStatus,
+} from '@/lib/jobs';
 import { plainLabel } from '@/lib/plain-label';
 import { apiPublicBase } from '@/lib/public-paths';
 
@@ -151,12 +158,37 @@ function showNewBadge(job: JobListItem): boolean {
   return Date.now() - created < NEW_BADGE_DAYS * 24 * 60 * 60 * 1000;
 }
 
-const STATUS_FILTERS: { value: string; label: string }[] = [
-  { value: 'all', label: 'Tất cả' },
+/**
+ * Tin thuộc nhóm HUNT (đang chạy bằng gói Săn nhân sự).
+ * Ưu tiên `source` từ API; fallback sang `isSourcingActive` cho dữ liệu cũ.
+ */
+function isHuntSource(job: JobListItem): boolean {
+  if (job.source) return job.source === 'HUNT';
+  return Boolean(job.isSourcingActive);
+}
+
+/**
+ * Tin đang chạy bằng gói Tin đăng TRẢ PHÍ (STANDARD / PLUS / ENTERPRISE).
+ * Tin nhóm HUNT không tính (nó đã có nguồn gói Săn).
+ */
+function isPaidStandardSource(job: JobListItem): boolean {
+  if (isHuntSource(job)) return false;
+  const type = job.jobPackageType;
+  return type === 'STANDARD' || type === 'PLUS' || type === 'ENTERPRISE';
+}
+
+const STATUS_FILTERS: { value: string; label: string }[] = [  { value: 'all', label: 'Tất cả' },
   { value: JobStatus.Published, label: 'Đang tuyển' },
   { value: JobStatus.Draft, label: 'Nháp' },
   { value: JobStatus.Paused, label: 'Tạm dừng' },
   { value: JobStatus.Closed, label: 'Đã đóng' },
+];
+
+/** (B) Bộ lọc nguồn tin — loại trừ lẫn nhau: ALL = STANDARD + HUNT. */
+const SOURCE_FILTERS: { value: RecruiterJobSourceFilter; label: string }[] = [
+  { value: 'ALL', label: 'Tất cả nguồn' },
+  { value: 'STANDARD', label: 'Tin đăng thường' },
+  { value: 'HUNT', label: 'Tin săn' },
 ];
 
 type TimeFilter = 'all' | '7d' | '30d' | '90d';
@@ -167,15 +199,40 @@ export default function ManageJobsPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [sort, setSort] = useState<'new' | 'old'>('new');
   const [q, setQ] = useState('');
+  /** (B) Lọc nguồn tin: ALL | STANDARD | HUNT. */
+  const [sourceFilter, setSourceFilter] = useState<RecruiterJobSourceFilter>('ALL');
   /** Lọc danh sách tin theo gói (từ nút "Xem tin đã gắn" của card gói). */
   const [packageFilterId, setPackageFilterId] = useState<string | null>(null);
 
   const { data: jobs, isLoading, isError, error } = useQuery({
     queryKey: ['my-jobs'],
-    queryFn: listMyJobs,
+    queryFn: () => listMyJobs(),
     retry: false,
     refetchInterval: (query) =>
       query.state.data?.some(isModerating) ? MODERATION_POLL_MS : false,
+  });
+
+  /**
+   * (B) Số đếm theo nguồn — tính theo BỘ LỌC HIỆN TẠI (từ khoá, thời gian, trạng thái)
+   * để tab "Tin đăng thường / Tin săn" hiển thị đúng số.
+   */
+  const timeCutoff = useMemo(() => {
+    if (timeFilter === 'all') return null;
+    const days = timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : 90;
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  }, [timeFilter]);
+
+  const { data: sourceCounts } = useQuery({
+    queryKey: ['my-job-source-counts', statusFilter, q, timeCutoff, packageFilterId],
+    queryFn: () =>
+      fetchMyJobSourceCounts({
+        status: statusFilter,
+        keyword: q,
+        createdAfter: timeCutoff,
+        packageId: packageFilterId,
+      }),
+    retry: false,
+    placeholderData: { all: 0, standard: 0, hunt: 0 },
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
@@ -232,6 +289,14 @@ export default function ManageJobsPage() {
     if (packageFilterId) {
       list = list.filter((j) => j.jobPackageId === packageFilterId);
     }
+    // (B) Lọc nguồn tin — loại trừ lẫn nhau (HUNT = tin có chiến dịch Săn ACTIVE).
+    if (sourceFilter !== 'ALL') {
+      list = list.filter((j) =>
+        sourceFilter === 'HUNT'
+          ? j.source === 'HUNT'
+          : j.source !== 'HUNT',
+      );
+    }
     if (timeFilter !== 'all') {
       const days = timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : 90;
       const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
@@ -250,7 +315,7 @@ export default function ManageJobsPage() {
       const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return sort === 'new' ? diff : -diff;
     });
-  }, [jobs, statusFilter, timeFilter, q, sort, packageFilterId]);
+  }, [jobs, statusFilter, timeFilter, q, sort, packageFilterId, sourceFilter]);
 
   return (
     <AppShell>
@@ -311,10 +376,11 @@ export default function ManageJobsPage() {
         </div>
       ) : null}
 
-      {/* Thanh tìm kiếm, lọc trạng thái, lọc thời gian & sắp xếp */}
+      {/* Thanh tìm kiếm, lọc trạng thái, lọc nguồn, lọc thời gian & sắp xếp */}
       <div className="brand-panel mt-5 p-3.5 sm:p-4">
-        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <div className="relative min-w-0 flex-1 2xl:max-w-md">
+        {/* Dòng 1 — Tìm kiếm (trái) + Thời gian & Sắp xếp (phải) */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={q}
@@ -324,56 +390,85 @@ export default function ManageJobsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {STATUS_FILTERS.map((f) => {
-                const active = statusFilter === f.value;
-                return (
-                  <button
-                    key={f.value}
-                    type="button"
-                    onClick={() => setStatusFilter(f.value)}
-                    className={clsx(
-                      'whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
-                      active
-                        ? 'bg-[#072348] text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                    )}
-                  >
-                    {`${f.label} (${stats.counts[f.value] ?? 0})`}
-                  </button>
-                );
-              })}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="min-w-[168px] shrink-0">
+              <Select
+                value={timeFilter}
+                onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+                className="h-9 w-full whitespace-nowrap rounded-xl border-slate-200 bg-white pl-3 pr-8 text-xs font-medium text-slate-700"
+              >
+                <option value="all">Tất cả thời gian</option>
+                <option value="7d">7 ngày qua</option>
+                <option value="30d">30 ngày qua</option>
+                <option value="90d">90 ngày qua</option>
+              </Select>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="min-w-[168px] shrink-0">
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="whitespace-nowrap text-xs text-slate-500">Sắp xếp:</span>
+              <div className="min-w-[132px]">
                 <Select
-                  value={timeFilter}
-                  onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
-                  className="h-9 w-full whitespace-nowrap rounded-xl border-slate-200 bg-white pl-3 pr-8 text-xs font-medium text-slate-700"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value === 'old' ? 'old' : 'new')}
+                  className="h-9 w-full whitespace-nowrap rounded-xl border-slate-200 bg-white pl-3 pr-8 text-xs font-semibold text-[#072348]"
                 >
-                  <option value="all">Tất cả thời gian</option>
-                  <option value="7d">7 ngày qua</option>
-                  <option value="30d">30 ngày qua</option>
-                  <option value="90d">90 ngày qua</option>
+                  <option value="new">Mới nhất</option>
+                  <option value="old">Cũ nhất</option>
                 </Select>
               </div>
-
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span className="whitespace-nowrap text-xs text-slate-500">Sắp xếp:</span>
-                <div className="min-w-[132px]">
-                  <Select
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value === 'old' ? 'old' : 'new')}
-                    className="h-9 w-full whitespace-nowrap rounded-xl border-slate-200 bg-white pl-3 pr-8 text-xs font-semibold text-[#072348]"
-                  >
-                    <option value="new">Mới nhất</option>
-                    <option value="old">Cũ nhất</option>
-                  </Select>
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Dòng 2 — Lọc trạng thái (trái) + Lọc nguồn tin (phải) */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {STATUS_FILTERS.map((f) => {
+              const active = statusFilter === f.value;
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setStatusFilter(f.value)}
+                  className={clsx(
+                    'whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
+                    active
+                      ? 'bg-[#072348] text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                  )}
+                >
+                  {`${f.label} (${stats.counts[f.value] ?? 0})`}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Segmented control lọc nguồn tin — nền xám nhạt bọc ngoài, tab active nền trắng */}
+          <div className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-100 p-1">
+            {SOURCE_FILTERS.map((f) => {
+              const active = sourceFilter === f.value;
+              const count =
+                f.value === 'ALL'
+                  ? sourceCounts?.all ?? 0
+                  : f.value === 'STANDARD'
+                    ? sourceCounts?.standard ?? 0
+                    : sourceCounts?.hunt ?? 0;
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setSourceFilter(f.value)}
+                  className={clsx(
+                    'whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
+                    active
+                      ? 'bg-white text-[#072348] shadow-sm'
+                      : 'text-slate-600 hover:text-[#072348]',
+                  )}
+                >
+                  {f.label} ({count})
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -512,6 +607,17 @@ function JobManageCard({
       (job.status === JobStatus.Published && deadlinePassed) ||
       (job.status === JobStatus.Draft && !inReview && !isRejected(job)));
 
+  /**
+   * (3) Chuẩn hoá nút hành động theo nguồn gói:
+   * - Nhóm HUNT: chỉ `Xem tin` | `Ứng viên` | `Quản lý Tin săn`.
+   * - Nhóm STANDARD đang chạy gói Tin đăng TRẢ PHÍ: ẨN nút "Tạo Tin săn" trên card
+   *   (tránh gắn chồng gói); đặt tuỳ chọn "Tạo Tin săn từ nội dung JD này" trong menu `...`.
+   * - Nháp / Đã đóng / Hết hạn / gói FREE: giữ đầy đủ hành động kích hoạt gói Tin đăng.
+   */
+  const huntSource = isHuntSource(job);
+  const paidStandardSource = isPaidStandardSource(job);
+  const hideCreateHuntButton = paidStandardSource && !isClosedOrExpired;
+
   return (
     <article className="brand-panel group relative p-4 transition duration-200 hover:border-brand-200 hover:shadow-[0_12px_30px_-16px_rgba(7,35,72,0.28)] sm:p-5">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -542,19 +648,25 @@ function JobManageCard({
                 {badge.label}
               </span>
 
-              {job.isSourcingActive ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]">
+              {/* (3) CHUẨN HOÁ BADGE NGUỒN — mỗi tin CHỈ hiển thị DUY NHẤT 1 badge nguồn gói.
+                  - Nhóm HUNT: "Tin săn: Đang hoạt động · TS-xxxxxx" (KHÔNG hiện "Từ gói: ...").
+                  - Nhóm STANDARD: "Từ gói: [Tên gói] · JD-xxxxxx". */}
+              {isHuntSource(job) ? (
+                <span
+                  title={
+                    job.huntCampaignCode
+                      ? `Chiến dịch Săn ${job.huntCampaignCode} · Gói ${job.huntPackageCode ?? ''}`
+                      : 'Tin đang chạy bằng gói Săn nhân sự'
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]"
+                >
                   <Settings className="h-3 w-3 text-[#E8872A]" />
                   Tin săn: Đang hoạt động
+                  {job.huntPackageCode ? (
+                    <span className="font-medium text-[#E8872A]"> · {job.huntPackageCode}</span>
+                  ) : null}
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-                  <Settings className="h-3 w-3 text-slate-400" />
-                  Tin săn: Chưa tạo
-                </span>
-              )}
-
-              {job.jobPackageName ? (
+              ) : job.jobPackageName ? (
                 <span
                   title={
                     job.jobPackageCode
@@ -691,6 +803,10 @@ function JobManageCard({
                   Đăng lại tin
                 </button>
               ) : null
+            ) : hideCreateHuntButton ? (
+              // (3) Tin đang chạy gói Tin đăng trả phí → ẨN nút "Tạo Tin săn" trên card.
+              // Tuỳ chọn "Tạo Tin săn từ nội dung JD này" nằm trong menu `...` bên dưới.
+              null
             ) : (
               <Link href="/recruiter/sourcing" className="flex-1 sm:flex-initial">
                 <span
@@ -736,7 +852,7 @@ function JobManageCard({
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg">
+                <div className="absolute right-0 top-10 z-30 w-64 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg">
                   {job.isSourcingActive ? (
                     <span
                       title="Tin đang hoạt động săn tin nên không thể sửa tại đây"
@@ -755,6 +871,19 @@ function JobManageCard({
                       Sửa tin
                     </Link>
                   )}
+
+                  {/* (3) Tin đang chạy gói Tin đăng trả phí → chỉ mở luồng "Copy JD sang
+                      Tin săn mới" (tạo tin độc lập), KHÔNG gắn chồng gói vào tin hiện tại. */}
+                  {paidStandardSource ? (
+                    <Link
+                      href={`/recruiter/sourcing?copyJobId=${job.id}`}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-[#C25E12] hover:bg-[#FFF8F1]"
+                    >
+                      <Settings className="h-3.5 w-3.5 text-[#E8872A]" />
+                      Tạo Tin săn từ nội dung JD này
+                    </Link>
+                  ) : null}
 
                   <Link
                     href={`/jobs/new?from=${job.id}`}
