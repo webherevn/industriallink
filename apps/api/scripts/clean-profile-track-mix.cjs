@@ -77,53 +77,99 @@ const TECHNICAL_POSITIONS = [
 
 const MAX_POSITIONS = 3;
 
-/** Field đặc thù nhánh Kinh doanh — xóa khi job_track = technical. */
+/**
+ ⭐ WHITELIST tên cột được phép ghi.
+ *
+ * Tên cột đưa thẳng vào SQL (không dùng placeholder) nên BẮT BUỘC phải
+ * whitelist — nếu không, 1 key lạ sẽ sinh SQL injection / lỗi "column does not exist".
+ *
+ * Danh sách này PHẢI khớp với SELECT ở `main()`.
+ */
+const WRITABLE_COLUMNS = new Set([
+  // Nhánh Kinh doanh (xoá khi job_track = technical)
+  'b2b_experience_band',
+  'markets_covered',
+  'customer_dev_style',
+  'deal_type',
+  'typical_deal_value',
+  'max_deal_value',
+  'selling_stages',
+  'latest_revenue',
+  'kpi_achievement_pct',
+  'new_customer_ratio_pct',
+  'expected_ote',
+  'has_b2_license',
+  'driver_license_type',
+  // Nhánh Kỹ thuật (xoá khi job_track = sales)
+  'brands_technologies',
+  'technical_work_types',
+  'technical_autonomy_level',
+  'troubleshooting_level',
+  'technical_tools',
+  'document_literacy',
+  'system_scale_note',
+  'shift_flexibility',
+  'desired_work_environments',
+  // Chung
+  'desired_positions',
+  'current_position',
+]);
+
+/**
+ * Field đặc thù nhánh Kinh doanh — xóa khi job_track = technical.
+ *
+ * ⚠ Tên ở đây là TÊN CỘT TRONG DB (snake_case), KHÔNG phải tên field Prisma
+ * (camelCase). Vì script đọc/ghi bằng raw SQL, dùng camelCase sẽ khiến
+ * `profile[field]` = undefined → field KHÔNG BAO GIỜ bị xóa (dữ liệu lẫu tạp
+ * vẫn còn) và tên cột ghi ra sẽ không tồn tại → lỗi 42703.
+ */
 const SALES_ONLY_FIELDS = [
-  'b2bExperienceBand',
-  'marketsCovered',
-  'customerDevStyle',
-  'dealType',
-  'typicalDealValue',
-  'maxDealValue',
-  'sellingStages',
-  'latestRevenue',
-  'kpiAchievementPct',
-  'newCustomerRatioPct',
-  'expectedOte',
-  'hasB2License',
-  'driverLicenseType',
+  'b2b_experience_band',
+  'markets_covered',
+  'customer_dev_style',
+  'deal_type',
+  'typical_deal_value',
+  'max_deal_value',
+  'selling_stages',
+  'latest_revenue',
+  'kpi_achievement_pct',
+  'new_customer_ratio_pct',
+  'expected_ote',
+  'has_b2_license',
+  'driver_license_type',
 ];
 
-/** Field đặc thù nhánh Kỹ thuật — xóa khi job_track = sales. */
+/** Field đặc thù nhánh Kỹ thuật — xóa khi job_track = sales. (tên cột DB) */
 const TECHNICAL_ONLY_FIELDS = [
-  'brandsTechnologies',
-  'technicalWorkTypes',
-  'technicalAutonomyLevel',
-  'troubleshootingLevel',
-  'technicalTools',
-  'documentLiteracy',
-  'systemScaleNote',
-  'shiftFlexibility',
-  'desiredWorkEnvironments',
+  'brands_technologies',
+  'technical_work_types',
+  'technical_autonomy_level',
+  'troubleshooting_level',
+  'technical_tools',
+  'document_literacy',
+  'system_scale_note',
+  'shift_flexibility',
+  'desired_work_environments',
 ];
 
 const dryRun = process.argv.includes('--dry-run') || !process.argv.includes('--all');
 
 /**
- ⭐ Chuẩn hóa giá trị trước khi bind vào SQL.
+ * ⭐ Chuẩn hóa giá trị trước khi bind vào SQL.
  *
  * - Mảng `String[]` (text[]) → dựng array literal PostgreSQL rồi ép kiểu tường minh.
- *   Dùng `Prisma.raw` vì đây là SQL, không phải giá trị — nếu dùng `Prisma.sql`
- *   thì Prisma sẽ escape thành chuỗi literal → lỗi "syntax error at or near \"[\"".
- * - Scalar (string / number / boolean / null) → trả về để bind như tham số `$1`.
+ *   ⚠ Phần tử phải bọc nháy ĐƠN: `ARRAY['x']::text[]`.
+ *   `ARRAY["x"]` nghĩa là array CHỨA BIỂU THỨC → "x" bị hiểu là TÊN CỘT.
+ * - Scalar (string / number / boolean / null) → bind thành tham số của
+ *   template tag (Prisma tự sinh $1, $2... và tự cast đúng kiểu).
  *
  * @returns {{ kind: 'raw', sql: string } | { kind: 'param', value: any }}
  */
 function toRawValue(value) {
   if (Array.isArray(value)) {
     const items = value.map((v) => {
-      const s = String(v ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      return `"${s}"`;
+      const s = String(v ?? '').replace(/'/g, "''");
+      return `'${s}'`;
     });
     // Mảng rỗng → array rỗng ({}), KHÔNG phải NULL.
     return { kind: 'raw', sql: `ARRAY[${items.join(', ')}]::text[]` };
@@ -215,27 +261,56 @@ async function main() {
         `[${track}] ${row.candidate_id} — cần sạch: ${keys.join(', ')}`,
       );
       if (!dryRun) {
-        // ⭐ Dùng `$executeRaw` (template tag) + `Prisma.sql`/`Prisma.raw`.
+        // ⭐ Dùng `$executeRaw` (template tag) + `Prisma.raw`.
         //
-        // LÝ DO (2 lỗi đã gặp trên VPS):
+        // LÝ DO (4 lỗi đã gặp trên VPS, lần lượt 42601 → 42601 → 42703 → 42703):
         //  1) `$executeRawUnsafe` với placeholder `$name` KHÔNG hợp lệ —
         //     Prisma không hỗ trợ placeholder PostgreSQL native (`$1`) trong hàm
         //     "Unsafe"; nó dùng `?` và mong đợi MẢNG tham số. Khi truyền object,
         //     Prisma coi `$current_position` là chữ literal →
         //     "syntax error at or near "$"" (P2010 / 42601).
-        //  2) Nếu đưa cả `ARRAY[...]::text[]` qua `Prisma.sql`, Prisma escape thành
-        //     chuỗi literal → "syntax error at or near "["" (P2010 / 42601).
+        //  2) `$executeRaw` + `Prisma.sql` với array literal `ARRAY[...]::text[]`
+        //     đi qua `Prisma.sql` sẽ bị escape thành chuỗi →
+        //     "syntax error at or near "["" (P2010 / 42601).
+        //  3) `$executeRawUnsafe` + `?` nhưng SQL lại viết `$1::uuid` →
+        //     Prisma dịch `?` → `$1` nên bị LỆCH chỉ số → tên cột bị thay nhầm
+        //     bằng giá trị → "column "Kỹ sư ..." does not exist" (P2010 / 42703).
+        //  4) `Prisma.sql` với giá trị STRING được interpolate — chuỗi có thể
+        //     được render thẳng vào SQL KHÔNG có dấu nháy → PostgreSQL hiểu là
+        //     TÊN CỘT → "column "Nhân viên kinh doanh" does not exist" (42703).
         //
-        // Cách đúng: tên cột + array literal dùng `Prisma.raw` (SQL thật),
-        // giá trị scalar dùng tham số (Prisma tự sinh $1, $2... và cast đúng kiểu).
+        // ✅ CÁCH CHẮC 100% (đã test thật trên PostgreSQL):
+        //    `$executeRaw` (template tag) với mỗi cột là 1 `Prisma.Sql`:
+        //      - tên cột  → `Prisma.raw` (đã whitelist)
+        //      - giá trị scalar (string/number/boolean/null) → tham số của
+        //        template tag (Prisma tự sinh $1, $2... và tự cast đúng kiểu)
+        //      - array literal `ARRAY[...]::text[]` → `Prisma.raw` (SQL thật)
+        //
+        // ⚠ KHÔNG dùng `Prisma.join` với các phần là `Prisma.raw`:
+        //   `Prisma.join` escape lại raw SQL → mất dấu nháy quanh giá trị →
+        //   PostgreSQL hiểu "Kỹ sư điện" là TÊN CỘT → 42703.
+        //   Phải là `Prisma.Sql` (dùng `Prisma.sql` template tag) thì mới an toàn.
         const { Prisma } = require('@prisma/client');
         const parts = keys.map((k) => {
+          // ⭐ Chặn tên cột không có trong whitelist (an toàn SQL).
+          if (!WRITABLE_COLUMNS.has(k)) {
+            throw new Error(`Tên cột không hợp lệ (ngoài whitelist): "${k}"`);
+          }
           const v = toRawValue(updates[k]);
           const column = Prisma.raw(`"${k}"`);
           return v.kind === 'raw'
             ? Prisma.sql`${column} = ${Prisma.raw(v.sql)}`
             : Prisma.sql`${column} = ${v.value}`;
         });
+        if (process.env.DEBUG_SQL) {
+          // In SQL thực sự sẽ gửi xuống DB (dùng chính Prisma.sql để dựng).
+          const preview = Prisma.sql`
+            UPDATE candidate.candidate_profile
+            SET ${Prisma.join(parts, ', ')}
+            WHERE id = ${row.id}::uuid
+          `;
+          console.log('[SQL]', preview.text);
+        }
         await prisma.$executeRaw`
           UPDATE candidate.candidate_profile
           SET ${Prisma.join(parts, ', ')}
