@@ -102,6 +102,7 @@ import {
 } from './commission-notices';
 import { payoutDayOrDefault } from './commission-payout-day';
 import { signedWalletBalance, walletRunningBalances } from './commission-wallet';
+import { CtvCommissionPolicyService } from './ctv-commission-policy.service';
 import { daysUntilExpiry, netPaidVnd, pitTaxVnd, resolveTaxLockStatus, taxLockExpiry } from './ctv-kyc';
 import { PAYOUT_GATE_MESSAGE } from './ctv-kyc.service';
 import { assignPaidOrders, pickDealForPayment } from './deal-payment';
@@ -157,6 +158,7 @@ export class CrmService {
     private readonly notifications: NotificationService,
     private readonly marketing: CrmMarketingService,
     private readonly storage: StorageService,
+    private readonly commissionPolicy: CtvCommissionPolicyService,
   ) {}
 
   async board(actor: AuthenticatedUser): Promise<CrmBoard> {
@@ -1024,6 +1026,10 @@ export class CrmService {
     return { day, canEdit: true };
   }
 
+  /**
+   * Tỷ lệ hoa hồng cũ (một tỷ lệ dùng chung) — giữ để các màn cũ không vỡ.
+   * Mô hình mới dùng CtvCommissionPolicyService (3 cấp bậc).
+   */
   async commission(actor: AuthenticatedUser): Promise<CrmCommissionView> {
     return {
       percent: await this.commissionPercent(),
@@ -1031,6 +1037,17 @@ export class CrmService {
     };
   }
 
+  /** Tỷ lệ hiện tại lấy từ bậc đầu tiên của chính sách đang áp dụng. */
+  private async commissionPercent(): Promise<number | null> {
+    const policy = await this.commissionPolicy.currentPolicy();
+    if (!policy || policy.tiers.length === 0) return null;
+    return policy.tiers[0].ratePercent;
+  }
+
+  /**
+   * Đặt tỷ lệ cũ — KHÔNG dùng nữa. Chính sách 3 cấp bậc quản lý tỷ lệ.
+   * Giữ endpoint để không vỡ client cũ, trả về lỗi yêu cầu dùng API mới.
+   */
   async setCommission(actor: AuthenticatedUser, input: UpdateCrmCommissionRequest): Promise<CrmCommissionView> {
     if (actor.role !== UserRole.SuperAdmin) {
       throw new ForbiddenException('Chỉ SuperAdmin đặt tỷ lệ hoa hồng');
@@ -1039,12 +1056,10 @@ export class CrmService {
     if (!Number.isInteger(percent) || percent < 0 || percent > 30) {
       throw new BadRequestException('Tỷ lệ hoa hồng là số nguyên từ 0 đến 30');
     }
-    await this.prisma.crmCommissionSetting.upsert({
-      where: { id: 'default' },
-      create: { id: 'default', percent, updatedByUserId: actor.id },
-      update: { percent, updatedByUserId: actor.id },
-    });
-    return { percent, canEdit: true };
+    throw new BadRequestException(
+      'Tỷ lệ hoa hồng giờ thuộc chính sách cấp bậc. ' +
+        'Vào "Cài đặt → Hoa hồng" để tạo phiên bản chính sách mới.',
+    );
   }
 
   /**
@@ -1133,6 +1148,9 @@ export class CrmService {
   /**
    * Ghi một dòng khi đơn gói đã thanh toán. Không gọi từ bước Đã chốt.
    * Mã cookie trên đơn được ưu tiên. Không ghi nạp Credit hoặc đơn 0 đồng.
+   *
+   * Ghi theo mô hình 3 cấp bậc: bậc đạt được trong tháng áp dụng cho TOÀN BỘ
+   * doanh thu hợp lệ của tháng. Xem `CtvCommissionPolicyService`.
    */
   async recordPaidOrderCommission(
     tx: Prisma.TransactionClient,
@@ -1143,18 +1161,21 @@ export class CrmService {
       planCode: string | null;
       planName: string | null;
       priceVndSnapshot: bigint;
+      vatAmountVnd?: bigint;
+      discountAmountVnd?: bigint;
       paidAt: Date;
       referralCode?: string | null;
     },
   ): Promise<void> {
     if (order.kind !== 'platform' && order.kind !== 'sourcing') return;
-    const setting = await tx.crmCommissionSetting.findUnique({
-      where: { id: 'default' },
-      select: { percent: true },
-    });
-    if (!setting) return;
-    const amount = commissionVnd(order.priceVndSnapshot, setting.percent);
-    if (amount <= 0n) return;
+    // Gói 0đ / đơn 0đ không sinh hoa hồng.
+    if (order.priceVndSnapshot <= 0n) return;
+
+    const policy = await this.commissionPolicy.activePolicyAt(order.paidAt);
+    if (!policy) return;
+
+    const productType = this.commissionPolicy.productTypeForOrder(policy, order.kind);
+    if (!productType) return;
 
     const already = await tx.crmCommissionEntry.findUnique({
       where: { billingOrderId: order.id },
@@ -1170,7 +1191,45 @@ export class CrmService {
     });
     if (!company) return;
 
+    // Doanh thu thực thu chưa VAT sau chiết khấu = cơ sở tính hoa hồng.
+    //
+    // Lưu ý: `priceVndSnapshot` của BillingOrder là giá CHƯA VAT (đã trừ chiết khấu).
+    // Vì vậy doanh thu hợp lệ = priceVndSnapshot, KHÔNG trừ thêm VAT.
+    // `vatAmountVnd` chỉ dùng để ghi nhận khoản VAT trên dòng chi tiết.
+    const vatAmount = order.vatAmountVnd ?? 0n;
+    const discountAmount = order.discountAmountVnd ?? 0n;
+    const eligibleRevenue = order.priceVndSnapshot - discountAmount;
+    if (eligibleRevenue <= 0n) return;
+
     try {
+      // Ghi vào hệ mô hình 3 cấp bậc (kỳ đối soát tháng + chi tiết giao dịch).
+      const item = await this.commissionPolicy.recordEligibleTransaction(tx, {
+        ctvId: partner.id,
+        companyId: order.companyId,
+        companyName: company.name,
+        billingOrderId: order.id,
+        orderKind: order.kind,
+        planCode: order.planCode,
+        planName: order.planName,
+        paidAmountGross: order.priceVndSnapshot + vatAmount,
+        vatAmount,
+        discountAmount,
+        eligibleRevenue,
+        paidAt: order.paidAt,
+      });
+
+      // Ghi nhận khách hàng trọn đời cho CTV (1 KH — 1 CTV, không ghi đè).
+      await this.attributeCompanyToCtv(tx, order.companyId, partner.id, order.paidAt);
+
+      if (!item) return;
+
+      // Dòng ledger cũ (CrmCommissionEntry) giữ để các báo cáo hiện có tiếp tục chạy.
+      // Tỷ lệ ở đây là bậc tháng đã áp dụng cho toàn bộ doanh thu tháng.
+      const tier = await this.commissionPolicy.monthlyTier(partner.id, item.yearMonth);
+      const percent = tier.appliedRatePercent ?? 0;
+      const amount = commissionVnd(BigInt(item.eligibleRevenueVnd), percent);
+      if (amount <= 0n) return;
+
       const entry = await tx.crmCommissionEntry.create({
         data: {
           partnerId: partner.id,
@@ -1181,7 +1240,7 @@ export class CrmService {
           planCode: order.planCode,
           planName: order.planName,
           paidAmountVnd: order.priceVndSnapshot,
-          percent: setting.percent,
+          percent,
           commissionVnd: amount,
           status: 'pending_reconcile',
           paidAt: order.paidAt,
@@ -1197,6 +1256,79 @@ export class CrmService {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
       throw err;
     }
+  }
+
+  /**
+   * Xử lý hoàn tiền / hủy đơn gói đã thanh toán.
+   *
+   *  - Kỳ đối soát đang OPEN → dòng hoa hồng bị VOID, tính lại bậc tháng.
+   *  - Kỳ đã RECONCILED/PAID → giữ nguyên lịch sử, ghi khoản điều chỉnh âm
+   *    vào kỳ hiện tại đang mở.
+   *
+   * Không trả tiền — chỉ cập nhật số liệu hoa hồng.
+   */
+  async handleOrderRefund(
+    tx: Prisma.TransactionClient,
+    order: { id: string; companyId: string; paidAt: Date | null },
+  ): Promise<void> {
+    if (!order.paidAt) return;
+
+    const yearMonth = vietnamPeriodMonth(order.paidAt);
+    const item = await tx.ctvCommissionItem.findUnique({
+      where: {
+        billingOrderId_yearMonth: {
+          billingOrderId: order.id,
+          yearMonth,
+        },
+      },
+      select: { ctvId: true },
+    });
+    if (!item) return;
+
+    await this.commissionPolicy.handleRefundOrCancel(tx, {
+      ctvId: item.ctvId,
+      billingOrderId: order.id,
+      yearMonth,
+    });
+
+    // Dòng ledger cũ (CrmCommissionEntry) cũng phải bị loại khỏi kỳ chờ đối soát.
+    await tx.crmCommissionEntry.updateMany({
+      where: { billingOrderId: order.id, status: 'pending_reconcile' },
+      data: { status: 'voided' },
+    });
+  }
+
+  /**
+   * Gắn khách hàng cho CTV trọn đời.
+   *  - Đã có CTV → KHÔNG ghi đè.
+   *  - Khách hàng có sẵn trên Inlink từ trước khi CTV giới thiệu → không gán.
+   */
+  private async attributeCompanyToCtv(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    ctvId: string,
+    at: Date,
+  ): Promise<void> {
+    const company = await tx.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        referredByCtvId: true,
+        createdAt: true,
+      },
+    });
+    if (!company) return;
+    // Đã gán rồi → giữ nguyên CTV cũ (hưởng trọn đời).
+    if (company.referredByCtvId) return;
+
+    await tx.company.update({
+      where: { id: companyId },
+      data: {
+        referredByCtvId: ctvId,
+        attributedAt: at,
+        attributionSource: 'COOKIE',
+      },
+    });
   }
 
   /**
@@ -4243,14 +4375,6 @@ export class CrmService {
       select: { payoutDay: true },
     });
     return payoutDayOrDefault(row?.payoutDay);
-  }
-
-  private async commissionPercent(): Promise<number | null> {
-    const row = await this.prisma.crmCommissionSetting.findUnique({
-      where: { id: 'default' },
-      select: { percent: true },
-    });
-    return row?.percent ?? null;
   }
 
   private async partnerForPaidCompany(

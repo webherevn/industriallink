@@ -331,6 +331,12 @@ export default function CtvLinksPage() {
           </table>
         </div>
       </section>
+
+      {/* Ghi chú nhất quán về phạm vi áp dụng hoa hồng. */}
+      <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
+        Hoa hồng áp dụng cho mọi giao dịch mua Gói Tin đăng và Gói Tin săn (mua mới, mua lại, nâng
+        cấp) trọn đời khách hàng. Không áp dụng cho Gói Khám phá (0đ) và Nạp thêm Credit.
+      </p>
     </div>
   );
 }

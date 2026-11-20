@@ -12,19 +12,20 @@ import {
   Layers,
   Link2,
   Loader2,
-  Percent,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
+  TrendingUp,
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { CrmPartnerSelfView } from '@industriallink/contracts';
+import type { CrmPartnerSelfView, CtvMonthlyTierView } from '@industriallink/contracts';
 import { Button, Card, Input } from '@/components/ui';
 import { errorText, formatVnd } from '@/components/crm/format';
 import { createMyPartnerClaim, fetchMyPartner, registerMyPartner } from '@/lib/crm';
+import { fetchMyCommissionTier } from '@/lib/ctv-commission';
 import { fetchMyKyc } from '@/lib/ctv-kyc';
 import { fetchMe } from '@/lib/auth';
 import { KYC_STATUS_META } from '@/components/ctv-shell';
@@ -47,6 +48,12 @@ export default function CtvOverviewPage() {
     enabled: Boolean(session.data),
   });
   const kyc = useQuery({ queryKey: ['ctv-kyc'], queryFn: fetchMyKyc, retry: false });
+  const tier = useQuery({
+    queryKey: ['ctv-commission-tier'],
+    queryFn: () => fetchMyCommissionTier(),
+    enabled: Boolean(session.data),
+    retry: false,
+  });
   const [copied, setCopied] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
 
@@ -180,6 +187,12 @@ export default function CtvOverviewPage() {
         </div>
       </section>
 
+      {/* Thẻ cấp bậc tháng này + thanh tiến độ lên hạng */}
+      <TierProgressCard
+        tier={tier.data ?? null}
+        loading={tier.isLoading}
+      />
+
       {/* 4 thẻ KPI */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
@@ -192,20 +205,16 @@ export default function CtvOverviewPage() {
         <Kpi
           icon={<Coins className="h-5 w-5" />}
           tone="bg-accent-50 text-accent-700"
-          label="Hoa hồng tháng này"
-          value={formatVnd(monthTotal)}
-          hint={`${monthEntries.length} đơn đã cộng vào ví`}
+          label="Hoa hồng tạm tính tháng này"
+          value={formatVnd(tier.data?.estimatedCommissionVnd ?? '0')}
+          hint="Tự động cập nhật khi bạn lên bậc trong tháng"
         />
         <Kpi
-          icon={<Percent className="h-5 w-5" />}
+          icon={<Wallet className="h-5 w-5" />}
           tone="bg-emerald-50 text-emerald-700"
-          label="Tỷ lệ áp dụng"
-          value={
-            mine.data?.commissionPercent == null
-              ? 'Chưa đặt'
-              : `${mine.data.commissionPercent}%`
-          }
-          hint="Tỷ lệ tính theo từng đơn lúc khách trả"
+          label="Số dư ví đã chốt"
+          value={formatVnd(partner.walletBalanceVnd)}
+          hint={`Chờ chi ngày ${payoutDay} hàng tháng`}
         />
         <Kpi
           icon={<ScrollText className="h-5 w-5" />}
@@ -388,6 +397,124 @@ function Kpi({
       <p className="mt-1 text-xs leading-snug text-slate-500">{hint}</p>
     </div>
   );
+}
+
+/**
+ * Thẻ cấp bậc tháng này + thanh tiến độ lên hạng.
+ * Bậc đạt được áp dụng cho TOÀN BỘ doanh thu hợp lệ trong tháng.
+ */
+function TierProgressCard({
+  tier,
+  loading,
+}: {
+  tier: CtvMonthlyTierView | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Đang tải cấp bậc tháng này…
+        </p>
+      </section>
+    );
+  }
+
+  if (!tier || tier.achievedTierCode == null) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-sm font-bold text-[#0F2440]">Cấp bậc tháng này</h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+          Chưa có doanh số gói trong tháng này. Bạn bắt đầu ở cấp Cơ bản và tự động lên bậc khi đạt
+          ngưỡng doanh số.
+        </p>
+      </section>
+    );
+  }
+
+  const revenue = Number(tier.totalEligibleRevenueVnd);
+  const threshold = tier.nextTierThresholdVnd == null ? null : Number(tier.nextTierThresholdVnd);
+  const missing = Number(tier.revenueToNextTierVnd);
+  // % tiến độ trong bậc hiện tại: doanh số / ngưỡng bậc kế tiếp.
+  const progress = threshold && threshold > 0 ? Math.min(100, (revenue / threshold) * 100) : 100;
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <TrendingUp className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-sm font-bold text-[#0F2440]">Cấp bậc tháng này</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              Doanh số gói thực thu tháng {formatMonth(tier.yearMonth)} — chưa gồm VAT.
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-3xl font-bold tracking-tight text-[#0F2440]">
+            {tier.achievedTierName}
+            <span className="ml-1.5 text-xl text-[#4c3ec9]">
+              {tier.appliedRatePercent ?? 0}%
+            </span>
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Tổng doanh số {formatVnd(tier.totalEligibleRevenueVnd)}
+          </p>
+        </div>
+      </div>
+
+      {/* Thanh tiến độ lên hạng */}
+      <div className="mt-5">
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>{tier.achievedTierName}</span>
+          <span>
+            {tier.nextTierCode
+              ? `${tier.nextTierName} (${tier.nextTierRatePercent}%)`
+              : 'Bậc cao nhất'}
+          </span>
+        </div>
+        <div
+          className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#4c3ec9] to-[#7a6af2] transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+          {tier.nextTierCode && missing > 0 ? (
+            <>
+              Còn thiếu{' '}
+              <strong className="font-semibold text-[#4c3ec9]">
+                {formatVnd(String(missing))}
+              </strong>{' '}
+              doanh số gói để lên cấp {tier.nextTierName} ({tier.nextTierRatePercent}%) cho toàn bộ
+              đơn tháng này.
+            </>
+          ) : (
+            <>
+              Bạn đã đạt cấp cao nhất. Tỷ lệ{' '}
+              <strong className="font-semibold text-[#4c3ec9]">{tier.appliedRatePercent}%</strong> áp
+              dụng cho toàn bộ doanh thu tháng này.
+            </>
+          )}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/** Định dạng tháng YYYY-MM sang MM/YYYY. */
+function formatMonth(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-');
+  return `${month}/${year}`;
 }
 
 function PartnerRegisterForm({ onDone }: { onDone: () => void }) {

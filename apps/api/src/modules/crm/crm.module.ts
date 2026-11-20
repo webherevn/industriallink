@@ -5,6 +5,7 @@ import { CrmEnterpriseController } from './crm-enterprise.controller';
 import { CrmPartnerSelfController } from './crm-partner-self.controller';
 import { CrmReferralController } from './crm-referral.controller';
 import { CrmController } from './crm.controller';
+import { CrmCommissionPolicyController } from './crm-commission-policy.controller';
 import { CrmKycAdminController, CtvKycSelfController } from './ctv-kyc.controller';
 import { CtvKycService } from './ctv-kyc.service';
 import { CrmSupportChatController, SupportChatController } from './support-chat.controller';
@@ -13,11 +14,13 @@ import { CrmMarketingController } from './crm-marketing.controller';
 import { CommissionCloseService } from './commission-close.service';
 import { CrmMarketingService } from './crm-marketing.service';
 import { CrmService } from './crm.service';
+import { CtvCommissionPolicyService } from './ctv-commission-policy.service';
 
 @Module({
   imports: [NotificationModule, CmsModule],
   controllers: [
     CrmController,
+    CrmCommissionPolicyController,
     CrmMarketingController,
     CrmPartnerSelfController,
     CrmReferralController,
@@ -27,7 +30,14 @@ import { CrmService } from './crm.service';
     CtvKycSelfController,
     CrmKycAdminController,
   ],
-  providers: [CrmService, CrmMarketingService, CommissionCloseService, SupportChatService, CtvKycService],
-  exports: [CrmService, CtvKycService],
+  providers: [
+    CrmService,
+    CrmMarketingService,
+    CommissionCloseService,
+    SupportChatService,
+    CtvKycService,
+    CtvCommissionPolicyService,
+  ],
+  exports: [CrmService, CtvKycService, CtvCommissionPolicyService],
 })
 export class CrmModule {}

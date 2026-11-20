@@ -60,3 +60,4 @@ export * from './billing.dto';
 export * from './vat';
 export * from './crm.types';
 export * from './ctv-kyc.dto';
+export * from './ctv-commission.types';

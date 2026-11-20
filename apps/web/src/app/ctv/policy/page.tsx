@@ -1,5 +1,6 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   CalendarClock,
@@ -8,9 +9,12 @@ import {
   Percent,
   ScrollText,
   ShieldCheck,
+  TrendingUp,
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import type { CtvCommissionPolicyPublicView, CtvCommissionTierView } from '@industriallink/contracts';
+import { fetchMyCommissionPolicy } from '@/lib/ctv-commission';
 
 type PolicyItem = {
   id: string;
@@ -51,18 +55,6 @@ const POLICIES: PolicyItem[] = [
     tone: 'bg-violet-50 text-violet-700',
   },
   {
-    id: 'plans',
-    icon: CheckCircle2,
-    title: 'Gói dịch vụ nào tính hoa hồng',
-    lead: 'Hoa hồng chỉ ghi trên các đơn gói có giá lớn hơn 0.',
-    points: [
-      'Tính hoa hồng: Gói Tin đăng, Gói Tin đăng Plus, Gói Săn nhân sự, Gói Săn chuyên sâu và các gói có giá.',
-      'Không tính hoa hồng: Gói Khám phá (0đ) và nạp lẻ Credit.',
-      'Tỷ lệ hoa hồng là tỷ lệ tại thời điểm khách hàng thanh toán, hiển thị rõ ở từng dòng lịch sử.',
-    ],
-    tone: 'bg-emerald-50 text-emerald-700',
-  },
-  {
     id: 'kyc',
     icon: ShieldCheck,
     title: 'Xác thực CCCD 2 mặt & điều kiện nhận tiền',
@@ -93,6 +85,13 @@ const POLICIES: PolicyItem[] = [
 ];
 
 export default function CtvPolicyPage() {
+  const policy = useQuery({
+    queryKey: ['ctv-commission-policy'],
+    queryFn: fetchMyCommissionPolicy,
+    retry: false,
+  });
+  const current = policy.data ?? null;
+
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -105,29 +104,83 @@ export default function CtvPolicyPage() {
         </p>
       </section>
 
-      {POLICIES.map((policy) => {
-        const Icon = policy.icon;
+      {/* ── Bảng cấp bậc động từ chính sách đang áp dụng ── */}
+      <TierTable policy={current} />
+
+      {/* ── Phạm vi áp dụng ── */}
+      {current ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-[#0F2440]">Phạm vi áp dụng hoa hồng</h3>
+              <ul className="mt-3 space-y-2.5">
+                {current.includeJobPosting ? (
+                  <ScopeItem ok>
+                    Gói Tin đăng (Tin đăng, Tin đăng Plus, Doanh nghiệp) — mua mới, mua lại, nâng cấp.
+                  </ScopeItem>
+                ) : null}
+                {current.includeHuntPackage ? (
+                  <ScopeItem ok>
+                    Gói Tin săn (Cơ bản, Tiêu chuẩn, Chuyên sâu) — mua mới, mua lại, nâng cấp.
+                  </ScopeItem>
+                ) : null}
+                <ScopeItem ok={false}>
+                  Gói Khám phá (0đ) — không tính hoa hồng.
+                </ScopeItem>
+                <ScopeItem ok={false}>
+                  Nạp thêm Credit — không tính hoa hồng và không cộng vào doanh số xét hạng.
+                </ScopeItem>
+              </ul>
+              <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                <span>
+                  Cơ sở tính:{' '}
+                  <strong className="font-semibold text-slate-700">
+                    {current.excludeVat
+                      ? 'Doanh thu thực thu chưa VAT, sau chiết khấu'
+                      : 'Tổng tiền khách chuyển'}
+                  </strong>
+                </span>
+                <span>
+                  Thời hạn khách hàng:{' '}
+                  <strong className="font-semibold text-slate-700">
+                    Trọn đời (1 KH – 1 CTV)
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── Ví dụ minh họa ── */}
+      <ExampleBlock policy={current} />
+
+      {POLICIES.map((item) => {
+        const Icon = item.icon;
         return (
           <section
-            key={policy.id}
+            key={item.id}
             className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
           >
             <div className="flex items-start gap-3">
               <span
                 className={clsx(
                   'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                  policy.tone,
+                  item.tone,
                 )}
               >
                 <Icon className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-[#0F2440]">{policy.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{policy.lead}</p>
+                <h3 className="text-sm font-bold text-[#0F2440]">{item.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{item.lead}</p>
               </div>
             </div>
             <ul className="mt-4 space-y-2.5">
-              {policy.points.map((point) => (
+              {item.points.map((point) => (
                 <li key={point} className="flex items-start gap-2.5 text-sm leading-relaxed text-slate-700">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                   <span>{point}</span>
@@ -148,7 +201,7 @@ export default function CtvPolicyPage() {
             <ul className="mt-3 space-y-2.5">
               {[
                 'Gói Khám phá 0đ — khách không trả tiền nên không sinh hoa hồng.',
-                'Nạp lẻ Credit — thanh toán riêng, không gắn vào gói dịch vụ có hoa hồng.',
+                'Nạp thêm Credit — thanh toán riêng, không gắn vào gói dịch vụ có hoa hồng.',
                 'Khóa Mã số thuế — chỉ giữ quyền giới thiệu, không gán gói, không tính tiền.',
                 'Đơn chưa thanh toán — hoa hồng chỉ ghi khi khách trả đủ.',
                 'Đơn bị hủy hoặc hoàn tiền — dòng hoa hồng tương ứng bị loại khỏi kỳ chi trả.',
@@ -187,4 +240,163 @@ export default function CtvPolicyPage() {
       </section>
     </div>
   );
+}
+
+/** Bảng 3 cấp bậc render động từ chính sách ACTIVE. */
+function TierTable({ policy }: { policy: CtvCommissionPolicyPublicView | null }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <TrendingUp className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 className="text-sm font-bold text-[#0F2440]">Bảng cấp hoa hồng theo tháng</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            {policy
+              ? `${policy.name} · Phiên bản ${policy.version} · hiệu lực từ ${formatDate(policy.effectiveFrom)}`
+              : 'Đang tải chính sách hoa hồng…'}
+          </p>
+        </div>
+      </div>
+
+      {!policy ? (
+        <p className="px-5 py-6 text-sm text-slate-500">Đang tải bảng cấp bậc…</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Cấp bậc</th>
+                  <th className="px-5 py-3">Doanh số gói / tháng</th>
+                  <th className="px-5 py-3 text-right">Tỷ lệ hoa hồng</th>
+                </tr>
+              </thead>
+              <tbody>
+                {policy.tiers.map((tier) => (
+                  <tr key={tier.code} className="border-t border-slate-100">
+                    <td className="px-5 py-3">
+                      <span className="font-semibold text-slate-900">{tier.name}</span>
+                    </td>
+                    <td className="px-5 py-3 text-slate-600">{tierRange(tier)}</td>
+                    <td className="px-5 py-3 text-right text-base font-bold text-[#4c3ec9]">
+                      {tier.ratePercent}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="border-t border-slate-100 px-5 py-3.5 text-xs leading-relaxed text-slate-500">
+            Bậc bạn đạt trong tháng được áp dụng cho <strong className="font-semibold text-slate-700">
+              toàn bộ doanh thu hợp lệ của tháng đó</strong> — kể cả các đơn nhỏ hơn. Sang tháng
+            mới, bậc tính lại từ 0đ.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Ví dụ minh họa: 9tr Tin săn + 7tr Tin đăng + 6tr Tin săn = 22tr → Bạc 20% = 4.400.000đ.
+ * Tính động theo chính sách đang áp dụng.
+ */
+function ExampleBlock({ policy }: { policy: CtvCommissionPolicyPublicView | null }) {
+  if (!policy) return null;
+
+  const parts = [
+    { label: 'Gói Tin săn', amount: 9_000_000 },
+    { label: 'Gói Tin đăng', amount: 7_000_000 },
+    { label: 'Gói Tin săn', amount: 6_000_000 },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.amount, 0);
+  const tier = resolveTier(policy.tiers, total);
+  const rate = tier?.ratePercent ?? 0;
+  const commission = Math.round((total * rate) / 100);
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-sm font-bold text-[#0F2440]">Ví dụ minh họa trong một tháng</h3>
+      <div className="mt-3 space-y-1.5 text-sm text-slate-600">
+        {parts.map((part, index) => (
+          <p key={`${part.label}-${index}`}>
+            {part.label} <span className="font-medium text-slate-800">{formatVnd(part.amount)}</span>
+          </p>
+        ))}
+        <p className="border-t border-slate-100 pt-1.5 font-medium text-slate-800">
+          Tổng doanh số {formatVnd(total)}
+        </p>
+      </div>
+      <p className="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-900">
+        Đạt cấp <strong>{tier?.name ?? '—'}</strong> ({rate}%) → hoa hồng cả tháng ={' '}
+        <strong>{formatVnd(commission)}</strong>. Lưu ý đơn 6.000.000đ cũng được trả ở tỷ lệ {rate}% —
+        không phải tỷ lệ riêng của riêng đơn đó.
+      </p>
+    </section>
+  );
+}
+
+/** Một dòng phạm vi (✓ tính / ✕ không tính). */
+function ScopeItem({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5 text-sm leading-relaxed text-slate-700">
+      {ok ? (
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+      ) : (
+        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+      )}
+      <span>{children}</span>
+    </li>
+  );
+}
+
+/** Dải doanh số của một bậc, dạng văn bản. */
+function tierRange(tier: CtvCommissionTierView): string {
+  const min = Number(tier.minMonthlyRevenueVnd);
+  const max = tier.maxMonthlyRevenueVnd === null ? null : Number(tier.maxMonthlyRevenueVnd);
+  if (max === null) return `Từ ${formatVnd(min)} trở lên`;
+  if (min === 0) return `Dưới ${formatVnd(max)}`;
+  return `${formatVnd(min)} – dưới ${formatVnd(max)}`;
+}
+
+/** Tra bậc theo doanh số — cùng quy tắc với backend. */
+function resolveTier(
+  tiers: CtvCommissionTierView[],
+  revenue: number,
+): CtvCommissionTierView | null {
+  const sorted = [...tiers].sort((a, b) => Number(a.minMonthlyRevenueVnd) - Number(b.minMonthlyRevenueVnd));
+  let fallback: CtvCommissionTierView | null = null;
+  for (const tier of sorted) {
+    const min = Number(tier.minMonthlyRevenueVnd);
+    const max = tier.maxMonthlyRevenueVnd === null ? null : Number(tier.maxMonthlyRevenueVnd);
+    if (max === null) {
+      fallback = tier;
+      if (revenue >= min) return tier;
+      continue;
+    }
+    if (revenue >= min && revenue < max) return tier;
+  }
+  if (sorted[0] && Number(sorted[0].minMonthlyRevenueVnd) > 0 && revenue < Number(sorted[0].minMonthlyRevenueVnd)) {
+    return sorted[0];
+  }
+  return fallback;
+}
+
+/** Định dạng số VND. */
+function formatVnd(value: number): string {
+  return `${value.toLocaleString('vi-VN')}đ`;
+}
+
+/** Định dạng ngày hiệu lực sang dd/MM/yyyy. */
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
 }

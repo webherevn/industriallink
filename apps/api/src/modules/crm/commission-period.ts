@@ -51,6 +51,16 @@ export function previousVietnamPeriodMonth(now = new Date()): string {
   return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
 }
 
+/** Tháng kế tiếp sau `periodMonth` (YYYY-MM). Dùng cho điều chỉnh dồn kỳ. */
+export function nextPeriodMonth(periodMonth: string): string {
+  const [yearText, monthText] = periodMonth.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
+}
+
 export function groupCommissionClose(entries: CommissionCloseLine[]): CommissionCloseGroup[] {
   const grouped = new Map<string, CommissionCloseGroup>();
   for (const entry of entries) {

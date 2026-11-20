@@ -4,9 +4,13 @@ import type {
   CreateCrmLeadRequest,
   CreateCrmPartnerClaimRequest,
   CreateCrmPartnerRequest,
+  CreateCtvCommissionPolicyRequest,
   CrmCommissionLedgerView,
   CrmCommissionPeriodListView,
   CrmCommissionPeriodView,
+  CrmCommissionPolicySettingsView,
+  CtvCommissionItemView,
+  CtvMonthlyStatementView,
   MarkCrmCommissionPaidRequest,
   CrmCommissionView,
   CrmPayoutDayView,
@@ -282,6 +286,45 @@ export function fetchCrmCommission(): Promise<CrmCommissionView> {
 
 export function updateCrmCommission(body: UpdateCrmCommissionRequest): Promise<CrmCommissionView> {
   return apiRequest<CrmCommissionView>('/crm/commission', { method: 'PATCH', body });
+}
+
+/** Chính sách hoa hồng 3 cấp bậc đang áp dụng + lịch sử phiên bản. */
+export function fetchCrmCommissionPolicy(): Promise<CrmCommissionPolicySettingsView> {
+  return apiRequest<CrmCommissionPolicySettingsView>('/crm/commission-policy');
+}
+
+/** Tạo phiên bản chính sách mới (lên lịch, không áp dụng hồi tố). */
+export function createCrmCommissionPolicy(
+  body: CreateCtvCommissionPolicyRequest,
+): Promise<CrmCommissionPolicySettingsView> {
+  return apiRequest<CrmCommissionPolicySettingsView>('/crm/commission-policy', {
+    method: 'POST',
+    body,
+  });
+}
+
+/** Kỳ đối soát tháng theo CTV. */
+export function fetchCrmCommissionStatements(ctvId?: string): Promise<CtvMonthlyStatementView[]> {
+  const query = ctvId ? `?ctvId=${encodeURIComponent(ctvId)}` : '';
+  return apiRequest<CtvMonthlyStatementView[]>(`/crm/commission-policy/statements${query}`);
+}
+
+/** Chi tiết giao dịch hợp lệ trong một kỳ đối soát. */
+export function fetchCrmCommissionStatementItems(statementId: string): Promise<CtvCommissionItemView[]> {
+  return apiRequest<CtvCommissionItemView[]>(
+    `/crm/commission-policy/statements/${statementId}/items`,
+  );
+}
+
+/** Chốt kỳ đối soát tháng (OPEN → RECONCILED). */
+export function reconcileCrmCommissionStatement(
+  ctvId: string,
+  yearMonth: string,
+): Promise<CtvMonthlyStatementView> {
+  return apiRequest<CtvMonthlyStatementView>(
+    `/crm/commission-policy/statements/${ctvId}/${yearMonth}/reconcile`,
+    { method: 'POST' },
+  );
 }
 
 export function fetchCrmPayoutDay(): Promise<CrmPayoutDayView> {

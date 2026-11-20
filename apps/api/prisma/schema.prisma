@@ -719,8 +719,16 @@ model Company {
   jobs        Job[]
   connections CandidateConnection[]
   shortlists  CandidateShortlist[]
+  /// CTV được gán trọn đời cho khách hàng này (1 KH — 1 CTV).
+  referredByCtv    CrmPartner? @relation("CompanyReferredByCtv", fields: [referredByCtvId], references: [id])
+  referredByCtvId  String?     @map("referred_by_ctv_id") @db.Uuid
+  /// Thời điểm gán CTV. Mọi giao dịch mua gói hợp lệ về sau đều hưởng hoa hồng cho CTV này.
+  attributedAt      DateTime?   @map("attributed_at")
+  /// COOKIE | TAX_LOCK | CRM_MANUAL
+  attributionSource String?     @map("attribution_source")
 
   @@index([tenantId])
+  @@index([referredByCtvId])
   @@map("company")
   @@schema("company")
 }
@@ -2147,6 +2155,10 @@ model CrmPartner {
   periods     CrmCommissionPeriod[]
   wallet      CrmCommissionWallet?
   kyc         CrmPartnerKyc?
+  statements  CtvMonthlyStatement[]
+  commissionItems CtvCommissionItem[]
+  /// Khách hàng được gán trọn đời cho CTV này.
+  attributedCompanies Company[] @relation("CompanyReferredByCtv")
 
   @@map("crm_partner")
   @@schema("crm")
@@ -2275,6 +2287,7 @@ model SupportChatPromptSetting {
 }
 
 /// Một tỷ lệ cho toàn bộ cộng tác viên. Không tạo ví và không có lệnh chi.
+/// Giữ lại để tương thích dữ liệu cũ. Mô hình mới dùng CtvCommissionPolicy.
 model CrmCommissionSetting {
   id              String   @id @default("default")
   percent         Int
@@ -2282,6 +2295,150 @@ model CrmCommissionSetting {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("crm_commission_setting")
+  @@schema("crm")
+}
+
+/// Trạng thái vòng đời chính sách hoa hồng CTV.
+/// DRAFT: đang soạn. SCHEDULED: đã lên lịch, chưa tới ngày hiệu lực.
+/// ACTIVE: đang áp dụng. ARCHIVED: đã bị thay thế, giữ để truy vết.
+enum CtvCommissionPolicyStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  ARCHIVED
+
+  @@schema("crm")
+}
+
+/// Chính sách hoa hồng CTV theo phiên bản.
+/// Mỗi phiên bản có 3 cấp bậc doanh số thực thu/tháng. Bậc đạt được áp dụng
+/// cho TOÀN BỘ doanh thu hợp lệ trong tháng (không tính theo từng đơn).
+model CtvCommissionPolicy {
+  id        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  version   Int
+  status    CtvCommissionPolicyStatus @default(DRAFT)
+  /// Ngày bắt đầu hiệu lực (giờ Việt Nam). Không áp dụng hồi tố.
+  effectiveFrom DateTime            @map("effective_from")  /// Gói Tin đăng (Tin đăng, Tin đăng Plus, Doanh nghiệp).
+  includeJobPosting  Boolean         @default(true) @map("include_job_posting")
+  /// Gói Tin săn (Cơ bản, Tiêu chuẩn, Chuyên sâu).
+  includeHuntPackage Boolean         @default(true) @map("include_hunt_package")
+  /// Nạp thêm Credit — mặc định KHÔNG tính hoa hồng, không cộng doanh số xét hạng.
+  includeCreditTopup Boolean         @default(false) @map("include_credit_topup")
+  /// Tính trên doanh thu thực thu chưa VAT (sau chiết khấu).
+  excludeVat         Boolean         @default(true) @map("exclude_vat")
+  createdById        String          @map("created_by_user_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at")
+  note               String?
+
+  tiers     CtvCommissionTier[]
+  statements CtvMonthlyStatement[]
+
+  @@unique([name, version])
+  @@index([status, effectiveFrom])
+  @@map("ctv_commission_policy")
+  @@schema("crm")
+}
+
+/// Một cấp bậc doanh số trong chính sách.
+/// minMonthlyRevenue gồm cận dưới; maxMonthlyRevenue null = không giới hạn trên.
+model CtvCommissionTier {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policyId          String   @map("policy_id") @db.Uuid
+  /// BASIC | SILVER | GOLD
+  code              String
+  /// Cơ bản | Bạc | Vàng
+  name              String
+  minMonthlyRevenue BigInt   @map("min_monthly_revenue")
+  maxMonthlyRevenue BigInt?  @map("max_monthly_revenue")
+  /// Tỷ lệ % (số nguyên 0–50).
+  ratePercent       Int      @map("rate_percent")
+  sortOrder         Int      @default(0) @map("sort_order")
+
+  policy CtvCommissionPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, code])
+  @@index([policyId, sortOrder])
+  @@map("ctv_commission_tier")
+  @@schema("crm")
+}
+
+/// Kỳ đối soát hoa hồng theo tháng của 1 CTV.
+/// OPEN: đang mở, còn tính lại được. RECONCILED: đã chốt (bất biến).
+/// PAID: đã chi (bất biến).
+model CtvMonthlyStatement {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ctvId                String   @map("ctv_id") @db.Uuid
+  /// Tháng dương lịch giờ Việt Nam, dạng YYYY-MM.
+  yearMonth            String   @map("year_month")
+  policyId             String   @map("policy_id") @db.Uuid
+  /// Tổng doanh thu hợp lệ (chưa VAT) của tất cả khách hàng thuộc CTV trong tháng.
+  totalEligibleRevenue BigInt   @default(0) @map("total_eligible_revenue")
+  achievedTierCode     String?  @map("achieved_tier_code")
+  achievedTierName     String?  @map("achieved_tier_name")
+  /// Tỷ lệ % áp dụng cho toàn bộ doanh thu trong tháng.
+  appliedRatePercent   Int?     @map("applied_rate_percent")
+  /// gross = totalEligibleRevenue * appliedRatePercent / 100
+  grossCommission      BigInt   @default(0) @map("gross_commission")
+  /// Điều chỉnh (âm khi hoàn tiền của kỳ đã chốt).
+  adjustmentAmount     BigInt   @default(0) @map("adjustment_amount")
+  /// final = gross + adjustment
+  finalCommission      BigInt   @default(0) @map("final_commission")
+  /// OPEN | RECONCILED | PAID
+  status               String   @default("OPEN")
+  reconciledAt         DateTime? @map("reconciled_at")
+  paidAt               DateTime? @map("paid_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  ctv     CrmPartner                @relation(fields: [ctvId], references: [id])
+  policy  CtvCommissionPolicy       @relation(fields: [policyId], references: [id])
+  items   CtvCommissionItem[]
+
+  @@unique([ctvId, yearMonth])
+  @@index([yearMonth, status])
+  @@map("ctv_monthly_statement")
+  @@schema("crm")
+}
+
+/// Chi tiết từng giao dịch hợp lệ trong một kỳ đối soát.
+/// eligibleRevenue = doanh thu thực thu chưa VAT sau chiết khấu.
+/// Với đơn nâng cấp gói chỉ lưu phần doanh thu tăng thêm để không tính trùng.
+model CtvCommissionItem {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  statementId          String   @map("statement_id") @db.Uuid
+  ctvId                String   @map("ctv_id") @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  billingOrderId       String   @map("billing_order_id") @db.Uuid
+  /// JOB_PACKAGE | HUNT_PACKAGE | UPGRADE_DELTA | CREDIT_TOPUP
+  productType          String   @map("product_type")
+  planCode             String?  @map("plan_code")
+  planName             String?  @map("plan_name")
+  /// Tổng tiền khách chuyển (gồm VAT).
+  paidAmountGross      BigInt   @default(0) @map("paid_amount_gross")
+  vatAmount            BigInt   @default(0) @map("vat_amount")
+  discountAmount       BigInt   @default(0) @map("discount_amount")
+  /// Doanh thu thực thu chưa VAT sau chiết khấu (cơ sở tính hoa hồng).
+  eligibleRevenue      BigInt   @default(0) @map("eligible_revenue")
+  /// Tỷ lệ % đã áp dụng (đồng bộ theo bậc tháng của statement).
+  appliedRatePercent   Int      @default(0) @map("applied_rate_percent")
+  /// eligibleRevenue * appliedRatePercent / 100
+  commissionAmount     BigInt   @default(0) @map("commission_amount")
+  /// RECORDED | VOIDED | ADJUSTED_NEXT_PERIOD
+  status               String   @default("RECORDED")
+  /// Tháng dương lịch giờ Việt Nam dạng YYYY-MM.
+  yearMonth            String   @map("year_month")
+  paidAt               DateTime @map("paid_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  statement CtvMonthlyStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  ctv      CrmPartner                @relation(fields: [ctvId], references: [id])
+
+  @@unique([billingOrderId, yearMonth])
+  @@index([ctvId, yearMonth, status])
+  @@index([statementId])
+  @@map("ctv_commission_item")
   @@schema("crm")
 }
 

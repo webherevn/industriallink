@@ -1,20 +1,27 @@
 # Lệnh deploy VPS — inlink.vn
-# Commit: ee02b36  fix(deploy): chuan hoa lenh migrate (P3006) + migration KYC idempotent
+# Commit: xem `git log -1 --oneline` sau khi pull (feat(ctv): nang cap toan dien chinh sach
+#        & tinh toan hoa hong CTV theo 3 cap bac)
 # Chạy trên VPS (root), thư mục deploy: /www/wwwroot/inlink
 #
 # ⚠ LẦN NÀY CÓ ĐỔI SCHEMA DB → BẮT BUỘC chạy migrate.
-#   Migration: 20261122_crm_partner_kyc (enum CrmKycStatus + bảng crm.crm_partner_kyc
-#   + cột status/expires_at cho crm.crm_partner_claim
-#   + cột gross_amount_vnd/pit_tax_amount_vnd/net_paid_amount_vnd/transfer_ref
-#   cho crm.crm_commission_period)
+#   Migration: 20261123_ctv_commission_policy_tiers
+#     + enum crm.CtvCommissionPolicyStatus (DRAFT/SCHEDULED/ACTIVE/ARCHIVED)
+#     + bảng crm.ctv_commission_policy      (chính sách theo phiên bản)
+#     + bảng crm.ctv_commission_tier        (3 cấp bậc BASIC/SILVER/GOLD)
+#     + bảng crm.ctv_monthly_statement      (kỳ đối soát tháng của 1 CTV)
+#     + bảng crm.ctv_commission_item        (chi tiết từng giao dịch hợp lệ)
+#     + cột company.company.referred_by_ctv_id / attributed_at / attribution_source
+#       (ghi nhận khách hàng trọn đời — 1 KH — 1 CTV)
+#     + seed 1 policy ACTIVE v1: Cơ bản 15% (<10tr) / Bạc 20% (10–30tr) / Vàng 25% (>=30tr)
 #
-# Migration chỉ ADD thêm enum/bảng/cột — không xóa hay sửa dữ liệu cũ. An toàn.
+# Migration viết theo kiểu idempotent (CREATE ... IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
+# + seed có điều kiện NOT EXISTS → chạy lại nhiều lần vẫn an toàn, KHÔNG mất dữ liệu cũ.
 #
 # Gồm 4 phần:
 #   1) Deploy code (pull + install + migrate + build + restart PM2)
-#   2) Kiểm tra dữ liệu KYC hiện có
-#   3) Verify
-#   4) Kiểm tra luồng KYC + Payout Gate
+#   2) Kiểm tra schema + seed chính sách mới trong DB
+#   3) Verify (pm2, ports, live check, log)
+#   4) Kiểm tra API chính sách + dữ liệu kỳ đối soát
 
 # ═══════════════════════════════════════════════════════════════════
 # BƯỚC 1 — DEPLOY CODE
@@ -30,7 +37,7 @@ echo "GIT=$(git log -1 --oneline)"
 
 pnpm install --frozen-lockfile
 
-# Prisma: schema ĐÃ đổi (thêm enum + bảng + cột) → generate + đồng bộ DB.
+# Prisma: schema ĐÃ đổi (thêm enum + 4 bảng + 3 cột) → generate + đồng bộ DB.
 #
 # ⚠ TUYỆT ĐỐI KHÔNG dùng `pnpm --filter @industriallink/api db:migrate` trên VPS.
 #   Script đó là `prisma migrate dev` → dựng SHADOW DB rỗng rồi chạy lại toàn bộ
@@ -44,7 +51,7 @@ pnpm install --frozen-lockfile
 pnpm --filter @industriallink/api db:generate
 
 # Chẩn đoán trạng thái migration TRƯỚC khi deploy (giúp biết DB production
-# đã từng chạy migrate chưa, migration nào đang fail, object KYC đã có chưa).
+# đã từng chạy migrate chưa, migration nào đang fail, object mới đã có chưa).
 # Script chỉ in thông tin, LUÔN exit 0 — không bao giờ làm deploy fail.
 pnpm --filter @industriallink/api db:diagnose || echo "WARN: chẩn đoán migration — xem log ở trên"
 
@@ -57,9 +64,10 @@ if pnpm --filter @industriallink/api db:migrate:deploy; then
   echo "OK: migrate deploy xong"
 else
   echo "WARN: migrate deploy thất bại — fallback sang db push --accept-data-loss"
-  # Migration KYC chỉ ADD (enum + bảng + cột) → db push không mất dữ liệu.
+  # Migration CTV chỉ ADD (enum + bảng + cột) → db push không mất dữ liệu.
   pnpm --filter @industriallink/api db:push
 fi
+
 # Build contracts trước (dist bị gitignore)
 pnpm --filter @industriallink/contracts build
 pnpm --filter @industriallink/vn-admin build
@@ -76,59 +84,84 @@ pm2 save || true
 sleep 3
 
 # ═══════════════════════════════════════════════════════════════════
-# BƯỚC 2 — KIỂM TRA DỮ LIỆU KYC + KHÓA MST
+# BƯỚC 2 — KIỂM TRA SCHEMA + SEED CHÍNH SÁCH MỚI
 #
-# Sau migrate, mọi CTV cũ sẽ có status = UNVERIFIED (mặc định).
-# → Cổng chi trả ngày 10 sẽ CHẶN các CTV này cho tới khi họ xác thực.
-# Đây là hành vi ĐÚNG theo yêu cầu. Không cần sửa gì.
+# Sau migrate, DB phải có:
+#   - 1 policy ACTIVE version 1 với 3 tier BASIC/SILVER/GOLD đúng ngưỡng & tỷ lệ
+#   - 4 bảng ctv_commission_* / ctv_monthly_statement
+#   - 3 cột company.referred_by_ctv_id / attributed_at / attribution_source
 # ═══════════════════════════════════════════════════════════════════
 cd "$ROOT/apps/api"
 
-echo "=== enum CrmKycStatus ==="
+echo "=== enum crm.CtvCommissionPolicyStatus ==="
 node -e "
 const {PrismaClient}=require('@prisma/client');
 const p=new PrismaClient();
 (async()=>{
   const rows=await p.\$queryRawUnsafe(\`
     SELECT e.enumlabel FROM pg_type t
+    JOIN pg_namespace n ON n.oid=t.typnamespace
     JOIN pg_enum e ON e.enumtypid=t.oid
-    WHERE t.typname='CrmKycStatus' ORDER BY e.enumsortorder\`);
-  console.log('CrmKycStatus:', rows.map(r=>r.enumlabel).join(', ')||'THIEU — migration chua chay');
+    WHERE t.typname='CtvCommissionPolicyStatus' AND n.nspname='crm'
+    ORDER BY e.enumsortorder\`);
+  console.log('status:', rows.map(r=>r.enumlabel).join(', ')||'THIEU — migration chua chay');
   await p.\$disconnect();
 })().catch(e=>{console.error('skip:',e.message);process.exit(0)});
 " 2>/dev/null || echo "skip: khong doc duoc DB"
 
-echo "=== bang crm.crm_partner_kyc ==="
+echo "=== bang moi (ctv_commission_policy / _tier / ctv_monthly_statement / ctv_commission_item) ==="
 node -e "
 const {PrismaClient}=require('@prisma/client');
 const p=new PrismaClient();
 (async()=>{
-  const r=await p.\$queryRaw\`SELECT count(*)::int AS c FROM crm.crm_partner_kyc\`;
-  console.log('so ho so KYC:', r[0].c);
-  const s=await p.\$queryRaw\`SELECT status, count(*)::int AS c FROM crm.crm_partner_kyc GROUP BY status ORDER BY status\`;
-  s.forEach(x=>console.log('  ', x.status, '=', x.c));
+  const r=await p.\$queryRawUnsafe(\`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema='crm'
+      AND table_name IN ('ctv_commission_policy','ctv_commission_tier','ctv_monthly_statement','ctv_commission_item')
+    ORDER BY table_name\`);
+  console.log('co:', r.map(x=>x.table_name).join(', ')||'THIEU — migration chua chay');
   await p.\$disconnect();
 })().catch(e=>{console.error('skip:',e.message);process.exit(0)});
 " 2>/dev/null || echo "skip: khong doc duoc DB"
 
-echo "=== cot moi trong crm.crm_commission_period ==="
+echo "=== cot moi trong company.company ==="
 node -e "
 const {PrismaClient}=require('@prisma/client');
 const p=new PrismaClient();
 (async()=>{
-  const r=await p.\$queryRaw\`SELECT column_name FROM information_schema.columns WHERE table_schema='crm' AND table_name='crm_commission_period' AND column_name IN ('gross_amount_vnd','pit_tax_amount_vnd','net_paid_amount_vnd','transfer_ref') ORDER BY column_name\`;
+  const r=await p.\$queryRawUnsafe(\`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_schema='company' AND table_name='company'
+      AND column_name IN ('referred_by_ctv_id','attributed_at','attribution_source')
+    ORDER BY column_name\`);
   console.log('cot co:', r.map(x=>x.column_name).join(', ')||'THIEU — migration chua chay');
   await p.\$disconnect();
 })().catch(e=>{console.error('skip:',e.message);process.exit(0)});
 " 2>/dev/null || echo "skip: khong doc duoc DB"
 
-echo "=== cot moi trong crm.crm_partner_claim (status + expires_at) ==="
+echo "=== seed chinh sach ACTIVE + 3 cap bac ==="
 node -e "
 const {PrismaClient}=require('@prisma/client');
 const p=new PrismaClient();
 (async()=>{
-  const r=await p.\$queryRaw\`SELECT column_name FROM information_schema.columns WHERE table_schema='crm' AND table_name='crm_partner_claim' AND column_name IN ('status','expires_at') ORDER BY column_name\`;
-  console.log('cot co:', r.map(x=>x.column_name).join(', ')||'THIEU — migration chua chay');
+  const pol=await p.\$queryRawUnsafe(\`
+    SELECT id, name, version, status, effective_from,
+           include_job_posting, include_hunt_package, include_credit_topup, exclude_vat
+    FROM \"crm\".\"ctv_commission_policy\" ORDER BY version DESC LIMIT 5\`);
+  pol.forEach(x=>console.log('  policy v'+x.version, x.status, x.name,
+    '| jobPosting='+x.include_job_posting, 'hunt='+x.include_hunt_package,
+    'creditTopup='+x.include_credit_topup, 'excludeVat='+x.exclude_vat));
+  if(!pol.length) console.log('  THIEU policy — migration chua chay');
+  const t=await p.\$queryRawUnsafe(\`
+    SELECT t.code, t.name, t.min_monthly_revenue, t.max_monthly_revenue, t.rate_percent, t.sort_order
+    FROM \"crm\".\"ctv_commission_tier\" t
+    JOIN \"crm\".\"ctv_commission_policy\" p ON p.id=t.policy_id
+    WHERE p.status='ACTIVE' ORDER BY t.sort_order\`);
+  console.log('  --- tiers cua policy ACTIVE ---');
+  t.forEach(x=>console.log('   ', x.code, x.name,
+    '| ' + x.min_monthly_revenue + ' .. ' + (x.max_monthly_revenue==null?'∞':x.max_monthly_revenue),
+    '-> ' + x.rate_percent + '%'));
+  if(t.length!==3) console.log('  WARN: can co', t.length, 'tier (mong doi 3)');
   await p.\$disconnect();
 })().catch(e=>{console.error('skip:',e.message);process.exit(0)});
 " 2>/dev/null || echo "skip: khong doc duoc DB"
@@ -154,58 +187,47 @@ echo "=== log tail ==="
 pm2 logs inlink-api --lines 30 --nostream 2>/dev/null || true
 
 # ═══════════════════════════════════════════════════════════════════
-# BƯỚC 4 — KIỂM TRA LUỒNG KYC + PAYOUT GATE
+# BƯỚC 4 — KIỂM TRA API CHÍNH SÁCH + DỮ LIỆU KỲ ĐỐI SOÁT
 #
-# 1) Endpoint đọc ảnh CCCD phải chặn khi chưa đăng nhập → 401.
-# 2) Danh sách hồ sơ KYC (CRM) chỉ trả về khi đã đăng nhập → 401.
-# 3) Nộp hồ sơ thiếu ảnh mặt sau → 400.
-# 4) Cổng chi trả: CTV chưa VERIFIED → 400 với đúng thông báo.
+# 1) Endpoint public policy phải trả 401 khi chưa đăng nhập.
+# 2) CRM settings policy phải trả 401 khi chưa đăng nhập.
+# 3) Không được có lỗi Prisma liên quan model ctv_commission_* trong log.
 # ═══════════════════════════════════════════════════════════════════
-echo "=== KYC: doc anh CCCD khong chua dang nhap (mong doi 401) ==="
+echo "=== API: chinh sach cong cong chua dang nhap (mong doi 401) ==="
 curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" \
-  http://127.0.0.1:3001/api/v1/ctv/kyc/image/00000000-0000-0000-0000-000000000000/front
+  http://127.0.0.1:3001/api/v1/ctv/commission-policy
 
-echo "=== KYC: danh sach ho so CRM khong chua dang nhap (mong doi 401) ==="
+echo "=== API: CRM settings chinh sach chua dang nhap (mong doi 401) ==="
 curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" \
-  http://127.0.0.1:3001/api/v1/crm/ctv/kyc
+  http://127.0.0.1:3001/api/v1/crm/commission-policy/settings
 
-echo "=== KYC: nop ho so thieu anh mat sau (mong doi 400) ==="
-curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" -X PUT \
-  -H "Content-Type: application/json" \
-  -d '{"fullName":"Nguyen Van A","idNumber":"012345678901","phone":"0900000001","bankCode":"MB","bankName":"MB Bank","bankAccountNumber":"0123456789","bankAccountHolder":"Nguyen Van A"}' \
-  http://127.0.0.1:3001/api/v1/ctv/kyc
-
-echo "=== KYC: so ho so PENDING (badge tren menu CRM) ==="
+echo "=== du lieu ky doi soat + item (xem da co gan gan) ==="
 cd "$ROOT/apps/api"
 node -e "
 const {PrismaClient}=require('@prisma/client');
 const p=new PrismaClient();
 (async()=>{
-  const r=await p.\$queryRaw\`SELECT count(*)::int AS c FROM crm.crm_partner_kyc WHERE status='PENDING'\`;
-  console.log('ho so PENDING:', r[0].c);
+  const s=await p.\$queryRawUnsafe(\`
+    SELECT status, count(*)::int AS c, COALESCE(sum(final_commission),0)::bigint AS total
+    FROM \"crm\".\"ctv_monthly_statement\" GROUP BY status ORDER BY status\`);
+  if(s.length) s.forEach(x=>console.log('  statement', x.status, '=', x.c, '| tong final =', x.total));
+  else console.log('  chua co ky doi soat nao (CTV chua phat sinh giao dich)');
+  const i=await p.\$queryRawUnsafe(\`
+    SELECT status, count(*)::int AS c FROM \"crm\".\"ctv_commission_item\" GROUP BY status ORDER BY status\`);
+  if(i.length) i.forEach(x=>console.log('  item', x.status, '=', x.c));
+  else console.log('  chua co item hoa hong nao');
+  const c=await p.\$queryRawUnsafe(\`
+    SELECT count(*)::int AS c FROM \"company\".\"company\" WHERE referred_by_ctv_id IS NOT NULL\`);
+  console.log('  khach hang da gan CTV tron doi:', c[0].c);
   await p.\$disconnect();
 })().catch(e=>{console.error('skip:',e.message);process.exit(0)});
 " 2>/dev/null || echo "skip: khong doc duoc DB"
 cd "$ROOT"
 
-echo "=== Payout Gate: trang thai KYC cua CTV (ky choi se bi chan) ==="
-cd "$ROOT/apps/api"
-node -e "
-const {PrismaClient}=require('@prisma/client');
-const p=new PrismaClient();
-(async()=>{
-  const r=await p.\$queryRaw\`
-    SELECT COALESCE(k.status::text,'UNVERIFIED') AS status, count(*)::int AS c
-    FROM crm.crm_partner pt
-    LEFT JOIN crm.crm_partner_kyc k ON k.partner_id=pt.id
-    GROUP BY 1 ORDER BY 1\`;
-  r.forEach(x=>console.log('  ', x.status, '=', x.c));
-  const w=await p.\$queryRaw\`SELECT count(*)::int AS c FROM crm.crm_commission_period WHERE status='payable'\`;
-  console.log('ky choi da duyet chi (status=payable):', w[0].c, '— kiem tra tung ky co VERIFIED truoc khi chi');
-  await p.\$disconnect();
-})().catch(e=>{console.error('skip:',e.message);process.exit(0)});
-" 2>/dev/null || echo "skip: khong doc duoc DB"
-cd "$ROOT"
+echo "=== loi trong log api (loc phan CTV commission) ==="
+pm2 logs inlink-api --lines 200 --nostream 2>/dev/null \
+  | grep -iE "ctv_commission|ctv_monthly|PrismaClientKnownRequestError|UnknownArgument|does not exist" \
+  | tail -15 || echo "khong co loi lien quan CTV commission"
 
-echo "=== loi trong log api ==="
+echo "=== loi chung trong log api ==="
 pm2 logs inlink-api --lines 100 --nostream 2>/dev/null | grep -iE "error|exception" | tail -10 || echo "khong co loi"

@@ -130,10 +130,10 @@ export default function CtvCommissionsPage() {
                 <tr>
                   <th className="px-5 py-3">Thời gian</th>
                   <th className="px-5 py-3">Công ty khách hàng</th>
-                  <th className="px-5 py-3">Gói dịch vụ</th>
-                  <th className="px-5 py-3">Giá trị đơn</th>
-                  <th className="px-5 py-3">Tỷ lệ %</th>
-                  <th className="px-5 py-3">Tiền hoa hồng</th>
+                  <th className="px-5 py-3">Loại gói</th>
+                  <th className="px-5 py-3">Doanh thu tính hoa hồng (chưa VAT)</th>
+                  <th className="px-5 py-3">Tỷ lệ bậc tháng</th>
+                  <th className="px-5 py-3">Hoa hồng</th>
                   <th className="px-5 py-3">Trạng thái</th>
                 </tr>
               </thead>
@@ -153,11 +153,15 @@ export default function CtvCommissionsPage() {
                         {entry.invoiceNumber ? ` · ${entry.invoiceNumber}` : ''}
                       </p>
                     </td>
-                    <td className="px-5 py-3 text-slate-700">
-                      {entry.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin'}
-                      {entry.planName ? ` · ${entry.planName}` : ''}
+                    <td className="px-5 py-3">
+                      <span className="font-medium text-slate-700">
+                        {packageLabel(entry.orderKind)}
+                      </span>
+                      {entry.planName ? (
+                        <span className="mt-0.5 block text-xs text-slate-500">{entry.planName}</span>
+                      ) : null}
                     </td>
-                    <td className="px-5 py-3 text-slate-700">
+                    <td className="px-5 py-3 tabular-nums text-slate-700">
                       {formatVnd(entry.paidAmountVnd)}
                     </td>
                     <td className="px-5 py-3 tabular-nums text-slate-700">{entry.percent}%</td>
@@ -174,8 +178,21 @@ export default function CtvCommissionsPage() {
           </div>
         )}
       </section>
+
+      {/* Ghi chú nhất quán về phạm vi áp dụng hoa hồng. */}
+      <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
+        Hoa hồng áp dụng cho mọi giao dịch mua Gói Tin đăng và Gói Tin săn (mua mới, mua lại, nâng
+        cấp) trọn đời khách hàng. Không áp dụng cho Gói Khám phá (0đ) và Nạp thêm Credit.
+      </p>
     </div>
   );
+}
+
+/** Nhãn loại gói hiển thị cho CTV. */
+function packageLabel(orderKind: string): string {
+  if (orderKind === 'sourcing') return 'Tin săn';
+  if (orderKind === 'platform') return 'Tin đăng';
+  return 'Nâng cấp';
 }
 
 function StatusChip({ entry }: { entry: CrmCommissionEntryView }) {

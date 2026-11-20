@@ -580,6 +580,32 @@ export class PaymentService {
       return { ok: true, message: `Đã xử lý ${event.type}` };
     }
 
+    if (event.type === 'charge.refunded' || event.type === 'refund.created') {
+      const obj = event.data.object as {
+        metadata?: Record<string, string>;
+        payment_intent?: string;
+      };
+      const orderId = obj.metadata?.orderId;
+      if (!orderId) {
+        return { ok: false, message: 'Refund không có metadata.orderId' };
+      }
+      const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
+      if (!order) {
+        return { ok: false, message: `Order ${orderId} không tồn tại` };
+      }
+      await this.prisma.billingPayment.create({
+        data: {
+          orderId: order.id,
+          providerEventId: event.id,
+          eventType: event.type,
+          status: 'processed',
+          rawPayload: event.data.object as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await this.markRefunded(order);
+      return { ok: true, message: 'Order marked refunded' };
+    }
+
     // Event khác: ghi log rồi bỏ qua
     await this.prisma.billingPayment.create({
       data: {
@@ -762,6 +788,7 @@ export class PaymentService {
           planCode: updated.planCode,
           planName: updated.planName,
           priceVndSnapshot: updated.priceVndSnapshot,
+          vatAmountVnd: updated.vatAmountVnd,
           paidAt: updated.paidAt ?? new Date(),
           referralCode: referralFromMetadata(updated.metadata),
         });
@@ -792,6 +819,41 @@ export class PaymentService {
       });
     }
     return paid;
+  }
+
+  /**
+   * Đánh dấu đơn đã hoàn tiền và xử lý lại hoa hồng CTV.
+   *
+   *  - Kỳ đối soát đang OPEN → dòng hoa hồng bị VOID, tính lại bậc tháng.
+   *  - Kỳ đã chốt → giữ nguyên lịch sử, ghi khoản điều chỉnh âm vào kỳ hiện tại.
+   *
+   * Không trả tiền — chỉ cập nhật số liệu hoa hồng.
+   */
+  private async markRefunded(order: { id: string; companyId: string; paidAt: Date | null }): Promise<void> {
+    const fresh = await this.prisma.billingOrder.findUnique({ where: { id: order.id } });
+    if (!fresh) throw new NotFoundException('Order không tồn tại');
+    if (fresh.status === 'refunded') return;
+
+    await this.prisma.billingOrder.update({
+      where: { id: order.id },
+      data: { status: 'refunded', refundedAt: new Date() },
+    });
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.crm.handleOrderRefund(tx, {
+          id: fresh.id,
+          companyId: fresh.companyId,
+          paidAt: fresh.paidAt,
+        });
+      });
+    } catch (err) {
+      // Không chặn luồng hoàn tiền vì lỗi cập nhật hoa hồng — ghi log để kế toán xử lý.
+      this.logger.error(
+        `Không cập nhật được hoa hồng cho đơn hoàn tiền ${fresh.id}: ${String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
   }
 
   private actorFromOrder(order: {
