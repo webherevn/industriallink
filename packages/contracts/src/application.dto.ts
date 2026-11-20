@@ -24,6 +24,17 @@ export interface ApplicationView {
   matchScore: number | null;
   coverLetter: string | null;
   createdAt: string;
+  /**
+   * Gợi ý mềm khi ứng viên ứng tuyển CHÉO lĩnh vực (hồ sơ Kỹ thuật nộp JD
+   * Kinh doanh hoặc ngược lại). KHÔNG chặn — chỉ để Frontend hiển thị gợi ý.
+   */
+  trackNotice?: string | null;
+  /** Lĩnh vực hồ sơ ứng viên đang active. */
+  candidateTrack?: 'sales' | 'technical' | null;
+  /** Lĩnh vực của tin tuyển dụng. */
+  jobTrack?: 'sales' | 'technical' | null;
+  /** true khi ứng viên ứng tuyển chéo lĩnh vực. */
+  crossTrack?: boolean;
 }
 
 /**
@@ -59,6 +70,23 @@ export interface ApplicantView {
   canContact?: boolean;
   /** Lý do từ chối (chỉ có ở hồ sơ đã từ chối). */
   rejectionReason?: string | null;
+  /** Chức danh hiện tại (đã đồng bộ theo lĩnh vực đang active của hồ sơ). */
+  primaryTitle?: string | null;
+  /** Lĩnh vực lĩnh vực hồ sơ ứng viên đang active ('sales' | 'technical'). */
+  candidateTrack?: 'sales' | 'technical' | null;
+  /** Lĩnh vực của tin tuyển dụng ('sales' | 'technical' | null nếu tin legacy). */
+  jobTrack?: 'sales' | 'technical' | null;
+  /**
+   * Ứng viên ứng tuyển CHÉO lĩnh vực (hồ sơ Kỹ thuật nộp JD Kinh doanh hoặc ngược lại).
+   * NTD cần thấy nhanh nhóm kỹ sư ứng tuyển Sales B2B.
+   */
+  crossTrack?: boolean;
+  /**
+   * Quyền xem thông tin liên hệ đầy đủ (email / số điện thoại không bị mask).
+   * - true: công ty đã mở khóa hồ sơ bằng Credit, HOẶC ứng viên đã tự ứng tuyển.
+   * - false: hồ sơ tiềm năng chưa mở khóa → email/số điện thoại bị mask.
+   */
+  isContactUnlocked?: boolean;
 }
 
 /** Một buổi phỏng vấn gắn trên hồ sơ, đủ để hiện loại HR hoặc chuyên môn. */

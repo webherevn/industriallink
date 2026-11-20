@@ -19,6 +19,7 @@ import { SourcingService } from '../billing/sourcing.service';
 import { CompanyService } from '../company/company.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { maskEmail, maskPhone } from '../../shared/domain/contact-mask.util';
 import {
   backfillMissingCompanySlugs,
   backfillMissingJobSlugs,
@@ -872,6 +873,10 @@ export class MatchingService {
         // (1) Khối đối chiếu JD đã chuẩn hoá cho NTD — không lộ trọng số.
         jdMatch: this.buildJdMatchForRecruiter(job, c, explanation),
         applied: appliedIds.has(c.id),
+        // ⭐ Liên hệ — mask ngay tại Backend nếu công ty chưa mở khóa.
+        email: c.user?.email ?? null,
+        phone: c.profile?.phone ?? null,
+        candidateTrack: candidateMatchTrack(c),
       };
     });
 
@@ -890,21 +895,34 @@ export class MatchingService {
     ]);
 
     return ranked.map(
-      (row): CandidateMatchView => ({
-        candidateId: row.candidateId,
-        displayName: row.displayName,
-        currentPosition: row.currentPosition,
-        industry: row.industry,
-        location: row.location,
-        summary: row.summary,
-        // (1) Lọc trọng số + công thức tính điểm khỏi payload NTD.
-        match: sanitizeMatchExplanationForRecruiter(row.match),
-        jdMatch: row.jdMatch,
-        applied: row.applied,
-        viewed: viewedIds.has(row.candidateId),
-        connected: connectedIds.has(row.candidateId),
-        isShortlisted: shortlistedIds.has(row.candidateId),
-      }),
+      (row): CandidateMatchView => {
+        // ⭐ canViewFullContact: đã mở khóa bằng Credit, HOẶC đã tự ứng tuyển,
+        // HOẶC đã chấp nhận kết nối → trả liên hệ nguyên bản 100%.
+        const isContactUnlocked =
+          viewedIds.has(row.candidateId) ||
+          row.applied ||
+          connectedIds.has(row.candidateId);
+        return {
+          candidateId: row.candidateId,
+          displayName: row.displayName,
+          currentPosition: row.currentPosition,
+          industry: row.industry,
+          location: row.location,
+          summary: row.summary,
+          // (1) Lọc trọng số + công thức tính điểm khỏi payload NTD.
+          match: sanitizeMatchExplanationForRecruiter(row.match),
+          jdMatch: row.jdMatch,
+          applied: row.applied,
+          viewed: viewedIds.has(row.candidateId),
+          connected: connectedIds.has(row.candidateId),
+          isShortlisted: shortlistedIds.has(row.candidateId),
+          isContactUnlocked,
+          email: isContactUnlocked ? row.email : maskEmail(row.email),
+          phone: isContactUnlocked ? row.phone : maskPhone(row.phone),
+          candidateTrack: row.candidateTrack,
+          primaryTitle: row.currentPosition,
+        };
+      },
     );
   }
 

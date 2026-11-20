@@ -159,7 +159,69 @@ describe('ApplicationService', () => {
       );
     });
 
-    it('từ chối nếu hồ sơ chưa chọn lĩnh vực', async () => {
+    it('⭐ cho phép ứng tuyển CHÉO lĩnh vực — hồ sơ Kỹ thuật nộp tin Kinh doanh', async () => {
+      const create = jest.fn().mockResolvedValue({
+        id: 'app-cross-1',
+        code: 'APP-2026-000001',
+        jobId: 'job-1',
+        status: ApplicationStatus.Applied,
+        matchScore: 80,
+        coverLetter: null,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      });
+      const prisma = {
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithTechnicalTrack) },
+        job: { findUnique: jest.fn().mockResolvedValue(publishedSalesJob) },
+        application: { findUnique: jest.fn().mockResolvedValue(null), create },
+      };
+      const service = buildService(prisma);
+
+      const result = await service.apply(candidateUser, 'job-1', {}, 'corr-track-cross-1');
+
+      // Không bị chặn 400 — tạo hồ sơ thành công.
+      expect(result.id).toBe('app-cross-1');
+      expect(create).toHaveBeenCalledTimes(1);
+      // Trả về gợi ý mềm cho Frontend hiển thị (KHÔNG khóa nút nộp).
+      expect(result.crossTrack).toBe(true);
+      expect(result.candidateTrack).toBe('technical');
+      expect(result.jobTrack).toBe('sales');
+      expect(result.trackNotice).toEqual(expect.stringContaining('Kỹ thuật'));
+    });
+
+    it('⭐ cho phép ứng tuyển CHÉO lĩnh vực — hồ sơ Kinh doanh nộp tin Kỹ thuật', async () => {
+      const create = jest.fn().mockResolvedValue({
+        id: 'app-cross-2',
+        code: 'APP-2026-000001',
+        jobId: 'job-1',
+        status: ApplicationStatus.Applied,
+        matchScore: 80,
+        coverLetter: null,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      });
+      const prisma = {
+        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithSalesTrack) },
+        job: { findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob) },
+        application: { findUnique: jest.fn().mockResolvedValue(null), create },
+      };
+      const service = buildService(prisma);
+
+      const result = await service.apply(candidateUser, 'job-1', {}, 'corr-track-cross-2');
+
+      expect(result.id).toBe('app-cross-2');
+      expect(result.crossTrack).toBe(true);
+      expect(result.trackNotice).toEqual(expect.stringContaining('Kinh doanh'));
+    });
+
+    it('⭐ cho phép ứng tuyển khi hồ sơ chưa chọn lĩnh vực (không còn chặn)', async () => {
+      const create = jest.fn().mockResolvedValue({
+        id: 'app-no-track',
+        code: 'APP-2026-000001',
+        jobId: 'job-1',
+        status: ApplicationStatus.Applied,
+        matchScore: 80,
+        coverLetter: null,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      });
       const prisma = {
         candidate: {
           findUnique: jest.fn().mockResolvedValue({
@@ -169,47 +231,16 @@ describe('ApplicationService', () => {
           }),
         },
         job: { findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob) },
-        application: { findUnique: jest.fn().mockResolvedValue(null) },
+        application: { findUnique: jest.fn().mockResolvedValue(null), create },
       };
       const service = buildService(prisma);
 
-      await expect(service.apply(candidateUser, 'job-1', {}, 'corr-track-1')).rejects.toMatchObject({
-        response: expect.objectContaining({
-          message: expect.stringMatching(/chọn lĩnh vực/i),
-        }),
-      });
-      expect(matching.computePairMatch).not.toHaveBeenCalled();
-    });
+      const result = await service.apply(candidateUser, 'job-1', {}, 'corr-track-1');
 
-    it('từ chối nếu hồ sơ Kinh doanh nộp tin Kỹ thuật', async () => {
-      const prisma = {
-        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithSalesTrack) },
-        job: { findUnique: jest.fn().mockResolvedValue(publishedTechnicalJob) },
-        application: { findUnique: jest.fn().mockResolvedValue(null) },
-      };
-      const service = buildService(prisma);
-
-      await expect(service.apply(candidateUser, 'job-1', {}, 'corr-track-2')).rejects.toMatchObject({
-        response: expect.objectContaining({
-          message: 'Hồ sơ Kinh doanh không thể nộp tin Kỹ thuật',
-        }),
-      });
-      expect(matching.computePairMatch).not.toHaveBeenCalled();
-    });
-
-    it('từ chối nếu hồ sơ Kỹ thuật nộp tin Kinh doanh', async () => {
-      const prisma = {
-        candidate: { findUnique: jest.fn().mockResolvedValue(candidateWithTechnicalTrack) },
-        job: { findUnique: jest.fn().mockResolvedValue(publishedSalesJob) },
-        application: { findUnique: jest.fn().mockResolvedValue(null) },
-      };
-      const service = buildService(prisma);
-
-      await expect(service.apply(candidateUser, 'job-1', {}, 'corr-track-3')).rejects.toMatchObject({
-        response: expect.objectContaining({
-          message: 'Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh',
-        }),
-      });
+      expect(result.id).toBe('app-no-track');
+      // Không chéo lĩnh vực (không xác định được) → không có gợi ý.
+      expect(result.crossTrack).toBe(false);
+      expect(result.trackNotice).toBeNull();
     });
 
     it('cho phép nộp tin legacy không có track khi hồ sơ đã có lĩnh vực', async () => {

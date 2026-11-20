@@ -60,6 +60,7 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
+import { matchFitLabel } from '@/lib/match-fit-label';
 
 type FilterTab = 'all' | 'high' | 'medium' | 'new';
 
@@ -110,10 +111,9 @@ function matchLabel(score: number): { text: string; tone: 'high' | 'medium' | 'l
 }
 
 function matchRingLabel(score: number): string {
-  if (score >= 90) return 'Rất phù hợp';
-  if (score >= HIGH_MATCH) return 'Phù hợp cao';
-  if (score >= MEDIUM_MATCH) return 'Phù hợp';
-  return 'Cân nhắc';
+  // ⭐ Ngưỡng chuẩn toàn sàn (>=80 Rất phù hợp / >=60 Khá phù hợp /
+  // >=40 Cân nhắc / <40 Độ phù hợp thấp).
+  return matchFitLabel(score);
 }
 
 function avgScoreLabel(avg: number): string {

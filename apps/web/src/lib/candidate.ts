@@ -178,11 +178,24 @@ export async function getCandidateById(
   );
 }
 
+/**
+ * ⭐ Mở khóa hồ sơ ứng viên (dùng chung luồng trừ Credit hiện có).
+ *
+ * Gọi lại GET /candidates/:id — đúng endpoint mà trang "Tìm ứng viên AI" dùng
+ * để mở hồ sơ (1 lần/công ty/ứng viên). Sau khi thành công, response trả về
+ * email + số điện thoại nguyên bản (không mask).
+ */
+export async function unlockCandidateProfile(
+  candidateId: string,
+  matchScore?: string | null,
+): Promise<RecruiterCandidateView> {
+  return getCandidateById(candidateId, undefined, matchScore ?? null);
+}
+
 export async function requestCandidateConnection(
   candidateId: string,
   message?: string,
-): Promise<ConnectionView> {
-  return apiRequest(`/candidates/${candidateId}/connection`, {
+): Promise<ConnectionView> {  return apiRequest(`/candidates/${candidateId}/connection`, {
     method: 'POST',
     body: message ? { message } : {},
   });

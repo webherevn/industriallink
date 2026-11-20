@@ -58,6 +58,7 @@ import {
   openConnectionChat,
   removeCandidateShortlist,
   requestCandidateConnection,
+  unlockCandidateProfile,
 } from '@/lib/candidate';
 import { formatVndAmount } from '@/lib/format';
 
@@ -181,6 +182,53 @@ function ProtectedValue({ label }: { label: string }) {
   );
 }
 
+/**
+ * Nút "Sao chép" cho email / số điện thoại đã mở khóa.
+ * Có toast xác nhận ngắn gọn sau khi sao chép thành công.
+ */
+function CopyContactButton({
+  value,
+  label,
+  copiedKey,
+  onCopied,
+}: {
+  value: string;
+  label: string;
+  copiedKey: string | null;
+  onCopied: (key: string | null) => void;
+}) {
+  const isCopied = copiedKey === label;
+  return (
+    <button
+      type="button"
+      aria-label={`Sao chép ${label}`}
+      title={`Sao chép ${label}`}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          onCopied(label);
+          window.setTimeout(() => onCopied(null), 2000);
+        } catch {
+          onCopied(null);
+        }
+      }}
+      className="inline-flex h-6 items-center gap-1 rounded-md bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-800"
+    >
+      {isCopied ? (
+        <>
+          <Check className="h-3 w-3 text-emerald-600" />
+          Đã sao chép
+        </>
+      ) : (
+        <>
+          <Copy className="h-3 w-3" />
+          Sao chép
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function CandidateDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -191,6 +239,8 @@ export default function CandidateDetailPage() {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  /** Key của giá trị vừa sao chép ('email' | 'phone') để hiện toast xác nhận. */
+  const [copiedContact, setCopiedContact] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['candidate', id, fromSourcing ? 'sourcing' : 'credit', matchScore ?? ''],
@@ -249,10 +299,37 @@ export default function CandidateDetailPage() {
     },
   });
 
+  // ⭐ Mở khóa hồ sơ (trừ Credit) — dùng chung luồng hiện có của trang Tìm ứng viên AI.
+  // Sau khi thành công, cập nhật ngay email/SĐT đầy đủ tại chỗ, không cần reload.
+  const unlockMutation = useMutation({
+    mutationFn: () => unlockCandidateProfile(id, matchScore),
+    onSuccess: (fresh) => {
+      setActionError(null);
+      queryClient.setQueryData(
+        ['candidate', id, fromSourcing ? 'sourcing' : 'credit', matchScore ?? ''],
+        fresh,
+      );
+      void invalidate();
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) {
+        handleCreditError(err, showCreditAlert);
+        if (err.status !== 402) setActionError(err.message);
+      } else {
+        setActionError('Không mở khóa được hồ sơ');
+      }
+    },
+  });
+
   const sales = data?.profile?.sales;
   const profile = data?.profile;
   const status = data?.connection?.status;
   const unlocked = Boolean(data?.contactUnlocked);
+  // ⭐ Cost mở khóa: hồ sơ Matching >= 80% tốn 2 Credit, còn lại 1 Credit.
+  const unlockCost = (() => {
+    const pct = Number(matchScore);
+    return Number.isFinite(pct) && pct > 1 && pct >= 80 ? 2 : 1;
+  })();
 
   async function copyCode() {
     if (!data?.code) return;
@@ -523,9 +600,9 @@ export default function CandidateDetailPage() {
                           : 'Không'}
                     </span>
                   </p>
-                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-700">
                     <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
-                    Thu nhập kỳ vọng:{' '}
+                    <span className="shrink-0">Thu nhập kỳ vọng:</span>
                     <span
                       className={
                         sales?.expectedSalaryMin || sales?.expectedSalaryMax
@@ -586,6 +663,13 @@ export default function CandidateDetailPage() {
                   </span>
                   Thông tin liên hệ
                 </p>
+                {/* ⭐ Badge nhỏ xanh lá khi đã mở khóa liên hệ. */}
+                {unlocked && (
+                  <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                    <Check className="h-3 w-3" />
+                    {data?.appliedToCompany ? 'Ứng viên tự ứng tuyển' : 'Đã mở khóa liên hệ'}
+                  </p>
+                )}
                 <ul className="mt-4 space-y-3">
                   <li className="flex items-start gap-2.5">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-50 text-accent-600">
@@ -596,12 +680,20 @@ export default function CandidateDetailPage() {
                         Email
                       </p>
                       {unlocked && data.email ? (
-                        <a
-                          href={`mailto:${data.email}`}
-                          className="break-all text-sm font-medium text-brand-700 hover:underline"
-                        >
-                          {data.email}
-                        </a>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <a
+                            href={`mailto:${data.email}`}
+                            className="break-all text-sm font-medium text-brand-700 hover:underline"
+                          >
+                            {data.email}
+                          </a>
+                          <CopyContactButton
+                            value={data.email}
+                            label="email"
+                            copiedKey={copiedContact}
+                            onCopied={setCopiedContact}
+                          />
+                        </span>
                       ) : (
                         <ProtectedValue label={data.emailMasked ?? '[Được bảo vệ]'} />
                       )}
@@ -616,18 +708,44 @@ export default function CandidateDetailPage() {
                         Điện thoại
                       </p>
                       {unlocked && data.phone ? (
-                        <a
-                          href={`tel:${data.phone}`}
-                          className="text-sm font-medium text-brand-700 hover:underline"
-                        >
-                          {data.phone}
-                        </a>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <a
+                            href={`tel:${data.phone}`}
+                            className="text-sm font-medium text-brand-700 hover:underline"
+                          >
+                            {data.phone}
+                          </a>
+                          <CopyContactButton
+                            value={data.phone}
+                            label="số điện thoại"
+                            copiedKey={copiedContact}
+                            onCopied={setCopiedContact}
+                          />
+                        </span>
                       ) : (
                         <ProtectedValue label={data.phoneMasked ?? '[Được bảo vệ]'} />
                       )}
                     </div>
                   </li>
                 </ul>
+                {/* ⭐ CTA mở khóa hồ sơ (dùng chung luồng trừ Credit hiện có). */}
+                {!unlocked && (
+                  <button
+                    type="button"
+                    onClick={() => unlockMutation.mutate()}
+                    disabled={unlockMutation.isPending}
+                    className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-600 text-xs font-bold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
+                  >
+                    {unlockMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Lock className="h-3.5 w-3.5" />
+                    )}
+                    {unlockMutation.isPending
+                      ? 'Đang mở khóa…'
+                      : `Mở khóa hồ sơ (${unlockCost} Credit)`}
+                  </button>
+                )}
               </div>
 
               <div className="rounded-2xl border border-accent-200 bg-gradient-to-b from-accent-50/80 to-white p-4 shadow-sm">
@@ -635,11 +753,19 @@ export default function CandidateDetailPage() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-accent-600 ring-1 ring-accent-100">
                     <Link2 className="h-4 w-4" />
                   </span>
-                  Yêu cầu kết nối ứng viên
+                  {unlocked ? 'Kết nối trên Inlink (Tùy chọn)' : 'Yêu cầu kết nối ứng viên'}
                 </p>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                  Bạn cần gửi yêu cầu và được ứng viên đồng ý để kết nối và liên hệ với ứng viên.
-                </p>
+                {unlocked ? (
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                    Bạn đã có thể gọi điện/email trực tiếp, hoặc gửi lời mời ứng tuyển /
+                    nhắn tin trên Inlink để theo dõi trong quy trình.
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                    Hãy mở khóa hồ sơ trước để gửi lời mời ứng tuyển hoặc nhắn tin trực tiếp
+                    cho ứng viên.
+                  </p>
+                )}
 
                 {actionError && (
                   <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700">
@@ -649,19 +775,26 @@ export default function CandidateDetailPage() {
 
                 {unlocked ? (
                   <div className="mt-3 space-y-2">
-                    <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                      <Check className="h-4 w-4" />
-                      Đã kết nối — có thể liên hệ trực tiếp
-                    </div>
-                    {data.connection?.id && (
-                      <button
-                        type="button"
-                        onClick={() => openConnectionChat(data.connection!.id)}
-                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-semibold text-white hover:bg-brand-700"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        Nhắn tin
-                      </button>
+                    {data.connection?.id ? (
+                      <>
+                        <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                          <Check className="h-4 w-4" />
+                          Đã kết nối — có thể liên hệ trực tiếp
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openConnectionChat(data.connection!.id)}
+                          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-semibold text-white hover:bg-brand-700"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          Nhắn tin
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                        <Check className="h-4 w-4" />
+                        Đã mở khóa liên hệ — có thể gọi/email trực tiếp
+                      </div>
                     )}
                   </div>
                 ) : status === ConnectionStatus.Pending ? (

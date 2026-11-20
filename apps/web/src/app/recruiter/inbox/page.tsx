@@ -579,11 +579,26 @@ function ApplicantRow({
             {/* Dòng phụ: chức danh hiện tại · vị trí đang ứng tuyển */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-slate-500">
               <span className="truncate">
-                {a.currentPosition ? formatJobTitle(a.currentPosition) : 'Chưa cập nhật chức danh'}
+                {(() => {
+                  // ⭐ Ưu tiên `primaryTitle` (đã đồng bộ theo lĩnh vực đang active),
+                  // fallback về `currentPosition` cho dữ liệu cũ.
+                  const title = a.primaryTitle ?? a.currentPosition;
+                  return title ? formatJobTitle(title) : 'Chưa cập nhật chức danh';
+                })()}
               </span>
               <span className="inline-flex items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[11.5px] font-semibold text-brand-700">
                 Ứng tuyển: {formatJobTitle(a.jobTitle)}
               </span>
+              {/* ⭐ Tag nhận diện ứng tuyển CHÉO lĩnh vực — NTD thấy nhanh nhóm
+                  kỹ sư ứng tuyển JD Kinh doanh (và ngược lại). */}
+              {a.crossTrack && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-1.5 py-0.5 text-[11.5px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200"
+                  title="Ứng viên ứng tuyển chéo lĩnh vực"
+                >
+                  Chéo lĩnh vực · {a.candidateTrack === 'technical' ? 'Kỹ thuật' : 'Kinh doanh'}
+                </span>
+              )}
             </div>
 
             {a.matchedSkills.length > 0 && (

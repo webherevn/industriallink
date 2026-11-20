@@ -267,4 +267,70 @@ describe('sanitizeProfileForTrack — ranh giới lĩnh vực', () => {
     });
     expect(db.currentPosition).toBe('Kỹ sư thiết kế');
   });
+
+  // ==========================================================================
+  // ⭐ ĐỒNG BỘ CHỨC DANH KHI ĐỔI LĨNH VỰC
+  // Lỗi gốc: ứng viên đổi sang Kỹ thuật nhưng chưa khai báo vị trí thuộc nhánh
+  // mới → `desiredPositions` rỗng → `currentPosition` cũ của nhánh Kinh doanh
+  // vẫn còn ("Thực tập sinh kinh doanh") → NTD hiểu sai chuyên môn.
+  // ==========================================================================
+  it('⭐ đổi SALES → TECHNICAL mà chưa khai báo vị trí KT → xoá chức danh cũ của nhánh KD', () => {
+    const db: StoredProfile = {};
+
+    // Bước 1: ứng viên đang là Kinh doanh.
+    saveAs(db, {
+      jobTrack: 'sales',
+      desiredPositions: ['Thực tập sinh kinh doanh'],
+      sharedFields: { currentPosition: 'Thực tập sinh kinh doanh' },
+    });
+    expect(db.currentPosition).toBe('Thực tập sinh kinh doanh');
+
+    // Bước 2: đổi sang Kỹ thuật nhưng chưa chọn vị trí KT nào.
+    saveAs(db, {
+      jobTrack: 'technical',
+      desiredPositions: [],
+      sharedFields: { currentPosition: 'Thực tập sinh kinh doanh' },
+    });
+
+    // Chức danh KD phải bị xoá (không hiển thị sai lĩnh vực).
+    expect(db.currentPosition).toBeNull();
+    expect(db.desiredPositions).toEqual([]);
+  });
+
+  it('⭐ đổi TECHNICAL → SALES mà chưa khai báo vị trí KD → xoá chức danh cũ của nhánh KT', () => {
+    const db: StoredProfile = {};
+
+    saveAs(db, {
+      jobTrack: 'technical',
+      desiredPositions: ['Kỹ sư cơ khí'],
+      sharedFields: { currentPosition: 'Kỹ sư cơ khí' },
+    });
+    expect(db.currentPosition).toBe('Kỹ sư cơ khí');
+
+    saveAs(db, {
+      jobTrack: 'sales',
+      desiredPositions: [],
+      sharedFields: { currentPosition: 'Kỹ sư cơ khí' },
+    });
+
+    expect(db.currentPosition).toBeNull();
+  });
+
+  it('⭐ đổi lĩnh vực nhưng đã khai vị trí thuộc nhánh mới → chức danh lấy theo vị trí đầu tiên', () => {
+    const db: StoredProfile = {};
+
+    saveAs(db, {
+      jobTrack: 'sales',
+      desiredPositions: ['Thực tập sinh kinh doanh'],
+      sharedFields: { currentPosition: 'Thực tập sinh kinh doanh' },
+    });
+
+    saveAs(db, {
+      jobTrack: 'technical',
+      desiredPositions: ['Kỹ sư điện / Điện công nghiệp', 'Kỹ thuật viên'],
+      sharedFields: { currentPosition: 'Thực tập sinh kinh doanh' },
+    });
+
+    expect(db.currentPosition).toBe('Kỹ sư điện / Điện công nghiệp');
+  });
 });

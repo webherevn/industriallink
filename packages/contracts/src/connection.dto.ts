@@ -26,6 +26,11 @@ export interface RecruiterCandidateView extends CandidateView {
   isShortlisted: boolean;
   /** Điểm phù hợp với JD của công ty (0–100). */
   matchScore?: number | null;
+  /**
+   * ⭐ Ứng viên đã tự ứng tuyển vào tin của công ty.
+   * → thuộc quyền liên hệ đầy đủ, không cần mở khóa bằng Credit.
+   */
+  appliedToCompany?: boolean;
 }
 
 export interface CreateConnectionRequest {

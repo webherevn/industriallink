@@ -178,6 +178,28 @@ export class CreditService {
     });
   }
 
+  /**
+   * Công ty đã MỞ KHÓA hồ sơ ứng viên này chưa?
+   *
+   * ⭐ TÁI SỬ DỤNG NGUYÊN VĂN cơ chế hiện có (KHÔNG viết lại logic trừ Credit):
+   * mỗi công ty chỉ bị trừ 1 lần cho cùng một ứng viên, và mốc "đã xem" được
+   * ghi bằng chính dòng `billing_credit_transaction` (action thuộc PROFILE_VIEW_ACTIONS).
+   *
+   * Dùng để quyết định quyền xem thông tin liên hệ (email / số điện thoại) —
+   * không phụ thuộc vào việc ứng viên có chấp nhận kết nối hay không.
+   */
+  async isProfileUnlockedByCompany(companyId: string, candidateId: string): Promise<boolean> {
+    const existing = await this.prisma.billingCreditTransaction.findFirst({
+      where: {
+        companyId,
+        candidateId,
+        action: { in: [...PROFILE_VIEW_ACTIONS] },
+      },
+      select: { id: true },
+    });
+    return Boolean(existing);
+  }
+
   private async rememberProfileView(input: ConsumeActionInput): Promise<void> {
     if (!input.candidateId) return;
     const existing = await this.prisma.billingCreditTransaction.findFirst({

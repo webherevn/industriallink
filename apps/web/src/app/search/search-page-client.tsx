@@ -74,6 +74,7 @@ import { EMPLOYMENT_LABEL, formatSalary } from '@/lib/format';
 import { listMyJobs } from '@/lib/jobs';
 import { candidatesForJob } from '@/lib/matching';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import { matchFitLabel } from '@/lib/match-fit-label';
 import { searchCandidates, type CandidateSearchFilters } from '@/lib/search';
 
 type FilterState = {
@@ -396,7 +397,9 @@ function ResultCard({
   const visibleSkills = matchedSkills.slice(0, 4);
   const extraSkills = Math.max(0, matchedSkills.length - visibleSkills.length);
   const isUnlockedOrFree = Boolean(result.viewed || result.applied);
-  const fitLabel = scorePct >= 75 ? 'Phù hợp cao' : 'Phù hợp';
+  // ⭐ Ngưỡng chuẩn toàn sàn (>=80 Rất phù hợp / >=60 Khá phù hợp /
+  // >=40 Cân nhắc / <40 Độ phù hợp thấp) — sửa lỗi 18.4% bị ghi "Phù hợp".
+  const fitLabel = matchFitLabel(scorePct);
 
   // (1) Không lộ trọng số — sắp xếp theo điểm tiêu chí thuần.
   const strongCriteria = criteria

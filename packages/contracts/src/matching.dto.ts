@@ -186,6 +186,20 @@ export interface CandidateMatchView {
   /** Công ty đã chủ động kết nối trực tiếp với ứng viên này. */
   connected?: boolean;
   isShortlisted?: boolean;
+  /**
+   * ⭐ Quyền xem thông tin liên hệ đầy đủ.
+   * - true: công ty đã mở khóa hồ sơ bằng Credit, HOẶC ứng viên đã tự ứng tuyển.
+   * - false: hồ sơ tiềm năng chưa mở khóa → email/số điện thoại bị mask.
+   */
+  isContactUnlocked?: boolean;
+  /** Email ứng viên — nguyên bản khi `isContactUnlocked`, đã mask khi chưa mở khóa. */
+  email?: string | null;
+  /** Số điện thoại — nguyên bản khi `isContactUnlocked`, đã mask khi chưa mở khóa. */
+  phone?: string | null;
+  /** Lĩnh vực hồ sơ ứng viên đang active. */
+  candidateTrack?: 'sales' | 'technical' | null;
+  /** Chức danh hiện tại (đồng bộ theo lĩnh vực đang active). */
+  primaryTitle?: string | null;
 }
 
 /** Cùng danh sách và điểm với AI gợi ý ứng viên, không trừ Credit. */

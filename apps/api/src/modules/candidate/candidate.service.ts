@@ -631,13 +631,22 @@ export class CandidateService {
       }),
     ]);
 
-    const unlocked = connection?.status === ConnectionStatus.Accepted;
+    const connectionAccepted = connection?.status === ConnectionStatus.Accepted;
 
-    if (!unlocked && view.profile) {
+    const applied = await this.hasAppliedToCompany(companyId, candidateId);
+
+    // ⭐ QUYỀN XEM LIÊN HỆ ĐẦY ĐỦ — tái sử dụng cơ chế mở khóa hiện có.
+    //   - Đã mở khóa bằng Credit (mở hồ sơ 1 lần/công ty) → xem đầy đủ.
+    //   - Ứng viên đã tự ứng tuyển vào tin của công ty → xem đầy đủ.
+    //   - Ứng viên đã chấp nhận kết nối → xem đầy đủ.
+    // KHÔNG chờ ứng viên đồng ý kết nối để lấy email/SĐT.
+    const unlockedByCredit = await this.credit.isProfileUnlockedByCompany(companyId, candidateId);
+    const canViewFullContact = unlockedByCredit || applied || connectionAccepted;
+
+    if (!canViewFullContact && view.profile) {
       view.profile = { ...view.profile, phone: null };
     }
 
-    const applied = await this.hasAppliedToCompany(companyId, candidateId);
     const resolvedMatchScore = await this.resolveRecruiterMatchScore(
       companyId,
       candidate,
@@ -658,14 +667,15 @@ export class CandidateService {
 
     return {
       ...view,
-      contactUnlocked: unlocked,
-      phone: unlocked ? rawPhone : null,
-      email: unlocked ? rawEmail : null,
+      contactUnlocked: canViewFullContact,
+      phone: canViewFullContact ? rawPhone : null,
+      email: canViewFullContact ? rawEmail : null,
       phoneMasked: maskPhone(rawPhone),
       emailMasked: maskEmail(rawEmail),
       connection: connection ? this.toConnectionView(connection) : null,
       isShortlisted: Boolean(shortlist),
       matchScore: resolvedMatchScore,
+      appliedToCompany: applied,
     };
   }
 

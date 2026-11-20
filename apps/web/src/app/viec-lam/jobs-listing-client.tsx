@@ -68,6 +68,7 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
+import { matchFitLabel } from '@/lib/match-fit-label';
 import { composeJobBoard, LISTING_ROTATE_MS, listingTier } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
 
@@ -1397,10 +1398,8 @@ function CompanyMark({ job, markClass }: { job: JobListItem; markClass: string }
 }
 
 function matchRingLabel(score: number): string {
-  if (score >= 90) return 'Rất phù hợp';
-  if (score >= 80) return 'Phù hợp cao';
-  if (score >= 55) return 'Phù hợp';
-  return 'Cân nhắc';
+  // ⭐ Ngưỡng chuẩn toàn sàn.
+  return matchFitLabel(score);
 }
 
 /** Vòng tỉ lệ giống thẻ Gợi ý AI, thu vừa cột tin. */

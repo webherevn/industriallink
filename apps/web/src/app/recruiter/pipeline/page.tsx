@@ -11,10 +11,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ExternalLink,
   FileText,
+  Kanban,
+  ListChecks,
+  Mail,
+  MessageCircle,
   MoreHorizontal,
   Search,
   SlidersHorizontal,
+  Sparkles,
   UserRound,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -31,14 +37,18 @@ import {
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CopilotRobot } from '@/components/copilot-robot';
+import { KanbanBoard } from '@/components/kanban-board';
 import { ScheduleInterviewModal } from '@/components/schedule-interview-modal';
 import { StartOnboardingModal } from '@/components/start-onboarding-modal';
-import { INTERVIEW_TYPE_LABEL, ONBOARDING_STATUS_LABEL } from '@/lib/format';
+import { updateApplicationStatus } from '@/lib/applications';
+import { INTERVIEW_TYPE_LABEL, ONBOARDING_STATUS_LABEL, toTitleCase } from '@/lib/format';
 import { listInterviews, updateInterview } from '@/lib/interviews';
 import { listMyJobs } from '@/lib/jobs';
 import { listOffers, updateOffer } from '@/lib/offers';
 import { listOnboardings, updateOnboarding } from '@/lib/onboarding';
 import { listInbox } from '@/lib/recruiter';
+import { formatMatchPct, matchBadgeTone } from '@/lib/match-percent';
+import { matchFitLabel } from '@/lib/match-fit-label';
 
 type StageFilter = 'all' | 'interview' | 'offer' | 'onboarding';
 
@@ -56,6 +66,8 @@ type PipelineRow = {
   statusText: string;
   statusTone: 'sky' | 'amber' | 'emerald' | 'rose' | 'slate';
   needsSchedule?: boolean;
+  /** Điểm phù hợp AI (0–100) — hiển thị badge % cột "Phù hợp AI". */
+  matchScore: number | null;
   sortDate: number;
   interview?: InterviewView;
   offer?: OfferView;
@@ -108,7 +120,9 @@ export default function RecruiterPipelinePage() {
   const queryClient = useQueryClient();
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [jobId, setJobId] = useState('all');
-  const [rangeDays, setRangeDays] = useState<14 | 30 | 90 | 0>(14);
+  // ⭐ Mặc định "Tất cả thời gian" (0) — tránh mâu thuẫn khi bảng hiển thị dòng
+  // "Chưa đặt lịch" (không có mốc thời gian) nhưng bộ lọc chỉ cho 14 ngày tới.
+  const [rangeDays, setRangeDays] = useState<14 | 30 | 90 | 0>(0);
   const [q, setQ] = useState('');
   const [statusOnlyPending, setStatusOnlyPending] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -116,6 +130,14 @@ export default function RecruiterPipelinePage() {
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
   const [selectedKeys, setSelectedKeys] = useState<Record<string, boolean>>({});
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
+  /**
+   * ⭐ Chế độ xem:
+   * - 'list'  : Danh sách cần xử lý (bảng tập trung các bước PV / Đề nghị / Nhận việc).
+   * - 'kanban': Bảng Kanban theo vị trí (chọn nhanh tin tuyển dụng).
+   */
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  /** Tin tuyển dụng đang xem ở chế độ Kanban. */
+  const [kanbanJobId, setKanbanJobId] = useState<string>('all');
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
 
   const [scheduleFor, setScheduleFor] = useState<{ id: string; name: string } | null>(null);
@@ -164,8 +186,7 @@ export default function RecruiterPipelinePage() {
     retry: false,
   });
 
-  const { data: interviews, isLoading: loadingInterviews } = useQuery({
-    queryKey: ['interviews-pipeline', jobId, rangeDays],
+  const { data: interviews, isLoading: loadingInterviews } = useQuery({    queryKey: ['interviews-pipeline', jobId, rangeDays],
     queryFn: () =>
       listInterviews({
         jobId: jobId === 'all' ? undefined : jobId,
@@ -223,6 +244,15 @@ export default function RecruiterPipelinePage() {
     return map;
   }, [inbox]);
 
+  // ⭐ Điểm phù hợp AI theo ứng viên (lấy từ Hộp thư — cùng nguồn dữ liệu).
+  const matchScoreByCandidateId = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const a of inbox ?? []) {
+      map.set(a.candidateId, a.matchScore ?? null);
+    }
+    return map;
+  }, [inbox]);
+
   const rows = useMemo<PipelineRow[]>(() => {
     const list: PipelineRow[] = [];
     const nowMs = Date.now();
@@ -255,8 +285,9 @@ export default function RecruiterPipelinePage() {
         key: `iv-${iv.id}`,
         stage: 'interview',
         candidateId: iv.candidateId,
-        candidateName: iv.candidateName,
+        candidateName: toTitleCase(iv.candidateName),
         candidateRole: roleByCandidateId.get(iv.candidateId) ?? null,
+        matchScore: matchScoreByCandidateId.get(iv.candidateId) ?? null,
         applicationId: iv.applicationId,
         jobId: iv.jobId,
         jobTitle: formatJobTitle(iv.jobTitle),
@@ -277,8 +308,9 @@ export default function RecruiterPipelinePage() {
           key: `unsched-${app.applicationId}`,
           stage: 'interview',
           candidateId: app.candidateId,
-          candidateName: app.displayName,
+          candidateName: toTitleCase(app.displayName),
           candidateRole: app.currentPosition ? formatJobTitle(app.currentPosition) : null,
+        matchScore: app.matchScore ?? null,
           applicationId: app.applicationId,
           jobId: app.jobId,
           jobTitle: formatJobTitle(app.jobTitle),
@@ -315,8 +347,9 @@ export default function RecruiterPipelinePage() {
         key: `offer-${ofr.id}`,
         stage: 'offer',
         candidateId: ofr.candidateId,
-        candidateName: ofr.candidateName,
+        candidateName: toTitleCase(ofr.candidateName),
         candidateRole: roleByCandidateId.get(ofr.candidateId) ?? null,
+        matchScore: matchScoreByCandidateId.get(ofr.candidateId) ?? null,
         applicationId: ofr.applicationId,
         jobId: ofr.jobId,
         jobTitle: formatJobTitle(ofr.jobTitle),
@@ -347,8 +380,9 @@ export default function RecruiterPipelinePage() {
         key: `ob-${ob.id}`,
         stage: 'onboarding',
         candidateId: ob.candidateId,
-        candidateName: ob.candidateName,
+        candidateName: toTitleCase(ob.candidateName),
         candidateRole: roleByCandidateId.get(ob.candidateId) ?? null,
+        matchScore: matchScoreByCandidateId.get(ob.candidateId) ?? null,
         applicationId: ob.applicationId,
         jobId: ob.jobId,
         jobTitle: formatJobTitle(ob.jobTitle),
@@ -362,7 +396,7 @@ export default function RecruiterPipelinePage() {
     }
 
     return list.sort((a, b) => b.sortDate - a.sortDate);
-  }, [interviews, inbox, offers, onboardings, jobId, roleByCandidateId]);
+  }, [interviews, inbox, offers, onboardings, jobId, roleByCandidateId, matchScoreByCandidateId]);
 
   const counts = useMemo(() => {
     const nowMs = Date.now();
@@ -372,6 +406,8 @@ export default function RecruiterPipelinePage() {
     return {
       all: rows.length,
       interview: ivRows.length,
+      // ⭐ Hồ sơ ở bước Phỏng vấn nhưng CHƯA đặt lịch → cần NTD xử lý.
+      interviewNeedsSchedule: ivRows.filter((r) => r.needsSchedule).length,
       interviewUpcoming: ivRows.filter(
         (r) =>
           r.interview?.status === InterviewStatus.Scheduled &&
@@ -420,6 +456,35 @@ export default function RecruiterPipelinePage() {
 
   const loading = loadingInterviews || loadingOffers || loadingOnboardings;
 
+  // ⭐ Ứng viên cho bảng Kanban (chế độ "Bảng Kanban theo vị trí").
+  const kanbanApplicants = useMemo(() => {
+    const list = inbox ?? [];
+    if (kanbanJobId === 'all') return list;
+    return list.filter((a) => a.jobId === kanbanJobId);
+  }, [inbox, kanbanJobId]);
+
+  /** Đổi bước ứng viên từ bảng Kanban. */
+  const kanbanMoveMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ApplicationStatus }) =>
+      updateApplicationStatus(id, { status }),
+    onSuccess: invalidateAll,
+  });
+
+  // ⭐ Các hồ sơ đang được tích chọn (dùng cho thanh thao tác hàng loạt).
+  const selectedRows = useMemo(
+    () => rows.filter((r) => selectedKeys[r.key]),
+    [rows, selectedKeys],
+  );
+
+  /** Link gửi email hàng loạt — truyền sẵn applicationIds sang /recruiter/email. */
+  const bulkEmailHref = useMemo(() => {
+    if (selectedRows.length === 0) return null;
+    const ids = selectedRows.map((r) => r.applicationId).join(',');
+    const params = new URLSearchParams({ applicationIds: ids, returnUrl: '/recruiter/pipeline' });
+    if (jobId !== 'all') params.set('jobId', jobId);
+    return `/recruiter/email?${params.toString()}`;
+  }, [selectedRows, jobId]);
+
   return (
     <AppShell>
       {/* Header */}
@@ -433,14 +498,67 @@ export default function RecruiterPipelinePage() {
               Quy trình tuyển dụng
             </h1>
             <p className="mt-1 max-w-xl text-sm text-white/70">
-              Quản lý toàn bộ các bước sau phỏng vấn: Lịch phỏng vấn, Đề nghị làm việc và Nhận việc.
+              Theo dõi tập trung các ứng viên từ bước Phỏng vấn, Đề nghị làm việc đến Nhận việc.
             </p>
-          </div>
-          <div className="hidden w-24 shrink-0 sm:block" aria-hidden>
-            <CopilotRobot />
           </div>
         </div>
       </section>
+
+      {/* ⭐ Thanh chuyển chế độ xem — đặt NGAY TRÊN bộ lọc. */}
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-2 shadow-xs">
+        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1">
+          {(
+            [
+              { id: 'list' as const, label: 'Danh sách cần xử lý', icon: ListChecks },
+              { id: 'kanban' as const, label: 'Bảng Kanban theo vị trí', icon: Kanban },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setViewMode(tab.id)}
+              className={clsx(
+                'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-bold transition',
+                viewMode === tab.id
+                  ? 'bg-white text-[#072348] shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-500 hover:bg-white/70 hover:text-slate-700',
+              )}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {viewMode === 'kanban' && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Tin tuyển dụng
+            </span>
+            <select
+              value={kanbanJobId}
+              onChange={(e) => setKanbanJobId(e.target.value)}
+              className="h-9 min-w-0 max-w-[280px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none transition focus:border-[#0B468C]"
+            >
+              <option value="all">Tất cả vị trí tuyển dụng</option>
+              {(jobs ?? []).map((j) => (
+                <option key={j.id} value={j.id}>
+                  {formatJobTitle(j.title)}
+                </option>
+              ))}
+            </select>
+            {kanbanJobId !== 'all' && (
+              <Link
+                href={`/jobs/${kanbanJobId}/applicants`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 text-xs font-bold text-white transition hover:bg-brand-700"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Mở Kanban đầy đủ
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 3 thẻ KPI tóm tắt */}
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -465,6 +583,18 @@ export default function RecruiterPipelinePage() {
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="text-2xl font-bold tabular-nums text-[#072348]">
                 {counts.interview}
+              </span>
+              {/* ⭐ Hiển thị rõ số CẦN XỬ LÝ (chưa đặt lịch) — tránh hiển nhầm
+                  là đã có lịch hết khi hiện "0 sắp diễn ra". */}
+              <span
+                className={clsx(
+                  'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+                  counts.interviewNeedsSchedule > 0
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-slate-200 bg-slate-50 text-slate-600',
+                )}
+              >
+                {counts.interviewNeedsSchedule} cần đặt lịch
               </span>
               <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-[#0B468C]">
                 {counts.interviewUpcoming} sắp diễn ra
@@ -588,7 +718,39 @@ export default function RecruiterPipelinePage() {
         </button>
       </div>
 
+      {/* ⭐ Chế độ "Bảng Kanban theo vị trí" — xem trực tiếp 5 cột quy trình. */}
+      {viewMode === 'kanban' && (
+        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_-10px_rgba(7,35,72,0.07)]">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-[#072348]">
+              Bảng Kanban theo vị trí
+              {kanbanJobId !== 'all' && (
+                <span className="ml-2 font-normal text-slate-500">
+                  {(jobs ?? []).find((j) => j.id === kanbanJobId)?.title}
+                </span>
+              )}
+            </h2>
+            <p className="text-xs text-slate-400">
+              Kéo thẻ ứng viên sang cột mới để đổi bước trong quy trình.
+            </p>
+          </div>
+          {kanbanApplicants.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">
+              Chưa có ứng viên nào ở vị trí tuyển dụng này.
+            </p>
+          ) : (
+            <KanbanBoard
+              applicants={kanbanApplicants}
+              onMove={(applicationId, status) =>
+                kanbanMoveMut.mutate({ id: applicationId, status })
+              }
+            />
+          )}
+        </div>
+      )}
+
       {/* Khối tìm kiếm + Bộ lọc + Bảng dữ liệu */}
+      {viewMode === 'list' && (
       <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_24px_-10px_rgba(7,35,72,0.07)]">
         <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/40 p-4 lg:flex-row lg:items-end">
           <div className="relative min-w-0 flex-1">
@@ -664,6 +826,31 @@ export default function RecruiterPipelinePage() {
           </div>
         )}
 
+        {/* ⭐ Thanh thao tác hàng loạt — hiện khi tích chọn >= 1 ứng viên. */}
+        {selectedRows.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-brand-50/60 px-4 py-2.5">
+            <span className="text-xs font-bold text-brand-800">
+              Đã chọn {selectedRows.length} ứng viên
+            </span>
+            {bulkEmailHref && (
+              <Link
+                href={bulkEmailHref}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-xs font-bold text-white transition hover:bg-brand-700"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Gửi email hàng loạt
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => setSelectedKeys({})}
+              className="ml-auto text-xs font-semibold text-slate-500 hover:text-slate-700"
+            >
+              Bỏ chọn tất cả
+            </button>
+          </div>
+        )}
+
         {/* Bảng */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
@@ -685,6 +872,7 @@ export default function RecruiterPipelinePage() {
                   />
                 </th>
                 <th className="px-3 py-3">Ứng viên</th>
+                <th className="px-3 py-3">Phù hợp AI</th>
                 <th className="px-3 py-3">Tin tuyển dụng</th>
                 <th className="px-3 py-3">Bước hiện tại</th>
                 <th className="px-3 py-3">Lịch / Hạn xử lý</th>
@@ -696,7 +884,7 @@ export default function RecruiterPipelinePage() {
             <tbody className="divide-y divide-slate-100">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
                     Đang tải dữ liệu quy trình tuyển dụng...
                   </td>
                 </tr>
@@ -704,7 +892,7 @@ export default function RecruiterPipelinePage() {
 
               {!loading && pagedRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">
                     Chưa có hồ sơ nào phù hợp bộ lọc hiện tại.
                   </td>
                 </tr>
@@ -749,8 +937,32 @@ export default function RecruiterPipelinePage() {
                         </div>
                       </td>
 
+                      {/* ⭐ Cột "Phù hợp AI" — badge % dùng ngưỡng chuẩn toàn sàn. */}
+                      <td className="px-3 py-3.5">
+                        {row.matchScore != null ? (
+                          <span
+                            className={clsx(
+                              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums',
+                              matchBadgeTone(row.matchScore),
+                            )}
+                            title={matchFitLabel(row.matchScore)}
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            {formatMatchPct(row.matchScore)}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
+                      </td>
+
                       <td className="px-3 py-3.5 text-[13px] font-medium text-slate-700">
-                        {row.jobTitle}
+                        {/* ⭐ Tên tin tuyển dụng là link → mở thẳng bảng Kanban của vị trí. */}
+                        <Link
+                          href={`/jobs/${row.jobId}/applicants`}
+                          className="font-semibold text-brand-700 underline-offset-2 hover:underline"
+                        >
+                          {row.jobTitle}
+                        </Link>
                       </td>
 
                       <td className="px-3 py-3.5">
@@ -766,7 +978,7 @@ export default function RecruiterPipelinePage() {
                           {row.stage === 'offer' && <FileText className="h-3.5 w-3.5" />}
                           {row.stage === 'onboarding' && <Briefcase className="h-3.5 w-3.5" />}
                           {row.stage === 'interview'
-                            ? 'Lịch phỏng vấn'
+                            ? 'Phỏng vấn'
                             : row.stage === 'offer'
                               ? 'Đề nghị làm việc'
                               : 'Nhận việc'}
@@ -855,6 +1067,66 @@ export default function RecruiterPipelinePage() {
                                 >
                                   Mở bảng Kanban vị trí
                                 </Link>
+
+                                {/* ⭐ Chuyển bước nhanh — tuỳ bước hiện tại. */}
+                                {row.stage === 'interview' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenMenuKey(null);
+                                      kanbanMoveMut.mutate({
+                                        id: row.applicationId,
+                                        status: ApplicationStatus.Offer,
+                                      });
+                                    }}
+                                    className="flex w-full items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-accent-700 hover:bg-accent-50"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    Chuyển sang Đề nghị
+                                  </button>
+                                )}
+                                {row.stage === 'offer' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenMenuKey(null);
+                                      kanbanMoveMut.mutate({
+                                        id: row.applicationId,
+                                        status: ApplicationStatus.Hired,
+                                      });
+                                    }}
+                                    className="flex w-full items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    Xác nhận nhận việc
+                                  </button>
+                                )}
+
+                                {/* ⭐ Nhắn tin ứng viên trên Inlink. */}
+                                <Link
+                                  href={`/candidates/${row.candidateId}`}
+                                  onClick={() => setOpenMenuKey(null)}
+                                  className="flex w-full items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                  <MessageCircle className="h-3.5 w-3.5" />
+                                  Nhắn tin
+                                </Link>
+
+                                {/* ⭐ Từ chối ứng viên (kèm lý do ở Kanban). */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuKey(null);
+                                    kanbanMoveMut.mutate({
+                                      id: row.applicationId,
+                                      status: ApplicationStatus.Rejected,
+                                    });
+                                  }}
+                                  className="flex w-full items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                                >
+                                  <UserRound className="h-3.5 w-3.5" />
+                                  Từ chối ứng viên
+                                </button>
 
                                 {row.interview?.status === InterviewStatus.Scheduled && (
                                   <>
@@ -1016,6 +1288,7 @@ export default function RecruiterPipelinePage() {
           </div>
         )}
       </div>
+      )}
 
       {scheduleFor && (
         <ScheduleInterviewModal

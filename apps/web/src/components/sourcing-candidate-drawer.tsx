@@ -1163,19 +1163,50 @@ export function SourcingCandidateDrawer({
               {/* Thông tin liên hệ & Kết nối */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4">
-                  <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Thông tin liên hệ
-                  </h4>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
+                      Thông tin liên hệ
+                    </h4>
+                    {/* ⭐ Badge xanh lá khi đã mở khóa liên hệ. */}
+                    {detail.contactUnlocked && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Đã mở khóa liên hệ
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-2.5 space-y-2 text-xs">
                     <p className="flex items-center gap-2 text-slate-700">
                       <Phone className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
                       <span className="font-semibold text-slate-500">Điện thoại:</span>
-                      <span className="font-medium">{detail.phone || 'Chưa cập nhật'}</span>
+                      {detail.contactUnlocked && detail.phone ? (
+                        <a
+                          href={`tel:${detail.phone}`}
+                          className="font-medium text-brand-700 hover:underline"
+                        >
+                          {detail.phone}
+                        </a>
+                      ) : (
+                        <span className="font-medium text-slate-400">
+                          {detail.phoneMasked || 'Chưa cập nhật'}
+                        </span>
+                      )}
                     </p>
                     <p className="flex items-center gap-2 text-slate-700">
                       <Mail className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
                       <span className="font-semibold text-slate-500">Email:</span>
-                      <span className="font-medium">{detail.email || 'Chưa cập nhật'}</span>
+                      {detail.contactUnlocked && detail.email ? (
+                        <a
+                          href={`mailto:${detail.email}`}
+                          className="break-all font-medium text-brand-700 hover:underline"
+                        >
+                          {detail.email}
+                        </a>
+                      ) : (
+                        <span className="font-medium text-slate-400">
+                          {detail.emailMasked || 'Chưa cập nhật'}
+                        </span>
+                      )}
                     </p>
                     <p className="flex items-center gap-2 text-slate-700">
                       <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E8872A]" />
@@ -1188,8 +1219,26 @@ export function SourcingCandidateDrawer({
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4">
                   {/* Ứng viên đã nộp đơn → nhắn tin trao đổi, KHÔNG mời ứng tuyển. */}
                   <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    {candidateRow.applied ? 'Nhắn tin trao đổi' : 'Kết nối & Mời ứng tuyển'}
+                    {candidateRow.applied
+                      ? 'Nhắn tin trao đổi'
+                      : detail.contactUnlocked
+                        ? 'Kết nối trên Inlink (Tùy chọn)'
+                        : 'Kết nối & Mời ứng tuyển'}
                   </h4>
+                  {/* ⭐ Đã mở khóa liên hệ → gợi ý ngắn, KHÔNG bắt buộc phải kết nối. */}
+                  {detail.contactUnlocked && !candidateRow.applied && (
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                      Bạn đã có thể gọi điện/email trực tiếp, hoặc gửi lời mời ứng tuyển /
+                      nhắn tin trên Inlink để theo dõi trong quy trình.
+                    </p>
+                  )}
+                  {/* ⭐ Chưa mở khóa → nhắc NTD mở khóa trước (không để lách Credit). */}
+                  {!detail.contactUnlocked && !candidateRow.applied && (
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                      Hãy mở khóa hồ sơ trước để gửi lời mời ứng tuyển hoặc nhắn tin trực tiếp
+                      cho ứng viên.
+                    </p>
+                  )}
                   {connectionStatus === ConnectionStatus.Accepted && connectionId ? (
                     <div className="mt-2.5 space-y-2">
                       <p className="text-xs font-semibold text-emerald-700">

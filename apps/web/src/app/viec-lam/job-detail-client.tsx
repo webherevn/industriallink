@@ -48,6 +48,7 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import { matchFitLabel } from '@/lib/match-fit-label';
 import { jobFit } from '@/lib/matching';
 import { companyPublicPath, jobListingPath, jobPublicPath } from '@/lib/public-paths';
 import { plainLabel } from '@/lib/plain-label';
@@ -77,10 +78,9 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 function fitRingLabel(score: number): string {
-  if (score >= 90) return 'Rất phù hợp';
-  if (score >= 80) return 'Phù hợp cao';
-  if (score >= 55) return 'Phù hợp';
-  return 'Cân nhắc';
+  // ⭐ Dùng chung ngưỡng chuẩn toàn sàn (>=80 Rất phù hợp / >=60 Khá phù hợp /
+  // >=40 Cân nhắc / <40 Độ phù hợp thấp).
+  return matchFitLabel(score);
 }
 
 function daysUntil(iso: string | null): string | null {
@@ -125,14 +125,27 @@ function candidateDetailTrack(
   return t === 'sales' || t === 'technical' ? t : null;
 }
 
+/**
+ * ⭐ Gợi ý MỀM khi ứng viên ứng tuyển chéo lĩnh vực.
+ *
+ * KHÔNG chặn nút "Ứng tuyển ngay" — mọi hồ sơ đều có thể ứng tuyển vào mọi tin.
+ * Chỉ nhắc ứng viên bổ sung kinh nghiệm liên quan trong thư giới thiệu.
+ */
+const CROSS_TRACK_DISPLAY_LABEL: Record<'sales' | 'technical', string> = {
+  sales: 'Kinh doanh',
+  technical: 'Kỹ thuật',
+};
+
 function crossTrackApplyMessage(
   candTrack: 'sales' | 'technical',
   jobTrack: 'sales' | 'technical',
 ): string | null {
   if (candTrack === jobTrack) return null;
-  return candTrack === 'sales'
-    ? 'Hồ sơ Kinh doanh không thể nộp tin Kỹ thuật'
-    : 'Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh';
+  return (
+    `Hồ sơ hiện tại của bạn thuộc lĩnh vực ${CROSS_TRACK_DISPLAY_LABEL[candTrack]}, ` +
+    `khác với lĩnh vực của tin đăng. Bạn vẫn có thể ứng tuyển bình thường — nên ghi thêm ` +
+    `lý do và kinh nghiệm liên quan ở phần Thư giới thiệu để gây ấn tượng với nhà tuyển dụng.`
+  );
 }
 
 export function JobDetailClient({
@@ -272,7 +285,9 @@ export function JobDetailClient({
   const candTrack = candidateDetailTrack(myCandidate?.profile?.jobTrack);
   const trackMismatchHint =
     candTrack && jobTrack ? crossTrackApplyMessage(candTrack, jobTrack) : null;
-  const applyBlockedByTrack = Boolean(trackMismatchHint);
+  // ⭐ KHÔNG chặn ứng tuyển chéo lĩnh vực — chỉ hiện gợi ý mềm.
+  // Nút chỉ khoá khi tin đã đóng/hết hạn hoặc ứng viên đã nộp rồi (xử lý ở API).
+  const applyBlockedByTrack = false;
 
   async function onShare() {
     const url = window.location.href;
@@ -623,7 +638,7 @@ export function JobDetailClient({
                     </label>
                     {trackMismatchHint && (
                       <p className="break-words rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 ring-1 ring-amber-100">
-                        {trackMismatchHint}. Vui lòng dùng hồ sơ cùng lĩnh vực hoặc chọn tin phù hợp.
+                        {trackMismatchHint}
                       </p>
                     )}
                     {applyMutation.isError && (

@@ -4,6 +4,7 @@ import {
   normalizeTrack,
   sanitizeDesiredPositions,
 } from './profile-track-sanitize';
+import { isAllowedPositionForTrack } from '@industriallink/contracts';
 
 /**
  * Sanitize ho so theo ranh gioi linh vuc (STRICT BOUNDARY).
@@ -35,9 +36,27 @@ export function sanitizeProfileForTrack<T extends Record<string, unknown>>(
     track,
   );
 
-  // Chuc danh hien thi chinh (Sidebar trai) — theo vi tri dau tien cua nhanh moi.
+  // ⭐ Chuc danh hien thi (Sidebar trai) — LUON dong bo theo nhanh dang active.
+  //
+  // Lỗi cần sửa: khi ứng viên đổi lĩnh vực mà chưa khai báo vị trí thuộc nhánh
+  // mới, `desiredPositions` rỗng → `currentPosition` cũ của nhánh CŨ vẫn còn
+  // (VD: "Ứng Viên B" đã đổi sang Kỹ thuật nhưng vẫn hiện "Thực tập sinh
+  // kinh doanh") → NTD hiểu sai chuyên môn ứng viên.
+  //
+  // Cách sửa: nếu chức danh hiện tại KHÔNG thuộc danh mục vị trí chuẩn của
+  // nhánh đang active → coi như dữ liệu nhánh cũ và xoá đi (null).
   const firstPosition = (next.desiredPositions as string[])[0];
-  if (firstPosition) next.currentPosition = firstPosition;
+  if (firstPosition) {
+    next.currentPosition = firstPosition;
+  } else if (
+    !isAllowedPositionForTrack(
+      String((profile.currentPosition as string | undefined) ?? '').trim(),
+      track,
+    )
+  ) {
+    // Chức danh cũ thuộc nhánh khác (hoặc rỗng) → xoá cho khỏi hiển thị sai.
+    next.currentPosition = null;
+  }
 
   return next as T;
 }

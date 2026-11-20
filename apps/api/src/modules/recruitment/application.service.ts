@@ -34,6 +34,7 @@ import { buildBroadcastEmail } from '../../shared/infrastructure/email/broadcast
 import { EmailService } from '../../shared/infrastructure/email/email.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { maskEmail } from '../../shared/domain/contact-mask.util';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { CompanyService } from '../company/company.service';
 import {
@@ -44,6 +45,10 @@ import {
   type BroadcastEmailPurpose,
 } from './broadcast-email-suggest';
 import { JobService } from './job.service';
+import {
+  PROFILE_OPEN_ACTIONS,
+  resolveApplicationSource,
+} from './application-source.util';
 import { candidateMatchTrack, jobMatchTrack } from './match-track.util';
 import { CANDIDATE_MATCH_INCLUDE, MatchingService } from './matching.service';
 import { skillOverlap } from './matching.util';
@@ -102,7 +107,10 @@ export class ApplicationService {
       throw new BadRequestException('Bạn đã ứng tuyển vị trí này');
     }
 
-    assertCompatibleApplyTrack(candidate, job);
+    // ⭐ KHÔNG chặn ứng tuyển chéo lĩnh vực.
+    // Mọi hồ sơ đều có thể ứng tuyển vào mọi tin (KD↔KT). Chỉ ghi nhận lưu ý
+    // để Frontend hiển thị gợi ý mềm cho ứng viên.
+    const trackNotice = resolveApplyTrackNotice(candidate, job);
 
     const match = await this.matching.computePairMatch(jobId, candidate.id);
     const code = await this.codeGen.next('APP');
@@ -162,6 +170,10 @@ export class ApplicationService {
       matchScore: application.matchScore,
       coverLetter: application.coverLetter,
       createdAt: application.createdAt.toISOString(),
+      trackNotice: trackNotice.notice,
+      candidateTrack: trackNotice.candidateTrack,
+      jobTrack: trackNotice.jobTrack,
+      crossTrack: trackNotice.crossTrack,
     };
   }
 
@@ -354,8 +366,49 @@ export class ApplicationService {
     return map;
   }
 
+  /**
+   * Ứng viên NTD đã CHỦ ĐỘNG mở khóa / shortlist từ luồng AI Săn.
+   *
+   * Khác với `unlockedCandidateIds` (mọi nguồn), hàm này chỉ trả về ứng viên
+   * được NTD đưa vào quy trình TỪ AI Săn — dùng để phân loại nguồn "Tin săn nhân sự".
+   */
+  private async huntSourcedCandidateIds(
+    companyId: string,
+    candidateIds: string[],
+  ): Promise<Set<string>> {
+    if (candidateIds.length === 0) return new Set();
+    const ids: string[] = [];
+
+    // (1) Giao dịch Credit mở hồ sơ gắn campaignId → mở từ chiến dịch Săn.
+    if (this.prisma.billingCreditTransaction?.findMany) {
+      const rows = await this.prisma.billingCreditTransaction.findMany({
+        where: {
+          companyId,
+          candidateId: { in: candidateIds },
+          campaignId: { not: null },
+          action: { in: [...PROFILE_OPEN_ACTIONS] },
+        },
+        select: { candidateId: true },
+        distinct: ['candidateId'],
+      });
+      ids.push(...rows.flatMap((r) => (r.candidateId ? [r.candidateId] : [])));
+    }
+
+    // (2) NTD đã lưu ứng viên vào shortlist → chủ động đưa vào quy trình.
+    if (this.prisma.candidateShortlist?.findMany) {
+      const rows = await this.prisma.candidateShortlist.findMany({
+        where: { companyId, candidateId: { in: candidateIds } },
+        select: { candidateId: true },
+        distinct: ['candidateId'],
+      });
+      ids.push(...rows.flatMap((r) => (r.candidateId ? [r.candidateId] : [])));
+    }
+
+    return new Set(ids);
+  }
+
   /** Inbox ứng viên toàn công ty (Recruiter Workspace). */
-   async listCompanyInbox(
+  async listCompanyInbox(
     user: AuthenticatedUser,
     limit = 50,
   ): Promise<InboxApplicantView[]> {
@@ -371,12 +424,11 @@ export class ApplicationService {
       },
     });
 
-    const [huntJobs, unlocked, rejectReasons] = await Promise.all([
+    const candidateIds = applications.map((a) => a.candidateId);
+    const [huntJobs, unlocked, huntSourced, rejectReasons] = await Promise.all([
       this.huntJobIds(companyId),
-      this.unlockedCandidateIds(
-        companyId,
-        applications.map((a) => a.candidateId),
-      ),
+      this.unlockedCandidateIds(companyId, candidateIds),
+      this.huntSourcedCandidateIds(companyId, candidateIds),
       this.rejectionReasons(applications.map((a) => a.id)),
     ]);
 
@@ -388,7 +440,22 @@ export class ApplicationService {
         a.candidate.skills.map((s) => s.name),
       );
       const live = this.resolveLiveMatch(a, a.job, a.candidate, staleUpdates);
-      const source: ApplicationSource = huntJobs.has(a.jobId) ? 'hunt' : 'self_applied';
+      const candidateTrack = candidateMatchTrack(a.candidate);
+      const jobTrack = jobMatchTrack(a.job);
+
+      // ⭐ Nguồn chuẩn hóa: phản ánh CÁCH ứng viên đến, không phải gói tin.
+      // Ứng viên tự bấm "Ứng tuyển ngay" vào tin thuộc gói Tin săn vẫn là
+      // "Tự ứng tuyển" — KHÔNG gán nhầm "Tin săn nhân sự".
+      const source: ApplicationSource = resolveApplicationSource({
+        hasAppliedFromHuntJob: huntJobs.has(a.jobId),
+        openedViaHuntCampaign: huntSourced.has(a.candidateId),
+        shortlisted: huntSourced.has(a.candidateId),
+        unlockedViaCredit: unlocked.has(a.candidateId),
+      });
+
+      const canContact = source === 'self_applied' || unlocked.has(a.candidateId);
+      const rawEmail = a.candidate.user?.email ?? null;
+
       return {
         applicationId: a.id,
         candidateId: a.candidateId,
@@ -404,8 +471,14 @@ export class ApplicationService {
         jobId: a.jobId,
         jobTitle: a.job.title,
         source,
-        email: a.candidate.user?.email ?? null,
-        canContact: source === 'self_applied' || unlocked.has(a.candidateId),
+        // ⭐ Mask ngay tại Backend (không lộ qua Network F12).
+        email: canContact ? rawEmail : maskEmail(rawEmail),
+        canContact,
+        isContactUnlocked: canContact,
+        primaryTitle: a.candidate.profile?.currentPosition ?? null,
+        candidateTrack,
+        jobTrack,
+        crossTrack: Boolean(candidateTrack && jobTrack && candidateTrack !== jobTrack),
         rejectionReason: rejectReasons.get(a.id) ?? null,
       };
     });
@@ -1255,25 +1328,45 @@ export class ApplicationService {
  * Chặn nộp chéo track (KD↔KT). Thiếu track ứng viên → bắt hoàn thiện hồ sơ.
  * Tin legacy không suy ra được track → vẫn cho nộp.
  */
-function assertCompatibleApplyTrack(
+const TRACK_DISPLAY_LABEL: Record<'sales' | 'technical', string> = {
+  sales: 'Kinh doanh',
+  technical: 'Kỹ thuật',
+};
+
+/**
+ * ⭐ KHÔNG CHẶN ứng tuyển chéo lĩnh vực.
+ *
+ * Mọi hồ sơ (Kinh doanh hoặc Kỹ thuật) đều được phép ứng tuyển vào mọi tin.
+ * Hàm này chỉ SINH RA gợi ý mềm để Frontend hiển thị cho ứng viên — không ném lỗi.
+ *
+ * Trả về:
+ * - `notice`: gợi ý mềm (null nếu cùng lĩnh vực / không xác định được).
+ * - `candidateTrack` / `jobTrack`: lĩnh vực để Frontend hiển thị tag.
+ * - `crossTrack`: true khi ứng tuyển chéo lĩnh vực.
+ */
+export function resolveApplyTrackNotice(
   candidate: { profile?: { jobTrack?: string | null } | null },
   job: Parameters<typeof jobMatchTrack>[0],
-): void {
-  const candTrack = candidateMatchTrack(candidate);
-  if (!candTrack) {
-    throw new BadRequestException(
-      'Vui lòng chọn lĩnh vực hồ sơ (Kinh doanh hoặc Kỹ thuật) trước khi ứng tuyển',
-    );
+): {
+  notice: string | null;
+  candidateTrack: 'sales' | 'technical' | null;
+  jobTrack: 'sales' | 'technical' | null;
+  crossTrack: boolean;
+} {
+  const candidateTrack = candidateMatchTrack(candidate);
+  const jobTrack = jobMatchTrack(job);
+  const crossTrack = Boolean(candidateTrack && jobTrack && candidateTrack !== jobTrack);
+
+  if (!crossTrack) {
+    return { notice: null, candidateTrack, jobTrack, crossTrack: false };
   }
 
-  const jobTrack = jobMatchTrack(job);
-  if (!jobTrack || jobTrack === candTrack) return;
+  const notice =
+    `Hồ sơ hiện tại của bạn thuộc lĩnh vực ${TRACK_DISPLAY_LABEL[candidateTrack!]}, ` +
+    `khác với lĩnh vực của tin đăng. Bạn vẫn có thể ứng tuyển bình thường — nên ghi thêm ` +
+    `lý do và kinh nghiệm liên quan ở phần Thư giới thiệu để gây ấn tượng với nhà tuyển dụng.`;
 
-  throw new BadRequestException(
-    candTrack === 'sales'
-      ? 'Hồ sơ Kinh doanh không thể nộp tin Kỹ thuật'
-      : 'Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh',
-  );
+  return { notice, candidateTrack, jobTrack, crossTrack: true };
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

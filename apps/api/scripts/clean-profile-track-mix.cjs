@@ -110,7 +110,7 @@ const TECHNICAL_ONLY_FIELDS = [
 const dryRun = process.argv.includes('--dry-run') || !process.argv.includes('--all');
 
 function sanitizePositions(values, track) {
-  const allowed = new Set(track === 'technical' ? TECHNICAL_POSITIONS : SALES_POSITIONS);
+  const allowed = allowedPositionsFor(track);
   const out = [];
   for (const raw of values || []) {
     const v = String(raw || '').trim();
@@ -119,6 +119,11 @@ function sanitizePositions(values, track) {
     if (out.length >= MAX_POSITIONS) break;
   }
   return out;
+}
+
+/** Danh mục vị trí ứng tuyển chuẩn của 1 nhánh. */
+function allowedPositionsFor(track) {
+  return new Set(track === 'technical' ? TECHNICAL_POSITIONS : SALES_POSITIONS);
 }
 
 function buildUpdates(profile) {
@@ -144,6 +149,14 @@ function buildUpdates(profile) {
 
   if (positions.length > 0 && profile.current_position !== positions[0]) {
     updates.current_position = positions[0];
+  } else if (positions.length === 0) {
+    // ⭐ Chức danh hiện tại KHÔNG thuộc danh mục vị trí của nhánh đang active
+    // → đây là dữ liệu lẫn tạp của nhánh cũ (VD: đã đổi sang Kỹ thuật nhưng
+    // vẫn còn "Thực tập sinh kinh doanh") → xoá đi.
+    const current = String(profile.current_position || '').trim();
+    if (current && !allowedPositionsFor(track).has(current)) {
+      updates.current_position = null;
+    }
   }
 
   return { track, updates };
