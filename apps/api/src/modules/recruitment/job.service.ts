@@ -73,6 +73,7 @@ import type { EstimateSalaryDto } from './dto/estimate-salary.dto';
 import type { GenerateJobDraftDto } from './dto/generate-job-draft.dto';
 import { ExtractTextError, extractResumeText } from '../candidate/resume/extract-text.util';
 import { plainLabel, stripHtml } from './html.util';
+import { assertHuntImmutableFieldsUnchanged } from './hunt-immutable-fields';
 
 const JOB_COMPANY_SELECT = {
   id: true,
@@ -721,7 +722,20 @@ export class JobService {
       );
     }
 
-
+    // (2) KHÓA CỨNG Vị trí & Cấp bậc khi chiến dịch Tin Săn đã kích hoạt.
+    // Chỉ cho điều chỉnh tiêu chí tối ưu phạm vi săn (lương, kinh nghiệm, khu vực,
+    // độ mở ngành, tệp KH, kỹ năng) — KHÔNG cho đổi bản chất vị trí.
+    if (sourcingEngagement) {
+      const existingTechPosition =
+        owned.technicalCriteria != null
+          ? (normalizeJobTechnicalCriteria(owned.technicalCriteria).position ?? null)
+          : null;
+      assertHuntImmutableFieldsUnchanged(dto, {
+        title: owned.title ?? null,
+        jobLevel: owned.jobLevel ?? null,
+        technicalPosition: existingTechPosition,
+      });
+    }
 
     const skillData = await this.skillRows(dto.skills);
 

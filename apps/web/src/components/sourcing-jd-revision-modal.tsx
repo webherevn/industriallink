@@ -4,12 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { AlertCircle, Loader2, Lock, RefreshCw, Save, Sparkles, TrendingUp, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { CUSTOMER_SEGMENTS, DEAL_TYPE_LABEL, DEAL_TYPE_OPTIONS, DRIVER_LICENSE_TYPES, ExperienceBand, JD_TECHNICAL_AUTONOMY_OPTIONS, JD_TECHNICAL_SHIFT_OPTIONS, JOB_LEVEL_LABEL, type JobLevelCode, JobTrack, LANGUAGE_OPTIONS, MARKET_REGIONS, SALES_JOB_LEVELS, TECHNICAL_WORK_TYPES, TRAVEL_ABILITY_LABEL, TravelAbility, WORK_ENVIRONMENT_OPTIONS, allowedTechnicalLevelsForPosition, type CandidateMatchView, type RecruiterSourcingWorkspace } from '@industriallink/contracts';
+import { CUSTOMER_SEGMENTS, DEAL_TYPE_LABEL, DEAL_TYPE_OPTIONS, DRIVER_LICENSE_TYPES, ExperienceBand, JD_TECHNICAL_AUTONOMY_OPTIONS, JD_TECHNICAL_SHIFT_OPTIONS, JOB_LEVEL_LABEL, JobTrack, LANGUAGE_OPTIONS, MARKET_REGIONS, TECHNICAL_WORK_TYPES, TRAVEL_ABILITY_LABEL, TravelAbility, WORK_ENVIRONMENT_OPTIONS, type CandidateMatchView, type JobTechnicalCriteria, type RecruiterSourcingWorkspace } from '@industriallink/contracts';
 import { joinLocationLabels, parseJoinedLocations } from '@industriallink/vn-admin';
 import { JdSalesForm } from '@/components/jd-sales-form';
 import { JdTechnicalForm } from '@/components/jd-technical-form';
 import { LocationPicker } from '@/components/location-picker';
-import { Button, MoneyInput, Select } from '@/components/ui';
+import { Button, MoneyInput } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
 import { emptyJdSalesForm, formToCreateJobRequest, jobViewToForm, type JdSalesFormState } from '@/lib/jd-sales-form';
@@ -67,9 +67,7 @@ function buildSalesDiffNotes(before: JdSalesFormState, after: JdSalesFormState):
     changes.push(`Kinh nghiệm ${bLabel} → ${aLabel}`);
   }
   if (before.jobLevel !== after.jobLevel) {
-    const bLvl = before.jobLevel ? JOB_LEVEL_LABEL[before.jobLevel] : 'Chưa chọn';
-    const aLvl = after.jobLevel ? JOB_LEVEL_LABEL[after.jobLevel] : 'Chưa chọn';
-    changes.push(`Cấp bậc ${bLvl} → ${aLvl}`);
+    // (2) Cấp bậc là bất biến sau khi kích hoạt chiến dịch Săn → không ghi nhận là thay đổi.
   }
   if (before.location !== after.location) {
     changes.push(`Địa điểm: ${after.location || 'Toàn quốc'}`);
@@ -115,9 +113,7 @@ function buildTechDiffNotes(before: JdTechnicalFormState, after: JdTechnicalForm
     changes.push(`Kinh nghiệm ${bLabel} → ${aLabel}`);
   }
   if (before.jobLevel !== after.jobLevel) {
-    const bLvl = before.jobLevel ? JOB_LEVEL_LABEL[before.jobLevel] : 'Chưa chọn';
-    const aLvl = after.jobLevel ? JOB_LEVEL_LABEL[after.jobLevel] : 'Chưa chọn';
-    changes.push(`Cấp bậc ${bLvl} → ${aLvl}`);
+    // (2) Cấp bậc là bất biến sau khi kích hoạt chiến dịch Săn → không ghi nhận là thay đổi.
   }
   if (before.location !== after.location) {
     changes.push(`Địa điểm: ${after.location || 'Toàn quốc'}`);
@@ -297,12 +293,28 @@ export function SourcingJdRevisionModal({
   const reviseMutation = useMutation({
     mutationFn: async () => {
       if (!jobId || !campaignId) throw new Error('Chưa có JD gắn với Tin Săn này');
+      // (2) Vị trí & Cấp bậc là bất biến sau khi kích hoạt chiến dịch Săn.
+      // Gửi kèm giá trị GỐC (không phải giá trị trong form) để backend luôn khớp.
       if (isSales) {
         const { publish: _publish, ...payload } = formToCreateJobRequest(salesForm, false);
-        await updateJob(jobId, { ...payload, fromSourcingRevision: true });
+        await updateJob(jobId, {
+          ...payload,
+          title: initialSales.title || payload.title,
+          jobLevel: initialSales.jobLevel || undefined,
+          fromSourcingRevision: true,
+        });
       } else {
         const { publish: _publish, ...payload } = formToCreateTechnicalJobRequest(techForm, false);
-        await updateJob(jobId, { ...payload, fromSourcingRevision: true });
+        await updateJob(jobId, {
+          ...payload,
+          title: initialTech.title || payload.title,
+          jobLevel: initialTech.jobLevel || undefined,
+          technicalCriteria: {
+            ...(payload.technicalCriteria ?? ({} as JobTechnicalCriteria)),
+            position: initialTech.position || payload.technicalCriteria?.position || null,
+          },
+          fromSourcingRevision: true,
+        });
       }
       const changeSummary =
         diffItems.length > 0
@@ -346,6 +358,10 @@ export function SourcingJdRevisionModal({
   const outOfRevisions = revisionsRemaining !== null && revisionsRemaining <= 0;
   const lockedDisabled = reviseMutation.isPending || outOfRevisions;
   const fixedTitle = isSales ? salesForm.title : techForm.position || techForm.title;
+  const fixedLevelCode = (isSales ? salesForm.jobLevel : techForm.jobLevel) || job?.jobLevel || '';
+  const fixedLevelLabel = fixedLevelCode
+    ? ((JOB_LEVEL_LABEL as Record<string, string>)[fixedLevelCode] ?? fixedLevelCode)
+    : 'Chưa chọn';
 
   return (
     <div
@@ -402,25 +418,36 @@ export function SourcingJdRevisionModal({
           </div>
         ) : (
           <div className="flex-1 space-y-4 overflow-y-auto bg-[#f4f7fb]/60 px-5 py-4 sm:px-6 sm:py-5">
-            {/* Banner Khóa Vị Trí Gốc */}
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d7e3f2] bg-white px-4 py-3 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#072348] text-white">
-                  <Lock className="h-4 w-4" />
+            {/* Thanh "Thông tin cố định của chiến dịch" — read-only, có icon 🔒 */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-100/70 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-slate-600">
+                  <Lock className="h-3.5 w-3.5 text-slate-500" />
+                  Thông tin cố định của chiến dịch
+                </p>
+                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-[#E8872A] ring-1 ring-amber-200/80">
+                  {isSales ? 'Khối Kinh doanh B2B' : 'Khối Kỹ thuật & Công nghiệp'}
                 </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium text-slate-500">Vị trí săn cố định:</span>
-                    <span className="text-sm font-extrabold text-[#072348]">{fixedTitle || job?.title}</span>
-                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-[#E8872A] ring-1 ring-amber-200/80">
-                      {isSales ? 'Khối Kinh doanh B2B' : 'Khối Kỹ thuật & Công nghiệp'}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    Chức danh gốc được khóa cố định theo quy định gói Săn 01 vị trí để bảo toàn phễu ứng viên.
+              </div>
+              <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-[11px] font-semibold text-slate-500">Vị trí tuyển dụng</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-sm font-extrabold text-[#072348]">
+                    <Lock className="h-3 w-3 shrink-0 text-slate-400" />
+                    {fixedTitle || job?.title || 'Chưa có'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-[11px] font-semibold text-slate-500">Cấp bậc</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-sm font-extrabold text-[#072348]">
+                    <Lock className="h-3 w-3 shrink-0 text-slate-400" />
+                    {fixedLevelLabel}
                   </p>
                 </div>
               </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                Vị trí và cấp bậc được cố định theo gói Tin săn sau khi đăng để đảm bảo đúng phạm vi chiến dịch.
+              </p>
             </div>
 
             {/* PHẦN 1: ĐỀ XUẤT ĐIỀU CHỈNH TỰ ĐỘNG TỪ AI INLINK (1-CLICK ÁP DỤNG) */}
@@ -563,34 +590,23 @@ export function SourcingJdRevisionModal({
                   </div>
                 </div>
 
-                {/* CẤP BẬC & KINH NGHIỆM YÊU CẦU */}
+                {/* KINH NGHIỆM YÊU CẦU — cấp bậc đã khóa ở thanh "Thông tin cố định" */}
                 <div className="rounded-2xl border border-[#d7e3f2] bg-white p-4 shadow-2xs">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#072348]">
-                    Cấp bậc & Kinh nghiệm yêu cầu
+                    Kinh nghiệm yêu cầu
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     Điều chỉnh độ mở về thâm niên để cân bằng giữa chất lượng và độ rộng tệp hồ sơ.
                   </p>
                   <div className="mt-3 space-y-2">
-                    <Select
-                      value={isSales ? salesForm.jobLevel : techForm.jobLevel}
-                      onChange={(e) => {
-                        const jobLevel = e.target.value as JobLevelCode | '';
-                        if (isSales) setSalesForm((p) => ({ ...p, jobLevel }));
-                        else setTechForm((p) => ({ ...p, jobLevel }));
-                      }}
-                      size="sm"
-                    >
-                      <option value="">— Chọn cấp bậc —</option>
-                      {(isSales
-                        ? SALES_JOB_LEVELS
-                        : allowedTechnicalLevelsForPosition(techForm.position)
-                      ).map((code) => (
-                        <option key={code} value={code}>
-                          {JOB_LEVEL_LABEL[code]}
-                        </option>
-                      ))}
-                    </Select>
+                    {/* Cấp bậc: hiển thị read-only kèm 🔒 — KHÔNG cho mở dropdown. */}
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                      <span className="text-[11px] font-semibold text-slate-500">Cấp bậc (đã khóa)</span>
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                        <Lock className="h-3 w-3 text-slate-400" />
+                        {fixedLevelLabel}
+                      </span>
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                       {Object.values(ExperienceBand).map((band) => {
                         const active = (isSales ? salesForm.experienceBand : techForm.experienceBand) === band;
@@ -1067,7 +1083,7 @@ export function SourcingJdRevisionModal({
                 </Button>
                 <Button
                   type="button"
-                  disabled={lockedDisabled}
+                  disabled={lockedDisabled || !hasUnsavedChanges}
                   onClick={() => reviseMutation.mutate()}
                 >
                   {reviseMutation.isPending ? (

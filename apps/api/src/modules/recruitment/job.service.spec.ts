@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { JobStatus } from '@industriallink/contracts';
 import { JobService } from './job.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
@@ -518,6 +518,124 @@ describe('JobService', () => {
       await service.deleteJob(recruiter, 'job-1', 'corr-del-1');
 
       expect(billing.releaseJobPackageSlot).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateJob — KHÓA CỨNG Vị trí & Cấp bậc khi chiến dịch Tin Săn active', () => {
+    /** Prisma mock cho 1 tin đang có chiến dịch Săn (status ≠ closed). */
+    function buildHuntPrisma(jobOverrides: Record<string, unknown> = {}) {
+      const update = jest.fn().mockResolvedValue({ ...baseJobRow, ...jobOverrides });
+      return {
+        service: null as unknown as JobService,
+        prisma: withTransaction({
+          job: {
+            findFirst: jest.fn().mockResolvedValue({ ...baseJobRow, ...jobOverrides }),
+            update,
+          },
+          jobSkill: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          huntCampaign: { findFirst: jest.fn().mockResolvedValue({ id: 'camp-1' }) },
+          jobHiringProcess: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          jobLocation: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        }),
+        update,
+      };
+    }
+
+    it('ném 400 khi cố đổi CẤP BẬC trong lúc chiến dịch Săn đang chạy', async () => {
+      const ctx = buildHuntPrisma({ jobLevel: 'sales.staff', title: 'Nhân viên kinh doanh' });
+      const service = buildService(ctx.prisma);
+
+      await expect(
+        service.updateJob(
+          recruiter,
+          'job-1',
+          { title: 'Nhân viên kinh doanh', jobLevel: 'sales.manager' } as never,
+          'corr-hunt-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(ctx.update).not.toHaveBeenCalled();
+    });
+
+    it('ném 400 khi cố đổi CHỨC DANH (tiêu đề tin) trong lúc chiến dịch Săn đang chạy', async () => {
+      const ctx = buildHuntPrisma({ jobLevel: 'sales.staff', title: 'Nhân viên kinh doanh' });
+      const service = buildService(ctx.prisma);
+
+      await expect(
+        service.updateJob(
+          recruiter,
+          'job-1',
+          { title: 'Giám đốc kinh doanh', jobLevel: 'sales.staff' } as never,
+          'corr-hunt-2',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(ctx.update).not.toHaveBeenCalled();
+    });
+
+    it('ném 400 khi cố đổi VỊ TRÍ trong technicalCriteria của track Kỹ thuật', async () => {
+      const ctx = buildHuntPrisma({
+        jobLevel: 'tech.engineer',
+        title: 'Kỹ sư PLC',
+        technicalCriteria: { position: 'Kỹ sư PLC' },
+      });
+      const service = buildService(ctx.prisma);
+
+      await expect(
+        service.updateJob(
+          recruiter,
+          'job-1',
+          {
+            title: 'Kỹ sư PLC',
+            jobLevel: 'tech.engineer',
+            technicalCriteria: { position: 'Giám đốc kỹ thuật' },
+          } as never,
+          'corr-hunt-3',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(ctx.update).not.toHaveBeenCalled();
+    });
+
+    it('CHO PHÉP điều chỉnh tiêu chí tối ưu phạm vi săn (lương, kinh nghiệm, khu vực)', async () => {
+      const ctx = buildHuntPrisma({ jobLevel: 'sales.staff', title: 'Nhân viên kinh doanh' });
+      const service = buildService(ctx.prisma);
+
+      await service.updateJob(
+        recruiter,
+        'job-1',
+        {
+          title: 'Nhân viên kinh doanh',
+          jobLevel: 'sales.staff',
+          salaryMin: 15000000,
+          salaryMax: 25000000,
+          experienceBand: '3-5 năm',
+          location: 'Hà Nội',
+          fromSourcingRevision: true,
+        } as never,
+        'corr-hunt-4',
+      );
+
+      expect(ctx.update).toHaveBeenCalled();
+      const payload = ctx.update.mock.calls[0][0].data;
+      expect(payload.salaryMin).toBe(15000000);
+      expect(payload.experienceBand).toBe('3-5 năm');
+      expect(payload.location).toBe('Hà Nội');
+    });
+
+    it('KHÔNG khóa khi tin KHÔNG gắn chiến dịch Săn (sửa tin thường vẫn đổi cấp bậc được)', async () => {
+      const ctx = buildHuntPrisma({ jobLevel: 'sales.staff', title: 'Nhân viên kinh doanh' });
+      (ctx.prisma.huntCampaign as { findFirst: jest.Mock }).findFirst.mockResolvedValue(null);
+      const service = buildService(ctx.prisma);
+
+      await service.updateJob(
+        recruiter,
+        'job-1',
+        { title: 'Nhân viên kinh doanh', jobLevel: 'sales.manager' } as never,
+        'corr-hunt-5',
+      );
+
+      expect(ctx.update).toHaveBeenCalled();
     });
   });
 
