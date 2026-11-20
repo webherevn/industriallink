@@ -30,9 +30,35 @@ echo "GIT=$(git log -1 --oneline)"
 
 pnpm install --frozen-lockfile
 
-# Prisma: schema ĐÃ đổi → generate + migrate deploy
+# Prisma: schema ĐÃ đổi (thêm enum + bảng + cột) → generate + đồng bộ DB.
+#
+# ⚠ TUYỆT ĐỐI KHÔNG dùng `pnpm --filter @industriallink/api db:migrate` trên VPS.
+#   Script đó là `prisma migrate dev` → dựng SHADOW DB rỗng rồi chạy lại toàn bộ
+#   migration từ đầu. Migration cũ nhất (20260724_sales_b2b_profile_matrix) gọi
+#   `ALTER TABLE candidate.candidate_profile` nhưng KHÔNG migration nào
+#   `CREATE SCHEMA candidate` → shadow DB lỗi "schema candidate does not exist"
+#   → P3006. Lỗi này có sẵn từ lâu, không phải do commit mới.
+#
+# Đúng cách: `db:migrate:deploy` (prisma migrate deploy — KHÔNG dùng shadow DB).
+# Nếu production DB chưa từng chạy migrate (drift) → fallback `db push`.
 pnpm --filter @industriallink/api db:generate
-pnpm --filter @industriallink/api db:migrate deploy
+
+# Chẩn đoán trạng thái migration TRƯỚC khi deploy (giúp biết DB production
+# đã từng chạy migrate chưa, migration nào đang fail, object KYC đã có chưa).
+pnpm --filter @industriallink/api db:diagnose || echo "WARN: chẩn đoán migration — xem log ở trên"
+
+# Phục hồi migration đã fail trước đó (nếu có) để migrate deploy không bị kẹt
+# bởi "New migrations cannot be applied before the error is recovered from".
+(cd "$ROOT/apps/api" && node scripts/resolve-failed-migrations.cjs) \
+  || echo "WARN: phục hồi migration thất bại — xem log ở trên"
+
+if pnpm --filter @industriallink/api db:migrate:deploy; then
+  echo "OK: migrate deploy xong"
+else
+  echo "WARN: migrate deploy thất bại — fallback sang db push --accept-data-loss"
+  # Migration KYC chỉ ADD (enum + bảng + cột) → db push không mất dữ liệu.
+  pnpm --filter @industriallink/api db:push
+fi
 
 # Build contracts trước (dist bị gitignore)
 pnpm --filter @industriallink/contracts build

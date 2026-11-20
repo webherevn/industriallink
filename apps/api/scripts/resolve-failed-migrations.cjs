@@ -74,6 +74,17 @@ const KNOWN = {
     ],
     columns: [{ schema: 'billing', table: 'billing_credit_transaction', column: 'campaign_id' }],
   },
+  '20261122_crm_partner_kyc': {
+    tables: [{ schema: 'crm', table: 'crm_partner_kyc' }],
+    columns: [
+      { schema: 'crm', table: 'crm_partner_claim', column: 'status' },
+      { schema: 'crm', table: 'crm_partner_claim', column: 'expires_at' },
+      { schema: 'crm', table: 'crm_commission_period', column: 'gross_amount_vnd' },
+      { schema: 'crm', table: 'crm_commission_period', column: 'pit_tax_amount_vnd' },
+      { schema: 'crm', table: 'crm_commission_period', column: 'net_paid_amount_vnd' },
+      { schema: 'crm', table: 'crm_commission_period', column: 'transfer_ref' },
+    ],
+  },
 };
 
 function prismaResolve(migrationName, mode) {

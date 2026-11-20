@@ -146,6 +146,23 @@ pnpm install
 | `prisma/**` (schema thay đổi) | `pnpm --filter @industriallink/api db:generate && pnpm --filter @industriallink/api db:migrate:deploy` (fallback `db:push`) |
 | Cả 2 | `pnpm --filter @industriallink/web build && pnpm --filter @industriallink/api build` |
 
+> **⚠ Không dùng `prisma migrate dev` trên VPS** (`db:migrate:dev`).
+>
+> `migrate dev` dựng **shadow database** rỗng rồi chạy lại *toàn bộ* lịch sử migration
+> từ đầu để dò drift. Lịch sử migration của dự án giả định schema đã tồn tại
+> (đa số object được tạo bằng `db push` trong quá khứ, **không có** migration
+> `CREATE SCHEMA candidate`), nên shadow DB trống sẽ fail:
+>
+> ```text
+> Migration `20260724_sales_b2b_profile_matrix` failed to apply cleanly to the shadow database.
+> ERROR: schema "candidate" does not exist        → P3006
+> ```
+>
+> Lỗi này có sẵn từ lâu, **không phải** do migration mới. Script `db:migrate:dev`
+> đã được gắn guard (`apps/api/scripts/guard-migrate-dev.cjs`) để chặn khi
+> `DATABASE_URL` trỏ sang DB production.
+
+
 > **Quan trọng — không dùng `pnpm --filter web build`.** Tên package là `@industriallink/web`.
 >
 > Script `build` của `apps/web` và `apps/api` **đã tự build `@industriallink/contracts` và

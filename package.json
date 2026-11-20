@@ -15,7 +15,8 @@
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @industriallink/api db:generate",
     "db:push": "pnpm --filter @industriallink/api db:push",
-    "db:migrate": "pnpm --filter @industriallink/api db:migrate",
+    "db:migrate:dev": "pnpm --filter @industriallink/api db:migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @industriallink/api db:migrate:deploy",
     "db:seed": "pnpm --filter @industriallink/api db:seed",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/docker-compose.yml down"
