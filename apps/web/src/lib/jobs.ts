@@ -209,7 +209,15 @@ export async function broadcastJobEmail(
     status?: ApplicationStatus;
     nextStatus?: ApplicationStatus;
   },
-): Promise<{ recipients: number; sent: number; failed: number }> {
+): Promise<{
+  recipients: number;
+  sent: number;
+  failed: number;
+  /** Ứng viên bị bỏ qua vì chưa mở khóa hồ sơ bằng Credit (paywall). */
+  skippedByPaywall?: number;
+  /** Ứng viên bị bỏ qua vì chưa cập nhật email trên tài khoản. */
+  skippedMissingEmail?: number;
+}> {
   return apiRequest(`/jobs/${id}/broadcast-email`, { method: 'POST', body: input });
 }
 

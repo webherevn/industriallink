@@ -139,7 +139,9 @@ function navMatches(href: string, path: string) {
       path.startsWith('/recruiter/pipeline/') ||
       path.startsWith('/recruiter/calendar') ||
       path.startsWith('/recruiter/offers') ||
-      path.startsWith('/recruiter/onboarding')
+      path.startsWith('/recruiter/onboarding') ||
+      // Kanban quy trình tuyển dụng của từng tin nằm ở /jobs/[id]/applicants.
+      /^\/jobs\/[^/]+\/applicants/.test(path)
     );
   }
   return path === href || path.startsWith(`${href}/`);

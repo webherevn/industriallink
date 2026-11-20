@@ -19,7 +19,7 @@ import { ApplicationStatus, formatJobTitle, type ApplicantView } from '@industri
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { APPLICATION_STATUS_LABEL, PIPELINE_STEPS } from '@/lib/format';
+import { APPLICATION_SOURCE_LABEL, APPLICATION_STATUS_LABEL, PIPELINE_STEPS, toTitleCase } from '@/lib/format';
 import {
   broadcastJobEmail,
   suggestBroadcastEmail,
@@ -81,6 +81,7 @@ export function BroadcastEmailForm({
   jobTitle,
   companyName,
   applicants,
+  initialStatusFilter = 'all',
   onSent,
   onCancel,
 }: {
@@ -88,7 +89,15 @@ export function BroadcastEmailForm({
   jobTitle?: string;
   companyName?: string;
   applicants: ApplicantView[];
-  onSent?: (result: { recipients: number; sent: number; failed: number }) => void;
+  /** Bước quy trình được chọn sẵn theo ngữ cảnh điều hướng. */
+  initialStatusFilter?: string;
+  onSent?: (result: {
+    recipients: number;
+    sent: number;
+    failed: number;
+    skippedByPaywall?: number;
+    skippedMissingEmail?: number;
+  }) => void;
   onCancel?: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -96,11 +105,16 @@ export function BroadcastEmailForm({
   const [body, setBody] = useState('');
   const [activeTab, setActiveTab] = useState<'compose' | 'preview'>('compose');
   const [activePurpose, setActivePurpose] = useState<BroadcastEmailPurpose | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
   const [highMatchOnly, setHighMatchOnly] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [nextStatus, setNextStatus] = useState<string>('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+
+  // Đồng bộ bước lọc khi ngữ cảnh điều hướng thay đổi.
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter);
+  }, [initialStatusFilter]);
 
   // Tự động chọn tất cả ứng viên khi mới mở form hoặc đổi tin tuyển dụng để NTD thao tác nhanh
   useEffect(() => {
@@ -604,7 +618,7 @@ export function BroadcastEmailForm({
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="truncate text-xs sm:text-[13px] font-bold text-slate-900">
-                                    {row.displayName}
+                                    {toTitleCase(row.displayName)}
                                   </span>
                                   <span
                                     className={clsx(
@@ -615,6 +629,14 @@ export function BroadcastEmailForm({
                                   >
                                     {APPLICATION_STATUS_LABEL[row.status]}
                                   </span>
+                                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                    {APPLICATION_SOURCE_LABEL[row.source ?? 'self_applied']}
+                                  </span>
+                                  {!row.email && (
+                                    <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                      Chưa có email
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="mt-0.5 truncate text-[11px] text-slate-500">
                                   {row.currentPosition
@@ -764,7 +786,13 @@ export function BroadcastEmailModal({
   jobId: string;
   applicants: ApplicantView[];
   onClose: () => void;
-  onSent?: (result: { recipients: number; sent: number; failed: number }) => void;
+  onSent?: (result: {
+    recipients: number;
+    sent: number;
+    failed: number;
+    skippedByPaywall?: number;
+    skippedMissingEmail?: number;
+  }) => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">

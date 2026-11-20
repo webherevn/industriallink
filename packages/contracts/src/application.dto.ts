@@ -26,6 +26,14 @@ export interface ApplicationView {
   createdAt: string;
 }
 
+/**
+ * Nguồn gốc hồ sơ ứng tuyển — dùng để lọc và hiển thị badge nguồn.
+ * - `self_applied`: ứng viên tự nộp hồ sơ (luôn thuộc quyền liên hệ).
+ * - `hunt`: ứng viên do chiến dịch Săn nhân sự mang về (cần mở khóa hồ sơ bằng Credit).
+ * - `ai_suggested`: ứng viên do AI gợi ý, chưa nộp hồ sơ (chưa có application).
+ */
+export type ApplicationSource = 'self_applied' | 'hunt' | 'ai_suggested';
+
 /** Một ứng viên trong danh sách ứng tuyển nhìn từ phía nhà tuyển dụng. */
 export interface ApplicantView {
   applicationId: string;
@@ -40,6 +48,17 @@ export interface ApplicantView {
   createdAt: string;
   /** Lịch còn hiệu lực. HR và chuyên môn là loại lịch, không phải bước hồ sơ. */
   interviews: ApplicantInterviewMark[];
+  /** Nguồn gốc hồ sơ để lọc + hiển thị badge nguồn. */
+  source?: ApplicationSource;
+  /** Email ứng viên (null khi tài khoản chưa cập nhật email). */
+  email?: string | null;
+  /**
+   * NTD có quyền liên hệ ứng viên này không:
+   * tự ứng tuyển → có; hồ sơ Săn/AI → cần mở khóa bằng Credit mới liên hệ được.
+   */
+  canContact?: boolean;
+  /** Lý do từ chối (chỉ có ở hồ sơ đã từ chối). */
+  rejectionReason?: string | null;
 }
 
 /** Một buổi phỏng vấn gắn trên hồ sơ, đủ để hiện loại HR hoặc chuyên môn. */

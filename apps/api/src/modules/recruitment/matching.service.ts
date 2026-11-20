@@ -53,6 +53,8 @@ export const CANDIDATE_MATCH_INCLUDE = {
   aiProfile: { select: { summary: true } },
   skills: true,
   experiences: true,
+  // Email tài khoản — NTD cần biết ứng viên có email hợp lệ để liên hệ không.
+  user: { select: { email: true } },
 } as const;
 
 /** Chỉ chấm cùng nhóm (KD↔KD, KT↔KT). Thiếu nhóm → không đưa vào gợi ý mạng lưới. */

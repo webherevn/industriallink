@@ -117,7 +117,7 @@ describe('NotificationService', () => {
       };
       expect(row.userId).toBe('candidate-user');
       expect(row.type).toBe('application.status_changed');
-      expect(row.body).toContain('Đã nộp');
+      expect(row.body).toContain('Mới ứng tuyển');
       expect(row.body).toContain('Phỏng vấn');
     });
   });

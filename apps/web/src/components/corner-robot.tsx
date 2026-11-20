@@ -2,9 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Loader2, Send, X } from 'lucide-react';
+import { Bot, LifeBuoy, Loader2, MessageCircle, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { CopilotRobot } from '@/components/copilot-robot';
 import { tokenStore } from '@/lib/api';
 import { fetchMySupportChat, fetchSupportPrompts, sendSupportChat } from '@/lib/support-chat';
 
@@ -38,6 +37,8 @@ export function CornerRobot({ name }: { name?: string | null }) {
   const [draft, setDraft] = useState('');
   const [hasToken, setHasToken] = useState(false);
   const [centered, setCentered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [shift, setShift] = useState(0);
   const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -187,6 +188,29 @@ export function CornerRobot({ name }: { name?: string | null }) {
   }, [thread.data, open]);
 
   const unread = open ? 0 : (peek.data?.unread ?? 0);
+  // Số tin nhắn ứng viên chưa đọc — ConnectionChat phát ra để nút trợ lý hiện badge.
+  const [messengerUnread, setMessengerUnread] = useState(0);
+
+  useEffect(() => {
+    function onUnread(event: Event) {
+      const count = Number((event as CustomEvent<{ count?: number }>).detail?.count ?? 0);
+      setMessengerUnread(count);
+    }
+    window.addEventListener('inlink-messenger-unread', onUnread);
+    return () => window.removeEventListener('inlink-messenger-unread', onUnread);
+  }, []);
+
+  // Đóng menu khi bấm ra ngoài.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [menuOpen]);
   const messages = thread.data?.messages ?? [];
 
   return (
@@ -295,20 +319,60 @@ export function CornerRobot({ name }: { name?: string | null }) {
             </button>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className="corner-robot-float pointer-events-auto relative w-[68px] shrink-0 cursor-pointer sm:w-[80px]"
-          aria-label={open ? 'Đóng chat inlink' : 'Mở chat inlink'}
-        >
-          <CopilotRobot running={running} className={running && !centered ? '-scale-x-100' : undefined} />
-          {!open && unread > 0 && (
-            <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
-              {unread > 9 ? '9+' : unread}
-            </span>
+        {/* Nút trợ lý gộp duy nhất ở góc dưới phải: menu 2 lựa chọn. */}
+        <div ref={menuRef} className="pointer-events-auto relative">
+          {menuOpen && (
+            <div className="absolute bottom-full right-0 z-40 mb-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 shadow-xl shadow-slate-900/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setOpen(true);
+                }}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                <LifeBuoy className="h-4 w-4 shrink-0 text-brand-600" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-slate-800">Trợ lý inlink</span>
+                  <span className="block truncate text-[11px] text-slate-500">Hỏi trợ lý, góp ý</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  window.dispatchEvent(new CustomEvent('inlink-open-messenger'));
+                }}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                <MessageCircle className="h-4 w-4 shrink-0 text-brand-600" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-slate-800">Tin nhắn ứng viên</span>
+                  <span className="block truncate text-[11px] text-slate-500">Kết nối đã chấp nhận</span>
+                </span>
+                {messengerUnread > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                    {messengerUnread > 9 ? '9+' : messengerUnread}
+                  </span>
+                )}
+              </button>
+            </div>
           )}
-        </button>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-expanded={menuOpen}
+            aria-label="Mở trợ lý"
+            className="pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-full bg-[#072348] text-white shadow-lg shadow-[#072348]/30 transition hover:scale-105"
+          >
+            <Bot className="h-5 w-5" />
+            {!open && unread > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
-  );
-}
+  );}

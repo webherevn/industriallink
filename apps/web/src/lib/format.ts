@@ -5,6 +5,7 @@ import {
   formatJobLevel,
   formatJobTitle,
   formatJobTrack,
+  type ApplicationSource,
 } from '@industriallink/contracts';
 
 export { formatJobLevel, formatJobTitle, formatJobTrack };
@@ -95,15 +96,62 @@ export const ONBOARDING_STATUS_LABEL: Record<string, string> = {
   cancelled: 'Đã huỷ',
 };
 
+/**
+ * Bộ tên trạng thái CHUẨN xuyên suốt ATS (Hộp thư ứng viên & Kanban Quy trình).
+ * Không dùng lẫn `Đã ứng tuyển` với `Mới ứng tuyển`, hay `Sàng lọc` với `Sàng lọc hồ sơ`.
+ */
 export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
-  [ApplicationStatus.Applied]: 'Đã ứng tuyển',
-  [ApplicationStatus.Screening]: 'Sàng lọc hồ sơ',
+  [ApplicationStatus.Applied]: 'Mới ứng tuyển',
+  [ApplicationStatus.Screening]: 'Sàng lọc',
   [ApplicationStatus.Interview]: 'Phỏng vấn',
-  [ApplicationStatus.Offer]: 'Đề nghị làm việc',
+  [ApplicationStatus.Offer]: 'Đề nghị',
   [ApplicationStatus.Hired]: 'Đã nhận việc',
   [ApplicationStatus.Rejected]: 'Đã từ chối',
   [ApplicationStatus.Withdrawn]: 'Đã rút',
 };
+
+/** Nhãn nguồn hồ sơ ứng viên. */
+export const APPLICATION_SOURCE_LABEL: Record<ApplicationSource, string> = {
+  self_applied: 'Tự ứng tuyển',
+  hunt: 'Tin săn nhân sự',
+  ai_suggested: 'AI gợi ý',
+};
+
+/**
+ * Chuẩn hóa tên người sang Title Case (VD: "NGUYEN VAN A" → "Nguyen Van A").
+ * Giữ nguyên chữ có dấu tiếng Việt, không đụng tới họ tên đã viết đúng Title Case.
+ */
+export function toTitleCase(name: string | null | undefined): string {
+  const raw = (name ?? '').trim();
+  if (!raw) return '';
+  return raw
+    .split(/\s+/)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      // Giữ dấu tiếng Việt khi đã đúng dạng lowercase có dấu.
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
+}
+
+/** Thời gian tương đối: "2 ngày trước", "3 giờ trước", "vừa xong". */
+export function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return '';
+  const diff = Date.now() - ts;
+  if (diff < 0) return 'vừa xong';
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return 'vừa xong';
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} ngày trước`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} tháng trước`;
+  return `${Math.floor(months / 12)} năm trước`;
+}
 
 export function statusTone(
   status: ApplicationStatus,

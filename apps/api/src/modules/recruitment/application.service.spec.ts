@@ -26,6 +26,8 @@ describe('ApplicationService', () => {
     jobs.requireOwnedJob.mockClear();
     matching.computePairMatch.mockClear();
     companies.requireUserCompany.mockClear();
+    // Mặc định: NTD thuộc côngty 'company-1' (dùng cho paywall liên hệ & nguồn hồ sơ).
+    companies.requireUserCompany.mockResolvedValue({ companyId: 'company-1' });
     email.sendMany.mockClear();
     ai.chat.mockReset();
     return new ApplicationService(
@@ -311,11 +313,13 @@ describe('ApplicationService', () => {
             {
               id: 'app-1',
               tenantId: 'default',
+              candidateId: 'cand-1',
               candidate: { displayName: 'A', user: { email: 'a@abc.com' } },
             },
             {
               id: 'app-2',
               tenantId: 'default',
+              candidateId: 'cand-2',
               candidate: { displayName: 'B', user: { email: 'b@abc.com' } },
             },
           ]),
@@ -331,7 +335,13 @@ describe('ApplicationService', () => {
         'corr-8',
       );
 
-      expect(result).toEqual({ recipients: 2, sent: 2, failed: 0 });
+      expect(result).toEqual({
+        recipients: 2,
+        sent: 2,
+        failed: 0,
+        skippedByPaywall: 0,
+        skippedMissingEmail: 0,
+      });
       expect(createMany).toHaveBeenCalledTimes(1);
     });
 
@@ -341,6 +351,7 @@ describe('ApplicationService', () => {
         {
           id: 'app-1',
           tenantId: 'default',
+          candidateId: 'cand-1',
           candidate: { displayName: 'A', user: { email: 'a@abc.com' } },
         },
       ]);
@@ -363,6 +374,79 @@ describe('ApplicationService', () => {
           where: expect.objectContaining({ jobId: 'job-1', id: { in: ['app-1', 'app-khac'] } }),
         }),
       );
+    });
+
+    it('chặn gửi email cho ứng viên Săn chưa mở khóa hồ sơ (paywall)', async () => {
+      jobs.requireOwnedJob.mockResolvedValue({ id: 'job-1', title: 'Kỹ sư PLC', company: { name: 'ABC' } });
+      email.sendMany.mockResolvedValue({ sent: 0, failed: 0 });
+      const prisma = {
+        application: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'app-1',
+              tenantId: 'default',
+              candidateId: 'cand-locked',
+              candidate: { displayName: 'A', user: { email: 'a@abc.com' } },
+            },
+          ]),
+        },
+        // Tin này gắn 1 chiến dịch Săn → hồ sơ coi như chưa mở khóa.
+        huntCampaign: {
+          findMany: jest.fn().mockResolvedValue([{ jobId: 'job-1' }]),
+        },
+        // Chưa có giao dịch mở khóa profile cho ứng viên này.
+        billingCreditTransaction: { findMany: jest.fn().mockResolvedValue([]) },
+        candidateConnection: { findMany: jest.fn().mockResolvedValue([]) },
+        applicationTimeline: { createMany: jest.fn() },
+      };
+      const service = buildService(prisma);
+
+      await expect(
+        service.broadcastEmail(
+          recruiterUser,
+          'job-1',
+          { subject: 'Thông báo', body: 'Nội dung email' },
+          'corr-paywall',
+        ),
+      ).rejects.toThrow(/mở khóa/i);
+      expect(email.sendMany).not.toHaveBeenCalled();
+    });
+
+    it('cho phép gửi email cho ứng viên Săn đã mở khóa bằng Credit', async () => {
+      jobs.requireOwnedJob.mockResolvedValue({ id: 'job-1', title: 'Kỹ sư PLC', company: { name: 'ABC' } });
+      email.sendMany.mockResolvedValue({ sent: 1, failed: 0 });
+      const prisma = {
+        application: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'app-1',
+              tenantId: 'default',
+              candidateId: 'cand-unlocked',
+              candidate: { displayName: 'A', user: { email: 'a@abc.com' } },
+            },
+          ]),
+        },
+        huntCampaign: {
+          findMany: jest.fn().mockResolvedValue([{ jobId: 'job-1' }]),
+        },
+        billingCreditTransaction: {
+          findMany: jest.fn().mockResolvedValue([{ candidateId: 'cand-unlocked' }]),
+        },
+        candidateConnection: { findMany: jest.fn().mockResolvedValue([]) },
+        applicationTimeline: { createMany: jest.fn() },
+      };
+      const service = buildService(prisma);
+
+      const result = await service.broadcastEmail(
+        recruiterUser,
+        'job-1',
+        { subject: 'Thông báo', body: 'Nội dung email' },
+        'corr-unlocked',
+      );
+
+      expect(result.sent).toBe(1);
+      expect(result.skippedByPaywall).toBe(0);
+      expect(email.sendMany).toHaveBeenCalled();
     });
 
     it('lấy nội dung AI khi trả JSON, và dùng bản nháp khi AI lỗi', async () => {

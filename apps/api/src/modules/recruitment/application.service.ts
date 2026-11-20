@@ -15,6 +15,7 @@ import {
   parseSourcingScope,
   type ApplicantView,
   type ApplicationDetailView,
+  type ApplicationSource,
   type ApplicationView,
   type InboxApplicantView,
   type RecruiterWorkspaceSummary,
@@ -276,8 +277,85 @@ export class ApplicationService {
     };
   }
 
+  /**
+   * Nguồn gốc hồ sơ: ứng viên do chiến dịch Săn mang về (job gắn hunt campaign)
+   * → `hunt`; còn lại là ứng viên tự nộp hồ sơ → `self_applied`.
+   */
+  private async huntJobIds(companyId: string): Promise<Set<string>> {
+    if (!this.prisma.huntCampaign?.findMany) return new Set();
+    const rows = await this.prisma.huntCampaign.findMany({
+      where: { companyId, jobId: { not: null } },
+      select: { jobId: true },
+    });
+    return new Set(rows.flatMap((r) => (r.jobId ? [r.jobId] : [])));
+  }
+
+  /**
+   * Ứng viên NTD đã mở khóa hồ sơ bằng Credit (mở profile / liên hệ / kết nối).
+   * Ứng viên tự ứng tuyển thì không cần mở khóa — luôn thuộc quyền liên hệ.
+   */
+  private async unlockedCandidateIds(
+    companyId: string,
+    candidateIds: string[],
+  ): Promise<Set<string>> {
+    if (candidateIds.length === 0) return new Set();
+    const ids: string[] = [];
+    if (this.prisma.billingCreditTransaction?.findMany) {
+      const rows = await this.prisma.billingCreditTransaction.findMany({
+        where: {
+          companyId,
+          candidateId: { in: candidateIds },
+          action: {
+            in: [
+              'view_profile',
+              'view_profile_high_match',
+              'view_applicant',
+              'reopen_profile',
+              'contact_potential',
+              'contact_applicant',
+            ],
+          },
+        },
+        select: { candidateId: true },
+        distinct: ['candidateId'],
+      });
+      ids.push(...rows.flatMap((r) => (r.candidateId ? [r.candidateId] : [])));
+    }
+    if (this.prisma.candidateConnection?.findMany) {
+      const rows = await this.prisma.candidateConnection.findMany({
+        where: { companyId, candidateId: { in: candidateIds }, status: { not: 'cancelled' } },
+        select: { candidateId: true },
+      });
+      ids.push(...rows.flatMap((r) => (r.candidateId ? [r.candidateId] : [])));
+    }
+    return new Set(ids);
+  }
+
+  /** Lý do từ chối gần nhất (lưu ở timeline `status_changed`). */
+  private async rejectionReasons(
+    applicationIds: string[],
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (applicationIds.length === 0 || !this.prisma.applicationTimeline?.findMany) return map;
+    const rows = await this.prisma.applicationTimeline.findMany({
+      where: {
+        applicationId: { in: applicationIds },
+        type: 'status_changed',
+        description: { not: null },
+      },
+      orderBy: { occurredAt: 'desc' },
+      select: { applicationId: true, description: true, occurredAt: true },
+    });
+    for (const row of rows) {
+      const text = row.description?.trim();
+      if (!text || map.has(row.applicationId)) continue;
+      map.set(row.applicationId, text);
+    }
+    return map;
+  }
+
   /** Inbox ứng viên toàn công ty (Recruiter Workspace). */
-  async listCompanyInbox(
+   async listCompanyInbox(
     user: AuthenticatedUser,
     limit = 50,
   ): Promise<InboxApplicantView[]> {
@@ -293,6 +371,15 @@ export class ApplicationService {
       },
     });
 
+    const [huntJobs, unlocked, rejectReasons] = await Promise.all([
+      this.huntJobIds(companyId),
+      this.unlockedCandidateIds(
+        companyId,
+        applications.map((a) => a.candidateId),
+      ),
+      this.rejectionReasons(applications.map((a) => a.id)),
+    ]);
+
     const staleUpdates: Promise<unknown>[] = [];
     const rows = applications.map((a) => {
       const requiredSkills = a.job.skills.filter((s) => s.required).map((s) => s.name);
@@ -301,6 +388,7 @@ export class ApplicationService {
         a.candidate.skills.map((s) => s.name),
       );
       const live = this.resolveLiveMatch(a, a.job, a.candidate, staleUpdates);
+      const source: ApplicationSource = huntJobs.has(a.jobId) ? 'hunt' : 'self_applied';
       return {
         applicationId: a.id,
         candidateId: a.candidateId,
@@ -315,6 +403,10 @@ export class ApplicationService {
         interviews: interviewMarks(a.interviews),
         jobId: a.jobId,
         jobTitle: a.job.title,
+        source,
+        email: a.candidate.user?.email ?? null,
+        canContact: source === 'self_applied' || unlocked.has(a.candidateId),
+        rejectionReason: rejectReasons.get(a.id) ?? null,
       };
     });
     if (staleUpdates.length > 0) void Promise.allSettled(staleUpdates);
@@ -794,6 +886,16 @@ export class ApplicationService {
       },
     });
 
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const [huntJobs, unlocked, rejectReasons] = await Promise.all([
+      this.huntJobIds(companyId),
+      this.unlockedCandidateIds(
+        companyId,
+        applications.map((a) => a.candidateId),
+      ),
+      this.rejectionReasons(applications.map((a) => a.id)),
+    ]);
+
     const staleUpdates: Promise<unknown>[] = [];
     const rows = applications.map((a) => {
       const { matched } = skillOverlap(
@@ -801,6 +903,7 @@ export class ApplicationService {
         a.candidate.skills.map((s) => s.name),
       );
       const live = this.resolveLiveMatch(a, job, a.candidate, staleUpdates);
+      const source: ApplicationSource = huntJobs.has(jobId) ? 'hunt' : 'self_applied';
       return {
         applicationId: a.id,
         candidateId: a.candidateId,
@@ -813,6 +916,10 @@ export class ApplicationService {
         coverLetter: a.coverLetter,
         createdAt: a.createdAt.toISOString(),
         interviews: interviewMarks(a.interviews),
+        source,
+        email: a.candidate.user?.email ?? null,
+        canContact: source === 'self_applied' || unlocked.has(a.candidateId),
+        rejectionReason: rejectReasons.get(a.id) ?? null,
       };
     });
     if (staleUpdates.length > 0) void Promise.allSettled(staleUpdates);
@@ -928,7 +1035,15 @@ export class ApplicationService {
     jobId: string,
     dto: BroadcastEmailDto,
     correlationId: string,
-  ): Promise<{ recipients: number; sent: number; failed: number }> {
+  ): Promise<{
+    recipients: number;
+    sent: number;
+    failed: number;
+    /** Ứng viên bị bỏ qua vì chưa mở khóa hồ sơ bằng Credit (paywall). */
+    skippedByPaywall: number;
+    /** Ứng viên bị bỏ qua vì chưa cập nhật email trên tài khoản. */
+    skippedMissingEmail: number;
+  }> {
     const job = await this.jobs.requireOwnedJob(user, jobId);
     const subject = dto.subject.trim();
     const body = dto.body.trim();
@@ -963,10 +1078,31 @@ export class ApplicationService {
       throw new BadRequestException('Không có ứng viên nào khớp bộ lọc để gửi email');
     }
 
-    const withEmail = applications.filter((a) => a.candidate.user?.email);
-    const missingEmail = applications.length - withEmail.length;
+    // ⚠ Paywall liên hệ: ứng viên tự ứng tuyển luôn được liên hệ. Ứng viên do Săn
+    // mang về phải mở khóa hồ sơ bằng Credit trước — chặn lách paywall.
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const [huntJobs, unlocked] = await Promise.all([
+      this.huntJobIds(companyId),
+      this.unlockedCandidateIds(
+        companyId,
+        applications.map((a) => a.candidateId),
+      ),
+    ]);
+    const jobIsHunt = huntJobs.has(jobId);
+    const contactable = applications.filter((a) => {
+      if (!jobIsHunt) return true;
+      return unlocked.has(a.candidateId);
+    });
+    const blockedByPaywall = applications.length - contactable.length;
+
+    const withEmail = contactable.filter((a) => a.candidate.user?.email);
+    const missingEmail = contactable.length - withEmail.length;
     if (withEmail.length === 0) {
-      throw new BadRequestException('Ứng viên đã chọn chưa có email trên tài khoản');
+      throw new BadRequestException(
+        blockedByPaywall > 0
+          ? 'Các ứng viên đã chọn chưa mở khóa hồ sơ — cần dùng Credit để mở khóa trước khi gửi email'
+          : 'Ứng viên đã chọn chưa có email trên tài khoản',
+      );
     }
 
     const applicationsUrl = `${this.email.webOrigin}/applications`;
@@ -994,9 +1130,10 @@ export class ApplicationService {
         subject,
         statusFilter: dto.status ?? null,
         applicationIds: applicationIds ?? null,
-        recipients: applications.length,
+        recipients: contactable.length,
         sent: result.sent,
         failed: result.failed + missingEmail,
+        skippedByPaywall: blockedByPaywall,
       },
       correlationId,
     });
@@ -1031,13 +1168,17 @@ export class ApplicationService {
     }
 
     this.logger.log(
-      `broadcast-email job=${jobId} recipients=${applications.length} sent=${result.sent}`,
+      `broadcast-email job=${jobId} recipients=${contactable.length} sent=${result.sent} blocked=${blockedByPaywall}`,
     );
 
     return {
-      recipients: applications.length,
+      recipients: contactable.length,
       sent: result.sent,
       failed: result.failed + missingEmail,
+      // Ứng viên bị bỏ qua vì chưa mở khóa hồ sơ (paywall) — FE hiển thị cảnh báo.
+      skippedByPaywall: blockedByPaywall,
+      // Ứng viên bị bỏ qua vì chưa cập nhật email trên tài khoản.
+      skippedMissingEmail: missingEmail,
     };
   }
 

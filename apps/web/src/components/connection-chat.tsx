@@ -46,9 +46,15 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
       setDrawerOpen(isOpen);
     }
     window.addEventListener('inlink-candidate-drawer', onDrawer);
+    // Mở khung tin nhắn ứng viên từ nút trợ lý gộp ở góc dưới.
+    function onOpenMessenger() {
+      setOpen(true);
+    }
+    window.addEventListener('inlink-open-messenger', onOpenMessenger);
     return () => {
       window.removeEventListener('inlink-support-dock', onDock);
       window.removeEventListener('inlink-candidate-drawer', onDrawer);
+      window.removeEventListener('inlink-open-messenger', onOpenMessenger);
     };
   }, []);
 
@@ -146,6 +152,17 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
     });
   }, [list, query, folder]);
   const onChatPage = pathname === '/chat' || pathname.startsWith('/recruiter/chat');
+  const active = list.find((t) => t.connectionId === activeId) ?? null;
+  const unread = list.reduce((sum, t) => sum + t.unread, 0);
+  const recruiterView = pathname.startsWith('/recruiter');
+
+  // Báo số tin nhắn chưa đọc cho nút trợ lý gộp ở góc dưới phải.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('inlink-messenger-unread', { detail: { count: unread } }),
+    );
+  }, [unread]);
+
   if (!embedded && onChatPage) return null;
   if (!embedded && (!hasToken || (list.length === 0 && !open))) return null;
   if (embedded && !hasToken) {
@@ -155,10 +172,6 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
       </p>
     );
   }
-
-  const active = list.find((t) => t.connectionId === activeId) ?? null;
-  const unread = list.reduce((sum, t) => sum + t.unread, 0);
-  const recruiterView = pathname.startsWith('/recruiter');
 
   function pick(thread: ConnectionChatThread) {
     setActiveId(thread.connectionId);
@@ -185,10 +198,10 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
         scroller={scroller}
         dockHeight={dockHeight}
         drawerOpen={drawerOpen}
+        hideTrigger
       />
     );
   }
-
   const panelOpen = embedded || open;
 
   return (
@@ -553,6 +566,7 @@ function MessengerDock({
   scroller,
   dockHeight,
   drawerOpen = false,
+  hideTrigger = false,
 }: {
   open: boolean;
   onOpen: () => void;
@@ -571,6 +585,8 @@ function MessengerDock({
   scroller: RefObject<HTMLDivElement | null>;
   dockHeight: number;
   drawerOpen?: boolean;
+  /** Ẩn nút tròn (dùng khi đã gộp vào 1 nút trợ lý duy nhất ở góc dưới). */
+  hideTrigger?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const shown = useMemo(() => {
@@ -762,7 +778,7 @@ function MessengerDock({
         </div>
       )}
 
-      {!open && (
+      {!open && !hideTrigger && (
         <button
           type="button"
           onClick={onOpen}

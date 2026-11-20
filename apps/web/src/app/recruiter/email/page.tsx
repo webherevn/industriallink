@@ -3,8 +3,10 @@
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  AlertTriangle,
   Briefcase,
   CheckCircle2,
+  ChevronLeft,
   Clock,
   ExternalLink,
   History,
@@ -13,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ApplicationStatus, formatJobTitle, JobStatus } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
@@ -30,17 +33,63 @@ const JOB_STATUS_BADGE: Record<string, { label: string; className: string }> = {
   closed: { label: 'Đã đóng', className: 'bg-rose-50 text-rose-700 ring-rose-200' },
 };
 
+/** Khóa sessionStorage lưu danh sách applicationIds khi danh sách quá dài cho query. */
+const STORAGE_KEY = 'inlink:broadcast:applicationIds';
+
 export default function RecruiterBroadcastEmailPage() {
+  const searchParams = useSearchParams();
   const [jobId, setJobId] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<string>('all');
+  const [prefillIds, setPrefillIds] = useState<string[] | null>(null);
+
+  // Tham số ngữ cảnh đến từ Hộp thư ứng viên / Kanban.
+  const paramJobId = searchParams.get('jobId');
+  const paramStage = searchParams.get('stage');
+  const paramReturnUrl = searchParams.get('returnUrl');
+  const paramApplicationIds = searchParams.get('applicationIds');
+  const paramApplicationIdsCount = searchParams.get('applicationIdsCount');
 
   const { data: jobs, isLoading: loadingJobs } = useQuery({
     queryKey: ['my-jobs'],
     queryFn: listMyJobs,
   });
 
-  // Tự động chọn tin tuyển dụng đang mở đầu tiên ngay khi tải xong danh sách tin
+  // Đọc danh sách applicationIds: ưu tiên sessionStorage (danh sách dài), fallback query param.
   useEffect(() => {
+    if (!paramApplicationIds) {
+      setPrefillIds(null);
+      return;
+    }
+    let ids: string[] = [];
+    try {
+      const stored = window.sessionStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as unknown;
+        if (Array.isArray(parsed)) {
+          ids = parsed.filter((v): v is string => typeof v === 'string');
+        }
+        window.sessionStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      ids = [];
+    }
+    if (ids.length === 0 && paramApplicationIds) {
+      ids = paramApplicationIds
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+    setPrefillIds(ids.length > 0 ? ids : null);
+  }, [paramApplicationIds]);
+
+  // Chọn sẵn tin tuyển dụng theo ngữ cảnh, fallback tin đang tuyển đầu tiên.
+  useEffect(() => {
+    if (paramJobId) {
+      setJobId(paramJobId);
+      return;
+    }
     if (!jobId && jobs && jobs.length > 0) {
       const firstPublished =
         jobs.find((j) => j.status === JobStatus.Published) ?? jobs[0];
@@ -48,7 +97,12 @@ export default function RecruiterBroadcastEmailPage() {
         setJobId(firstPublished.id);
       }
     }
-  }, [jobId, jobs]);
+  }, [jobId, jobs, paramJobId]);
+
+  // Chọn sẵn bước quy trình theo ngữ cảnh.
+  useEffect(() => {
+    if (paramStage) setStageFilter(paramStage);
+  }, [paramStage]);
 
   const { data: applicants, isLoading: loadingApplicants } = useQuery({
     queryKey: ['applicants', jobId],
@@ -67,8 +121,65 @@ export default function RecruiterBroadcastEmailPage() {
     [jobs, jobId],
   );
 
-  const stats = useMemo(() => {
+  /**
+   * Kiểm tra điều kiện gửi hợp lệ TRƯỚC khi gửi:
+   * - Ứng viên phải có email hợp lệ.
+   * - Ứng viên phải thuộc quyền liên hệ (tự ứng tuyển hoặc đã mở khóa bằng Credit).
+   * Ứng viên bị lọc bỏ sẽ được cảnh báo rõ ràng.
+   */
+  const eligibility = useMemo(() => {
     const list = applicants ?? [];
+    const valid = list.filter(
+      (a) => a.canContact !== false && Boolean(a.email && a.email.includes('@')),
+    );
+    const missingEmail = list.filter((a) => !a.email || !a.email.includes('@'));
+    const locked = list.filter((a) => a.canContact === false);
+    return { valid, missingEmail, locked, all: list };
+  }, [applicants]);
+
+  /**
+   * Danh sách ứng viên đưa vào form:
+   * - Nếu có applicationIds từ Hộp thư → chỉ chọn đúng những hồ sơ đó.
+   * - Nếu chỉ có jobId/stage → lọc theo bước quy trình đang chọn.
+   */
+  const formApplicants = useMemo(() => {
+    const list = eligibility.valid;
+    if (prefillIds && prefillIds.length > 0) {
+      const wanted = new Set(prefillIds);
+      const picked = list.filter((a) => wanted.has(a.applicationId));
+      return picked.length > 0 ? picked : list;
+    }
+    if (stageFilter && stageFilter !== 'all') {
+      const filtered = list.filter((a) => a.status === stageFilter);
+      if (filtered.length > 0) return filtered;
+    }
+    return list;
+  }, [eligibility.valid, prefillIds, stageFilter]);
+
+  /** Cảnh báo các ứng viên bị bỏ qua trước khi gửi. */
+  const skipWarning = useMemo(() => {
+    const parts: string[] = [];
+    const missing = eligibility.missingEmail.length;
+    const locked = eligibility.locked.length;
+    if (missing > 0) {
+      parts.push(
+        `Đã bỏ qua ${missing} ứng viên chưa cập nhật địa chỉ email`,
+      );
+    }
+    if (locked > 0) {
+      parts.push(
+        `Đã bỏ qua ${locked} ứng viên chưa mở khóa hồ sơ (cần dùng Credit để mở khóa)`,
+      );
+    }
+    return parts.length > 0 ? parts.join(' · ') : null;
+  }, [eligibility.missingEmail.length, eligibility.locked.length]);
+
+  useEffect(() => {
+    if (skipWarning) setWarning(skipWarning);
+  }, [skipWarning]);
+
+  const stats = useMemo(() => {
+    const list = eligibility.all;
     const total = list.length;
     const applied = list.filter((a) => a.status === ApplicationStatus.Applied).length;
     const inProgress = list.filter(
@@ -82,7 +193,7 @@ export default function RecruiterBroadcastEmailPage() {
       return a.matchScore >= 70;
     }).length;
     return { total, applied, inProgress, highMatch };
-  }, [applicants]);
+  }, [eligibility.all]);
 
   const statusInfo = selectedJob
     ? (JOB_STATUS_BADGE[selectedJob.status] ?? {
@@ -91,9 +202,24 @@ export default function RecruiterBroadcastEmailPage() {
       })
     : null;
 
+  const backHref = paramReturnUrl && paramReturnUrl.startsWith('/')
+    ? paramReturnUrl
+    : '/recruiter/inbox';
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl space-y-5">
+        {/* Nút quay lại theo returnUrl */}
+        <div>
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1D4ED8] hover:underline"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Quay lại
+          </Link>
+        </div>
+
         {/* Header & Bộ chọn chiến dịch tuyển dụng */}
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -134,6 +260,7 @@ export default function RecruiterBroadcastEmailPage() {
                     onChange={(e) => {
                       setJobId(e.target.value);
                       setNotice(null);
+                      setWarning(null);
                     }}
                     className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 text-sm font-semibold text-brand-800 shadow-2xs transition hover:border-brand-300 focus:border-brand-500 focus:bg-white focus:outline-none"
                   >
@@ -159,6 +286,37 @@ export default function RecruiterBroadcastEmailPage() {
                   </span>
                 ) : null}
               </div>
+
+              {/* Bước quy trình — chọn sẵn theo ngữ cảnh từ Hộp thư / Kanban */}
+              {paramStage && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Bước quy trình
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                    {paramStage}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStageFilter('all')}
+                    className="text-[11px] font-medium text-slate-500 hover:text-slate-700"
+                  >
+                    Bỏ lọc bước
+                  </button>
+                </div>
+              )}
+
+              {/* Danh sách ứng viên được chọn sẵn từ Hộp thư */}
+              {prefillIds && prefillIds.length > 0 && (
+                <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <Users className="h-3.5 w-3.5" />
+                  Đã chọn sẵn {formApplicants.length} ứng viên từ Hộp thư
+                  {paramApplicationIdsCount &&
+                    Number(paramApplicationIdsCount) !== prefillIds.length
+                    ? ` (${paramApplicationIdsCount} ứng viên được chọn)` 
+                    : ''}
+                </p>
+              )}
             </div>
 
             {/* 4 Thẻ tóm tắt nhanh ứng viên của tin */}
@@ -184,6 +342,14 @@ export default function RecruiterBroadcastEmailPage() {
             ) : null}
           </div>
         </section>
+
+        {/* Cảnh báo ứng viên bị bỏ qua */}
+        {warning && (
+          <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm font-medium text-amber-900 shadow-2xs">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <span>{warning}</span>
+          </div>
+        )}
 
         {/* Thông báo kết quả gửi email */}
         {notice && (
@@ -221,16 +387,26 @@ export default function RecruiterBroadcastEmailPage() {
         {jobId && applicants ? (
           <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-sm">
             <BroadcastEmailForm
-              key={jobId}
+              key={`${jobId}:${stageFilter}:${prefillIds?.join(',') ?? ''}`}
               jobId={jobId}
               jobTitle={selectedJob?.title}
               companyName={selectedJob?.companyName}
-              applicants={applicants}
+              applicants={formApplicants}
+              initialStatusFilter={stageFilter}
               onSent={(result) => {
                 setNotice(
                   `Đã gửi thành công ${result.sent}/${result.recipients} email tới ứng viên` +
                     (result.failed ? ` (${result.failed} hồ sơ thiếu hoặc lỗi email)` : '.'),
                 );
+                const skipped = (result.skippedMissingEmail ?? 0) + (result.skippedByPaywall ?? 0);
+                if (skipped > 0) {
+                  setWarning(
+                    `Đã bỏ qua ${result.skippedMissingEmail ?? 0} ứng viên chưa cập nhật địa chỉ email` +
+                      (result.skippedByPaywall
+                        ? ` và ${result.skippedByPaywall} ứng viên chưa mở khóa hồ sơ`
+                        : ''),
+                  );
+                }
               }}
             />
           </div>
