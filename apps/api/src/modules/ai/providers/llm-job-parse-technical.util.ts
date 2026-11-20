@@ -158,7 +158,7 @@ function asExperience(v: unknown): ExperienceBand | null {
   if (EXPERIENCE_VALUES.has(s)) return s as ExperienceBand;
   const lower = s.toLowerCase();
   if (/không yêu cầu|không cần kinh nghiệm/.test(lower)) return ExperienceBand.None;
-  const range = lower.match(/(\d+)\s*[–\-]\s*(\d+)/);
+  const range = lower.match(/(\d+)\s*[–-]\s*(\d+)/);
   if (range) {
     const max = Number(range[2]);
     if (max <= 1) return ExperienceBand.Under1;
@@ -186,7 +186,7 @@ function asDeadline(v: unknown): string | null {
   if (!s) return null;
   const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
   if (iso) return iso[1];
-  const vn = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+  const vn = s.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
   if (vn) {
     const d = vn[1].padStart(2, '0');
     const m = vn[2].padStart(2, '0');
@@ -359,13 +359,13 @@ function extractTitleFromText(text: string): string {
 
 function extractLocationFromText(text: string): string {
   const m = text.match(
-    /(?:địa điểm|nơi làm việc|làm việc tại)\s*[:\-]?\s*([^\n.]{3,80})/i,
+    /(?:địa điểm|nơi làm việc|làm việc tại)\s*[:-]?\s*([^\n.]{3,80})/i,
   );
   return m ? m[1].trim() : '';
 }
 
 function extractHeadcount(text: string): number | null {
-  const m = text.match(/(?:số lượng|tuyển)\s*[:\-]?\s*(\d{1,3})\s*(?:vị trí|người|nv)?/i);
+  const m = text.match(/(?:số lượng|tuyển)\s*[:-]?\s*(\d{1,3})\s*(?:vị trí|người|nv)?/i);
   if (!m) return null;
   const n = Number(m[1]);
   return n >= 1 && n <= 200 ? n : null;
@@ -374,7 +374,7 @@ function extractHeadcount(text: string): number | null {
 function extractDeadlineFromText(text: string): string | null {
   const iso = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
   if (iso) return iso[1];
-  const vn = text.match(/hạn[^.\n]{0,40}?(\d{1,2})[\/.](\d{1,2})[\/.](20\d{2})/i);
+  const vn = text.match(/hạn[^.\n]{0,40}?(\d{1,2})[/.](\d{1,2})[/.](20\d{2})/i);
   if (vn) return asDeadline(`${vn[1]}/${vn[2]}/${vn[3]}`);
   return null;
 }

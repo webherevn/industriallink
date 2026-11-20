@@ -3,11 +3,15 @@
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
 import {
+  ALLOWED_POSITIONS,
   DESIRED_POSITION_QUESTION,
+  MAX_DESIRED_POSITIONS,
   TECHNICAL_POSITION_QUESTION,
-  desiredPositionOptionsForTrack,
+  filterDesiredPositionsForTrack,
+  normalizeProfileTrack,
 } from '@industriallink/contracts';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
+import { SelectedPositionTags } from '@/components/selected-position-tags';
 import { criteriaAnchorId } from '@/lib/criteria-jump';
 import type { CvDraft } from '@/lib/cv-templates';
 
@@ -18,15 +22,35 @@ type Props = {
 };
 
 /**
- * STT 13. Vị trí ứng tuyển — Kinh doanh: danh sách 5 vị trí.
- * Kỹ thuật: chọn tối đa 3 + "Khác" tự nhập (ma trận hoàn thành 28 mục).
+ * STT 13. Vị trí ứng tuyển — chuẩn hoá theo lĩnh vực đang active.
+ *
+ * Ranh giới nghiêm ngặt (STRICT BOUNDARY):
+ * - Mỗi nhánh có danh mục vị trí CHUẨN riêng (KD 6 vị trí / KT 14 vị trí).
+ * - Mọi giá trị không thuộc danh mục của nhánh đang active bị LOẠI BỎ khỏi
+ *   state trước khi render → không bao giờ hiển thị "Tối đa 3 (3/3)" sai.
+ * - Bộ đếm & trạng thái disabled tính trên danh sách ĐÃ LỌC, không phải state thô.
+ * - Tối đa 3 vị trí — áp dụng cho CẢ 2 nhánh.
  */
 export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   const track = draft.jobTrack;
-  const options = useMemo(() => desiredPositionOptionsForTrack(track), [track]);
   const [otherText, setOtherText] = useState('');
   const isTechnical = track === 'technical';
-  const max = isTechnical ? 3 : undefined;
+  const max = MAX_DESIRED_POSITIONS;
+
+  // Danh mục chuẩn của nhánh đang active — KHÔNG trộn 2 nhánh.
+  const options = useMemo(() => {
+    if (!track) return [];
+    return [...ALLOWED_POSITIONS[normalizeProfileTrack(track)]];
+  }, [track]);
+
+  /**
+   * Vị trí đang chọn ĐÃ LỌC theo nhánh active — đây là nguồn sự thật cho
+   * bộ đếm, trạng thái disabled và việc render checkbox.
+   */
+  const selectedPositions = useMemo(() => {
+    if (!track) return [];
+    return filterDesiredPositionsForTrack(draft.desiredPositions, normalizeProfileTrack(track));
+  }, [draft.desiredPositions, track]);
 
   if (!track) {
     return (
@@ -38,11 +62,8 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
     );
   }
 
-  const catalogSet = new Set(options);
-  const customSelected = draft.desiredPositions.filter((p) => !catalogSet.has(p));
-
   function setPositions(next: string[]) {
-    const clipped = max != null ? next.slice(0, max) : next;
+    const clipped = next.slice(0, max);
     onChange('desiredPositions', clipped);
     onChange('title', clipped[0] ?? '');
   }
@@ -50,14 +71,16 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
   function addOther() {
     const value = otherText.trim();
     if (!value) return;
-    if (draft.desiredPositions.some((p) => p.toLowerCase() === value.toLowerCase())) {
+    if (selectedPositions.some((p) => p.toLowerCase() === value.toLowerCase())) {
       setOtherText('');
       return;
     }
-    if (max != null && draft.desiredPositions.length >= max) return;
-    setPositions([...draft.desiredPositions, value]);
+    if (selectedPositions.length >= max) return;
+    setPositions([...selectedPositions, value]);
     setOtherText('');
   }
+
+  const atLimit = selectedPositions.length >= max;
 
   return (
     <div id={criteriaAnchorId('desiredPositions')} className="scroll-mt-28 space-y-3">
@@ -74,17 +97,13 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
           }
           className="mb-0"
         />
-        {isTechnical && (
-          <p className="mt-1 text-[11px] text-amber-700">
-            {`Tối đa 3 (${draft.desiredPositions.length}/3)`}
-          </p>
-        )}
+        <p className="mt-1 text-[11px] text-amber-700">{`Tối đa ${max} (${selectedPositions.length}/${max})`}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {options.map((opt) => {
-          const checked = draft.desiredPositions.includes(opt);
-          const atMax = max != null && draft.desiredPositions.length >= max && !checked;
+          const checked = selectedPositions.includes(opt);
+          const atMax = atLimit && !checked;
           return (
             <label
               key={opt}
@@ -104,9 +123,9 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
                 disabled={atMax}
                 onChange={() => {
                   if (checked) {
-                    setPositions(draft.desiredPositions.filter((p) => p !== opt));
+                    setPositions(selectedPositions.filter((p) => p !== opt));
                   } else if (!atMax) {
-                    setPositions([...draft.desiredPositions, opt]);
+                    setPositions([...selectedPositions, opt]);
                   }
                 }}
               />
@@ -116,28 +135,15 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
         })}
       </div>
 
+      {/* Vùng tag đã chọn — dùng chung cho cả 2 nhánh (mọi giá trị đều gỡ bỏ được). */}
+      <SelectedPositionTags
+        selected={selectedPositions}
+        onRemove={(value) => setPositions(selectedPositions.filter((p) => p !== value))}
+        emptyHint="Chưa chọn vị trí ứng tuyển nào."
+      />
+
       {isTechnical && (
         <div className="space-y-2">
-          {customSelected.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {customSelected.map((v) => (
-                <span
-                  key={v}
-                  className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800"
-                >
-                  {v}
-                  <button
-                    type="button"
-                    onClick={() => setPositions(draft.desiredPositions.filter((p) => p !== v))}
-                    className="font-bold text-brand-500 hover:text-brand-700"
-                    aria-label={`Xoá ${v}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
           <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-1.5 text-sm">
             <span className="shrink-0 text-slate-600">Khác:</span>
             <input
@@ -155,10 +161,7 @@ export function CvApplyPositionFields({ draft, onChange, titleHint }: Props) {
             <button
               type="button"
               onClick={addOther}
-              disabled={
-                !otherText.trim() ||
-                (max != null && draft.desiredPositions.length >= max)
-              }
+              disabled={!otherText.trim() || atLimit}
               className="shrink-0 rounded-md bg-brand-500 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
             >
               Thêm

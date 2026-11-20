@@ -3,7 +3,6 @@ import { DomainEvents, type DomainEventEnvelope } from '@industriallink/contract
 import { AppEventBus } from '../../shared/events/event-bus';
 import { AiModule } from '../ai/ai.module';
 import { BillingModule } from '../billing/billing.module';
-import { CreditService } from '../billing/credit.service';
 import { CompanyModule } from '../company/company.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { NotificationModule } from '../notification/notification.module';

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Kanban, List } from 'lucide-react';
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { CrmDealView, CrmPlanKind, CrmStageView } from '@industriallink/contracts';
 import { CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { CrmDateField, CrmField, CrmFormSection, CrmSelect } from '@/components/crm/fields';
@@ -86,7 +86,7 @@ export function CrmPipelinePanel() {
   }
 
   const leads = (board.data?.leads ?? []).filter((lead) => lead.status !== 'unqualified');
-  const stages = board.data?.stages ?? [];
+  const stages = useMemo(() => board.data?.stages ?? [], [board.data?.stages]);
   const pickedLead = leads.find((item) => item.id === leadId) ?? null;
   const pickedPlan = (plans.data ?? []).find((item) => `${item.kind}:${item.code}` === planKey) ?? null;
   const pickedStage = stages.find((item) => item.code === stageCode) ?? null;

@@ -237,13 +237,13 @@ export function normalizeBirthDate(raw: unknown): string | null {
   if (!s) return null;
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return s;
-  const dmy = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
   if (dmy) {
     const dd = dmy[1].padStart(2, '0');
     const mm = dmy[2].padStart(2, '0');
     return `${dmy[3]}-${mm}-${dd}`;
   }
-  const ymd = s.match(/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})$/);
+  const ymd = s.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
   if (ymd) {
     return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
   }
@@ -263,7 +263,7 @@ function splitDuties(text: string | null): string[] {
   if (!text) return [];
   return text
     .split(/\n|•|●|▪|–|- |\u2022/)
-    .map((x) => x.replace(/^[\s\-•●▪]+/, '').trim())
+    .map((x) => x.replace(/^[\s-•●▪]+/, '').trim())
     .filter((x) => x.length >= 8)
     .slice(0, 40);
 }

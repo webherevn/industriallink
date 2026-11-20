@@ -11,6 +11,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { SourcingService } from './sourcing.service';
 
+/** Mock Prisma cho test — cấu trúc tuỳ ý, không kiểm tra type. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PrismaMock = Record<string, any>;
 
 function makePrisma(overrides: PrismaMock = {}): PrismaMock {
@@ -353,6 +355,7 @@ describe('SourcingService', () => {
       purchasedAt: new Date('2026-01-01'),
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function makeConsumePrisma(overrides: Record<string, any> = {}) {
       const jobUpdate = jest.fn().mockResolvedValue({});
       const jobCreate = jest.fn().mockResolvedValue({ id: 'job-new', code: 'JOB-2026-000099' });
@@ -392,6 +395,7 @@ describe('SourcingService', () => {
       return { prisma, tx, jobUpdate, jobCreate };
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function makeConsumeService(prisma: any, jobRow: any) {
       const huntPackages = {
         listForCompany: jest.fn().mockResolvedValue([]),

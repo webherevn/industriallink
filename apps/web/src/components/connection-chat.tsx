@@ -137,7 +137,7 @@ export function ConnectionChat({ embedded = false }: { embedded?: boolean }) {
     el.scrollTop = el.scrollHeight;
   }, [messages.data, activeId, open]);
 
-  const list = threads.data ?? [];
+  const list = useMemo(() => threads.data ?? [], [threads.data]);
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return list.filter((thread) => {

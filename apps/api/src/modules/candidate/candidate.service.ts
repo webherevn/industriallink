@@ -15,7 +15,6 @@ import {
   ResumeParseStatus,
   UserRole,
   availabilityToNoticeDays,
-  composeEducationDegree,
   languageNamesFromSkills,
   mergeLanguageSkills,
   normalizeIndustries,
@@ -58,6 +57,7 @@ import { SourcingService } from '../billing/sourcing.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
 import { NotificationService } from '../notification/notification.service';
 import { buildCvDraftFromText } from './cv-draft-from-text';
+import { sanitizeProfileForTrack } from './profile-track-boundary';
 import type { GenerateCoverLetterDto } from './dto/generate-cover-letter.dto';
 import { mergeCvDraftViews, profileSourceToCvDraft } from './merge-cv-draft';
 import { ExtractTextError, extractResumeText } from './resume/extract-text.util';
@@ -492,6 +492,9 @@ export class CandidateService {
       desiredWorkEnvironments: cleanList(input.desiredWorkEnvironments ?? []),
     };
 
+    // Ranh giới nghiêm ngặt: xóa sạch field của nhánh CÒN LẠI + lọc mục 13.
+    const sanitizedProfile = sanitizeProfileForTrack(profileData, profileData.jobTrack);
+
     const existingAi = await this.prisma.candidateAiProfile.findUnique({
       where: { candidateId: candidate.id },
       select: { summary: true },
@@ -500,7 +503,7 @@ export class CandidateService {
       displayName: input.displayName,
       email: user.email,
       aiProfile: existingAi,
-      profile: profileData,
+      profile: sanitizedProfile,
       skills: skillRows,
       experiences: experienceRows,
     });
@@ -517,8 +520,8 @@ export class CandidateService {
 
       await tx.candidateProfile.upsert({
         where: { candidateId: candidate.id },
-        create: { candidateId: candidate.id, ...profileData },
-        update: profileData,
+        create: { candidateId: candidate.id, ...sanitizedProfile },
+        update: sanitizedProfile,
       });
 
       await tx.candidateSkill.deleteMany({ where: { candidateId: candidate.id } });
@@ -1069,19 +1072,23 @@ export class CandidateService {
       };
     });
 
+    const completionDetail = computeProfileCompletionDetail({
+      displayName: candidate.displayName,
+      email: candidate.user?.email,
+      aiProfile: candidate.aiProfile,
+      profile: p,
+      skills: candidate.skills,
+      experiences,
+    });
+
     return {
       id: candidate.id,
       code: candidate.code,
       displayName: candidate.displayName,
       status: candidate.status as CandidateStatus,
-      profileCompletion: computeProfileCompletion({
-        displayName: candidate.displayName,
-        email: candidate.user?.email,
-        aiProfile: candidate.aiProfile,
-        profile: p,
-        skills: candidate.skills,
-        experiences,
-      }),
+      profileCompletion: completionDetail.percent,
+      profileCompletionFilled: completionDetail.filledCount,
+      profileCompletionTotal: completionDetail.totalCount,
       hasAvatar: Boolean(candidate.avatarStorageKey),
       profile: p
         ? {
@@ -1297,11 +1304,8 @@ export class CandidateService {
     const allSkillNames = [...new Set([...skills, ...soft])];
 
     const firstDraftExp = draft.experience[0];
-    const profileCompletion = computeProfileCompletion({
-      displayName: draft.fullName,
-      email: draft.email,
-      aiProfile: { summary: draft.summary?.trim() || null },
-      profile: {
+    const draftProfile = sanitizeProfileForTrack(
+      {
         currentPosition: draft.title || null,
         summary: draft.summary || null,
         careerObjective: draft.careerObjective,
@@ -1356,6 +1360,13 @@ export class CandidateService {
         shiftFlexibility: draft.shiftFlexibility,
         desiredWorkEnvironments: draft.desiredWorkEnvironments,
       },
+      draft.jobTrack,
+    );
+    const profileCompletion = computeProfileCompletion({
+      displayName: draft.fullName,
+      email: draft.email,
+      aiProfile: { summary: draft.summary?.trim() || null },
+      profile: draftProfile,
       skills: allSkillNames,
       experiences: draft.experience.map((e) => ({
         companyName: e.company,
@@ -1527,13 +1538,17 @@ export class CandidateService {
         desiredWorkEnvironments: cleanList(draft.desiredWorkEnvironments ?? []),
       };
 
+      // Ranh giới nghiêm ngặt: CV là snapshot độc lập, nhưng khi ghi đè vào
+      // "Hồ sơ của tôi" thì chỉ giữ lại dữ liệu của 1 nhánh đang active.
+      const sanitizedProfile = sanitizeProfileForTrack(profileData, profileData.jobTrack);
+
       await tx.candidateProfile.upsert({
         where: { candidateId: candidate.id },
         create: {
           candidateId: candidate.id,
-          ...profileData,
+          ...sanitizedProfile,
         },
-        update: profileData,
+        update: sanitizedProfile,
       });
 
       await tx.candidateSkill.deleteMany({ where: { candidateId: candidate.id } });
@@ -2303,11 +2318,18 @@ function isFilledValue(value: unknown, weakIfShort = 0): 'filled' | 'weak' | 'mi
  * % hoàn thành hồ sơ (Tạo CV / chỉnh hồ sơ) theo ma trận KD 32 / KT 28.
  * Không phải Matching JD. filled=1, weak=0.5, missing=0.
  */
-export function computeProfileCompletion(candidate: ProfileCompletionInput): number {
+type ProfileCheck = { key: string; value: unknown; weakIfShort?: number };
+
+/**
+ * Danh sách tiêu chí kiểm tra — dùng chung cho % hoàn thiện và số tiêu chí đã đủ.
+ * `isTech` quyết định bộ tiêu chí (KD 32 mục / KT 28 mục).
+ */
+function buildProfileCompletionChecks(
+  candidate: ProfileCompletionInput,
+  isTech: boolean,
+): ProfileCheck[] {
   const p = candidate.profile;
   const firstExp = candidate.experiences?.[0];
-  const track = (p?.jobTrack ?? 'sales').toString().toLowerCase();
-  const isTech = track === 'technical';
 
   const productsSold = [
     ...(p?.productsSold ?? []),
@@ -2406,6 +2428,18 @@ export function computeProfileCompletion(candidate: ProfileCompletionInput): num
     );
   }
 
+  return checks;
+}
+
+/**
+ * % hoàn thành hồ sơ (Tạo CV / chỉnh hồ sơ) theo ma trận KD 32 / KT 28.
+ * Không phải Matching JD. filled=1, weak=0.5, missing=0.
+ */
+export function computeProfileCompletion(candidate: ProfileCompletionInput): number {
+  const track = (candidate.profile?.jobTrack ?? 'sales').toString().toLowerCase();
+  const isTech = track === 'technical';
+  const checks = buildProfileCompletionChecks(candidate, isTech);
+
   return weightedSuggestionPercent(
     checks.map((c) => ({
       key: c.key,
@@ -2413,4 +2447,37 @@ export function computeProfileCompletion(candidate: ProfileCompletionInput): num
     })),
     isTech ? 'technical' : 'sales',
   );
+}
+
+/**
+ * Chi tiết % hoàn thiện hồ sơ — nguồn sự thật DUY NHẤT cho cả Sidebar lẫn thẻ
+ * "Tiến độ hoàn thiện hồ sơ" (tránh lệch 16% vs 17%).
+ *
+ * - `percent`: % hoàn thiện (cùng công thức `computeProfileCompletion`).
+ * - `filledCount`: số tiêu chí đã đủ.
+ * - `totalCount`: tổng tiêu chí bắt buộc theo activeTrack — 32 (KD) / 28 (KT).
+ */
+export function computeProfileCompletionDetail(
+  candidate: ProfileCompletionInput,
+): { percent: number; filledCount: number; totalCount: number } {
+  const track = (candidate.profile?.jobTrack ?? 'sales').toString().toLowerCase();
+  const isTech = track === 'technical';
+
+  const checks = buildProfileCompletionChecks(candidate, isTech);
+  const filledCount = checks.filter(
+    (c) => isFilledValue(c.value, c.weakIfShort ?? 0) === 'filled',
+  ).length;
+  const totalCount = isTech ? 28 : 32;
+
+  return {
+    percent: weightedSuggestionPercent(
+      checks.map((c) => ({
+        key: c.key,
+        fill: suggestionFillRatio(isFilledValue(c.value, c.weakIfShort ?? 0)),
+      })),
+      isTech ? 'technical' : 'sales',
+    ),
+    filledCount,
+    totalCount,
+  };
 }

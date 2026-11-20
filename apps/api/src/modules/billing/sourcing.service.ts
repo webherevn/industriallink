@@ -765,7 +765,6 @@ export class SourcingService {
         // (A) Chế độ "Copy nội dung JD sang Tin săn mới": tạo bản ghi Job MỚI hoàn toàn,
         // KHÔNG ghi đè `jobId` của tin cũ. Tin cũ giữ nguyên toàn bộ dữ liệu.
         let targetJobId = sourceJob.id;
-        let copiedJobId: string | null = null;
         if (input.copyJdToNewJob) {
           const newJob = await this.copyJobForHunt(tx, {
             sourceJob,
@@ -774,7 +773,6 @@ export class SourcingService {
             actorUserId: actorId,
           });
           targetJobId = newJob.id;
-          copiedJobId = newJob.id;
         }
 
         const activated = await this.huntPackages.activateWithCampaign(tx, {

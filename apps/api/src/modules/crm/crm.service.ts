@@ -4841,8 +4841,3 @@ function normalizePhone(raw: string): string {
   if (digits.startsWith('84')) digits = `0${digits.slice(2)}`;
   return digits;
 }
-
-function normalizeTax(raw: string | null | undefined): string | null {
-  const value = raw?.replace(/\s/g, '') ?? '';
-  return value.length > 0 ? value : null;
-}

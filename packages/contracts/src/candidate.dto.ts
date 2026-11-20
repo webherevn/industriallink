@@ -144,6 +144,10 @@ export interface CandidateView {
   displayName: string;
   status: CandidateStatus;
   profileCompletion: number;
+  /** Số tiêu chí đã đủ — cùng nguồn với `profileCompletion`. */
+  profileCompletionFilled: number;
+  /** Tổng tiêu chí bắt buộc theo lĩnh vực: 32 (Kinh doanh) / 28 (Kỹ thuật). */
+  profileCompletionTotal: number;
   hasAvatar: boolean;
   profile: CandidateProfileView | null;
   aiProfile: CandidateAiProfileView | null;

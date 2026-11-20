@@ -14,7 +14,7 @@ function pickPhone(text: string): string {
 
 function pickName(text: string, fallback: string): string {
   const patterns = [
-    /(?:tôi(?:\s+tên)?|tên(?:\s+tôi)?|họ\s*và\s*tên)\s*[:\-]?\s*([A-ZÀ-Ỵ][\p{L}'’]+(?:\s+[A-ZÀ-Ỵ][\p{L}'’]+){1,4})/iu,
+    /(?:tôi(?:\s+tên)?|tên(?:\s+tôi)?|họ\s*và\s*tên)\s*[:-]?\s*([A-ZÀ-Ỵ][\p{L}'’]+(?:\s+[A-ZÀ-Ỵ][\p{L}'’]+){1,4})/iu,
     /^([A-ZÀ-Ỵ][\p{L}'’]+(?:\s+[A-ZÀ-Ỵ][\p{L}'’]+){1,3})\s*[,.\n]/mu,
   ];
   for (const re of patterns) {
@@ -183,7 +183,7 @@ function pickLanguages(text: string): string[] {
 }
 
 function pickProjects(text: string): CvDraftView['projects'] {
-  const m = text.match(/(?:dự án|project)\s*[:\-]?\s*([^\n.]{8,120})/i);
+  const m = text.match(/(?:dự án|project)\s*[:-]?\s*([^\n.]{8,120})/i);
   if (!m?.[1]) return [];
   return [{ name: m[1].trim(), detail: 'Được trích từ mô tả của ứng viên.' }];
 }

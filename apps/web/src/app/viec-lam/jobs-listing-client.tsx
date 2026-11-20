@@ -245,7 +245,7 @@ function JobsPageInner({
     arm();
     return () => window.clearTimeout(timer);
   }, []);
-  const boardNow = now ?? new Date(0);
+  const boardNow = useMemo(() => now ?? new Date(0), [now]);
 
   const listQuery: ListPublishedJobsQuery = useMemo(() => {
     const q: ListPublishedJobsQuery = {};

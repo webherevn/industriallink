@@ -10,6 +10,8 @@ import { JobPackageService } from './job-package.service';
 import { HUNT_OWNED_JOB_REASON } from './job-package-source.util';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 
+/** Mock Prisma cho test — cấu trúc tuỳ ý, không kiểm tra type. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PrismaMock = Record<string, any>;
 
 const recruiter: AuthenticatedUser = {

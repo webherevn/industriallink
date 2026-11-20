@@ -75,7 +75,7 @@ export default function RecruiterReportPage() {
     placeholderData: keepPreviousData,
   });
 
-  const jobsList = report.data?.jobs ?? [];
+  const jobsList = useMemo(() => report.data?.jobs ?? [], [report.data?.jobs]);
 
   useEffect(() => {
     if (selectedJobId !== 'all' && !jobsList.some((j) => j.jobId === selectedJobId)) {
@@ -295,22 +295,30 @@ function ReportBody({
   const conversionPct =
     appsCount > 0 ? Math.round((hiresCount / appsCount) * 1000) / 10 : null;
 
-  const sourcing = report.sourcing ?? {
-    planName: null,
-    activeEngagements: 0,
-    scanRoundsInPeriod: 0,
-    scannedCandidatesCount: 0,
-    shortlistedCount: 0,
-    outreachCount: 0,
-    outreachQuota: 0,
-    connectionsSent: 0,
-    connectionsAccepted: 0,
-  };
-  const credits = report.credits ?? {
-    balance: 0,
-    consumedInPeriod: 0,
-    profilesUnlockedInPeriod: 0,
-  };
+  const sourcing = useMemo(
+    () =>
+      report.sourcing ?? {
+        planName: null,
+        activeEngagements: 0,
+        scanRoundsInPeriod: 0,
+        scannedCandidatesCount: 0,
+        shortlistedCount: 0,
+        outreachCount: 0,
+        outreachQuota: 0,
+        connectionsSent: 0,
+        connectionsAccepted: 0,
+      },
+    [report.sourcing],
+  );
+  const credits = useMemo(
+    () =>
+      report.credits ?? {
+        balance: 0,
+        consumedInPeriod: 0,
+        profilesUnlockedInPeriod: 0,
+      },
+    [report.credits],
+  );
 
   const activeFunnelSteps = useMemo<RecruitmentReportFunnelStep[]>(() => {
     if (!selectedJob) return report.funnel;

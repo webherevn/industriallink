@@ -307,7 +307,7 @@ export class CreditService {
    * Lấy snapshot quy tắc credit hiện tại (từ BillingCreditPolicy).
    * Trả về null nếu chưa có policy.
    */
-  async getPolicySnapshot(tenantId: string): Promise<BillingCreditPolicyView | null> {
+  async getPolicySnapshot(_tenantId: string): Promise<BillingCreditPolicyView | null> {
     const [p, high] = await Promise.all([
       this.prisma.billingCreditPolicy.findUnique({ where: { scope: POLICY_SCOPE } }),
       this.prisma.billingCreditPolicy.findUnique({ where: { scope: HIGH_MATCH_POLICY_SCOPE } }),
@@ -635,7 +635,7 @@ export class CreditService {
     if (trimmedReason.length > 500) {
       throw new BadRequestException('Lý do không được quá 500 ký tự');
     }
-    const account = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const acc = await tx.billingCreditAccount.upsert({
         where: { companyId },
         create: { companyId, tenantId },
@@ -857,7 +857,7 @@ export class CreditService {
       }),
 
       // Daily series: 14 days
-      this.prisma.$queryRaw<{ date: Date; total: BigInt }[]>`
+      this.prisma.$queryRaw<{ date: Date; total: bigint }[]>`
         SELECT
           DATE(created_at) AS date,
           SUM(credit_delta) AS total

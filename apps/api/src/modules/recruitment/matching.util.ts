@@ -68,7 +68,7 @@ export function candidateLocationLabel(profile: {
 function cleanSummaryLine(raw?: string | null): string {
   if (!raw) return '';
   return stripHtml(raw)
-    .replace(/^[\s•\-–*]+/, '')
+    .replace(/^[\\s•\-–*]+/, '')
     .replace(/\s*[\r\n]+\s*/g, ' · ')
     .replace(/\s*·\s*·\s*/g, ' · ')
     .replace(/\s+/g, ' ')
@@ -318,7 +318,7 @@ export function inferProductsFromJob(input: {
   return PRODUCTS_SOLD.filter((p) => {
     if (p === 'Thiết bị công nghiệp khác') return false;
     const tokens = norm(p)
-      .split(/[\s\/,&]+/)
+      .split(/[\s/,&]+/)
       .filter((t) => t.length >= 3);
     return tokens.some((t) => text.includes(t));
   });
@@ -340,7 +340,7 @@ export function inferEquipmentFromJob(input: {
   ]);
   return EQUIPMENT_SYSTEM_OPTIONS.filter((p) => {
     const tokens = norm(p)
-      .split(/[\s\/,&–-]+/)
+      .split(/[\s/,&–-]+/)
       .filter((t) => t.length >= 3);
     return tokens.some((t) => text.includes(t));
   });

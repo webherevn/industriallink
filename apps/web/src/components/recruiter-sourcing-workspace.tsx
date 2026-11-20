@@ -472,7 +472,7 @@ export function RecruiterSourcingWorkspace({
     }
   }, [hunt.isSuccess, selected, engagementScanRounds.length, qc]);
 
-  const allResults = hunt.data ?? [];
+  const allResults = useMemo(() => hunt.data ?? [], [hunt.data]);
   const appliedCandidates = useMemo(
     () => allResults.filter((r) => r.applied),
     [allResults],

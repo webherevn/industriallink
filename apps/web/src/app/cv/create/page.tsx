@@ -34,7 +34,6 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CvDraftFieldHint, CvDraftView } from '@industriallink/contracts';
 import {
-  desiredPositionOptionsForTrack,
   DRIVER_LICENSE_QUESTION,
   DRIVER_LICENSE_TYPES,
   EDUCATION_LEVELS,
@@ -90,6 +89,7 @@ import {
   mergeCvDrafts,
 } from '@/lib/cv-from-profile';
 import { criteriaAnchorId, criteriaPlace, scrollToCriteria } from '@/lib/criteria-jump';
+import { sanitizeDesiredPositions } from '@/lib/profile-track-switch';
 import {
   CV_CREATE_STEPS,
   CV_INDUSTRY_FILTERS,
@@ -1839,17 +1839,15 @@ function CreateCvEditor() {
                     value={activeDraft.jobTrack}
                     onChange={(track) => {
                       updateDraft('jobTrack', track);
-                      const nextCatalog = new Set(desiredPositionOptionsForTrack(track));
-                      const prevCatalog = new Set(
-                        desiredPositionOptionsForTrack(activeDraft.jobTrack),
-                      );
-                      const nextDesired = activeDraft.desiredPositions.filter(
-                        (p) =>
-                          nextCatalog.has(p) ||
-                          (track === 'technical' && !prevCatalog.has(p)),
+                      // Ranh giới nghiêm ngặt: vị trí ứng tuyển phải thuộc danh mục
+                      // chuẩn của nhánh mới → loại bỏ toàn bộ giá trị của nhánh cũ.
+                      const nextDesired = sanitizeDesiredPositions(
+                        activeDraft.desiredPositions,
+                        track === 'technical' ? 'technical' : 'sales',
                       );
                       if (nextDesired.length !== activeDraft.desiredPositions.length) {
                         updateDraft('desiredPositions', nextDesired);
+                        updateDraft('title', nextDesired[0] ?? '');
                       }
                     }}
                   />

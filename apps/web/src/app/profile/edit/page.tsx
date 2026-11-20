@@ -41,10 +41,12 @@ import {
   LEGACY_CAREER_ORIENTATION_MAP,
   LEGACY_DESIRED_POSITION_MAP,
   MARKET_REGIONS,
+  MAX_DESIRED_POSITIONS,
   NEW_CUSTOMER_RATIO_BANDS,
   PERSONAL_REVENUE_QUESTION,
   PRODUCTS_SOLD,
   PRODUCTS_SOLD_QUESTION,
+  PROFILE_CRITERIA_TOTAL,
   PROFILE_MISSING_FIELD_LABEL,
   SALES_HIGHLIGHTS_PLACEHOLDER,
   SALES_INDUSTRY_OPTIONS,
@@ -108,6 +110,7 @@ import { MatrixSection } from '@/components/matrix-section';
 import { NumberedFieldLabel } from '@/components/numbered-field-label';
 import { LanguageSkillsFields } from '@/components/language-skills-fields';
 import { CriteriaCompletionCard } from '@/components/progress-ring';
+import { SelectedPositionTags } from '@/components/selected-position-tags';
 import { TechnicalPositionSelect } from '@/components/technical-position-select';
 import { Badge, Button, Card, Field, Input, MoneyInput, MonthYearRangeFields, Select, Textarea, YearInput } from '@/components/ui';
 import { VnAddressFields } from '@/components/vn-address-fields';
@@ -123,6 +126,16 @@ import {
 import { criteriaAnchorId, criteriaPlace, scrollToCriteria } from '@/lib/criteria-jump';
 import { emptyCvDraft, type CvDraft } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
+import {
+  SALES_TRACK_EXTRA_KEYS,
+  SALES_TRACK_FIELD_KEYS,
+  TECHNICAL_TRACK_EXTRA_KEYS,
+  TECHNICAL_TRACK_FIELD_KEYS,
+  TRACK_DISPLAY_LABEL,
+  resetTrackFields,
+  sanitizeDesiredPositions,
+  type ProfileTrack,
+} from '@/lib/profile-track-switch';
 
 /**
  * Bước 1 = A. Thông tin cơ bản (1–12, chung Kỹ thuật & Kinh doanh)
@@ -644,7 +657,12 @@ function toPayload(form: FormState, track: TrackExtras): UpdateCandidateProfileR
       ? form.travelAbility !== TravelAbility.None
       : null,
     travelAbility: form.travelAbility || null,
-    desiredPositions: form.desiredPositions,
+    // Vị trí ứng tuyển phải lọc theo nhánh đang active trước khi gửi lên API
+    // (loại bỏ giá trị lai tạp giữa 2 nhánh + giới hạn tối đa 3).
+    desiredPositions: sanitizeDesiredPositions(
+      form.desiredPositions,
+      track.jobTrack === JobTrack.Technical ? 'technical' : 'sales',
+    ),
     desiredLocations: form.desiredLocations,
     careerMotivations: filterCareerMotivations(form.careerMotivations, track.jobTrack),
     workStyles:
@@ -1065,6 +1083,17 @@ export default function ProfileEditPage() {
   const [expandedExp, setExpandedExp] = useState<Set<number>>(() => new Set([0]));
   const [deepOpen, setDeepOpen] = useState<Set<number>>(() => new Set());
 
+  /**
+   * Draft tạm theo lĩnh vực — chỉ sống trong phiên chỉnh sửa hiện tại.
+   * Khi chuyển nhánh, state mục 13+ của nhánh cũ được lưu vào đây để quay lại
+   * nhánh cũ trong cùng phiên thì không mất dữ liệu vừa nhập.
+   */
+  const [sessionDraftByTrack, setSessionDraftByTrack] = useState<
+    Partial<Record<ProfileTrack, { form: FormState; extras: TrackExtras }>>
+  >({});
+  /** Lĩnh vực đang chờ xác nhận chuyển (null = không có modal nào mở). */
+  const [pendingTrack, setPendingTrack] = useState<ProfileTrack | null>(null);
+
   const missingProfile =
     isError && error instanceof ApiError && error.status === 404;
 
@@ -1212,11 +1241,19 @@ export default function ProfileEditPage() {
     () => matrixCriteriaHints(liveHints, trackExtras.jobTrack),
     [liveHints, trackExtras.jobTrack],
   );
-  const criteriaPercent = useMemo(
-    () => completionPercentFromHints(criteriaHints, trackExtras.jobTrack),
-    [criteriaHints, trackExtras.jobTrack],
-  );
+
+  /** Lĩnh vực đang active — quyết định mẫu số tiêu chí (32 KD / 28 KT). */
+  const criteriaTrack: ProfileTrack = trackExtras.jobTrack ?? 'sales';
+
+  /**
+   * % hoàn thiện hồ sơ — lấy từ Backend (nguồn sự thật DUY NHẤT cho cả Sidebar
+   * lẫn thẻ "Tiến độ hoàn thiện hồ sơ", tránh lệch 16% vs 17%).
+   * Mẫu số bám đúng theo lĩnh vực: 32 (Kinh doanh) / 28 (Kỹ thuật).
+   */
+  const totalCriteria =
+    candidate?.profileCompletionTotal ?? PROFILE_CRITERIA_TOTAL[criteriaTrack];
   const filledCriteria = criteriaHints.filter((f) => f.status === 'filled');
+  const criteriaPercent = candidate?.profileCompletion ?? 0;
   const criteriaGaps = criteriaHints.filter(
     (f) => f.status === 'missing' || f.status === 'weak',
   );
@@ -1231,6 +1268,123 @@ export default function ProfileEditPage() {
 
   function patch<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  /** Nhánh đang active (null = chưa chọn). */
+  const activeTrack: ProfileTrack | null = trackExtras.jobTrack
+    ? (trackExtras.jobTrack as ProfileTrack)
+    : null;
+
+  /**
+   * Nhánh hiện tại đã có dữ liệu mục 13+ hay chưa?
+   * Dùng để quyết định có cần hỏi xác nhận trước khi chuyển hay không.
+   */
+  function hasTrackData(track: ProfileTrack): boolean {
+    if (track === 'sales') {
+      return (
+        form.desiredPositions.length > 0 ||
+        form.b2bExperienceBand.trim() !== '' ||
+        form.salesHighlights.trim() !== '' ||
+        form.dealType.trim() !== '' ||
+        form.latestRevenue.trim() !== '' ||
+        form.kpiAchievementPct.trim() !== '' ||
+        form.newCustomerRatioPct.trim() !== '' ||
+        form.typicalDealValue.trim() !== '' ||
+        form.maxDealValue.trim() !== '' ||
+        form.expectedOte.trim() !== '' ||
+        form.careerOrientations.length > 0 ||
+        Object.keys(form.cultureFit).length > 0 ||
+        form.salesBehavior.trim() !== '' ||
+        trackExtras.brandsTechnologies.length > 0 ||
+        trackExtras.technicalWorkTypes.length > 0 ||
+        trackExtras.technicalTools.length > 0 ||
+        trackExtras.documentLiteracy.length > 0 ||
+        trackExtras.systemScaleNote != null ||
+        trackExtras.shiftFlexibility != null ||
+        trackExtras.technicalAutonomyLevel != null ||
+        trackExtras.troubleshootingLevel != null
+      );
+    }
+    return (
+      form.desiredPositions.length > 0 ||
+      trackExtras.brandsTechnologies.length > 0 ||
+      trackExtras.technicalWorkTypes.length > 0 ||
+      trackExtras.technicalTools.length > 0 ||
+      trackExtras.documentLiteracy.length > 0 ||
+      trackExtras.systemScaleNote != null ||
+      trackExtras.shiftFlexibility != null ||
+      trackExtras.technicalAutonomyLevel != null ||
+      trackExtras.troubleshootingLevel != null
+    );
+  }
+
+  /**
+   * Bấm chọn lĩnh vực ở bước 2.
+   * - Chưa có dữ liệu mục 13+ ở nhánh cũ → chuyển thẳng.
+   * - Đã có dữ liệu mục 13+ ở nhánh cũ → mở Confirm Modal (yêu cầu của spec).
+   */
+  function requestTrackSwitch(track: ProfileTrack) {
+    const current = activeTrack;
+    if (current === track) return;
+    if (!current || !hasTrackData(current)) {
+      applyTrackSwitch(track);
+      return;
+    }
+    setPendingTrack(track);
+  }
+
+  /**
+   * Thực thi chuyển lĩnh vực:
+   * 1. Lưu tạm state mục 13+ của nhánh cũ vào `sessionDraftByTrack[oldTrack]`.
+   * 2. Reset sạch state mục 13+ về mặc định rỗng cho nhánh mới —
+   *    hoặc nạp lại từ `sessionDraftByTrack[newTrack]` nếu có trong cùng phiên.
+   * 3. Mục 1–12 (thông tin chung) giữ nguyên 100%.
+   */
+  function applyTrackSwitch(track: ProfileTrack) {
+    const current = activeTrack;
+    setPendingTrack(null);
+    if (!current) {
+      setTrackExtras((prev) => ({ ...prev, jobTrack: track }));
+      return;
+    }
+
+    // 1) Lưu tạm state mục 13+ của nhánh cũ vào `sessionDraftByTrack[current]`.
+    setSessionDraftByTrack((prev) => ({
+      ...prev,
+      [current]: { form, extras: trackExtras },
+    }));
+
+    // 2) Nạp lại nhánh mới nếu đã có trong phiên, ngược lại reset sạch.
+    const cached = sessionDraftByTrack[track];
+    if (cached) {
+      setForm((prev) => ({
+        ...resetTrackFields(prev, current === 'sales' ? TECHNICAL_TRACK_FIELD_KEYS : SALES_TRACK_FIELD_KEYS),
+        desiredPositions: sanitizeDesiredPositions(cached.form.desiredPositions, track),
+      }));
+      setTrackExtras((prev) => ({
+        ...resetTrackFields(prev, current === 'sales' ? TECHNICAL_TRACK_EXTRA_KEYS : SALES_TRACK_EXTRA_KEYS),
+        ...cached.extras,
+        jobTrack: track,
+      }));
+      return;
+    }
+
+    // 3) Reset sạch mục 13+ của nhánh mới, giữ nguyên mục 1–12.
+    const nextFieldKeys =
+      current === 'sales' ? TECHNICAL_TRACK_FIELD_KEYS : SALES_TRACK_FIELD_KEYS;
+    const nextExtraKeys =
+      current === 'sales' ? TECHNICAL_TRACK_EXTRA_KEYS : SALES_TRACK_EXTRA_KEYS;
+    setForm((prev) => ({
+      ...resetTrackFields(prev, nextFieldKeys),
+      desiredPositions: [],
+      cultureFit: {},
+      careerOrientations: [],
+      careerMotivations: [],
+    }));
+    setTrackExtras((prev) => ({
+      ...resetTrackFields(prev, nextExtraKeys),
+      jobTrack: track,
+    }));
   }
 
   function patchCultureFit(id: CultureFitQuestionId, value: string) {
@@ -1301,6 +1455,20 @@ export default function ProfileEditPage() {
   const isSales = trackExtras.jobTrack === JobTrack.Sales;
   const isTechnical = trackExtras.jobTrack === JobTrack.Technical;
 
+  /**
+   * Vị trí ứng tuyển ĐÃ LỌC theo nhánh đang active — nguồn sự thật cho bộ đếm
+   * "Tối đa 3 (X/3)" và trạng thái disabled của checkbox.
+   * Bỏ mọi giá trị không thuộc danh mục chuẩn của nhánh (chống lỗi 3/3 sai).
+   */
+  const salesPositions = useMemo(
+    () => sanitizeDesiredPositions(form.desiredPositions, 'sales'),
+    [form.desiredPositions],
+  );
+  const technicalPositions = useMemo(
+    () => sanitizeDesiredPositions(form.desiredPositions, 'technical'),
+    [form.desiredPositions],
+  );
+
   const stepValid = useMemo(() => {
     if (step === 1) {
       return (
@@ -1312,8 +1480,9 @@ export default function ProfileEditPage() {
     }
     if (step === 2) return trackExtras.jobTrack != null;
     if (step === 3 && (isSales || isTechnical)) {
+      const positions = isSales ? salesPositions : technicalPositions;
       return (
-        form.desiredPositions.length > 0 &&
+        positions.length > 0 &&
         form.desiredLocations.length > 0 &&
         (parseOptionalNumber(form.expectedSalaryMin) != null ||
           parseOptionalNumber(form.expectedOte) != null) &&
@@ -1327,7 +1496,15 @@ export default function ProfileEditPage() {
       });
     }
     return true;
-  }, [step, form, trackExtras.jobTrack, isSales, isTechnical]);
+  }, [
+    step,
+    form,
+    trackExtras.jobTrack,
+    isSales,
+    isTechnical,
+    salesPositions,
+    technicalPositions,
+  ]);
 
   const filledExperiences = form.experiences.filter(
     (e) => e.companyName.trim() || e.jobTitle.trim(),
@@ -1378,6 +1555,9 @@ export default function ProfileEditPage() {
   const sidebarName =
     form.displayName.trim() || candidate?.displayName || me?.displayName || 'Ứng viên';
 
+  /** Nhãn lĩnh vực đang chờ xác nhận (null khi không mở modal). */
+  const pendingTrackLabel = pendingTrack ? TRACK_DISPLAY_LABEL[pendingTrack] : null;
+
   return (
     <AppShell wide>
       <div className="grid gap-5 pb-10 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -1419,7 +1599,7 @@ export default function ProfileEditPage() {
               title="Tiến độ hoàn thiện hồ sơ"
               percent={criteriaPercent}
               filledCount={filledCriteria.length}
-              totalCount={criteriaHints.length}
+              totalCount={totalCriteria}
               gaps={criteriaGaps}
               onGapClick={jumpToGap}
             />
@@ -1658,9 +1838,7 @@ export default function ProfileEditPage() {
                         <button
                           key={track}
                           type="button"
-                          onClick={() =>
-                            setTrackExtras((prev) => ({ ...prev, jobTrack: track }))
-                          }
+                          onClick={() => requestTrackSwitch(track as ProfileTrack)}
                           className={clsx(
                             'rounded-xl border-2 p-4 text-left transition',
                             active
@@ -1712,14 +1890,35 @@ export default function ProfileEditPage() {
                           description={DESIRED_POSITION_QUESTION}
                         >
                           <p className="mb-2 text-xs text-slate-500">
-                            {`Tối đa 3 (${form.desiredPositions.length}/3)`}
+                            {`Tối đa ${MAX_DESIRED_POSITIONS} (${salesPositions.length}/${MAX_DESIRED_POSITIONS})`}
                           </p>
                           <MultiCheck
                             options={DESIRED_POSITIONS}
-                            selected={form.desiredPositions}
-                            onChange={(v) => patch('desiredPositions', v.slice(0, 3))}
+                            selected={salesPositions}
+                            onChange={(v) =>
+                              patch(
+                                'desiredPositions',
+                                sanitizeDesiredPositions(v, 'sales'),
+                              )
+                            }
+                            max={MAX_DESIRED_POSITIONS}
                             columns={2}
                           />
+                          <div className="mt-2">
+                            <SelectedPositionTags
+                              selected={salesPositions}
+                              onRemove={(value) =>
+                                patch(
+                                  'desiredPositions',
+                                  sanitizeDesiredPositions(
+                                    salesPositions.filter((p) => p !== value),
+                                    'sales',
+                                  ),
+                                )
+                              }
+                              emptyHint="Chưa chọn vị trí ứng tuyển nào."
+                            />
+                          </div>
                         </Field>
                       ) : (
                         <Field
@@ -1728,15 +1927,35 @@ export default function ProfileEditPage() {
                           description={TECHNICAL_POSITION_QUESTION}
                         >
                           <p className="mb-2 text-xs text-amber-700">
-                            {`Tối đa 3 (${form.desiredPositions.length}/3)`}
+                            {`Tối đa ${MAX_DESIRED_POSITIONS} (${technicalPositions.length}/${MAX_DESIRED_POSITIONS})`}
                           </p>
                           <MultiCheckWithCustom
                             options={TECHNICAL_DESIRED_POSITIONS}
-                            selected={form.desiredPositions}
-                            onChange={(v) => patch('desiredPositions', v.slice(0, 3))}
-                            max={3}
+                            selected={technicalPositions}
+                            onChange={(v) =>
+                              patch(
+                                'desiredPositions',
+                                sanitizeDesiredPositions(v, 'technical'),
+                              )
+                            }
+                            max={MAX_DESIRED_POSITIONS}
                             placeholder="Khác — nhập vị trí…"
                           />
+                          <div className="mt-2">
+                            <SelectedPositionTags
+                              selected={technicalPositions}
+                              onRemove={(value) =>
+                                patch(
+                                  'desiredPositions',
+                                  sanitizeDesiredPositions(
+                                    technicalPositions.filter((p) => p !== value),
+                                    'technical',
+                                  ),
+                                )
+                              }
+                              emptyHint="Chưa chọn vị trí ứng tuyển nào."
+                            />
+                          </div>
                         </Field>
                       )}
                       <Field
@@ -2931,6 +3150,42 @@ export default function ProfileEditPage() {
         )}
         </div>
       </div>
+
+      {/* Confirm Modal — chuyển lĩnh vực sẽ làm mới dữ liệu mục 13+ */}
+      {pendingTrack && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="track-switch-title"
+          onClick={() => setPendingTrack(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              id="track-switch-title"
+              className="text-base font-bold text-slate-900"
+            >
+              Chuyển hồ sơ sang lĩnh vực {pendingTrackLabel}?
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Các thông tin chung (mục 1–12) vẫn được giữ nguyên. Toàn bộ dữ liệu
+              chuyên môn từ mục 13 trở đi sẽ được làm mới theo lĩnh vực mới để hệ
+              thống AI Matching đối chiếu chính xác với JD.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPendingTrack(null)}>
+                Huỷ
+              </Button>
+              <Button type="button" onClick={() => applyTrackSwitch(pendingTrack)}>
+                Chuyển lĩnh vực
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

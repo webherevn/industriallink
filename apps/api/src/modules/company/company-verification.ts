@@ -34,15 +34,13 @@ export function readBrandJson(raw: Prisma.JsonValue | null | undefined): BrandJs
 
 /** Hồ sơ công khai — không lộ khóa lưu trữ hay đơn xác minh. */
 export function toPublicBrand(stored: BrandJson): CompanyBrandProfile {
-  const {
-    logoStorageKey: _logoKey,
-    logoMime: _logoMime,
-    bannerStorageKey: _bannerKey,
-    bannerMime: _bannerMime,
-    verificationRequest: _verification,
-    cultureGallery,
-    ...rest
-  } = stored;
+  const { cultureGallery, ...rest } = stored;
+  // Loại các field nội bộ (khóa lưu trữ + đơn xác minh) khỏi hồ sơ công khai.
+  delete rest.logoStorageKey;
+  delete rest.logoMime;
+  delete rest.bannerStorageKey;
+  delete rest.bannerMime;
+  delete rest.verificationRequest;
   return {
     ...rest,
     cultureGallery: (cultureGallery ?? []).map((item) => ({

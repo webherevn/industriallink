@@ -31,7 +31,6 @@ import {
   buildB2bExplanation,
   candidateLocationLabel,
   candidateSummarySnippet,
-  cosine,
   jobToB2bMatchInput,
   toB2bCandidateFromRecords,
 } from './matching.util';

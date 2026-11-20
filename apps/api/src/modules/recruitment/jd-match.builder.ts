@@ -9,7 +9,6 @@ import type {
 import {
   SALES_MATCH_COMPANY_FIELDS,
   SALES_MATCH_FIELD_LABEL,
-  SALES_MATCH_PROFILE_FIELDS,
   TECH_MATCH_FIELD_LABEL,
 } from '@industriallink/contracts';
 
@@ -73,15 +72,17 @@ function classifyStatus(s: number, hasCandidateData: boolean): JdMatchStatus {
   return 'MISMATCH';
 }
 
-/** Chuẩn hoá chuỗi để so sánh "có thay đổi không" (bỏ khoảng trắng + hoa/thường). */
-function normalizeLoose(raw: unknown): string {
+/**
+ * Chuẩn hoá chuỗi để so sánh "có thay đổi không" (bỏ khoảng trắng + hoa/thường).
+ */
+export function normalizeLoose(raw: unknown): string {
   return String(raw ?? '')
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase();
 }
 
-function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
+export function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
   for (const v of values) {
     const s = String(v ?? '').trim();
     if (s) return s;

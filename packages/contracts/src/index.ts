@@ -16,6 +16,7 @@ export * from './jd-technical-matching';
 export * from './technical-matching-engine';
 export * from './ai-suggestion-weights';
 export * from './technical-criteria';
+export * from './profile-track-boundary';
 export * from './vn-admin-units';
 export * from './events';
 export * from './auth.dto';

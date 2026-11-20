@@ -1087,14 +1087,6 @@ export class JobService {
     };
   }
 
-  private unusedListMyJobsFallback(jobs: any[], company: any, recruitment: any) {
-    return jobs.map((j) =>
-      this.toListItem(j, company.companyName, {
-        recruitment: recruitment.get(j.id) ?? emptyRecruitment(),
-      }),
-    );
-  }
-
   async listBookmarkedJobs(user: AuthenticatedUser): Promise<JobListItem[]> {
     const rows = await this.prisma.jobBookmark.findMany({
       where: { userId: user.id },
