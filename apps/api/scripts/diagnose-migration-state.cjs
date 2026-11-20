@@ -13,7 +13,9 @@
  *   → Trên VPS phải dùng `db:migrate:deploy` (không dùng shadow DB) hoặc `db:push`.
  *
  * Chạy: node apps/api/scripts/diagnose-migration-state.cjs
- * Exit 0 = OK, exit 1 = có vấn đề cần xử lý.
+ *
+ * Exit code: LUÔN 0 — script này chỉ chẩn đoán, không phải lệnh deploy.
+ * Exit 1 sẽ làm `set -e` / `pnpm ... || echo` hiểu nhầm là deploy fail.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -180,20 +182,30 @@ function localMigrations() {
     }
 
     // ── 4) Trạng thái KYC của CTV ─────────────────────────────────────────
+    // Chỉ chạy được SAU khi bảng crm_partner_kyc đã tồn tại.
+    // Trước khi migrate thì bảng chưa có → bỏ qua (không phải lỗi).
     console.log('');
     console.log('=== 4) TRANG THAI KYC CUA CTV ===');
-    const byStatus = await prisma.$queryRawUnsafe(`
-      SELECT COALESCE(k.status::text, 'UNVERIFIED') AS status, count(*)::int AS c
-      FROM crm.crm_partner pt
-      LEFT JOIN crm.crm_partner_kyc k ON k.partner_id = pt.id
-      GROUP BY 1 ORDER BY 1
-    `);
-    byStatus.forEach((row) => console.log(`  ${row.status}: ${row.c}`));
-    const payable = await prisma.$queryRawUnsafe(`
-      SELECT count(*)::int AS c FROM crm.crm_commission_period WHERE status = 'payable'
-    `);
-    console.log(`  ky choi da duyet chi (status=payable): ${payable[0].c}`);
-    console.log('  → moi ky co status VERIFIED moi chi duoc (Payout Gate).');
+    if (kycTable[0].c === 0) {
+      console.log('  bang crm.crm_partner_kyc chua ton tai → migration chua chay, bo qua.');
+    } else {
+      try {
+        const byStatus = await prisma.$queryRawUnsafe(`
+          SELECT COALESCE(k.status::text, 'UNVERIFIED') AS status, count(*)::int AS c
+          FROM crm.crm_partner pt
+          LEFT JOIN crm.crm_partner_kyc k ON k.partner_id = pt.id
+          GROUP BY 1 ORDER BY 1
+        `);
+        byStatus.forEach((row) => console.log(`  ${row.status}: ${row.c}`));
+        const payable = await prisma.$queryRawUnsafe(`
+          SELECT count(*)::int AS c FROM crm.crm_commission_period WHERE status = 'payable'
+        `);
+        console.log(`  ky choi da duyet chi (status=payable): ${payable[0].c}`);
+        console.log('  → moi ky co status VERIFIED moi chi duoc (Payout Gate).');
+      } catch (err) {
+        console.log(`  doc that bai: ${err && err.message ? err.message.split('\n')[0] : String(err)}`);
+      }
+    }
   } catch (err) {
     console.error('FAIL:', err && err.message ? err.message.split('\n')[0] : String(err));
     hasProblem = true;
@@ -207,8 +219,9 @@ function localMigrations() {
     console.log('  - Neu DB chua tung chay migrate: dung `pnpm --filter @industriallink/api db:push`');
     console.log('  - Neu co migration fail: chay `node apps/api/scripts/resolve-failed-migrations.cjs`');
     console.log('  - KHONG dung `prisma migrate dev` tren VPS (shadow DB → P3006).');
-    process.exit(1);
+  } else {
+    console.log('=== KET LUAN: OK ===');
   }
-  console.log('=== KET LUAN: OK ===');
+  // Luôn exit 0 — script chỉ chẩn đoán, không được phép làm deploy fail.
   process.exit(0);
 })();

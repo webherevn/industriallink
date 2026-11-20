@@ -45,6 +45,7 @@ pnpm --filter @industriallink/api db:generate
 
 # Chẩn đoán trạng thái migration TRƯỚC khi deploy (giúp biết DB production
 # đã từng chạy migrate chưa, migration nào đang fail, object KYC đã có chưa).
+# Script chỉ in thông tin, LUÔN exit 0 — không bao giờ làm deploy fail.
 pnpm --filter @industriallink/api db:diagnose || echo "WARN: chẩn đoán migration — xem log ở trên"
 
 # Phục hồi migration đã fail trước đó (nếu có) để migrate deploy không bị kẹt
@@ -59,7 +60,6 @@ else
   # Migration KYC chỉ ADD (enum + bảng + cột) → db push không mất dữ liệu.
   pnpm --filter @industriallink/api db:push
 fi
-
 # Build contracts trước (dist bị gitignore)
 pnpm --filter @industriallink/contracts build
 pnpm --filter @industriallink/vn-admin build

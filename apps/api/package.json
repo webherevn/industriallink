@@ -16,6 +16,7 @@
     "db:migrate:dev": "node scripts/guard-migrate-dev.cjs && dotenv -e ../../.env -- prisma migrate dev",
     "db:migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "db:diagnose": "node scripts/diagnose-migration-state.cjs",
+    "db:probe": "node scripts/probe-db-strategy.cjs",
     "db:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
     "db:seed-billing": "dotenv -e ../../.env -- ts-node prisma/seed-billing.ts",
     "db:backfill-timeline-labels": "dotenv -e ../../.env -- ts-node prisma/backfill-timeline-labels.ts",
