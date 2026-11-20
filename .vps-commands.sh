@@ -1,5 +1,5 @@
 # Lệnh deploy VPS — inlink.vn
-# Commit: f96c466  feat(ctv): nang cap toan dien Cong tac vien - xac thuc CCCD 2 mat, khoa cong chi tra ngay 10
+# Commit: ee02b36  fix(deploy): chuan hoa lenh migrate (P3006) + migration KYC idempotent
 # Chạy trên VPS (root), thư mục deploy: /www/wwwroot/inlink
 #
 # ⚠ LẦN NÀY CÓ ĐỔI SCHEMA DB → BẮT BUỘC chạy migrate.
