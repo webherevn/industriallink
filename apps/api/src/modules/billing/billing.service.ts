@@ -78,6 +78,7 @@ import {
 import { createDomainEvent } from '../../shared/domain/domain-event';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { defaultActionCostRows, isBillableAction, policyCostForAction } from './billing-action-cost';
+import { canAttachJobPackage } from './job-package-source.util';
 import { JobPackageService, PACKAGE_TIER } from './job-package.service';
 import { SourcingService } from './sourcing.service';
 
@@ -1042,6 +1043,10 @@ export class BillingService implements OnModuleInit {
    *
    * Gồm tin nháp (DRAFT), tin đã đóng/hết hạn, và tin đang dùng gói FREE
    * (khám phá) — những tin có thể "đăng lại" bằng gói trả phí.
+   *
+   * ⚠ (A) KHÓA CHIỀU 1: tin đang chạy bằng gói Săn nhân sự (chiến dịch ACTIVE)
+   * vẫn được liệt kê để NTD hiểu vì sao không gắn được, nhưng `eligible = false`
+   * kèm `disabledReason`.
    */
   async listApplicableJobs(companyId: string): Promise<RecruiterApplicableJobView[]> {
     const now = new Date();
@@ -1064,16 +1069,53 @@ export class BillingService implements OnModuleInit {
       take: 100,
       include: { jobPackage: { select: { code: true, packageType: true } } },
     });
-    return rows.map((row) => ({
-      id: row.id,
-      code: row.code,
-      title: row.title,
-      status: row.status,
-      jobPackageCode: row.jobPackage?.code ?? null,
-      deadline: row.deadline ? row.deadline.toISOString() : null,
-      publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
-      createdAt: row.createdAt.toISOString(),
-    }));
+
+    // (A) Tin đang chạy gói Săn nhân sự → không gắn được gói Tin đăng.
+    const huntOwnedJobIds = await this.huntOwnedJobIds(
+      companyId,
+      rows.map((r) => r.id),
+    );
+
+    return rows.map((row) => {
+      const isHuntOwned = huntOwnedJobIds.has(row.id);
+      const { eligible, disabledReason } = canAttachJobPackage({
+        isHuntOwned,
+        jobStatus: row.status,
+      });
+      return {
+        id: row.id,
+        code: row.code,
+        title: row.title,
+        status: row.status,
+        jobPackageCode: row.jobPackage?.code ?? null,
+        deadline: row.deadline ? row.deadline.toISOString() : null,
+        publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+        createdAt: row.createdAt.toISOString(),
+        eligible,
+        disabledReason,
+      };
+    });
+  }
+
+  /**
+   * Tập id tin đang thuộc 1 chiến dịch Săn nhân sự ACTIVE (gói Săn còn hiệu lực).
+   *
+   * Dùng chung cho: khóa chiều 1 (gắn gói Tin đăng), khóa chiều 2 (gắn gói Tin săn)
+   * và bộ lọc nguồn tin (`sourceCounts`).
+   */
+  async huntOwnedJobIds(companyId: string, jobIds?: string[]): Promise<Set<string>> {
+    if (jobIds && jobIds.length === 0) return new Set();
+    const rows = await this.prisma.huntCampaign.findMany({
+      where: {
+        companyId,
+        jobId: { not: null },
+        status: { not: 'closed' },
+        package: { status: 'ACTIVE' },
+        ...(jobIds && jobIds.length > 0 ? { jobId: { in: jobIds, not: null } } : {}),
+      },
+      select: { jobId: true },
+    });
+    return new Set(rows.map((r) => r.jobId).filter((id): id is string => Boolean(id)));
   }
 
   /**

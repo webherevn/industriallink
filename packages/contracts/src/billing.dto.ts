@@ -279,6 +279,36 @@ export interface RecruiterApplicableJobView {
   /** Ngày đăng. */
   publishedAt: string | null;
   createdAt: string;
+  /**
+   * Tin này có gắn được gói Tin đăng không.
+   * `false` khi tin đang chạy bằng gói Săn nhân sự (chiến dịch ACTIVE).
+   */
+  eligible: boolean;
+  /** Lý do không gắn được (chỉ có khi `eligible === false`). */
+  disabledReason: string | null;
+}
+
+/**
+ * Nguồn gói nuôi tin tuyển dụng (loại trừ lẫn nhau).
+ * - `HUNT`: tin đang có chiến dịch Săn ACTIVE / được tạo bởi `BillingHuntPackage`.
+ * - `STANDARD`: mọi tin còn lại (gói Khám phá / Tin đăng / Tin đăng Plus / Doanh nghiệp / Nháp).
+ */
+export type RecruiterJobSource = 'STANDARD' | 'HUNT';
+
+/** Bộ lọc nguồn tin cho "Danh sách tin đăng". */
+export type RecruiterJobSourceFilter = 'ALL' | RecruiterJobSource;
+
+/** Số đếm theo nguồn (tính theo bộ lọc từ khoá / thời gian / trạng thái hiện tại). */
+export interface RecruiterJobSourceCounts {
+  all: number;
+  standard: number;
+  hunt: number;
+}
+
+/** Kết quả lọc nguồn + số đếm đi kèm. */
+export interface RecruiterJobSourceFilterResult {
+  source: RecruiterJobSourceFilter;
+  sourceCounts: RecruiterJobSourceCounts;
 }
 
 export interface AdminAssignCompanySourcingPlanRequest {
@@ -299,6 +329,19 @@ export interface RecruiterConsumeSourcingRequest {
   jobId?: string;
   title?: string;
   note?: string;
+  /**
+   * Chế độ "Copy nội dung JD sang Tin săn mới".
+   *
+   * Khi `true`: hệ thống TẠO 1 bản ghi `Job` MỚI (copy tiêu đề, mô tả, yêu cầu, lương,
+   * địa điểm, kỹ năng, tiêu chí AI) và gắn gói Săn vào tin MỚI này.
+   * Tin cũ KHÔNG bị ghi đè `jobId` — mọi dữ liệu tin cũ giữ nguyên.
+   */
+  copyJdToNewJob?: boolean;
+  /**
+   * Tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn (chỉ áp dụng khi
+   * `copyJdToNewJob === true`) — tránh hiển thị 2 tin trùng ngoài trang ứng viên.
+   */
+  closeSourceJob?: boolean;
 }
 
 export interface RecruiterCreateCheckoutRequest {

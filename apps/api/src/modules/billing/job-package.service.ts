@@ -10,6 +10,7 @@ import type {
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { toVnCalendarDate } from '../../shared/domain/vn-date.util';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { HUNT_OWNED_JOB_REASON } from './job-package-source.util';
 
 /** Tiền tố mã gói theo loại: JD-ST (Tin đăng), JD-PL (Plus), JD-DN (Doanh nghiệp), JD-FR (Khám phá). */
 const PACKAGE_PREFIX: Record<RecruiterJobPackageType, string> = {
@@ -478,6 +479,10 @@ export class JobPackageService {
       });
       if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng cần gắn gói.');
 
+      // (A) KHÓA CHIỀU 1 — Tin đang chạy bằng gói Săn nhân sự thì KHÔNG được gắn
+      // thêm gói Tin đăng (1 tin chỉ có 1 nguồn gói trả phí).
+      await this.assertNotHuntOwned(tx, job.id);
+
       // --- Kích hoạt gói nếu đang UNUSED (cộng Credit đúng 1 lần) ---
       const activation = await this.activatePackageInTx(tx, pkg, actor, companyId, now);
 
@@ -551,13 +556,36 @@ export class JobPackageService {
   }
 
   /**
+   * (A) KHÓA CHIỀU 1 — Chặn gắn Gói Tin đăng vào tin đang chạy gói Săn nhân sự.
+   *
+   * Một tin `PUBLISHED` chỉ được nuôi bởi DUY NHẤT 1 nguồn gói trả phí:
+   * `JOB_PACKAGE` HOẶC `HUNT_PACKAGE`. Tin đang có chiến dịch Săn `ACTIVE`
+   * (gói Săn còn hiệu lực) → không được gắn thêm gói Tin đăng.
+   */
+  async assertNotHuntOwned(
+    tx: Prisma.TransactionClient,
+    jobId: string,
+  ): Promise<void> {
+    const hunt = await tx.huntCampaign.findFirst({
+      where: {
+        jobId,
+        status: { not: 'closed' },
+        package: { status: 'ACTIVE' },
+      },
+      select: { id: true },
+    });
+    if (hunt) {
+      throw new BadRequestException(HUNT_OWNED_JOB_REASON);
+    }
+  }
+
+  /**
    * Khoá dòng gói (`FOR UPDATE`) để tránh race khi 2 request dùng cùng 1 gói.
    */
   async lockPackageRow(
     tx: Prisma.TransactionClient,
     packageId: string,
-  ): Promise<LockedJobPackageRow> {
-    const locked = await tx.$queryRaw<LockedJobPackageRow[]>`
+  ): Promise<LockedJobPackageRow> {    const locked = await tx.$queryRaw<LockedJobPackageRow[]>`
       SELECT id, code, status, company_id, package_name, total_jobs, used_jobs,
              credits_granted, credits_included, duration_days, expires_at, activation_deadline_at
       FROM billing.billing_job_package

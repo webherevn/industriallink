@@ -36,7 +36,10 @@ import {
 } from '@industriallink/contracts';
 import { looksLikeUuid } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { addVnCalendarDays } from '../../shared/domain/vn-date.util';
+import { toSeoSlug } from '@industriallink/contracts';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { canAttachHuntPackage } from './job-package-source.util';
 import { HuntPackageService } from './hunt-package.service';
 
 const SCOPE_FOR_KIND: Record<SourcingQuotaKind, string[] | null> = {
@@ -695,18 +698,61 @@ export class SourcingService {
           );
         }
 
-        const existingJob = await tx.job.findFirst({
+        const sourceJob = await tx.job.findFirst({
           where: { id: validJobId, companyId, isDeleted: false },
-          select: { id: true, title: true, deadline: true, status: true, publishedAt: true },
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            description: true,
+            requirements: true,
+            benefits: true,
+            industry: true,
+            subIndustry: true,
+            department: true,
+            jobLevel: true,
+            employmentType: true,
+            location: true,
+            headcount: true,
+            deadline: true,
+            experienceBand: true,
+            salaryMin: true,
+            salaryMax: true,
+            jobTrack: true,
+            salesCriteria: true,
+            technicalCriteria: true,
+            status: true,
+            publishedAt: true,
+            tenantId: true,
+            jobPackageId: true,
+            jobPackage: { select: { packageType: true } },
+            skills: { select: { skillId: true, name: true, required: true, weight: true } },          },
         });
-        if (!existingJob) {
+        if (!sourceJob) {
           throw new NotFoundException('Không tìm thấy tin tuyển dụng (JD) đã chọn.');
+        }
+
+        // (A) KHÓA CHIỀU 2 — Tin đang chạy bằng gói Tin đăng TRẢ PHÍ thì KHÔNG được
+        // gắn trực tiếp gói Tin săn (1 tin chỉ có 1 nguồn gói trả phí).
+        // Muốn săn cho vị trí đó → dùng luồng "Copy nội dung JD sang Tin săn mới".
+        if (!input.copyJdToNewJob) {
+          const { eligible, disabledReason } = canAttachHuntPackage({
+            jobStatus: sourceJob.status,
+            jobPackageType: sourceJob.jobPackage?.packageType ?? null,
+            isHuntOwnedByOther: false,
+          });
+          if (!eligible) {
+            throw new BadRequestException(
+              disabledReason ??
+                'Tin này đang chạy bằng gói Tin đăng trả phí — không thể gắn thêm gói Tin săn.',
+            );
+          }
         }
 
         // Chọn gói Săn cụ thể: theo packageId truyền lên, hoặc gói UNUSED lâu nhất.
         const targetPkg = await this.huntPackages.findUnused(companyId, input.packageId ?? null);
         const pkgDuration = targetPkg.durationDays > 0 ? targetPkg.durationDays : SOURCING_CYCLE_DAYS;
-        const title = existingJob.title || input.title?.trim() || 'Tin Săn tuyển dụng';
+        const title = sourceJob.title || input.title?.trim() || 'Tin Săn tuyển dụng';
 
         // === 1 TRANSACTION DUY NHẤT ===
         // Tạo chiến dịch + chuyển gói UNUSED → ACTIVE + cộng Credit vào Ví dùng chung.
@@ -714,12 +760,29 @@ export class SourcingService {
           where: { id: companyId },
           select: { tenantId: true },
         });
+        const tenantId = company?.tenantId ?? sourceJob.tenantId ?? 'default';
+
+        // (A) Chế độ "Copy nội dung JD sang Tin săn mới": tạo bản ghi Job MỚI hoàn toàn,
+        // KHÔNG ghi đè `jobId` của tin cũ. Tin cũ giữ nguyên toàn bộ dữ liệu.
+        let targetJobId = sourceJob.id;
+        let copiedJobId: string | null = null;
+        if (input.copyJdToNewJob) {
+          const newJob = await this.copyJobForHunt(tx, {
+            sourceJob,
+            companyId,
+            tenantId,
+            actorUserId: actorId,
+          });
+          targetJobId = newJob.id;
+          copiedJobId = newJob.id;
+        }
+
         const activated = await this.huntPackages.activateWithCampaign(tx, {
           companyId,
-          tenantId: company?.tenantId ?? 'default',
+          tenantId,
           packageId: targetPkg.id,
           assignmentId: assignment.id,
-          jobId: validJobId,
+          jobId: targetJobId,
           title,
           actorUserId: actorId,
           actorEmail: actor.email ?? null,
@@ -737,19 +800,28 @@ export class SourcingService {
           });
         }
 
-        const baseDate =
-          existingJob.deadline && existingJob.deadline.getTime() > Date.now()
-            ? existingJob.deadline
-            : new Date();
+        // (A) Đồng bộ nguồn gói & thời hạn khi chuyển sang Tin săn:
+        // - Hạn hiển thị tin = now + 30 ngày (KHÔNG cộng dồn thành 60 ngày).
+        // - Ngắt liên kết gói Tin đăng cũ (nếu có) → tin thuộc nguồn gói Săn.
+        const huntDeadline = addVnCalendarDays(new Date(), pkgDuration);
         await tx.job.update({
-          where: { id: existingJob.id },
+          where: { id: targetJobId },
           data: {
-            deadline: addUtcDays(baseDate, pkgDuration),
+            deadline: huntDeadline,
+            jobPackageId: null,
             status: 'published',
             moderationStatus: 'approved',
-            publishedAt: existingJob.publishedAt ?? new Date(),
+            publishedAt: sourceJob.publishedAt ?? new Date(),
           },
         });
+
+        // Tuỳ chọn: tự động đóng tin đăng thường cũ (tránh 2 tin trùng ngoài trang ứng viên).
+        if (input.copyJdToNewJob && input.closeSourceJob && sourceJob.id !== targetJobId) {
+          await tx.job.update({
+            where: { id: sourceJob.id },
+            data: { status: 'closed', pausedAt: null },
+          });
+        }
       } else {
         if (!campaignId) {
           throw new BadRequestException(
@@ -1006,6 +1078,141 @@ export class SourcingService {
     });
 
     return this.getWorkspace(companyId);
+  }
+
+  /**
+   * (A) "Copy nội dung JD sang Tin săn mới" — TẠO 1 bản ghi `Job` MỚI hoàn toàn.
+   *
+   * Copy: tiêu đề, mô tả, yêu cầu, lợi ích, lương, địa điểm, kỹ năng, tiêu chí AI,
+   * ngành, cấp bậc, hình thức làm việc, kinh nghiệm.
+   *
+   * KHÔNG chạm / KHÔNG ghi đè tin cũ (`jobId` của tin cũ giữ nguyên).
+   * Tin mới KHÔNG gắn gói tin đăng (`jobPackageId = null`) → nguồn gói là HUNT_PACKAGE.
+   */
+  private async copyJobForHunt(
+    tx: Prisma.TransactionClient,
+    input: {
+      sourceJob: {
+        id: string;
+        title: string;
+        description: string;
+        requirements: string | null;
+        benefits: string | null;
+        industry: string | null;
+        subIndustry: string | null;
+        department: string | null;
+        jobLevel: string | null;
+        employmentType: string | null;
+        location: string | null;
+        headcount: number | null;
+        experienceBand: string | null;
+        salaryMin: number | null;
+        salaryMax: number | null;
+        jobTrack: string | null;
+        salesCriteria: unknown;
+        technicalCriteria: unknown;
+        tenantId: string;
+        skills: Array<{
+          skillId: string | null;
+          name: string;
+          required: boolean;
+          weight: number;
+        }>;
+      };
+      companyId: string;
+      tenantId: string;
+      actorUserId: string | null;
+    },
+  ): Promise<{ id: string; code: string }> {
+    const { sourceJob, companyId, tenantId, actorUserId } = input;
+
+    // Mã tin mới: JOB-YYYY-NNNNNN (dùng sequence chung, không ghi đè tin cũ).
+    const code = await this.nextJobCode(tx);
+
+    // Slug duy nhất cho tin mới.
+    const slug = await this.allocateSlugForJob(tx, {
+      title: sourceJob.title,
+      code,
+      industry: sourceJob.industry,
+      location: sourceJob.location,
+    });
+
+    const created = await tx.job.create({
+      data: {
+        code,
+        slug,
+        tenantId,
+        companyId,
+        title: sourceJob.title,
+        description: sourceJob.description,
+        requirements: sourceJob.requirements,
+        benefits: sourceJob.benefits,
+        industry: sourceJob.industry,
+        subIndustry: sourceJob.subIndustry,
+        department: sourceJob.department,
+        jobLevel: sourceJob.jobLevel,
+        employmentType: sourceJob.employmentType,
+        location: sourceJob.location,
+        headcount: sourceJob.headcount ?? 1,
+        experienceBand: sourceJob.experienceBand,
+        salaryMin: sourceJob.salaryMin,
+        salaryMax: sourceJob.salaryMax,
+        jobTrack: sourceJob.jobTrack,
+        salesCriteria: (sourceJob.salesCriteria ?? undefined) as never,
+        technicalCriteria: (sourceJob.technicalCriteria ?? undefined) as never,
+        // Tin mới do gói Săn nuôi → KHÔNG gắn gói tin đăng.
+        jobPackageId: null,
+        status: 'published',
+        moderationStatus: 'approved',
+        publishedAt: new Date(),
+        createdBy: actorUserId,
+        skills: {
+          create: sourceJob.skills
+            .filter((s) => Boolean(s.skillId))
+            .map((s) => ({
+              skillId: s.skillId as string,
+              name: s.name,
+              required: s.required,
+              weight: s.weight,
+            })),
+        },
+      },
+      select: { id: true, code: true },
+    });
+
+    return created;
+  }
+
+  /** Sinh mã JOB-YYYY-NNNNNN cho tin mới (dùng sequence chung của hệ thống). */
+  private async nextJobCode(tx: Prisma.TransactionClient): Promise<string> {
+    const year = new Date().getFullYear();
+    const key = `JOB-${year}`;
+    const seq = await tx.sequence.upsert({
+      where: { key },
+      create: { key, value: 1n },
+      update: { value: { increment: 1n } },
+    });
+    return `JOB-${year}-${String(seq.value).padStart(6, '0')}`;
+  }
+
+  /** Cấp slug duy nhất cho tin mới. */
+  private async allocateSlugForJob(
+    tx: Prisma.TransactionClient,
+    input: { title: string; code: string; industry: string | null; location: string | null },
+  ): Promise<string> {
+    const base = toSeoSlug(input.title) || 'tin-tuyen-dung';
+    const rows = await tx.job.findMany({
+      where: { slug: { startsWith: base } },
+      select: { slug: true },
+    });
+    const taken = rows.map((r) => r.slug).filter((s): s is string => Boolean(s));
+    let slug = base;
+    let n = 1;
+    while (taken.includes(slug)) {
+      slug = `${base}-${n}`;
+      n += 1;
+    }
+    return slug;
   }
 
   /**

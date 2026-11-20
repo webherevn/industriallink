@@ -150,8 +150,22 @@ export interface JobListItem {
   jobPackageName?: string | null;
   /** Id gói tin đăng đã dùng lượt đăng cho tin này (dùng để lọc "Xem tin đã gắn"). */
   jobPackageId?: string | null;
+  /** Loại gói tin đăng (FREE / STANDARD / PLUS / ENTERPRISE). */
+  jobPackageType?: string | null;
   /** Kết quả tuyển dụng hiện tại. Chỉ có ở danh sách tin của nhà tuyển dụng. */
   recruitment?: JobRecruitmentResult;
+  /**
+   * Nguồn gói nuôi tin này (loại trừ lẫn nhau).
+   * - `HUNT`: tin đang có chiến dịch Săn nhân sự ACTIVE.
+   * - `STANDARD`: tin chạy bằng gói Tin đăng / Khám phá / Nháp.
+   */
+  source?: 'STANDARD' | 'HUNT';
+  /** Mã gói Săn (vd "TS-000101") khi tin thuộc nhóm HUNT. */
+  huntPackageCode?: string | null;
+  /** Mã chiến dịch Săn (vd "HD-000001") khi tin thuộc nhóm HUNT. */
+  huntCampaignCode?: string | null;
+  /** Trạng thái gói Săn: ACTIVE / EXPIRED / UNUSED. */
+  huntPackageStatus?: string | null;
 }
 
 /** Số hồ sơ theo trạng thái hiện tại của một tin. */
