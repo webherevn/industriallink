@@ -59,3 +59,4 @@ export * from './web-vitals.dto';
 export * from './billing.dto';
 export * from './vat';
 export * from './crm.types';
+export * from './ctv-kyc.dto';

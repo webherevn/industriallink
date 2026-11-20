@@ -2146,6 +2146,7 @@ model CrmPartner {
   signups     CrmReferralSignup[]
   periods     CrmCommissionPeriod[]
   wallet      CrmCommissionWallet?
+  kyc         CrmPartnerKyc?
 
   @@map("crm_partner")
   @@schema("crm")
@@ -2168,6 +2169,18 @@ model CrmReferralSignup {
   @@schema("crm")
 }
 
+/// Trạng thái xác thực CCCD 2 mặt của một cộng tác viên.
+/// UNVERIFIED = chưa nộp. PENDING = đã nộp, chờ CRM Admin duyệt.
+/// VERIFIED = đã duyệt, được phép nhận tiền. REJECTED = bị từ chối, có lý do.
+enum CrmKycStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+
+  @@schema("crm")
+}
+
 /// Khóa mã số thuế cho một cộng tác viên. Không gán gói, không tính hoa hồng.
 model CrmPartnerClaim {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2175,12 +2188,55 @@ model CrmPartnerClaim {
   companyName  String   @map("company_name")
   taxCode      String   @unique @map("tax_code")
   contactPhone String   @map("contact_phone")
+  /// PROTECTING = đang giữ 30 ngày. REGISTERED = doanh nghiệp đã đăng ký.
+/// CONVERTED = đã phát sinh đơn. EXPIRED = hết hạn, tự nhả MST.
+  status       String   @default("PROTECTING")
+  /// Hạn bảo vệ. Mặc định createdAt + 30 ngày.
+  expiresAt    DateTime @map("expires_at")
   createdAt    DateTime @default(now()) @map("created_at")
 
   partner CrmPartner @relation(fields: [partnerId], references: [id])
 
   @@index([partnerId])
+  @@index([status, expiresAt])
   @@map("crm_partner_claim")
+  @@schema("crm")
+}
+
+/// Hồ sơ xác thực CCCD 2 mặt + tài khoản ngân hàng của một cộng tác viên.
+/// Ảnh CCCD nằm trong Object Storage private (không public). DB chỉ lưu key.
+model CrmPartnerKyc {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId          String         @unique @map("partner_id") @db.Uuid
+  status             CrmKycStatus   @default(UNVERIFIED)
+  /// Họ và tên đúng theo CCCD.
+  fullName           String?        @map("full_name")
+  /// 12 chữ số. Unique khi status = VERIFIED (kiểm ở tầng service).
+  idNumber           String?        @map("id_number")
+  idIssuedDate       DateTime?      @map("id_issued_date")
+  idIssuedPlace      String?        @map("id_issued_place")
+  /// Mã số thuế cá nhân để khấu trừ thuế TNCN.
+  personalTaxCode    String?        @map("personal_tax_code")
+  phone              String?
+  /// Key ảnh trong storage private. Không phải URL công khai.
+  cccdFrontKey       String?        @map("cccd_front_key")
+  cccdBackKey        String?        @map("cccd_back_key")
+  bankCode           String?        @map("bank_code")
+  bankName           String?        @map("bank_name")
+  bankAccountNumber  String?        @map("bank_account_number")
+  bankAccountHolder  String?        @map("bank_account_holder")
+  kycSubmittedAt     DateTime?      @map("kyc_submitted_at")
+  kycReviewedAt      DateTime?      @map("kyc_reviewed_at")
+  kycReviewedById    String?        @map("kyc_reviewed_by_id") @db.Uuid
+  kycRejectReason    String?        @map("kyc_reject_reason")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  partner CrmPartner @relation(fields: [partnerId], references: [id])
+
+  @@index([status])
+  @@index([idNumber])
+  @@map("crm_partner_kyc")
   @@schema("crm")
 }
 
@@ -2279,6 +2335,14 @@ model CrmCommissionPeriod {
   approvedAt        DateTime? @map("approved_at")
   paidByUserId      String?   @map("paid_by_user_id") @db.Uuid
   paidAt            DateTime? @map("paid_at")
+  /// Tổng hoa hồng kỳ TRƯỚC thuế (trùng commissionVnd khi ghi chi).
+  grossAmountVnd    BigInt?   @map("gross_amount_vnd")
+  /// Thuế TNCN 10% khi gross >= 2.000.000 và CTV là cá nhân. 0 khi dưới ngưỡng.
+  pitTaxAmountVnd   BigInt?   @map("pit_tax_amount_vnd")
+  /// Thực nhận = gross - pitTax.
+  netPaidAmountVnd  BigInt?   @map("net_paid_amount_vnd")
+  /// Mã giao dịch / UNC do kế toán nhập.
+  transferRef       String?   @map("transfer_ref")
 
   partner  CrmPartner              @relation(fields: [partnerId], references: [id])
   entries  CrmCommissionEntry[]

@@ -1,5 +1,7 @@
 /** CRM: lead, phễu, nhật ký, hóa đơn đã xuất, hoa hồng chờ đối soát. Không gán gói và không lệnh chi. Công nợ chỉ có khi chốt báo giá Enterprise theo đợt. */
 
+import type { CrmKycStatus } from './ctv-kyc.dto';
+
 export const CRM_LEAD_JOB_TITLES = ['Giám đốc', 'Phó giám đốc', 'HR', 'HCNS', 'Trưởng phòng nhân sự', 'Tuyển dụng', 'Kế toán', 'Hành chính'] as const;
 export const CRM_LEAD_ORG_TYPES = ['Công ty TNHH', 'Công ty cổ phần', 'Doanh nghiệp tư nhân', 'Hộ kinh doanh', 'Hợp tác xã', 'Doanh nghiệp nhà nước', 'Công ty hợp danh'] as const;
 export const CRM_LEAD_ORG_FIELDS = ['Sản xuất', 'Thương mại', 'Dịch vụ', 'Xây dựng', 'Logistics', 'Nông nghiệp', 'Giáo dục', 'Y tế', 'Công nghệ'] as const;
@@ -305,7 +307,16 @@ export interface CrmPartnerClaimView {
   taxCode: string;
   contactPhone: string;
   createdAt: string;
+  /** PROTECTING | REGISTERED | CONVERTED | EXPIRED. */
+  status: CrmTaxLockStatus;
+  /** Hạn bảo vệ MST (30 ngày kể từ lúc khóa). */
+  expiresAt: string;
+  /** Số ngày còn lại trước khi hết hạn. */
+  daysRemaining: number;
 }
+
+/** Trạng thái vòng đời của một khóa mã số thuế. */
+export type CrmTaxLockStatus = 'PROTECTING' | 'REGISTERED' | 'CONVERTED' | 'EXPIRED';
 
 export interface CreateCrmPartnerClaimRequest {
   companyName: string;
@@ -323,6 +334,30 @@ export interface CrmPartnerSelfView {
   walletTxns: CrmWalletTxnView[];
   /** Khoản đã ghi sau thanh toán online. Chỉ chờ đối soát. */
   commissions: CrmCommissionEntryView[];
+  /** Kỳ chi trả của chính CTV: trước thuế, thuế TNCN, thực nhận, mã UNC. */
+  payoutPeriods: CrmPayoutPeriodView[];
+  /** Trạng thái xác thực CCCD của CTV (null nếu chưa có hồ sơ). */
+  kycStatus: CrmKycStatus | null;
+}
+
+/** Một kỳ chi trả hiển thị cho CTV. */
+export interface CrmPayoutPeriodView {
+  periodId: string;
+  /** YYYY-MM. */
+  periodMonth: string;
+  /** Tổng hoa hồng kỳ trước thuế. */
+  grossAmountVnd: string;
+  /** Thuế TNCN 10% (0 khi dưới ngưỡng 2.000.000). */
+  pitTaxAmountVnd: string;
+  /** Thực nhận = trước thuế - thuế. */
+  netPaidAmountVnd: string;
+  /** Mã giao dịch / UNC do kế toán nhập. */
+  transferRef: string | null;
+  /** paid = đã chi. held = tạm giữ do chưa xác thực. */
+  status: 'paid' | 'held';
+  /** Trạng thái KYC của CTV. */
+  kycStatus: CrmKycStatus;
+  paidAt: string | null;
 }
 
 export type CrmWalletTxnKind = 'credit' | 'debit';
@@ -415,6 +450,16 @@ export interface CrmCommissionPeriodView {
   approvedAt: string | null;
   /** Có khi kế toán đã ghi chi và ví đã trừ. */
   paidAt: string | null;
+  /** Trạng thái xác thực CCCD của CTV — quyết định có được chi trả hay không. */
+  kycStatus: CrmKycStatus;
+  /** Tổng hoa hồng kỳ trước thuế. Có khi kỳ đã chi. */
+  grossAmountVnd: string | null;
+  /** Thuế TNCN khấu trừ 10% khi gross >= 2.000.000đ. Có khi kỳ đã chi. */
+  pitTaxAmountVnd: string | null;
+  /** Số tiền thực nhận = gross - thuế. Có khi kỳ đã chi. */
+  netPaidAmountVnd: string | null;
+  /** Mã giao dịch / UNC do kế toán nhập khi ghi đã chi. */
+  transferRef: string | null;
 }
 
 export interface CrmCommissionPeriodListView {
@@ -424,6 +469,12 @@ export interface CrmCommissionPeriodListView {
 
 export interface CloseCrmCommissionMonthRequest {
   periodMonth: string;
+}
+
+/** Xác nhận đã chi một kỳ hoa hồng. Có mã giao dịch / UNC do kế toán nhập. */
+export interface MarkCrmCommissionPaidRequest {
+  /** Mã giao dịch / UNC. Không bắt buộc nhưng nên có để đối soát. */
+  transferRef?: string | null;
 }
 
 export interface CloseCrmCommissionMonthResult extends CrmCommissionPeriodListView {

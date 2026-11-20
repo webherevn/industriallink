@@ -7,6 +7,7 @@ import type {
   CrmCommissionLedgerView,
   CrmCommissionPeriodListView,
   CrmCommissionPeriodView,
+  MarkCrmCommissionPaidRequest,
   CrmCommissionView,
   CrmPayoutDayView,
   CrmVatView,
@@ -315,8 +316,14 @@ export function allowCrmCommissionPayout(periodId: string): Promise<CrmCommissio
   return apiRequest<CrmCommissionPeriodView>(`/crm/commission-periods/${periodId}/approve`, { method: 'POST' });
 }
 
-export function markCrmCommissionPaid(periodId: string): Promise<CrmCommissionPeriodView> {
-  return apiRequest<CrmCommissionPeriodView>(`/crm/commission-periods/${periodId}/pay`, { method: 'POST' });
+export function markCrmCommissionPaid(
+  periodId: string,
+  body: MarkCrmCommissionPaidRequest = {},
+): Promise<CrmCommissionPeriodView> {
+  return apiRequest<CrmCommissionPeriodView>(`/crm/commission-periods/${periodId}/pay`, {
+    method: 'POST',
+    body,
+  });
 }
 
 export function fetchCrmPartners(): Promise<CrmPartnerView[]> {

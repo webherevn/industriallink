@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { errorText, formatVnd, matchesQuery } from '@/components/crm/format';
 import { createCrmPartner, fetchCrmPartners } from '@/lib/crm';
+import { fetchCrmKycList } from '@/lib/ctv-kyc';
+import { CrmKycPanel } from '@/components/crm/kyc-panel';
 
 export function currentVietnamMonth(): string {
   const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -30,7 +32,13 @@ export function CrmPartnersPanel({ initialQuery = '' }: { initialQuery?: string 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'list' | 'kyc'>('list');
   const month = currentVietnamMonth();
+  const kycBadge = useQuery({
+    queryKey: ['crm-kyc-badge'],
+    queryFn: () => fetchCrmKycList({ status: 'PENDING' }),
+  });
+  const pendingKycCount = kycBadge.data?.pendingCount ?? 0;
 
   const add = useMutation({
     mutationFn: () => createCrmPartner({ name, phone }),
@@ -61,6 +69,38 @@ export function CrmPartnersPanel({ initialQuery = '' }: { initialQuery?: string 
       search={{ value: query, onChange: setQuery }}
       footnote="Khóa mã số thuế nằm trong hồ sơ. Một mã số thuế chỉ thuộc một cộng tác viên."
     >
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setTab('list')}
+          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+            tab === 'list'
+              ? 'bg-[#072348] text-white'
+              : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-[#f6f4ff]'
+          }`}
+        >
+          Danh sách cộng tác viên
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('kyc')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+            tab === 'kyc'
+              ? 'bg-[#072348] text-white'
+              : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-[#f6f4ff]'
+          }`}
+        >
+          Duyệt xác thực CTV (KYC)
+          {pendingKycCount > 0 ? (
+            <span className="rounded-full bg-[#ff4d4f] px-2 py-0.5 text-[10px] font-bold text-white">
+              {pendingKycCount}
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      {tab === 'kyc' ? <CrmKycPanel /> : (
+      <>
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-[1fr_1fr_auto]">
         <input className={crmFieldClass} placeholder="Tên cộng tác viên" value={name} onChange={(event) => setName(event.target.value)} required />
         <input className={crmFieldClass} placeholder="Số điện thoại" value={phone} onChange={(event) => setPhone(event.target.value)} required />
@@ -104,6 +144,8 @@ export function CrmPartnersPanel({ initialQuery = '' }: { initialQuery?: string 
           </section>
         </div>
       ) : null}
+      </>
+      )}
     </CrmFrame>
   );
 }

@@ -42,6 +42,7 @@ import { BrandSidebarLockup } from '@/components/brand-logo';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
+import { fetchCrmKycList } from '@/lib/ctv-kyc';
 import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
 
 const NAV = [
@@ -81,7 +82,7 @@ const NAV = [
   {
     title: 'Tăng trưởng',
     items: [
-      { href: '/crm/partners', label: 'Cộng tác viên', icon: Users },
+      { href: '/crm/partners', label: 'Cộng tác viên', icon: Users, badge: 'kyc' as const },
       { href: '/crm/signups', label: 'Đăng ký chưa trả', icon: UserPlus },
     ],
   },
@@ -127,6 +128,15 @@ export function CrmShell({ children }: { children: ReactNode }) {
     queryFn: fetchMe,
     enabled: hasToken,
   });
+
+  // Badge đỏ: số hồ sơ xác thực CTV đang chờ duyệt.
+  const { data: kycBadge } = useQuery({
+    queryKey: ['crm-kyc-badge'],
+    queryFn: () => fetchCrmKycList({ status: 'PENDING' }),
+    enabled: hasToken,
+    retry: false,
+  });
+  const pendingKycCount = kycBadge?.pendingCount ?? 0;
 
   useEffect(() => {
     if (!sessionReady) return;
@@ -218,6 +228,11 @@ export function CrmShell({ children }: { children: ReactNode }) {
                     >
                       <Icon className={clsx('h-4 w-4 shrink-0', active ? 'opacity-95' : 'opacity-80')} />
                       {item.label}
+                      {'badge' in item && item.badge === 'kyc' && pendingKycCount > 0 ? (
+                        <span className="ml-auto rounded-full bg-[#ff4d4f] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                          {pendingKycCount}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 );

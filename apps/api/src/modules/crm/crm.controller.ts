@@ -29,6 +29,7 @@ import {
   type CrmCommissionPeriodView,
   type CloseCrmCommissionMonthRequest,
   type CloseCrmCommissionMonthResult,
+  type MarkCrmCommissionPaidRequest,
   type CrmPartnerClaimView,
   type CrmPartnerProfileView,
   type CrmPartnerView,
@@ -464,12 +465,13 @@ export class CrmController {
 
   @Post('commission-periods/:id/pay')
   @Roles(UserRole.SuperAdmin)
-  @ApiOperation({ summary: 'Ghi đã chi một kỳ kế toán đang giữ và trừ ví inlink. Không chuyển khoản.' })
+  @ApiOperation({ summary: 'Ghi đã chi một kỳ kế toán đang giữ và trừ ví inlink. Không chuyển khoản. Chặn nếu CTV chưa xác thực.' })
   markCommissionPaid(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
+    @Body() body: MarkCrmCommissionPaidRequest,
   ): Promise<CrmCommissionPeriodView> {
-    return this.crm.markCommissionPaid(user, id);
+    return this.crm.markCommissionPaid(user, id, body);
   }
 
   @Get('partners')

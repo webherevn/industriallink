@@ -17,8 +17,10 @@ import {
   type CrmCommissionLedgerView,
   type CrmCommissionPeriodListView,
   type CloseCrmCommissionMonthResult,
+  type MarkCrmCommissionPaidRequest,
   type CrmPartnerClaimView,
   type CrmPartnerSelfView,
+  type CrmPayoutPeriodView,
   type CrmPayoutDayView,
   type CrmVatView,
   type CrmWalletTxnView,
@@ -77,6 +79,7 @@ import {
   type CrmSourcingOutreachItemView,
   type CrmSourcingOutreachOverview,
   type UpdateCrmSourcingOutreachStatusRequest,
+  type CrmKycStatus,
 } from '@industriallink/contracts';
 import { DEFAULT_TENANT_ID } from '../../shared/common/constants';
 import { maskEmail, maskPhone } from '../../shared/domain/contact-mask.util';
@@ -99,6 +102,8 @@ import {
 } from './commission-notices';
 import { payoutDayOrDefault } from './commission-payout-day';
 import { signedWalletBalance, walletRunningBalances } from './commission-wallet';
+import { daysUntilExpiry, netPaidVnd, pitTaxVnd, resolveTaxLockStatus, taxLockExpiry } from './ctv-kyc';
+import { PAYOUT_GATE_MESSAGE } from './ctv-kyc.service';
 import { assignPaidOrders, pickDealForPayment } from './deal-payment';
 import { paidActivitySummary } from './paid-activity';
 import { normalizeReferralCode, referralForPayingAccount } from './referral-cookie';
@@ -124,7 +129,20 @@ function periodStatusOf(status: string | undefined): CrmCommissionEntryView['per
 
 const PIPELINE_CODE = 'ban_goi';
 const CLAIM_LIMIT = 30;
-const partnerClaims = { orderBy: { createdAt: 'desc' as const }, take: CLAIM_LIMIT };
+const partnerClaims = {
+  orderBy: { createdAt: 'desc' as const },
+  take: CLAIM_LIMIT,
+  select: {
+    id: true,
+    partnerId: true,
+    companyName: true,
+    taxCode: true,
+    contactPhone: true,
+    createdAt: true,
+    status: true,
+    expiresAt: true,
+  },
+};
 
 /**
  * CRM ghi lead, deal, số hóa đơn của đơn đã thanh toán và khoản hoa hồng chờ đối soát.
@@ -932,13 +950,54 @@ export class CrmService {
     const signups = row ? (await this.unpaidSignups([row.id])).get(row.id) ?? [] : [];
     const walletBalance = row ? (await this.walletBalances([row.id])).get(row.id) ?? 0n : 0n;
     const walletTxns = row ? await this.walletStatement(row.id) : [];
+    const kyc = row
+      ? await this.prisma.crmPartnerKyc.findUnique({
+          where: { partnerId: row.id },
+          select: { status: true },
+        })
+      : null;
+    const payoutPeriods = row ? await this.partnerPayoutPeriods(row.id) : [];
     return {
       partner: row ? this.mapPartner(row, pending, signups, walletBalance) : null,
       commissionPercent,
       payoutDay,
       walletTxns,
       commissions,
+      payoutPeriods,
+      kycStatus: kyc?.status ?? null,
     };
+  }
+
+  /** Kỳ chi trả của một CTV: gross / thuế TNCN / thực nhận / mã UNC. */
+  private async partnerPayoutPeriods(partnerId: string): Promise<CrmPayoutPeriodView[]> {
+    const [rows, kyc] = await Promise.all([
+      this.prisma.crmCommissionPeriod.findMany({
+        where: { partnerId },
+        orderBy: { periodMonth: 'desc' },
+        take: 24,
+      }),
+      this.prisma.crmPartnerKyc.findUnique({
+        where: { partnerId },
+        select: { status: true },
+      }),
+    ]);
+    const kycStatus = kyc?.status ?? 'UNVERIFIED';
+    return rows.map((row) => {
+      const gross = row.grossAmountVnd ?? row.commissionVnd;
+      const tax = row.pitTaxAmountVnd ?? pitTaxVnd(gross);
+      const net = row.netPaidAmountVnd ?? netPaidVnd(gross);
+      return {
+        periodId: row.id,
+        periodMonth: row.periodMonth,
+        grossAmountVnd: gross.toString(),
+        pitTaxAmountVnd: tax.toString(),
+        netPaidAmountVnd: net.toString(),
+        transferRef: row.transferRef,
+        status: row.status === 'paid' ? 'paid' : 'held',
+        kycStatus,
+        paidAt: row.paidAt?.toISOString() ?? null,
+      };
+    });
   }
 
   async payoutDay(actor: AuthenticatedUser): Promise<CrmPayoutDayView> {
@@ -1218,7 +1277,9 @@ export class CrmService {
     const rows = await this.prisma.crmCommissionPeriod.findMany({
       orderBy: [{ periodMonth: 'desc' }, { closedAt: 'desc' }],
       take: 200,
-      include: { partner: { select: { name: true, code: true, createdByUserId: true } } },
+      include: {
+        partner: { select: { name: true, code: true, createdByUserId: true, kyc: { select: { status: true } } } },
+      },
     });
     const visible = await this.visiblePeriods(actor, rows);
     return {
@@ -1378,13 +1439,22 @@ export class CrmService {
     }
     const row = await this.prisma.crmCommissionPeriod.findUniqueOrThrow({
       where: { id: periodId },
-      include: { partner: { select: { name: true, code: true, createdByUserId: true } } },
+      include: {
+        partner: { select: { name: true, code: true, createdByUserId: true, kyc: { select: { status: true } } } },
+      },
     });
     return this.mapCommissionPeriod(row);
   }
 
-  /** Ghi đã chi một kỳ kế toán đang giữ. Trừ đúng số hoa hồng khỏi ví inlink. Không chuyển khoản. */
-  async markCommissionPaid(actor: AuthenticatedUser, periodId: string): Promise<CrmCommissionPeriodListView['periods'][number]> {
+  /**
+   * Ghi đã chi một kỳ kế toán đang giữ. Trừ đúng số hoa hồng khỏi ví inlink. Không chuyển khoản.
+   * Chặn nếu CTV chưa xác thực CCCD & tài khoản ngân hàng (Payout Gate).
+   */
+  async markCommissionPaid(
+    actor: AuthenticatedUser,
+    periodId: string,
+    input: MarkCrmCommissionPaidRequest = {},
+  ): Promise<CrmCommissionPeriodListView['periods'][number]> {
     if (actor.role !== UserRole.SuperAdmin) {
       throw new ForbiddenException('Chỉ SuperAdmin ghi đã chi hoa hồng');
     }
@@ -1397,6 +1467,23 @@ export class CrmService {
         if (!period) throw new NotFoundException('Không tìm thấy kỳ chốt');
         if (period.status === 'paid') throw new BadRequestException('Kỳ này đã chi');
         if (period.status !== 'payable') throw new BadRequestException('Kỳ này chưa được phép chi');
+
+        // Payout Gate: CTV phải xác thực CCCD & ngân hàng trước khi chi.
+        const kyc = await tx.crmPartnerKyc.findUnique({
+          where: { partnerId: period.partnerId },
+          select: {
+            status: true,
+            bankCode: true,
+            bankAccountNumber: true,
+            bankAccountHolder: true,
+          },
+        });
+        if (!kyc || kyc.status !== 'VERIFIED') {
+          throw new BadRequestException(PAYOUT_GATE_MESSAGE);
+        }
+        if (!kyc.bankCode || !kyc.bankAccountNumber || !kyc.bankAccountHolder) {
+          throw new BadRequestException(PAYOUT_GATE_MESSAGE);
+        }
 
         const locked = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "crm"."crm_commission_wallet"
@@ -1414,9 +1501,22 @@ export class CrmService {
           throw new BadRequestException('Số dư ví không đủ để chi kỳ này');
         }
 
+        // Số tiền thực trả = trước thuế - thuế TNCN 10% (khi >= 2.000.000đ).
+        const gross = period.commissionVnd;
+        const tax = pitTaxVnd(gross);
+        const net = netPaidVnd(gross);
+
         const updated = await tx.crmCommissionPeriod.updateMany({
           where: { id: period.id, status: 'payable' },
-          data: { status: 'paid', paidAt: new Date(), paidByUserId: actor.id },
+          data: {
+            status: 'paid',
+            paidAt: new Date(),
+            paidByUserId: actor.id,
+            grossAmountVnd: gross,
+            pitTaxAmountVnd: tax,
+            netPaidAmountVnd: net,
+            transferRef: input.transferRef?.trim() ? input.transferRef.trim() : null,
+          },
         });
         if (updated.count !== 1) throw new BadRequestException('Kỳ này đã chi');
 
@@ -1439,7 +1539,9 @@ export class CrmService {
     }
     const row = await this.prisma.crmCommissionPeriod.findUniqueOrThrow({
       where: { id: periodId },
-      include: { partner: { select: { name: true, code: true, createdByUserId: true } } },
+      include: {
+        partner: { select: { name: true, code: true, createdByUserId: true, kyc: { select: { status: true } } } },
+      },
     });
     return this.mapCommissionPeriod(row);
   }
@@ -3860,6 +3962,8 @@ export class CrmService {
       taxCode: string;
       contactPhone: string;
       createdAt: Date;
+      status?: string | null;
+      expiresAt?: Date | null;
     }>;
   }, pending?: { count: number; amount: bigint }, signups: CrmReferralSignupView[] = [], walletBalanceVnd = 0n, paid?: { platform: bigint; sourcing: bigint; orders: number; companies: number }, leadCount = 0): CrmPartnerView {
     const origin = (process.env.PUBLIC_SITE_URL || process.env.WEB_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
@@ -3881,14 +3985,21 @@ export class CrmService {
       monthOrderCount: paid?.orders ?? 0,
       monthCompanyCount: paid?.companies ?? 0,
       signups,
-      claims: (row.claims ?? []).map((claim) => ({
-        id: claim.id,
-        partnerId: claim.partnerId,
-        companyName: claim.companyName,
-        taxCode: claim.taxCode,
-        contactPhone: claim.contactPhone,
-        createdAt: claim.createdAt.toISOString(),
-      })),
+      claims: (row.claims ?? []).map((claim) => {
+        const expiresAt = claim.expiresAt ?? null;
+        const status = resolveTaxLockStatus(claim.status, expiresAt);
+        return {
+          id: claim.id,
+          partnerId: claim.partnerId,
+          companyName: claim.companyName,
+          taxCode: claim.taxCode,
+          contactPhone: claim.contactPhone,
+          createdAt: claim.createdAt.toISOString(),
+          status,
+          expiresAt: (expiresAt ?? claim.createdAt).toISOString(),
+          daysRemaining: expiresAt ? daysUntilExpiry(expiresAt) : 0,
+        };
+      }),
     };
   }
 
@@ -3909,8 +4020,11 @@ export class CrmService {
     if (companyName.length < 2 || !taxCode || phone.length < 9 || phone.length > 15) {
       throw new BadRequestException('Cần tên công ty, mã số thuế 10 hoặc 13 số và số điện thoại');
     }
-    const count = await this.prisma.crmPartnerClaim.count({ where: { partnerId } });
-    if (count >= CLAIM_LIMIT) throw new BadRequestException('Mỗi cộng tác viên khóa tối đa 30 mã số thuế');
+    // Chỉ mã còn trong hạn bảo vệ mới chiếm suất 30. Mã hết hạn tự nhả.
+    const activeCount = await this.activeClaimCount(partnerId);
+    if (activeCount >= CLAIM_LIMIT) {
+      throw new BadRequestException('Mỗi cộng tác viên khóa tối đa 30 mã số thuế');
+    }
     const taken = await this.prisma.crmPartnerClaim.findUnique({ where: { taxCode }, select: { partnerId: true } });
     if (taken) throw new BadRequestException('Mã số thuế này đã có người giới thiệu');
     const lead = await this.prisma.crmLead.findFirst({
@@ -3924,7 +4038,14 @@ export class CrmService {
     if (lead) throw new BadRequestException('Mã số thuế này đã có trong CRM');
     try {
       const row = await this.prisma.crmPartnerClaim.create({
-        data: { partnerId, companyName, taxCode, contactPhone: phone },
+        data: {
+          partnerId,
+          companyName,
+          taxCode,
+          contactPhone: phone,
+          status: 'PROTECTING',
+          expiresAt: taxLockExpiry(new Date()),
+        },
       });
       return {
         id: row.id,
@@ -3933,6 +4054,9 @@ export class CrmService {
         taxCode: row.taxCode,
         contactPhone: row.contactPhone,
         createdAt: row.createdAt.toISOString(),
+        status: resolveTaxLockStatus(row.status, row.expiresAt),
+        expiresAt: row.expiresAt.toISOString(),
+        daysRemaining: daysUntilExpiry(row.expiresAt),
       };
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -3942,12 +4066,34 @@ export class CrmService {
     }
   }
 
+  /**
+   * Số khóa MST còn hiệu lực của một CTV.
+   * Mã hết hạn bảo vệ không tính — CTV có thể khóa mã mới.
+   */
+  private async activeClaimCount(partnerId: string): Promise<number> {
+    const now = new Date();
+    const rows = await this.prisma.crmPartnerClaim.findMany({
+      where: { partnerId },
+      select: { status: true, expiresAt: true },
+    });
+    return rows.filter(
+      (row) => resolveTaxLockStatus(row.status, row.expiresAt, now) !== 'EXPIRED',
+    ).length;
+  }
+
   private async lockTaxCode(partnerId: string, companyName: string, taxCode: string, phone: string) {
-    const count = await this.prisma.crmPartnerClaim.count({ where: { partnerId } });
+    const count = await this.activeClaimCount(partnerId);
     if (count >= CLAIM_LIMIT) return;
     try {
       await this.prisma.crmPartnerClaim.create({
-        data: { partnerId, companyName, taxCode, contactPhone: phone },
+        data: {
+          partnerId,
+          companyName,
+          taxCode,
+          contactPhone: phone,
+          status: 'PROTECTING',
+          expiresAt: taxLockExpiry(new Date()),
+        },
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
@@ -4271,7 +4417,11 @@ export class CrmService {
     closedByUserId: string | null;
     approvedAt: Date | null;
     paidAt: Date | null;
-    partner: { name: string; code: string };
+    grossAmountVnd: bigint | null;
+    pitTaxAmountVnd: bigint | null;
+    netPaidAmountVnd: bigint | null;
+    transferRef: string | null;
+    partner: { name: string; code: string; kyc?: { status: string } | null };
   }): CrmCommissionPeriodListView['periods'][number] {
     return {
       id: row.id,
@@ -4287,6 +4437,11 @@ export class CrmService {
       autoClosed: row.closedByUserId == null,
       approvedAt: row.approvedAt?.toISOString() ?? null,
       paidAt: row.paidAt?.toISOString() ?? null,
+      kycStatus: (row.partner.kyc?.status as CrmKycStatus) ?? 'UNVERIFIED',
+      grossAmountVnd: row.grossAmountVnd?.toString() ?? null,
+      pitTaxAmountVnd: row.pitTaxAmountVnd?.toString() ?? null,
+      netPaidAmountVnd: row.netPaidAmountVnd?.toString() ?? null,
+      transferRef: row.transferRef ?? null,
     };
   }
 
