@@ -109,6 +109,32 @@ const TECHNICAL_ONLY_FIELDS = [
 
 const dryRun = process.argv.includes('--dry-run') || !process.argv.includes('--all');
 
+/**
+ ⭐ Chuẩn hóa giá trị trước khi bind vào SQL.
+ *
+ * - Mảng `String[]` (text[]) → dựng array literal PostgreSQL rồi ép kiểu tường minh.
+ *   Dùng `Prisma.raw` vì đây là SQL, không phải giá trị — nếu dùng `Prisma.sql`
+ *   thì Prisma sẽ escape thành chuỗi literal → lỗi "syntax error at or near \"[\"".
+ * - Scalar (string / number / boolean / null) → trả về để bind như tham số `$1`.
+ *
+ * @returns {{ kind: 'raw', sql: string } | { kind: 'param', value: any }}
+ */
+function toRawValue(value) {
+  if (Array.isArray(value)) {
+    const items = value.map((v) => {
+      const s = String(v ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      return `"${s}"`;
+    });
+    // Mảng rỗng → array rỗng ({}), KHÔNG phải NULL.
+    return { kind: 'raw', sql: `ARRAY[${items.join(', ')}]::text[]` };
+  }
+  if (value === null || value === undefined) return { kind: 'param', value: null };
+  if (typeof value === 'boolean' || typeof value === 'number') {
+    return { kind: 'param', value };
+  }
+  return { kind: 'param', value: String(value) };
+}
+
 function sanitizePositions(values, track) {
   const allowed = allowedPositionsFor(track);
   const out = [];
@@ -189,11 +215,32 @@ async function main() {
         `[${track}] ${row.candidate_id} — cần sạch: ${keys.join(', ')}`,
       );
       if (!dryRun) {
-        const sets = keys.map((k) => `"${k}" = $${k}`).join(', ');
-        await prisma.$executeRawUnsafe(
-          `UPDATE candidate.candidate_profile SET ${sets} WHERE id = $id`,
-          { ...updates, id: row.id },
-        );
+        // ⭐ Dùng `$executeRaw` (template tag) + `Prisma.sql`/`Prisma.raw`.
+        //
+        // LÝ DO (2 lỗi đã gặp trên VPS):
+        //  1) `$executeRawUnsafe` với placeholder `$name` KHÔNG hợp lệ —
+        //     Prisma không hỗ trợ placeholder PostgreSQL native (`$1`) trong hàm
+        //     "Unsafe"; nó dùng `?` và mong đợi MẢNG tham số. Khi truyền object,
+        //     Prisma coi `$current_position` là chữ literal →
+        //     "syntax error at or near "$"" (P2010 / 42601).
+        //  2) Nếu đưa cả `ARRAY[...]::text[]` qua `Prisma.sql`, Prisma escape thành
+        //     chuỗi literal → "syntax error at or near "["" (P2010 / 42601).
+        //
+        // Cách đúng: tên cột + array literal dùng `Prisma.raw` (SQL thật),
+        // giá trị scalar dùng tham số (Prisma tự sinh $1, $2... và cast đúng kiểu).
+        const { Prisma } = require('@prisma/client');
+        const parts = keys.map((k) => {
+          const v = toRawValue(updates[k]);
+          const column = Prisma.raw(`"${k}"`);
+          return v.kind === 'raw'
+            ? Prisma.sql`${column} = ${Prisma.raw(v.sql)}`
+            : Prisma.sql`${column} = ${v.value}`;
+        });
+        await prisma.$executeRaw`
+          UPDATE candidate.candidate_profile
+          SET ${Prisma.join(parts, ', ')}
+          WHERE id = ${row.id}::uuid
+        `;
       }
     }
 
