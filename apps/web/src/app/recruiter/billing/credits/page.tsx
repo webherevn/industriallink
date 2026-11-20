@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { CalendarDays, Check, Clock3, Coins, Folder, Plus, RefreshCw, Star, TrendingDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { describeCreditAction } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { Card } from '@/components/ui';
 import {
@@ -225,7 +226,7 @@ export default function RecruiterBillingCreditsPage() {
                           <td className="px-4 py-2">
                             <span className={clsx('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', actionMeta)}>
                               {isPositive ? <Plus className="h-3 w-3" /> : <Folder className="h-3 w-3" />}
-                              {ACTION_LABEL[tx.action] ?? tx.action}
+                              {describeCreditAction(tx.action, tx.metadata, tx.note)}
                             </span>
                           </td>
                           <td className="px-4 py-2 text-xs font-bold">

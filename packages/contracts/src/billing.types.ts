@@ -33,6 +33,96 @@ export const BILLING_PLAN_ACTION_LABELS: Record<BillingPlanBillableAction, strin
   view_match_summary: 'Xem tổng Matching',
 };
 
+/**
+ * Nhãn tiếng Việt cho `CreditAction` — dùng trong bảng "Lịch sử giao dịch".
+ *
+ * Yêu cầu: mọi `action` thô trong ledger phải hiển thị bằng tiếng Việt đầy đủ,
+ * KHÔNG lộ mã kỹ thuật (vd `view_profile`) cho NTD.
+ */
+export const CREDIT_ACTION_LABELS: Record<CreditAction, string> = {
+  view_profile: 'Mở hồ sơ ứng viên',
+  view_profile_high_match: 'Mở hồ sơ ứng viên (khớp cao)',
+  reopen_profile: 'Mở lại hồ sơ ứng viên đã xem',
+  view_applicant: 'Xem ứng viên đã ứng tuyển',
+  contact_potential: 'Liên hệ ứng viên tiềm năng',
+  contact_applicant: 'Liên hệ ứng viên đã ứng tuyển',
+  view_match_summary: 'Xem tóm tắt mức độ phù hợp',
+  manual_grant: 'Cấp Credit thủ công',
+  manual_adjust: 'Điều chỉnh Credit thủ công',
+  plan_grant: 'Cấp Credit kèm gói nền tảng',
+  package_grant: 'Cấp Credit khi kích hoạt gói',
+  topup: 'Nạp Credit',
+  trial_reset: 'Đặt lại Credit dùng thử',
+};
+
+/**
+ * Dựng nhãn hiển thị đầy đủ cho 1 dòng lịch sử giao dịch.
+ *
+ * - `view_profile` → "Mở hồ sơ ứng viên" + tên/mã ứng viên nếu có trong metadata.
+ * - `package_grant` → "Cấp [X] Credit khi kích hoạt gói [Tên gói]".
+ *
+ * @param action     mã hành động thô
+ * @param metadata   metadata của giao dịch (có thể chứa tên/mã ứng viên, tên gói)
+ * @param note       ghi chú gốc từ backend (fallback khi không có metadata)
+ */
+export function describeCreditAction(
+  action: string,
+  metadata?: Record<string, unknown> | null,
+  note?: string | null,
+): string {
+  const md = metadata ?? {};
+  const str = (key: string): string | null => {
+    const v = md[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+    return null;
+  };
+
+  // Ứng viên: tên (ưu tiên) hoặc mã.
+  const candidateName =
+    str('candidateName') ?? str('displayName') ?? str('candidateFullName') ?? null;
+  const candidateCode = str('candidateCode') ?? str('candidateId') ?? null;
+  const candidateSuffix = candidateName ?? candidateCode;
+
+  // Gói: tên gói ưu tiên, mã gói fallback.
+  const packageName = str('packageName') ?? str('planName') ?? null;
+  const packageCode = str('packageCode') ?? null;
+  const packageSuffix = packageName ?? packageCode;
+
+  const base = CREDIT_ACTION_LABELS[action as CreditAction];
+
+  switch (action) {
+    case 'package_grant': {
+      const amount = str('granted') ?? str('amount') ?? str('creditDelta');
+      const pkg = packageSuffix ? ` gói ${packageSuffix}` : '';
+      if (amount) return `Cấp ${amount} Credit khi kích hoạt${pkg}`;
+      return base ? `Cấp Credit khi kích hoạt${pkg}` : 'Cấp Credit khi kích hoạt gói';
+    }
+    case 'plan_grant': {
+      const amount = str('granted') ?? str('amount') ?? str('creditDelta');
+      const pkg = packageSuffix ? ` gói ${packageSuffix}` : '';
+      if (amount) return `Cấp ${amount} Credit khi kích hoạt${pkg}`;
+      return base ? `Cấp Credit kèm${pkg}` : 'Cấp Credit kèm gói nền tảng';
+    }
+    case 'topup': {
+      const amount = str('amount') ?? str('creditDelta');
+      return amount ? `Nạp ${amount} Credit vào Ví` : 'Nạp Credit vào Ví';
+    }
+    case 'view_profile':
+    case 'view_profile_high_match':
+    case 'reopen_profile':
+    case 'view_applicant':
+    case 'contact_potential':
+    case 'contact_applicant':
+    case 'view_match_summary': {
+      if (!candidateSuffix) return base ?? 'Giao dịch Credit';
+      return `${base ?? 'Giao dịch Credit'} · ${candidateSuffix}`;
+    }
+    default:
+      return base ?? (note ? note : 'Giao dịch Credit');
+  }
+}
+
 export interface BillingPlanActionCostView {
   action: BillingPlanBillableAction;
   cost: number;
@@ -740,6 +830,102 @@ export interface RecruiterJobPackageListResponse {
   items: RecruiterJobPackageView[];
   total: number;
   summary: RecruiterJobPackageSummary;
+}
+
+// =========================================================================
+// TỔNG QUAN GÓI DỊCH VỤ & VÍ CREDIT (recruiter billing hub)
+// =========================================================================
+
+/**
+ * Gói Săn nhân sự đang chạy — 1 card độc lập cho MỖI gói `ACTIVE`.
+ *
+ * Không cộng dồn từ `BillingCompanySourcingPlan` (legacy): mỗi gói trong
+ * `BillingHuntPackage` là 1 lần mua độc lập với hạn mức riêng.
+ */
+export interface RecruiterActiveHuntPackageView {
+  id: string;
+  /** Mã gói Săn, vd "TS-000101". */
+  code: string;
+  /** Tên gói hiển thị, vd "TIN SĂN CHUYÊN SÂU". */
+  packageName: string;
+  packageType: HuntPackageType;
+  /** Số vị trí Săn của riêng gói này (1 gói = 1 chiến dịch = 1 vị trí). */
+  positionsUsed: number;
+  /** Tổng số vị trí của gói (1 gói Săn = 1 vị trí). */
+  positionsTotal: number;
+  /** Credit đã cấp cho gói này (đã vào Ví dùng chung). */
+  creditsIncluded: number;
+  /** true = Credit của gói đã được cộng vào Ví. */
+  creditsGranted: boolean;
+  usedCriteriaEdits: number;
+  totalCriteriaEdits: number;
+  usedReports: number;
+  totalReports: number;
+  /** Chỉ gói DEEP mới có bàn giao Inlink (> 0). */
+  usedHandovers: number;
+  totalHandovers: number;
+  purchasedAt: string;
+  activatedAt: string | null;
+  /** Hạn dùng thực tế của gói (null = không giới hạn). */
+  expiresAt: string | null;
+  /** Chiến dịch đang gắn với gói này (1-1). */
+  campaignId: string | null;
+  campaignTitle: string | null;
+}
+
+/**
+ * Gói chờ kích hoạt (`UNUSED`) — dùng cho khối "Gói chờ kích hoạt".
+ */
+export interface RecruiterPendingPackageView {
+  id: string;
+  code: string;
+  packageName: string;
+  /** 'job' = gói tin đăng, 'hunt' = gói Săn nhân sự. */
+  kind: 'job' | 'hunt';
+  /** Số Credit sẽ được cấp khi kích hoạt gói này. */
+  creditsIncluded: number;
+  /** Hạn chót kích hoạt (null = không giới hạn). */
+  activationDeadlineAt: string | null;
+  purchasedAt: string;
+  /** Link màn hình để NTD kích hoạt gói này. */
+  activateHref: string;
+}
+
+/**
+ * Lô Credit miễn phí sắp hết hạn.
+ *
+ * ⚠ CHÍNH SÁCH: Credit từ gói mua (`package_grant`) và nạp thêm (`topup`) GIỮ LẠI
+ * vô thời hạn trong Ví dùng chung. Chỉ lô `plan_grant` (gói Khám phá / Free) mới
+ * có hạn → chỉ khi có lô này sắp hết hạn mới hiển thị tag "Hạn: ...".
+ */
+export interface RecruiterExpiringCreditLotView {
+  /** Số Credit còn khả dụng trong lô sắp hết hạn. */
+  available: number;
+  /** Ngày hết hạn của lô. */
+  expiresAt: string;
+}
+
+/**
+ * Tổng quan 1 lần cho trang "Gói dịch vụ & Ví Credit".
+ *
+ * Nguồn sự thật: `BillingJobPackage` + `BillingHuntPackage` + `billing_credit_account`.
+ * KHÔNG đọc số cộng dồn legacy từ `BillingCompanySourcingPlan`.
+ */
+export interface RecruiterBillingOverview {
+  /** Gói tin đăng đang chạy (status ACTIVE). */
+  activeJobPackages: RecruiterJobPackageView[];
+  /** Gói Săn đang chạy (status ACTIVE) — mỗi gói 1 card độc lập. */
+  activeHuntPackages: RecruiterActiveHuntPackageView[];
+  /** Gói chờ kích hoạt (status UNUSED) từ CẢ 2 loại gói. */
+  pendingPackages: RecruiterPendingPackageView[];
+  /** Số dư Ví Credit (đọc trực tiếp `billing_credit_account.balance`). */
+  creditBalance: number;
+  /** Tổng Credit đã cấp (vô thời hạn + có hạn). */
+  lifetimeGranted: number;
+  /** Tổng Credit đã sử dụng. */
+  lifetimeConsumed: number;
+  /** Lô Credit miễn phí sắp hết hạn (null = không có lô nào sắp hết hạn). */
+  expiringLot: RecruiterExpiringCreditLotView | null;
 }
 
 // =========================================================================

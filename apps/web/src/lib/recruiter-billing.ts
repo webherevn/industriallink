@@ -21,6 +21,7 @@ import type {
   RecruiterApplyJobPackageRequest,
   RecruiterApplyJobPackageResponse,
   RecruiterApplicableJobView,
+  RecruiterBillingOverview,
 } from '@industriallink/contracts';
 import { apiRequest } from './api';
 
@@ -80,6 +81,14 @@ export async function fetchRecruiterSourcing(): Promise<RecruiterSourcingWorkspa
 /** Danh sách gói tin đăng đã mua của công ty (mã TD-xxxxxx). */
 export async function fetchRecruiterJobPackages(): Promise<RecruiterJobPackageListResponse> {
   return apiRequest<RecruiterJobPackageListResponse>('/billing/job-packages');
+}
+
+/**
+ * Tổng quan Gói dịch vụ & Ví Credit — đọc trực tiếp `BillingJobPackage` +
+ * `BillingHuntPackage` + Ví Credit dùng chung (KHÔNG đọc số cộng dồn legacy).
+ */
+export async function fetchRecruiterBillingOverview(): Promise<RecruiterBillingOverview> {
+  return apiRequest<RecruiterBillingOverview>('/billing/overview');
 }
 
 /**

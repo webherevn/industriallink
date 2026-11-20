@@ -688,6 +688,7 @@ export class JobPackageService {
             source: 'package_grant',
             grantSource: 'job_package_activate',
             packageCode: pkg.code,
+            packageName: pkg.package_name,
             packageId: pkg.id,
             packageExpiresAt: expiresAt.toISOString(),
           },

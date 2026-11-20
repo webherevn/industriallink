@@ -557,11 +557,12 @@ export class BillingService implements OnModuleInit {
             actorEmail: actor.email ?? null,
             note: isEnterprise
               ? `${shouldGrant ? 'Cấp' : 'Cấp bổ sung'} ${quota} Credit theo hợp đồng ${plan.name}`
-              : `Tặng ${quota} Credit khi gán gói ${plan.name}`,
+              : `Cấp ${quota} Credit khi kích hoạt gói ${plan.name}`,
             metadata: {
               source: plan.code === STARTER_PLAN_CODE ? 'plan_grant' : 'package_grant',
               planId: plan.id,
               planCode: plan.code,
+              packageName: plan.name,
               assignmentId: assigned.id,
             },
             enforced: true,
@@ -1508,7 +1509,7 @@ export class BillingService implements OnModuleInit {
         costPerUnit: 0,
         quantity: 1,
         actorEmail: 'system:plan-backfill',
-        note: `Tặng ${quota} Credit (bổ sung) theo gói ${assignment.plan.name}`,
+        note: `Cấp ${quota} Credit khi kích hoạt gói ${assignment.plan.name}`,
         metadata: {
           source: isStarter ? 'plan_grant' : 'package_grant',
           planId: assignment.planId,

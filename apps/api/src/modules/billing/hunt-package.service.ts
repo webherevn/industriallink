@@ -372,6 +372,7 @@ export class HuntPackageService {
             source: 'package_grant',
             grantSource: 'hunt_package_activate',
             packageCode: row.code,
+            packageName: row.package_name,
             packageId: row.id,
             campaignId: campaign.id,
             packageExpiresAt: expiresAt.toISOString(),

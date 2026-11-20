@@ -12,6 +12,7 @@ import type {
   BillingCreditLedgerListResponse,
   BillingCompanyPlanView,
   RecruiterBillingEntitlements,
+  RecruiterBillingOverview,
   RecruiterConsumeSourcingRequest,
   RecruiterSourcingWorkspace,
   RecruiterJobPackageListResponse,
@@ -20,6 +21,7 @@ import type {
   RecruiterApplicableJobView,
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
+import { BillingOverviewService } from './billing-overview.service';
 import { CreditService } from './credit.service';
 import { SourcingService } from './sourcing.service';
 import { CompanyService } from '../company/company.service';
@@ -40,6 +42,7 @@ export class BillingRecruiterController {
   constructor(
     private readonly credit: CreditService,
     private readonly billing: BillingService,
+    private readonly overview: BillingOverviewService,
     private readonly sourcing: SourcingService,
     private readonly companies: CompanyService,
   ) {}
@@ -69,6 +72,18 @@ export class BillingRecruiterController {
   ): Promise<RecruiterSourcingWorkspace> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.sourcing.getWorkspace(companyId);
+  }
+
+  @Get('overview')
+  @ApiOperation({
+    summary:
+      'Tổng quan Gói dịch vụ & Ví Credit — đọc trực tiếp BillingJobPackage + BillingHuntPackage + Ví Credit',
+  })
+  async getBillingOverview(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RecruiterBillingOverview> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.overview.getOverview(companyId);
   }
 
   @Get('job-packages')

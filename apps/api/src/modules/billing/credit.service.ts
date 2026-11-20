@@ -209,8 +209,28 @@ export class CreditService {
         actorEmail: input.actorEmail,
         enforced: false,
         note: 'Đã xem hồ sơ',
+        // Để UI hiển thị "Mở hồ sơ ứng viên · <Tên/Mã ứng viên>".
+        metadata: await this.candidateMetadata(input.candidateId),
       },
     });
+  }
+
+  /**
+   * Metadata ứng viên cho dòng lịch sử giao dịch.
+   * UI map `action` thô → tiếng Việt, cần tên/mã ứng viên để hiển thị đầy đủ.
+   */
+  private async candidateMetadata(
+    candidateId: string | null | undefined,
+  ): Promise<Record<string, string>> {
+    if (!candidateId) return {};
+    const c = await this.prisma.candidate
+      .findUnique({
+        where: { id: candidateId },
+        select: { displayName: true, code: true },
+      })
+      .catch(() => null);
+    if (!c) return {};
+    return { candidateName: c.displayName, candidateCode: c.code };
   }
 
   /**
@@ -470,7 +490,11 @@ export class CreditService {
             actorEmail: input.actorEmail ?? null,
             policySnapshot: (input.policySnapshot ?? undefined) as Prisma.InputJsonValue | undefined,
             note: input.note ?? null,
-            metadata: { mode },
+            // Gộp metadata ứng viên (tên/mã) để UI hiển thị nhãn tiếng Việt đầy đủ.
+            metadata: {
+              mode,
+              ...(await this.candidateMetadata(input.candidateId)),
+            } as Prisma.InputJsonValue,
             enforced: mode === 'enforce',
           },
         });
