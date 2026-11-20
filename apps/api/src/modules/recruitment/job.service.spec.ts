@@ -25,6 +25,7 @@ describe('JobService', () => {
     releaseJobPackageSlot: jest.fn().mockResolvedValue(undefined),
     getJobDisplayDays: jest.fn().mockResolvedValue(14),
     getJobDeadlineCeiling: jest.fn().mockResolvedValue(new Date('2026-07-15T00:00:00.000Z')),
+    huntOwnedJobIds: jest.fn().mockResolvedValue(new Set<string>()),
   };
   const ai = {
     embed: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
@@ -68,6 +69,8 @@ describe('JobService', () => {
     billing.getJobDisplayDays.mockResolvedValue(14);
     billing.getJobDeadlineCeiling.mockClear();
     billing.getJobDeadlineCeiling.mockResolvedValue(new Date('2026-07-15T00:00:00.000Z'));
+    billing.huntOwnedJobIds.mockClear();
+    billing.huntOwnedJobIds.mockResolvedValue(new Set<string>());
     ai.embed.mockClear();
     ai.generateJobDraft.mockClear();
     ai.parseJobDescription.mockClear();
@@ -540,6 +543,161 @@ describe('JobService', () => {
           where: { userId_jobId: { userId: 'user-c-1', jobId: 'job-1' } },
         }),
       );
+    });
+  });
+
+  // ==============================================================
+  // (B) BỘ LỌC NGUỒN TIN — ALL / STANDARD / HUNT
+  // ==============================================================
+  describe('listMyJobs — lọc nguồn tin (B)', () => {
+    const huntJob = {
+      ...baseJobRow,
+      id: 'job-hunt',
+      code: 'JOB-2026-000002',
+      title: 'Kỹ sư điện tử (Tin săn)',
+      status: JobStatus.Published,
+      slug: 'ky-su-dien-tu',
+      jobPackage: null,
+      company: { ...baseJobRow.company },
+      skills: [],
+    };
+    const standardPaidJob = {
+      ...baseJobRow,
+      id: 'job-std',
+      code: 'JOB-2026-000003',
+      title: 'Kỹ sư cơ khí',
+      status: JobStatus.Published,
+      slug: 'ky-su-co-khi',
+      jobPackage: {
+        id: 'pkg-1',
+        code: 'JD-DN-000006',
+        packageName: 'Gói Doanh nghiệp',
+        packageType: 'ENTERPRISE',
+      },
+      company: { ...baseJobRow.company },
+      skills: [],
+    };
+
+    function makeSourcePrisma() {
+      const findMany = jest.fn().mockResolvedValue([huntJob, standardPaidJob]);
+      const campaignFindMany = jest.fn().mockResolvedValue([
+        {
+          jobId: 'job-hunt',
+          code: 'CS-000001',
+          package: { code: 'TS-000101', status: 'ACTIVE' },
+        },
+      ]);
+      return {
+        job: { findMany },
+        huntCampaign: { findMany: campaignFindMany },
+        application: { groupBy: jest.fn().mockResolvedValue([]) },
+      };
+    }
+
+    it('source=ALL trả về cả 2 tin, mỗi tin đúng 1 nguồn', async () => {
+      const prisma = makeSourcePrisma();
+      const service = buildService(prisma);
+
+      const list = await service.listMyJobs(recruiter, 'ALL');
+
+      expect(list).toHaveLength(2);
+      const hunt = list.find((j) => j.id === 'job-hunt');
+      const std = list.find((j) => j.id === 'job-std');
+      expect(hunt?.source).toBe('HUNT');
+      expect(hunt?.huntPackageCode).toBe('TS-000101');
+      expect(hunt?.huntCampaignCode).toBe('CS-000001');
+      expect(std?.source).toBe('STANDARD');
+      expect(std?.jobPackageCode).toBe('JD-DN-000006');
+      // Tin săn KHÔNG được gắn badge gói tin đăng song song.
+      expect(hunt?.jobPackageCode).toBeUndefined();
+    });
+
+    it('source=HUNT chỉ trả tin thuộc chiến dịch Săn ACTIVE', async () => {
+      const prisma = makeSourcePrisma();
+      const service = buildService(prisma);
+
+      const list = await service.listMyJobs(recruiter, 'HUNT');
+
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe('job-hunt');
+      expect(list[0].source).toBe('HUNT');
+    });
+
+    it('source=STANDARD trả các tin còn lại (không trùng với HUNT)', async () => {
+      const prisma = makeSourcePrisma();
+      const service = buildService(prisma);
+
+      const list = await service.listMyJobs(recruiter, 'STANDARD');
+
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe('job-std');
+      expect(list[0].source).toBe('STANDARD');
+    });
+  });
+
+  describe('countMyJobsBySource — số đếm theo nguồn (B)', () => {
+    it('standard + hunt === all, và số đếm theo bộ lọc hiện tại', async () => {
+      const prisma = {
+        job: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'job-hunt',
+              title: 'Kỹ sư điện tử',
+              code: 'JOB-2026-000002',
+              location: 'Hà Nội',
+              industry: null,
+              skills: [],
+            },
+            {
+              id: 'job-std',
+              title: 'Kỹ sư cơ khí',
+              code: 'JOB-2026-000003',
+              location: 'Hải Phòng',
+              industry: null,
+              skills: [],
+            },
+          ]),
+        },
+      };
+      const service = buildService(prisma);
+      billing.huntOwnedJobIds.mockResolvedValue(new Set(['job-hunt']));
+
+      const counts = await service.countMyJobsBySource(recruiter, {});
+
+      expect(counts).toEqual({ all: 2, standard: 1, hunt: 1 });
+      expect(counts.standard + counts.hunt).toBe(counts.all);
+    });
+
+    it('từ khoá lọc trước khi đếm → số đếm khớp danh sách đã lọc', async () => {
+      const prisma = {
+        job: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'job-hunt',
+              title: 'Kỹ sư điện tử',
+              code: 'JOB-2026-000002',
+              location: 'Hà Nội',
+              industry: null,
+              skills: [],
+            },
+            {
+              id: 'job-std',
+              title: 'Kỹ sư cơ khí',
+              code: 'JOB-2026-000003',
+              location: 'Hải Phòng',
+              industry: null,
+              skills: [],
+            },
+          ]),
+        },
+      };
+      const service = buildService(prisma);
+      billing.huntOwnedJobIds.mockResolvedValue(new Set(['job-hunt']));
+
+      const counts = await service.countMyJobsBySource(recruiter, { keyword: 'điện tử' });
+
+      expect(counts).toEqual({ all: 1, standard: 0, hunt: 1 });
+      expect(counts.standard + counts.hunt).toBe(counts.all);
     });
   });
 });

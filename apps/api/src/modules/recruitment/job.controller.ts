@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { UserRole } from '@industriallink/contracts';
+import type { RecruiterJobSourceCounts, RecruiterJobSourceFilter } from '@industriallink/contracts';
 import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { IdempotencyInterceptor } from '../../shared/common/idempotency.interceptor';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
@@ -176,8 +177,48 @@ export class JobController {
   @Get('mine')
   @Roles(...RECRUITER_ROLES)
   @ApiOperation({ summary: 'Tin tuyển dụng của công ty tôi' })
-  listMine(@CurrentUser() user: AuthenticatedUser) {
-    return this.jobs.listMyJobs(user);
+  @ApiQuery({
+    name: 'source',
+    required: false,
+    enum: ['ALL', 'STANDARD', 'HUNT'],
+    description:
+      'Lọc nguồn gói: ALL (mặc định) | STANDARD (tin đăng thường) | HUNT (tin săn nhân sự)',
+  })
+  listMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('source') source?: string,
+  ) {
+    const normalized: RecruiterJobSourceFilter =
+      source === 'STANDARD' || source === 'HUNT' ? source : 'ALL';
+    return this.jobs.listMyJobs(user, normalized);
+  }
+
+  @Get('mine/source-counts')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({
+    summary: 'Số đếm tin theo nguồn (tất cả / tin đăng thường / tin săn) theo bộ lọc hiện tại',
+  })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'keyword', required: false })
+  @ApiQuery({ name: 'createdAfter', required: false })
+  @ApiQuery({ name: 'packageId', required: false })
+  async listMineSourceCounts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('status') status?: string,
+    @Query('keyword') keyword?: string,
+    @Query('createdAfter') createdAfter?: string,
+    @Query('packageId') packageId?: string,
+  ): Promise<RecruiterJobSourceCounts> {
+    const createdAfterDate = createdAfter ? new Date(createdAfter) : null;
+    return this.jobs.countMyJobsBySource(user, {
+      status: status ?? null,
+      keyword: keyword ?? null,
+      createdAfter:
+        createdAfterDate && !Number.isNaN(createdAfterDate.getTime())
+          ? createdAfterDate
+          : null,
+      packageId: packageId ?? null,
+    });
   }
 
   @Get('bookmarks/mine')

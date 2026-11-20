@@ -36,6 +36,8 @@ import {
   type JobView,
   type ParsedSalesJobDraft,
   type ParsedTechnicalJobDraft,
+  type RecruiterJobSourceCounts,
+  type RecruiterJobSourceFilter,
   type SalaryEstimateView,
   looksLikeUuid,
 } from '@industriallink/contracts';
@@ -946,7 +948,10 @@ export class JobService {
     this.logger.log(`Đã đăng tin tuyển dụng ${job.code}`);
   }
 
-  async listMyJobs(user: AuthenticatedUser): Promise<JobListItem[]> {
+  async listMyJobs(
+    user: AuthenticatedUser,
+    source?: RecruiterJobSourceFilter,
+  ): Promise<JobListItem[]> {
     const company = await this.companies.requireUserCompany(user.id);
     const jobs = await this.prisma.job.findMany({
       where: { companyId: company.companyId, isDeleted: false },
@@ -954,7 +959,7 @@ export class JobService {
       include: {
         company: { select: JOB_COMPANY_SELECT },
         skills: { select: { name: true }, take: 6 },
-        jobPackage: { select: { id: true, code: true, packageName: true } },
+        jobPackage: { select: { id: true, code: true, packageName: true, packageType: true } },
       },
     });
     await backfillMissingJobSlugs(this.prisma, jobs);
@@ -963,18 +968,109 @@ export class JobService {
       this.recruitmentByJob(jobs.map((job) => job.id)),
       this.prisma.huntCampaign.findMany({
         where: { companyId: company.companyId, jobId: { not: null }, status: { not: 'closed' } },
-        select: { jobId: true },
+        select: {
+          jobId: true,
+          code: true,
+          package: { select: { code: true, status: true } },
+        },
       }),
     ]);
-    const sourcingJobIds = new Set(
-      activeSourcingRows.map((r) => r.jobId).filter((id): id is string => Boolean(id)),
+    const sourcingByJob = new Map(
+      activeSourcingRows
+        .filter((r) => r.jobId)
+        .map((r) => [
+          r.jobId as string,
+          {
+            campaignCode: r.code,
+            packageCode: r.package.code,
+            packageStatus: r.package.status,
+          },
+        ]),
     );
-    return jobs.map((j) =>
-      this.toListItem(j, company.companyName, {
+    // (B) Phân loại nguồn tin loại trừ lẫn nhau:
+    // - HUNT: tin đang có chiến dịch Săn ACTIVE (gói Săn còn hiệu lực).
+    // - STANDARD: mọi tin còn lại.
+    const huntOwnedJobIds = new Set(
+      activeSourcingRows
+        .filter((r) => r.jobId && r.package.status === 'ACTIVE')
+        .map((r) => r.jobId as string),
+    );
+    const filtered =
+      source && source !== 'ALL'
+        ? jobs.filter((j) =>
+            source === 'HUNT' ? huntOwnedJobIds.has(j.id) : !huntOwnedJobIds.has(j.id),
+          )
+        : jobs;
+    return filtered.map((j) => {
+      const hunt = sourcingByJob.get(j.id);
+      const isHunt = huntOwnedJobIds.has(j.id);
+      return this.toListItem(j, company.companyName, {
         recruitment: recruitment.get(j.id) ?? emptyRecruitment(),
-        isSourcingActive: sourcingJobIds.has(j.id),
-      }),
+        isSourcingActive: isHunt,
+        source: isHunt ? 'HUNT' : 'STANDARD',
+        huntPackageCode: isHunt ? (hunt?.packageCode ?? null) : null,
+        huntCampaignCode: isHunt ? (hunt?.campaignCode ?? null) : null,
+        huntPackageStatus: isHunt ? (hunt?.packageStatus ?? null) : null,
+      });
+    });
+  }
+
+  /**
+   * (B) Số đếm theo nguồn tin — tính theo bộ lọc từ khoá / thời gian / trạng thái
+   * mà Frontend đang áp dụng.
+   *
+   * Bất biến: `standard + hunt === all` (không trùng lặp, không bỏ sót).
+   */
+  async countMyJobsBySource(
+    user: AuthenticatedUser,
+    filter: {
+      status?: string | null;
+      keyword?: string | null;
+      createdAfter?: Date | null;
+      packageId?: string | null;
+    } = {},
+  ): Promise<RecruiterJobSourceCounts> {
+    const company = await this.companies.requireUserCompany(user.id);
+    const rows = await this.prisma.job.findMany({
+      where: {
+        companyId: company.companyId,
+        isDeleted: false,
+        ...(filter.status && filter.status !== 'all'
+          ? { status: filter.status }
+          : {}),
+        ...(filter.createdAfter ? { createdAt: { gte: filter.createdAfter } } : {}),
+        ...(filter.packageId ? { jobPackageId: filter.packageId } : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        location: true,
+        industry: true,
+        skills: { select: { name: true } },
+      },
+    });
+
+    const keyword = (filter.keyword ?? '').trim().toLowerCase();
+    const matched = keyword
+      ? rows.filter((j) =>
+          [j.title, j.code, j.location ?? '', j.industry ?? '', ...j.skills.map((s) => s.name)]
+            .join(' ')
+            .toLowerCase()
+            .includes(keyword),
+        )
+      : rows;
+
+    const huntOwnedJobIds = await this.billing.huntOwnedJobIds(
+      company.companyId,
+      matched.map((j) => j.id),
     );
+    const hunt = matched.filter((j) => huntOwnedJobIds.has(j.id)).length;
+    return {
+      all: matched.length,
+      standard: matched.length - hunt,
+      hunt,
+    };
   }
 
   private unusedListMyJobsFallback(jobs: any[], company: any, recruitment: any) {
@@ -1368,7 +1464,7 @@ export class JobService {
       company: { id?: string; name: string; slug?: string | null; profile?: Prisma.JsonValue | null };
       skills?: { name: string }[];
       publishedAt?: Date | null;
-      jobPackage?: { id?: string; code: string; packageName: string } | null;
+      jobPackage?: { id?: string; code: string; packageName: string; packageType?: string | null } | null;
     },
     companyName: string,
     extras?: {
@@ -1376,6 +1472,10 @@ export class JobService {
       planCode?: string | null;
       recruitment?: JobRecruitmentResult;
       isSourcingActive?: boolean;
+      source?: 'STANDARD' | 'HUNT';
+      huntPackageCode?: string | null;
+      huntCampaignCode?: string | null;
+      huntPackageStatus?: string | null;
     },
   ): JobListItem {
     const publishedAt = job.publishedAt ?? null;
@@ -1421,10 +1521,15 @@ export class JobService {
             jobPackageCode: job.jobPackage.code,
             jobPackageName: job.jobPackage.packageName,
             jobPackageId: job.jobPackage.id ?? null,
+            jobPackageType: job.jobPackage.packageType ?? null,
           }
         : {}),
       ...(extras?.recruitment ? { recruitment: extras.recruitment } : {}),
       ...(extras?.isSourcingActive ? { isSourcingActive: true } : {}),
+      ...(extras?.source ? { source: extras.source } : {}),
+      ...(extras?.huntPackageCode ? { huntPackageCode: extras.huntPackageCode } : {}),
+      ...(extras?.huntCampaignCode ? { huntCampaignCode: extras.huntCampaignCode } : {}),
+      ...(extras?.huntPackageStatus ? { huntPackageStatus: extras.huntPackageStatus } : {}),
     };
   }
 
