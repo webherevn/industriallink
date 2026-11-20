@@ -8,8 +8,6 @@ import { tokenStore } from '@/lib/api';
 import { fetchMySupportChat, fetchSupportPrompts, sendSupportChat } from '@/lib/support-chat';
 
 const ROTATE_MS = 3500;
-const IDLE_MS = 10_000;
-const SLIDE_MS = 5000;
 
 function shortName(displayName?: string | null): string {
   const token = displayName?.trim().split(/\s+/).filter(Boolean).slice(-1)[0];
@@ -36,26 +34,10 @@ export function CornerRobot({ name }: { name?: string | null }) {
   const [hintHidden, setHintHidden] = useState(false);
   const [draft, setDraft] = useState('');
   const [hasToken, setHasToken] = useState(false);
-  const [centered, setCentered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [shift, setShift] = useState(0);
-  const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const dock = useRef<HTMLDivElement>(null);
-  const centeredRef = useRef(false);
-  const openRef = useRef(false);
-  openRef.current = open;
-
-  const restingShift = () => {
-    const el = dock.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    const transform = getComputedStyle(el).transform;
-    const currentX = transform && transform !== 'none' ? new DOMMatrix(transform).m41 : 0;
-    const restingCenter = rect.left - currentX + rect.width / 2;
-    return Math.round(window.innerWidth / 2 - restingCenter);
-  };
   const qc = useQueryClient();
   const prompts = useQuery({
     queryKey: ['support-chat-prompts'],
@@ -79,68 +61,6 @@ export function CornerRobot({ name }: { name?: string | null }) {
     }, ROTATE_MS);
     return () => window.clearInterval(id);
   }, [lines.length, open, hintHidden]);
-
-  const slideReady = useRef(false);
-  useEffect(() => {
-    if (!slideReady.current) {
-      slideReady.current = true;
-      return;
-    }
-    const id = window.setTimeout(() => setRunning(false), SLIDE_MS);
-    return () => window.clearTimeout(id);
-  }, [centered]);
-
-  useEffect(() => {
-    if (open) {
-      if (centeredRef.current) setRunning(true);
-      centeredRef.current = false;
-      setCentered(false);
-      return;
-    }
-    let timer = 0;
-    const arm = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        if (openRef.current) return;
-        setShift(restingShift());
-        centeredRef.current = true;
-        setRunning(true);
-        setCentered(true);
-      }, IDLE_MS);
-    };
-    const retreat = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Node && dock.current?.contains(target)) return;
-      window.clearTimeout(timer);
-      if (centeredRef.current) {
-        centeredRef.current = false;
-        setRunning(true);
-        setCentered(false);
-      }
-      arm();
-    };
-    const onResize = () => {
-      if (!centeredRef.current) return;
-      setShift(restingShift());
-    };
-    arm();
-    const opts = { capture: true, passive: true } as const;
-    window.addEventListener('scroll', retreat, opts);
-    window.addEventListener('wheel', retreat, opts);
-    window.addEventListener('pointerdown', retreat, opts);
-    window.addEventListener('keydown', retreat, opts);
-    window.addEventListener('touchstart', retreat, opts);
-    window.addEventListener('resize', onResize);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('scroll', retreat, opts);
-      window.removeEventListener('wheel', retreat, opts);
-      window.removeEventListener('pointerdown', retreat, opts);
-      window.removeEventListener('keydown', retreat, opts);
-      window.removeEventListener('touchstart', retreat, opts);
-      window.removeEventListener('resize', onResize);
-    };
-  }, [open]);
 
   useEffect(() => {
     const el = dock.current;
@@ -216,8 +136,7 @@ export function CornerRobot({ name }: { name?: string | null }) {
   return (
     <div
       ref={dock}
-      className="corner-robot-slide pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end"
-      style={{ transform: `translateX(${centered ? shift : 0}px)` }}
+      className="pointer-events-none fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end"
     >
       {open && (
         <div className="chat-pop pointer-events-auto mb-3 flex h-[min(68vh,440px)] w-[min(100vw-2rem,340px)] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_22px_50px_-16px_rgba(7,35,72,0.55)] ring-1 ring-[#072348]/10">
