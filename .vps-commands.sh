@@ -1,14 +1,20 @@
 # Lệnh deploy VPS — inlink.vn
-# Commit: 114c91a  fix(web): bo logic robot tro ly chay ra giua man sau 10s khong hoat dong
+# Commit: f96c466  feat(ctv): nang cap toan dien Cong tac vien - xac thuc CCCD 2 mat, khoa cong chi tra ngay 10
 # Chạy trên VPS (root), thư mục deploy: /www/wwwroot/inlink
 #
-# Lần này chỉ đổi frontend (apps/web) → không cần migrate DB.
+# ⚠ LẦN NÀY CÓ ĐỔI SCHEMA DB → BẮT BUỘC chạy migrate.
+#   Migration: 20261122_crm_partner_kyc (enum CrmKycStatus + bảng crm.crm_partner_kyc
+#   + cột status/expires_at cho crm.crm_partner_claim
+#   + cột gross_amount_vnd/pit_tax_amount_vnd/net_paid_amount_vnd/transfer_ref
+#   cho crm.crm_commission_period)
+#
+# Migration chỉ ADD thêm enum/bảng/cột — không xóa hay sửa dữ liệu cũ. An toàn.
 #
 # Gồm 4 phần:
-#   1) Deploy code (pull + install + build + restart PM2)
-#   2) Dọn dữ liệu hồ sơ LAI TẠP giữa 2 lĩnh vực (đã chạy xong lần trước, giữ lại để chạy lại khi cần)
+#   1) Deploy code (pull + install + migrate + build + restart PM2)
+#   2) Kiểm tra dữ liệu KYC hiện có
 #   3) Verify
-#   4) Kiểm tra hành vi ATS mới (4 hạng mục)
+#   4) Kiểm tra luồng KYC + Payout Gate
 
 # ═══════════════════════════════════════════════════════════════════
 # BƯỚC 1 — DEPLOY CODE
@@ -24,8 +30,9 @@ echo "GIT=$(git log -1 --oneline)"
 
 pnpm install --frozen-lockfile
 
-# Prisma: schema KHÔNG đổi lần này → generate là đủ (migrate deploy sẽ no-op)
+# Prisma: schema ĐÃ đổi → generate + migrate deploy
 pnpm --filter @industriallink/api db:generate
+pnpm --filter @industriallink/api db:migrate deploy
 
 # Build contracts trước (dist bị gitignore)
 pnpm --filter @industriallink/contracts build
@@ -43,26 +50,62 @@ pm2 save || true
 sleep 3
 
 # ═══════════════════════════════════════════════════════════════════
-# BƯỚC 2 — DỌN DỮ LIỆU LAI TẠP (Kinh doanh <-> Ky thuat)
+# BƯỚC 2 — KIỂM TRA DỮ LIỆU KYC + KHÓA MST
 #
-# Ho so cu co the luu dong thoi du lieu muc 13+ cua CA 2 nhanh.
-# Dieu nay lam AI Matching cham sai (du lieu nhanh khong active lot vao
-# bang trong so). Script don theo ranh gioi nghiem ngat.
-#
-# ⚠ CHAY DRY-RUN TRUOC DE XEM SE SUA BAO NHIEU HO SO.
+# Sau migrate, mọi CTV cũ sẽ có status = UNVERIFIED (mặc định).
+# → Cổng chi trả ngày 10 sẽ CHẶN các CTV này cho tới khi họ xác thực.
+# Đây là hành vi ĐÚNG theo yêu cầu. Không cần sửa gì.
 # ═══════════════════════════════════════════════════════════════════
 cd "$ROOT/apps/api"
 
-# 2a) Xem truoc (khong ghi DB)
-node scripts/clean-profile-track-mix.cjs --dry-run
+echo "=== enum CrmKycStatus ==="
+node -e "
+const {PrismaClient}=require('@prisma/client');
+const p=new PrismaClient();
+(async()=>{
+  const rows=await p.\$queryRawUnsafe(\`
+    SELECT e.enumlabel FROM pg_type t
+    JOIN pg_enum e ON e.enumtypid=t.oid
+    WHERE t.typname='CrmKycStatus' ORDER BY e.enumsortorder\`);
+  console.log('CrmKycStatus:', rows.map(r=>r.enumlabel).join(', ')||'THIEU — migration chua chay');
+  await p.\$disconnect();
+})().catch(e=>{console.error('skip:',e.message);process.exit(0)});
+" 2>/dev/null || echo "skip: khong doc duoc DB"
 
-# 2b) Ghi DB — BO COMMENT dong duoi sau khi da xem ket qua dry-run o tren
-#     DEBUG_SQL=1 de in ra SQL thuc te Prisma gui xuong DB (phoi hien thi
-#     $1..$N danh so lien tuc + ARRAY['...']::text[] co nhay don).
-DEBUG_SQL=1 node scripts/clean-profile-track-mix.cjs --all
+echo "=== bang crm.crm_partner_kyc ==="
+node -e "
+const {PrismaClient}=require('@prisma/client');
+const p=new PrismaClient();
+(async()=>{
+  const r=await p.\$queryRaw\`SELECT count(*)::int AS c FROM crm.crm_partner_kyc\`;
+  console.log('so ho so KYC:', r[0].c);
+  const s=await p.\$queryRaw\`SELECT status, count(*)::int AS c FROM crm.crm_partner_kyc GROUP BY status ORDER BY status\`;
+  s.forEach(x=>console.log('  ', x.status, '=', x.c));
+  await p.\$disconnect();
+})().catch(e=>{console.error('skip:',e.message);process.exit(0)});
+" 2>/dev/null || echo "skip: khong doc duoc DB"
 
-# 2c) KIEM TRA IDEMPOTENT — phai ra "0 can lam sach"
-node scripts/clean-profile-track-mix.cjs --dry-run
+echo "=== cot moi trong crm.crm_commission_period ==="
+node -e "
+const {PrismaClient}=require('@prisma/client');
+const p=new PrismaClient();
+(async()=>{
+  const r=await p.\$queryRaw\`SELECT column_name FROM information_schema.columns WHERE table_schema='crm' AND table_name='crm_commission_period' AND column_name IN ('gross_amount_vnd','pit_tax_amount_vnd','net_paid_amount_vnd','transfer_ref') ORDER BY column_name\`;
+  console.log('cot co:', r.map(x=>x.column_name).join(', ')||'THIEU — migration chua chay');
+  await p.\$disconnect();
+})().catch(e=>{console.error('skip:',e.message);process.exit(0)});
+" 2>/dev/null || echo "skip: khong doc duoc DB"
+
+echo "=== cot moi trong crm.crm_partner_claim (status + expires_at) ==="
+node -e "
+const {PrismaClient}=require('@prisma/client');
+const p=new PrismaClient();
+(async()=>{
+  const r=await p.\$queryRaw\`SELECT column_name FROM information_schema.columns WHERE table_schema='crm' AND table_name='crm_partner_claim' AND column_name IN ('status','expires_at') ORDER BY column_name\`;
+  console.log('cot co:', r.map(x=>x.column_name).join(', ')||'THIEU — migration chua chay');
+  await p.\$disconnect();
+})().catch(e=>{console.error('skip:',e.message);process.exit(0)});
+" 2>/dev/null || echo "skip: khong doc duoc DB"
 
 cd "$ROOT"
 
@@ -77,40 +120,66 @@ ss -ltnp 2>/dev/null | grep -E ':(3000|3001)\b' || echo "WARN: thieu port 3000/3
 
 echo "=== live check ==="
 curl -sI -m 10 https://inlink.vn/ | head -1 || true
+curl -sI -m 10 https://ctv.inlink.vn/ | head -1 || true
+curl -sI -m 10 https://crm.inlink.vn/ | head -1 || true
 curl -sI -m 10 http://127.0.0.1:3001/api/v1/cms/site-code | head -1 || true
 
 echo "=== log tail ==="
 pm2 logs inlink-api --lines 30 --nostream 2>/dev/null || true
 
 # ═══════════════════════════════════════════════════════════════════
-# BƯỚC 4 — KIỂM TRA HÀNH VI ATS MỚI (4 hạng mục)
+# BƯỚC 4 — KIỂM TRA LUỒNG KYC + PAYOUT GATE
 #
-# 1) Mở khóa liên hệ: NTD mở hồ sơ bằng Credit HOẶC ứng viên tự ứng tuyển
-#    → email/SĐT hiện đầy đủ (không còn "098***538").
-# 2) Ứng tuyển chéo lĩnh vực: hồ sơ Kỹ thuật nộp tin Kinh doanh → KHÔNG còn
-#    lỗi 400 "Hồ sơ Kỹ thuật không thể nộp tin Kinh doanh".
-# 3) Hộp thư: ứng viên tự ứng tuyển vào tin của gói Tin săn → badge phải là
-#    "Tự ứng tuyển" (KHÔNG phải "Tin săn nhân sự").
-# 4) Quy trình tuyển dụng: có tab "Danh sách cần xử lý" / "Bảng Kanban theo vị trí".
+# 1) Endpoint đọc ảnh CCCD phải chặn khi chưa đăng nhập → 401.
+# 2) Danh sách hồ sơ KYC (CRM) chỉ trả về khi đã đăng nhập → 401.
+# 3) Nộp hồ sơ thiếu ảnh mặt sau → 400.
+# 4) Cổng chi trả: CTV chưa VERIFIED → 400 với đúng thông báo.
 # ═══════════════════════════════════════════════════════════════════
-echo "=== ATS: API phan hoi ==="
+echo "=== KYC: doc anh CCCD khong chua dang nhap (mong doi 401) ==="
 curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" \
-  http://127.0.0.1:3001/api/v1/cms/site-code || echo "WARN: api khong phan hoi"
+  http://127.0.0.1:3001/api/v1/ctv/kyc/image/00000000-0000-0000-0000-000000000000/front
 
-echo "=== ATS: quy trinh tuyen dung co 2 che do xem ==="
-curl -s -m 15 http://127.0.0.1:3001/api/v1/cms/site-code >/dev/null 2>&1 \
-  && echo "API OK" || echo "WARN: api khong phan hoi"
+echo "=== KYC: danh sach ho so CRM khong chua dang nhap (mong doi 401) ==="
+curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" \
+  http://127.0.0.1:3001/api/v1/crm/ctv/kyc
 
-echo "=== ATS: so ho so ung tuyen (nguon mac dinh la self_applied) ==="
+echo "=== KYC: nop ho so thieu anh mat sau (mong doi 400) ==="
+curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" -X PUT \
+  -H "Content-Type: application/json" \
+  -d '{"fullName":"Nguyen Van A","idNumber":"012345678901","phone":"0900000001","bankCode":"MB","bankName":"MB Bank","bankAccountNumber":"0123456789","bankAccountHolder":"Nguyen Van A"}' \
+  http://127.0.0.1:3001/api/v1/ctv/kyc
+
+echo "=== KYC: so ho so PENDING (badge tren menu CRM) ==="
+cd "$ROOT/apps/api"
 node -e "
 const {PrismaClient}=require('@prisma/client');
 const p=new PrismaClient();
 (async()=>{
-  const r=await p.\$queryRaw\`SELECT count(*)::int AS c FROM application WHERE is_deleted=false\`;
-  console.log('so ho so ung tuyen:', r[0].c);
+  const r=await p.\$queryRaw\`SELECT count(*)::int AS c FROM crm.crm_partner_kyc WHERE status='PENDING'\`;
+  console.log('ho so PENDING:', r[0].c);
   await p.\$disconnect();
 })().catch(e=>{console.error('skip:',e.message);process.exit(0)});
 " 2>/dev/null || echo "skip: khong doc duoc DB"
+cd "$ROOT"
 
-echo "=== ATS: loi trong log api ==="
-pm2 logs inlink-api --lines 80 --nostream 2>/dev/null | grep -iE "error|exception" | tail -10 || echo "khong co loi"
+echo "=== Payout Gate: trang thai KYC cua CTV (ky choi se bi chan) ==="
+cd "$ROOT/apps/api"
+node -e "
+const {PrismaClient}=require('@prisma/client');
+const p=new PrismaClient();
+(async()=>{
+  const r=await p.\$queryRaw\`
+    SELECT COALESCE(k.status::text,'UNVERIFIED') AS status, count(*)::int AS c
+    FROM crm.crm_partner pt
+    LEFT JOIN crm.crm_partner_kyc k ON k.partner_id=pt.id
+    GROUP BY 1 ORDER BY 1\`;
+  r.forEach(x=>console.log('  ', x.status, '=', x.c));
+  const w=await p.\$queryRaw\`SELECT count(*)::int AS c FROM crm.crm_commission_period WHERE status='payable'\`;
+  console.log('ky choi da duyet chi (status=payable):', w[0].c, '— kiem tra tung ky co VERIFIED truoc khi chi');
+  await p.\$disconnect();
+})().catch(e=>{console.error('skip:',e.message);process.exit(0)});
+" 2>/dev/null || echo "skip: khong doc duoc DB"
+cd "$ROOT"
+
+echo "=== loi trong log api ==="
+pm2 logs inlink-api --lines 100 --nostream 2>/dev/null | grep -iE "error|exception" | tail -10 || echo "khong co loi"
