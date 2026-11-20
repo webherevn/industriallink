@@ -960,12 +960,11 @@ export class ApplicationService {
     });
 
     const { companyId } = await this.companies.requireUserCompany(user.id);
-    const [huntJobs, unlocked, rejectReasons] = await Promise.all([
+    const candidateIds = applications.map((a) => a.candidateId);
+    const [huntJobs, unlocked, huntSourced, rejectReasons] = await Promise.all([
       this.huntJobIds(companyId),
-      this.unlockedCandidateIds(
-        companyId,
-        applications.map((a) => a.candidateId),
-      ),
+      this.unlockedCandidateIds(companyId, candidateIds),
+      this.huntSourcedCandidateIds(companyId, candidateIds),
       this.rejectionReasons(applications.map((a) => a.id)),
     ]);
 
@@ -976,7 +975,20 @@ export class ApplicationService {
         a.candidate.skills.map((s) => s.name),
       );
       const live = this.resolveLiveMatch(a, job, a.candidate, staleUpdates);
-      const source: ApplicationSource = huntJobs.has(jobId) ? 'hunt' : 'self_applied';
+      const candidateTrack = candidateMatchTrack(a.candidate);
+      const jobTrack = jobMatchTrack(job);
+
+      // ⭐ Nguồn chuẩn hóa — ứng viên tự ứng tuyển vào tin Săn vẫn là "Tự ứng tuyển".
+      const source: ApplicationSource = resolveApplicationSource({
+        hasAppliedFromHuntJob: huntJobs.has(jobId),
+        openedViaHuntCampaign: huntSourced.has(a.candidateId),
+        shortlisted: huntSourced.has(a.candidateId),
+        unlockedViaCredit: unlocked.has(a.candidateId),
+      });
+
+      const canContact = source === 'self_applied' || unlocked.has(a.candidateId);
+      const rawEmail = a.candidate.user?.email ?? null;
+
       return {
         applicationId: a.id,
         candidateId: a.candidateId,
@@ -990,8 +1002,14 @@ export class ApplicationService {
         createdAt: a.createdAt.toISOString(),
         interviews: interviewMarks(a.interviews),
         source,
-        email: a.candidate.user?.email ?? null,
-        canContact: source === 'self_applied' || unlocked.has(a.candidateId),
+        // ⭐ Mask ngay tại Backend (không lộ qua Network F12).
+        email: canContact ? rawEmail : maskEmail(rawEmail),
+        canContact,
+        isContactUnlocked: canContact,
+        primaryTitle: a.candidate.profile?.currentPosition ?? null,
+        candidateTrack,
+        jobTrack,
+        crossTrack: Boolean(candidateTrack && jobTrack && candidateTrack !== jobTrack),
         rejectionReason: rejectReasons.get(a.id) ?? null,
       };
     });

@@ -60,13 +60,14 @@ import {
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
 import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
-import { matchFitLabel } from '@/lib/match-fit-label';
+import { MATCH_LEVEL_THRESHOLD, matchFitLabel, matchLevelOf } from '@/lib/match-fit-label';
 
 type FilterTab = 'all' | 'high' | 'medium' | 'new';
 
 const PAGE_SIZE = 5;
-const HIGH_MATCH = 80;
-const MEDIUM_MATCH = 55;
+/** ⭐ Ngưỡng chuẩn toàn sàn — đồng bộ với `match-fit-label.ts` (80 / 60). */
+const HIGH_MATCH = MATCH_LEVEL_THRESHOLD.high;
+const MEDIUM_MATCH = MATCH_LEVEL_THRESHOLD.medium;
 
 /** Ánh xạ cấp kỹ năng (enum) → % thanh hiển thị — không phải số hardcode hồ sơ. */
 const SKILL_LEVEL_PCT: Record<SkillLevel, number> = {
@@ -105,9 +106,11 @@ function companyInitials(name: string): string {
 }
 
 function matchLabel(score: number): { text: string; tone: 'high' | 'medium' | 'low' } {
-  if (score >= HIGH_MATCH) return { text: 'Phù hợp cao', tone: 'high' };
-  if (score >= MEDIUM_MATCH) return { text: 'Phù hợp trung bình', tone: 'medium' };
-  return { text: 'Gợi ý thêm', tone: 'low' };
+  // ⭐ Ngưỡng chuẩn toàn sàn (>=80 Rất phù hợp / >=60 Khá phù hợp /
+  // >=40 Cân nhắc / <40 Độ phù hợp thấp).
+  const level = matchLevelOf(score);
+  const tone = level === 'high' ? 'high' : level === 'poor' ? 'low' : 'medium';
+  return { text: matchFitLabel(score), tone };
 }
 
 function matchRingLabel(score: number): string {

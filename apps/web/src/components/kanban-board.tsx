@@ -363,9 +363,12 @@ function KanbanCard({
         </div>
       </div>
 
-      {/* Dòng phụ: chức danh hiện tại */}
+      {/* Dòng phụ: chức danh hiện tại — ưu tiên `primaryTitle` (đã đồng bộ theo lĩnh vực active) */}
       <p className="mt-0.5 truncate text-[11.5px] text-slate-500">
-        {a.currentPosition ? formatJobTitle(a.currentPosition) : 'Chưa rõ vị trí'}
+        {(() => {
+          const title = a.primaryTitle ?? a.currentPosition;
+          return title ? formatJobTitle(title) : 'Chưa rõ vị trí';
+        })()}
       </p>
 
       {/* Badge nguồn hồ sơ + thời gian nộp/cập nhật */}
@@ -373,6 +376,15 @@ function KanbanCard({
         <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
           {APPLICATION_SOURCE_LABEL[source]}
         </span>
+        {/* ⭐ Tag ứng tuyển CHÉO lĩnh vực — NTD thấy nhanh nhóm kỹ sư ứng tuyển JD KD. */}
+        {a.crossTrack && (
+          <span
+            className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200"
+            title="Ứng viên ứng tuyển chéo lĩnh vực"
+          >
+            Chéo lĩnh vực · {a.candidateTrack === 'technical' ? 'Kỹ thuật' : 'Kinh doanh'}
+          </span>
+        )}
         {timeLabel && (
           <span className="text-[10px] font-medium text-slate-400">{timeLabel}</span>
         )}

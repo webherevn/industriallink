@@ -79,6 +79,8 @@ import {
   type UpdateCrmSourcingOutreachStatusRequest,
 } from '@industriallink/contracts';
 import { DEFAULT_TENANT_ID } from '../../shared/common/constants';
+import { maskEmail, maskPhone } from '../../shared/domain/contact-mask.util';
+import { PROFILE_OPEN_ACTIONS } from '../recruitment/application-source.util';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import { compressUploadedImage } from '../../shared/media/optimize-image';
@@ -1863,7 +1865,14 @@ export class CrmService {
       ),
     ];
 
-    const [statusUsages, companies, assignments, engagements, candidates] = await Promise.all([
+    const [
+      statusUsages,
+      companies,
+      assignments,
+      engagements,
+      candidates,
+      unlockedProfiles,
+    ] = await Promise.all([
       this.prisma.huntCampaignActivity.findMany({
         where: {
           kind: 'shortlist',
@@ -1903,6 +1912,18 @@ export class CrmService {
             },
           })
         : Promise.resolve([]),
+      // ⭐ Ứng viên nào công ty đã MỞ KHÓA hồ sơ (mở khóa bằng Credit) →
+      // mới hiện liên hệ đầy đủ; còn lại mask ngay tại Backend.
+      candidateIds.length > 0
+        ? this.prisma.billingCreditTransaction.findMany({
+            where: {
+              candidateId: { in: candidateIds },
+              action: { in: [...PROFILE_OPEN_ACTIONS] },
+            },
+            select: { candidateId: true, companyId: true },
+            distinct: ['candidateId'],
+          })
+        : Promise.resolve([]),
     ]);
 
     const jobIds = [
@@ -1939,6 +1960,10 @@ export class CrmService {
     const jobMap = new Map(jobs.map((j) => [j.id, j]));
     const candidateMap = new Map(candidates.map((c) => [c.id, c]));
     const appliedMap = new Map(applications.map((a) => [`${a.jobId}:${a.candidateId}`, a.createdAt]));
+
+    // ⭐ Ứng viên đã mở khóa hồ sơ (bằng Credit) → hiện liên hệ đầy đủ.
+    // Chưa mở khóa → mask ngay tại Backend (không lộ qua Network F12).
+    const unlockedCandidateIds = new Set(unlockedProfiles.map((r) => r.candidateId));
 
     const statusByEngCand = new Map<string, { status: SourcingOutreachStatus; updatedAt: Date }>();
     for (const su of statusUsages) {
@@ -1998,8 +2023,17 @@ export class CrmService {
         candidateId: cid,
         candidateCode: cand?.code ?? null,
         candidateName: cand?.displayName ?? fallbackName,
-        candidateEmail: cand?.user?.email ?? null,
-        candidatePhone: cand?.profile?.phone ?? null,
+        // ⭐ Mask nếu công ty chưa mở khóa hồ sơ ứng viên này.
+        candidateEmail: cand
+          ? unlockedCandidateIds.has(cid)
+            ? (cand.user?.email ?? null)
+            : maskEmail(cand.user?.email ?? null)
+          : null,
+        candidatePhone: cand
+          ? unlockedCandidateIds.has(cid)
+            ? (cand.profile?.phone ?? null)
+            : maskPhone(cand.profile?.phone ?? null)
+          : null,
         candidatePosition: cand?.profile?.currentPosition ?? null,
         candidateCity: cand?.profile?.currentCity ?? null,
         candidateExperienceYears: cand?.profile?.totalExperienceYears ?? null,

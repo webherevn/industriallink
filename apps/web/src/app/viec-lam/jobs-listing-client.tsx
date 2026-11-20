@@ -1458,9 +1458,8 @@ function formatRelativeTime(iso: string | null | undefined): string {
 }
 
 function listingMatchLabel(score: number): string {
-  if (score >= 80) return 'Phù hợp cao';
-  if (score >= 55) return 'Phù hợp khá';
-  return 'Gợi ý thêm';
+  // ⭐ Ngưỡng chuẩn toàn sàn (dùng chung match-fit-label.ts).
+  return matchFitLabel(score);
 }
 
 function JobCard({
