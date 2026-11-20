@@ -72,6 +72,9 @@ export function SourcingCandidateDrawer({
   const [interviewNote, setInterviewNote] = useState('');
   const [expandedExp, setExpandedExp] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  // Tầng 3 — bảng đối chiếu chi tiết (mặc định thu gọn).
+  // Hook phải nằm ở top-level component, KHÔNG được gọi trong render callback.
+  const [showDetailTable, setShowDetailTable] = useState(false);
 
   /**
    * Quyền bàn giao Inlink: 100% theo CHIẾN DỊCH (gói gắn qua huntPackageId).
@@ -840,7 +843,6 @@ export function SourcingCandidateDrawer({
                     : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80';
 
             // Tầng 3 — bảng đối chiếu chi tiết (mặc định thu gọn).
-            const [showDetailTable, setShowDetailTable] = useState(false);
             const MISSING_TAG_LIMIT = 6;
             const visibleMissing = missingCriteria.slice(0, MISSING_TAG_LIMIT);
             const hiddenMissingCount = Math.max(0, missingCriteria.length - MISSING_TAG_LIMIT);
