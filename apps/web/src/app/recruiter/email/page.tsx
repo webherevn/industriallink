@@ -211,52 +211,64 @@ export default function RecruiterBroadcastEmailPage() {
 
   return (
     <AppShell>
-      <div className="w-full space-y-5">
-        {/* Nút quay lại theo returnUrl */}
-        <div>
-          <Link
-            href={backHref}
-            className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1D4ED8] hover:underline"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Quay lại
-          </Link>
-        </div>
+      <div className="w-full space-y-5 pb-10">
+        {/* Banner đầu trang đồng bộ chuẩn inLink */}
+        <header className="brand-hero-surface relative overflow-hidden rounded-3xl px-5 py-6 sm:px-7">
+          <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
+          <div className="relative flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
+                <Link
+                  href={backHref}
+                  className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold normal-case tracking-normal text-white/90 transition hover:bg-white/20"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Quay lại
+                </Link>
+                <span className="text-white/40">/</span>
+                <span>Chăm sóc & Phản hồi ứng viên</span>
+              </div>
+              <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Gửi email hàng loạt
+              </h1>
+              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-white/80">
+                Chọn chiến dịch tuyển dụng, lọc ứng viên theo trạng thái hoặc độ phù hợp AI và gửi thông báo cá nhân hóa.
+              </p>
+            </div>
 
-        {/* Header & Bộ chọn chiến dịch tuyển dụng */}
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
-              Chăm sóc & Phản hồi ứng viên
-            </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-brand-800">
-              Gửi email hàng loạt
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Chọn chiến dịch tuyển dụng, lọc ứng viên theo trạng thái hoặc độ phù hợp AI và gửi thông báo cá nhân hóa.
-            </p>
+            {selectedJob ? (
+              <Link
+                href={`/jobs/${selectedJob.id}/applicants`}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-4 py-2.5 text-xs font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/25"
+              >
+                <span>Quản lý hồ sơ vị trí này</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
           </div>
-
-          {selectedJob ? (
-            <Link
-              href={`/jobs/${selectedJob.id}/applicants`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-xs ring-1 ring-slate-200 transition hover:bg-brand-50"
-            >
-              <span>Quản lý hồ sơ vị trí này</span>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-          ) : null}
         </header>
 
         {/* Thanh chọn Tin tuyển dụng + Thống kê nhanh ứng viên của tin */}
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-slate-500">
-                Chiến dịch / Tin tuyển dụng đang chọn
-              </label>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-                <div className="relative min-w-[280px] flex-1">
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs sm:p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] xl:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Chiến dịch / Tin tuyển dụng đang chọn
+                </label>
+                {selectedJob && statusInfo ? (
+                  <span
+                    className={clsx(
+                      'inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1',
+                      statusInfo.className,
+                    )}
+                  >
+                    {statusInfo.label}
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-2 flex items-center gap-2.5">
+                <div className="relative min-w-0 flex-1">
                   <select
                     value={jobId}
                     disabled={loadingJobs}
@@ -265,7 +277,7 @@ export default function RecruiterBroadcastEmailPage() {
                       setNotice(null);
                       setWarning(null);
                     }}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 text-sm font-semibold text-brand-800 shadow-2xs transition hover:border-brand-300 focus:border-brand-500 focus:bg-white focus:outline-none"
+                    className="h-10 w-full truncate rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 text-sm font-semibold text-[#072348] shadow-2xs transition hover:border-[#0B468C]/40 focus:border-[#0B468C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B468C]/15"
                   >
                     <option value="">
                       {loadingJobs ? 'Đang tải danh sách tin...' : '— Chọn tin tuyển dụng —'}
@@ -277,17 +289,6 @@ export default function RecruiterBroadcastEmailPage() {
                     ))}
                   </select>
                 </div>
-
-                {selectedJob && statusInfo ? (
-                  <span
-                    className={clsx(
-                      'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1',
-                      statusInfo.className,
-                    )}
-                  >
-                    {statusInfo.label}
-                  </span>
-                ) : null}
               </div>
 
               {/* Bước quy trình — chọn sẵn theo ngữ cảnh từ Hộp thư / Kanban */}
@@ -296,7 +297,7 @@ export default function RecruiterBroadcastEmailPage() {
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     Bước quy trình
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-[#0B468C] ring-1 ring-sky-200">
                     {paramStage}
                   </span>
                   <button
@@ -311,12 +312,12 @@ export default function RecruiterBroadcastEmailPage() {
 
               {/* Danh sách ứng viên được chọn sẵn từ Hộp thư */}
               {prefillIds && prefillIds.length > 0 && (
-                <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                   <Users className="h-3.5 w-3.5" />
                   Đã chọn sẵn {formApplicants.length} ứng viên từ Hộp thư
                   {paramApplicationIdsCount &&
                     Number(paramApplicationIdsCount) !== prefillIds.length
-                    ? ` (${paramApplicationIdsCount} ứng viên được chọn)` 
+                    ? ` (${paramApplicationIdsCount} ứng viên được chọn)`
                     : ''}
                 </p>
               )}
@@ -324,22 +325,30 @@ export default function RecruiterBroadcastEmailPage() {
 
             {/* 4 Thẻ tóm tắt nhanh ứng viên của tin */}
             {jobId ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5">
                   <p className="text-[11px] font-medium text-slate-500">Tổng ứng viên</p>
-                  <p className="mt-0.5 text-lg font-bold text-brand-800">{stats.total}</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#072348]">
+                    {stats.total}
+                  </p>
                 </div>
-                <div className="rounded-xl bg-brand-50/60 px-3 py-2 ring-1 ring-brand-200/60">
-                  <p className="text-[11px] font-medium text-brand-700">Mới ứng tuyển</p>
-                  <p className="mt-0.5 text-lg font-bold text-brand-800">{stats.applied}</p>
+                <div className="rounded-xl border border-sky-200/70 bg-sky-50/50 px-3.5 py-2.5">
+                  <p className="text-[11px] font-medium text-[#0B468C]">Mới ứng tuyển</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#072348]">
+                    {stats.applied}
+                  </p>
                 </div>
-                <div className="rounded-xl bg-sky-50/70 px-3 py-2 ring-1 ring-sky-200/70">
-                  <p className="text-[11px] font-medium text-sky-700">Đang xử lý</p>
-                  <p className="mt-0.5 text-lg font-bold text-sky-900">{stats.inProgress}</p>
+                <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3.5 py-2.5">
+                  <p className="text-[11px] font-medium text-emerald-700">Đang xử lý</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-emerald-800">
+                    {stats.inProgress}
+                  </p>
                 </div>
-                <div className="rounded-xl bg-amber-50/70 px-3 py-2 ring-1 ring-amber-200/80">
-                  <p className="text-[11px] font-medium text-amber-800">Khớp AI ≥70%</p>
-                  <p className="mt-0.5 text-lg font-bold text-[#E8872A]">{stats.highMatch}</p>
+                <div className="rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3.5 py-2.5">
+                  <p className="text-[11px] font-medium text-[#C25E12]">Khớp AI ≥ 70%</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#E8872A]">
+                    {stats.highMatch}
+                  </p>
                 </div>
               </div>
             ) : null}

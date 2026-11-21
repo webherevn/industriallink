@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { APPLICATION_SOURCE_LABEL, APPLICATION_STATUS_LABEL, PIPELINE_STEPS, toTitleCase } from '@/lib/format';
+import { matchBadgeTone } from '@/lib/match-percent';
 import {
   broadcastJobEmail,
   suggestBroadcastEmail,
@@ -258,29 +259,31 @@ export function BroadcastEmailForm({
   return (
     <div>
       {/* Header khu vực soạn thảo */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-[#0B468C]">
               <Mail className="h-4 w-4" />
             </span>
-            <h2 className="text-lg font-bold text-brand-800">
-              Soạn & Gửi Email cá nhân hóa hàng loạt
-            </h2>
+            <div>
+              <h2 className="text-base font-bold text-[#072348] sm:text-lg">
+                Soạn & Gửi Email cá nhân hóa hàng loạt
+              </h2>
+              <p className="text-xs text-slate-500">
+                Mỗi ứng viên nhận một thư riêng biệt có lời chào tên riêng, gắn thương hiệu công ty và tên vị trí tuyển dụng.
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500">
-            Mỗi ứng viên nhận một thư riêng biệt có lời chào tên riêng, gắn thương hiệu công ty và tên vị trí tuyển dụng.
-          </p>
         </div>
 
-        <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
+        <div className="inline-flex w-full rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 text-xs font-semibold sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveTab('compose')}
             className={clsx(
-              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition',
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 py-1.5 transition sm:flex-initial',
               activeTab === 'compose'
-                ? 'bg-white text-brand-800 shadow-xs'
+                ? 'bg-white text-[#072348] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900',
             )}
           >
@@ -291,9 +294,9 @@ export function BroadcastEmailForm({
             type="button"
             onClick={() => setActiveTab('preview')}
             className={clsx(
-              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition',
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 py-1.5 transition sm:flex-initial',
               activeTab === 'preview'
-                ? 'bg-white text-brand-800 shadow-xs'
+                ? 'bg-white text-[#072348] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900',
             )}
           >
@@ -304,27 +307,27 @@ export function BroadcastEmailForm({
       </div>
 
       {/* Bố cục 2 cột chính */}
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+      <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         {/* CỘT TRÁI: SOẠN THẢO HOẶC XEM TRƯỚC */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* Kịch bản AI & Mẫu soạn nhanh */}
-          <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-amber-50/30 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+          <div className="rounded-2xl border border-[#FFD0A3] bg-[#FFF8F1]/80 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-[#072348]">
                 <Sparkles className="h-4 w-4 text-[#E8872A]" />
                 Chọn kịch bản để AI tự động soạn thư chuẩn HR
               </p>
               {suggestMutation.isPending ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C25E12]">
                   <RefreshCw className="h-3 w-3 animate-spin" />
                   Đang soạn thảo...
                 </span>
               ) : null}
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11.5px] text-slate-600">
               AI tự động điều chỉnh giọng văn sát với vị trí tuyển dụng và trạng thái ứng viên đang chọn.
             </p>
-            <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {AI_PURPOSES.map((item) => {
                 const isCurrent = activePurpose === item.id;
                 return (
@@ -334,16 +337,16 @@ export function BroadcastEmailForm({
                     disabled={mutation.isPending || suggestMutation.isPending}
                     onClick={() => suggestMutation.mutate(item.id)}
                     className={clsx(
-                      'flex flex-col items-start rounded-xl border px-3 py-2 text-left transition duration-150 active:scale-[0.98] disabled:opacity-50',
+                      'flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition duration-150 active:scale-[0.98] disabled:opacity-50',
                       isCurrent
-                        ? 'border-brand-600 bg-brand-600 text-white shadow-xs'
-                        : 'border-amber-200/90 bg-white text-slate-800 hover:border-amber-400 hover:bg-amber-50/60',
+                        ? 'border-[#072348] bg-[#072348] text-white shadow-xs ring-1 ring-[#E8872A]/60'
+                        : 'border-slate-200/90 bg-white text-[#072348] hover:border-[#E8872A] hover:bg-white',
                     )}
                   >
-                    <span className="text-xs font-bold">{item.label}</span>
+                    <span className="text-xs font-bold leading-snug">{item.label}</span>
                     <span
                       className={clsx(
-                        'mt-0.5 line-clamp-1 text-[10px]',
+                        'mt-0.5 line-clamp-2 text-[11px] leading-snug',
                         isCurrent ? 'text-white/80' : 'text-slate-500',
                       )}
                     >
@@ -354,7 +357,7 @@ export function BroadcastEmailForm({
               })}
             </div>
             {suggestMutation.isError && (
-              <p className="mt-2 text-xs text-red-600">
+              <p className="mt-2 text-xs text-rose-600">
                 {suggestMutation.error instanceof ApiError
                   ? suggestMutation.error.message
                   : 'Không soạn được gợi ý'}
@@ -477,19 +480,19 @@ export function BroadcastEmailForm({
         </div>
 
         {/* CỘT PHẢI: DANH SÁCH & BỘ LỌC NGƯỜI NHẬN */}
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-          <div>
+        <div className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+          <div className="flex-1">
             {/* Tiêu đề & số lượng đã chọn */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-brand-700" />
-                <p className="text-sm font-bold text-brand-800">Danh sách Người nhận</p>
+                <Users className="h-4 w-4 text-[#0B468C]" />
+                <p className="text-sm font-bold text-[#072348]">Danh sách Người nhận</p>
               </div>
               <span
                 className={clsx(
                   'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold',
                   selected.size > 0
-                    ? 'bg-brand-700 text-white'
+                    ? 'bg-[#072348] text-white'
                     : 'bg-slate-200 text-slate-600',
                 )}
               >
@@ -507,7 +510,7 @@ export function BroadcastEmailForm({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Tìm theo tên, chức danh hoặc ngành nghề..."
-                  className="h-8.5 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none"
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-8.5 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#0B468C] focus:outline-none focus:ring-2 focus:ring-[#0B468C]/15"
                 />
               </div>
             ) : null}
@@ -543,7 +546,7 @@ export function BroadcastEmailForm({
             </div>
 
             {applicants.length === 0 ? (
-              <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center">
+              <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center">
                 <Users className="mx-auto h-8 w-8 text-slate-300" />
                 <p className="mt-2 text-sm font-semibold text-slate-700">
                   Tin này chưa có ứng viên nộp hồ sơ
@@ -555,11 +558,11 @@ export function BroadcastEmailForm({
             ) : (
               <>
                 {/* Thanh thao tác chọn gọn gàng 1 dòng duy nhất */}
-                <div className="mt-3 flex items-center justify-between rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200/80">
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200/80 bg-white px-3 py-2">
                   <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                      className="h-4 w-4 rounded border-slate-300 accent-[#0B468C]"
                       checked={allVisibleChecked}
                       disabled={mutation.isPending || visibleIds.length === 0}
                       onChange={(e) => toggleIds(visibleIds, e.target.checked)}
@@ -571,7 +574,7 @@ export function BroadcastEmailForm({
                       <button
                         type="button"
                         onClick={() => setSelected(new Set())}
-                        className="font-semibold text-slate-500 hover:text-rose-600"
+                        className="font-semibold text-slate-500 transition hover:text-rose-600"
                       >
                         Bỏ chọn hết
                       </button>
@@ -580,9 +583,9 @@ export function BroadcastEmailForm({
                 </div>
 
                 {/* Danh sách thẻ ứng viên giàu thông tin */}
-                <ul className="mt-2.5 max-h-[380px] space-y-2 overflow-y-auto pr-1">
+                <ul className="mt-2.5 max-h-[380px] space-y-2 overflow-y-auto p-0.5">
                   {filteredApplicants.length === 0 ? (
-                    <li className="rounded-xl bg-white p-6 text-center text-xs text-slate-500">
+                    <li className="rounded-xl border border-slate-200/70 bg-white p-6 text-center text-xs text-slate-500">
                       Không có ứng viên nào khớp với bộ lọc hiện tại.
                     </li>
                   ) : (
@@ -598,26 +601,26 @@ export function BroadcastEmailForm({
                         <li key={row.applicationId}>
                           <label
                             className={clsx(
-                              'flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition duration-150',
+                              'flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition duration-150',
                               isChecked
-                                ? 'bg-white ring-2 ring-brand-600 shadow-2xs'
-                                : 'bg-white/80 ring-1 ring-slate-200 hover:bg-white hover:ring-slate-300',
+                                ? 'border-[#0B468C] bg-sky-50/40 shadow-2xs'
+                                : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50',
                             )}
                           >
                             <div className="flex min-w-0 items-center gap-2.5">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                className="h-4 w-4 shrink-0 rounded border-slate-300 accent-[#0B468C]"
                                 checked={isChecked}
                                 disabled={mutation.isPending}
                                 onChange={() => toggleOne(row.applicationId)}
                               />
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#072348]/10 text-xs font-bold text-[#072348]">
                                 {row.displayName.trim().charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="truncate text-xs sm:text-[13px] font-bold text-slate-900">
+                                  <span className="truncate text-xs font-bold text-[#072348] sm:text-[13px]">
                                     {toTitleCase(row.displayName)}
                                   </span>
                                   <span
@@ -651,11 +654,7 @@ export function BroadcastEmailForm({
                               <span
                                 className={clsx(
                                   'shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold tabular-nums',
-                                  scorePct >= 70
-                                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-                                    : scorePct >= 45
-                                      ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
-                                      : 'bg-slate-100 text-slate-600',
+                                  matchBadgeTone(scorePct),
                                 )}
                               >
                                 {scorePct}%
@@ -672,15 +671,15 @@ export function BroadcastEmailForm({
           </div>
 
           {/* Tùy chọn tự động cập nhật trạng thái hồ sơ sau khi gửi */}
-          <div className="mt-4 border-t border-slate-200/80 pt-3">
-            <label className="block text-[11px] font-semibold text-slate-600">
-              Cập nhật trạng thái hồ sơ sau khi gửi thư (Tùy chọn):
+          <div className="mt-4 border-t border-slate-200/80 pt-3.5">
+            <label className="block text-[11.5px] font-semibold text-slate-700">
+              Cập nhật trạng thái hồ sơ sau khi gửi thư (Tùy chọn)
             </label>
             <select
               value={nextStatus}
               onChange={(e) => setNextStatus(e.target.value)}
               disabled={mutation.isPending}
-              className="mt-1 h-8.5 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:border-brand-500 focus:outline-none"
+              className="mt-1.5 h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-[#0B468C] focus:outline-none focus:ring-2 focus:ring-[#0B468C]/15"
             >
               <option value="">Giữ nguyên trạng thái hồ sơ hiện tại</option>
               <option value={ApplicationStatus.Screening}>
@@ -706,15 +705,15 @@ export function BroadcastEmailForm({
       )}
 
       {/* Thanh tác vụ dưới cùng */}
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+      <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-2 text-xs text-slate-600 sm:items-center">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 sm:mt-0" />
           <span>
             Mỗi ứng viên sẽ nhận riêng 1 email cá nhân hóa và tự động ghi vào Nhật ký xử lý hồ sơ.
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {onCancel && (
             <Button
               type="button"
@@ -732,14 +731,16 @@ export function BroadcastEmailForm({
               setActiveTab((prev) => (prev === 'compose' ? 'preview' : 'compose'))
             }
             disabled={mutation.isPending}
+            className="border border-slate-200 bg-white text-[#072348] hover:bg-slate-50"
           >
-            <Eye className="mr-1.5 h-4 w-4" />
+            <Eye className="mr-1.5 h-4 w-4 text-[#E8872A]" />
             {activeTab === 'compose' ? 'Xem trước thư' : 'Quay lại sửa'}
           </Button>
           <Button
             type="button"
             disabled={mutation.isPending || suggestMutation.isPending || !canSend}
             onClick={() => mutation.mutate()}
+            className="bg-[#072348] text-white hover:bg-[#0B468C]"
           >
             <Send className="mr-1.5 h-4 w-4" />
             {mutation.isPending
