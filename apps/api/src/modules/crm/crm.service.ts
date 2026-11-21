@@ -1185,7 +1185,7 @@ export class CrmService {
       referralCode?: string | null;
     },
   ): Promise<void> {
-    if (order.kind !== 'platform' && order.kind !== 'sourcing') return;
+    if (order.kind !== 'platform' && order.kind !== 'sourcing' && order.kind !== 'topup') return;
     // Gói 0đ / đơn 0đ không sinh hoa hồng.
     if (order.priceVndSnapshot <= 0n) return;
 
@@ -1216,7 +1216,10 @@ export class CrmService {
     // `vatAmountVnd` chỉ dùng để ghi nhận khoản VAT trên dòng chi tiết.
     const vatAmount = order.vatAmountVnd ?? 0n;
     const discountAmount = order.discountAmountVnd ?? 0n;
-    const eligibleRevenue = order.priceVndSnapshot - discountAmount;
+    const baseRevenue = policy.excludeVat
+      ? order.priceVndSnapshot
+      : order.priceVndSnapshot + vatAmount;
+    const eligibleRevenue = baseRevenue - discountAmount;
     if (eligibleRevenue <= 0n) return;
 
     try {
@@ -1483,6 +1486,13 @@ export class CrmService {
     const payableCount = await this.prisma.crmCommissionPeriod.count({ where: { status: 'payable' } });
     if (!shouldRemindPayoutDay({ todayIso, payoutDay: day, remindedOn: setting?.remindedOn ?? null, payableCount })) {
       return false;
+    }
+    if (!setting) {
+      await this.prisma.crmCommissionPayoutSetting.upsert({
+        where: { id: 'default' },
+        create: { id: 'default', payoutDay: day },
+        update: {},
+      });
     }
     const claimed = await this.prisma.crmCommissionPayoutSetting.updateMany({
       where: {
@@ -4480,7 +4490,7 @@ export class CrmService {
 
   private async entriesForPartner(partnerId: string, partnerName: string, partnerCode: string) {
     const rows = await this.prisma.crmCommissionEntry.findMany({
-      where: { partnerId },
+      where: { partnerId, status: { not: 'voided' } },
       orderBy: { paidAt: 'desc' },
       take: 50,
       include: {

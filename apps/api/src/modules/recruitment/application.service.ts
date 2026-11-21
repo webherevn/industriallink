@@ -88,9 +88,9 @@ export class ApplicationService {
 
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
-      include: { company: { select: { name: true } } },
+      include: { company: { select: { name: true, status: true, isDeleted: true } } },
     });
-    if (!job || job.isDeleted) {
+    if (!job || job.isDeleted || job.company.isDeleted || job.company.status !== 'active') {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
     if (job.status !== JobStatus.Published) {

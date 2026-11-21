@@ -277,13 +277,13 @@ export class CtvCommissionPolicyService {
     return this.mapPolicy({ ...created, tiers: created.tiers as TierRow[] });
   }
 
-  /** Ngày hiệu lực dạng YYYY-MM-DD (giờ Việt Nam) → Date UTC đầu ngày. */
+  /** Ngày hiệu lực dạng YYYY-MM-DD (00:00 giờ Việt Nam +07:00). */
   private parseEffectiveFrom(raw: string): Date {
     const text = (raw ?? '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
       throw new BadRequestException('Ngày hiệu lực phải có dạng YYYY-MM-DD.');
     }
-    const date = new Date(`${text}T00:00:00.000Z`);
+    const date = new Date(`${text}T00:00:00+07:00`);
     if (Number.isNaN(date.getTime())) {
       throw new BadRequestException('Ngày hiệu lực không hợp lệ.');
     }

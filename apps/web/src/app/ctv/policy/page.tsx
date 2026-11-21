@@ -130,8 +130,10 @@ export default function CtvPolicyPage() {
                 <ScopeItem ok={false}>
                   Gói Khám phá (0đ) — không tính hoa hồng.
                 </ScopeItem>
-                <ScopeItem ok={false}>
-                  Nạp thêm Credit — không tính hoa hồng và không cộng vào doanh số xét hạng.
+                <ScopeItem ok={current.includeCreditTopup}>
+                  {current.includeCreditTopup
+                    ? 'Nạp thêm Credit — được tính hoa hồng theo chính sách hiện hành.'
+                    : 'Nạp thêm Credit — không tính hoa hồng và không cộng vào doanh số xét hạng.'}
                 </ScopeItem>
               </ul>
               <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-slate-100 pt-3 text-xs text-slate-500">

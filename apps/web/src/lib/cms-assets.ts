@@ -29,7 +29,7 @@ export function resolveCmsAssetUrl(url?: string | null): string | null {
       return raw;
     }
   }
-  if (raw.startsWith('/')) {
+  if (raw.startsWith('/cms/') || raw.startsWith('/uploads/')) {
     const base = typeof window !== 'undefined' ? getApiBase() : apiPublicBase();
     return `${base}${raw}`;
   }

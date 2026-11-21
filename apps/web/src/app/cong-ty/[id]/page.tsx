@@ -1,8 +1,9 @@
 import { companyPublicPath, formatVietnameseCompanyName } from '@industriallink/contracts';
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { fetchPublicCompany } from '@/lib/public-job-api';
 import { apiPublicBase, siteUrl } from '@/lib/public-paths';
-import { INDEX_ROBOTS } from '@/lib/seo-robots';
+import { INDEX_ROBOTS, NOINDEX_ROBOTS } from '@/lib/seo-robots';
 import CompanyPublicPage from './company-profile-client';
 
 function plain(value?: string | null): string {
@@ -33,7 +34,7 @@ export async function generateMetadata({
   return {
     title: metaTitle,
     description,
-    robots: INDEX_ROBOTS,
+    robots: company ? INDEX_ROBOTS : NOINDEX_ROBOTS,
     alternates: { canonical },
     openGraph: {
       title: metaTitle,
@@ -54,6 +55,7 @@ export async function generateMetadata({
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const company = await fetchPublicCompany(id);
+  if (!company) notFound();
   const origin = siteUrl();
   const path = company ? companyPublicPath(company) : `/cong-ty/${id}`;
   const url = `${origin}${path}`;

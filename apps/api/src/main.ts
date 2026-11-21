@@ -48,13 +48,16 @@ async function bootstrap(): Promise<void> {
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('inlink API')
-    .setDescription('API nền tảng tuyển dụng công nghiệp tích hợp AI')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  const isProd = config.get('nodeEnv', { infer: true }) === 'production';
+  if (!isProd) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('inlink API')
+      .setDescription('API nền tảng tuyển dụng công nghiệp tích hợp AI')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  }
 
   const port = config.get('port', { infer: true });
   await app.listen(port);

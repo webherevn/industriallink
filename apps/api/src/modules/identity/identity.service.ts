@@ -178,8 +178,11 @@ export class IdentityService {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
     });
-    if (!user) {
+    if (!user || user.isDeleted || user.status === UserStatus.Deleted) {
       throw new BadRequestException('Tài khoản không tồn tại');
+    }
+    if (user.status === UserStatus.Locked) {
+      throw new BadRequestException('Tài khoản đã bị khoá');
     }
 
     const record = await this.prisma.otpCode.findFirst({

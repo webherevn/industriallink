@@ -147,6 +147,7 @@ export function validateKycSubmission(input: {
   fullName?: string | null;
   idNumber?: string | null;
   phone?: string | null;
+  bankCode?: string | null;
   bankAccountNumber?: string | null;
   bankAccountHolder?: string | null;
   hasFrontImage: boolean;
@@ -164,6 +165,9 @@ export function validateKycSubmission(input: {
   }
   if (!input.hasFrontImage) errors.push('Cần ảnh mặt trước CCCD');
   if (!input.hasBackImage) errors.push('Cần ảnh mặt sau CCCD');
+  if (!input.bankCode || input.bankCode.trim().length < 2) {
+    errors.push('Mã ngân hàng là bắt buộc');
+  }
   if (!input.bankAccountNumber || input.bankAccountNumber.trim().length < 6) {
     errors.push('Số tài khoản ngân hàng không hợp lệ');
   }

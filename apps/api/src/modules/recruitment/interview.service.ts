@@ -257,7 +257,9 @@ export class InterviewService {
       moveToInterview &&
       prevStatus !== ApplicationStatus.Interview &&
       prevStatus !== ApplicationStatus.Offer &&
-      prevStatus !== ApplicationStatus.Hired
+      prevStatus !== ApplicationStatus.Hired &&
+      prevStatus !== ApplicationStatus.Rejected &&
+      prevStatus !== ApplicationStatus.Withdrawn
     ) {
       this.events.publish(
         createDomainEvent({

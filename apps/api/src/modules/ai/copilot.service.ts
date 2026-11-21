@@ -287,11 +287,18 @@ function enginePct(score: number): string {
 function filterMatchBoards(boards: OpenJobMatchBoard[], query: string): OpenJobMatchBoard[] {
   const tokens = tokenizeQuery(query).filter((t) => !FIND_QUERY_NOISE.has(t));
   if (tokens.length === 0) return boards;
+  const fold = (text: string) =>
+    text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'd')
+      .toLowerCase();
   const picked = boards.filter((board) => {
-    const jobHay = `${board.jobTitle} ${board.jobCode}`.toLowerCase();
+    const jobHay = fold(`${board.jobTitle} ${board.jobCode}`);
     if (tokens.some((t) => jobHay.includes(t))) return true;
     return board.candidates.some((c) => {
-      const hay = `${c.displayName} ${c.currentPosition ?? ''} ${c.industry ?? ''}`.toLowerCase();
+      const hay = fold(`${c.displayName} ${c.currentPosition ?? ''} ${c.industry ?? ''}`);
       return tokens.some((t) => hay.includes(t));
     });
   });

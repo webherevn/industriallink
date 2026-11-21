@@ -333,7 +333,11 @@ export class JobModerationService {
       after: { decision: dto.decision, note: dto.note ?? null },
       correlationId,
     });
-    this.emitModerated(jobId, admin.tenantId, JobModerationStatus.ApprovedManual, correlationId);
+    const emittedStatus =
+      dto.decision === JobModerationDecision.Approve
+        ? JobModerationStatus.ApprovedManual
+        : JobModerationStatus.RejectedManual;
+    this.emitModerated(jobId, admin.tenantId, emittedStatus, correlationId);
     if (dto.decision === JobModerationDecision.Approve) {
       void this.notifySubmitter(jobId, 'approved');
     } else if (dto.decision === JobModerationDecision.Reject) {

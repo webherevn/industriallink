@@ -329,7 +329,11 @@ export class SeoCrawlService {
       ...(Array.isArray(footer?.footer2Columns) ? footer.footer2Columns : []),
     ];
     for (const column of columns) {
-      if (typeof column === 'string') collectPaths(column, inbound);
+      if (typeof column === 'string') {
+        collectPaths(column, inbound);
+      } else if (column && typeof column === 'object' && typeof (column as { html?: unknown }).html === 'string') {
+        collectPaths((column as { html: string }).html, inbound);
+      }
     }
     for (const row of posts) {
       collectPaths([row.bodyHtml, row.excerpt, faqText(row.faqJson)].filter(Boolean).join('\n'), inbound);

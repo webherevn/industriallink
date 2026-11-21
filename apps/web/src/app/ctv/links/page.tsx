@@ -21,7 +21,7 @@ import { fetchMyPartner } from '@/lib/crm';
 const LINK_TARGETS = [
   { id: 'pricing', label: 'Bảng giá dịch vụ', path: '/bang-gia' },
   { id: 'home', label: 'Trang chủ Inlink', path: '/' },
-  { id: 'signup', label: 'Trang đăng ký NTD', path: '/recruiter/dang-ky' },
+  { id: 'signup', label: 'Trang đăng ký NTD', path: '/register' },
 ] as const;
 
 /** Gói dịch vụ có tính hoa hồng — bảng tóm tắt để CTV tư vấn khách. */
@@ -73,7 +73,9 @@ export default function CtvLinksPage() {
 
   const code = mine.data?.partner?.code ?? null;
   const origin =
-    typeof window !== 'undefined' ? window.location.origin : 'https://inlink.vn';
+    typeof window !== 'undefined' && !window.location.hostname.startsWith('ctv.')
+      ? window.location.origin
+      : 'https://inlink.vn';
 
   const link = useMemo(() => {
     if (!code) return '';

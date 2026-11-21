@@ -357,7 +357,12 @@ export class NotificationService {
           job: {
             select: {
               title: true,
-              company: { select: { name: true } },
+              company: {
+                select: {
+                  name: true,
+                  members: { select: { userId: true } },
+                },
+              },
             },
           },
         },
@@ -434,7 +439,12 @@ export class NotificationService {
           job: {
             select: {
               title: true,
-              company: { select: { name: true } },
+              company: {
+                select: {
+                  name: true,
+                  members: { select: { userId: true } },
+                },
+              },
             },
           },
         },
@@ -521,7 +531,12 @@ export class NotificationService {
           job: {
             select: {
               title: true,
-              company: { select: { name: true } },
+              company: {
+                select: {
+                  name: true,
+                  members: { select: { userId: true } },
+                },
+              },
             },
           },
         },
@@ -596,7 +611,12 @@ export class NotificationService {
           job: {
             select: {
               title: true,
-              company: { select: { name: true } },
+              company: {
+                select: {
+                  name: true,
+                  members: { select: { userId: true } },
+                },
+              },
             },
           },
         },
@@ -720,7 +740,12 @@ export class NotificationService {
           job: {
             select: {
               title: true,
-              company: { select: { name: true } },
+              company: {
+                select: {
+                  name: true,
+                  members: { select: { userId: true } },
+                },
+              },
             },
           },
         },
@@ -759,6 +784,28 @@ export class NotificationService {
           applicationsUrl: `${this.email.webOrigin}/applications`,
         }),
       );
+
+      // Khi ứng viên chấp nhận hoặc từ chối Offer → thông báo cho các NTD của công ty.
+      if (payload.status === 'accepted' || payload.status === 'declined') {
+        const recruiterUserIds = [...new Set(offer.job.company.members.map((m) => m.userId))];
+        if (recruiterUserIds.length > 0) {
+          await this.prisma.notification.createMany({
+            data: recruiterUserIds.map((uid) => ({
+              tenantId: event.tenantId,
+              userId: uid,
+              type: 'offer.updated',
+              title:
+                payload.status === 'accepted'
+                  ? 'Ứng viên đã chấp nhận Offer'
+                  : 'Ứng viên đã từ chối Offer',
+              body: `${offer.candidate.displayName} ${statusLabel} đề nghị cho vị trí «${offer.job.title}».`,
+              link: '/recruiter/offers',
+              entityType: 'offer',
+              entityId: offer.id,
+            })),
+          });
+        }
+      }
     } catch (err) {
       this.logger.error(`Lỗi xử lý OfferUpdated (eventId=${event.eventId}): ${String(err)}`);
       throw err;

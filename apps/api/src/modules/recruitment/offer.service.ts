@@ -185,7 +185,9 @@ export class OfferService {
     if (
       moveToOffer &&
       prevStatus !== ApplicationStatus.Offer &&
-      prevStatus !== ApplicationStatus.Hired
+      prevStatus !== ApplicationStatus.Hired &&
+      prevStatus !== ApplicationStatus.Rejected &&
+      prevStatus !== ApplicationStatus.Withdrawn
     ) {
       this.events.publish(
         createDomainEvent({

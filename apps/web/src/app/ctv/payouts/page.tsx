@@ -139,6 +139,10 @@ export default function CtvPayoutsPage() {
                           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                             Đã chi
                           </span>
+                        ) : period.kycStatus === 'VERIFIED' ? (
+                          <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 ring-1 ring-sky-200">
+                            Chờ chi trả ngày {payoutDay}
+                          </span>
                         ) : (
                           <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
                             Tạm giữ do chưa KYC

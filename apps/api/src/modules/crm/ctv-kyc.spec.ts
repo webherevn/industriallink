@@ -133,6 +133,7 @@ describe('validate hồ sơ KYC', () => {
     fullName: 'Nguyễn Văn A',
     idNumber: '001203012345',
     phone: '0987654321',
+    bankCode: 'VCB',
     bankAccountNumber: '0123456789',
     bankAccountHolder: 'Nguyễn Văn A',
     hasFrontImage: true,

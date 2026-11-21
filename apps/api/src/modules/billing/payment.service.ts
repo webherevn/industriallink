@@ -174,12 +174,11 @@ export class PaymentService {
         );
       }
       const sessionId = `cs_test_${randomBytes(16).toString('hex')}`;
-      const successUrl = successUrlTemplate.replace(
-        '{CHECKOUT_SESSION_ID}',
-        sessionId,
-      );
       const cancelFull = new URL(cancelUrl, webOrigin).toString();
-      const successFull = new URL(successUrl, webOrigin).toString();
+      // Giữ nguyên placeholder {CHECKOUT_SESSION_ID} để Stripe tự điền session ID thật khi redirect.
+      const successFull = new URL(successUrlTemplate, webOrigin)
+        .toString()
+        .replace(/%7BCHECKOUT_SESSION_ID%7D/gi, '{CHECKOUT_SESSION_ID}');
       const order = await this.createOrder({
         user,
         companyId,
@@ -323,13 +322,14 @@ export class PaymentService {
           'Chưa cấu hình Stripe Secret Key. Vào /admin/billing/payment để thêm hoặc chuyển sang Mock.',
         );
       }
-      const successUrl = (settings?.successUrl ?? '/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}').replace(
-        '{CHECKOUT_SESSION_ID}',
-        sessionId,
-      );
+      const successTpl =
+        settings?.successUrl ?? '/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}';
+      const successFull = new URL(successTpl, webOrigin)
+        .toString()
+        .replace(/%7BCHECKOUT_SESSION_ID%7D/gi, '{CHECKOUT_SESSION_ID}');
       const form = new URLSearchParams();
       form.set('mode', 'payment');
-      form.set('success_url', new URL(successUrl, webOrigin).toString());
+      form.set('success_url', successFull);
       form.set('cancel_url', new URL(settings?.cancelUrl ?? '/recruiter/billing/topup/cancel', webOrigin).toString());
       form.set('client_reference_id', order.id);
       form.set('line_items[0][price_data][currency]', 'vnd');

@@ -50,6 +50,7 @@ export default function CtvLoginPage() {
         );
         return;
       }
+      clearAuthQueryCache(qc);
       await qc.invalidateQueries({ queryKey: ['me'] });
       await qc.invalidateQueries({ queryKey: ['recruiter-partner'] });
     },
@@ -84,6 +85,7 @@ export default function CtvLoginPage() {
     onSuccess: async () => {
       setAuthErr(null);
       setAuthMsg(null);
+      clearAuthQueryCache(qc);
       await qc.invalidateQueries({ queryKey: ['me'] });
       await qc.invalidateQueries({ queryKey: ['recruiter-partner'] });
     },
@@ -235,10 +237,10 @@ export default function CtvLoginPage() {
                       <Input
                         type="password"
                         required
-                        minLength={6}
+                        minLength={8}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Tối thiểu 6 ký tự"
+                        placeholder="Tối thiểu 8 ký tự"
                       />
                     </div>
                   </>

@@ -56,11 +56,14 @@ const STATUS_TONE: Record<string, string> = {
   ARCHIVED: 'bg-slate-100 text-slate-400',
 };
 
-/** Gợi ý ngày hiệu lực: đầu tháng sau. */
+/** Gợi ý ngày hiệu lực: cách hôm nay ít nhất 31 ngày theo giờ địa phương (không bị lệch UTC). */
 function defaultEffectiveFrom(): string {
-  const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return next.toISOString().slice(0, 10);
+  const d = new Date();
+  d.setDate(d.getDate() + 31);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /** Số ngày từ hôm nay tới ngày hiệu lực. */

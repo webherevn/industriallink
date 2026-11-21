@@ -24,6 +24,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
   const res = await apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
     body: { email, password },
+    retryOnUnauthorized: false,
   });
   if (!isLoginMfaChallenge(res)) {
     tokenStore.set(res.accessToken);
@@ -35,6 +36,7 @@ export async function verifyLoginOtp(mfaToken: string, otp: string): Promise<Log
   const res = await apiRequest<LoginResponse>('/auth/verify-login-otp', {
     method: 'POST',
     body: { mfaToken, otp },
+    retryOnUnauthorized: false,
   });
   if (!isLoginMfaChallenge(res)) {
     tokenStore.set(res.accessToken);

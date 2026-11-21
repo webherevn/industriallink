@@ -123,6 +123,7 @@ export class CtvKycService {
       fullName: input.fullName,
       idNumber: input.idNumber,
       phone: input.phone,
+      bankCode: input.bankCode,
       bankAccountNumber: input.bankAccountNumber,
       bankAccountHolder: input.bankAccountHolder,
       hasFrontImage: Boolean(existing?.cccdFrontKey),
@@ -205,10 +206,15 @@ export class CtvKycService {
     await this.storage.putObject(key, file.buffer, file.mimetype);
 
     const now = new Date();
+    // Nếu hồ sơ đã VERIFIED mà CTV đổi ảnh CCCD mới → chuyển về PENDING để duyệt lại.
+    const nextStatus =
+      existing?.status === 'VERIFIED'
+        ? ('PENDING' as const)
+        : (existing?.status ?? ('UNVERIFIED' as const));
     const patch =
       side === 'front'
-        ? { cccdFrontKey: key, status: existing?.status ?? ('UNVERIFIED' as const) }
-        : { cccdBackKey: key, status: existing?.status ?? ('UNVERIFIED' as const) };
+        ? { cccdFrontKey: key, status: nextStatus }
+        : { cccdBackKey: key, status: nextStatus };
 
     const saved = existing
       ? await this.prisma.crmPartnerKyc.update({ where: { id: existing.id }, data: patch })

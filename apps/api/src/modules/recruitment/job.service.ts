@@ -1179,6 +1179,7 @@ export class JobService {
           { title: { contains: term, mode: 'insensitive' } },
           { description: { contains: term, mode: 'insensitive' } },
           { skills: { some: { name: { contains: term, mode: 'insensitive' } } } },
+          { company: { name: { contains: term, mode: 'insensitive' } } },
         ]),
       });
     }

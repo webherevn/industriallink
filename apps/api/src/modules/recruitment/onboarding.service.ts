@@ -182,7 +182,12 @@ export class OnboardingService {
       }),
     );
 
-    if (moveToHired && prevStatus !== ApplicationStatus.Hired) {
+    if (
+      moveToHired &&
+      prevStatus !== ApplicationStatus.Hired &&
+      prevStatus !== ApplicationStatus.Rejected &&
+      prevStatus !== ApplicationStatus.Withdrawn
+    ) {
       this.events.publish(
         createDomainEvent({
           name: DomainEvents.ApplicationStatusChanged,

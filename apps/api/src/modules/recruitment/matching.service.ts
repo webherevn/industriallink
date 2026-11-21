@@ -320,7 +320,7 @@ export class MatchingService {
       where: { id: jobId },
       include: { skills: true },
     });
-    if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+    if (!job || job.isDeleted) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     const { companyId } = await this.companies.requireUserCompany(user.id);
     if (job.companyId !== companyId) {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
@@ -748,7 +748,7 @@ export class MatchingService {
       where: { id: jobId },
       include: { skills: true },
     });
-    if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+    if (!job || job.isDeleted) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     if (job.companyId !== companyId) {
       throw new NotFoundException('Không tìm thấy tin tuyển dụng');
     }
@@ -961,7 +961,7 @@ export class MatchingService {
         where: {
           companyId,
           candidateId: { in: candidateIds },
-          status: { not: 'cancelled' },
+          status: 'accepted',
         },
         select: { candidateId: true },
       }),
@@ -1011,12 +1011,16 @@ export class MatchingService {
     }
 
     // Fallback: tin chưa có embedding (vd. seed demo) → xếp theo tiêu chí B2B + kỹ năng.
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
     if (rows.length === 0) {
       const published = await this.prisma.job.findMany({
         where: {
           tenantId: user.tenantId,
           status: 'published',
           isDeleted: false,
+          OR: [{ deadline: null }, { deadline: { gte: todayStart } }],
+          company: { status: 'active', isDeleted: false },
         },
         include: { skills: true, company: { select: { id: true, name: true, slug: true, profile: true } } },
         orderBy: { publishedAt: 'desc' },
@@ -1039,7 +1043,13 @@ export class MatchingService {
 
     const scoreMap = new Map(rows.map((r) => [r.id, r.score]));
     const fetched = await this.prisma.job.findMany({
-      where: { id: { in: rows.map((r) => r.id) } },
+      where: {
+        id: { in: rows.map((r) => r.id) },
+        isDeleted: false,
+        status: 'published',
+        OR: [{ deadline: null }, { deadline: { gte: todayStart } }],
+        company: { status: 'active', isDeleted: false },
+      },
       include: { skills: true, company: { select: { id: true, name: true, slug: true, profile: true } } },
     });
     const jobs = fetched

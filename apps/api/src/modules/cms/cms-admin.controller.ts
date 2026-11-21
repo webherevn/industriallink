@@ -304,12 +304,14 @@ export class CmsAdminController {
   }
 
   @Get('homepage')
+  @Roles(UserRole.SuperAdmin)
   @ApiOperation({ summary: 'SEO & hero trang chủ' })
   getHomepage() {
     return this.cms.getHomepageSettings();
   }
 
   @Put('homepage')
+  @Roles(UserRole.SuperAdmin)
   @ApiOperation({ summary: 'Lưu SEO & hero trang chủ' })
   saveHomepage(
     @CurrentUser() user: AuthenticatedUser,

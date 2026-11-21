@@ -165,7 +165,7 @@ export class AppEventBus implements OnApplicationBootstrap, OnModuleDestroy {
   ): Promise<void> {
     try {
       const event = JSON.parse(msg.content.toString('utf8')) as DomainEventEnvelope;
-      await this.dispatchLocalAsync(event);
+      await this.dispatchLocalAsync(event, true);
       ch.ack(msg);
     } catch (err) {
       this.logger.error(`Xử lý message RabbitMQ lỗi: ${String(err)}`);
@@ -174,19 +174,21 @@ export class AppEventBus implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private dispatchLocal(event: DomainEventEnvelope): void {
-    void this.dispatchLocalAsync(event);
+    void this.dispatchLocalAsync(event, false);
   }
 
-  private async dispatchLocalAsync(event: DomainEventEnvelope): Promise<void> {
+  private async dispatchLocalAsync(event: DomainEventEnvelope, rethrow = false): Promise<void> {
     const list = this.handlers.get(event.name as DomainEventName) ?? [];
-    await Promise.all(
-      list.map((handler) =>
-        Promise.resolve(handler(event)).catch((err) => {
-          this.logger.error(
-            `Handler cho sự kiện ${event.name} lỗi (eventId=${event.eventId}): ${String(err)}`,
-          );
-        }),
-      ),
-    );
+    const results = await Promise.allSettled(list.map((handler) => Promise.resolve(handler(event))));
+    let firstError: unknown = null;
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        if (!firstError) firstError = r.reason;
+        this.logger.error(
+          `Handler cho sự kiện ${event.name} lỗi (eventId=${event.eventId}): ${String(r.reason)}`,
+        );
+      }
+    }
+    if (rethrow && firstError) throw firstError;
   }
 }
