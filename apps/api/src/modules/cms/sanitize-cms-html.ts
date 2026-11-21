@@ -37,19 +37,38 @@ export function sanitizeCmsHtml(input: string): string {
     if (!allowed.has(t)) return '';
     if (t === 'br') return '<br>';
     if (t === 'hr') return '<hr>';
+    const isSafeUrl = (rawUrl: string): boolean => {
+      const normalized = rawUrl
+        .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCharCode(Number(dec)))
+        .replace(/[\u0000-\u001f\u007f\s]+/g, '')
+        .toLowerCase();
+      if (!normalized) return false;
+      if (normalized.startsWith('/') || normalized.startsWith('#')) return !normalized.startsWith('//');
+      return (
+        normalized.startsWith('https://') ||
+        normalized.startsWith('http://') ||
+        normalized.startsWith('mailto:') ||
+        normalized.startsWith('tel:')
+      );
+    };
     if (t === 'img') {
       const src = /\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
-      const url = src?.[2] || src?.[3] || src?.[4] || '';
-      if (!url || /^javascript:/i.test(url)) return '';
+      const url = (src?.[2] || src?.[3] || src?.[4] || '').trim();
+      if (!isSafeUrl(url)) return '';
       const altMatch = /\balt\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs);
       const alt = altMatch?.[2] || altMatch?.[3] || '';
       return `<img src="${url.replace(/"/g, '')}" alt="${alt.replace(/"/g, '')}">`;
     }
     if (t === 'a') {
       const href = /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
-      const url = href?.[2] || href?.[3] || href?.[4] || '';
-      if (!url || /^javascript:/i.test(url)) return '<a>';
-      return `<a href="${url.replace(/"/g, '')}" rel="nofollow noopener noreferrer">`;
+      const url = (href?.[2] || href?.[3] || href?.[4] || '').trim();
+      if (!isSafeUrl(url)) return '<a>';
+      const isExternal =
+        /^https?:\/\//i.test(url) && !/^https?:\/\/([a-z0-9-]+\.)?inlink\.vn(\/|$)/i.test(url);
+      return isExternal
+        ? `<a href="${url.replace(/"/g, '')}" rel="nofollow noopener noreferrer">`
+        : `<a href="${url.replace(/"/g, '')}">`;
     }
 
     const styleMatch = /\bstyle\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
@@ -105,7 +124,6 @@ export function sanitizeCmsHtml(input: string): string {
     if (parts.length) return `<${t} style="${parts.join('; ')}">`;
     return `<${t}>`;
   });
-  html = html.replace(/<\/?span>/gi, '');
   html = html.replace(/\s{2,}/g, ' ').replace(/>\s+</g, '><').trim();
   return html;
 }

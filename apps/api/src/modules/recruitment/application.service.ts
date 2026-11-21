@@ -951,7 +951,7 @@ export class ApplicationService {
     const requiredSkills = job.skills.filter((s) => s.required).map((s) => s.name);
 
     const applications = await this.prisma.application.findMany({
-      where: { jobId, isDeleted: false },
+      where: { jobId: job.id, isDeleted: false },
       orderBy: [{ matchScore: 'desc' }, { createdAt: 'asc' }],
       include: {
         candidate: { include: CANDIDATE_MATCH_INCLUDE },
@@ -980,7 +980,7 @@ export class ApplicationService {
 
       // ⭐ Nguồn chuẩn hóa — ứng viên tự ứng tuyển vào tin Săn vẫn là "Tự ứng tuyển".
       const source: ApplicationSource = resolveApplicationSource({
-        hasAppliedFromHuntJob: huntJobs.has(jobId),
+        hasAppliedFromHuntJob: huntJobs.has(job.id),
         openedViaHuntCampaign: huntSourced.has(a.candidateId),
         shortlisted: huntSourced.has(a.candidateId),
         unlockedViaCredit: unlocked.has(a.candidateId),
@@ -1145,7 +1145,7 @@ export class ApplicationService {
     const applicationIds = dto.applicationIds ? [...new Set(dto.applicationIds)] : undefined;
     const applications = await this.prisma.application.findMany({
       where: {
-        jobId,
+        jobId: job.id,
         isDeleted: false,
         ...(applicationIds ? { id: { in: applicationIds } } : {}),
         ...(dto.status ? { status: dto.status } : {}),
@@ -1169,20 +1169,24 @@ export class ApplicationService {
       throw new BadRequestException('Không có ứng viên nào khớp bộ lọc để gửi email');
     }
 
-    // ⚠ Paywall liên hệ: ứng viên tự ứng tuyển luôn được liên hệ. Ứng viên do Săn
-    // mang về phải mở khóa hồ sơ bằng Credit trước — chặn lách paywall.
+    // ⚠ Paywall liên hệ: ứng viên tự ứng tuyển luôn được liên hệ (kể cả trên tin Săn).
+    // Ứng viên do Săn mang về phải mở khóa hồ sơ bằng Credit trước — chặn lách paywall.
     const { companyId } = await this.companies.requireUserCompany(user.id);
-    const [huntJobs, unlocked] = await Promise.all([
+    const candIds = applications.map((a) => a.candidateId);
+    const [huntJobs, unlocked, huntSourced] = await Promise.all([
       this.huntJobIds(companyId),
-      this.unlockedCandidateIds(
-        companyId,
-        applications.map((a) => a.candidateId),
-      ),
+      this.unlockedCandidateIds(companyId, candIds),
+      this.huntSourcedCandidateIds(companyId, candIds),
     ]);
-    const jobIsHunt = huntJobs.has(jobId);
+    const jobIsHunt = huntJobs.has(job.id);
     const contactable = applications.filter((a) => {
-      if (!jobIsHunt) return true;
-      return unlocked.has(a.candidateId);
+      const source = resolveApplicationSource({
+        hasAppliedFromHuntJob: jobIsHunt,
+        openedViaHuntCampaign: huntSourced.has(a.candidateId),
+        shortlisted: huntSourced.has(a.candidateId),
+        unlockedViaCredit: unlocked.has(a.candidateId),
+      });
+      return source === 'self_applied' || unlocked.has(a.candidateId);
     });
     const blockedByPaywall = applications.length - contactable.length;
 
@@ -1286,13 +1290,13 @@ export class ApplicationService {
       sentAt: string;
     }[]
   > {
-    await this.jobs.requireOwnedJob(user, jobId);
+    const job = await this.jobs.requireOwnedJob(user, jobId);
     if (!this.prisma.applicationTimeline?.findMany) return [];
 
     const rows = await this.prisma.applicationTimeline.findMany({
       where: {
         type: 'broadcast_email',
-        application: { jobId, isDeleted: false },
+        application: { jobId: job.id, isDeleted: false },
       },
       orderBy: { occurredAt: 'desc' },
       take: 150,

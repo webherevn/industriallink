@@ -181,9 +181,8 @@ export class SearchService {
       }
     }
 
-    // Không có câu query → lấy theo bộ lọc B2B trên profile.
-    if (ids.length === 0) {
-      const whereProfile: Record<string, unknown> = {};
+    // Bộ lọc cứng B2B trên profile — áp dụng cả khi có và không có câu query.
+    const whereProfile: Record<string, unknown> = {};
       if (filters.industries?.length) {
         const industryValues = industrySearchValues(filters.industries);
         whereProfile.OR = [
@@ -222,10 +221,13 @@ export class SearchService {
         whereProfile.languages = { hasSome: filters.languages };
       }
 
-      const hasHardFilter = Object.keys(whereProfile).length > 0;
+    const hasHardFilter = Object.keys(whereProfile).length > 0;
+    // Không có câu query → lấy theo bộ lọc B2B trên profile.
+    if (ids.length === 0) {
       const candidatesByFilter = await this.prisma.candidate.findMany({
         where: {
           tenantId,
+          isDeleted: false,
           ...(hasHardFilter ? { profile: whereProfile } : {}),
         },
         take: 40,
@@ -242,7 +244,12 @@ export class SearchService {
 
     const scoreMap = new Map(ids.map((r) => [r.candidate_id, r.score]));
     const candidates = await this.prisma.candidate.findMany({
-      where: { id: { in: ids.map((r) => r.candidate_id) } },
+      where: {
+        id: { in: ids.map((r) => r.candidate_id) },
+        tenantId,
+        isDeleted: false,
+        ...(hasHardFilter ? { profile: whereProfile } : {}),
+      },
       include: { profile: true, skills: true, experiences: true },
     });
     const flags = await this.recruiterCandidateFlags(

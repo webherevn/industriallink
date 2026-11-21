@@ -135,8 +135,20 @@ export default (): AppConfig => ({
     localPath: process.env.STORAGE_LOCAL_PATH ?? 'storage/uploads',
   },
   jwt: {
-    accessSecret: process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',
-    refreshSecret: process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret-change-me',
+    accessSecret:
+      process.env.JWT_ACCESS_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? (() => {
+            throw new Error('Thiếu biến môi trường bắt buộc: JWT_ACCESS_SECRET');
+          })()
+        : 'dev-access-secret-change-me'),
+    refreshSecret:
+      process.env.JWT_REFRESH_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? (() => {
+            throw new Error('Thiếu biến môi trường bắt buộc: JWT_REFRESH_SECRET');
+          })()
+        : 'dev-refresh-secret-change-me'),
     accessTtl: Number(process.env.JWT_ACCESS_TTL ?? 900),
     refreshTtl: Number(process.env.JWT_REFRESH_TTL ?? 1209600),
   },

@@ -618,7 +618,7 @@ export class CtvCommissionPolicyService {
         },
       },
     });
-    if (!item || item.status === 'VOIDED') return;
+    if (!item || item.status === 'VOIDED' || item.status === 'ADJUSTED_NEXT_PERIOD') return;
 
     const statement = await tx.ctvMonthlyStatement.findUnique({
       where: { id: item.statementId },
@@ -635,12 +635,14 @@ export class CtvCommissionPolicyService {
     }
 
     // Kỳ đã chốt → không sửa lịch sử. Ghi điều chỉnh âm vào kỳ hiện tại đang mở.
-    const currentMonth = vietnamPeriodMonth(new Date());
+    const now = new Date();
+    const currentMonth = vietnamPeriodMonth(now);
+    const currentPolicyId = (await this.activePolicyAt(now))?.id ?? statement.policyId;
     const currentStatement = await this.ensureOpenStatement(
       tx,
       input.ctvId,
       currentMonth,
-      statement.policyId,
+      currentPolicyId,
     ).catch(async (err) => {
       // Kỳ hiện tại đã chốt → điều chỉnh dồn sang kỳ kế tiếp (tháng sau).
       if (err instanceof BadRequestException) {
@@ -648,7 +650,7 @@ export class CtvCommissionPolicyService {
         this.logger.log(
           `Kỳ ${currentMonth} đã chốt — điều chỉnh hoàn tiền chuyển sang kỳ ${nextMonth}`,
         );
-        return this.ensureOpenStatement(tx, input.ctvId, nextMonth, statement.policyId);
+        return this.ensureOpenStatement(tx, input.ctvId, nextMonth, currentPolicyId);
       }
       throw err;
     });

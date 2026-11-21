@@ -87,6 +87,10 @@ export class HuntPackageService {
     planName: string | null;
     durationDays: number | null;
     paidAt: Date | null;
+    creditsIncluded?: number | null;
+    totalCriteriaEdits?: number | null;
+    totalReports?: number | null;
+    totalHandovers?: number | null;
   }): Promise<BillingHuntPackage | null> {
     const packageType = this.packageTypeForPlan(input.planCode);
     const quota = PACKAGE_QUOTA[packageType];
@@ -107,11 +111,11 @@ export class HuntPackageService {
         purchasedAt: now,
         // (B6) Hạn chót kích hoạt = ngày mua + 30 ngày (gói chờ kích hoạt không sống vô hạn).
         activationDeadlineAt: addUtcDays(now, HUNT_PACKAGE_ACTIVATION_DAYS),
-        creditsIncluded: quota.creditsIncluded,
+        creditsIncluded: input.creditsIncluded ?? quota.creditsIncluded,
         creditsGranted: false,
-        totalCriteriaEdits: quota.totalCriteriaEdits,
-        totalReports: quota.totalReports,
-        totalHandovers: quota.totalHandovers,
+        totalCriteriaEdits: input.totalCriteriaEdits ?? quota.totalCriteriaEdits,
+        totalReports: input.totalReports ?? quota.totalReports,
+        totalHandovers: input.totalHandovers ?? quota.totalHandovers,
       },
     });
   }

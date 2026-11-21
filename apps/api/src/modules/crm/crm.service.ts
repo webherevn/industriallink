@@ -872,7 +872,16 @@ export class CrmService {
   }
 
   async partners(actor: AuthenticatedUser): Promise<CrmPartnerView[]> {
+    const scopeWhere: Prisma.CrmPartnerWhereInput = this.seesAll(actor)
+      ? {}
+      : {
+          OR: [
+            { createdByUserId: actor.id },
+            { leads: { some: { ownerUserId: actor.id } } },
+          ],
+        };
     const rows = await this.prisma.crmPartner.findMany({
+      where: scopeWhere,
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { claims: partnerClaims },
@@ -898,6 +907,15 @@ export class CrmService {
     const { periodMonth, start, end } = this.reportBounds(rawMonth);
     const row = await this.prisma.crmPartner.findUnique({ where: { id }, include: { claims: partnerClaims } });
     if (!row) throw new NotFoundException('Không thấy cộng tác viên');
+    if (!this.seesAll(actor) && row.createdByUserId !== actor.id) {
+      const hasOwnedLead = await this.prisma.crmLead.findFirst({
+        where: { partnerId: id, ownerUserId: actor.id },
+        select: { id: true },
+      });
+      if (!hasOwnedLead) {
+        throw new ForbiddenException('Bạn không có quyền xem hồ sơ cộng tác viên này');
+      }
+    }
     await this.ensureWalletCredits([id]);
     const [pending, signups, wallets, paid, leads, orders] = await Promise.all([
       this.pendingByPartner(actor, [id]),
@@ -2157,15 +2175,16 @@ export class CrmService {
           })
         : Promise.resolve([]),
       // ⭐ Ứng viên nào công ty đã MỞ KHÓA hồ sơ (mở khóa bằng Credit) →
-      // mới hiện liên hệ đầy đủ; còn lại mask ngay tại Backend.
-      candidateIds.length > 0
+      // mới hiện liên hệ đầy đủ (phải khớp đúng companyId, không lộ chéo công ty).
+      candidateIds.length > 0 && companyIds.length > 0
         ? this.prisma.billingCreditTransaction.findMany({
             where: {
+              companyId: { in: companyIds },
               candidateId: { in: candidateIds },
               action: { in: [...PROFILE_OPEN_ACTIONS] },
             },
             select: { candidateId: true, companyId: true },
-            distinct: ['candidateId'],
+            distinct: ['companyId', 'candidateId'],
           })
         : Promise.resolve([]),
     ]);
@@ -2205,9 +2224,10 @@ export class CrmService {
     const candidateMap = new Map(candidates.map((c) => [c.id, c]));
     const appliedMap = new Map(applications.map((a) => [`${a.jobId}:${a.candidateId}`, a.createdAt]));
 
-    // ⭐ Ứng viên đã mở khóa hồ sơ (bằng Credit) → hiện liên hệ đầy đủ.
-    // Chưa mở khóa → mask ngay tại Backend (không lộ qua Network F12).
-    const unlockedCandidateIds = new Set(unlockedProfiles.map((r) => r.candidateId));
+    // ⭐ Ứng viên đã mở khóa hồ sơ (bằng Credit) theo đúng cặp companyId:candidateId.
+    const unlockedCompanyCandidates = new Set(
+      unlockedProfiles.map((r) => `${r.companyId}:${r.candidateId}`),
+    );
 
     const statusByEngCand = new Map<string, { status: SourcingOutreachStatus; updatedAt: Date }>();
     for (const su of statusUsages) {
@@ -2269,12 +2289,12 @@ export class CrmService {
         candidateName: cand?.displayName ?? fallbackName,
         // ⭐ Mask nếu công ty chưa mở khóa hồ sơ ứng viên này.
         candidateEmail: cand
-          ? unlockedCandidateIds.has(cid)
+          ? unlockedCompanyCandidates.has(`${u.companyId}:${cid}`)
             ? (cand.user?.email ?? null)
             : maskEmail(cand.user?.email ?? null)
           : null,
         candidatePhone: cand
-          ? unlockedCandidateIds.has(cid)
+          ? unlockedCompanyCandidates.has(`${u.companyId}:${cid}`)
             ? (cand.profile?.phone ?? null)
             : maskPhone(cand.profile?.phone ?? null)
           : null,
@@ -4167,8 +4187,17 @@ export class CrmService {
     if (activeCount >= CLAIM_LIMIT) {
       throw new BadRequestException('Mỗi cộng tác viên khóa tối đa 30 mã số thuế');
     }
-    const taken = await this.prisma.crmPartnerClaim.findUnique({ where: { taxCode }, select: { partnerId: true } });
-    if (taken) throw new BadRequestException('Mã số thuế này đã có người giới thiệu');
+    const taken = await this.prisma.crmPartnerClaim.findUnique({
+      where: { taxCode },
+      select: { id: true, partnerId: true, status: true, expiresAt: true, createdAt: true },
+    });
+    if (taken) {
+      if (resolveTaxLockStatus(taken.status, taken.expiresAt) === 'EXPIRED') {
+        await this.prisma.crmPartnerClaim.delete({ where: { id: taken.id } });
+      } else {
+        throw new BadRequestException('Mã số thuế này đã có người giới thiệu');
+      }
+    }
     const lead = await this.prisma.crmLead.findFirst({
       where: {
         taxCode,
@@ -4392,22 +4421,51 @@ export class CrmService {
     companyId: string,
     referralCode?: string | null,
   ) {
-    const code = normalizeReferralCode(referralCode);
-    if (code) {
-      return tx.crmPartner.findUnique({ where: { code } });
-    }
     const company = await tx.company.findUnique({
       where: { id: companyId },
-      select: { taxCode: true },
+      select: { taxCode: true, referredByCtvId: true },
     });
+
+    const rejectSelfReferral = async <T extends { id: string; userId: string | null }>(
+      partner: T | null,
+    ): Promise<T | null> => {
+      if (!partner) return null;
+      if (partner.userId) {
+        const isSelfMember = await tx.companyMember.findFirst({
+          where: { companyId, userId: partner.userId },
+          select: { id: true },
+        });
+        if (isSelfMember) return null;
+      }
+      return partner;
+    };
+
+    // 1. Ưu tiên tuyệt đối CTV đã được gán trọn đời (1 KH — 1 CTV, không bị cướp khách).
+    if (company?.referredByCtvId) {
+      const lifetime = await tx.crmPartner.findUnique({ where: { id: company.referredByCtvId } });
+      if (lifetime) return rejectSelfReferral(lifetime);
+    }
+
+    // 2. Mã giới thiệu từ cookie (nếu công ty chưa gán trọn đời).
+    const code = normalizeReferralCode(referralCode);
+    if (code) {
+      const byCode = await tx.crmPartner.findUnique({ where: { code } });
+      if (byCode) return rejectSelfReferral(byCode);
+    }
+
+    // 3. Khóa MST còn hiệu lực trong 30 ngày (bỏ qua khóa đã hết hạn).
     const taxCode = claimTax(company?.taxCode);
     if (taxCode) {
       const claim = await tx.crmPartnerClaim.findUnique({
         where: { taxCode },
         include: { partner: true },
       });
-      if (claim) return claim.partner;
+      if (claim && resolveTaxLockStatus(claim.status, claim.expiresAt) !== 'EXPIRED') {
+        return rejectSelfReferral(claim.partner);
+      }
     }
+
+    // 4. Lead CRM gắn CTV.
     const lead = await tx.crmLead.findFirst({
       where: {
         partnerId: { not: null },
@@ -4417,7 +4475,7 @@ export class CrmService {
       orderBy: { createdAt: 'asc' },
       include: { partner: true },
     });
-    return lead?.partner ?? null;
+    return rejectSelfReferral(lead?.partner ?? null);
   }
 
   private async entriesForPartner(partnerId: string, partnerName: string, partnerCode: string) {

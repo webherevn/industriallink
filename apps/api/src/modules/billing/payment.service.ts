@@ -202,6 +202,8 @@ export class PaymentService {
       form.set('metadata[orderId]', order.id);
       form.set('metadata[companyId]', companyId);
       form.set('metadata[creditCount]', String(topup.creditCount));
+      form.set('payment_intent_data[metadata][orderId]', order.id);
+      form.set('payment_intent_data[metadata][companyId]', companyId);
       const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
         method: 'POST',
         headers: {
@@ -338,6 +340,8 @@ export class PaymentService {
       form.set('metadata[companyId]', companyId);
       form.set('metadata[kind]', kind);
       form.set('metadata[planCode]', plan.code);
+      form.set('payment_intent_data[metadata][orderId]', order.id);
+      form.set('payment_intent_data[metadata][companyId]', companyId);
       const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
         method: 'POST',
         headers: {
@@ -594,14 +598,28 @@ export class PaymentService {
       const obj = event.data.object as {
         metadata?: Record<string, string>;
         payment_intent?: string;
+        amount?: number;
+        amount_refunded?: number;
       };
-      const orderId = obj.metadata?.orderId;
-      if (!orderId) {
-        return { ok: false, message: 'Refund không có metadata.orderId' };
+      // Chỉ xử lý hoàn toàn bộ đơn (tránh hủy 100% hoa hồng khi hoàn tiền một phần).
+      if (
+        event.type === 'charge.refunded' &&
+        typeof obj.amount === 'number' &&
+        typeof obj.amount_refunded === 'number' &&
+        obj.amount_refunded < obj.amount
+      ) {
+        this.logger.warn(`Bỏ qua hoàn tiền một phần (${obj.amount_refunded}/${obj.amount}) cho event ${event.id}`);
+        return { ok: true, message: 'Bỏ qua partial refund' };
       }
-      const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
+      const orderId = obj.metadata?.orderId;
+      const paymentIntent = typeof obj.payment_intent === 'string' ? obj.payment_intent : null;
+      const order = orderId
+        ? await this.prisma.billingOrder.findUnique({ where: { id: orderId } })
+        : paymentIntent
+          ? await this.prisma.billingOrder.findFirst({ where: { providerPaymentIntent: paymentIntent } })
+          : null;
       if (!order) {
-        return { ok: false, message: `Order ${orderId} không tồn tại` };
+        return { ok: false, message: 'Không tìm thấy đơn hàng tương ứng cho refund' };
       }
       await this.prisma.billingPayment.create({
         data: {
@@ -843,14 +861,14 @@ export class PaymentService {
    * Không trả tiền — chỉ cập nhật số liệu hoa hồng.
    */
   private async markRefunded(order: { id: string; companyId: string; paidAt: Date | null }): Promise<void> {
-    const fresh = await this.prisma.billingOrder.findUnique({ where: { id: order.id } });
-    if (!fresh) throw new NotFoundException('Order không tồn tại');
-    if (fresh.status === 'refunded') return;
-
-    await this.prisma.billingOrder.update({
-      where: { id: order.id },
+    // Khóa atomic: tránh charge.refunded và refund.created chạy song song trừ trùng hoa hồng.
+    const claimed = await this.prisma.billingOrder.updateMany({
+      where: { id: order.id, status: { not: 'refunded' } },
       data: { status: 'refunded', refundedAt: new Date() },
     });
+    if (claimed.count !== 1) return;
+    const fresh = await this.prisma.billingOrder.findUnique({ where: { id: order.id } });
+    if (!fresh) throw new NotFoundException('Order không tồn tại');
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -959,6 +977,10 @@ export class PaymentService {
       planName: plan.name,
       durationDays: plan.durationDays ?? null,
       paidAt: order.paidAt ?? new Date(),
+      creditsIncluded: plan.creditQuota,
+      totalCriteriaEdits: plan.revisionQuota,
+      totalReports: plan.searchRoundQuota,
+      totalHandovers: plan.shortlistQuota,
     });
   }
 

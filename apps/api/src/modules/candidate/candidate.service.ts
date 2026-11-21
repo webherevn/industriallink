@@ -553,6 +553,15 @@ export class CandidateService {
       });
     });
 
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.CandidateUpdated,
+        tenantId: candidate.tenantId,
+        correlationId: `profile-update-${candidate.id}`,
+        payload: { candidateId: candidate.id, userId: user.id },
+      }),
+    );
+
     const updated = await this.getMyCandidate(user);
     return {
       message: 'Đã cập nhật hồ sơ thành công.',
@@ -1622,6 +1631,15 @@ export class CandidateService {
         },
       });
     });
+
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.CandidateUpdated,
+        tenantId: candidate.tenantId,
+        correlationId: `cv-draft-${candidate.id}`,
+        payload: { candidateId: candidate.id, userId: user.id },
+      }),
+    );
 
     return {
       message: 'Đã lưu thông tin CV vào hồ sơ của bạn. Hãy bổ sung các trường còn thiếu.',

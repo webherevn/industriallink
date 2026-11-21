@@ -281,6 +281,9 @@ export class JobModerationService {
       await this.jobs.applyPublishSideEffects(jobId, correlationId);
       await this.bumpTrust(job.companyId, TRUST_DELTA_VALID_JOB);
     } else if (dto.decision === JobModerationDecision.Reject) {
+      const alreadyRejected =
+        job.moderationStatus === JobModerationStatus.RejectedManual ||
+        job.moderationStatus === JobModerationStatus.RejectedAuto;
       await this.prisma.job.update({
         where: { id: jobId },
         data: {
@@ -291,8 +294,10 @@ export class JobModerationService {
           ...(dto.note ? { moderationNote: dto.note } : {}),
         },
       });
-      // Hoàn 1 lượt đăng cho NTD sửa JD và nộp lại (không thu hồi Credit).
-      await this.refundPostingSlot(jobId);
+      // Hoàn 1 lượt đăng cho NTD sửa JD và nộp lại (chỉ hoàn 1 lần, không hoàn trùng).
+      if (!alreadyRejected) {
+        await this.refundPostingSlot(jobId);
+      }
     } else if (dto.decision === JobModerationDecision.BanUser) {
       await this.prisma.job.update({
         where: { id: jobId },

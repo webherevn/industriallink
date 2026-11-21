@@ -1648,7 +1648,7 @@ model HuntCampaign {
   updatedAt    DateTime @updatedAt @map("updated_at")
   updatedBy    String?  @map("updated_by") @db.Uuid
 
-  assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
   package    BillingHuntPackage          @relation(fields: [huntPackageId], references: [id], onDelete: Restrict)
   job        Job?                       @relation(fields: [jobId], references: [id], onDelete: SetNull)
   activities HuntCampaignActivity[]
@@ -1673,7 +1673,7 @@ model HuntCampaignActivity {
   createdAt    DateTime @default(now()) @map("created_at")
   createdBy    String?  @map("created_by") @db.Uuid
 
-  assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignment BillingCompanySourcingPlan @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
   campaign   HuntCampaign?              @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdAt])
@@ -2093,7 +2093,7 @@ model BillingPayment {
 
   createdAt         DateTime @default(now()) @map("created_at")
 
-  order             BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order             BillingOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@index([orderId, createdAt])
   @@index([eventType])
@@ -2432,7 +2432,7 @@ model CtvCommissionItem {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
-  statement CtvMonthlyStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  statement CtvMonthlyStatement @relation(fields: [statementId], references: [id], onDelete: Restrict)
   ctv      CrmPartner                @relation(fields: [ctvId], references: [id])
 
   @@unique([billingOrderId, yearMonth])
@@ -2756,7 +2756,7 @@ model CrmQuoteInstallment {
   status      String    @default("scheduled")
   collectedAt DateTime? @map("collected_at")
 
-  quote CrmQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote CrmQuote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
 
   @@index([quoteId, sortOrder])
   @@index([status, dueOn])

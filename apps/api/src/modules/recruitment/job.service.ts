@@ -739,8 +739,6 @@ export class JobService {
 
     const skillData = await this.skillRows(dto.skills);
 
-    await this.prisma.jobSkill.deleteMany({ where: { jobId: id } });
-
     const lockedTitle = owned.title?.trim() ? owned.title : dto.title;
     dto.title = lockedTitle;
     const existingTech =
@@ -759,43 +757,50 @@ export class JobService {
       dto.industry ||
       (dto.salesCriteria?.industries?.length ? dto.salesCriteria.industries[0] : undefined) ||
       (dto.technicalCriteria?.industries?.length ? dto.technicalCriteria.industries[0] : undefined);
+    const resolvedDeadline =
+      sourcingEngagement && owned.deadline
+        ? owned.deadline
+        : await this.resolveJobDeadline(
+            owned.companyId,
+            dto.deadline ? toVnCalendarDate(dto.deadline) : owned.deadline,
+            owned.publishedAt ?? new Date(),
+          );
 
-    const updated = await this.prisma.job.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        description: dto.description,
-        requirements: dto.requirements ?? null,
-        benefits: dto.benefits ?? null,
-        industry: normalizeIndustry(primaryIndustry) ?? primaryIndustry ?? null,
-        subIndustry: dto.subIndustry?.trim() || null,
-        department: dto.department ?? null,
-        jobLevel: inferredLevel ?? dto.jobLevel ?? null,
-        ...(track ? { jobTrack: track } : {}),
-        ...(dto.salesCriteria != null ? { salesCriteria: salesCriteriaJson(dto.salesCriteria) } : {}),
-        ...(dto.technicalCriteria != null
-          ? { technicalCriteria: technicalCriteriaJson(dto.technicalCriteria) }
-          : {}),
-        employmentType: dto.employmentType ?? null,
-        location: dto.location ?? null,
-        headcount: dto.headcount ?? 1,
-        deadline: sourcingEngagement && owned.deadline ? owned.deadline : await this.resolveJobDeadline(
-          owned.companyId,
-          dto.deadline ? toVnCalendarDate(dto.deadline) : owned.deadline,
-          owned.publishedAt ?? new Date(),
-        ),
-        experienceBand: dto.experienceBand ?? null,
-        salaryMin: dto.salaryMin ?? null,
-        salaryMax: dto.salaryMax ?? null,
-        updatedBy: user.id,
-        ...(shouldReModerate
-          ? { status: JobStatus.Draft, moderationStatus: JobModerationStatus.Pending }
-          : {}),
-        skills: {
-          create: skillData,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await (tx.jobSkill ?? this.prisma.jobSkill).deleteMany({ where: { jobId: id } });
+      return (tx.job ?? this.prisma.job).update({
+        where: { id },
+        data: {
+          title: dto.title,
+          description: dto.description,
+          requirements: dto.requirements ?? null,
+          benefits: dto.benefits ?? null,
+          industry: normalizeIndustry(primaryIndustry) ?? primaryIndustry ?? null,
+          subIndustry: dto.subIndustry?.trim() || null,
+          department: dto.department ?? null,
+          jobLevel: inferredLevel ?? dto.jobLevel ?? null,
+          ...(track ? { jobTrack: track } : {}),
+          ...(dto.salesCriteria != null ? { salesCriteria: salesCriteriaJson(dto.salesCriteria) } : {}),
+          ...(dto.technicalCriteria != null
+            ? { technicalCriteria: technicalCriteriaJson(dto.technicalCriteria) }
+            : {}),
+          employmentType: dto.employmentType ?? null,
+          location: dto.location ?? null,
+          headcount: dto.headcount ?? 1,
+          deadline: resolvedDeadline,
+          experienceBand: dto.experienceBand ?? null,
+          salaryMin: dto.salaryMin ?? null,
+          salaryMax: dto.salaryMax ?? null,
+          updatedBy: user.id,
+          ...(shouldReModerate
+            ? { status: JobStatus.Draft, moderationStatus: JobModerationStatus.Pending }
+            : {}),
+          skills: {
+            create: skillData,
+          },
         },
-      },
-      include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+        include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+      });
     });
 
     if (shouldReModerate) {
@@ -1314,6 +1319,13 @@ export class JobService {
     }
     const canSeeMod = await this.canSeeModerationDetails(user, job.companyId);
     if (!canSeeMod) {
+      const isPublicApproved =
+        job.status === JobStatus.Published &&
+        (job.moderationStatus === JobModerationStatus.ApprovedAuto ||
+          job.moderationStatus === JobModerationStatus.ApprovedManual);
+      if (!isPublicApproved) {
+        throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+      }
       delete view.aiRiskScore;
       delete view.aiReason;
       delete view.aiSuggestedAction;

@@ -146,8 +146,7 @@ export default function RecruiterBroadcastEmailPage() {
     const list = eligibility.valid;
     if (prefillIds && prefillIds.length > 0) {
       const wanted = new Set(prefillIds);
-      const picked = list.filter((a) => wanted.has(a.applicationId));
-      return picked.length > 0 ? picked : list;
+      return list.filter((a) => wanted.has(a.applicationId));
     }
     if (stageFilter && stageFilter !== 'all') {
       const filtered = list.filter((a) => a.status === stageFilter);

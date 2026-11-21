@@ -410,13 +410,19 @@ export class CreditService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         // Ensure account exists
-        const account = await tx.billingCreditAccount.upsert({
+        const ensured = await tx.billingCreditAccount.upsert({
           where: { companyId: input.companyId },
           create: { companyId: input.companyId, tenantId: input.tenantId },
           update: {},
         });
-        // Khoá account để 2 request cùng lúc không trừ trùng 1 hồ sơ.
-        await tx.$queryRaw`SELECT id FROM billing.billing_credit_account WHERE id = ${account.id}::uuid FOR UPDATE`;
+        // Khoá account và đọc lại balance MỚI NHẤT sau khi khoá để tránh trừ âm số dư khi 2 request song song.
+        const lockedRows = await tx.$queryRaw<Array<{ id: string; balance: number }>>`
+          SELECT id, balance FROM billing.billing_credit_account WHERE id = ${ensured.id}::uuid FOR UPDATE
+        `;
+        const account = {
+          ...ensured,
+          balance: lockedRows[0]?.balance ?? ensured.balance,
+        };
 
         const now = new Date();
 
@@ -542,11 +548,12 @@ export class CreditService {
         return txRecord;
       });
     } catch (err) {
-      // Re-throw lỗi enforced / check để caller xử lý
+      // Re-throw lỗi enforced / check để caller xử lý (không nuốt lỗi DB ở chế độ enforce)
       if (
-        err instanceof BadRequestException &&
-        typeof err.getResponse() === 'object' &&
-        (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT'
+        mode === 'enforce' ||
+        (err instanceof BadRequestException &&
+          typeof err.getResponse() === 'object' &&
+          (err.getResponse() as { code?: string }).code === 'INSUFFICIENT_CREDIT')
       ) {
         throw err;
       }

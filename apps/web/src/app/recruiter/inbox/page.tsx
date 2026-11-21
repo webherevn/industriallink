@@ -206,6 +206,7 @@ export default function RecruiterInboxPage() {
   /** Điều hướng sang trang gửi email hàng loạt, mang theo ngữ cảnh đầy đủ. */
   const goToBulkEmail = useCallback(() => {
     const params = new URLSearchParams();
+    if (jobFilter !== 'all') params.set('jobId', jobFilter);
     if (selectedIds.length > 0) {
       // Danh sách dài → lưu sessionStorage, truyền qua query param rút gọn.
       window.sessionStorage.setItem(
@@ -215,7 +216,6 @@ export default function RecruiterInboxPage() {
       params.set('applicationIds', selectedIds.slice(0, 20).join(','));
       params.set('applicationIdsCount', String(selectedIds.length));
     } else {
-      if (jobFilter !== 'all') params.set('jobId', jobFilter);
       if (statusFilter !== 'all') params.set('stage', statusFilter);
     }
     params.set('returnUrl', '/recruiter/inbox');

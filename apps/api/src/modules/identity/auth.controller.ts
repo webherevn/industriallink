@@ -45,6 +45,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Đăng ký tài khoản (ứng viên hoặc nhà tuyển dụng)' })
   register(@Body() dto: RegisterDto, @Req() req: Request, @CorrelationId() correlationId: string) {
     const raw = req.cookies?.[REFERRAL_COOKIE];
@@ -58,6 +59,7 @@ export class AuthController {
 
   @Post('verify-otp')
   @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Xác thực OTP sau khi đăng ký' })
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.identity.verifyOtp(dto.email, dto.otp);
@@ -81,6 +83,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Đăng nhập — trả JWT hoặc challenge MFA (OTP email) nếu đã bật MFA',
   })
@@ -104,6 +107,7 @@ export class AuthController {
 
   @Post('verify-login-otp')
   @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Xác thực OTP MFA để hoàn tất đăng nhập' })
   async verifyLoginOtp(
     @Body() dto: VerifyLoginOtpDto,
@@ -138,7 +142,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
-  @SkipThrottle()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Cấp lại access token bằng refresh token trong cookie' })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];

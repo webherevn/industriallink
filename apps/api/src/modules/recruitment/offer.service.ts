@@ -274,52 +274,56 @@ export class OfferService {
       throw new ForbiddenException('Offer không thuộc công ty của bạn');
     }
 
-    const updated = await this.prisma.offer.update({
-      where: { id },
-      data: {
-        status: dto.status ?? undefined,
-        salary: dto.salary ?? undefined,
-        currency: dto.currency ?? undefined,
-        startDate:
-          dto.startDate !== undefined
-            ? dto.startDate
-              ? new Date(dto.startDate)
-              : null
-            : undefined,
-        expiresAt:
-          dto.expiresAt !== undefined
-            ? dto.expiresAt
-              ? new Date(dto.expiresAt)
-              : null
-            : undefined,
-        benefits: dto.benefits !== undefined ? dto.benefits.trim() || null : undefined,
-        notes: dto.notes !== undefined ? dto.notes.trim() || null : undefined,
-        updatedBy: user.id,
-      },
-      include: {
-        job: { select: { title: true, company: { select: { name: true } } } },
-        candidate: { select: { displayName: true } },
-      },
-    });
-
-    if (dto.status) {
-      await this.prisma.applicationTimeline.create({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.offer.update({
+        where: { id },
         data: {
-          applicationId: existing.applicationId,
-          tenantId: user.tenantId,
-          type: 'offer_updated',
-          title: `Cập nhật đề nghị làm việc → ${offerStatusLabel(dto.status)}`,
-          description: null,
+          status: dto.status ?? undefined,
+          salary: dto.salary ?? undefined,
+          currency: dto.currency ?? undefined,
+          startDate:
+            dto.startDate !== undefined
+              ? dto.startDate
+                ? new Date(dto.startDate)
+                : null
+              : undefined,
+          expiresAt:
+            dto.expiresAt !== undefined
+              ? dto.expiresAt
+                ? new Date(dto.expiresAt)
+                : null
+              : undefined,
+          benefits: dto.benefits !== undefined ? dto.benefits.trim() || null : undefined,
+          notes: dto.notes !== undefined ? dto.notes.trim() || null : undefined,
+          updatedBy: user.id,
+        },
+        include: {
+          job: { select: { title: true, company: { select: { name: true } } } },
+          candidate: { select: { displayName: true } },
         },
       });
 
-      if (dto.status === OfferStatus.Accepted) {
-        await this.prisma.application.update({
-          where: { id: existing.applicationId },
-          data: { status: ApplicationStatus.Hired, updatedBy: user.id },
+      if (dto.status) {
+        await tx.applicationTimeline.create({
+          data: {
+            applicationId: existing.applicationId,
+            tenantId: user.tenantId,
+            type: 'offer_updated',
+            title: `Cập nhật đề nghị làm việc → ${offerStatusLabel(dto.status)}`,
+            description: null,
+          },
         });
+
+        if (dto.status === OfferStatus.Accepted) {
+          await tx.application.update({
+            where: { id: existing.applicationId },
+            data: { status: ApplicationStatus.Hired, updatedBy: user.id },
+          });
+        }
       }
-    }
+
+      return result;
+    });
 
     await this.audit.record({
       tenantId: user.tenantId,
@@ -377,6 +381,13 @@ export class OfferService {
     }
     if (existing.status !== OfferStatus.Pending) {
       throw new BadRequestException('Offer này đã được phản hồi trước đó');
+    }
+    if (
+      dto.status === OfferStatus.Accepted &&
+      existing.expiresAt &&
+      existing.expiresAt.getTime() < Date.now()
+    ) {
+      throw new BadRequestException('Đề nghị làm việc này đã hết hạn');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {

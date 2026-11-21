@@ -193,7 +193,6 @@ export class CmsService {
   ): Promise<CmsCategoryView> {
     const base = toSeoSlug(input.slug || input.name);
     const taken = await this.prisma.cmsCategory.findMany({
-      where: { isDeleted: false },
       select: { slug: true },
     });
     const slug = nextUniqueSlug(
@@ -243,7 +242,7 @@ export class CmsService {
       const base = toSeoSlug(input.slug || input.name || existing.name);
       if (base !== existing.slug) {
         const taken = await this.prisma.cmsCategory.findMany({
-          where: { isDeleted: false, id: { not: id } },
+          where: { id: { not: id } },
           select: { slug: true },
         });
         slug = nextUniqueSlug(
@@ -2155,7 +2154,6 @@ export class CmsService {
     const taken = await this.prisma.cmsPost.findMany({
       where: {
         type,
-        isDeleted: false,
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
       select: { slug: true },

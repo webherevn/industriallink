@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -483,11 +484,14 @@ export class IdentityService {
       throw new UnauthorizedException('Tài khoản đã bị khoá');
     }
 
-    // Xoay vòng: thu hồi token cũ, cấp cặp mới.
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
+    // Xoay vòng atomic: chỉ 1 request thu hồi được token cũ để cấp cặp mới.
+    const revoked = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    if (revoked.count !== 1) {
+      throw new UnauthorizedException('Phiên đăng nhập đã được làm mới hoặc thu hồi');
+    }
 
     const userView = this.toAuthUserView(user);
     const accessToken = await this.signAccessToken(userView, user.tenantId);
@@ -677,7 +681,7 @@ export class IdentityService {
   }
 
   private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return randomInt(100000, 1000000).toString();
   }
 
   private devOtpOrUndefined(otp: string): string | undefined {

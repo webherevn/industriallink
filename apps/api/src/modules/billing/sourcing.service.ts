@@ -628,6 +628,10 @@ export class SourcingService {
     planName: string | null;
     durationDays: number | null;
     paidAt: Date | null;
+    creditsIncluded?: number | null;
+    totalCriteriaEdits?: number | null;
+    totalReports?: number | null;
+    totalHandovers?: number | null;
   }): Promise<void> {
     await this.huntPackages.createForOrder(input);
   }
@@ -1401,21 +1405,29 @@ export class SourcingService {
     }
     if (!row.endsAt || row.endsAt.getTime() > nowMs) return row;
 
-    // Chu kỳ cấp gói đã kết thúc, nhưng còn gói Săn đang chạy / chiến dịch còn hiệu lực
+    // Chu kỳ cấp gói đã kết thúc, nhưng còn gói Săn đang chạy / chờ kích hoạt / chiến dịch còn hiệu lực
     // → KHÔNG tắt assignment (chỉ mất quyền tạo chiến dịch mới khi hết gói).
-    const [activePackages, validCampaigns] = await Promise.all([
+    const [activeOrUnusedPackages, validCampaigns] = await Promise.all([
       this.prisma.billingHuntPackage.count({
         where: {
           companyId,
-          status: 'ACTIVE',
-          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+          OR: [
+            {
+              status: 'ACTIVE',
+              OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+            },
+            {
+              status: 'UNUSED',
+              OR: [{ activationDeadlineAt: null }, { activationDeadlineAt: { gte: new Date() } }],
+            },
+          ],
         },
       }),
       this.prisma.huntCampaign.count({
         where: { companyId, assignmentId: row.id, status: { not: 'closed' } },
       }),
     ]);
-    if (activePackages > 0 || validCampaigns > 0) return row;
+    if (activeOrUnusedPackages > 0 || validCampaigns > 0) return row;
 
     return this.prisma.billingCompanySourcingPlan.update({
       where: { companyId },

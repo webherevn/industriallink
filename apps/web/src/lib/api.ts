@@ -57,19 +57,27 @@ interface RequestOptions {
   retryOnUnauthorized?: boolean;
 }
 
+let inflightRefresh: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
-  try {
-    const res = await fetch(`${getApiBase()}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { accessToken: string };
-    tokenStore.set(data.accessToken);
-    return true;
-  } catch {
-    return false;
-  }
+  if (inflightRefresh) return inflightRefresh;
+  inflightRefresh = (async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { accessToken: string };
+      tokenStore.set(data.accessToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      inflightRefresh = null;
+    }
+  })();
+  return inflightRefresh;
 }
 
 const HANDOFF_HASH_PREFIX = '#il_at=';
