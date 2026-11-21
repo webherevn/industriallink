@@ -85,7 +85,7 @@ export default function RecruiterReportPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">

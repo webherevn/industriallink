@@ -68,13 +68,13 @@ export default function AccountPage() {
   }
 
   const content = (
-      <div className={isCandidate ? 'min-w-0 space-y-4' : 'mx-auto max-w-xl space-y-6'}>
+      <div className={isCandidate ? 'min-w-0 space-y-4' : 'w-full space-y-6'}>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tài khoản</h1>
           <p className="mt-1 text-sm text-slate-500">Bảo mật và tuỳ chọn đăng nhập.</p>
         </div>
 
-        <>
+        <div className={isCandidate ? 'space-y-4' : 'grid items-start gap-5 lg:grid-cols-2'}>
             <Card>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -198,14 +198,14 @@ export default function AccountPage() {
                 <p className="mt-3 text-sm text-red-600">Không tắt được TOTP</p>
               )}
             </Card>
+        </div>
 
-            {user.mfaEnabled && (
-              <p className="text-xs text-slate-400">
-                Chỉ một phương thức MFA có thể bật cùng lúc — bật phương thức mới sẽ tự tắt phương
-                thức cũ.
-              </p>
-            )}
-        </>
+        {user.mfaEnabled && (
+          <p className="text-xs text-slate-400">
+            Chỉ một phương thức MFA có thể bật cùng lúc — bật phương thức mới sẽ tự tắt phương
+            thức cũ.
+          </p>
+        )}
       </div>
   );
 

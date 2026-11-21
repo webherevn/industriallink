@@ -211,7 +211,7 @@ export default function RecruiterBroadcastEmailPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl space-y-5">
+      <div className="w-full space-y-5">
         {/* Nút quay lại theo returnUrl */}
         <div>
           <Link
