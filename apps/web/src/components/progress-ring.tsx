@@ -81,80 +81,71 @@ export function CriteriaCompletionCard({
           </span>
         )}
       </div>
-      <div className="relative mt-3 flex items-center gap-4">
+      <div className="relative mt-3 flex items-center gap-3.5">
         <ProgressRing percent={percent} />
-        <div className="min-w-0 flex-1 space-y-2 text-sm">
+        <div className="min-w-0 flex-1 text-sm">
           <p className="text-slate-600">
-            <span className="text-base font-extrabold text-slate-900">{filledCount}</span>
+            <span className="text-lg font-extrabold tabular-nums text-[#072348]">{filledCount}</span>
             <span className="text-slate-400"> / {totalCount}</span>
-            <span className="ml-1 text-slate-500">tiêu chí đã đủ</span>
-            <span className="ml-2 text-xs font-semibold text-brand-600">· {safe}%</span>
+            <span className="ml-1 text-xs text-slate-500">tiêu chí đã đủ</span>
           </p>
-          {shown.length > 0 ? (
-            <ul className="space-y-1.5">
-              {shown.map((f) => (
-                <li key={f.key}>
-                  {onGapClick ? (
-                    <button
-                      type="button"
-                      onClick={() => onGapClick(f)}
-                      className="flex w-full items-start gap-2 rounded-md text-left transition hover:bg-rose-50/80"
-                    >
-                      <span
-                        className={clsx(
-                          'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
-                          'bg-rose-50 text-rose-500 ring-1 ring-rose-200/80',
-                        )}
-                      >
-                        <Circle className="h-2.5 w-2.5 fill-current" />
-                      </span>
-                      <span className="text-[13px] font-medium text-brand-700 underline-offset-2 line-clamp-1 hover:underline">
-                        {f.label}
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="flex items-start gap-2">
-                      <span
-                        className={clsx(
-                          'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
-                          'bg-rose-50 text-rose-500 ring-1 ring-rose-200/80',
-                        )}
-                      >
-                        <Circle className="h-2.5 w-2.5 fill-current" />
-                      </span>
-                      <span className="text-[13px] font-medium text-slate-700 line-clamp-1">
-                        {f.label}
-                      </span>
-                    </div>
-                  )}
-                </li>
-              ))}
-              {gaps.length > maxGaps && (
-                <li className="pl-7">
-                  {onGapClick ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAll((v) => !v)}
-                      className="text-xs font-medium text-brand-600 underline-offset-2 hover:underline"
-                    >
-                      {showAll ? 'Thu gọn' : `+${gaps.length - maxGaps} mục khác`}
-                    </button>
-                  ) : (
-                    <span className="text-xs font-medium text-slate-400">
-                      +{gaps.length - maxGaps} mục khác
-                    </span>
-                  )}
-                </li>
-              )}
-            </ul>
-          ) : (
-            <p className="flex items-center gap-1.5 text-emerald-700">
-              <Check className="h-4 w-4" />
-              Đã đủ tiêu chí theo lĩnh vực
-            </p>
-          )}
+          <p className="mt-0.5 text-xs font-semibold text-[#0B468C]">Hoàn thiện {safe}%</p>
         </div>
       </div>
+
+      {shown.length > 0 ? (
+        <ul className="mt-3.5 space-y-1.5 border-t border-slate-100 pt-3">
+          {shown.map((f) => (
+            <li key={f.key}>
+              {onGapClick ? (
+                <button
+                  type="button"
+                  onClick={() => onGapClick(f)}
+                  className="flex w-full items-start gap-2 rounded-md py-0.5 text-left transition hover:bg-rose-50/70"
+                >
+                  <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500 ring-1 ring-rose-200/80">
+                    <Circle className="h-2 w-2 fill-current" />
+                  </span>
+                  <span className="text-[12.5px] font-medium leading-snug text-[#0B468C] underline-offset-2 hover:underline">
+                    {f.label}
+                  </span>
+                </button>
+              ) : (
+                <div className="flex items-start gap-2 py-0.5">
+                  <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500 ring-1 ring-rose-200/80">
+                    <Circle className="h-2 w-2 fill-current" />
+                  </span>
+                  <span className="text-[12.5px] font-medium leading-snug text-slate-700">
+                    {f.label}
+                  </span>
+                </div>
+              )}
+            </li>
+          ))}
+          {gaps.length > maxGaps && (
+            <li className="pl-6.5 pt-0.5">
+              {onGapClick ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="text-xs font-semibold text-[#0B468C] underline-offset-2 hover:underline"
+                >
+                  {showAll ? 'Thu gọn' : `+${gaps.length - maxGaps} mục khác`}
+                </button>
+              ) : (
+                <span className="text-xs font-medium text-slate-400">
+                  +{gaps.length - maxGaps} mục khác
+                </span>
+              )}
+            </li>
+          )}
+        </ul>
+      ) : (
+        <p className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-medium text-emerald-700">
+          <Check className="h-4 w-4" />
+          Đã đủ tiêu chí theo lĩnh vực
+        </p>
+      )}
     </div>
   );
 }

@@ -226,7 +226,7 @@ export function JdCreateGuide({
           sessionStorage.removeItem(PLAY_KEY);
           setOpen(true);
         }}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[13px] font-semibold text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100"
+        className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[#FFF8F1] px-3 py-1.5 text-[12.5px] font-semibold text-[#C25E12] ring-1 ring-[#FFD0A3] transition hover:bg-amber-100/70"
       >
         <Sparkles className="h-3.5 w-3.5" />
         Hướng dẫn tạo JD

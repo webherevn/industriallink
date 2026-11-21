@@ -93,15 +93,15 @@ export function JdSourceStep({
       className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_10px_30px_-10px_rgba(7,35,72,0.08)]"
     >
       {/* Header + 3 bước */}
-      <div className="border-b border-slate-100 bg-gradient-to-r from-[#072348]/[0.04] via-sky-50/70 to-accent-50/60 px-5 py-5 sm:px-6">
+      <div className="border-b border-slate-100 bg-gradient-to-r from-[#F8FAFC] via-white to-[#FFF8F1]/80 px-5 py-5 sm:px-6">
         <div className="flex flex-wrap items-center gap-2.5">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#072348] to-[#0B468C] text-white shadow-sm shadow-sky-900/20">
-            <Sparkles className="h-4 w-4 text-accent-300" />
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#072348] text-white shadow-sm">
+            <Sparkles className="h-4 w-4 text-[#FFB366]" />
           </span>
           <h2 className="text-lg font-bold text-[#072348] sm:text-xl">
             Tạo JD tuyển dụng bằng AI
           </h2>
-          <span className="rounded-full border border-accent-200 bg-accent-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent-700">
+          <span className="rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]">
             AI Copilot
           </span>
         </div>
@@ -125,8 +125,8 @@ export function JdSourceStep({
                 className={clsx(
                   'rounded-full px-3.5 py-1.5 font-medium transition',
                   step === s.id
-                    ? 'bg-gradient-to-r from-[#072348] to-[#0B468C] font-semibold text-white shadow-sm shadow-sky-900/20'
-                    : 'border border-slate-200/80 bg-white/80 text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-[#0B468C]',
+                    ? 'bg-[#072348] font-semibold text-white shadow-xs'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:border-[#0B468C]/40 hover:bg-sky-50/50 hover:text-[#072348]',
                 )}
               >
                 {s.label}
@@ -151,8 +151,8 @@ export function JdSourceStep({
               className={clsx(
                 'group relative rounded-xl border p-3.5 text-left transition-all',
                 track === JobTrack.Sales
-                  ? 'border-[#0B468C] bg-gradient-to-br from-sky-50/90 via-white to-indigo-50/40 ring-2 ring-[#0B468C]/15 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/20',
+                  ? 'border-[#0B468C] bg-sky-50/40 ring-2 ring-[#0B468C]/10 shadow-xs'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60',
               )}
             >
               <div className="flex items-center justify-between gap-2">
@@ -161,7 +161,7 @@ export function JdSourceStep({
                     className={clsx(
                       'inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                       track === JobTrack.Sales
-                        ? 'bg-gradient-to-br from-[#072348] to-[#0B468C] text-white shadow-sm'
+                        ? 'bg-[#072348] text-white shadow-xs'
                         : 'bg-sky-50 text-[#0B468C] group-hover:bg-sky-100',
                     )}
                   >
@@ -170,7 +170,7 @@ export function JdSourceStep({
                   <span className="text-[14px] font-bold text-[#072348]">Kinh doanh</span>
                 </div>
                 {track === JobTrack.Sales && (
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-[#0B468C]">
+                  <span className="rounded-full bg-[#072348] px-2.5 py-0.5 text-[11px] font-semibold text-white">
                     Đang chọn
                   </span>
                 )}
@@ -186,8 +186,8 @@ export function JdSourceStep({
               className={clsx(
                 'group relative rounded-xl border p-3.5 text-left transition-all',
                 track === JobTrack.Technical
-                  ? 'border-accent-500 bg-gradient-to-br from-accent-50/90 via-white to-amber-50/40 ring-2 ring-accent-500/15 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-accent-200 hover:bg-accent-50/20',
+                  ? 'border-[#E8872A] bg-[#FFF8F1]/80 ring-2 ring-[#E8872A]/15 shadow-xs'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60',
               )}
             >
               <div className="flex items-center justify-between gap-2">
@@ -196,8 +196,8 @@ export function JdSourceStep({
                     className={clsx(
                       'inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                       track === JobTrack.Technical
-                        ? 'bg-gradient-to-br from-accent-500 to-accent-600 text-white shadow-sm'
-                        : 'bg-accent-50 text-accent-600 group-hover:bg-accent-100',
+                        ? 'bg-[#E8872A] text-white shadow-xs'
+                        : 'bg-[#FFF8F1] text-[#C25E12] group-hover:bg-amber-100/70',
                     )}
                   >
                     <Wrench className="h-4 w-4" />
@@ -205,7 +205,7 @@ export function JdSourceStep({
                   <span className="text-[14px] font-bold text-[#072348]">Kỹ thuật</span>
                 </div>
                 {track === JobTrack.Technical && (
-                  <span className="rounded-full bg-accent-100 px-2 py-0.5 text-[11px] font-semibold text-accent-700">
+                  <span className="rounded-full bg-[#E8872A] px-2.5 py-0.5 text-[11px] font-semibold text-white">
                     Đang chọn
                   </span>
                 )}
@@ -243,10 +243,10 @@ export function JdSourceStep({
               className={clsx(
                 'group flex cursor-pointer flex-col items-center justify-center rounded-xl border p-5 text-center transition-all',
                 dragOver
-                  ? 'border-dashed border-sky-500 bg-sky-50/80 ring-2 ring-sky-400/25'
+                  ? 'border-dashed border-[#0B468C] bg-sky-50/70 ring-2 ring-[#0B468C]/20'
                   : mode === 'upload'
-                    ? 'border-[#0B468C] bg-gradient-to-b from-sky-50/75 to-white ring-2 ring-[#0B468C]/15 shadow-sm'
-                    : 'border-slate-200 bg-slate-50/40 hover:border-sky-200 hover:bg-sky-50/30',
+                    ? 'border-[#0B468C] bg-sky-50/40 ring-2 ring-[#0B468C]/10 shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60',
               )}
             >
               <input
@@ -261,16 +261,16 @@ export function JdSourceStep({
               />
               <span
                 className={clsx(
-                  'inline-flex h-12 w-12 items-center justify-center rounded-2xl transition-all',
+                  'inline-flex h-11 w-11 items-center justify-center rounded-2xl transition-all',
                   mode === 'upload' || dragOver
-                    ? 'bg-gradient-to-br from-[#072348] to-[#0B468C] text-white shadow-md shadow-sky-900/20'
+                    ? 'bg-[#072348] text-white shadow-xs'
                     : 'bg-sky-50 text-[#0B468C] group-hover:bg-sky-100',
                 )}
               >
                 {filePending ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  <FileUp className="h-6 w-6" strokeWidth={1.8} />
+                  <FileUp className="h-5 w-5" strokeWidth={1.8} />
                 )}
               </span>
               <p className="mt-3 text-[14px] font-bold text-[#072348]">Tải file JD</p>
@@ -279,14 +279,14 @@ export function JdSourceStep({
                   ? 'Đang trích xuất & phân tích JD...'
                   : uploadedName
                     ? `Đã chọn: ${uploadedName}`
-                    : 'PDF, DOC, DOCX, TXT'}
+                    : 'PDF, DOC, DOCX, TXT (tối đa 5MB)'}
               </p>
               <span
                 className={clsx(
                   'mt-3 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors',
                   mode === 'upload'
-                    ? 'bg-gradient-to-r from-[#072348] to-[#0B468C] text-white shadow-sm'
-                    : 'border border-sky-200 bg-white text-[#0B468C] group-hover:bg-sky-50',
+                    ? 'border border-[#0B468C]/30 bg-sky-100/80 text-[#072348]'
+                    : 'border border-slate-200 bg-white text-[#072348] group-hover:border-[#0B468C]/40 group-hover:bg-sky-50/50',
                 )}
               >
                 Chọn file
@@ -303,19 +303,19 @@ export function JdSourceStep({
               className={clsx(
                 'group flex flex-col items-center justify-center rounded-xl border p-5 text-center transition-all',
                 mode === 'paste'
-                  ? 'border-[#0B468C] bg-gradient-to-b from-indigo-50/60 via-sky-50/40 to-white ring-2 ring-[#0B468C]/15 shadow-sm'
-                  : 'border-slate-200 bg-slate-50/40 hover:border-indigo-200 hover:bg-indigo-50/30',
+                  ? 'border-[#0B468C] bg-sky-50/40 ring-2 ring-[#0B468C]/10 shadow-xs'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60',
               )}
             >
               <span
                 className={clsx(
-                  'inline-flex h-12 w-12 items-center justify-center rounded-2xl transition-all',
+                  'inline-flex h-11 w-11 items-center justify-center rounded-2xl transition-all',
                   mode === 'paste'
-                    ? 'bg-gradient-to-br from-[#072348] to-indigo-600 text-white shadow-md shadow-indigo-900/20'
-                    : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100',
+                    ? 'bg-[#072348] text-white shadow-xs'
+                    : 'bg-sky-50 text-[#0B468C] group-hover:bg-sky-100',
                 )}
               >
-                <ClipboardList className="h-6 w-6" strokeWidth={1.8} />
+                <ClipboardList className="h-5 w-5" strokeWidth={1.8} />
               </span>
               <p className="mt-3 text-[14px] font-bold text-[#072348]">Dán nội dung JD</p>
               <p className="mt-0.5 text-[12px] text-slate-500">
@@ -325,11 +325,11 @@ export function JdSourceStep({
                 className={clsx(
                   'mt-3 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors',
                   mode === 'paste'
-                    ? 'bg-gradient-to-r from-[#072348] to-[#0B468C] text-white shadow-sm'
-                    : 'border border-slate-200 bg-white text-slate-700 group-hover:border-indigo-200 group-hover:text-indigo-700',
+                    ? 'border border-[#0B468C]/30 bg-sky-100/80 text-[#072348]'
+                    : 'border border-slate-200 bg-white text-[#072348] group-hover:border-[#0B468C]/40 group-hover:bg-sky-50/50',
                 )}
               >
-                Nhập nội dung
+                {mode === 'paste' ? 'Đang chọn nhập nội dung' : 'Nhập nội dung'}
               </span>
             </button>
           </div>
@@ -345,13 +345,13 @@ export function JdSourceStep({
                 onChange={(e) => onTextChange(e.target.value)}
                 rows={7}
                 placeholder="Dán mô tả tin tuyển dụng tại đây (tối thiểu ~40 ký tự)..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-3 text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#0B468C] focus:bg-white focus:ring-4 focus:ring-sky-500/10"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] leading-relaxed text-slate-800 shadow-2xs outline-none transition placeholder:text-slate-400 focus:border-[#0B468C] focus:ring-2 focus:ring-[#0B468C]/15"
               />
               <div className="mt-1.5 flex items-center justify-end text-[11.5px]">
                 <span
                   className={clsx(
-                    'font-medium',
-                    charCount >= 40 ? 'text-emerald-600' : 'text-slate-400',
+                    'font-semibold',
+                    charCount >= 40 ? 'text-emerald-600' : 'text-slate-500',
                   )}
                 >
                   {charCount >= 40
@@ -364,10 +364,10 @@ export function JdSourceStep({
         )}
 
         {/* Ví dụ nội dung JD */}
-        <div className="mt-4 rounded-xl border border-accent-200/80 bg-gradient-to-r from-accent-50/75 via-amber-50/40 to-white px-4 py-3.5 text-[12.5px] leading-relaxed text-slate-700">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 font-semibold text-accent-800">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
+        <div className="mt-4 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1]/80 px-4 py-3.5 text-[12.5px] leading-relaxed text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#C25E12]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#E8872A]" />
               Ví dụ nội dung JD
             </span>
             <button
@@ -377,7 +377,7 @@ export function JdSourceStep({
                 setMode('paste');
                 onTextChange(sampleJd);
               }}
-              className="rounded-full border border-accent-300 bg-white px-3 py-1 text-[12px] font-semibold text-accent-700 shadow-xs transition hover:border-accent-500 hover:bg-accent-500 hover:text-white disabled:opacity-50"
+              className="rounded-full border border-[#FFD0A3] bg-white px-3 py-1 text-[12px] font-semibold text-[#C25E12] shadow-2xs transition hover:border-[#E8872A] hover:bg-[#E8872A] hover:text-white disabled:opacity-50"
             >
               Dùng mẫu này
             </button>
@@ -399,7 +399,7 @@ export function JdSourceStep({
             <button
               type="button"
               onClick={onSkipManual}
-              className="font-semibold text-[#0B468C] hover:text-accent-600 hover:underline"
+              className="font-semibold text-[#0B468C] hover:text-[#E8872A] hover:underline"
             >
               Bỏ qua, điền tay →
             </button>
@@ -411,16 +411,16 @@ export function JdSourceStep({
             disabled={!canAnalyze}
             onClick={onAnalyzeText}
             className={clsx(
-              'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition-all',
+              'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-bold transition-all',
               canAnalyze
-                ? 'bg-gradient-to-r from-[#072348] via-[#0B468C] to-[#1258ad] text-white shadow-md shadow-[#072348]/25 hover:shadow-lg hover:brightness-110'
-                : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400',
+                ? 'bg-[#E8872A] text-white shadow-sm hover:bg-[#d6761b]'
+                : 'cursor-not-allowed bg-[#E8872A]/45 text-white',
             )}
           >
             {textPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Sparkles className="h-4 w-4 text-accent-300" />
+              <Sparkles className="h-4 w-4" />
             )}
             Phân tích JD bằng AI
           </button>

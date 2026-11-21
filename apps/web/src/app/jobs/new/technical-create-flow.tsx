@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import {
   AlertCircle,
   Check,
+  Lightbulb,
   Loader2,
   Wand2,
 } from 'lucide-react';
@@ -179,6 +180,7 @@ export function JdTechnicalCreateFlow({
           variant="outline"
           disabled={busy || form.title.trim().length < 3}
           onClick={() => saveMutation.mutate(false)}
+          className="border-slate-200 bg-white text-[#072348] shadow-2xs hover:border-[#0B468C]/40 hover:bg-slate-50 disabled:border-slate-200 disabled:bg-white/80 disabled:text-slate-400"
         >
           {saveMutation.isPending && saveMutation.variables === false ? 'Đang lưu...' : 'Lưu nháp'}
         </Button>
@@ -342,27 +344,44 @@ export function JdTechnicalCreateFlow({
             </p>
           )}
 
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-2xs">
             <div className="flex gap-2">
               {step > 1 ? (
-                <Button type="button" variant="outline" disabled={busy} onClick={() => setStep(step - 1)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setStep(step - 1)}
+                  className="border-slate-200 bg-white text-[#072348] hover:bg-slate-50"
+                >
                   Quay lại
                 </Button>
               ) : (
                 <CancelOrLink onCancel={onCancel}>
-                  <Button type="button" variant="ghost">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-[#072348]"
+                  >
                     Hủy
                   </Button>
                 </CancelOrLink>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {step === 3 && !form.jobLevel && (
-                <span className="text-[13px] text-amber-700">Chọn Cấp bậc ở bước 2 để đăng tin.</span>
+                <span className="text-[13px] font-medium text-amber-700">Chọn Cấp bậc ở bước 2 để đăng tin.</span>
               )}
-              <span className="text-[13px] text-slate-400">Bước {step}/3</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                Bước {step}/3
+              </span>
               {step < 3 ? (
-                <Button type="button" disabled={busy} onClick={() => setStep(step + 1)}>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setStep(step + 1)}
+                  className="bg-[#072348] text-white hover:bg-[#0B468C]"
+                >
                   Tiếp tục
                 </Button>
               ) : (
@@ -370,6 +389,7 @@ export function JdTechnicalCreateFlow({
                   type="button"
                   disabled={busy || !canPublish}
                   onClick={() => saveMutation.mutate(true)}
+                  className="bg-[#072348] text-white hover:bg-[#0B468C]"
                 >
                   {saveMutation.isPending ? 'Đang đăng...' : 'Đăng tin'}
                 </Button>
@@ -394,12 +414,26 @@ export function JdTechnicalCreateFlow({
             }))}
           />
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[13px] text-slate-600 shadow-sm">
-            <p className="font-semibold text-slate-900">Gợi ý cho HR</p>
-            <ul className="mt-2 space-y-1.5 text-xs leading-relaxed">
-              <li>AI không tự thêm thiết bị / môi trường / công việc kỹ thuật nếu JD không nêu.</li>
-              <li>Nhóm C chỉ cần khi JD yêu cầu học vấn, chứng chỉ, bằng lái, công tác hoặc tài liệu kỹ thuật.</li>
-              <li>Điểm matching ứng viên sẽ tính sau — form này chỉ thu thập 23 trường.</li>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 text-[13px] text-slate-600 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFF8F1] text-[#E8872A] ring-1 ring-[#FFD0A3]">
+                <Lightbulb className="h-3.5 w-3.5" />
+              </span>
+              <p className="text-sm font-semibold text-[#072348]">Gợi ý cho HR</p>
+            </div>
+            <ul className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8872A]" />
+                <span>AI không tự thêm thiết bị / môi trường / công việc kỹ thuật nếu JD không nêu.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8872A]" />
+                <span>Nhóm C chỉ cần khi JD yêu cầu học vấn, chứng chỉ, bằng lái, công tác hoặc tài liệu kỹ thuật.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8872A]" />
+                <span>Điểm matching ứng viên sẽ tính sau — form này chỉ thu thập 23 trường.</span>
+              </li>
             </ul>
           </div>
         </aside>
