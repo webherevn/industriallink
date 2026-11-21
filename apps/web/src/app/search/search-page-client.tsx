@@ -1308,18 +1308,11 @@ export function SearchPageClient() {
     <AppShell>
       <div className="animate-soft-rise space-y-4 pb-24 lg:pb-10">
         {/* Banner Tìm ứng viên AI */}
-        <header className="relative overflow-hidden rounded-2xl border border-[#0B468C]/20 bg-gradient-to-r from-[#072348] via-[#0B468C] to-[#1354a6] px-5 py-6 text-white shadow-[0_12px_32px_-12px_rgba(7,35,72,0.35)] sm:px-6">
+        <header className="brand-hero-surface relative overflow-hidden rounded-3xl px-5 py-6 sm:px-7">
+          <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
           <div className="pointer-events-none absolute -right-2 bottom-0 top-0 hidden w-44 items-end justify-center lg:flex">
             <CopilotRobot className="w-36 drop-shadow-[0_8px_20px_rgba(0,0,0,0.25)]" />
           </div>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-8 top-0 h-44 w-60 rounded-full bg-sky-400/20 blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-48 rounded-full bg-accent-400/15 blur-2xl"
-          />
           <div className="relative max-w-2xl">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-accent-300">
               <span className="h-3.5 w-1 rounded-full bg-accent-400" />
