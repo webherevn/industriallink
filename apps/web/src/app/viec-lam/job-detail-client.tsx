@@ -47,7 +47,12 @@ import {
   listPublishedJobs,
   removeJobBookmark,
 } from '@/lib/jobs';
-import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import {
+  MATCH_RING_TRACK_COLOR,
+  formatMatchPct,
+  matchRingColor,
+  matchScoreTextColor,
+} from '@/lib/match-percent';
 import { matchFitLabel } from '@/lib/match-fit-label';
 import { jobFit } from '@/lib/matching';
 import { companyPublicPath, jobListingPath, jobPublicPath } from '@/lib/public-paths';
@@ -523,13 +528,9 @@ export function JobDetailClient({
                 {fit ? (
                   <div className="mt-3 flex items-center gap-4">
                     <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center">
-                      <div
-                        className="pointer-events-none absolute inset-0 rounded-full bg-amber-400/25 blur-[10px]"
-                        aria-hidden
-                      />
-                      <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-amber-50 to-white p-0.5 shadow-sm ring-1 ring-amber-200/80">
+                      <div className="relative h-16 w-16 rounded-full bg-white p-0.5 shadow-sm ring-1 ring-slate-200/80">
                         <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
-                          <circle cx="32" cy="32" r="26" fill="none" stroke="#fde68a" strokeWidth="6" />
+                          <circle cx="32" cy="32" r="26" fill="none" stroke={MATCH_RING_TRACK_COLOR} strokeWidth="6" />
                           <circle
                             cx="32"
                             cy="32"
@@ -547,7 +548,7 @@ export function JobDetailClient({
                         <span className="absolute inset-0 flex items-center justify-center">
                           <span
                             className="text-[15px] font-extrabold leading-none tracking-tight"
-                            style={{ color: matchRingColor(fit.score) }}
+                            style={{ color: matchScoreTextColor(fit.score) }}
                           >
                             {formatMatchPct(fit.score)}
                             <span className="text-[10px] font-bold">%</span>
@@ -556,7 +557,7 @@ export function JobDetailClient({
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: matchRingColor(fit.score) }}>
+                      <p className="text-sm font-bold" style={{ color: matchScoreTextColor(fit.score) }}>
                         {fitRingLabel(fit.score)}
                       </p>
                       {fit.reason && (

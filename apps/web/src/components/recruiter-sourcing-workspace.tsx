@@ -62,7 +62,12 @@ import { ApiError } from '@/lib/api';
 import { addCandidateShortlist, getCandidateById, removeCandidateShortlist } from '@/lib/candidate';
 import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
 import { getJob, listMyJobs } from '@/lib/jobs';
-import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import {
+  MATCH_RING_TRACK_COLOR,
+  formatMatchPct,
+  matchRingColor,
+  matchScoreTextColor,
+} from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
 import {
   consumeRecruiterSourcing,
@@ -1603,10 +1608,11 @@ function ScoreRing({ score }: { score: number }) {
   const safe = Math.min(1, Math.max(0, score / 100));
   const offset = c * (1 - safe);
   const ringColor = matchRingColor(score);
+  const textColor = matchScoreTextColor(score);
   return (
     <div className="relative h-12 w-12 shrink-0">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="#fde68a" strokeWidth="3.5" />
+        <circle cx="22" cy="22" r={r} fill="none" stroke={MATCH_RING_TRACK_COLOR} strokeWidth="3.5" />
         <circle
           cx="22"
           cy="22"
@@ -1623,7 +1629,7 @@ function ScoreRing({ score }: { score: number }) {
       <div className="absolute inset-0 flex items-center justify-center">
         <span
           className="text-[11.5px] font-extrabold leading-none tracking-tight tabular-nums"
-          style={{ color: ringColor }}
+          style={{ color: textColor }}
         >
           {pct === '100.0' ? '100' : pct}
           <span className="text-[8.5px] font-bold opacity-80">%</span>

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { EXPERIENCE_LABEL, formatVndAmount } from '@/lib/format';
 import { getJob } from '@/lib/jobs';
-import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import { formatMatchPct, matchRingColor, matchScoreTextColor } from '@/lib/match-percent';
 import { consumeRecruiterSourcing } from '@/lib/recruiter-billing';
 
 // ============================================================================
@@ -992,6 +992,7 @@ export function SourcingProgressReportModal({
                           const isSl = shortlistedIds.includes(cand.candidateId);
                           const pct = formatMatchPct(cand.match.score);
                           const ringColor = matchRingColor(cand.match.score);
+                          const textColor = matchScoreTextColor(cand.match.score);
                           return (
                             <tr key={cand.candidateId} className="hover:bg-slate-50/80">
                               <td className="px-3 py-3 text-center font-bold text-slate-400">{idx + 1}</td>
@@ -1007,9 +1008,9 @@ export function SourcingProgressReportModal({
                                 <span
                                   className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-extrabold tabular-nums ring-1"
                                   style={{
-                                    color: ringColor,
+                                    color: textColor,
                                     borderColor: `${ringColor}40`,
-                                    backgroundColor: `${ringColor}10`,
+                                    backgroundColor: `${ringColor}12`,
                                   }}
                                 >
                                   {pct}%

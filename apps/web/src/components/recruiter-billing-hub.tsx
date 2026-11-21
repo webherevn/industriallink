@@ -409,19 +409,35 @@ export function RecruiterBillingHub() {
                 )}
               </div>
 
-              {/* ============ CỘT PHẢI: TỪNG GÓI SĂN (1 card / gói) ============ */}
+              {/* ============ CỘT PHẢI: GÓI TIN SĂN ĐANG CHẠY (đồng bộ layout cột trái) ============ */}
               <div className="space-y-4">
                 {showSourcingColumn ? (
-                  <>
-                    <p className="text-xs font-semibold text-slate-500">
-                      Gói Tin săn đang chạy ({activeHuntPackages.length})
-                    </p>
-                    {activeHuntPackages.map((pkg) => (
-                      <HuntPackageCard key={pkg.id} pkg={pkg} />
-                    ))}
+                  <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-[#E8872A]">
+                          <Target className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <p className="text-[15px] font-bold text-[#072348]">
+                            Gói Tin săn đang chạy ({activeHuntPackages.length})
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Mỗi gói gắn với 1 chiến dịch Săn và thời hạn độc lập theo từng đơn mua.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <ul className="mt-4 space-y-2">
+                      {activeHuntPackages.map((pkg) => (
+                        <HuntPackageCard key={pkg.id} pkg={pkg} />
+                      ))}
+                    </ul>
+
                     {/* Tổng gọn khớp 100% với cột trái. */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-xs shadow-2xs">
-                      <span className="text-slate-600">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                      <span>
                         Tổng vị trí Săn:{' '}
                         <strong className="text-[#072348]">
                           {benefits.huntPositionsUsed} / {benefits.huntPositionsTotal} vị trí
@@ -434,7 +450,7 @@ export function RecruiterBillingHub() {
                         Quản lý Săn nhân sự <ArrowRight className="h-3 w-3" />
                       </Link>
                     </div>
-                  </>
+                  </section>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-5 text-center">
                     <p className="text-sm font-semibold text-slate-600">
@@ -962,26 +978,19 @@ function HuntPackageCard({ pkg }: { pkg: RecruiterActiveHuntPackageView }) {
       : 0;
 
   return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-[#E8872A]">
-            <Target className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-[15px] font-bold uppercase tracking-wide text-[#072348]">
-              {pkg.packageName}
-            </p>
-            <p className="text-[11.5px] font-medium text-slate-400">{pkg.code}</p>
-          </div>
-        </div>
+    <li className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[13.5px] font-bold uppercase tracking-wide text-[#072348]">
+          {pkg.packageName}
+        </p>
         <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
           Đang hoạt động
         </span>
       </div>
+      <p className="mt-0.5 text-[11.5px] font-medium text-slate-400">{pkg.code}</p>
 
       {/* Tiến độ vị trí Săn của riêng gói này. */}
-      <div className="mt-4">
+      <div className="mt-2.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium text-slate-600">Tiến độ vị trí</span>
           <span className="font-bold text-[#072348]">
@@ -997,7 +1006,7 @@ function HuntPackageCard({ pkg }: { pkg: RecruiterActiveHuntPackageView }) {
       </div>
 
       {/* Credit đã cấp + hạn dùng thực tế. */}
-      <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-500">
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-500">
         <span className="inline-flex items-center gap-1">
           <Coins className="h-3 w-3 text-slate-400" />
           <strong className="font-bold text-[#072348]">{pkg.creditsIncluded} Credit</strong>
@@ -1015,7 +1024,7 @@ function HuntPackageCard({ pkg }: { pkg: RecruiterActiveHuntPackageView }) {
       </p>
 
       {/* Chỉ số thực của RIÊNG gói này. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[11.5px]">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-white/80 px-3 py-2 text-[11.5px] ring-1 ring-slate-200/60">
         <span>
           <span className="text-slate-500">Điều chỉnh: </span>
           <strong className="text-[#072348]">
@@ -1038,7 +1047,7 @@ function HuntPackageCard({ pkg }: { pkg: RecruiterActiveHuntPackageView }) {
           </span>
         ) : null}
       </div>
-    </section>
+    </li>
   );
 }
 

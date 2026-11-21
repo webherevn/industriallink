@@ -67,7 +67,13 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
-import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
+import {
+  MATCH_RING_TRACK_COLOR,
+  formatMatchPct,
+  matchBadgeTone,
+  matchRingColor,
+  matchScoreTextColor,
+} from '@/lib/match-percent';
 import { matchFitLabel } from '@/lib/match-fit-label';
 import { composeJobBoard, LISTING_ROTATE_MS, listingTier } from '@/lib/job-listing-board';
 import { locationMatchesProfile, profileProvinces } from '@/lib/profile-province';
@@ -1408,13 +1414,13 @@ function MatchPctRing({ score }: { score: number }) {
   const turn = 2 * Math.PI * radius;
   const filled = Math.min(1, Math.max(0, score / 100));
   const color = matchRingColor(score);
+  const textColor = matchScoreTextColor(score);
   return (
     <div className="flex w-14 shrink-0 flex-col items-center self-center">
       <div className="relative flex h-12 w-12 items-center justify-center">
-        <div className="pointer-events-none absolute inset-0 rounded-full bg-amber-400/25 blur-[8px]" aria-hidden />
-        <div className="relative h-11 w-11 rounded-full bg-gradient-to-br from-amber-50 to-white p-px shadow-sm ring-1 ring-amber-200/80">
+        <div className="relative h-11 w-11 rounded-full bg-white p-px shadow-sm ring-1 ring-slate-200/80">
           <svg viewBox="0 0 44 44" className="h-full w-full -rotate-90">
-            <circle cx="22" cy="22" r={radius} fill="none" stroke="#fde68a" strokeWidth="4.5" />
+            <circle cx="22" cy="22" r={radius} fill="none" stroke={MATCH_RING_TRACK_COLOR} strokeWidth="4.5" />
             <circle
               cx="22"
               cy="22"
@@ -1429,14 +1435,14 @@ function MatchPctRing({ score }: { score: number }) {
           </svg>
           <span
             className="absolute inset-0 flex items-center justify-center text-[11px] font-extrabold leading-none tracking-tight"
-            style={{ color }}
+            style={{ color: textColor }}
           >
             {formatMatchPct(score)}
             <span className="text-[8px] font-bold">%</span>
           </span>
         </div>
       </div>
-      <p className="mt-0.5 text-center text-[9px] font-semibold leading-tight" style={{ color }}>
+      <p className="mt-0.5 text-center text-[9px] font-semibold leading-tight" style={{ color: textColor }}>
         {matchRingLabel(score)}
       </p>
     </div>
@@ -1671,7 +1677,7 @@ function JobCard({
                       cy="32"
                       r="26"
                       fill="none"
-                      stroke="#e2e8f0"
+                      stroke={MATCH_RING_TRACK_COLOR}
                       strokeWidth="5.5"
                     />
                     <circle
@@ -1691,7 +1697,7 @@ function JobCard({
                   <span className="absolute inset-0 flex items-center justify-center">
                     <span
                       className="text-[13px] font-extrabold leading-none tracking-tight tabular-nums"
-                      style={{ color: matchRingColor(match.match.score) }}
+                      style={{ color: matchScoreTextColor(match.match.score) }}
                     >
                       {formatMatchPct(match.match.score)}
                       <span className="text-[9.5px] font-bold">%</span>

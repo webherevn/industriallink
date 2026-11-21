@@ -59,7 +59,13 @@ import {
   removeJobBookmark,
 } from '@/lib/jobs';
 import { recommendedJobs } from '@/lib/matching';
-import { formatMatchPct, matchBadgeTone, matchRingColor } from '@/lib/match-percent';
+import {
+  MATCH_RING_TRACK_COLOR,
+  formatMatchPct,
+  matchBadgeTone,
+  matchRingColor,
+  matchScoreTextColor,
+} from '@/lib/match-percent';
 import { MATCH_LEVEL_THRESHOLD, matchFitLabel, matchLevelOf } from '@/lib/match-fit-label';
 
 type FilterTab = 'all' | 'high' | 'medium' | 'new';
@@ -1005,7 +1011,7 @@ function MatchJobCard({
                     cy="32"
                     r="26"
                     fill="none"
-                    stroke="#e2e8f0"
+                    stroke={MATCH_RING_TRACK_COLOR}
                     strokeWidth="5.5"
                   />
                   <circle
@@ -1025,7 +1031,7 @@ function MatchJobCard({
                 <span className="absolute inset-0 flex items-center justify-center">
                   <span
                     className="text-[14px] font-extrabold leading-none tracking-tight tabular-nums"
-                    style={{ color: matchRingColor(job.match.score) }}
+                    style={{ color: matchScoreTextColor(job.match.score) }}
                   >
                     {formatMatchPct(job.match.score)}
                     <span className="text-[10px] font-bold">%</span>

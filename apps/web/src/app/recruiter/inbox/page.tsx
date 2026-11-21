@@ -35,7 +35,12 @@ import {
   statusTone,
   toTitleCase,
 } from '@/lib/format';
-import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import {
+  MATCH_RING_TRACK_COLOR,
+  formatMatchPct,
+  matchRingColor,
+  matchScoreTextColor,
+} from '@/lib/match-percent';
 import { listInbox } from '@/lib/recruiter';
 import { updateApplicationStatus } from '@/lib/applications';
 
@@ -481,10 +486,11 @@ function ScoreRing({ score }: { score: number | null | undefined }) {
   const c = 2 * Math.PI * r;
   const offset = c * (1 - safe);
   const ringColor = matchRingColor(score ?? 0);
+  const textColor = matchScoreTextColor(score ?? 0);
   return (
     <div className="relative h-12 w-12 shrink-0">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="#fde68a" strokeWidth="3.5" />
+        <circle cx="22" cy="22" r={r} fill="none" stroke={MATCH_RING_TRACK_COLOR} strokeWidth="3.5" />
         <circle
           cx="22"
           cy="22"
@@ -501,7 +507,7 @@ function ScoreRing({ score }: { score: number | null | undefined }) {
       <div className="absolute inset-0 flex items-center justify-center">
         <span
           className="text-[12px] font-extrabold leading-none tracking-tight tabular-nums"
-          style={{ color: ringColor }}
+          style={{ color: textColor }}
         >
           {pct}
           <span className="text-[9px] font-bold opacity-80">%</span>

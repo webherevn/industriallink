@@ -73,7 +73,12 @@ import { addCandidateShortlist, removeCandidateShortlist } from '@/lib/candidate
 import { EMPLOYMENT_LABEL, formatSalary } from '@/lib/format';
 import { listMyJobs } from '@/lib/jobs';
 import { candidatesForJob } from '@/lib/matching';
-import { formatMatchPct, matchRingColor } from '@/lib/match-percent';
+import {
+  MATCH_RING_TRACK_COLOR,
+  formatMatchPct,
+  matchRingColor,
+  matchScoreTextColor,
+} from '@/lib/match-percent';
 import { matchFitLabel } from '@/lib/match-fit-label';
 import { searchCandidates, type CandidateSearchFilters } from '@/lib/search';
 
@@ -338,6 +343,7 @@ function ScoreRing({ scorePct }: { scorePct: number }) {
   const safe = Math.min(1, Math.max(0, scorePct / 100));
   const offset = c * (1 - safe);
   const ringColor = matchRingColor(scorePct);
+  const textColor = matchScoreTextColor(scorePct);
   return (
     <div className="relative h-12 w-12 shrink-0">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 44 44" aria-hidden>
@@ -346,7 +352,7 @@ function ScoreRing({ scorePct }: { scorePct: number }) {
           cy="22"
           r={r}
           fill="none"
-          stroke="#fde68a"
+          stroke={MATCH_RING_TRACK_COLOR}
           strokeWidth="3.5"
         />
         <circle
@@ -365,7 +371,7 @@ function ScoreRing({ scorePct }: { scorePct: number }) {
       <div className="absolute inset-0 flex items-center justify-center">
         <span
           className="text-[12px] font-extrabold leading-none tracking-tight tabular-nums"
-          style={{ color: ringColor }}
+          style={{ color: textColor }}
         >
           {pct}
           <span className="text-[9px] font-bold opacity-80">%</span>
@@ -441,11 +447,11 @@ function ResultCard({
 
               {result.viewed ? (
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                  Đã xem
+                  Đã mở hồ sơ
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                  Chưa xem
+                  Chưa mở hồ sơ
                 </span>
               )}
 
@@ -732,8 +738,8 @@ function ResultList({
 
   const statusTabs: { key: ResultStatusFilter; label: string; count: number }[] = [
     { key: 'all', label: 'Tất cả', count: counts.all },
-    { key: 'unviewed', label: 'Chưa xem', count: counts.unviewed },
-    { key: 'viewed', label: 'Đã xem', count: counts.viewed },
+    { key: 'unviewed', label: 'Chưa mở hồ sơ', count: counts.unviewed },
+    { key: 'viewed', label: 'Đã mở hồ sơ', count: counts.viewed },
     { key: 'shortlisted', label: 'Shortlist', count: counts.shortlisted },
     { key: 'applied', label: 'Đã ứng tuyển', count: counts.applied },
   ];
@@ -1845,7 +1851,7 @@ export function SearchPageClient() {
                   <p className="text-xl font-bold tabular-nums leading-none text-[#072348]">
                     {matchKpis.unviewed}
                   </p>
-                  <p className="mt-1 text-[11.5px] font-medium text-slate-500">Chưa xem</p>
+                  <p className="mt-1 text-[11.5px] font-medium text-slate-500">Chưa mở hồ sơ</p>
                 </div>
               </div>
 
@@ -1857,7 +1863,7 @@ export function SearchPageClient() {
                   <p className="text-xl font-bold tabular-nums leading-none text-[#072348]">
                     {matchKpis.viewed}
                   </p>
-                  <p className="mt-1 text-[11.5px] font-medium text-slate-500">Đã xem</p>
+                  <p className="mt-1 text-[11.5px] font-medium text-slate-500">Đã mở hồ sơ</p>
                 </div>
               </div>
 
