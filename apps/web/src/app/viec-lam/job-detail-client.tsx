@@ -171,6 +171,7 @@ export function JobDetailClient({
   const { data: bookmarks } = useQuery({
     queryKey: ['job-bookmarks'],
     queryFn: listBookmarkedJobs,
+    enabled: Boolean(tokenStore.get()),
     retry: false,
   });
 

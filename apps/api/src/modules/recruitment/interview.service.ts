@@ -381,12 +381,20 @@ export class InterviewService {
       throw new ForbiddenException('Lịch phỏng vấn không thuộc công ty của bạn');
     }
 
+    let parsedScheduledAt: Date | undefined;
+    if (dto.scheduledAt) {
+      parsedScheduledAt = new Date(dto.scheduledAt);
+      if (Number.isNaN(parsedScheduledAt.getTime())) {
+        throw new BadRequestException('Thời gian phỏng vấn không hợp lệ');
+      }
+    }
+
     const updated = await this.prisma.interview.update({
       where: { id },
       data: {
         type: dto.type ?? undefined,
         status: dto.status ?? undefined,
-        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
+        scheduledAt: parsedScheduledAt,
         durationMinutes: dto.durationMinutes ?? undefined,
         meetingLink:
           dto.meetingLink !== undefined ? dto.meetingLink.trim() || null : undefined,

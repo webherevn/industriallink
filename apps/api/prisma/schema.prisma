@@ -212,6 +212,7 @@ model User {
 
   @@index([tenantId])
   @@index([status])
+  @@index([isDeleted, role])
   @@map("user")
   @@schema("identity")
 }
@@ -246,6 +247,7 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([tokenHash])
   @@map("refresh_token")
   @@schema("identity")
 }
@@ -267,6 +269,8 @@ model AuditLog {
 
   @@index([tenantId, entityType])
   @@index([actorId])
+  @@index([entityId])
+  @@index([createdAt])
   @@map("audit_log")
   @@schema("identity")
 }
@@ -1977,6 +1981,7 @@ model BillingCreditTransaction {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([companyId, createdAt])
+  @@index([accountId])
   @@index([type, action])
   @@index([candidateId])
   @@index([campaignId])

@@ -220,7 +220,7 @@ export default function CtvOverviewPage() {
           icon={<ScrollText className="h-5 w-5" />}
           tone="bg-[#e7eef8] text-brand-700"
           label="MST đang bảo vệ"
-          value={`${claims.length}/30`}
+          value={`${claims.filter((c) => c.status !== 'EXPIRED').length}/30`}
           hint="Mã số thuế đang giữ quyền hoa hồng"
         />
       </div>

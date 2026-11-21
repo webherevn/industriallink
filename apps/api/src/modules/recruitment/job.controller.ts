@@ -151,6 +151,8 @@ export class JobController {
     @Query('salaryMin') salaryMin?: string,
     @Query('salaryMax') salaryMax?: string,
   ) {
+    const parsedSalaryMin = salaryMin != null && salaryMin !== '' ? Number(salaryMin) : undefined;
+    const parsedSalaryMax = salaryMax != null && salaryMax !== '' ? Number(salaryMax) : undefined;
     return this.jobs.listPublishedJobs({
       keyword,
       industry,
@@ -161,8 +163,8 @@ export class JobController {
       experienceBand,
       jobLevel,
       jobTrack,
-      salaryMin: salaryMin != null && salaryMin !== '' ? Number(salaryMin) : undefined,
-      salaryMax: salaryMax != null && salaryMax !== '' ? Number(salaryMax) : undefined,
+      salaryMin: parsedSalaryMin !== undefined && Number.isFinite(parsedSalaryMin) ? parsedSalaryMin : undefined,
+      salaryMax: parsedSalaryMax !== undefined && Number.isFinite(parsedSalaryMax) ? parsedSalaryMax : undefined,
       userId: user?.id,
     });
   }

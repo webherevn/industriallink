@@ -97,21 +97,41 @@ export class ConnectionChatService {
       : [];
     const openJobCount = new Map(openJobs.map((row) => [row.companyId, row._count._all]));
 
-    const threads: ConnectionChatThread[] = [];
+    // Gom 1 query duy nhất đếm tin nhắn chưa đọc cho tất cả hội thoại (tránh N+1).
+    const uniqueRows = [];
     const seen = new Set<string>();
     for (const row of rows) {
       if (seen.has(row.id)) continue;
       seen.add(row.id);
+      uniqueRows.push(row);
+    }
+
+    const unreadCountMap = new Map<string, number>();
+    if (uniqueRows.length > 0) {
+      const unreadMessages = await this.prisma.connectionMessage.findMany({
+        where: {
+          senderUserId: { not: user.id },
+          OR: uniqueRows.map((row) => {
+            const side: ChatSide = row.candidate.userId === user.id ? 'candidate' : 'company';
+            const readAt = side === 'candidate' ? row.candidateReadAt : row.companyReadAt;
+            return {
+              connectionId: row.id,
+              ...(readAt ? { createdAt: { gt: readAt } } : {}),
+            };
+          }),
+        },
+        select: { connectionId: true },
+      });
+      for (const msg of unreadMessages) {
+        unreadCountMap.set(msg.connectionId, (unreadCountMap.get(msg.connectionId) ?? 0) + 1);
+      }
+    }
+
+    const threads: ConnectionChatThread[] = [];
+    for (const row of uniqueRows) {
       const side: ChatSide = row.candidate.userId === user.id ? 'candidate' : 'company';
       const last = row.messages[0] ?? null;
-      const readAt = side === 'candidate' ? row.candidateReadAt : row.companyReadAt;
-      const unread = await this.prisma.connectionMessage.count({
-        where: {
-          connectionId: row.id,
-          senderUserId: { not: user.id },
-          ...(readAt ? { createdAt: { gt: readAt } } : {}),
-        },
-      });
+      const unread = unreadCountMap.get(row.id) ?? 0;
       const profile = chatProfile(side, row, openJobCount.get(row.companyId) ?? 0);
       threads.push({
         connectionId: row.id,

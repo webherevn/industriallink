@@ -179,7 +179,7 @@ export function CtvShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!partner?.partner) return;
     setPartnerCode(partner.partner.code);
-    setTaxLockCount(partner.partner.claims.length);
+    setTaxLockCount(partner.partner.claims.filter((c) => c.status !== 'EXPIRED').length);
   }, [partner]);
 
   useEffect(() => {

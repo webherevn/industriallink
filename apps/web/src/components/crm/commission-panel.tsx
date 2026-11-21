@@ -500,7 +500,7 @@ function PolicyEditor({ onDone }: { onDone: () => void }) {
                 <th className="py-2 pr-3 font-semibold">Cấp bậc</th>
                 <th className="py-2 pr-3 font-semibold">Từ (đ)</th>
                 <th className="py-2 pr-3 font-semibold">Đến (đ)</th>
-                <th className="py-2 pr-semibold font-semibold">Tỷ lệ %</th>
+                <th className="py-2 pr-3 font-semibold">Tỷ lệ %</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -534,7 +534,7 @@ function PolicyEditor({ onDone }: { onDone: () => void }) {
                       }
                     />
                   </td>
-                  <td className="py-2 pr-semibold">
+                  <td className="py-2 pr-3">
                     <input
                       className={crmFieldClass}
                       inputMode="numeric"

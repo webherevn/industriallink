@@ -23,12 +23,14 @@ export class AdminAuditController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const parsedPage = page ? Number(page) : undefined;
+    const parsedLimit = limit ? Number(limit) : undefined;
     return this.audit.list({
       entityType: entityType || undefined,
       action: action || undefined,
       q: q || undefined,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      page: parsedPage !== undefined && Number.isFinite(parsedPage) ? parsedPage : undefined,
+      limit: parsedLimit !== undefined && Number.isFinite(parsedLimit) ? parsedLimit : undefined,
     });
   }
 }

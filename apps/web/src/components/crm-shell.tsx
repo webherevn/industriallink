@@ -129,11 +129,13 @@ export function CrmShell({ children }: { children: ReactNode }) {
     enabled: hasToken,
   });
 
-  // Badge đỏ: số hồ sơ xác thực CTV đang chờ duyệt.
+  // Badge đỏ: số hồ sơ xác thực CTV đang chờ duyệt (chỉ SuperAdmin / SalesManager có quyền).
+  const canReviewKyc =
+    user?.role === UserRole.SuperAdmin || user?.role === UserRole.SalesManager;
   const { data: kycBadge } = useQuery({
     queryKey: ['crm-kyc-badge'],
     queryFn: () => fetchCrmKycList({ status: 'PENDING' }),
-    enabled: hasToken,
+    enabled: hasToken && canReviewKyc,
     retry: false,
   });
   const pendingKycCount = kycBadge?.pendingCount ?? 0;
