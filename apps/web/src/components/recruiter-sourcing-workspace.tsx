@@ -204,6 +204,8 @@ export function RecruiterSourcingWorkspace({
   const [candidateTab, setCandidateTab] = useState<'potential' | 'applied'>('potential');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'select' | 'create'>('select');
+  const [createModalError, setCreateModalError] = useState<string | null>(null);
+  const [jdSearchQuery, setJdSearchQuery] = useState('');
   /** (A) Tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn (copy JD). */
   const [closeSourceJob, setCloseSourceJob] = useState(false);
   const [createTrack, setCreateTrack] = useState<JobTrack>(JobTrack.Sales);
@@ -257,9 +259,17 @@ export function RecruiterSourcingWorkspace({
     if (matched) setTitle(matched.title);
   }, [copyJobId, jobs, title]);
 
+  useEffect(() => {
+    setCreateModalError(null);
+    if (!createModalOpen) {
+      setJdSearchQuery('');
+    }
+  }, [createModalOpen]);
+
   const consume = useMutation({
     mutationFn: consumeRecruiterSourcing,
     onSuccess: (ws, vars) => {
+      setCreateModalError(null);
       setBanner({
         tone: 'ok',
         text:
@@ -286,8 +296,14 @@ export function RecruiterSourcingWorkspace({
         }
       }
     },
-    onError: (err) =>
-      setBanner({ tone: 'err', text: err instanceof ApiError ? err.message : 'Không trừ được hạn mức' }),
+    onError: (err, vars) => {
+      const message = err instanceof ApiError ? err.message : 'Không trừ được hạn mức';
+      if (vars.kind === 'position' && createModalOpen) {
+        setCreateModalError(message);
+        return;
+      }
+      setBanner({ tone: 'err', text: message });
+    },
   });
 
   const quickShortlist = useMutation({
@@ -405,6 +421,66 @@ export function RecruiterSourcingWorkspace({
   const selectedJobLocked = useMemo(
     () => isPaidStandardJob((jobs ?? []).find((j) => j.id === jobId)),
     [jobs, jobId],
+  );
+
+  /** Map jobId → chiến dịch Tin Săn đang hoạt động (để hiển thị rõ & chặn chọn trùng trong modal). */
+  const activeHuntByJobId = useMemo(() => {
+    const map = new Map<string, { packageCode: string | null; packageName: string | null }>();
+    const resourceByCamp = new Map(
+      (data?.campaignResources ?? []).map((r) => [r.campaignId, r] as const),
+    );
+    for (const camp of data?.campaigns ?? []) {
+      if (!camp.jobId) continue;
+      if (camp.packageStatus === 'ACTIVE' || camp.status === 'active') {
+        const res = resourceByCamp.get(camp.id);
+        map.set(camp.jobId, {
+          packageCode: res?.packageCode ?? camp.packageCode ?? null,
+          packageName: res?.packageName ?? null,
+        });
+      }
+    }
+    return map;
+  }, [data?.campaigns, data?.campaignResources]);
+
+  const modalJobItems = useMemo(() => {
+    const q = jdSearchQuery.trim().toLowerCase();
+    const list = (jobs ?? []).map((j) => {
+      const huntInfo = activeHuntByJobId.get(j.id);
+      const isRunningHunt =
+        Boolean(huntInfo) ||
+        (j.source === 'HUNT' && (j.huntPackageStatus ?? 'ACTIVE').toUpperCase() === 'ACTIVE');
+      const isPaidStd = !isRunningHunt && isPaidStandardJob(j);
+      return {
+        job: j,
+        isRunningHunt,
+        huntPackageCode: huntInfo?.packageCode ?? j.huntPackageCode ?? null,
+        huntPackageName: huntInfo?.packageName ?? null,
+        isPaidStd,
+      };
+    });
+    const filtered = q
+      ? list.filter((item) => {
+          const haystack = [
+            item.job.title,
+            item.job.code,
+            item.job.jobPackageName,
+            item.job.jobPackageCode,
+            item.huntPackageName,
+            item.huntPackageCode,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(q);
+        })
+      : list;
+    // Đưa các tin có thể chọn lên trước, tin đang chạy Tin Săn xuống dưới để NTD dễ nhìn.
+    return filtered.sort((a, b) => Number(a.isRunningHunt) - Number(b.isRunningHunt));
+  }, [jobs, activeHuntByJobId, jdSearchQuery]);
+
+  const selectedJobRunningHunt = useMemo(
+    () => modalJobItems.some((item) => item.job.id === jobId && item.isRunningHunt),
+    [modalJobItems, jobId],
   );
 
   /** Tài nguyên RIÊNG của chiến dịch đang mở (đọc từ đúng 1 BillingHuntPackage gắn với nó). */
@@ -1044,146 +1120,298 @@ export function RecruiterSourcingWorkspace({
 
       {/* POPUP + TẠO TIN SĂN (ALL-IN-ONE) */}
       {createModalOpen && hasPlan ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs sm:p-5">
           <div
             className={clsx(
-              'relative max-h-[92vh] w-full overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7',
-              modalMode === 'create' ? 'max-w-5xl' : 'max-w-xl',
+              'relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-3xl bg-white shadow-2xl',
+              modalMode === 'create' ? 'max-w-5xl' : 'max-w-2xl',
             )}
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-7 sm:py-5">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#E8872A]">
                   Săn nhân sự · All-in-One
                 </p>
-                <h3 className="mt-0.5 text-xl font-bold text-[#072348]">
+                <h3 className="mt-0.5 text-lg font-bold text-[#072348] sm:text-xl">
                   {modalMode === 'select' ? 'Tạo Tin Săn' : 'Tạo Tin Săn Mới'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setCreateModalOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {modalMode === 'select' ? (
-              <div className="mt-4 space-y-4">
-                {(jobs ?? []).length > 0 ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs leading-relaxed text-amber-950">
-                    <p className="font-bold text-[#072348]">
-                      Chọn tin tuyển dụng (JD) để chuyển thành Tin Săn
-                    </p>
-                    <p className="mt-1 text-amber-900">
-                      * Một tin chỉ có <strong>1 nguồn gói</strong>. Tin đang chạy bằng gói Tin đăng
-                      trả phí sẽ được <strong>copy sang 1 tin mới</strong> độc lập (tin cũ giữ nguyên),
-                      tránh chồng gói và tránh cộng dồn thời hạn.
+              <>
+                <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-7 sm:py-5">
+                  {(jobs ?? []).length > 0 ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3.5 py-3 text-xs leading-relaxed text-amber-950">
+                      <p className="font-bold text-[#072348]">
+                        Chọn tin tuyển dụng (JD) để chuyển thành Tin Săn
+                      </p>
+                      <p className="mt-1 text-amber-900">
+                        * Một tin chỉ có <strong>1 nguồn gói</strong>. Tin đang chạy bằng gói Tin đăng
+                        trả phí sẽ được <strong>copy sang 1 tin mới</strong> độc lập (tin cũ giữ nguyên),
+                        tránh chồng gói và tránh cộng dồn thời hạn. Tin đang chạy Tin Săn khác chỉ hiển thị
+                        để tham khảo và không thể chọn trùng.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Chọn tin tuyển dụng (JD) có sẵn để chuyển thành Tin Săn
+                      </label>
+                      {(jobs ?? []).length > 0 ? (
+                        <span className="text-[11px] font-medium text-slate-500">
+                          {modalJobItems.filter((item) => !item.isRunningHunt).length} tin khả dụng / {(jobs ?? []).length} tin
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {(jobs ?? []).length > 4 ? (
+                      <div className="relative mt-2">
+                        <FileSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={jdSearchQuery}
+                          onChange={(ev) => setJdSearchQuery(ev.target.value)}
+                          placeholder="Tìm theo tiêu đề JD, mã tin (JOB-...) hoặc tên gói..."
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#072348] focus:bg-white focus:ring-2 focus:ring-[#072348]/10"
+                        />
+                      </div>
+                    ) : null}
+
+                    {modalJobItems.length === 0 ? (
+                      <div className="mt-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center text-xs text-slate-500">
+                        {(jobs ?? []).length === 0
+                          ? 'Doanh nghiệp chưa có tin tuyển dụng (JD) nào. Hãy bấm «Tạo Tin Săn Mới» bên dưới.'
+                          : 'Không tìm thấy tin tuyển dụng phù hợp với từ khóa vừa nhập.'}
+                      </div>
+                    ) : (
+                      <div className="mt-2 max-h-60 space-y-2 overflow-y-auto rounded-2xl border border-slate-200/90 bg-slate-50/50 p-2">
+                        {modalJobItems.map(({ job: j, isRunningHunt, huntPackageCode, huntPackageName, isPaidStd }) => {
+                          const isSelected = jobId === j.id;
+                          const statusLabel =
+                            j.status === 'published'
+                              ? 'Đang hiển thị'
+                              : j.status === 'paused'
+                                ? 'Tạm dừng'
+                                : j.status === 'closed'
+                                  ? 'Đã đóng'
+                                  : 'Nháp';
+                          const statusCls =
+                            j.status === 'published'
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                              : j.status === 'paused'
+                                ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                                : 'bg-slate-100 text-slate-600 ring-slate-200';
+                          const packageLabel = isRunningHunt
+                            ? `Đang chạy Tin Săn${huntPackageName ? ` · ${huntPackageName}` : ''}${huntPackageCode ? ` (${huntPackageCode})` : ''}`
+                            : j.jobPackageName
+                              ? `${j.jobPackageName}${j.jobPackageCode ? ` · ${j.jobPackageCode}` : ''}`
+                              : j.jobPackageCode
+                                ? `Gói ${j.jobPackageCode}`
+                                : 'Chưa gắn gói';
+                          return (
+                            <button
+                              key={j.id}
+                              type="button"
+                              disabled={isRunningHunt}
+                              onClick={() => {
+                                if (isRunningHunt) return;
+                                setCreateModalError(null);
+                                setJobId(j.id);
+                                if (!title.trim()) {
+                                  setTitle(j.title);
+                                }
+                              }}
+                              className={clsx(
+                                'flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition',
+                                isRunningHunt
+                                  ? 'cursor-not-allowed border-slate-200/80 bg-slate-100/75 opacity-75'
+                                  : isSelected
+                                    ? 'border-[#072348] bg-white shadow-xs ring-2 ring-[#072348]/15'
+                                    : 'border-slate-200/80 bg-white hover:border-[#072348]/40 hover:bg-slate-50/60',
+                              )}
+                            >
+                              <span
+                                className={clsx(
+                                  'mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border transition',
+                                  isRunningHunt
+                                    ? 'border-slate-300 bg-slate-200 text-slate-500'
+                                    : isSelected
+                                      ? 'border-[#072348] bg-[#072348] text-white'
+                                      : 'border-slate-300 bg-white',
+                                )}
+                              >
+                                {isRunningHunt ? (
+                                  <Lock className="h-2.5 w-2.5" />
+                                ) : isSelected ? (
+                                  <Check className="h-3 w-3 stroke-[3]" />
+                                ) : null}
+                              </span>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+                                  <p
+                                    className={clsx(
+                                      'text-sm font-semibold leading-snug break-words',
+                                      isRunningHunt ? 'text-slate-600' : 'text-[#072348]',
+                                    )}
+                                  >
+                                    {j.title}
+                                  </p>
+                                  <span
+                                    className={clsx(
+                                      'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1',
+                                      statusCls,
+                                    )}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                </div>
+
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                  {j.code ? (
+                                    <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-mono font-semibold text-slate-600">
+                                      {j.code}
+                                    </span>
+                                  ) : null}
+                                  <span
+                                    className={clsx(
+                                      'inline-flex items-center rounded-md px-2 py-0.5 font-semibold ring-1',
+                                      isRunningHunt
+                                        ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
+                                        : isPaidStd
+                                          ? 'bg-amber-50 text-amber-800 ring-amber-200'
+                                          : 'bg-sky-50/70 text-sky-800 ring-sky-200/80',
+                                    )}
+                                  >
+                                    {packageLabel}
+                                  </span>
+                                  {isPaidStd ? (
+                                    <span className="text-[10.5px] font-medium text-[#C25E12]">
+                                      · Sẽ copy sang tin mới
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                {isRunningHunt ? (
+                                  <p className="mt-1 text-[11px] font-medium text-slate-500">
+                                    Tin này đã được kích hoạt trong Danh sách Tin Săn — không thể chọn lại.
+                                  </p>
+                                ) : null}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {selectedJobLocked ? (
+                      <div className="mt-2.5 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3.5 py-2.5 text-[11.5px] leading-relaxed text-[#C25E12]">
+                        <p className="font-semibold">
+                          Tin này đang chạy bằng gói Tin đăng trả phí — không thể gắn thêm gói Tin săn.
+                        </p>
+                        <p className="mt-1">
+                          Hệ thống sẽ <strong>copy nội dung JD sang 1 tin mới</strong> và gắn gói Săn
+                          vào tin mới. Tin cũ giữ nguyên toàn bộ dữ liệu.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* (A) Tuỳ chọn: tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn. */}
+                  {selectedJobLocked ? (
+                    <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[12px] text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={closeSourceJob}
+                        onChange={(ev) => setCloseSourceJob(ev.target.checked)}
+                        className="mt-0.5 h-4 w-4 accent-[#E8872A]"
+                      />
+                      <span>
+                        <span className="font-semibold text-[#072348]">
+                          Tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn
+                        </span>
+                        <span className="mt-0.5 block text-slate-500">
+                          Tránh hiển thị 2 tin trùng ngoài trang ứng viên. Tin cũ vẫn giữ nguyên lịch sử
+                          hồ sơ.
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Gói Săn sẽ được kích hoạt
+                    </label>
+                    <select
+                      value={selectedPackageId ?? ''}
+                      onChange={(ev) => {
+                        setCreateModalError(null);
+                        setSelectedPackageId(ev.target.value || null);
+                      }}
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#072348] focus:ring-2 focus:ring-[#072348]/15"
+                    >
+                      <option value="">-- Tự động chọn gói chờ kích hoạt lâu nhất --</option>
+                      {unusedPackages.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.packageName} · {pkg.code} · {pkg.creditsIncluded} Credit ·{' '}
+                          {pkg.totalCriteriaEdits} lượt điều chỉnh · {pkg.totalReports} báo cáo
+                          {pkg.totalHandovers > 0 ? ` · ${pkg.totalHandovers} lượt bàn giao` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                      1 gói Săn ↔ 1 chiến dịch. Gói sẽ chuyển sang “Đang sử dụng” và credit của gói được
+                      cộng vào ví Credit dùng chung.
                     </p>
                   </div>
-                ) : null}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Chọn tin tuyển dụng (JD) có sẵn để chuyển thành Tin Săn
-                  </label>
-                  <select
-                    value={jobId}
-                    onChange={(ev) => {
-                      const nextId = ev.target.value;
-                      setJobId(nextId);
-                      const matched = (jobs ?? []).find((j) => j.id === nextId);
-                      if (matched && !title.trim()) {
-                        setTitle(matched.title);
-                      }
-                    }}
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#072348] focus:ring-2 focus:ring-[#072348]/15"
-                  >
-                    <option value="">-- Chọn JD có sẵn của doanh nghiệp --</option>
-                    {(jobs ?? []).map((j) => {
-                      const locked = isPaidStandardJob(j);
-                      return (
-                        <option key={j.id} value={j.id}>
-                          {j.title} (
-                          {j.status === 'published' ? 'Đang hiển thị' : 'Nháp / Hết hạn'}
-                          {locked ? ' — sẽ copy sang tin mới' : ''})
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {selectedJobLocked ? (
-                    <div className="mt-2 rounded-xl border border-[#FFD0A3] bg-[#FFF8F1] px-3 py-2.5 text-[11.5px] leading-relaxed text-[#C25E12]">
-                      <p className="font-semibold">
-                        Tin này đang chạy bằng gói Tin đăng trả phí — không thể gắn thêm gói Tin săn.
-                      </p>
-                      <p className="mt-1">
-                        Hệ thống sẽ <strong>copy nội dung JD sang 1 tin mới</strong> và gắn gói Săn
-                        vào tin mới. Tin cũ giữ nguyên toàn bộ dữ liệu.
-                      </p>
+                  {createModalError ? (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+                      <p className="flex-1 leading-relaxed">{createModalError}</p>
+                      <button
+                        type="button"
+                        aria-label="Đóng thông báo lỗi"
+                        onClick={() => setCreateModalError(null)}
+                        className="shrink-0 text-rose-500 transition hover:text-rose-700"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ) : null}
                 </div>
 
-                {/* (A) Tuỳ chọn: tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn. */}
-                {selectedJobLocked ? (
-                  <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={closeSourceJob}
-                      onChange={(ev) => setCloseSourceJob(ev.target.checked)}
-                      className="mt-0.5 h-4 w-4 accent-[#E8872A]"
-                    />
-                    <span>
-                      <span className="font-semibold text-[#072348]">
-                        Tự động đóng tin đăng thường cũ sau khi kích hoạt Tin săn
-                      </span>
-                      <span className="mt-0.5 block text-slate-500">
-                        Tránh hiển thị 2 tin trùng ngoài trang ứng viên. Tin cũ vẫn giữ nguyên lịch sử
-                        hồ sơ.
-                      </span>
-                    </span>
-                  </label>
-                ) : null}
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Gói Săn sẽ được kích hoạt
-                  </label>
-                  <select
-                    value={selectedPackageId ?? ''}
-                    onChange={(ev) => setSelectedPackageId(ev.target.value || null)}
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#072348] focus:ring-2 focus:ring-[#072348]/15"
-                  >
-                    <option value="">-- Tự động chọn gói chờ kích hoạt lâu nhất --</option>
-                    {unusedPackages.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id}>
-                        {pkg.packageName} · {pkg.code} · {pkg.creditsIncluded} Credit ·{' '}
-                        {pkg.totalCriteriaEdits} lượt điều chỉnh · {pkg.totalReports} báo cáo
-                        {pkg.totalHandovers > 0 ? ` · ${pkg.totalHandovers} lượt bàn giao` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    1 gói Săn ↔ 1 chiến dịch. Gói sẽ chuyển sang “Đang sử dụng” và{' '}
-                    {unusedPackages.length > 0 ? 'credit của gói được cộng vào ví Credit dùng chung' : 'credit của gói được cộng vào ví Credit dùng chung'}
-                    .
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-slate-100 bg-slate-50/70 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-4">
                   <button
                     type="button"
-                    onClick={() => setModalMode('create')}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#E8872A] bg-amber-50/70 px-4 py-2.5 text-sm font-bold text-[#c96a12] transition hover:bg-amber-100"
+                    onClick={() => {
+                      setCreateModalError(null);
+                      setModalMode('create');
+                    }}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#E8872A] bg-amber-50/80 px-4 py-2.5 text-sm font-bold text-[#c96a12] transition hover:bg-amber-100 sm:w-auto sm:whitespace-nowrap"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4 shrink-0" />
                     Tạo Tin Săn Mới (Đăng JD tại đây)
                   </button>
 
                   <Button
-                    disabled={consume.isPending || !jobId}
+                    className="w-full sm:w-auto sm:whitespace-nowrap"
+                    disabled={consume.isPending || !jobId || selectedJobRunningHunt}
                     onClick={() => {
+                      setCreateModalError(null);
                       const selectedJob = (jobs ?? []).find((j) => j.id === jobId);
                       consume.mutate({
                         kind: 'position',
@@ -1206,9 +1434,26 @@ export function RecruiterSourcingWorkspace({
                     Kích hoạt Tin Săn & Quét ngay
                   </Button>
                 </div>
-              </div>
+              </>
             ) : (
-              <div className="mt-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-7 sm:py-5">
+                {createModalError ? (
+                  <div
+                    role="alert"
+                    className="mb-4 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
+                  >
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+                    <p className="flex-1 leading-relaxed">{createModalError}</p>
+                    <button
+                      type="button"
+                      aria-label="Đóng thông báo lỗi"
+                      onClick={() => setCreateModalError(null)}
+                      className="shrink-0 text-rose-500 transition hover:text-rose-700"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : null}
                 {createTrack === JobTrack.Technical ? (
                   <JdTechnicalCreateFlow
                     embedded
