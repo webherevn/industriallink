@@ -243,6 +243,8 @@ describe('JobService', () => {
         job: {
           findFirst: jest.fn().mockResolvedValue({ ...baseJobRow, status: JobStatus.Draft }),
           update,
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseJobRow }),
         },
         $executeRaw: jest.fn(),
       };
@@ -437,6 +439,8 @@ describe('JobService', () => {
             jobPackageId: 'pkg-1',
           }),
           update,
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseJobRow }),
         },
       });
       const service = buildService(prisma);
@@ -460,6 +464,8 @@ describe('JobService', () => {
             jobPackageId: 'pkg-1',
           }),
           update,
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseJobRow }),
         },
       });
       const service = buildService(prisma);
@@ -480,6 +486,8 @@ describe('JobService', () => {
             jobPackageId: null,
           }),
           update,
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseJobRow }),
         },
       });
       const service = buildService(prisma);

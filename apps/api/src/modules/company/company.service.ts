@@ -443,8 +443,18 @@ export class CompanyService {
 
     const email = dto.email.toLowerCase().trim();
     const target = await this.prisma.user.findUnique({ where: { email } });
-    if (!target || target.isDeleted) {
+    if (!target || target.isDeleted || target.tenantId !== user.tenantId) {
       throw new NotFoundException('Không tìm thấy người dùng với email này');
+    }
+    const allowedMemberRoles = new Set<string>([
+      UserRole.Recruiter,
+      UserRole.HiringManager,
+      UserRole.CompanyAdmin,
+    ]);
+    if (!allowedMemberRoles.has(target.role)) {
+      throw new BadRequestException(
+        'Chỉ có thể mời tài khoản Nhà tuyển dụng hoặc Quản lý tuyển dụng vào doanh nghiệp',
+      );
     }
     const existingMembership = await this.prisma.companyMember.findFirst({
       where: { userId: target.id },

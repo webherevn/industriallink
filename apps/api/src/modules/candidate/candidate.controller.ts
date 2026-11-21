@@ -63,7 +63,7 @@ export class CandidateController {
 
   @Post('me/resumes')
   @Roles(UserRole.Candidate)
-  @UseInterceptors(FileInterceptor('file'), IdempotencyInterceptor)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }), IdempotencyInterceptor)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Tải lên CV, kích hoạt AI phân tích (bất đồng bộ)' })
   @ApiBody({
@@ -251,7 +251,7 @@ export class CandidateController {
 
   @Post('me/cv-draft/from-file')
   @Roles(UserRole.Candidate)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Upload file CV → AI trích xuất + gợi ý trường thiếu (đồng bộ)',
@@ -295,7 +295,7 @@ export class CandidateController {
 
   @Post('me/avatar')
   @Roles(UserRole.Candidate)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Tải lên ảnh đại diện hồ sơ' })
   @ApiBody({

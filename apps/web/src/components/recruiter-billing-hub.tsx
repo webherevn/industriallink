@@ -252,12 +252,13 @@ export function RecruiterBillingHub() {
           <RequestedSourcingBanner
             planName={requestedSourcing.name}
             planCode={requestedSourcing.code}
-            isCurrent={activeHuntPackages.some(
-              (p) =>
-                p.packageType === 'BASIC' ||
-                p.packageType === 'STANDARD' ||
-                p.packageType === 'DEEP',
-            )}
+            isCurrent={activeHuntPackages.some((p) => {
+              const code = requestedSourcing.code.toUpperCase();
+              if (code.includes('CHUYEN_SAU') || code.includes('DEEP')) return p.packageType === 'DEEP';
+              if (code.includes('CO_BAN') || code.includes('BASIC')) return p.packageType === 'BASIC';
+              if (code.includes('TIEU_CHUAN') || code.includes('STANDARD')) return p.packageType === 'STANDARD';
+              return false;
+            })}
           />
         ) : null}
 
@@ -1158,7 +1159,7 @@ function RequestedPlanBanner({
             href={
               isFree
                 ? '/recruiter/pricing'
-                : `/recruiter/billing/plan?plan=${encodeURIComponent(plan.code)}`
+                : `/recruiter/billing/upgrade?plan=${encodeURIComponent(plan.code)}`
             }
             className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent-800 hover:underline"
           >

@@ -31,11 +31,11 @@ const POLICIES: PolicyItem[] = [
     icon: Cookie,
     title: 'Cơ chế Cookie 14 ngày',
     lead:
-      'Khi khách hàng mở link giới thiệu của bạn, hệ thống ghi nhận mã CTV trong 14 ngày kể từ lần bấm đầu tiên.',
+      'Khi khách hàng mở link giới thiệu của bạn, hệ thống lưu mã CTV trên trình duyệt trong 14 ngày theo cơ chế lần bấm gần nhất (last-click).',
     points: [
-      'Trong 14 ngày, khách đăng ký tài khoản và thanh toán gói — hoa hồng về tài khoản của bạn.',
-      'Khách bấm lại link (kể cả link của CTV khác) trong 14 ngày thì mã của bạn vẫn được giữ.',
-      'Ngoài 14 ngày, mã CTV của người bấm mới được tính.',
+      'Trong 14 ngày kể từ lần bấm gần nhất, khách đăng ký tài khoản và thanh toán gói — hoa hồng về tài khoản của bạn.',
+      'Nếu khách bấm sang link của CTV khác trước khi đăng ký, cookie sẽ cập nhật theo mã CTV gần nhất (trừ khi MST đã được khóa trước đó).',
+      'Khi doanh nghiệp đã phát sinh đơn thành công đầu tiên, khách hàng đó được gắn trọn đời cho CTV giới thiệu.',
       'Cookie gắn với trình duyệt của khách. Khách xóa cookie hoặc đăng ký từ thiết bị khác thì không ghi nhận.',
     ],
     tone: 'bg-blue-50 text-blue-700',

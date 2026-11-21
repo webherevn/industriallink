@@ -293,6 +293,9 @@ export class InterviewService {
     const company = await this.companies.requireUserCompany(user.id);
     const today = params.scope === 'today';
     const from = today ? startOfDay(new Date()) : params.from ? new Date(params.from) : startOfDay(new Date());
+    if (Number.isNaN(from.getTime())) {
+      throw new BadRequestException('Ngày bắt đầu (from) không hợp lệ');
+    }
     const to = today
       ? endOfDay(new Date())
       : params.to
@@ -302,6 +305,9 @@ export class InterviewService {
             d.setDate(d.getDate() + 14);
             return d;
           })();
+    if (Number.isNaN(to.getTime())) {
+      throw new BadRequestException('Ngày kết thúc (to) không hợp lệ');
+    }
     const type = isInterviewType(params.type) ? params.type : undefined;
 
     const rows = await this.prisma.interview.findMany({

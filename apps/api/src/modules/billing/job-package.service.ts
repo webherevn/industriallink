@@ -483,6 +483,24 @@ export class JobPackageService {
       // thêm gói Tin đăng (1 tin chỉ có 1 nguồn gói trả phí).
       await this.assertNotHuntOwned(tx, job.id);
 
+      // Không cho phép gắn đè lên tin đã published đang chạy bằng gói trả phí khác (tránh lách hoàn lượt).
+      if (job.jobPackageId && job.jobPackageId !== pkg.id) {
+        const oldPkg = await tx.billingJobPackage.findUnique({
+          where: { id: job.jobPackageId },
+          select: { packageType: true, status: true },
+        });
+        if (
+          job.status === 'published' &&
+          oldPkg &&
+          oldPkg.packageType !== 'FREE' &&
+          oldPkg.status === 'ACTIVE'
+        ) {
+          throw new BadRequestException(
+            'Tin tuyển dụng này đang chạy bằng một gói trả phí khác. Hãy tạo tin mới để dùng gói này.',
+          );
+        }
+      }
+
       // --- Kích hoạt gói nếu đang UNUSED (cộng Credit đúng 1 lần) ---
       const activation = await this.activatePackageInTx(tx, pkg, actor, companyId, now);
 
@@ -493,9 +511,8 @@ export class JobPackageService {
         ? { totalJobs: pkg.total_jobs, usedJobs: pkg.used_jobs }
         : await this.consumePostingSlot(tx, pkg.id);
 
-      // Tin đang gắn gói khác → hoàn lượt đăng của gói cũ (giữ đồng bộ `usedJobs`).
-      // Dùng GREATEST để không bao giờ âm.
-      if (job.jobPackageId && job.jobPackageId !== pkg.id) {
+      // Chỉ hoàn lượt đăng của gói cũ khi tin đang ở trạng thái Nháp (chưa chạy thực tế).
+      if (job.jobPackageId && job.jobPackageId !== pkg.id && job.status === 'draft') {
         await tx.$queryRaw`
           UPDATE billing.billing_job_package
           SET used_jobs = GREATEST(used_jobs - 1, 0)

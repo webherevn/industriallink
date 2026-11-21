@@ -223,7 +223,7 @@ export class SearchService {
 
     const hasHardFilter = Object.keys(whereProfile).length > 0;
     // Không có câu query → lấy theo bộ lọc B2B trên profile.
-    if (ids.length === 0) {
+    if (!trimmed && ids.length === 0) {
       const candidatesByFilter = await this.prisma.candidate.findMany({
         where: {
           tenantId,

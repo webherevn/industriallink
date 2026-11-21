@@ -22,7 +22,7 @@ export default function CtvPayoutsPage() {
     .filter((period) => period.status === 'paid')
     .reduce((sum, period) => sum + BigInt(period.netPaidAmountVnd || '0'), 0n);
   const held = periods
-    .filter((period) => period.status === 'held')
+    .filter((period) => period.status === 'held' && period.kycStatus !== 'VERIFIED')
     .reduce((sum, period) => sum + BigInt(period.netPaidAmountVnd || '0'), 0n);
 
   return (

@@ -35,7 +35,7 @@ export default async function ViecLamPage({
       {listLd ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(listLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(listLd).replace(/</g, '\\u003c') }}
         />
       ) : null}
       <JobsListingClient initialJobs={jobs} />

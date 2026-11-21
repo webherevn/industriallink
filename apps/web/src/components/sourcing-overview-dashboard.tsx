@@ -143,7 +143,7 @@ export function SourcingOverviewDashboard({
         highMatch,
         shortlisted,
         opened: openedSet.size,
-        connected: connected || outreachList.length,
+        connected,
       });
     }
     return map;
@@ -334,7 +334,7 @@ export function SourcingOverviewDashboard({
             <div className="flex flex-wrap items-center gap-1.5">
               <h2 className="text-[15px] font-bold text-[#072348]">Gói Tin săn của tôi</h2>
               <span
-                title="Danh sách từng gói Tin săn bạn đã mua. Gói chưa kích hoạt được bảo lưu tối đa 365 ngày. Mỗi gói gắn với đúng 1 chiến dịch Săn."
+                title="Danh sách từng gói Tin săn bạn đã mua. Gói chưa kích hoạt được bảo lưu tối đa 30 ngày. Mỗi gói gắn với đúng 1 chiến dịch Săn."
                 className="text-slate-400"
               >
                 <Info className="h-3.5 w-3.5" />

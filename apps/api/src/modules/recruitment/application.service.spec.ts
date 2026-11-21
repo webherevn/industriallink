@@ -79,7 +79,7 @@ describe('ApplicationService', () => {
       isDeleted: false,
       jobTrack: 'sales',
       jobLevel: 'sales.staff',
-      company: { name: 'Công ty ABC' },
+      company: { name: 'Công ty ABC', status: 'active', isDeleted: false },
     };
     const publishedTechnicalJob = {
       id: 'job-1',
@@ -89,7 +89,7 @@ describe('ApplicationService', () => {
       isDeleted: false,
       jobTrack: 'technical',
       jobLevel: 'technical.staff',
-      company: { name: 'Công ty ABC' },
+      company: { name: 'Công ty ABC', status: 'active', isDeleted: false },
     };
 
     it('ứng tuyển thành công, tính match score và phát ApplicationSubmitted', async () => {
@@ -266,7 +266,7 @@ describe('ApplicationService', () => {
             jobLevel: null,
             salesCriteria: null,
             technicalCriteria: null,
-            company: { name: 'Công ty ABC' },
+            company: { name: 'Công ty ABC', status: 'active', isDeleted: false },
           }),
         },
         application: { findUnique: jest.fn().mockResolvedValue(null), create },
@@ -421,9 +421,12 @@ describe('ApplicationService', () => {
             },
           ]),
         },
-        // Tin này gắn 1 chiến dịch Săn → hồ sơ coi như chưa mở khóa.
+        // Tin này gắn 1 chiến dịch Săn + ứng viên do Săn mang về (trong shortlist) → chưa mở khóa bằng Credit.
         huntCampaign: {
           findMany: jest.fn().mockResolvedValue([{ jobId: 'job-1' }]),
+        },
+        candidateShortlist: {
+          findMany: jest.fn().mockResolvedValue([{ candidateId: 'cand-locked' }]),
         },
         // Chưa có giao dịch mở khóa profile cho ứng viên này.
         billingCreditTransaction: { findMany: jest.fn().mockResolvedValue([]) },

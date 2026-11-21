@@ -68,7 +68,7 @@ export class CompanyController {
   }
 
   @Post('me/logo')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Tải lên logo công ty (chỉ owner/admin)' })
   @ApiBody({
@@ -91,7 +91,7 @@ export class CompanyController {
   }
 
   @Post('me/banner')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Tải ảnh banner trang công ty' })
   uploadBanner(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) {
@@ -105,7 +105,7 @@ export class CompanyController {
   }
 
   @Post('me/culture')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Thêm ảnh văn hóa công ty' })
   uploadCulture(

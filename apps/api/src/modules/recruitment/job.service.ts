@@ -83,6 +83,7 @@ const JOB_COMPANY_SELECT = {
   address: true,
   profile: true,
   status: true,
+  isDeleted: true,
 } as const;
 
 type JobWithRelations = Job & {
@@ -95,6 +96,7 @@ type JobWithRelations = Job & {
     address: string | null;
     profile: Prisma.JsonValue | null;
     status: string;
+    isDeleted: boolean;
   };
   jobPackage?: { id: string; code: string; packageName: string } | null;
 };
@@ -632,13 +634,17 @@ export class JobService {
     if (job.status === JobStatus.Published) {
       return this.toView(job);
     }
-    if (job.status === JobStatus.Draft) {
+    if (job.moderationStatus === JobModerationStatus.Pending) {
+      return this.toView(job);
+    }
+    const needsSlotCheck = job.status === JobStatus.Draft || job.status === JobStatus.Closed;
+    if (needsSlotCheck) {
       await this.billing.assertJobQuota(job.companyId);
     }
-    // Tin nháp lúc tạo chưa dùng lượt đăng → khi bấm "Đăng tin" mới chọn gói và trừ lượt.
+    // Tin nháp / tin đã đóng lúc nộp lại → chọn gói và trừ lượt đăng.
     // Nếu gói được chọn là `UNUSED` → kích hoạt NGAY TRONG transaction (chống kích hoạt rỗng).
     let jobPackageId = job.jobPackageId;
-    if (job.status === JobStatus.Draft && !jobPackageId) {
+    if (needsSlotCheck && !jobPackageId) {
       const picked = await this.billing.pickJobPackageForPosting(job.companyId);
       if (picked) {
         await this.prisma.$transaction(async (tx) => {
@@ -664,24 +670,36 @@ export class JobService {
     }
 
     // ⚠ Tin bị TỪ CHỐI kiểm duyệt đã được HOÀN 1 lượt đăng (xem JobModerationService.refundPostingSlot).
-    // Khi NTD sửa JD rồi nộp lại → phải TRỪ LẠI 1 lượt đăng để không lạm dụng slot.
+    // Khi NTD sửa JD rồi nộp lại → khóa atomic moderationStatus != Pending và TRỪ LẠI 1 lượt đăng trong cùng transaction.
     // TUYỆT ĐỐI KHÔNG cấp lại Credit (không reset `creditsGranted`).
     const wasRejected =
       job.moderationStatus === JobModerationStatus.RejectedAuto ||
       job.moderationStatus === JobModerationStatus.RejectedManual;
-    if (job.status === JobStatus.Draft && jobPackageId && wasRejected) {
-      await this.prisma.$transaction(async (tx) => {
-        await this.billing.consumeJobPackageSlot(tx, jobPackageId!);
+    let updated;
+    if (needsSlotCheck && jobPackageId && wasRejected) {
+      updated = await this.prisma.$transaction(async (tx) => {
+        const claimed = await tx.job.updateMany({
+          where: { id: job.id, moderationStatus: { not: JobModerationStatus.Pending } },
+          data: { moderationStatus: JobModerationStatus.Pending, updatedBy: user.id },
+        });
+        if (claimed.count === 1) {
+          await this.billing.consumeJobPackageSlot(tx, jobPackageId!);
+        }
+        return tx.job.findUniqueOrThrow({
+          where: { id: job.id },
+          include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
+        });
+      });
+    } else {
+      updated = await this.prisma.job.update({
+        where: { id: job.id },
+        data: {
+          moderationStatus: JobModerationStatus.Pending,
+          updatedBy: user.id,
+        },
+        include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
       });
     }
-    const updated = await this.prisma.job.update({
-      where: { id: job.id },
-      data: {
-        moderationStatus: JobModerationStatus.Pending,
-        updatedBy: user.id,
-      },
-      include: { skills: true, company: { select: JOB_COMPANY_SELECT } },
-    });
     await this.enqueueModeration(job.id, job.tenantId, correlationId);
     this.events.publish(
       createDomainEvent({
@@ -1110,6 +1128,8 @@ export class JobService {
         (r) =>
           !r.job.isDeleted &&
           r.job.status === JobStatus.Published &&
+          !r.job.company.isDeleted &&
+          r.job.company.status === 'active' &&
           jobDeadlineStillOpen(r.job.deadline),
       )
       .map((r) => r.job);
@@ -1322,6 +1342,8 @@ export class JobService {
     if (!canSeeMod) {
       const isPublicApproved =
         job.status === JobStatus.Published &&
+        !job.company.isDeleted &&
+        job.company.status === 'active' &&
         (job.moderationStatus === JobModerationStatus.ApprovedAuto ||
           job.moderationStatus === JobModerationStatus.ApprovedManual);
       if (!isPublicApproved) {

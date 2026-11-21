@@ -159,7 +159,7 @@ export function RecruiterSourcingActivate() {
                   <Package className="h-4 w-4 text-slate-400" />
                   Bàn giao Inlink liên hệ:{' '}
                   <strong>
-                    {plan.code === 'TIN_SAN_CHUYEN_SAU'
+                    {plan.code === 'SAN_CHUYEN_SAU' || plan.code === 'TIN_SAN_CHUYEN_SAU'
                       ? `${fmtQuota(plan.shortlistQuota ?? 15)} lượt`
                       : 'Tự liên hệ'}
                   </strong>
@@ -173,7 +173,7 @@ export function RecruiterSourcingActivate() {
               <div className="mt-6 space-y-3">
                 {isCurrent && (
                   <p className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs font-medium text-emerald-900">
-                    Bạn đang dùng gói Săn này. Mua thêm sẽ <strong>cộng dồn vị trí &amp; lượt còn lại</strong> và bảo lưu tối đa <strong>365 ngày</strong> nếu chưa chạy Tin Săn.
+                    Bạn đang dùng gói Săn này. Mua thêm sẽ <strong>cộng dồn vị trí &amp; lượt còn lại</strong> và bảo lưu tối đa <strong>30 ngày</strong> nếu chưa chạy Tin Săn.
                   </p>
                 )}
                 <Button

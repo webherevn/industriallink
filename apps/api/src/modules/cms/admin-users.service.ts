@@ -153,7 +153,12 @@ export class AdminUsersService {
     };
     if (input.displayName !== undefined) data.displayName = input.displayName.trim();
     if (input.role !== undefined) data.role = input.role;
-    if (input.status !== undefined) data.status = input.status;
+    if (input.status !== undefined) {
+      data.status = input.status;
+      if (input.status === UserStatus.Deleted) {
+        data.isDeleted = true;
+      }
+    }
     if (input.department !== undefined) data.department = input.department?.trim().slice(0, 80) || null;
     if (input.password) {
       if (input.password.length < 8) {
@@ -163,7 +168,11 @@ export class AdminUsersService {
     }
 
     const row = await this.prisma.user.update({ where: { id }, data });
-    if (input.status === UserStatus.Locked || input.status === UserStatus.Deleted) {
+    if (
+      input.password ||
+      input.status === UserStatus.Locked ||
+      input.status === UserStatus.Deleted
+    ) {
       await this.prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
         data: { revokedAt: new Date() },

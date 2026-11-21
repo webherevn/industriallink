@@ -302,6 +302,7 @@ export class CtvCommissionPolicyService {
     if (!Array.isArray(input) || input.length === 0) {
       throw new BadRequestException('Cần ít nhất một cấp bậc.');
     }
+    const seenCodes = new Set<string>();
     return input.map((tier, index) => {
       const min = parseVnd(tier.minMonthlyRevenueVnd);
       if (min === null) {
@@ -321,8 +322,13 @@ export class CtvCommissionPolicyService {
       if (!tier.code || !tier.name?.trim()) {
         throw new BadRequestException('Mỗi cấp bậc cần có mã và tên.');
       }
+      const normalizedCode = tier.code.trim();
+      if (seenCodes.has(normalizedCode)) {
+        throw new BadRequestException(`Mã cấp bậc «${normalizedCode}» bị trùng lặp.`);
+      }
+      seenCodes.add(normalizedCode);
       return {
-        code: tier.code as CommissionTierCode,
+        code: normalizedCode as CommissionTierCode,
         name: tier.name.trim(),
         minMonthlyRevenue: min,
         maxMonthlyRevenue: max,
@@ -339,6 +345,7 @@ export class CtvCommissionPolicyService {
   async activateDuePolicies(at: Date = new Date()): Promise<number> {
     const due = await this.prisma.ctvCommissionPolicy.findMany({
       where: { status: 'SCHEDULED', effectiveFrom: { lte: at } },
+      orderBy: [{ effectiveFrom: 'asc' }, { version: 'asc' }],
       select: { id: true, version: true },
     });
     if (due.length === 0) return 0;

@@ -365,7 +365,10 @@ export function RecruiterSourcingWorkspace({
   });
 
   const e = data?.entitlements;
-  const hasPlan = Boolean(e?.assignment?.isActive);
+  const hasPlan = Boolean(
+    e?.assignment?.isActive ||
+      (data?.packages ?? []).some((p) => p.status === 'ACTIVE' || p.status === 'UNUSED'),
+  );
   const validCampaigns = useMemo(
     () => (data?.campaigns ?? []).filter((camp) => Boolean(camp.jobId)),
     [data?.campaigns],
@@ -577,7 +580,11 @@ export function RecruiterSourcingWorkspace({
                         : 'bg-white/15 text-white ring-1 ring-white/25',
                     )}
                   >
-                    {isDeepPackage ? 'TIN SĂN CHUYÊN SÂU' : 'TIN SĂN TIÊU CHUẨN'}
+                    {isDeepPackage
+                      ? 'TIN SĂN CHUYÊN SÂU'
+                      : campaignResource?.packageType === 'BASIC'
+                        ? 'TIN SĂN CƠ BẢN'
+                        : 'TIN SĂN TIÊU CHUẨN'}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-white/90">
                     {campaignResource?.packageCode ?? selectedCampaign.packageCode}
@@ -684,7 +691,7 @@ export function RecruiterSourcingWorkspace({
                   </button>
                   <button
                     type="button"
-                    disabled={reportsRemaining !== null && reportsRemaining <= 0}
+                    disabled={ended || (reportsRemaining !== null && reportsRemaining <= 0)}
                     onClick={() => setReportModalOpen(true)}
                     className="inline-flex items-center gap-1.5 rounded-full bg-[#E8872A] px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#d6761b] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                   >

@@ -536,16 +536,9 @@ export class PaymentService {
       };
       const orderId = sessionObj.metadata?.orderId;
       if (!orderId) {
-        await this.prisma.billingPayment.create({
-          data: {
-            orderId: '00000000-0000-0000-0000-000000000000',
-            providerEventId: event.id,
-            eventType: event.type,
-            status: 'ignored',
-            rawPayload: event.data.object as unknown as Prisma.InputJsonValue,
-            errorMessage: 'Thiếu metadata.orderId trong session',
-          },
-        });
+        this.logger.warn(
+          `Stripe webhook ${event.id} (${event.type}) thiếu metadata.orderId — bỏ qua không ghi bảng billing_payment.`,
+        );
         return { ok: false, message: 'Session không chứa orderId' };
       }
       const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
@@ -621,6 +614,18 @@ export class PaymentService {
       if (!order) {
         return { ok: false, message: 'Không tìm thấy đơn hàng tương ứng cho refund' };
       }
+      // Bỏ qua hoàn tiền một phần cho cả charge.refunded và refund.created.
+      const orderGross = order.priceVndSnapshot + order.vatAmountVnd;
+      if (
+        event.type === 'refund.created' &&
+        typeof obj.amount === 'number' &&
+        BigInt(obj.amount) < orderGross
+      ) {
+        this.logger.warn(
+          `Bỏ qua partial refund.created (${obj.amount}/${orderGross.toString()}) cho event ${event.id}`,
+        );
+        return { ok: true, message: 'Bỏ qua partial refund' };
+      }
       await this.prisma.billingPayment.create({
         data: {
           orderId: order.id,
@@ -688,36 +693,23 @@ export class PaymentService {
           await this.sourcing.activatePurchasedPlan(actor, fresh.companyId, planCode);
         }
       }
+
+      // Gói tin đăng multi-active: mỗi đơn gói nền tảng đã trả = 1 gói độc lập.
+      if (kind === 'platform' && planCode) {
+        await this.createJobPackageForOrder(fresh);
+      }
+
+      // Gói Săn multi-active (1-1 với chiến dịch): mỗi đơn gói Săn đã trả = 1 gói UNUSED.
+      if (kind === 'sourcing' && planCode) {
+        await this.createHuntPackageForOrder(fresh);
+      }
     } catch (err) {
-      // Hoàn tác trạng thái về pending nếu gán gói thất bại để lần thử lại chạy được.
+      // Hoàn tác trạng thái về pending nếu gán/tạo gói thất bại để lần thử lại chạy được.
       await this.prisma.billingOrder.update({
         where: { id: order.id },
         data: { status: 'pending', paidAt: null },
       });
       throw err;
-    }
-
-    // Gói tin đăng multi-active: mỗi đơn gói nền tảng đã trả = 1 gói độc lập.
-    // Gói lẻ (Tin đăng / Tin đăng Plus) → UNUSED, chờ NTD bấm "Sử dụng gói này".
-    // Gói Doanh nghiệp → ACTIVE ngay (đã cấp Credit lúc thanh toán).
-    if (kind === 'platform' && planCode) {
-      await this.createJobPackageForOrder(fresh).catch((err) => {
-        this.logger.error(
-          `Không tạo được gói tin đăng cho đơn ${fresh.id}: ${String(err)}`,
-          err instanceof Error ? err.stack : undefined,
-        );
-      });
-    }
-
-    // Gói Săn multi-active (1-1 với chiến dịch): mỗi đơn gói Săn đã trả = 1 gói UNUSED.
-    // Gói chỉ chuyển ACTIVE (kèm cấp Credit vào ví chung) khi NTD tạo chiến dịch.
-    if (kind === 'sourcing' && planCode) {
-      await this.createHuntPackageForOrder(fresh).catch((err) => {
-        this.logger.error(
-          `Không tạo được gói Săn cho đơn ${fresh.id}: ${String(err)}`,
-          err instanceof Error ? err.stack : undefined,
-        );
-      });
     }
 
     const paid = await this.prisma.$transaction(async (tx) => {

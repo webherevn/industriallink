@@ -146,7 +146,7 @@ describe('OfferService', () => {
     it('chấp nhận offer → tự chuyển hồ sơ sang Đã nhận việc', async () => {
       const timelineCreate = jest.fn().mockResolvedValue({});
       const appUpdate = jest.fn().mockResolvedValue({});
-      const prisma = {
+      const prisma: Record<string, unknown> = {
         offer: {
           findUnique: jest.fn().mockResolvedValue({
             id: 'ofr-1',
@@ -176,6 +176,7 @@ describe('OfferService', () => {
         applicationTimeline: { create: timelineCreate },
         application: { update: appUpdate },
       };
+      prisma.$transaction = jest.fn((fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
       const service = buildService(prisma);
 
       const result = await service.update(recruiter, 'ofr-1', { status: OfferStatus.Accepted }, 'corr-5');

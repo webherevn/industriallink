@@ -7,10 +7,10 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import type { AppConfig } from '../../../config/configuration';
 
 /**
@@ -63,9 +63,18 @@ export class StorageService implements OnModuleInit {
     }
   }
 
+  private safeLocalPath(key: string): string {
+    const root = resolve(this.localRoot);
+    const full = resolve(root, key);
+    if (full !== root && !full.startsWith(`${root}${sep}`)) {
+      throw new BadRequestException('Đường dẫn tệp không hợp lệ');
+    }
+    return full;
+  }
+
   async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
     if (this.driver === 'local') {
-      const full = join(this.localRoot, key);
+      const full = this.safeLocalPath(key);
       await mkdir(dirname(full), { recursive: true });
       await writeFile(full, body);
       return;
@@ -147,8 +156,9 @@ export class StorageService implements OnModuleInit {
   async deleteObject(key: string): Promise<void> {
     if (this.driver === 'local') {
       try {
-        await unlink(join(this.localRoot, key));
-      } catch {
+        await unlink(this.safeLocalPath(key));
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
         // File đã không còn — coi như xoá xong.
       }
       return;
@@ -161,8 +171,9 @@ export class StorageService implements OnModuleInit {
 
   async getObject(key: string): Promise<Buffer> {
     if (this.driver === 'local') {
+      const full = this.safeLocalPath(key);
       try {
-        return await readFile(join(this.localRoot, key));
+        return await readFile(full);
       } catch {
         throw new ServiceUnavailableException(`Không đọc được file local: ${key}`);
       }

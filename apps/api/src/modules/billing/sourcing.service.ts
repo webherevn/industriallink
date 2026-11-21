@@ -151,14 +151,24 @@ export class SourcingService {
       });
     }
 
-    // Số gói Săn CHỜ kích hoạt (UNUSED) → quyết định có thể tạo thêm chiến dịch hay không.
-    // Đây là nguồn sự thật duy nhất (không dựa vào `assignment.endsAt`).
+    const now = new Date();
+    // Số gói Săn CHỜ kích hoạt (UNUSED, còn hạn kích hoạt) → quyết định có thể tạo thêm chiến dịch hay không.
     const unusedPackages = await this.prisma.billingHuntPackage.count({
-      where: { companyId, status: 'UNUSED' },
+      where: {
+        companyId,
+        status: 'UNUSED',
+        OR: [{ activationDeadlineAt: null }, { activationDeadlineAt: { gte: now } }],
+      },
     });
 
+    // Chỉ tự duyệt/xuất bản tin Nháp đang chờ duyệt gắn với gói Săn ACTIVE còn hạn (không hồi sinh tin đã đóng/tạm dừng/từ chối).
     const activeJobIds = campaigns
-      .filter((c) => c.status !== 'closed')
+      .filter(
+        (c) =>
+          c.status !== 'closed' &&
+          c.package.status === 'ACTIVE' &&
+          (!c.package.expiresAt || c.package.expiresAt.getTime() >= now.getTime()),
+      )
       .map((c) => c.jobId)
       .filter((id): id is string => Boolean(id));
     if (activeJobIds.length > 0) {
@@ -167,16 +177,13 @@ export class SourcingService {
           id: { in: activeJobIds },
           companyId,
           isDeleted: false,
-          OR: [
-            { status: { not: 'published' } },
-            { moderationStatus: { not: 'approved' } },
-            { publishedAt: null },
-          ],
+          status: 'draft',
+          moderationStatus: 'pending',
         },
         data: {
           status: 'published',
           moderationStatus: 'approved',
-          publishedAt: new Date(),
+          publishedAt: now,
         },
       });
     }
@@ -957,6 +964,7 @@ export class SourcingService {
               const alreadyOpened = await tx.huntCampaignActivity.findFirst({
                 where: {
                   assignmentId: assignment.id,
+                  campaignId: campaign.id,
                   kind: 'profile_open',
                   createdAt: { gte: assignment.startsAt },
                   OR: [{ note: openPrefix }, { note: { startsWith: `${openPrefix}:` } }],
@@ -1387,7 +1395,11 @@ export class SourcingService {
       if (row.reserveEndsAt.getTime() > nowMs) return row;
       // Vẫn còn gói Săn chờ kích hoạt (UNUSED) → giữ assignment hoạt động.
       const unusedLeft = await this.prisma.billingHuntPackage.count({
-        where: { companyId, status: 'UNUSED' },
+        where: {
+          companyId,
+          status: 'UNUSED',
+          OR: [{ activationDeadlineAt: null }, { activationDeadlineAt: { gte: new Date() } }],
+        },
       });
       if (unusedLeft > 0) return row;
       return this.prisma.billingCompanySourcingPlan.update({

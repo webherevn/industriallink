@@ -201,9 +201,13 @@ export default function RecruiterBroadcastEmailPage() {
       })
     : null;
 
-  const backHref = paramReturnUrl && paramReturnUrl.startsWith('/')
-    ? paramReturnUrl
-    : '/recruiter/inbox';
+  const backHref =
+    paramReturnUrl &&
+    paramReturnUrl.startsWith('/') &&
+    !paramReturnUrl.startsWith('//') &&
+    !paramReturnUrl.includes('\\')
+      ? paramReturnUrl
+      : '/recruiter/inbox';
 
   return (
     <AppShell>

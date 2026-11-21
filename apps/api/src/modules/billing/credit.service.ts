@@ -303,6 +303,12 @@ export class CreditService {
     });
     if (!account) return null;
 
+    const totalLotsCount = await this.prisma.billingCreditLot.count({
+      where: { companyId },
+    });
+    // Chưa có lô nào → không đụng balance (tránh xoá số dư seed cũ).
+    if (totalLotsCount === 0) return null;
+
     const agg = await this.prisma.billingCreditLot.aggregate({
       where: {
         companyId,
@@ -310,9 +316,7 @@ export class CreditService {
       },
       _sum: { granted: true, consumed: true },
     });
-    const lotsTotal = Number(agg._sum.granted ?? 0) - Number(agg._sum.consumed ?? 0);
-    // Chưa có lô nào → không đụng balance (tránh xoá số dư seed cũ).
-    if (!Number(agg._sum.granted)) return null;
+    const lotsTotal = Math.max(0, Number(agg._sum.granted ?? 0) - Number(agg._sum.consumed ?? 0));
     if (lotsTotal === account.balance) return { before: account.balance, after: lotsTotal };
 
     await this.prisma.billingCreditAccount.update({
@@ -664,48 +668,61 @@ export class CreditService {
     if (trimmedReason.length > 500) {
       throw new BadRequestException('Lý do không được quá 500 ký tự');
     }
-    await this.prisma.$transaction(async (tx) => {
-      const acc = await tx.billingCreditAccount.upsert({
+    return this.prisma.$transaction(async (tx) => {
+      const ensured = await tx.billingCreditAccount.upsert({
         where: { companyId },
         create: { companyId, tenantId },
         update: {},
       });
+      // Khóa dòng tài khoản để kiểm tra số dư và cập nhật FIFO đồng bộ.
+      const lockedRows = await tx.$queryRaw<Array<{ id: string; balance: number }>>`
+        SELECT id, balance FROM billing.billing_credit_account WHERE id = ${ensured.id}::uuid FOR UPDATE
+      `;
+      const currentBalance = lockedRows[0]?.balance ?? ensured.balance;
+      if (creditDelta < 0 && currentBalance + creditDelta < 0) {
+        throw new BadRequestException(
+          `Số dư hiện tại (${currentBalance}) không đủ để trừ ${Math.abs(creditDelta)} Credit`,
+        );
+      }
 
       // Snapshot trước khi thay đổi (để ghi audit diff)
-      const beforeBalance = acc.balance;
-      const beforeGranted = acc.lifetimeGranted;
+      const beforeBalance = currentBalance;
+      const beforeGranted = ensured.lifetimeGranted;
+      const now = new Date();
 
       // Thực sự cập nhật balance cho adjustment
       const updated = await tx.billingCreditAccount.update({
-        where: { id: acc.id },
+        where: { id: ensured.id },
         data: {
           balance: { increment: creditDelta },
           lifetimeGranted:
             creditDelta > 0 ? { increment: creditDelta } : undefined,
-          lastActivityAt: new Date(),
+          lastActivityAt: now,
         },
       });
 
-      // Lô Credit cho phần cấp thêm (vô thời hạn) để FIFO khớp balance.
+      // Đồng bộ lô Credit (FIFO) cho cả cộng thêm và trừ bớt để reconcile không làm sai lệch số dư.
       if (creditDelta > 0) {
         await tx.billingCreditLot.create({
           data: {
             companyId,
-            accountId: acc.id,
+            accountId: ensured.id,
             sourceType: 'manual',
-            sourceKey: `manual:${acc.id}`,
+            sourceKey: `manual:${ensured.id}`,
             granted: creditDelta,
             consumed: 0,
             expiresAt: null,
           },
         });
+      } else if (creditDelta < 0) {
+        await this.consumeLotsFifo(tx, ensured.id, companyId, Math.abs(creditDelta), now);
       }
 
       const createdTx = await tx.billingCreditTransaction.create({
         data: {
           tenantId,
           companyId,
-          accountId: acc.id,
+          accountId: ensured.id,
           type: 'adjustment',
           action: creditDelta > 0 ? 'manual_grant' : 'manual_adjust',
           creditDelta,
@@ -738,15 +755,8 @@ export class CreditService {
         },
       });
 
-      return updated;
+      return createdTx;
     });
-
-    // Trả về transaction vừa tạo
-    const tx = await this.prisma.billingCreditTransaction.findFirst({
-      where: { companyId, type: 'adjustment' },
-      orderBy: { createdAt: 'desc' },
-    });
-    return tx!;
   }
 
   // =========================================================================

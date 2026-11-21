@@ -34,7 +34,7 @@ export class CmsMediaController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SuperAdmin, UserRole.Editor)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload ảnh CMS (nội dung / ảnh đại diện)' })
   @ApiBody({

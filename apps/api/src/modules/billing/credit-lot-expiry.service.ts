@@ -24,12 +24,19 @@ export class CreditLotExpiryService {
   async expireLotsAndSyncBalances(): Promise<{ expiredLots: number; syncedCompanies: number }> {
     const now = new Date();
 
-    // 1) Đánh dấu lô hết hạn là đã tiêu hết (consumed = granted) → không còn khả dụng.
-    const expired = await this.prisma.billingCreditLot.findMany({
-      where: { expiresAt: { not: null, lt: now } },
-      select: { id: true, granted: true, consumed: true, companyId: true, accountId: true },
-      take: 1000,
-    });
+    // 1) Đánh dấu lô hết hạn còn dư là đã tiêu hết (consumed = granted) → không còn khả dụng.
+    // Lọc trực tiếp `consumed < granted` trong SQL để không bị kẹt khi DB tích lũy >1000 lô hết hạn cũ.
+    const expired = await this.prisma.$queryRaw<
+      Array<{ id: string; granted: number; consumed: number; companyId: string; accountId: string }>
+    >`
+      SELECT id, granted, consumed, company_id AS "companyId", account_id AS "accountId"
+      FROM billing.billing_credit_lot
+      WHERE expires_at IS NOT NULL
+        AND expires_at < ${now}
+        AND consumed < granted
+      ORDER BY expires_at ASC
+      LIMIT 1000
+    `;
 
     let expiredLots = 0;
     for (const lot of expired) {

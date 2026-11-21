@@ -34,13 +34,15 @@ export class AdminJobsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const parsedPage = page ? Number(page) : undefined;
+    const parsedLimit = limit ? Number(limit) : undefined;
     return this.adminJobs.list({
       status,
       moderationStatus,
       companyId: companyId || undefined,
       q: q || undefined,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      page: parsedPage !== undefined && Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : undefined,
+      limit: parsedLimit !== undefined && Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.floor(parsedLimit) : undefined,
     });
   }
 

@@ -26,12 +26,14 @@ export class CmsPublicController {
     @Query('limit') limit?: string,
     @Query('page') page?: string,
   ) {
+    const parsedLimit = limit ? Number(limit) : undefined;
+    const parsedPage = page ? Number(page) : 1;
     return this.cms.listPublished({
       type: type ?? CmsContentType.Post,
       category,
       author,
-      limit: limit ? Number(limit) : undefined,
-      page: page ? Number(page) : 1,
+      limit: parsedLimit !== undefined && Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.floor(parsedLimit) : undefined,
+      page: Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1,
     });
   }
 

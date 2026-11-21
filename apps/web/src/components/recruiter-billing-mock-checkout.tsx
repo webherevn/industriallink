@@ -79,7 +79,10 @@ export function RecruiterMockCheckout() {
       qc.invalidateQueries({ queryKey: ['recruiter-credit-summary'] });
       qc.invalidateQueries({ queryKey: ['recruiter-credit-balance'] });
       qc.invalidateQueries({ queryKey: ['recruiter-orders'] });
+      qc.invalidateQueries({ queryKey: ['recruiter-orders-hub'] });
       qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+      qc.invalidateQueries({ queryKey: ['recruiter-billing-overview'] });
+      qc.invalidateQueries({ queryKey: ['recruiter-credit-ledger-hub'] });
       qc.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
       const next =
         paid.kind === 'sourcing'

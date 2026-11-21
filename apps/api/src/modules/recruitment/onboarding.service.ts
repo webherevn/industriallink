@@ -275,11 +275,19 @@ export class OnboardingService {
       throw new ForbiddenException('Onboarding không thuộc công ty của bạn');
     }
 
+    let parsedStartDate: Date | undefined;
+    if (dto.startDate) {
+      parsedStartDate = new Date(dto.startDate);
+      if (Number.isNaN(parsedStartDate.getTime())) {
+        throw new BadRequestException('Ngày nhận việc không hợp lệ');
+      }
+    }
+
     const updated = await this.prisma.onboarding.update({
       where: { id },
       data: {
         status: dto.status ?? undefined,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        startDate: parsedStartDate,
         reportLocation:
           dto.reportLocation !== undefined ? dto.reportLocation.trim() || null : undefined,
         contactName:

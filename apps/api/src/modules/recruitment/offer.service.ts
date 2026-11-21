@@ -13,6 +13,7 @@ import {
 } from '@industriallink/contracts';
 import { createDomainEvent } from '../../shared/domain/domain-event';
 import { offerStatusLabel } from '../../shared/domain/offer-status.label';
+import { isVnDeadlineStillOpen } from '../../shared/domain/vn-date.util';
 import { AppEventBus } from '../../shared/events/event-bus';
 import { AuditService } from '../../shared/infrastructure/audit.service';
 import { CodeGeneratorService } from '../../shared/infrastructure/code-generator.service';
@@ -89,6 +90,9 @@ export class OfferService {
     const moveToOffer = dto.moveToOffer !== false;
     const prevStatus = application.status;
 
+    const parsedStartDate = parseOptionalOfferDate(dto.startDate, 'Ngày nhận việc');
+    const parsedExpiresAt = parseOptionalOfferDate(dto.expiresAt, 'Hạn phản hồi');
+
     const offer = await this.prisma.$transaction(async (tx) => {
       const created = await tx.offer.create({
         data: {
@@ -100,8 +104,8 @@ export class OfferService {
           status: OfferStatus.Pending,
           salary: dto.salary,
           currency: dto.currency?.trim() || 'VND',
-          startDate: dto.startDate ? new Date(dto.startDate) : null,
-          expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          startDate: parsedStartDate,
+          expiresAt: parsedExpiresAt,
           benefits: dto.benefits?.trim() || null,
           notes: dto.notes?.trim() || null,
           createdBy: user.id,
@@ -276,6 +280,15 @@ export class OfferService {
       throw new ForbiddenException('Offer không thuộc công ty của bạn');
     }
 
+    const parsedStartDate =
+      dto.startDate !== undefined
+        ? parseOptionalOfferDate(dto.startDate, 'Ngày nhận việc')
+        : undefined;
+    const parsedExpiresAt =
+      dto.expiresAt !== undefined
+        ? parseOptionalOfferDate(dto.expiresAt, 'Hạn phản hồi')
+        : undefined;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.offer.update({
         where: { id },
@@ -283,18 +296,8 @@ export class OfferService {
           status: dto.status ?? undefined,
           salary: dto.salary ?? undefined,
           currency: dto.currency ?? undefined,
-          startDate:
-            dto.startDate !== undefined
-              ? dto.startDate
-                ? new Date(dto.startDate)
-                : null
-              : undefined,
-          expiresAt:
-            dto.expiresAt !== undefined
-              ? dto.expiresAt
-                ? new Date(dto.expiresAt)
-                : null
-              : undefined,
+          startDate: parsedStartDate,
+          expiresAt: parsedExpiresAt,
           benefits: dto.benefits !== undefined ? dto.benefits.trim() || null : undefined,
           notes: dto.notes !== undefined ? dto.notes.trim() || null : undefined,
           updatedBy: user.id,
@@ -387,7 +390,7 @@ export class OfferService {
     if (
       dto.status === OfferStatus.Accepted &&
       existing.expiresAt &&
-      existing.expiresAt.getTime() < Date.now()
+      !isVnDeadlineStillOpen(existing.expiresAt)
     ) {
       throw new BadRequestException('Đề nghị làm việc này đã hết hạn');
     }
@@ -475,4 +478,13 @@ export class OfferService {
       createdAt: row.createdAt.toISOString(),
     };
   }
+}
+
+function parseOptionalOfferDate(raw: string | null | undefined, label: string): Date | null {
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`${label} không hợp lệ`);
+  }
+  return parsed;
 }

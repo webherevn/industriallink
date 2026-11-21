@@ -168,9 +168,11 @@ describe('SourcingService', () => {
       const e = await service.getEntitlements('co-1');
 
       expect(e.positionsRemaining).toBe(3);
-      expect(prisma.billingHuntPackage.count).toHaveBeenCalledWith({
-        where: { companyId: 'co-1', status: 'UNUSED' },
-      });
+      expect(prisma.billingHuntPackage.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ companyId: 'co-1', status: 'UNUSED' }),
+        }),
+      );
     });
   });
 

@@ -238,18 +238,23 @@ function RegisterRow({ period, canPay }: { period: CrmCommissionPeriodView; canP
 function downloadRegister(rows: CrmCommissionPeriodView[]) {
   downloadCsv('bang-ke-hoa-hong.csv', [
     ['Cộng tác viên', 'Mã', 'Tháng', 'Hoa hồng', 'Thuế TNCN', 'Thực nhận', 'KYC', 'Trạng thái', 'Mã giao dịch', 'Thời điểm'],
-    ...rows.map((period) => [
-      period.partnerName,
-      period.partnerCode,
-      period.periodMonth,
-      period.commissionVnd,
-      period.pitTaxAmountVnd ?? '',
-      period.netPaidAmountVnd ?? '',
-      KYC_META[period.kycStatus].label,
-      period.status === 'paid' ? 'Đã chi' : 'Chờ chi',
-      period.transferRef ?? '',
-      period.status === 'paid' ? (period.paidAt ?? '') : (period.approvedAt ?? ''),
-    ]),
+    ...rows.map((period) => {
+      const gross = BigInt(period.commissionVnd || '0');
+      const suggestedTax = gross >= PIT_THRESHOLD_VND ? (gross * 10n) / 100n : 0n;
+      const suggestedNet = gross - suggestedTax;
+      return [
+        period.partnerName,
+        period.partnerCode,
+        period.periodMonth,
+        period.commissionVnd,
+        period.pitTaxAmountVnd ?? suggestedTax.toString(),
+        period.netPaidAmountVnd ?? suggestedNet.toString(),
+        KYC_META[period.kycStatus].label,
+        period.status === 'paid' ? 'Đã chi' : 'Chờ chi',
+        period.transferRef ?? '',
+        period.status === 'paid' ? (period.paidAt ?? '') : (period.approvedAt ?? ''),
+      ];
+    }),
   ]);
 }
 

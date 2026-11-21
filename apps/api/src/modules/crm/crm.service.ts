@@ -1222,60 +1222,62 @@ export class CrmService {
     const eligibleRevenue = baseRevenue - discountAmount;
     if (eligibleRevenue <= 0n) return;
 
-    try {
-      // Ghi vào hệ mô hình 3 cấp bậc (kỳ đối soát tháng + chi tiết giao dịch).
-      const item = await this.commissionPolicy.recordEligibleTransaction(tx, {
-        ctvId: partner.id,
+    // Kiểm tra trùng billingOrderId trước khi insert để tránh P2002 làm hỏng transaction PostgreSQL (25P02).
+    const existingEntry = await tx.crmCommissionEntry.findUnique({
+      where: { billingOrderId: order.id },
+      select: { id: true },
+    });
+    if (existingEntry) return;
+
+    // Ghi vào hệ mô hình 3 cấp bậc (kỳ đối soát tháng + chi tiết giao dịch).
+    const item = await this.commissionPolicy.recordEligibleTransaction(tx, {
+      ctvId: partner.id,
+      companyId: order.companyId,
+      companyName: company.name,
+      billingOrderId: order.id,
+      orderKind: order.kind,
+      planCode: order.planCode,
+      planName: order.planName,
+      paidAmountGross: order.priceVndSnapshot + vatAmount,
+      vatAmount,
+      discountAmount,
+      eligibleRevenue,
+      paidAt: order.paidAt,
+    });
+
+    // Ghi nhận khách hàng trọn đời cho CTV (1 KH — 1 CTV, không ghi đè).
+    await this.attributeCompanyToCtv(tx, order.companyId, partner.id, order.paidAt);
+
+    if (!item) return;
+
+    // Dòng ledger cũ (CrmCommissionEntry) giữ để các báo cáo & luồng chi trả hiện có đồng bộ 100%.
+    // Lấy trực tiếp tỷ lệ & số tiền đã tính lại trong cùng transaction (không đọc ngoài tx).
+    const percent = item.appliedRatePercent;
+    const amount = BigInt(item.commissionAmountVnd);
+    if (amount <= 0n) return;
+
+    const entry = await tx.crmCommissionEntry.create({
+      data: {
+        partnerId: partner.id,
         companyId: order.companyId,
         companyName: company.name,
         billingOrderId: order.id,
         orderKind: order.kind,
         planCode: order.planCode,
         planName: order.planName,
-        paidAmountGross: order.priceVndSnapshot + vatAmount,
-        vatAmount,
-        discountAmount,
-        eligibleRevenue,
+        paidAmountVnd: order.priceVndSnapshot,
+        percent,
+        commissionVnd: amount,
+        status: 'pending_reconcile',
         paidAt: order.paidAt,
-      });
-
-      // Ghi nhận khách hàng trọn đời cho CTV (1 KH — 1 CTV, không ghi đè).
-      await this.attributeCompanyToCtv(tx, order.companyId, partner.id, order.paidAt);
-
-      if (!item) return;
-
-      // Dòng ledger cũ (CrmCommissionEntry) giữ để các báo cáo & luồng chi trả hiện có đồng bộ 100%.
-      // Lấy trực tiếp tỷ lệ & số tiền đã tính lại trong cùng transaction (không đọc ngoài tx).
-      const percent = item.appliedRatePercent;
-      const amount = BigInt(item.commissionAmountVnd);
-      if (amount <= 0n) return;
-
-      const entry = await tx.crmCommissionEntry.create({
-        data: {
-          partnerId: partner.id,
-          companyId: order.companyId,
-          companyName: company.name,
-          billingOrderId: order.id,
-          orderKind: order.kind,
-          planCode: order.planCode,
-          planName: order.planName,
-          paidAmountVnd: order.priceVndSnapshot,
-          percent,
-          commissionVnd: amount,
-          status: 'pending_reconcile',
-          paidAt: order.paidAt,
-        },
-        select: { id: true },
-      });
-      await this.creditCommissionWallet(tx, {
-        partnerId: partner.id,
-        commissionEntryId: entry.id,
-        amountVnd: amount,
-      });
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
-      throw err;
-    }
+      },
+      select: { id: true },
+    });
+    await this.creditCommissionWallet(tx, {
+      partnerId: partner.id,
+      commissionEntryId: entry.id,
+      amountVnd: amount,
+    });
   }
 
   /**
@@ -1311,9 +1313,9 @@ export class CrmService {
       yearMonth,
     });
 
-    // Dòng ledger cũ (CrmCommissionEntry) cũng phải bị loại khỏi kỳ chờ đối soát & hoàn ví.
+    // Chỉ void dòng chưa chốt (periodId: null); kỳ đã chốt được xử lý qua adjustmentAmount ở kỳ kế tiếp.
     const legacyEntries = await tx.crmCommissionEntry.findMany({
-      where: { billingOrderId: order.id, status: 'pending_reconcile' },
+      where: { billingOrderId: order.id, status: 'pending_reconcile', periodId: null },
       select: { id: true },
     });
     if (legacyEntries.length > 0) {
@@ -1418,7 +1420,7 @@ export class CrmService {
 
   async commissionLedger(actor: AuthenticatedUser): Promise<CrmCommissionLedgerView> {
     const rows = await this.prisma.crmCommissionEntry.findMany({
-      where: { periodId: null },
+      where: { periodId: null, status: { not: 'voided' } },
       orderBy: { paidAt: 'desc' },
       take: 200,
       include: {
@@ -1552,14 +1554,24 @@ export class CrmService {
       throw new BadRequestException(entries.length === 0 ? 'Tháng này không có khoản chờ chốt' : 'Tháng này đã chốt');
     }
     try {
+      const closedAt = new Date();
       await this.prisma.$transaction(async (tx) => {
         for (const group of groups) {
+          // Tính cả khoản điều chỉnh âm (hoàn tiền từ kỳ trước đã chốt) trong CtvMonthlyStatement.
+          const stmt = await tx.ctvMonthlyStatement.findUnique({
+            where: { ctvId_yearMonth: { ctvId: group.partnerId, yearMonth: periodMonth } },
+            select: { id: true, adjustmentAmount: true, status: true },
+          });
+          const adjustment = stmt?.adjustmentAmount ?? 0n;
+          const rawTotal = group.commissionVnd + adjustment;
+          const periodCommission = rawTotal > 0n ? rawTotal : 0n;
+
           const period = await tx.crmCommissionPeriod.create({
             data: {
               partnerId: group.partnerId,
               periodMonth,
               paidAmountVnd: group.paidAmountVnd,
-              commissionVnd: group.commissionVnd,
+              commissionVnd: periodCommission,
               entryCount: group.entryCount,
               status: 'closed',
               closedByUserId,
@@ -1567,10 +1579,16 @@ export class CrmService {
           });
           const linked = await tx.crmCommissionEntry.updateMany({
             where: { id: { in: group.ids }, periodId: null },
-            data: { periodId: period.id },
+            data: { periodId: period.id, status: 'reconciled' },
           });
           if (linked.count !== group.ids.length) {
             throw new BadRequestException('Kỳ đang được chốt');
+          }
+          if (stmt && stmt.status === 'OPEN') {
+            await tx.ctvMonthlyStatement.update({
+              where: { id: stmt.id },
+              data: { status: 'RECONCILED', reconciledAt: closedAt },
+            });
           }
         }
       });
@@ -1632,7 +1650,7 @@ export class CrmService {
       await this.prisma.$transaction(async (tx) => {
         const period = await tx.crmCommissionPeriod.findUnique({
           where: { id: periodId },
-          select: { id: true, partnerId: true, status: true, commissionVnd: true },
+          select: { id: true, partnerId: true, periodMonth: true, status: true, commissionVnd: true },
         });
         if (!period) throw new NotFoundException('Không tìm thấy kỳ chốt');
         if (period.status === 'paid') throw new BadRequestException('Kỳ này đã chi');
@@ -1699,6 +1717,11 @@ export class CrmService {
             kind: 'debit',
           },
         });
+
+        await tx.ctvMonthlyStatement.updateMany({
+          where: { ctvId: period.partnerId, yearMonth: period.periodMonth },
+          data: { status: 'PAID', paidAt: new Date() },
+        });
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -1761,8 +1784,15 @@ export class CrmService {
       throw new BadRequestException('Cần tên công ty, người liên hệ và số điện thoại');
     }
     if (taxCode) {
-      const claim = await this.prisma.crmPartnerClaim.findUnique({ where: { taxCode }, select: { partnerId: true } });
-      if (claim && claim.partnerId !== partner.id) return { ok: true };
+      const claim = await this.prisma.crmPartnerClaim.findUnique({
+        where: { taxCode },
+        select: { partnerId: true, status: true, expiresAt: true },
+      });
+      const claimActive =
+        claim &&
+        claim.status !== 'EXPIRED' &&
+        (claim.status !== 'PROTECTING' || claim.expiresAt > new Date());
+      if (claimActive && claim.partnerId !== partner.id) return { ok: true };
     }
 
     const duplicate = await this.prisma.crmLead.findFirst({
@@ -2870,6 +2900,7 @@ export class CrmService {
       const entries = await this.prisma.crmCommissionEntry.findMany({
         where: {
           paidAt,
+          status: { not: 'voided' },
           ...(this.seesAll(actor) ? {} : { companyId: { in: companyIds } }),
         },
         select: { partnerId: true, orderKind: true, paidAmountVnd: true },
@@ -3134,7 +3165,11 @@ export class CrmService {
     const scoped = await this.invoiceCompanyIds(actor);
     if (scoped && scoped.length === 0) return { periodMonth, rows: [] };
     const entries = await this.prisma.crmCommissionEntry.findMany({
-      where: { paidAt: { gte: start, lt: end }, ...(scoped ? { companyId: { in: scoped } } : {}) },
+      where: {
+        paidAt: { gte: start, lt: end },
+        status: { not: 'voided' },
+        ...(scoped ? { companyId: { in: scoped } } : {}),
+      },
       select: { partnerId: true, companyId: true, orderKind: true, paidAmountVnd: true },
     });
     const buckets = new Map<string, { orders: number; companies: Set<string>; platform: bigint; sourcing: bigint }>();
@@ -4027,6 +4062,7 @@ export class CrmService {
       where: {
         partnerId: { in: partnerIds },
         paidAt: { gte: start, lt: end },
+        status: { not: 'voided' },
         ...(scoped ? { companyId: { in: scoped } } : {}),
       },
       select: { partnerId: true, companyId: true, orderKind: true, paidAmountVnd: true },
@@ -4076,6 +4112,7 @@ export class CrmService {
       where: {
         partnerId,
         paidAt: { gte: start, lt: end },
+        status: { not: 'voided' },
         ...(scoped ? { companyId: { in: scoped } } : {}),
       },
       orderBy: { paidAt: 'desc' },
@@ -4289,7 +4326,7 @@ export class CrmService {
     const totals = new Map<string, { count: number; amount: bigint }>();
     if (partnerIds.length === 0) return totals;
     const entries = await this.prisma.crmCommissionEntry.findMany({
-      where: { partnerId: { in: partnerIds }, periodId: null },
+      where: { partnerId: { in: partnerIds }, periodId: null, status: { not: 'voided' } },
       select: {
         id: true,
         partnerId: true,

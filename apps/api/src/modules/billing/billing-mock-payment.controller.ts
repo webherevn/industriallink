@@ -20,7 +20,7 @@ import { PaymentService } from './payment.service';
 @ApiTags('Billing Payment Mock')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.Recruiter, UserRole.CompanyAdmin, UserRole.SuperAdmin)
+@Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin, UserRole.SuperAdmin)
 @Controller('billing/topup/mock')
 export class BillingMockPaymentController {
   constructor(

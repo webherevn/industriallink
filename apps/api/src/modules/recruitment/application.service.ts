@@ -1247,7 +1247,7 @@ export class ApplicationService {
       if (dto.nextStatus && this.prisma.application.updateMany) {
         const targetIds = withEmail.map((a) => a.id);
         await this.prisma.application.updateMany({
-          where: { id: { in: targetIds }, jobId, isDeleted: false },
+          where: { id: { in: targetIds }, jobId: job.id, isDeleted: false },
           data: { status: dto.nextStatus, updatedBy: user.id },
         });
         await this.prisma.applicationTimeline.createMany({

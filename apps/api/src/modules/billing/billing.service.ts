@@ -1469,55 +1469,74 @@ export class BillingService implements OnModuleInit {
     });
     if (!company) return;
 
-    const account = await this.prisma.billingCreditAccount.upsert({
-      where: { companyId },
-      create: { companyId, tenantId: company.tenantId },
-      update: {},
-    });
-    if (account.lifetimeGranted >= quota) return;
-    const updated = await this.prisma.billingCreditAccount.update({
-      where: { id: account.id },
-      data: {
-        balance: { increment: quota },
-        lifetimeGranted: { increment: quota },
-        lastActivityAt: new Date(),
-      },
-    });
-    // Lô Credit khớp balance: lô có hạn cho gói Khám phá, vô thời hạn cho gói trả phí.
-    await this.prisma.billingCreditLot.create({
-      data: {
-        companyId,
-        accountId: account.id,
-        sourceType: isStarter ? 'plan' : 'package',
-        sourceKey: `${assignment.plan.code}:${assignment.id}:backfill`,
-        granted: quota,
-        consumed: 0,
-        expiresAt: isStarter ? (assignment.endsAt ?? null) : null,
-      },
-    });
-    await this.prisma.billingCreditTransaction.create({
-      data: {
-        tenantId: company.tenantId,
-        companyId,
-        accountId: account.id,
-        type: 'grant',
-        action: grantAction,
-        creditDelta: quota,
-        balanceAfter: updated.balance,
-        costPerUnit: 0,
-        quantity: 1,
-        actorEmail: 'system:plan-backfill',
-        note: `Cấp ${quota} Credit khi kích hoạt gói ${assignment.plan.name}`,
-        metadata: {
-          source: isStarter ? 'plan_grant' : 'package_grant',
-          planId: assignment.planId,
-          planCode: assignment.plan.code,
-          assignmentId: assignment.id,
+    const grantedNow = await this.prisma.$transaction(async (tx) => {
+      const account = await tx.billingCreditAccount.upsert({
+        where: { companyId },
+        create: { companyId, tenantId: company.tenantId },
+        update: {},
+      });
+      await tx.$executeRaw`
+        SELECT id FROM billing.billing_credit_account WHERE id = ${account.id}::uuid FOR UPDATE
+      `;
+      const lockedAccount = await tx.billingCreditAccount.findUnique({
+        where: { id: account.id },
+        select: { id: true, balance: true, lifetimeGranted: true },
+      });
+      if (!lockedAccount || lockedAccount.lifetimeGranted >= quota) return false;
+
+      const existingGrant = await tx.billingCreditTransaction.findFirst({
+        where: { companyId, action: grantAction },
+        select: { id: true },
+      });
+      if (existingGrant) return false;
+
+      const updated = await tx.billingCreditAccount.update({
+        where: { id: account.id },
+        data: {
+          balance: { increment: quota },
+          lifetimeGranted: { increment: quota },
+          lastActivityAt: new Date(),
         },
-        enforced: true,
-      },
+      });
+      // Lô Credit khớp balance: lô có hạn cho gói Khám phá, vô thời hạn cho gói trả phí.
+      await tx.billingCreditLot.create({
+        data: {
+          companyId,
+          accountId: account.id,
+          sourceType: isStarter ? 'plan' : 'package',
+          sourceKey: `${assignment.plan.code}:${assignment.id}:backfill`,
+          granted: quota,
+          consumed: 0,
+          expiresAt: isStarter ? (assignment.endsAt ?? null) : null,
+        },
+      });
+      await tx.billingCreditTransaction.create({
+        data: {
+          tenantId: company.tenantId,
+          companyId,
+          accountId: account.id,
+          type: 'grant',
+          action: grantAction,
+          creditDelta: quota,
+          balanceAfter: updated.balance,
+          costPerUnit: 0,
+          quantity: 1,
+          actorEmail: 'system:plan-backfill',
+          note: `Cấp ${quota} Credit khi kích hoạt gói ${assignment.plan.name}`,
+          metadata: {
+            source: isStarter ? 'plan_grant' : 'package_grant',
+            planId: assignment.planId,
+            planCode: assignment.plan.code,
+            assignmentId: assignment.id,
+          },
+          enforced: true,
+        },
+      });
+      return true;
     });
-    this.logger.log(`Backfill ${quota} Credit gói ${assignment.plan.code} cho công ty ${companyId}`);
+    if (grantedNow) {
+      this.logger.log(`Backfill ${quota} Credit gói ${assignment.plan.code} cho công ty ${companyId}`);
+    }
   }
 
   /**
@@ -1644,13 +1663,48 @@ export class BillingService implements OnModuleInit {
       return { cost: fallback, allowed: true, source: 'policy', planId: null, planCode: null };
     }
 
+    const now = new Date();
+    // Ưu tiên gói tin đăng trả phí ACTIVE cao nhất (multi-active BillingJobPackage) đồng bộ với getEntitlements.
+    const activeJobPackages = await this.prisma.billingJobPackage.findMany({
+      where: {
+        companyId,
+        status: 'ACTIVE',
+        packageType: { not: 'FREE' },
+        OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+      },
+      include: { plan: { include: { actionCosts: true } } },
+    });
+    const tierRank: Record<string, number> = { ENTERPRISE: 3, PLUS: 2, STANDARD: 1, FREE: 0 };
+    activeJobPackages.sort(
+      (a, b) => (tierRank[b.packageType] ?? 0) - (tierRank[a.packageType] ?? 0),
+    );
+    const topPkgPlan = activeJobPackages.find((p) => p.plan)?.plan ?? null;
+    if (topPkgPlan) {
+      const pkgCostRow = topPkgPlan.actionCosts?.find((c) => c.action === action);
+      if (pkgCostRow && !pkgCostRow.isActive) {
+        return {
+          cost: pkgCostRow.cost,
+          allowed: false,
+          source: 'plan',
+          planId: topPkgPlan.id,
+          planCode: topPkgPlan.code,
+        };
+      }
+      return {
+        cost: pkgCostRow ? pkgCostRow.cost : fallback,
+        allowed: true,
+        source: pkgCostRow ? 'plan' : 'policy',
+        planId: topPkgPlan.id,
+        planCode: topPkgPlan.code,
+      };
+    }
+
     const assignment = await this.prisma.billingCompanyPlan.findUnique({
       where: { companyId },
       include: {
         plan: { include: { actionCosts: true } },
       },
     });
-    const now = new Date();
     const active =
       assignment &&
       assignment.isActive &&

@@ -93,7 +93,7 @@ export class JobController {
 
   @Post('ai/parse-from-file')
   @Roles(...RECRUITER_ROLES)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Upload JD PDF/DOCX/TXT → AI trích 22 trường Sales hoặc 23 trường Kỹ thuật',

@@ -190,7 +190,7 @@ describe('IdentityService', () => {
   describe('verifyLoginOtp', () => {
     it('hoàn tất đăng nhập khi OTP hợp lệ', async () => {
       jwt.verifyAsync.mockResolvedValue({ sub: 'user-1', purpose: 'mfa_login' });
-      const consumeUpdate = jest.fn().mockResolvedValue({});
+      const consumeUpdate = jest.fn().mockResolvedValue({ count: 1 });
       const refreshCreate = jest.fn().mockResolvedValue({});
       const prisma = {
         user: { findUnique: jest.fn().mockResolvedValue({ ...baseUser, mfaEnabled: true }) },
@@ -200,6 +200,7 @@ describe('IdentityService', () => {
             expiresAt: new Date(Date.now() + 60_000),
           }),
           update: consumeUpdate,
+          updateMany: consumeUpdate,
         },
         refreshToken: { create: refreshCreate },
       };
@@ -255,7 +256,7 @@ describe('IdentityService', () => {
   describe('refresh', () => {
     it('xoay vòng refresh token thành công', async () => {
       jwt.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'jti-1' });
-      const revoke = jest.fn().mockResolvedValue({});
+      const revoke = jest.fn().mockResolvedValue({ count: 1 });
       const create = jest.fn().mockResolvedValue({});
       const prisma = {
         refreshToken: {
@@ -264,7 +265,7 @@ describe('IdentityService', () => {
             expiresAt: new Date(Date.now() + 60_000),
             createdByIp: '127.0.0.1',
           }),
-          update: revoke,
+          updateMany: revoke,
           create,
         },
         user: { findUnique: jest.fn().mockResolvedValue(baseUser) },
@@ -275,7 +276,7 @@ describe('IdentityService', () => {
 
       expect(result.accessToken).toBe('access-token-abc');
       expect(revoke).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'rt-1' } }),
+        expect.objectContaining({ where: { id: 'rt-1', revokedAt: null } }),
       );
       expect(create).toHaveBeenCalledTimes(1);
     });

@@ -206,10 +206,10 @@ export class CtvKycService {
     await this.storage.putObject(key, file.buffer, file.mimetype);
 
     const now = new Date();
-    // Nếu hồ sơ đã VERIFIED mà CTV đổi ảnh CCCD mới → chuyển về PENDING để duyệt lại.
+    // Nếu hồ sơ đã VERIFIED mà CTV tải ảnh CCCD mới → chuyển về UNVERIFIED để tải đủ 2 mặt rồi gửi duyệt lại (PENDING).
     const nextStatus =
       existing?.status === 'VERIFIED'
-        ? ('PENDING' as const)
+        ? ('UNVERIFIED' as const)
         : (existing?.status ?? ('UNVERIFIED' as const));
     const patch =
       side === 'front'
@@ -315,6 +315,10 @@ export class CtvKycService {
     if (!row) throw new NotFoundException('Không tìm thấy hồ sơ xác thực');
     if (row.status !== 'PENDING') {
       throw new BadRequestException('Hồ sơ này không ở trạng thái chờ duyệt');
+    }
+
+    if (input.action !== 'APPROVE' && input.action !== 'REJECT') {
+      throw new BadRequestException('Hành động duyệt KYC không hợp lệ (chỉ nhận APPROVE hoặc REJECT)');
     }
 
     if (input.action === 'REJECT') {

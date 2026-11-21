@@ -678,16 +678,22 @@ export class MatchingService {
       'Xem chi tiết danh sách ứng viên tại mục Săn nhân sự trên inlink (/recruiter/sourcing).',
     ].join('\n');
 
+    const escHtml = (text: string) =>
+      text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     const htmlList = newMatches
       .slice(0, 5)
       .map((m) => {
         const pct = Math.round(Math.max(0, Math.min(100, m.match.score)) * 10) / 10;
-        return `<li><strong>${m.displayName}</strong> — Phù hợp <strong>${pct}%</strong>${m.currentPosition ? ` (${m.currentPosition})` : ''}</li>`;
+        return `<li><strong>${escHtml(m.displayName)}</strong> — Phù hợp <strong>${pct}%</strong>${m.currentPosition ? ` (${escHtml(m.currentPosition)})` : ''}</li>`;
       })
       .join('');
     const html = [
-      `<p>Xin chào <strong>${company.name}</strong>,</p>`,
-      `<p>Hệ thống Săn nhân sự tự động (2 giờ/lần) của <strong>inlink</strong> vừa hoàn tất <strong>Đợt tìm kiếm #${roundNumber}</strong> cho vị trí «<strong>${engagement.title}</strong>» và phát hiện <strong>${newMatches.length} ứng viên tiềm năng mới</strong>:</p>`,
+      `<p>Xin chào <strong>${escHtml(company.name)}</strong>,</p>`,
+      `<p>Hệ thống Săn nhân sự tự động (2 giờ/lần) của <strong>inlink</strong> vừa hoàn tất <strong>Đợt tìm kiếm #${roundNumber}</strong> cho vị trí «<strong>${escHtml(engagement.title)}</strong>» và phát hiện <strong>${newMatches.length} ứng viên tiềm năng mới</strong>:</p>`,
       `<ul>${htmlList}</ul>`,
       `<p>Truy cập mục <strong>Săn nhân sự</strong> trên inlink để xem chi tiết từng đợt tìm kiếm và mở hồ sơ ứng viên.</p>`,
     ].join('');

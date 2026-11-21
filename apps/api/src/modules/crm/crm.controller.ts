@@ -148,7 +148,7 @@ export class CrmController {
 
   @Post('quote-form/logo')
   @Roles(UserRole.SuperAdmin)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
   @ApiOperation({ summary: 'SuperAdmin tải logo in trên tờ báo giá.' })
@@ -220,7 +220,7 @@ export class CrmController {
   }
 
   @Post('staff-profile/avatar')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
   @ApiOperation({ summary: 'Ảnh đại diện của chính mình. SuperAdmin tải cho nhân sự.' })

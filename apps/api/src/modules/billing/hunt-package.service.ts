@@ -243,8 +243,9 @@ export class HuntPackageService {
     return row;
   }
 
-  /** Tìm gói UNUSED sẵn sàng kích hoạt (mua lâu nhất trước). */
+  /** Tìm gói UNUSED sẵn sàng kích hoạt (mua lâu nhất trước, chưa quá hạn kích hoạt). */
   async findUnused(companyId: string, packageId?: string | null): Promise<BillingHuntPackage> {
+    const now = new Date();
     if (packageId) {
       const row = await this.prisma.billingHuntPackage.findFirst({
         where: { id: packageId, companyId },
@@ -253,10 +254,17 @@ export class HuntPackageService {
       if (row.status !== 'UNUSED') {
         throw new BadRequestException('Gói Săn này không còn ở trạng thái chờ kích hoạt.');
       }
+      if (row.activationDeadlineAt && row.activationDeadlineAt.getTime() < now.getTime()) {
+        throw new BadRequestException('Gói Săn này đã quá hạn kích hoạt.');
+      }
       return row;
     }
     const row = await this.prisma.billingHuntPackage.findFirst({
-      where: { companyId, status: 'UNUSED' },
+      where: {
+        companyId,
+        status: 'UNUSED',
+        OR: [{ activationDeadlineAt: null }, { activationDeadlineAt: { gte: now } }],
+      },
       orderBy: { purchasedAt: 'asc' },
     });
     if (!row) {
@@ -298,9 +306,10 @@ export class HuntPackageService {
         duration_days: number;
         package_name: string;
         code: string;
+        activation_deadline_at: Date | null;
       }>
     >`
-      SELECT id, status, credits_granted, credits_included, duration_days, package_name, code
+      SELECT id, status, credits_granted, credits_included, duration_days, package_name, code, activation_deadline_at
       FROM billing.billing_hunt_package
       WHERE id = ${input.packageId}::uuid FOR UPDATE
     `;
@@ -311,6 +320,9 @@ export class HuntPackageService {
     }
 
     const now = new Date();
+    if (row.activation_deadline_at && new Date(row.activation_deadline_at).getTime() < now.getTime()) {
+      throw new BadRequestException('Gói Săn này đã quá hạn kích hoạt.');
+    }
     const durationDays = row.duration_days > 0 ? row.duration_days : HUNT_PACKAGE_DURATION_DAYS;
     const expiresAt = addUtcDays(now, durationDays);
 

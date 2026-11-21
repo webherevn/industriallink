@@ -178,7 +178,11 @@ export class CandidateService {
 
     const candidate = await this.getCandidateByUser(user);
 
-    const storageKey = `resumes/${candidate.id}/${uuidv7()}-${file.originalname}`;
+    const safeFileName = (file.originalname || 'resume')
+      .replace(/^.*[\\/]/, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 120) || 'resume';
+    const storageKey = `resumes/${candidate.id}/${uuidv7()}-${safeFileName}`;
     await this.storage.putObject(storageKey, file.buffer, file.mimetype);
 
     const hash = createHash('sha256').update(file.buffer).digest('hex');
@@ -2486,7 +2490,7 @@ export function computeProfileCompletionDetail(
   const filledCount = checks.filter(
     (c) => isFilledValue(c.value, c.weakIfShort ?? 0) === 'filled',
   ).length;
-  const totalCount = isTech ? 28 : 32;
+  const totalCount = checks.length;
 
   return {
     percent: weightedSuggestionPercent(

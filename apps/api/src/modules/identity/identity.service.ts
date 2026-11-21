@@ -193,16 +193,19 @@ export class IdentityService {
       throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.otpCode.update({
-        where: { id: record.id },
+    await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.otpCode.updateMany({
+        where: { id: record.id, consumedAt: null },
         data: { consumedAt: new Date() },
-      }),
-      this.prisma.user.update({
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
+      }
+      await tx.user.update({
         where: { id: user.id },
         data: { isVerified: true, status: UserStatus.Active },
-      }),
-    ]);
+      });
+    });
 
     return { message: 'Xác thực thành công. Bạn có thể đăng nhập.' };
   }
@@ -305,10 +308,13 @@ export class IdentityService {
         throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
       }
 
-      await this.prisma.otpCode.update({
-        where: { id: record.id },
+      const consumed = await this.prisma.otpCode.updateMany({
+        where: { id: record.id, consumedAt: null },
         data: { consumedAt: new Date() },
       });
+      if (consumed.count !== 1) {
+        throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
+      }
     }
 
     return this.issueSession(user, meta);

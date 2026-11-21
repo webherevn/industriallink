@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { CompanyRole } from '@industriallink/contracts';
+import { CompanyRole, UserRole } from '@industriallink/contracts';
 import { CompanyService } from './company.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 
@@ -158,9 +158,14 @@ describe('CompanyService', () => {
           create,
         },
         user: {
-          findUnique: jest
-            .fn()
-            .mockResolvedValue({ id: 'u2', email: 'new@abc.com', displayName: 'Nguyễn B', isDeleted: false }),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'u2',
+            email: 'new@abc.com',
+            displayName: 'Nguyễn B',
+            isDeleted: false,
+            tenantId: owner.tenantId,
+            role: UserRole.Recruiter,
+          }),
         },
       };
       const service = buildService(prisma);
@@ -189,7 +194,13 @@ describe('CompanyService', () => {
             .mockResolvedValueOnce({ id: 'already-member' }),
         },
         user: {
-          findUnique: jest.fn().mockResolvedValue({ id: 'u3', email: 'x@abc.com', isDeleted: false }),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'u3',
+            email: 'x@abc.com',
+            isDeleted: false,
+            tenantId: owner.tenantId,
+            role: UserRole.Recruiter,
+          }),
         },
       };
       const service = buildService(prisma);
