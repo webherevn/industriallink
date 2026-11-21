@@ -26,7 +26,7 @@ export class CreditLotExpiryService {
 
     // 1) Đánh dấu lô hết hạn là đã tiêu hết (consumed = granted) → không còn khả dụng.
     const expired = await this.prisma.billingCreditLot.findMany({
-      where: { expiresAt: { not: null, lt: now }, consumed: { lt: 0 } },
+      where: { expiresAt: { not: null, lt: now } },
       select: { id: true, granted: true, consumed: true, companyId: true, accountId: true },
       take: 1000,
     });
@@ -69,14 +69,15 @@ export class CreditLotExpiryService {
     });
     if (!account) return false;
 
+    const totalLotsCount = await this.prisma.billingCreditLot.count({ where: { companyId } });
+    if (totalLotsCount === 0) return false;
+
     const agg = await this.prisma.billingCreditLot.aggregate({
       where: { companyId, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
       _sum: { granted: true, consumed: true },
     });
     const grantedTotal = Number(agg._sum.granted ?? 0);
-    if (!grantedTotal) return false;
-
-    const available = grantedTotal - Number(agg._sum.consumed ?? 0);
+    const available = Math.max(0, grantedTotal - Number(agg._sum.consumed ?? 0));
     if (available === account.balance) return false;
 
     await this.prisma.billingCreditAccount.update({

@@ -75,11 +75,53 @@ export class InterviewService {
         },
       });
       if (!application) {
-        const job = await this.prisma.job.findFirst({
-          where: { id: dto.jobId, companyId: company.companyId, isDeleted: false },
-          select: { id: true },
-        });
+        const [job, candidate] = await Promise.all([
+          this.prisma.job.findFirst({
+            where: { id: dto.jobId, companyId: company.companyId, isDeleted: false },
+            select: { id: true },
+          }),
+          this.prisma.candidate.findFirst({
+            where: { id: dto.candidateId, tenantId: user.tenantId, isDeleted: false },
+            select: { id: true },
+          }),
+        ]);
         if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng');
+        if (!candidate) throw new NotFoundException('Không tìm thấy ứng viên');
+
+        const [unlockedTx, acceptedConn, appliedAny] = await Promise.all([
+          this.prisma.billingCreditTransaction.findFirst({
+            where: {
+              companyId: company.companyId,
+              candidateId: dto.candidateId,
+              action: {
+                in: ['view_profile', 'view_profile_high_match', 'view_applicant', 'reopen_profile'],
+              },
+            },
+            select: { id: true },
+          }),
+          this.prisma.candidateConnection.findFirst({
+            where: {
+              companyId: company.companyId,
+              candidateId: dto.candidateId,
+              status: 'accepted',
+            },
+            select: { id: true },
+          }),
+          this.prisma.application.findFirst({
+            where: {
+              candidateId: dto.candidateId,
+              isDeleted: false,
+              job: { companyId: company.companyId, isDeleted: false },
+            },
+            select: { id: true },
+          }),
+        ]);
+        if (!unlockedTx && !acceptedConn && !appliedAny) {
+          throw new ForbiddenException(
+            'Vui lòng mở khóa hồ sơ ứng viên trước khi đặt lịch phỏng vấn',
+          );
+        }
+
         const appCode = await this.codeGen.next('APP');
         application = await this.prisma.application.create({
           data: {

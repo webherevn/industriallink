@@ -48,9 +48,15 @@ export class BillingMockPaymentController {
   @Post(':orderId/fail')
   @ApiOperation({ summary: '[Mock] Đánh dấu đơn thanh toán thất bại' })
   async mockFail(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('orderId') orderId: string,
     @Body() body: { reason?: string },
   ): Promise<BillingOrderView> {
+    const { companyId } = await this.companies.requireUserCompany(user.id);
+    const order = await this.payment.getOrder(orderId).catch(() => null);
+    if (order && order.companyId !== companyId) {
+      throw new BadRequestException('Order không thuộc công ty của bạn');
+    }
     return this.payment.handleMockFailure(orderId, body?.reason || 'User cancelled');
   }
 }

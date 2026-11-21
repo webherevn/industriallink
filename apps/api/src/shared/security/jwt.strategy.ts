@@ -27,7 +27,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   /** Giá trị trả về được Passport gắn vào request.user. */
-  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+  async validate(payload: JwtPayload & { purpose?: string }): Promise<AuthenticatedUser> {
+    if (payload.purpose || !payload.sub || !payload.role || !payload.email) {
+      throw new UnauthorizedException('Token không hợp lệ');
+    }
     if (await this.isBlocked(payload.sub)) {
       throw new UnauthorizedException('Tài khoản đã bị khoá hoặc không còn tồn tại');
     }

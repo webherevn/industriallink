@@ -37,6 +37,7 @@ import { vietnamPeriodMonth } from './commission-period';
 @ApiTags('CRM - Chính sách hoa hồng CTV')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SuperAdmin, UserRole.Sales, UserRole.SalesManager)
 @Controller('crm/commission-policy')
 export class CrmCommissionPolicyController {
   constructor(
@@ -67,6 +68,7 @@ export class CrmCommissionPolicyController {
   }
 
   @Get('statements')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
   @ApiOperation({ summary: 'Kỳ đối soát tháng theo CTV. Không chi tiền.' })
   async statements(
     @CurrentUser() user: AuthenticatedUser,
@@ -78,6 +80,7 @@ export class CrmCommissionPolicyController {
   }
 
   @Get('statements/:id/items')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
   @ApiOperation({ summary: 'Chi tiết giao dịch hợp lệ trong kỳ đối soát.' })
   items(@Param('id') id: string): Promise<CtvCommissionItemView[]> {
     return this.policy.itemsForStatement(id);
@@ -100,6 +103,7 @@ export class CrmCommissionPolicyController {
   }
 
   @Get('tier/:ctvId')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
   @ApiOperation({ summary: 'Bậc tháng hiện tại + thanh tiến độ lên hạng của CTV.' })
   tier(
     @CurrentUser() user: AuthenticatedUser,
@@ -112,6 +116,14 @@ export class CrmCommissionPolicyController {
   }
 
   @Get('public')
+  @Roles(
+    UserRole.SuperAdmin,
+    UserRole.Sales,
+    UserRole.SalesManager,
+    UserRole.Recruiter,
+    UserRole.CompanyAdmin,
+    UserRole.HiringManager,
+  )
   @ApiOperation({ summary: 'Chính sách public cho Cổng CTV (read-only).' })
   publicPolicy(): Promise<CtvCommissionPolicyPublicView | null> {
     return this.policy.publicPolicy();

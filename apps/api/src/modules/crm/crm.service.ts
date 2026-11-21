@@ -1223,11 +1223,10 @@ export class CrmService {
 
       if (!item) return;
 
-      // Dòng ledger cũ (CrmCommissionEntry) giữ để các báo cáo hiện có tiếp tục chạy.
-      // Tỷ lệ ở đây là bậc tháng đã áp dụng cho toàn bộ doanh thu tháng.
-      const tier = await this.commissionPolicy.monthlyTier(partner.id, item.yearMonth);
-      const percent = tier.appliedRatePercent ?? 0;
-      const amount = commissionVnd(BigInt(item.eligibleRevenueVnd), percent);
+      // Dòng ledger cũ (CrmCommissionEntry) giữ để các báo cáo & luồng chi trả hiện có đồng bộ 100%.
+      // Lấy trực tiếp tỷ lệ & số tiền đã tính lại trong cùng transaction (không đọc ngoài tx).
+      const percent = item.appliedRatePercent;
+      const amount = BigInt(item.commissionAmountVnd);
       if (amount <= 0n) return;
 
       const entry = await tx.crmCommissionEntry.create({
@@ -1291,11 +1290,22 @@ export class CrmService {
       yearMonth,
     });
 
-    // Dòng ledger cũ (CrmCommissionEntry) cũng phải bị loại khỏi kỳ chờ đối soát.
-    await tx.crmCommissionEntry.updateMany({
+    // Dòng ledger cũ (CrmCommissionEntry) cũng phải bị loại khỏi kỳ chờ đối soát & hoàn ví.
+    const legacyEntries = await tx.crmCommissionEntry.findMany({
       where: { billingOrderId: order.id, status: 'pending_reconcile' },
-      data: { status: 'voided' },
+      select: { id: true },
     });
+    if (legacyEntries.length > 0) {
+      const entryIds = legacyEntries.map((e) => e.id);
+      await tx.crmCommissionEntry.updateMany({
+        where: { id: { in: entryIds } },
+        data: { status: 'voided' },
+      });
+      await tx.crmCommissionWalletTxn.updateMany({
+        where: { commissionEntryId: { in: entryIds }, kind: 'credit' },
+        data: { amountVnd: 0n },
+      });
+    }
   }
 
   /**
@@ -3953,7 +3963,7 @@ export class CrmService {
   private async ensureWalletCredits(partnerIds: string[]): Promise<void> {
     if (partnerIds.length === 0) return;
     const missing = await this.prisma.crmCommissionEntry.findMany({
-      where: { partnerId: { in: partnerIds }, walletTxn: { is: null } },
+      where: { partnerId: { in: partnerIds }, status: { not: 'voided' }, walletTxn: { is: null } },
       select: { id: true, partnerId: true, commissionVnd: true },
     });
     for (const entry of missing) {

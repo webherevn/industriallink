@@ -452,6 +452,11 @@ export class PaymentService {
   ): Promise<BillingOrderView> {
     const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order không tồn tại');
+    const settings = await this.row();
+    const mode = (settings?.mode as PaymentMode) ?? 'mock';
+    if (order.provider !== 'stripe-mock' || (mode !== 'mock' && order.priceVndSnapshot > 0n)) {
+      throw new BadRequestException('Thanh toán giả lập không khả dụng ở chế độ hiện tại.');
+    }
     if (order.status !== 'pending') {
       throw new BadRequestException(`Order đã ở trạng thái ${order.status}, không thể thay đổi.`);
     }
@@ -474,6 +479,11 @@ export class PaymentService {
   async handleMockFailure(orderId: string, reason: string): Promise<BillingOrderView> {
     const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order không tồn tại');
+    const settings = await this.row();
+    const mode = (settings?.mode as PaymentMode) ?? 'mock';
+    if (order.provider !== 'stripe-mock' || (mode !== 'mock' && order.priceVndSnapshot > 0n)) {
+      throw new BadRequestException('Thanh toán giả lập không khả dụng ở chế độ hiện tại.');
+    }
     if (order.status !== 'pending') {
       throw new BadRequestException(`Order đã ở trạng thái ${order.status}.`);
     }
@@ -606,23 +616,14 @@ export class PaymentService {
       return { ok: true, message: 'Order marked refunded' };
     }
 
-    // Event khác: ghi log rồi bỏ qua
-    await this.prisma.billingPayment.create({
-      data: {
-        orderId: '00000000-0000-0000-0000-000000000000',
-        providerEventId: event.id,
-        eventType: event.type,
-        status: 'ignored',
-        rawPayload: event.data.object as unknown as Prisma.InputJsonValue,
-        errorMessage: 'Event type chưa được hỗ trợ',
-      },
-    });
+    // Event khác: bỏ qua (không insert billing_payment với orderId giả vì vi phạm FK)
+    this.logger.debug(`Bỏ qua Stripe webhook event chưa hỗ trợ: ${event.type} (${event.id})`);
     return { ok: true, message: `Bỏ qua event type ${event.type}` };
   }
 
   /**
-   * Gán gói (nếu là đơn gói) rồi đánh dấu đã thanh toán.
-   * Chỉ đơn Top-up mới cộng credit. Gán trước khi đổi trạng thái để lần bấm lại vẫn chạy được nếu gán lỗi.
+   * Đánh dấu đã thanh toán một cách atomic (chống race condition cấp trùng),
+   * sau đó gán gói và cộng Credit / ghi hoa hồng.
    */
   private async markPaidAndGrant(
     order: {
@@ -639,9 +640,19 @@ export class PaymentService {
     eventId: string,
     extra: { mock: boolean; paymentIntent?: string | null; outcome?: string },
   ): Promise<BillingOrderView> {
+    const paidAt = new Date();
+    // Khóa atomic: chỉ đúng 1 request chuyển được từ pending → paid
+    const claimed = await this.prisma.billingOrder.updateMany({
+      where: { id: order.id, status: 'pending' },
+      data: {
+        status: 'paid',
+        paidAt,
+        providerPaymentIntent: extra.paymentIntent ?? null,
+      },
+    });
     const fresh = await this.prisma.billingOrder.findUnique({ where: { id: order.id } });
     if (!fresh) throw new NotFoundException('Order không tồn tại');
-    if (fresh.status !== 'pending') return this.mapOrder(fresh);
+    if (claimed.count !== 1) return this.mapOrder(fresh);
 
     const kind = fresh.kind === 'platform' || fresh.kind === 'sourcing' ? fresh.kind : 'topup';
     const planCode = fresh.planCode;
@@ -650,13 +661,22 @@ export class PaymentService {
     // lúc đó mới cấp Credit + mở lượt đăng (không ghi đè các gói khác đang chạy).
     const isOneOffJobPackage =
       kind === 'platform' && planCode ? this.jobPackages.isOneOffPlan(planCode) : false;
-    if ((kind === 'platform' || kind === 'sourcing') && planCode && !isOneOffJobPackage) {
-      const actor = this.actorFromOrder(fresh);
-      if (kind === 'platform') {
-        await this.billing.activatePurchasedPlan(actor, fresh.companyId, planCode);
-      } else {
-        await this.sourcing.activatePurchasedPlan(actor, fresh.companyId, planCode);
+    try {
+      if ((kind === 'platform' || kind === 'sourcing') && planCode && !isOneOffJobPackage) {
+        const actor = this.actorFromOrder(fresh);
+        if (kind === 'platform') {
+          await this.billing.activatePurchasedPlan(actor, fresh.companyId, planCode);
+        } else {
+          await this.sourcing.activatePurchasedPlan(actor, fresh.companyId, planCode);
+        }
       }
+    } catch (err) {
+      // Hoàn tác trạng thái về pending nếu gán gói thất bại để lần thử lại chạy được.
+      await this.prisma.billingOrder.update({
+        where: { id: order.id },
+        data: { status: 'pending', paidAt: null },
+      });
+      throw err;
     }
 
     // Gói tin đăng multi-active: mỗi đơn gói nền tảng đã trả = 1 gói độc lập.
@@ -683,14 +703,7 @@ export class PaymentService {
     }
 
     const paid = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.billingOrder.update({
-        where: { id: order.id },
-        data: {
-          status: 'paid',
-          paidAt: new Date(),
-          providerPaymentIntent: extra.paymentIntent ?? null,
-        },
-      });
+      const updated = fresh;
 
       if (kind === 'topup' && order.creditCountSnapshot > 0) {
         const account = await tx.billingCreditAccount.upsert({

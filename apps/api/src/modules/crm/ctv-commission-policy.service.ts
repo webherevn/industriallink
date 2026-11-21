@@ -470,7 +470,12 @@ export class CtvCommissionPolicyService {
       },
     });
 
-    await this.recalculateCtvMonth(tx, input.ctvId, yearMonth);
+    const { appliedRatePercent, itemCommissions } = await this.recalculateCtvMonth(
+      tx,
+      input.ctvId,
+      yearMonth,
+    );
+    const finalCommission = itemCommissions.get(item.id) ?? item.commissionAmount;
 
     return {
       id: item.id,
@@ -486,8 +491,8 @@ export class CtvCommissionPolicyService {
       vatAmountVnd: item.vatAmount.toString(),
       discountAmountVnd: item.discountAmount.toString(),
       eligibleRevenueVnd: item.eligibleRevenue.toString(),
-      appliedRatePercent: item.appliedRatePercent,
-      commissionAmountVnd: item.commissionAmount.toString(),
+      appliedRatePercent,
+      commissionAmountVnd: finalCommission.toString(),
       status: 'RECORDED',
       yearMonth: item.yearMonth,
       paidAt: item.paidAt.toISOString(),
@@ -527,13 +532,16 @@ export class CtvCommissionPolicyService {
     tx: Db,
     ctvId: string,
     yearMonth: string,
-  ): Promise<void> {
+  ): Promise<{ appliedRatePercent: number; itemCommissions: Map<string, bigint> }> {
+    const itemCommissions = new Map<string, bigint>();
     const statement = await tx.ctvMonthlyStatement.findUnique({
       where: { ctvId_yearMonth: { ctvId, yearMonth } },
       include: { policy: { include: { tiers: { orderBy: { sortOrder: 'asc' } } } } },
     });
-    if (!statement) return;
-    if (statement.status !== 'OPEN') return;
+    if (!statement) return { appliedRatePercent: 0, itemCommissions };
+    if (statement.status !== 'OPEN') {
+      return { appliedRatePercent: statement.appliedRatePercent ?? 0, itemCommissions };
+    }
 
     const items = await tx.ctvCommissionItem.findMany({
       where: { ctvId, yearMonth, status: 'RECORDED' },
@@ -547,11 +555,32 @@ export class CtvCommissionPolicyService {
     // Bậc đạt được áp dụng cho TOÀN BỘ doanh thu hợp lệ trong tháng.
     for (const item of items) {
       const amount = tierCommissionVnd(item.eligibleRevenue, rate);
+      itemCommissions.set(item.id, amount);
       if (item.appliedRatePercent !== rate || item.commissionAmount !== amount) {
         await tx.ctvCommissionItem.update({
           where: { id: item.id },
           data: { appliedRatePercent: rate, commissionAmount: amount },
         });
+      }
+      // Đồng bộ bảng ledger/ví cũ đang chờ đối soát để luồng chốt & chi trả không bị lệch bậc.
+      if (tx.crmCommissionEntry && tx.crmCommissionWalletTxn) {
+        const legacyEntry = await tx.crmCommissionEntry.findFirst({
+          where: { billingOrderId: item.billingOrderId, status: 'pending_reconcile' },
+          select: { id: true, percent: true, commissionVnd: true },
+        });
+        if (
+          legacyEntry &&
+          (legacyEntry.percent !== rate || legacyEntry.commissionVnd !== amount)
+        ) {
+          await tx.crmCommissionEntry.update({
+            where: { id: legacyEntry.id },
+            data: { percent: rate, commissionVnd: amount },
+          });
+          await tx.crmCommissionWalletTxn.updateMany({
+            where: { commissionEntryId: legacyEntry.id, kind: 'credit' },
+            data: { amountVnd: amount },
+          });
+        }
       }
     }
 
@@ -568,6 +597,7 @@ export class CtvCommissionPolicyService {
         finalCommission: gross + statement.adjustmentAmount,
       },
     });
+    return { appliedRatePercent: rate, itemCommissions };
   }
 
   /**

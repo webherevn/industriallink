@@ -283,6 +283,9 @@ export class AdminUsersService {
     return this.prisma.$transaction(
       async (tx) => {
         // 1. Dữ liệu giao dịch CRM
+        await tx.ctvCommissionItem.deleteMany({});
+        await tx.ctvMonthlyStatement.deleteMany({});
+        await tx.crmPartnerKyc.deleteMany({});
         await tx.crmCommissionWalletTxn.deleteMany({});
         await tx.crmCommissionWallet.deleteMany({});
         await tx.crmCommissionEntry.deleteMany({});
@@ -295,6 +298,10 @@ export class AdminUsersService {
         const deletedLeads = await tx.crmLead.deleteMany({});
         await tx.crmPartnerClaim.deleteMany({});
         await tx.crmReferralSignup.deleteMany({});
+        await tx.company.updateMany({
+          where: { referredByCtvId: { not: null } },
+          data: { referredByCtvId: null, attributedAt: null, attributionSource: null },
+        });
         await tx.crmPartner.deleteMany({});
         await tx.crmMarketingCost.deleteMany({});
         await tx.crmCampaign.deleteMany({});
@@ -306,8 +313,10 @@ export class AdminUsersService {
         await tx.huntCampaignActivity.deleteMany({});
         await tx.huntCampaign.deleteMany({});
         await tx.billingHuntPackage.deleteMany({});
+        await tx.billingJobPackage.deleteMany({});
         await tx.billingCompanySourcingPlan.deleteMany({});
         await tx.billingCompanyPlan.deleteMany({});
+        await tx.billingCreditLot.deleteMany({});
         await tx.billingCreditTransaction.deleteMany({});
         await tx.billingCreditAccount.deleteMany({});
         await tx.billingPayment.deleteMany({});

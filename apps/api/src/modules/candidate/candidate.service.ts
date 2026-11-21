@@ -635,22 +635,9 @@ export class CandidateService {
 
     const applied = await this.hasAppliedToCompany(companyId, candidateId);
 
-    // ⭐ QUYỀN XEM LIÊN HỆ ĐẦY ĐỦ — tái sử dụng cơ chế mở khóa hiện có.
-    //   - Đã mở khóa bằng Credit (mở hồ sơ 1 lần/công ty) → xem đầy đủ.
-    //   - Ứng viên đã tự ứng tuyển vào tin của công ty → xem đầy đủ.
-    //   - Ứng viên đã chấp nhận kết nối → xem đầy đủ.
-    // KHÔNG chờ ứng viên đồng ý kết nối để lấy email/SĐT.
-    const unlockedByCredit = await this.credit.isProfileUnlockedByCompany(companyId, candidateId);
-    const canViewFullContact = unlockedByCredit || applied || connectionAccepted;
-
-    if (!canViewFullContact && view.profile) {
-      view.profile = { ...view.profile, phone: null };
-    }
-
     const resolvedMatchScore = await this.resolveRecruiterMatchScore(
       companyId,
       candidate,
-      matchScore,
     );
     await this.assertStarterCanOpenProfile(companyId, applied);
     await this.chargeProfileView({
@@ -661,9 +648,20 @@ export class CandidateService {
       actorEmail: user.email ?? undefined,
       applied,
       fromSourcing: source === 'sourcing',
-      matchScore: resolvedMatchScore != null ? String(resolvedMatchScore) : matchScore,
+      matchScore: resolvedMatchScore != null ? String(resolvedMatchScore) : undefined,
       campaignId: campaignId ?? null,
     });
+
+    // ⭐ QUYỀN XEM LIÊN HỆ ĐẦY ĐỦ — kiểm tra SAU KHI chargeProfileView đã ghi nhận mở khóa.
+    //   - Đã mở khóa bằng Credit (mở hồ sơ 1 lần/công ty) → xem đầy đủ ngay lần đầu.
+    //   - Ứng viên đã tự ứng tuyển vào tin của công ty → xem đầy đủ.
+    //   - Ứng viên đã chấp nhận kết nối → xem đầy đủ.
+    const unlockedByCredit = await this.credit.isProfileUnlockedByCompany(companyId, candidateId);
+    const canViewFullContact = unlockedByCredit || applied || connectionAccepted;
+
+    if (!canViewFullContact && view.profile) {
+      view.profile = { ...view.profile, phone: null };
+    }
 
     return {
       ...view,
@@ -1782,15 +1780,8 @@ export class CandidateService {
       skills: { name: string }[];
       experiences?: Parameters<typeof toB2bCandidateFromRecords>[0]['experiences'];
     },
-    rawQueryScore?: string,
   ): Promise<number | null> {
-    if (rawQueryScore !== undefined && rawQueryScore !== null && rawQueryScore.trim() !== '') {
-      const str = rawQueryScore.trim();
-      const n = Number(str);
-      if (Number.isFinite(n) && n >= 0) {
-        return Math.round(Math.max(0, Math.min(100, n)) * 10) / 10;
-      }
-    }
+    // Luôn tính điểm khớp từ phía server (không tin matchScore từ query client để tránh lách giá Credit).
 
     const appliedRows = await this.prisma.application.findMany({
       where: {
