@@ -88,9 +88,15 @@ export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
                 className="home-reasons-item mx-auto w-full max-w-[240px] text-center sm:max-w-none"
                 style={{ animationDelay: `${120 + index * 90}ms` }}
               >
-                <span className="home-reasons-bubble mx-auto flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-full bg-[#1e4e8c] text-white shadow-[0_10px_18px_-14px_rgba(18,49,92,0.9)]">
+                <span
+                  className={
+                    image
+                      ? 'home-reasons-bubble home-reasons-bubble--custom mx-auto flex h-[84px] w-[84px] items-center justify-center bg-transparent p-1.5'
+                      : 'home-reasons-bubble mx-auto flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-full bg-[#1e4e8c] text-white shadow-[0_10px_18px_-14px_rgba(18,49,92,0.9)]'
+                  }
+                >
                   {image ? (
-                    <img src={image} alt="" className="home-reasons-glyph h-full w-full object-cover" />
+                    <img src={image} alt="" className="home-reasons-glyph h-full w-full object-contain" />
                   ) : (
                     <span className="home-reasons-glyph inline-flex" style={{ animationDelay: `${index * 0.35}s` }}>
                       <ReasonGlyph icon={item.icon} />

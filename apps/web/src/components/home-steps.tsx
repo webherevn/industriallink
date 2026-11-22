@@ -87,9 +87,15 @@ export function HomeSteps({ steps }: { steps: HomepageStepsContent }) {
                   </span>
                 ) : null}
                 <span className="relative mx-auto inline-flex">
-                  <span className="home-steps-bubble flex h-[92px] w-[92px] items-center justify-center overflow-hidden rounded-full bg-[#eef3f8] text-[#1e4e8c] shadow-[0_10px_22px_-16px_rgba(18,49,92,0.65)]">
+                  <span
+                    className={
+                      image
+                        ? 'home-steps-bubble home-steps-bubble--custom flex h-[92px] w-[92px] items-center justify-center bg-transparent p-2.5'
+                        : 'home-steps-bubble flex h-[92px] w-[92px] items-center justify-center overflow-hidden rounded-full bg-[#eef3f8] text-[#1e4e8c] shadow-[0_10px_22px_-16px_rgba(18,49,92,0.65)]'
+                    }
+                  >
                     {image ? (
-                      <img src={image} alt="" className="home-reasons-glyph h-full w-full object-cover" />
+                      <img src={image} alt="" className="home-reasons-glyph h-full w-full object-contain" />
                     ) : (
                       <span className="home-reasons-glyph inline-flex" style={{ animationDelay: `${index * 0.4}s` }}>
                         <StepGlyph icon={item.icon} />

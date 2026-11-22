@@ -1283,6 +1283,10 @@ form.crm-surface:hover {
   background-color: #163e74;
   box-shadow: 0 18px 28px -14px rgba(18, 49, 92, 0.85);
 }
+.home-reasons-item:hover .home-reasons-bubble--custom {
+  background-color: transparent;
+  box-shadow: none;
+}
 .home-steps-bubble {
   transition:
     transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
@@ -1293,6 +1297,10 @@ form.crm-surface:hover {
   transform: translateY(-6px) scale(1.04);
   background-color: #e3edf8;
   box-shadow: 0 18px 30px -16px rgba(18, 49, 92, 0.7);
+}
+.home-reasons-item:hover .home-steps-bubble--custom {
+  background-color: transparent;
+  box-shadow: none;
 }
 .home-step-arrow {
   animation: home-arrow-nudge 2.4s ease-in-out infinite;
