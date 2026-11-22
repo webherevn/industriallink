@@ -128,6 +128,16 @@ export class BillingRecruiterController {
     return this.sourcing.consume(user, companyId, dto);
   }
 
+  @Post('sourcing/campaigns/:campaignId/close')
+  @ApiOperation({ summary: 'Kết thúc sớm chiến dịch Tin săn đang chạy (đóng tin, ngừng quét AI, giữ lịch sử)' })
+  async closeSourcingCampaign(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('campaignId') campaignId: string,
+  ): Promise<RecruiterSourcingWorkspace> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.sourcing.closeCampaign(user, companyId, campaignId);
+  }
+
   @Get('credits/balance')
   @ApiOperation({ summary: 'Số dư Credit của công ty user' })
   async getBalance(@CurrentUser() user: AuthenticatedUser): Promise<RecruiterCreditBalanceResponse> {

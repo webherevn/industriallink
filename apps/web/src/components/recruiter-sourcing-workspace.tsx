@@ -70,6 +70,7 @@ import {
 } from '@/lib/match-percent';
 import { sourcingCandidatesForJob } from '@/lib/matching';
 import {
+  closeRecruiterSourcingCampaign,
   consumeRecruiterSourcing,
   fetchRecruiterEntitlements,
   fetchRecruiterSourcing,
@@ -217,6 +218,8 @@ export function RecruiterSourcingWorkspace({
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
   const [viewCriteriaModalOpen, setViewCriteriaModalOpen] = useState(false);
+  const [closeCampaignModalOpen, setCloseCampaignModalOpen] = useState(false);
+  const [closeCampaignError, setCloseCampaignError] = useState<string | null>(null);
   const [drawerCandidate, setDrawerCandidate] = useState<CandidateMatchView | null>(null);
   const [drawerSection, setDrawerSection] = useState<SourcingDrawerSection>('overview');
   const [historyPage, setHistoryPage] = useState(1);
@@ -308,6 +311,27 @@ export function RecruiterSourcingWorkspace({
         return;
       }
       setBanner({ tone: 'err', text: message });
+    },
+  });
+
+  const closeCampaignMutation = useMutation({
+    mutationFn: (id: string) => closeRecruiterSourcingCampaign(id),
+    onSuccess: (ws) => {
+      setCloseCampaignError(null);
+      setCloseCampaignModalOpen(false);
+      void qc.setQueryData(['recruiter-sourcing'], ws);
+      void qc.invalidateQueries({ queryKey: ['recruiter-billing-entitlements'] });
+      void qc.invalidateQueries({ queryKey: ['recruiter-billing-overview'] });
+      void qc.invalidateQueries({ queryKey: ['my-jobs'] });
+      setBanner({
+        tone: 'ok',
+        text: 'Đã kết thúc chiến dịch Tin săn, ngừng quét AI tự động và đóng tin tuyển dụng. Lịch sử ứng viên & Credit đã cấp vẫn được giữ nguyên.',
+      });
+    },
+    onError: (err) => {
+      setCloseCampaignError(
+        err instanceof ApiError ? err.message : 'Không thể kết thúc chiến dịch lúc này',
+      );
     },
   });
 
@@ -779,6 +803,19 @@ export function RecruiterSourcingWorkspace({
                     <FileSearch className="h-4 w-4 stroke-[2.5]" />
                     Báo cáo chiến dịch
                   </button>
+                  {!ended ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCloseCampaignError(null);
+                        setCloseCampaignModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                      Kết thúc chiến dịch
+                    </button>
+                  ) : null}
                 </>
               ) : hasPlan ? (
                 <button
@@ -1122,6 +1159,97 @@ export function RecruiterSourcingWorkspace({
           </>
         )}
       </div>
+
+      {/* POPUP XÁC NHẬN KẾT THÚC CHIẾN DỊCH TIN SĂN */}
+      {closeCampaignModalOpen && selectedCampaign ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-xs sm:p-5">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-rose-600">
+                  Xác nhận kết thúc chiến dịch
+                </p>
+                <h3 className="mt-0.5 text-lg font-bold text-[#072348]">
+                  Kết thúc chiến dịch «{formatJobTitle(selectedCampaign.title)}»?
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={closeCampaignMutation.isPending}
+                onClick={() => setCloseCampaignModalOpen(false)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 px-5 py-4 text-xs leading-relaxed text-slate-600 sm:px-6">
+              <p className="text-sm text-slate-700">
+                Hành động này phù hợp khi doanh nghiệp đã tuyển đủ hoặc muốn dừng săn cho vị trí này:
+              </p>
+              <ul className="space-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 text-slate-700">
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8872A]" />
+                  <span>
+                    <strong>Ngừng ngay</strong> quét AI tự động 2h/lần và ngừng gửi email thông báo ứng viên mới.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8872A]" />
+                  <span>
+                    <strong>Đóng tin tuyển dụng</strong> khỏi trang ứng viên để ứng viên không nộp hồ sơ thêm.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8872A]" />
+                  <span>
+                    Gói Tin săn chuyển sang <strong>Đã hoàn thành</strong> — không hoàn gói và không kích hoạt lại cho vị trí khác;{' '}
+                    <strong>Credit đã cộng vào Ví vẫn giữ nguyên</strong>.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600" />
+                  <span>
+                    <strong>Giữ nguyên 100% lịch sử</strong> ứng viên đã mở hồ sơ, Shortlist, lịch PV/Offer và báo cáo tiến độ.
+                  </span>
+                </li>
+              </ul>
+
+              {closeCampaignError ? (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{closeCampaignError}</span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+              <button
+                type="button"
+                disabled={closeCampaignMutation.isPending}
+                onClick={() => setCloseCampaignModalOpen(false)}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Giữ chiến dịch chạy
+              </button>
+              <button
+                type="button"
+                disabled={closeCampaignMutation.isPending}
+                onClick={() => closeCampaignMutation.mutate(selectedCampaign.id)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow-xs transition hover:bg-rose-700 disabled:opacity-60"
+              >
+                {closeCampaignMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Xác nhận kết thúc chiến dịch
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* POPUP + TẠO TIN SĂN (ALL-IN-ONE) */}
       {createModalOpen && hasPlan ? (

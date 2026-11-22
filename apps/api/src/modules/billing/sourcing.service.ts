@@ -1091,6 +1091,95 @@ export class SourcingService {
   }
 
   /**
+   * Kết thúc sớm chiến dịch Tin săn đang chạy (chuẩn Close / Mark as Filled):
+   *  1) Chuyển chiến dịch sang `closed` → ngừng cron quét AI 2h/lần & ngừng email báo ứng viên mới.
+   *  2) Chuyển gói Săn sang `COMPLETED` → không hoàn gói, không kích hoạt lại cho tin khác;
+   *     Credit đã cộng vào Ví dùng chung vẫn giữ nguyên.
+   *  3) Đóng tin tuyển dụng gắn với chiến dịch (`job.status = 'closed'`).
+   *  4) Giữ nguyên 100% lịch sử ứng viên đã mở khóa, Shortlist, báo cáo và quy trình PV/Offer.
+   */
+  async closeCampaign(
+    actor: AuthenticatedUser,
+    companyId: string,
+    campaignId: string,
+  ): Promise<RecruiterSourcingWorkspace> {
+    if (!looksLikeUuid(campaignId)) {
+      throw new BadRequestException('Mã chiến dịch không hợp lệ.');
+    }
+
+    const campaign = await this.prisma.huntCampaign.findFirst({
+      where: { id: campaignId, companyId },
+      include: { package: true },
+    });
+    if (!campaign) {
+      throw new NotFoundException('Không tìm thấy chiến dịch Săn nhân sự.');
+    }
+
+    if (campaign.status === 'closed' && campaign.package.status !== 'ACTIVE') {
+      return this.getWorkspace(companyId);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.huntCampaign.update({
+        where: { id: campaign.id },
+        data: { status: 'closed', updatedBy: actor.id },
+      });
+
+      if (campaign.package.status === 'ACTIVE') {
+        await tx.billingHuntPackage.update({
+          where: { id: campaign.huntPackageId },
+          data: { status: 'COMPLETED' },
+        });
+      }
+
+      if (campaign.jobId) {
+        await tx.job.updateMany({
+          where: {
+            id: campaign.jobId,
+            companyId,
+            isDeleted: false,
+            status: { not: 'closed' },
+          },
+          data: {
+            status: 'closed',
+            pausedAt: null,
+            updatedBy: actor.id,
+          },
+        });
+      }
+
+      await tx.billingAuditLog.create({
+        data: {
+          entity: 'hunt_campaign',
+          entityKey: campaign.id,
+          action: 'sourcing.campaign.closed',
+          diff: {
+            before: {
+              campaignStatus: campaign.status,
+              packageStatus: campaign.package.status,
+              jobId: campaign.jobId,
+            },
+            after: {
+              campaignStatus: 'closed',
+              packageStatus:
+                campaign.package.status === 'ACTIVE' ? 'COMPLETED' : campaign.package.status,
+              jobStatus: campaign.jobId ? 'closed' : null,
+            },
+            reason: `NTD kết thúc chiến dịch Săn ${campaign.code} (${campaign.package.code})`,
+          },
+          actorId: looksLikeUuid(actor.id) ? actor.id : null,
+          actorEmail: actor.email ?? null,
+        },
+      });
+    });
+
+    this.logger.log(
+      `NTD ${actor.email} đã kết thúc chiến dịch Săn ${campaign.code} (gói ${campaign.package.code}, company ${companyId}).`,
+    );
+    return this.getWorkspace(companyId);
+  }
+
+  /**
    * (A) "Copy nội dung JD sang Tin săn mới" — TẠO 1 bản ghi `Job` MỚI hoàn toàn.
    *
    * Copy: tiêu đề, mô tả, yêu cầu, lợi ích, lương, địa điểm, kỹ năng, tiêu chí AI,

@@ -124,6 +124,15 @@ export async function consumeRecruiterSourcing(
   });
 }
 
+export async function closeRecruiterSourcingCampaign(
+  campaignId: string,
+): Promise<RecruiterSourcingWorkspace> {
+  return apiRequest<RecruiterSourcingWorkspace>(
+    `/billing/sourcing/campaigns/${encodeURIComponent(campaignId)}/close`,
+    { method: 'POST' },
+  );
+}
+
 export async function createTopupCheckout(
   topupId: string,
 ): Promise<PaymentCheckoutResponse> {
