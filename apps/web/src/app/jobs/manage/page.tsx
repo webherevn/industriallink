@@ -13,6 +13,7 @@ import {
   FileText,
   Info,
   Laptop,
+  Loader2,
   Lock,
   MapPin,
   MoreHorizontal,
@@ -22,6 +23,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Settings,
   Trash2,
@@ -46,8 +48,11 @@ import {
   deleteJob,
   fetchMyJobSourceCounts,
   listMyJobs,
+  listMyTrashedJobs,
   publishJob,
+  restoreJob,
   updateJobStatus,
+  type TrashedJobItem,
 } from '@/lib/jobs';
 import { plainLabel } from '@/lib/plain-label';
 import { apiPublicBase } from '@/lib/public-paths';
@@ -212,6 +217,17 @@ export default function ManageJobsPage() {
       query.state.data?.some(isModerating) ? MODERATION_POLL_MS : false,
   });
 
+  const { data: trashedJobs, isLoading: trashLoading } = useQuery({
+    queryKey: ['my-jobs-trash'],
+    queryFn: () => listMyTrashedJobs(),
+    retry: false,
+  });
+
+  const [trashFeedback, setTrashFeedback] = useState<{
+    tone: 'ok' | 'err';
+    text: string;
+  } | null>(null);
+
   /**
    * (B) Số đếm theo nguồn — tính theo BỘ LỌC HIỆN TẠI (từ khoá, thời gian, trạng thái)
    * để tab "Tin đăng thường / Tin săn" hiển thị đúng số.
@@ -226,16 +242,21 @@ export default function ManageJobsPage() {
     queryKey: ['my-job-source-counts', statusFilter, q, timeCutoff, packageFilterId],
     queryFn: () =>
       fetchMyJobSourceCounts({
-        status: statusFilter,
+        status: statusFilter === 'trash' ? 'all' : statusFilter,
         keyword: q,
         createdAfter: timeCutoff,
         packageId: packageFilterId,
       }),
     retry: false,
+    enabled: statusFilter !== 'trash',
     placeholderData: { all: 0, standard: 0, hunt: 0 },
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
+    void queryClient.invalidateQueries({ queryKey: ['my-jobs-trash'] });
+    void queryClient.invalidateQueries({ queryKey: ['my-job-source-counts'] });
+  };
 
   const publishMutation = useMutation({
     mutationFn: (id: string) => publishJob(id),
@@ -257,11 +278,55 @@ export default function ManageJobsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteJob(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setTrashFeedback({
+        tone: 'ok',
+        text: 'Đã chuyển tin vào Thùng rác (lưu tạm 30 ngày để khôi phục khi cần).',
+      });
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => restoreJob(id),
+    onSuccess: (res) => {
+      invalidate();
+      setTrashFeedback({ tone: 'ok', text: res.message });
+    },
+    onError: (err) => {
+      setTrashFeedback({
+        tone: 'err',
+        text: err instanceof Error ? err.message : 'Không khôi phục được tin tuyển dụng.',
+      });
+    },
   });
 
   const busy =
-    publishMutation.isPending || statusMutation.isPending || deleteMutation.isPending;
+    publishMutation.isPending ||
+    statusMutation.isPending ||
+    deleteMutation.isPending ||
+    restoreMutation.isPending;
+
+  const filteredTrash = useMemo(() => {
+    let list = trashedJobs ?? [];
+    const term = q.trim().toLowerCase();
+    if (term) {
+      list = list.filter(
+        (j) =>
+          j.title.toLowerCase().includes(term) ||
+          j.code.toLowerCase().includes(term) ||
+          (j.location ?? '').toLowerCase().includes(term) ||
+          j.skills.some((s) => s.toLowerCase().includes(term)),
+      );
+    }
+    return [...list].sort((a, b) => {
+      const ta = new Date(a.deletedAt).getTime();
+      const tb = new Date(b.deletedAt).getTime();
+      return sort === 'new' ? tb - ta : ta - tb;
+    });
+  }, [trashedJobs, q, sort]);
+
+  const isTrashTab = statusFilter === 'trash';
 
   const stats = useMemo(() => {
     const list = jobs ?? [];
@@ -429,7 +494,10 @@ export default function ManageJobsPage() {
                 <button
                   key={f.value}
                   type="button"
-                  onClick={() => setStatusFilter(f.value)}
+                  onClick={() => {
+                    setStatusFilter(f.value);
+                    setTrashFeedback(null);
+                  }}
                   className={clsx(
                     'whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
                     active
@@ -441,102 +509,186 @@ export default function ManageJobsPage() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('trash');
+                setTrashFeedback(null);
+              }}
+              className={clsx(
+                'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition',
+                isTrashTab
+                  ? 'bg-[#072348] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+              )}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{`Thùng rác (${trashedJobs?.length ?? 0})`}</span>
+            </button>
           </div>
 
-          {/* Segmented control lọc nguồn tin — nền xám nhạt bọc ngoài, tab active nền trắng */}
-          <div className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-100 p-1">
-            {SOURCE_FILTERS.map((f) => {
-              const active = sourceFilter === f.value;
-              const count =
-                f.value === 'ALL'
-                  ? sourceCounts?.all ?? 0
-                  : f.value === 'STANDARD'
-                    ? sourceCounts?.standard ?? 0
-                    : sourceCounts?.hunt ?? 0;
-              return (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => setSourceFilter(f.value)}
-                  className={clsx(
-                    'whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
-                    active
-                      ? 'bg-white text-[#072348] shadow-sm'
-                      : 'text-slate-600 hover:text-[#072348]',
-                  )}
-                >
-                  {f.label} ({count})
-                </button>
-              );
-            })}
-          </div>
+          {/* Segmented control lọc nguồn tin — ẩn khi đang ở tab Thùng rác */}
+          {!isTrashTab ? (
+            <div className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-100 p-1">
+              {SOURCE_FILTERS.map((f) => {
+                const active = sourceFilter === f.value;
+                const count =
+                  f.value === 'ALL'
+                    ? sourceCounts?.all ?? 0
+                    : f.value === 'STANDARD'
+                      ? sourceCounts?.standard ?? 0
+                      : sourceCounts?.hunt ?? 0;
+                return (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setSourceFilter(f.value)}
+                    className={clsx(
+                      'whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
+                      active
+                        ? 'bg-white text-[#072348] shadow-sm'
+                        : 'text-slate-600 hover:text-[#072348]',
+                    )}
+                  >
+                    {f.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {isError && (
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-600">
-            {error instanceof ApiError && error.status === 403
-              ? 'Bạn cần tạo hồ sơ công ty trước.'
-              : 'Không tải được danh sách tin.'}
-          </p>
-          <Link href="/company">
-            <Button className="mt-4" variant="outline">
-              Tới trang Công ty
-            </Button>
-          </Link>
+      {trashFeedback ? (
+        <div
+          className={clsx(
+            'mt-3.5 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[12.5px] font-medium',
+            trashFeedback.tone === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-700',
+          )}
+        >
+          <span>{trashFeedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setTrashFeedback(null)}
+            className="text-xs font-semibold opacity-70 hover:opacity-100"
+          >
+            Đóng
+          </button>
         </div>
-      )}
+      ) : null}
 
-      {!isLoading && !isError && filtered.length === 0 && (
-        <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
-          <Briefcase className="mx-auto h-10 w-10 text-brand-500" />
-          <p className="mt-3 text-base font-semibold text-slate-800">
-            {jobs?.length === 0 ? 'Chưa có tin tuyển dụng nào' : 'Không có tin khớp bộ lọc'}
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            {jobs?.length === 0
-              ? 'Đăng tin đầu tiên để bắt đầu nhận hồ sơ ứng viên.'
-              : 'Thử đổi trạng thái, khoảng thời gian hoặc xoá từ khoá tìm kiếm.'}
-          </p>
-          {jobs?.length === 0 && (
-            <Link href="/jobs/new" className="mt-4 inline-block">
-              <Button>Đăng tin đầu tiên</Button>
-            </Link>
+      {isTrashTab ? (
+        <div className="mt-4 space-y-3.5">
+          <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 px-3.5 py-2.5 text-xs text-amber-900">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <p className="leading-relaxed">
+              Các tin trong <strong>Thùng rác</strong> được lưu tạm trong <strong>30 ngày</strong> kể từ ngày xoá. Sau 30 ngày tin sẽ tự động hết hạn và không thể khôi phục. Tin sau khi khôi phục sẽ về trạng thái <strong>Đã đóng</strong> (hoặc <strong>Nháp</strong> nếu chưa từng đăng).
+            </p>
+          </div>
+
+          {trashLoading ? (
+            [1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-28 animate-pulse rounded-2xl border border-slate-100 bg-slate-100/80"
+              />
+            ))
+          ) : filteredTrash.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+              <Trash2 className="mx-auto h-10 w-10 text-slate-300" />
+              <p className="mt-3 text-base font-semibold text-slate-800">
+                {(trashedJobs?.length ?? 0) === 0
+                  ? 'Thùng rác đang trống'
+                  : 'Không có tin nào trong thùng rác khớp từ khoá'}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {(trashedJobs?.length ?? 0) === 0
+                  ? 'Các tin bạn xoá sẽ được lưu tạm tại đây 30 ngày để khôi phục khi cần.'
+                  : 'Thử xoá hoặc thay đổi từ khoá tìm kiếm.'}
+              </p>
+            </div>
+          ) : (
+            filteredTrash.map((job) => (
+              <TrashedJobCard
+                key={job.id}
+                job={job}
+                restoring={restoreMutation.isPending && restoreMutation.variables === job.id}
+                disabled={busy}
+                onRestore={() => restoreMutation.mutate(job.id)}
+              />
+            ))
           )}
         </div>
+      ) : (
+        <>
+          {isError && (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-8 text-center">
+              <p className="text-slate-600">
+                {error instanceof ApiError && error.status === 403
+                  ? 'Bạn cần tạo hồ sơ công ty trước.'
+                  : 'Không tải được danh sách tin.'}
+              </p>
+              <Link href="/company">
+                <Button className="mt-4" variant="outline">
+                  Tới trang Công ty
+                </Button>
+              </Link>
+            </div>
+          )}
+
+          {!isLoading && !isError && filtered.length === 0 && (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+              <Briefcase className="mx-auto h-10 w-10 text-brand-500" />
+              <p className="mt-3 text-base font-semibold text-slate-800">
+                {jobs?.length === 0 ? 'Chưa có tin tuyển dụng nào' : 'Không có tin khớp bộ lọc'}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {jobs?.length === 0
+                  ? 'Đăng tin đầu tiên để bắt đầu nhận hồ sơ ứng viên.'
+                  : 'Thử đổi trạng thái, khoảng thời gian hoặc xoá từ khoá tìm kiếm.'}
+              </p>
+              {jobs?.length === 0 && (
+                <Link href="/jobs/new" className="mt-4 inline-block">
+                  <Button>Đăng tin đầu tiên</Button>
+                </Link>
+              )}
+            </div>
+          )}
+
+          <div className="mt-4 space-y-3.5">
+            {isLoading &&
+              [1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-44 animate-pulse rounded-2xl border border-slate-100 bg-slate-100/80"
+                />
+              ))}
+
+            {filtered.map((job) => (
+              <JobManageCard
+                key={job.id}
+                job={job}
+                busy={busy}
+                onPublish={() => publishMutation.mutate(job.id)}
+                onPause={() => statusMutation.mutate({ id: job.id, status: JobStatus.Paused })}
+                onResume={() => statusMutation.mutate({ id: job.id, status: JobStatus.Published })}
+                onClose={() => statusMutation.mutate({ id: job.id, status: JobStatus.Closed })}
+                onDelete={() => {
+                  if (
+                    window.confirm(
+                      `Chuyển tin «${job.title}» vào Thùng rác? Tin sẽ được lưu tạm 30 ngày để bạn có thể khôi phục khi cần.`,
+                    )
+                  ) {
+                    deleteMutation.mutate(job.id);
+                  }
+                }}
+              />
+            ))}
+          </div>
+        </>
       )}
-
-      <div className="mt-4 space-y-3.5">
-        {isLoading &&
-          [1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-44 animate-pulse rounded-2xl border border-slate-100 bg-slate-100/80"
-            />
-          ))}
-
-        {filtered.map((job) => (
-          <JobManageCard
-            key={job.id}
-            job={job}
-            busy={busy}
-            onPublish={() => publishMutation.mutate(job.id)}
-            onPause={() => statusMutation.mutate({ id: job.id, status: JobStatus.Paused })}
-            onResume={() => statusMutation.mutate({ id: job.id, status: JobStatus.Published })}
-            onClose={() => statusMutation.mutate({ id: job.id, status: JobStatus.Closed })}
-            onDelete={() => {
-              if (
-                window.confirm(
-                  `Xoá tin «${job.title}»? Thao tác không hoàn tác từ danh sách.`,
-                )
-              ) {
-                deleteMutation.mutate(job.id);
-              }
-            }}
-          />
-        ))}
-      </div>
       </div>
     </AppShell>
   );
@@ -1036,6 +1188,97 @@ function ResultStat({
         {value}
       </p>
       <p className="mt-1 text-[10.5px] font-medium text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function TrashedJobCard({
+  job,
+  restoring,
+  disabled,
+  onRestore,
+}: {
+  job: TrashedJobItem;
+  restoring: boolean;
+  disabled: boolean;
+  onRestore: () => void;
+}) {
+  const deletedLabel = (() => {
+    try {
+      return new Date(job.deletedAt).toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return job.deletedAt;
+    }
+  })();
+
+  const urgent = job.daysRemaining <= 5;
+
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition hover:border-slate-300 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-[15px] font-bold text-[#072348]">{job.title}</h3>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">
+              {job.code}
+            </span>
+            <span
+              className={clsx(
+                'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                urgent
+                  ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                  : 'bg-amber-50 text-amber-800 ring-amber-200',
+              )}
+            >
+              <Clock className="h-3 w-3" />
+              {`Còn ${job.daysRemaining} ngày`}
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            {job.location ? (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                {job.location}
+              </span>
+            ) : null}
+            <span className="inline-flex items-center gap-1">
+              <Wallet className="h-3.5 w-3.5 text-slate-400" />
+              {formatSalary(job.salaryMin, job.salaryMax)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+              {`Đã xoá: ${deletedLabel}`}
+            </span>
+            {(job.recruitment?.applications ?? 0) > 0 ? (
+              <span className="inline-flex items-center gap-1">
+                <Users className="h-3.5 w-3.5 text-slate-400" />
+                {`${job.recruitment?.applications} ứng viên`}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onRestore}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-4 text-xs font-bold text-white shadow-xs transition hover:bg-[#0d3468] disabled:opacity-60"
+          >
+            {restoring ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3.5 w-3.5" />
+            )}
+            <span>{restoring ? 'Đang khôi phục...' : 'Khôi phục'}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -956,7 +956,100 @@ export class JobService {
       }),
     );
     this.logger.log(`Đã xoá tin tuyển dụng ${job.code}`);
-    return { message: 'Đã xoá tin tuyển dụng' };
+    return { message: 'Đã chuyển tin tuyển dụng vào thùng rác (lưu tạm 30 ngày).' };
+  }
+
+  /** Danh sách tin trong thùng rác (lưu tạm 30 ngày kể từ ngày xoá). */
+  async listMyTrashedJobs(user: AuthenticatedUser): Promise<
+    Array<
+      JobListItem & {
+        deletedAt: string;
+        expiresAt: string;
+        daysRemaining: number;
+      }
+    >
+  > {
+    const retentionMs = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const cutoff = new Date(now - retentionMs);
+    const company = await this.companies.requireUserCompany(user.id);
+    const jobs = await this.prisma.job.findMany({
+      where: {
+        companyId: company.companyId,
+        isDeleted: true,
+        deletedAt: { gte: cutoff },
+      },
+      orderBy: { deletedAt: 'desc' },
+      include: {
+        company: { select: JOB_COMPANY_SELECT },
+        skills: { select: { name: true }, take: 6 },
+        jobPackage: { select: { id: true, code: true, packageName: true, packageType: true } },
+      },
+    });
+    const recruitment = await this.recruitmentByJob(jobs.map((job) => job.id));
+    return jobs.map((j) => {
+      const deletedAtDate = j.deletedAt ?? j.updatedAt;
+      const expiresAtMs = deletedAtDate.getTime() + retentionMs;
+      const daysRemaining = Math.max(1, Math.ceil((expiresAtMs - now) / 86_400_000));
+      return {
+        ...this.toListItem(j, company.companyName, {
+          recruitment: recruitment.get(j.id) ?? emptyRecruitment(),
+          isSourcingActive: false,
+          source: 'STANDARD',
+        }),
+        deletedAt: deletedAtDate.toISOString(),
+        expiresAt: new Date(expiresAtMs).toISOString(),
+        daysRemaining,
+      };
+    });
+  }
+
+  /** Khôi phục tin từ thùng rác trong vòng 30 ngày (về Đã đóng hoặc Nháp, không tự đăng lại). */
+  async restoreJob(
+    user: AuthenticatedUser,
+    jobId: string,
+    correlationId: string,
+  ): Promise<{ message: string; status: JobStatus }> {
+    const retentionMs = 30 * 24 * 60 * 60 * 1000;
+    const company = await this.companies.requireUserCompany(user.id);
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, companyId: company.companyId, isDeleted: true },
+    });
+    if (!job) {
+      throw new NotFoundException('Không tìm thấy tin tuyển dụng trong thùng rác.');
+    }
+    if (!job.deletedAt || Date.now() - job.deletedAt.getTime() > retentionMs) {
+      throw new BadRequestException(
+        'Tin tuyển dụng đã quá hạn 30 ngày lưu trữ trong thùng rác nên không thể khôi phục.',
+      );
+    }
+    const restoredStatus = job.publishedAt ? JobStatus.Closed : JobStatus.Draft;
+    await this.prisma.job.update({
+      where: { id: job.id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null,
+        status: restoredStatus,
+        updatedBy: user.id,
+      },
+    });
+    this.events.publish(
+      createDomainEvent({
+        name: DomainEvents.JobUpdated,
+        tenantId: job.tenantId,
+        correlationId,
+        payload: { jobId: job.id, code: job.code, restored: true, status: restoredStatus },
+      }),
+    );
+    this.logger.log(`Đã khôi phục tin tuyển dụng ${job.code} về trạng thái ${restoredStatus}`);
+    return {
+      message:
+        restoredStatus === JobStatus.Draft
+          ? 'Đã khôi phục tin tuyển dụng về trạng thái Bản nháp.'
+          : 'Đã khôi phục tin tuyển dụng về trạng thái Đã đóng.',
+      status: restoredStatus,
+    };
   }
 
   /** Sinh embedding cho JD và phát sự kiện JobPublished. */

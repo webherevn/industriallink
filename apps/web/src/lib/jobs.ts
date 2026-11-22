@@ -109,6 +109,22 @@ export async function fetchMyJobSourceCounts(filter: {
   };
 }
 
+export type TrashedJobItem = JobListItem & {
+  deletedAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+};
+
+export async function listMyTrashedJobs(): Promise<TrashedJobItem[]> {
+  return asArray<TrashedJobItem>(await apiRequest('/jobs/mine/trash')).map(withJobSkills);
+}
+
+export async function restoreJob(
+  id: string,
+): Promise<{ message: string; status: string }> {
+  return apiRequest(`/jobs/${id}/restore`, { method: 'POST' });
+}
+
 export async function listBookmarkedJobs(): Promise<JobListItem[]> {
   return asArray<JobListItem>(await apiRequest('/jobs/bookmarks/mine')).map(withJobSkills);
 }

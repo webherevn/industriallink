@@ -24,9 +24,12 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ExperienceBand,
   JobStatus,
+  SALES_MATCH_FIELD_LABEL,
+  TECH_MATCH_FIELD_LABEL,
   looksLikeUuid,
   shouldUseSalesMatchEngine,
   shouldUseTechnicalMatchEngine,
+  type MatchExplanation,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
@@ -86,6 +89,96 @@ function fitRingLabel(score: number): string {
   // ⭐ Dùng chung ngưỡng chuẩn toàn sàn (>=80 Rất phù hợp / >=60 Khá phù hợp /
   // >=40 Cân nhắc / <40 Độ phù hợp thấp).
   return matchFitLabel(score);
+}
+
+function buildJobFitDisplay(
+  fit: MatchExplanation,
+  candTrack: 'sales' | 'technical' | null,
+  jobTrack: 'sales' | 'technical' | null,
+): { summary: string; strengths: string[]; gaps: string[] } {
+  const topCriteria = (fit.criteria ?? [])
+    .filter(
+      (c): c is typeof c & { score: number } =>
+        c.score != null && c.score >= 0.65 && c.label.trim().length > 0,
+    )
+    .sort((a, b) => b.score * (b.weight || 0.05) - a.score * (a.weight || 0.05))
+    .map((c) => c.label.trim());
+
+  const strengths = Array.from(
+    new Set(
+      topCriteria.length > 0
+        ? topCriteria
+        : (fit.matchedSkills ?? []).map((s) => s.trim()).filter(Boolean),
+    ),
+  ).slice(0, 3);
+
+  const rawGaps = fit.salesMatch
+    ? fit.salesMatch.khoang_thieu.map((k) => SALES_MATCH_FIELD_LABEL[k]).filter(Boolean)
+    : fit.technicalMatch
+      ? fit.technicalMatch.khoang_thieu.map((k) => TECH_MATCH_FIELD_LABEL[k]).filter(Boolean)
+      : (fit.missingSkills ?? []);
+
+  const gaps = Array.from(new Set(rawGaps.map((g) => g.trim()).filter(Boolean)));
+
+  if (fit.salesMatch?.dat_loc_cung === false) {
+    const reasons = fit.salesMatch.ly_do_loai.filter(Boolean).join('; ');
+    return {
+      summary: reasons
+        ? `Chưa đáp ứng điều kiện bắt buộc: ${reasons}.`
+        : 'Chưa đáp ứng điều kiện bắt buộc của vị trí này.',
+      strengths,
+      gaps,
+    };
+  }
+
+  if (fit.technicalMatch?.dat_loc_cung === false) {
+    const reasons = fit.technicalMatch.ly_do_loai.filter(Boolean).join('; ');
+    return {
+      summary: reasons
+        ? `Chưa đáp ứng điều kiện bắt buộc: ${reasons}.`
+        : 'Chưa đáp ứng điều kiện bắt buộc của vị trí này.',
+      strengths,
+      gaps,
+    };
+  }
+
+  if (candTrack && jobTrack && candTrack !== jobTrack) {
+    const summary =
+      candTrack === 'technical'
+        ? 'Tin thuộc nhóm Kinh doanh, khác hướng hồ sơ Kỹ thuật hiện tại của bạn.'
+        : 'Tin thuộc nhóm Kỹ thuật, khác hướng hồ sơ Kinh doanh hiện tại của bạn.';
+    return { summary, strengths, gaps };
+  }
+
+  if (fit.score >= 80) {
+    return {
+      summary: 'Hồ sơ của bạn đáp ứng rất tốt các tiêu chí trọng tâm của vị trí này.',
+      strengths,
+      gaps,
+    };
+  }
+
+  if (fit.score >= 60) {
+    return {
+      summary: 'Hồ sơ khớp tốt với nhiều tiêu chí của vị trí này.',
+      strengths,
+      gaps,
+    };
+  }
+
+  if (strengths.length > 0) {
+    return {
+      summary: 'Hồ sơ khớp một số tiêu chí cơ bản, bạn có thể bổ sung thêm để tăng độ phù hợp.',
+      strengths,
+      gaps,
+    };
+  }
+
+  return {
+    summary: 'Hồ sơ hiện chưa có nhiều tiêu chí trùng khớp với yêu cầu vị trí này.',
+    strengths,
+    gaps,
+  };
 }
 
 function daysUntil(iso: string | null): string | null {
@@ -525,49 +618,105 @@ export function JobDetailClient({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
                   Mức phù hợp với hồ sơ
                 </p>
-                {fit ? (
-                  <div className="mt-3 flex items-center gap-4">
-                    <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center">
-                      <div className="relative h-16 w-16 rounded-full bg-white p-0.5 shadow-sm ring-1 ring-slate-200/80">
-                        <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
-                          <circle cx="32" cy="32" r="26" fill="none" stroke={MATCH_RING_TRACK_COLOR} strokeWidth="6" />
-                          <circle
-                            cx="32"
-                            cy="32"
-                            r="26"
-                            fill="none"
-                            stroke={matchRingColor(fit.score)}
-                            strokeWidth="6"
-                            strokeLinecap="round"
-                            strokeDasharray={2 * Math.PI * 26}
-                            strokeDashoffset={
-                              2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, fit.score / 100)))
-                            }
-                          />
-                        </svg>
-                        <span className="absolute inset-0 flex items-center justify-center">
-                          <span
-                            className="text-[15px] font-extrabold leading-none tracking-tight"
-                            style={{ color: matchScoreTextColor(fit.score) }}
-                          >
-                            {formatMatchPct(fit.score)}
-                            <span className="text-[10px] font-bold">%</span>
-                          </span>
-                        </span>
+                {fit ? (() => {
+                  const fitDisplay = buildJobFitDisplay(fit, candTrack, jobTrack);
+                  const visibleGaps = fitDisplay.gaps.slice(0, 3);
+                  const extraGapCount = Math.max(0, fitDisplay.gaps.length - visibleGaps.length);
+                  return (
+                    <div className="mt-3">
+                      <div className="flex items-center gap-3.5">
+                        <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center">
+                          <div className="relative h-16 w-16 rounded-full bg-white p-0.5 shadow-sm ring-1 ring-slate-200/80">
+                            <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+                              <circle cx="32" cy="32" r="26" fill="none" stroke={MATCH_RING_TRACK_COLOR} strokeWidth="6" />
+                              <circle
+                                cx="32"
+                                cy="32"
+                                r="26"
+                                fill="none"
+                                stroke={matchRingColor(fit.score)}
+                                strokeWidth="6"
+                                strokeLinecap="round"
+                                strokeDasharray={2 * Math.PI * 26}
+                                strokeDashoffset={
+                                  2 * Math.PI * 26 * (1 - Math.min(1, Math.max(0, fit.score / 100)))
+                                }
+                              />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center">
+                              <span
+                                className="text-[15px] font-extrabold leading-none tracking-tight"
+                                style={{ color: matchScoreTextColor(fit.score) }}
+                              >
+                                {formatMatchPct(fit.score)}
+                                <span className="text-[10px] font-bold">%</span>
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold" style={{ color: matchScoreTextColor(fit.score) }}>
+                            {fitRingLabel(fit.score)}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                            {fitDisplay.summary}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: matchScoreTextColor(fit.score) }}>
-                        {fitRingLabel(fit.score)}
-                      </p>
-                      {fit.reason && (
-                        <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-500">
-                          {fit.reason}
-                        </p>
+
+                      {(fitDisplay.strengths.length > 0 || visibleGaps.length > 0 || fit.score < 60) && (
+                        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                          {fitDisplay.strengths.length > 0 && (
+                            <div>
+                              <p className="text-[11px] font-semibold text-emerald-700">Khớp tốt</p>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {fitDisplay.strengths.map((label) => (
+                                  <span
+                                    key={label}
+                                    className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200/70"
+                                  >
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {visibleGaps.length > 0 && (
+                            <div>
+                              <p className="text-[11px] font-semibold text-slate-500">Cần bổ sung</p>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {visibleGaps.map((label) => (
+                                  <span
+                                    key={label}
+                                    className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                                  >
+                                    {label}
+                                  </span>
+                                ))}
+                                {extraGapCount > 0 && (
+                                  <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200/70">
+                                    +{extraGapCount} khác
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {fit.score < 60 && (
+                            <Link
+                              href="/profile/edit"
+                              className="inline-flex items-center gap-1 pt-0.5 text-xs font-semibold text-brand-700 hover:text-brand-900 hover:underline"
+                            >
+                              <span>Cập nhật hồ sơ để tăng độ khớp</span>
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
-                ) : (
+                  );
+                })() : (
                   <div className="mt-3 h-16 animate-pulse rounded-xl bg-amber-50" />
                 )}
               </div>

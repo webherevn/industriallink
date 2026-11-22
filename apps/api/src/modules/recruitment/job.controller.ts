@@ -223,6 +223,13 @@ export class JobController {
     });
   }
 
+  @Get('mine/trash')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Danh sách tin tuyển dụng trong thùng rác (lưu tạm 30 ngày)' })
+  listMineTrash(@CurrentUser() user: AuthenticatedUser) {
+    return this.jobs.listMyTrashedJobs(user);
+  }
+
   @Get('bookmarks/mine')
   @Roles(UserRole.Candidate)
   @ApiOperation({ summary: 'Danh sách tin tuyển dụng đã lưu' })
@@ -277,13 +284,24 @@ export class JobController {
 
   @Delete(':id')
   @Roles(...RECRUITER_ROLES)
-  @ApiOperation({ summary: 'Xoá tin tuyển dụng (soft-delete)' })
+  @ApiOperation({ summary: 'Xoá tin tuyển dụng (chuyển vào thùng rác 30 ngày)' })
   remove(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @CorrelationId() correlationId: string,
   ) {
     return this.jobs.deleteJob(user, id, correlationId);
+  }
+
+  @Post(':id/restore')
+  @Roles(...RECRUITER_ROLES)
+  @ApiOperation({ summary: 'Khôi phục tin tuyển dụng từ thùng rác (trong vòng 30 ngày)' })
+  restore(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.jobs.restoreJob(user, id, correlationId);
   }
 
   @Post(':id/publish')
