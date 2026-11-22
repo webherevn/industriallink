@@ -328,19 +328,19 @@ export default function RecruiterBroadcastEmailPage() {
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5">
                   <p className="text-[11px] font-medium text-slate-500">Tổng ứng viên</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#072348]">
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#E8872A]">
                     {stats.total}
                   </p>
                 </div>
                 <div className="rounded-xl border border-sky-200/70 bg-sky-50/50 px-3.5 py-2.5">
                   <p className="text-[11px] font-medium text-[#0B468C]">Mới ứng tuyển</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#072348]">
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#E8872A]">
                     {stats.applied}
                   </p>
                 </div>
                 <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3.5 py-2.5">
                   <p className="text-[11px] font-medium text-emerald-700">Đang xử lý</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-emerald-800">
+                  <p className="mt-1 text-xl font-bold tabular-nums leading-none text-[#E8872A]">
                     {stats.inProgress}
                   </p>
                 </div>

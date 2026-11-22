@@ -540,7 +540,7 @@ function ReportBody({
                 <span>Hồ sơ tự ứng tuyển</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold tabular-nums text-[#072348]">
+                <span className="text-2xl font-bold tabular-nums text-[#E8872A]">
                   <RisingNumber value={appsCount} />
                 </span>
                 {!selectedJob && (
@@ -554,7 +554,7 @@ function ReportBody({
                 <Sparkles className="h-3.5 w-3.5 text-amber-600" />
                 <span>Ứng viên AI đề xuất</span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#E8872A]">
                 <RisingNumber value={outboundCandidatesTotal} />
               </p>
             </div>
@@ -564,7 +564,7 @@ function ReportBody({
                 <Filter className="h-3.5 w-3.5 text-emerald-600" />
                 <span>Đang trong phễu</span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#E8872A]">
                 <RisingNumber value={inPipeline} />
               </p>
             </div>
@@ -574,7 +574,7 @@ function ReportBody({
                 <CalendarDays className="h-3.5 w-3.5 text-violet-600" />
                 <span>Phỏng vấn</span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#E8872A]">
                 <RisingNumber value={interviewHeadline} />
               </p>
             </div>
@@ -584,7 +584,7 @@ function ReportBody({
                 <FileText className="h-3.5 w-3.5 text-[#E8872A]" />
                 <span>Đề nghị làm việc</span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-[#072348]">
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#E8872A]">
                 <RisingNumber value={offerHeadline} />
               </p>
             </div>
@@ -594,7 +594,7 @@ function ReportBody({
                 <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
                 <span>Nhận việc</span>
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-emerald-700">
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#E8872A]">
                 <RisingNumber value={hiresCount} />
               </p>
             </div>

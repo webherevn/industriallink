@@ -266,7 +266,7 @@ export function SourcingOverviewDashboard({
               iconBg="bg-emerald-50"
               label="Đã kết nối"
               value={efficiencySummary.connected}
-              valueColor="text-emerald-600"
+              valueColor="text-[#E8872A]"
             />
           </div>
         </section>
@@ -296,14 +296,14 @@ export function SourcingOverviewDashboard({
               iconBg="bg-emerald-50"
               label="Gói đang dùng"
               value={packageCounts.active}
-              valueColor="text-emerald-600"
+              valueColor="text-[#E8872A]"
             />
             <MiniStatBox
               icon={<Briefcase className="h-4 w-4 text-[#0B468C]" />}
               iconBg="bg-sky-50"
               label="Chiến dịch đang chạy"
               value={activeCampaigns.length}
-              valueColor="text-[#0B468C]"
+              valueColor="text-[#E8872A]"
             />
             <div className="flex flex-col justify-between rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 to-orange-50/50 p-3">
               <div>
@@ -636,7 +636,7 @@ export function SourcingOverviewDashboard({
                       <div className="rounded-xl bg-slate-50/90 px-2.5 py-2">
                         <div className="flex items-center gap-1.5">
                           <Users className="h-3.5 w-3.5 text-slate-500" />
-                          <span className="text-sm font-bold tabular-nums text-[#072348]">
+                          <span className="text-sm font-bold tabular-nums text-[#E8872A]">
                             {stats.matched}
                           </span>
                         </div>
@@ -645,7 +645,7 @@ export function SourcingOverviewDashboard({
                       <div className="rounded-xl bg-slate-50/90 px-2.5 py-2">
                         <div className="flex items-center gap-1.5">
                           <Bookmark className="h-3.5 w-3.5 text-indigo-500" />
-                          <span className="text-sm font-bold tabular-nums text-[#072348]">
+                          <span className="text-sm font-bold tabular-nums text-[#E8872A]">
                             {stats.shortlisted}
                           </span>
                         </div>
@@ -654,7 +654,7 @@ export function SourcingOverviewDashboard({
                       <div className="rounded-xl bg-slate-50/90 px-2.5 py-2">
                         <div className="flex items-center gap-1.5">
                           <Eye className="h-3.5 w-3.5 text-sky-600" />
-                          <span className="text-sm font-bold tabular-nums text-[#072348]">
+                          <span className="text-sm font-bold tabular-nums text-[#E8872A]">
                             {stats.opened}
                           </span>
                         </div>
@@ -663,7 +663,7 @@ export function SourcingOverviewDashboard({
                       <div className="rounded-xl bg-slate-50/90 px-2.5 py-2">
                         <div className="flex items-center gap-1.5">
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          <span className="text-sm font-bold tabular-nums text-[#072348]">
+                          <span className="text-sm font-bold tabular-nums text-[#E8872A]">
                             {stats.connected}
                           </span>
                         </div>

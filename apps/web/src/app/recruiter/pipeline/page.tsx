@@ -581,7 +581,7 @@ export default function RecruiterPipelinePage() {
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold text-slate-600">Lịch phỏng vấn</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-2xl font-bold tabular-nums text-[#072348]">
+              <span className="text-2xl font-bold tabular-nums text-[#E8872A]">
                 {counts.interview}
               </span>
               {/* ⭐ Hiển thị rõ số CẦN XỬ LÝ (chưa đặt lịch) — tránh hiển nhầm
@@ -627,7 +627,7 @@ export default function RecruiterPipelinePage() {
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold text-slate-600">Đề nghị làm việc</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-2xl font-bold tabular-nums text-[#072348]">
+              <span className="text-2xl font-bold tabular-nums text-[#E8872A]">
                 {counts.offer}
               </span>
               <span className="rounded-full border border-accent-200 bg-accent-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent-800">
@@ -656,7 +656,7 @@ export default function RecruiterPipelinePage() {
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold text-slate-600">Nhận việc</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-2xl font-bold tabular-nums text-[#072348]">
+              <span className="text-2xl font-bold tabular-nums text-[#E8872A]">
                 {counts.onboarding}
               </span>
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">

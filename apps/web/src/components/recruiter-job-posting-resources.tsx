@@ -107,7 +107,7 @@ export function JobPostingResourcePanel() {
             <p
               className={clsx(
                 'mt-1.5 truncate text-[17px] font-bold tabular-nums tracking-tight',
-                isLoading ? 'text-slate-300' : 'text-[#072348]',
+                isLoading ? 'text-slate-300' : 'text-[#E8872A]',
               )}
               title={m.value}
             >
