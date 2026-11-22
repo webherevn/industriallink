@@ -1298,7 +1298,7 @@ export function SourcingCandidateDrawer({
                   looksLikeHtml(detail.profile?.summary || detail.aiProfile?.summary) ? (
                     <SafeHtml
                       html={detail.profile?.summary || detail.aiProfile?.summary}
-                      className="text-xs leading-relaxed text-slate-700"
+                      className="profile-normalized-rich text-xs leading-relaxed text-slate-700"
                     />
                   ) : (
                     <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">

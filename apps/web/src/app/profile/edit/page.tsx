@@ -1543,6 +1543,17 @@ export default function ProfileEditPage() {
     scrollToCriteria(gap.key);
   }
 
+  const [focusApplied, setFocusApplied] = useState(false);
+
+  useEffect(() => {
+    if (!hydrated || focusApplied) return;
+    const focusKey = new URLSearchParams(window.location.search).get('focus')?.trim();
+    setFocusApplied(true);
+    if (!focusKey) return;
+    jumpToGap({ key: focusKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, focusApplied]);
+
   function toggleDeep(index: number, open: boolean) {
     setDeepOpen((prev) => {
       const next = new Set(prev);

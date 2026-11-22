@@ -585,12 +585,16 @@ export class CandidateService {
   }
 
   /**
-   * Cập nhật trực tiếp Giới thiệu bản thân (summary) và/hoặc Sở thích (hobbies)
-   * từ trang Thông tin ứng viên mà KHÔNG động tới bất kỳ trường CV / matching nào.
+   * Cập nhật trực tiếp Giới thiệu bản thân (summary), Sở thích (hobbies) và/hoặc Kỹ năng (skills)
+   * từ trang Thông tin ứng viên mà KHÔNG động tới bất kỳ trường CV / matching nào khác.
    */
   async updateMyIntro(
     user: AuthenticatedUser,
-    input: { summary?: string | null; hobbies?: string[] },
+    input: {
+      summary?: string | null;
+      hobbies?: string[];
+      skills?: Array<{ name: string; level?: string }>;
+    },
   ): Promise<CandidateView> {
     await this.ensureForUser(user);
     const candidate = await this.getCandidateByUser(user);
@@ -625,13 +629,48 @@ export class CandidateService {
         .slice(0, 30);
     }
 
-    if (Object.keys(patch).length > 0) {
-      await this.prisma.candidateProfile.upsert({
-        where: { candidateId: candidate.id },
-        create: { candidateId: candidate.id, ...patch },
-        update: patch,
-      });
-    }
+    const allowedLevels = new Set(['beginner', 'intermediate', 'advanced', 'expert']);
+    const normalizedSkills =
+      input.skills !== undefined
+        ? (() => {
+            const seen = new Set<string>();
+            const out: Array<{ name: string; level: string }> = [];
+            for (const item of input.skills) {
+              const name = (item.name ?? '').replace(/\r/g, '').trim().slice(0, 120);
+              if (!name) continue;
+              const key = name.toLowerCase();
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const rawLevel = (item.level ?? '').trim().toLowerCase();
+              const level = allowedLevels.has(rawLevel) ? rawLevel : 'intermediate';
+              out.push({ name, level });
+              if (out.length >= 50) break;
+            }
+            return out;
+          })()
+        : undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(patch).length > 0) {
+        await tx.candidateProfile.upsert({
+          where: { candidateId: candidate.id },
+          create: { candidateId: candidate.id, ...patch },
+          update: patch,
+        });
+      }
+      if (normalizedSkills !== undefined) {
+        await tx.candidateSkill.deleteMany({ where: { candidateId: candidate.id } });
+        for (const s of normalizedSkills) {
+          await tx.candidateSkill.create({
+            data: {
+              candidateId: candidate.id,
+              name: s.name,
+              level: s.level,
+            },
+          });
+        }
+      }
+    });
 
     return this.getMyCandidate(user);
   }

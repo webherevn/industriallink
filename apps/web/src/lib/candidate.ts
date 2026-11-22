@@ -294,10 +294,11 @@ export async function saveCvDraftToProfile(
   });
 }
 
-/** Cập nhật nhanh Giới thiệu bản thân & Sở thích (không ảnh hưởng trường matching). */
+/** Cập nhật nhanh Giới thiệu bản thân, Sở thích & Kỹ năng (không ảnh hưởng trường matching). */
 export async function updateMyCandidateIntro(payload: {
   summary?: string | null;
   hobbies?: string[];
+  skills?: Array<{ name: string; level?: string }>;
 }): Promise<CandidateView> {
   return apiRequest('/candidates/me/intro', {
     method: 'PATCH',

@@ -1,5 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+
+class CandidateIntroSkillDto {
+  @IsString()
+  @MaxLength(120)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  level?: string;
+}
 
 export class UpdateCandidateIntroDto {
   @ApiPropertyOptional({
@@ -19,4 +31,14 @@ export class UpdateCandidateIntroDto {
   @IsString({ each: true })
   @MaxLength(12000, { each: true })
   hobbies?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Danh sách kỹ năng cập nhật trực tiếp từ trang Thông tin ứng viên',
+    type: [CandidateIntroSkillDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CandidateIntroSkillDto)
+  skills?: CandidateIntroSkillDto[];
 }

@@ -587,7 +587,7 @@ function PreferencesSection({
             {draft.hobbies.length === 1 && looksLikeHtml(draft.hobbies[0]) ? (
               <SafeHtml
                 html={draft.hobbies[0]}
-                className="text-[10.5px] leading-relaxed text-slate-700"
+                className="profile-normalized-rich text-[10.5px] leading-relaxed text-slate-700"
               />
             ) : (
               <div className="flex flex-wrap gap-1.5">
@@ -699,7 +699,7 @@ function MainSections({
             looksLikeHtml(draft.summary) ? (
               <SafeHtml
                 html={draft.summary}
-                className="text-[10.5px] leading-relaxed text-slate-700"
+                className="profile-normalized-rich text-[10.5px] leading-relaxed text-slate-700"
               />
             ) : (
               <p className="text-[10.5px] leading-relaxed text-slate-700">{draft.summary}</p>

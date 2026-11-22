@@ -28,6 +28,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   CandidateStatus,
   JOB_READINESS_LABEL,
+  SkillLevel,
   type CandidateExperienceView,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
@@ -132,6 +133,17 @@ function hobbiesToEditorHtml(items: string[]): string {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 }
 
+const SKILL_LEVEL_OPTIONS: Array<{ value: SkillLevel; label: string }> = [
+  { value: SkillLevel.Beginner, label: 'Cơ bản' },
+  { value: SkillLevel.Intermediate, label: 'Trung cấp' },
+  { value: SkillLevel.Advanced, label: 'Nâng cao' },
+  { value: SkillLevel.Expert, label: 'Chuyên gia' },
+];
+
+function skillLevelLabel(level?: string | null): string | null {
+  return SKILL_LEVEL_OPTIONS.find((o) => o.value === level)?.label ?? null;
+}
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -143,6 +155,11 @@ export default function ProfilePage() {
   const [editingHobbies, setEditingHobbies] = useState(false);
   const [hobbiesDraft, setHobbiesDraft] = useState('');
   const [hobbiesError, setHobbiesError] = useState<string | null>(null);
+  const [editingSkills, setEditingSkills] = useState(false);
+  const [skillsDraft, setSkillsDraft] = useState<Array<{ name: string; level: SkillLevel }>>([]);
+  const [newSkillName, setNewSkillName] = useState('');
+  const [newSkillLevel, setNewSkillLevel] = useState<SkillLevel>(SkillLevel.Intermediate);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
   const cvExportRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -181,6 +198,54 @@ export default function ProfilePage() {
       );
     },
   });
+
+  const saveSkillsMutation = useMutation({
+    mutationFn: (nextSkills: Array<{ name: string; level: SkillLevel }>) =>
+      updateMyCandidateIntro({ skills: nextSkills }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['my-candidate'], updated);
+      setEditingSkills(false);
+      setNewSkillName('');
+      setSkillsError(null);
+    },
+    onError: (err) => {
+      setSkillsError(
+        err instanceof Error ? err.message : 'Không lưu được kỹ năng. Vui lòng thử lại.',
+      );
+    },
+  });
+
+  function startEditSkills() {
+    setSkillsDraft(
+      skills.map((s) => ({
+        name: s.name,
+        level: (s.level as SkillLevel) || SkillLevel.Intermediate,
+      })),
+    );
+    setNewSkillName('');
+    setNewSkillLevel(SkillLevel.Intermediate);
+    setSkillsError(null);
+    setEditingSkills(true);
+  }
+
+  function addSkillToDraft() {
+    const trimmed = newSkillName.trim();
+    if (!trimmed) return;
+    setSkillsDraft((prev) => {
+      if (prev.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return prev;
+      return [...prev, { name: trimmed, level: newSkillLevel }];
+    });
+    setNewSkillName('');
+  }
+
+  function onSaveSkills() {
+    const trimmed = newSkillName.trim();
+    const merged =
+      trimmed && !skillsDraft.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())
+        ? [...skillsDraft, { name: trimmed, level: newSkillLevel }]
+        : skillsDraft;
+    saveSkillsMutation.mutate(merged);
+  }
 
   const cvDraft = useMemo(
     () => (candidate ? draftFromCandidate(candidate, me?.email ?? '') : null),
@@ -400,7 +465,7 @@ export default function ProfilePage() {
               <SectionCard
                 title="Thông tin cá nhân"
                 icon={<UserRound className="h-4 w-4" />}
-                editHref="/profile/edit"
+                editHref="/profile/edit?focus=fullName"
               >
                 <dl className="divide-y divide-slate-100 text-[13px]">
                   <InfoRow
@@ -486,7 +551,7 @@ export default function ProfilePage() {
                   looksLikeHtml(about) ? (
                     <SafeHtml
                       html={about}
-                      className="text-[13px] leading-relaxed text-slate-700"
+                      className="profile-normalized-rich text-[13px] leading-relaxed text-slate-700"
                     />
                   ) : (
                     <p className="whitespace-pre-line text-[13px] leading-relaxed text-slate-700">
@@ -505,7 +570,7 @@ export default function ProfilePage() {
                 id="experience"
                 title="Kinh nghiệm làm việc"
                 icon={<Briefcase className="h-4 w-4" />}
-                editHref="/profile/edit"
+                editHref="/profile/edit?focus=experience"
               >
                 {experiences.length === 0 ? (
                   <p className="text-[13px] text-slate-400">
@@ -517,7 +582,7 @@ export default function ProfilePage() {
                       <li key={exp.id} className="relative">
                         <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-brand-600 ring-4 ring-white" />
                         <Link
-                          href="/profile/edit"
+                          href="/profile/edit?focus=experience"
                           className="group flex items-start justify-between gap-3 rounded-xl p-1.5 -m-1.5 transition hover:bg-slate-50"
                         >
                           <div className="min-w-0 flex-1">
@@ -563,7 +628,7 @@ export default function ProfilePage() {
 
                 <div className="mt-4 pt-1">
                   <Link
-                    href="/profile/edit"
+                    href="/profile/edit?focus=experience"
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-900"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -577,7 +642,7 @@ export default function ProfilePage() {
                 id="education"
                 title="Học vấn"
                 icon={<GraduationCap className="h-4 w-4" />}
-                editHref="/profile/edit"
+                editHref="/profile/edit?focus=educationLevel"
               >
                 {!hasEducation ? (
                   <p className="text-[13px] text-slate-400">
@@ -611,7 +676,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <Link
-                      href="/profile/edit"
+                      href="/profile/edit?focus=educationLevel"
                       aria-label="Chỉnh sửa học vấn"
                       className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-brand-600"
                     >
@@ -629,32 +694,149 @@ export default function ProfilePage() {
                 id="skills"
                 title="Kỹ năng"
                 icon={<SparklesIcon />}
-                editHref="/profile/edit"
+                editing={editingSkills}
+                onEdit={startEditSkills}
               >
-                {skills.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {skills.map((s) => (
-                      <span
-                        key={`${s.skillId ?? s.name}-${s.name}`}
-                        className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+                {editingSkills ? (
+                  <div className="space-y-3">
+                    {skillsDraft.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {skillsDraft.map((s) => (
+                          <span
+                            key={s.name}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700"
+                          >
+                            <span>{s.name}</span>
+                            {skillLevelLabel(s.level) ? (
+                              <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200/80">
+                                {skillLevelLabel(s.level)}
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              aria-label={`Xóa ${s.name}`}
+                              disabled={saveSkillsMutation.isPending}
+                              onClick={() =>
+                                setSkillsDraft((prev) =>
+                                  prev.filter((item) => item.name !== s.name),
+                                )
+                              }
+                              className="rounded p-0.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">
+                        Nhập kỹ năng bên dưới rồi bấm Thêm hoặc nhấn Enter.
+                      </p>
+                    )}
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="text"
+                        value={newSkillName}
+                        disabled={saveSkillsMutation.isPending}
+                        onChange={(e) => setNewSkillName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addSkillToDraft();
+                          }
+                        }}
+                        placeholder="VD: PLC Siemens, AutoCAD, Đàm phán B2B..."
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={newSkillLevel}
+                          disabled={saveSkillsMutation.isPending}
+                          onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-brand-500 focus:outline-none"
+                        >
+                          {SKILL_LEVEL_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={saveSkillsMutation.isPending || !newSkillName.trim()}
+                          onClick={addSkillToDraft}
+                          className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100 disabled:opacity-50"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Thêm</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {skillsError ? (
+                      <p className="text-xs font-medium text-rose-600">{skillsError}</p>
+                    ) : null}
+
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={saveSkillsMutation.isPending}
+                        onClick={() => {
+                          setEditingSkills(false);
+                          setSkillsError(null);
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                       >
-                        {s.name}
-                      </span>
-                    ))}
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saveSkillsMutation.isPending}
+                        onClick={onSaveSkills}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#072348] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#0d3468] disabled:opacity-60"
+                      >
+                        {saveSkillsMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : null}
+                        <span>Lưu kỹ năng</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400">Chưa có kỹ năng nào được thêm.</p>
-                )}
+                  <>
+                    {skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {skills.map((s) => (
+                          <span
+                            key={`${s.skillId ?? s.name}-${s.name}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+                          >
+                            <span>{s.name}</span>
+                            {skillLevelLabel(s.level) ? (
+                              <span className="text-[10.5px] font-normal text-slate-500">
+                                · {skillLevelLabel(s.level)}
+                              </span>
+                            ) : null}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">Chưa có kỹ năng nào được thêm.</p>
+                    )}
 
-                <div className="mt-3">
-                  <Link
-                    href="/profile/edit"
-                    className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Thêm kỹ năng</span>
-                  </Link>
-                </div>
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={startEditSkills}
+                        className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Thêm kỹ năng</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </SectionCard>
 
               {/* 2. Chứng chỉ */}
@@ -662,7 +844,7 @@ export default function ProfilePage() {
                 id="certificates"
                 title="Chứng chỉ"
                 icon={<Award className="h-4 w-4" />}
-                editHref="/profile/edit"
+                editHref="/profile/edit?focus=certificates"
               >
                 {certificates.length > 0 ? (
                   <ul className="space-y-2.5">
@@ -703,7 +885,7 @@ export default function ProfilePage() {
 
                 <div className="mt-3">
                   <Link
-                    href="/profile/edit"
+                    href="/profile/edit?focus=certificates"
                     className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -766,7 +948,7 @@ export default function ProfilePage() {
                     {hobbies.length === 1 && looksLikeHtml(hobbies[0]) ? (
                       <SafeHtml
                         html={hobbies[0]}
-                        className="text-[13px] leading-relaxed text-slate-700"
+                        className="profile-normalized-rich text-[13px] leading-relaxed text-slate-700"
                       />
                     ) : hobbies.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
@@ -878,7 +1060,7 @@ export default function ProfilePage() {
                   {looksLikeHtml(about) ? (
                     <SafeHtml
                       html={about}
-                      className="mt-1.5 text-sm leading-relaxed text-slate-700"
+                      className="profile-normalized-rich mt-1.5 text-sm leading-relaxed text-slate-700"
                     />
                   ) : (
                     <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
@@ -896,7 +1078,7 @@ export default function ProfilePage() {
                   {hobbies.length === 1 && looksLikeHtml(hobbies[0]) ? (
                     <SafeHtml
                       html={hobbies[0]}
-                      className="mt-1.5 text-sm leading-relaxed text-slate-700"
+                      className="profile-normalized-rich mt-1.5 text-sm leading-relaxed text-slate-700"
                     />
                   ) : (
                     <div className="mt-2 flex flex-wrap gap-1.5">
