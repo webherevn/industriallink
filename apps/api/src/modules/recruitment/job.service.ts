@@ -24,6 +24,7 @@ import {
   industrySearchValues,
   normalizeIndustry,
   normalizeJobSalesCriteria,
+  normalizeJobSearchTerm,
   normalizeJobTechnicalCriteria,
   resolveJobLevel,
   type GenerateJobDraftResponse,
@@ -1288,15 +1289,82 @@ export class JobService {
       });
     }
     if (keyword) {
+      const normKeyword = normalizeJobSearchTerm(keyword);
       const terms = expandJobSearchKeywords(keyword);
-      andFilters.push({
-        OR: terms.flatMap((term) => [
-          { title: { contains: term, mode: 'insensitive' } },
-          { description: { contains: term, mode: 'insensitive' } },
-          { skills: { some: { name: { contains: term, mode: 'insensitive' } } } },
-          { company: { name: { contains: term, mode: 'insensitive' } } },
-        ]),
-      });
+      const technicalIntentKeywords = new Set([
+        'ky thuat',
+        'technical',
+        'ky thuat vien',
+        'nhan vien ky thuat',
+        'technician',
+        'ky su',
+        'engineer',
+      ]);
+      const salesIntentKeywords = new Set([
+        'kinh doanh',
+        'ban hang',
+        'sale',
+        'sales',
+        'nvkd',
+        'nhan vien kinh doanh',
+        'nhan vien ban hang',
+        'chuyen vien kinh doanh',
+        'ky su kinh doanh',
+        'sales engineer',
+        'sales executive',
+        'business development',
+      ]);
+
+      if (technicalIntentKeywords.has(normKeyword)) {
+        andFilters.push({
+          OR: [
+            { jobTrack: JobTrack.Technical },
+            { jobLevel: { startsWith: `${JobTrack.Technical}.` } },
+            {
+              AND: [
+                { NOT: { jobTrack: JobTrack.Sales } },
+                {
+                  OR: terms.flatMap((term) => [
+                    { title: { contains: term, mode: 'insensitive' } },
+                    { skills: { some: { name: { contains: term, mode: 'insensitive' } } } },
+                  ]),
+                },
+              ],
+            },
+          ],
+        });
+      } else if (salesIntentKeywords.has(normKeyword)) {
+        andFilters.push({
+          OR: [
+            { jobTrack: JobTrack.Sales },
+            { jobLevel: { startsWith: `${JobTrack.Sales}.` } },
+            {
+              AND: [
+                { NOT: { jobTrack: JobTrack.Technical } },
+                {
+                  OR: terms.flatMap((term) => [
+                    { title: { contains: term, mode: 'insensitive' } },
+                    { skills: { some: { name: { contains: term, mode: 'insensitive' } } } },
+                  ]),
+                },
+              ],
+            },
+          ],
+        });
+      } else {
+        andFilters.push({
+          OR: [
+            { description: { contains: keyword, mode: 'insensitive' } },
+            ...terms.flatMap((term) => [
+              { title: { contains: term, mode: 'insensitive' } },
+              { skills: { some: { name: { contains: term, mode: 'insensitive' } } } },
+              { company: { name: { contains: term, mode: 'insensitive' } } },
+              { industry: { contains: term, mode: 'insensitive' } },
+              { subIndustry: { contains: term, mode: 'insensitive' } },
+            ]),
+          ],
+        });
+      }
     }
     if (subIndustry) {
       andFilters.push({

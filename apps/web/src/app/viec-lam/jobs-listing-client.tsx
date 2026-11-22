@@ -350,10 +350,11 @@ function JobsPageInner({
     [candidate],
   );
 
+  const hasServerQueryFilters = Object.keys(listQuery).length > (forcedIndustry ? 1 : 0);
   const { data: jobs, isLoading } = useQuery({
     queryKey: ['jobs', listQuery],
     queryFn: () => listPublishedJobs(listQuery),
-    initialData: initialJobs,
+    initialData: hasServerQueryFilters ? undefined : initialJobs,
   });
 
   const { data: positionStats } = useQuery({
