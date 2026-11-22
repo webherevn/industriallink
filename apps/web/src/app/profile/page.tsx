@@ -38,7 +38,11 @@ import { JdRichEditor } from '@/components/jd-rich-editor';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { SafeHtml, looksLikeHtml, stripHtml } from '@/components/render-safe-html';
 import { fetchMe } from '@/lib/auth';
-import { getMyCandidate, updateMyCandidateIntro } from '@/lib/candidate';
+import {
+  fetchMyAvatarObjectUrl,
+  getMyCandidate,
+  updateMyCandidateIntro,
+} from '@/lib/candidate';
 import { draftFromCandidate } from '@/lib/cv-from-profile';
 import { CV_TEMPLATES } from '@/lib/cv-templates';
 import { downloadElementAsPdf } from '@/lib/download-cv';
@@ -160,6 +164,7 @@ export default function ProfilePage() {
   const [newSkillName, setNewSkillName] = useState('');
   const [newSkillLevel, setNewSkillLevel] = useState<SkillLevel>(SkillLevel.Intermediate);
   const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [cvExportAvatar, setCvExportAvatar] = useState<string | null>(null);
   const cvExportRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -168,6 +173,41 @@ export default function ProfilePage() {
     queryFn: getMyCandidate,
     retry: false,
   });
+  const { data: avatarObjUrl } = useQuery({
+    queryKey: ['my-avatar'],
+    queryFn: fetchMyAvatarObjectUrl,
+    enabled: Boolean(candidate?.hasAvatar),
+    staleTime: 5 * 60_000,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!avatarObjUrl) {
+      setCvExportAvatar(null);
+      return;
+    }
+    void fetch(avatarObjUrl)
+      .then((r) => r.blob())
+      .then(
+        (blob) =>
+          new Promise<string | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === 'string' ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          }),
+      )
+      .then((dataUrl) => {
+        if (!cancelled) setCvExportAvatar(dataUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setCvExportAvatar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [avatarObjUrl]);
 
   const saveAboutMutation = useMutation({
     mutationFn: (html: string) =>
@@ -251,6 +291,15 @@ export default function ProfilePage() {
     () => (candidate ? draftFromCandidate(candidate, me?.email ?? '') : null),
     [candidate, me?.email],
   );
+  const cvExportTemplate = useMemo(() => {
+    if (cvDraft?.jobTrack === 'technical') {
+      return CV_TEMPLATES.find((t) => t.id === 'tech-01') ?? CV_TEMPLATES[0];
+    }
+    if (cvDraft?.jobTrack === 'sales') {
+      return CV_TEMPLATES.find((t) => t.id === 'sales-01') ?? CV_TEMPLATES[0];
+    }
+    return CV_TEMPLATES[0];
+  }, [cvDraft?.jobTrack]);
 
   async function onDownloadCv() {
     if (!candidate || !cvDraft || !cvExportRef.current || downloadingCv) return;
@@ -450,7 +499,8 @@ export default function ProfilePage() {
               <div ref={cvExportRef}>
                 <CvPreview
                   draft={cvDraft}
-                  template={CV_TEMPLATES[0]}
+                  template={cvExportTemplate}
+                  avatarUrl={cvExportAvatar}
                   exportWidth={794}
                 />
               </div>

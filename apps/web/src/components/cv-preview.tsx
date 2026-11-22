@@ -1,16 +1,17 @@
 'use client';
 
 import clsx from 'clsx';
-import { Mail, MapPin, Phone, Sparkles } from 'lucide-react';
+import { Calendar, Mail, MapPin, Phone, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
   AVAILABILITY_BAND_LABEL,
   B2B_EXPERIENCE_BAND_LABEL,
   JobTrack,
+  SHIFT_FLEXIBILITY_OPTIONS,
+  TECHNICAL_AUTONOMY_LEVELS,
   TRACK_FIELD_LABELS,
   TRAVEL_ABILITY_LABEL,
-  TECHNICAL_AUTONOMY_LEVELS,
-  SHIFT_FLEXIBILITY_OPTIONS,
+  TROUBLESHOOTING_LEVELS,
   formatDealTypes,
   formatLanguageSkillSummary,
   formatVnAddress,
@@ -30,12 +31,8 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-function bulletLines(text: string): string[] {
-  return toBulletLines(text);
-}
-
 function formatRevenue(v: number | null | undefined): string | null {
-  if (v == null) return null;
+  if (v == null || !Number.isFinite(v)) return null;
   return formatVndAmount(v);
 }
 
@@ -74,16 +71,110 @@ function labelOf(
   return map[value] ?? value;
 }
 
-function Chip({ children, dark }: { children: ReactNode; dark?: boolean }) {
+function autonomyLabel(level: number | null | undefined): string | null {
+  if (level == null) return null;
+  return TECHNICAL_AUTONOMY_LEVELS.find((l) => l.value === level)?.label ?? null;
+}
+
+function troubleshootingLabel(level: number | null | undefined): string | null {
+  if (level == null) return null;
+  return TROUBLESHOOTING_LEVELS.find((l) => l.value === level)?.label ?? null;
+}
+
+function formatExpectedIncome(draft: CvDraft): string | null {
+  const min = draft.expectedSalaryMin;
+  const max = draft.expectedSalaryMax;
+  const ote = draft.expectedOte;
+  const parts: string[] = [];
+  if (min != null && max != null && max > min) {
+    parts.push(`${formatVndAmount(min)} – ${formatVndAmount(max)}`);
+  } else if (min != null) {
+    parts.push(`Từ ${formatVndAmount(min)}`);
+  } else if (max != null) {
+    parts.push(`Đến ${formatVndAmount(max)}`);
+  }
+  if (ote != null) {
+    parts.push(`OTE ${formatVndAmount(ote)}`);
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
+function formatLanguageEntries(draft: CvDraft): string[] {
+  if (draft.languageSkills?.length) {
+    return draft.languageSkills.map(formatLanguageSkillSummary).filter(Boolean);
+  }
+  return draft.languages.map((l) => l.trim()).filter(Boolean);
+}
+
+function RichOrBullets({
+  text,
+  compact,
+}: {
+  text: string;
+  compact?: boolean;
+}) {
+  const trimmed = (text ?? '').trim();
+  if (!trimmed) return null;
+  if (looksLikeHtml(trimmed)) {
+    return (
+      <SafeHtml
+        html={trimmed}
+        className={clsx(
+          'profile-normalized-rich leading-relaxed text-slate-700',
+          compact ? 'text-[9.5px]' : 'text-[11px]',
+        )}
+      />
+    );
+  }
+  const lines = toBulletLines(trimmed);
+  if (lines.length === 0) return null;
+  if (lines.length === 1) {
+    return (
+      <p
+        className={clsx(
+          'whitespace-pre-line leading-relaxed text-slate-700',
+          compact ? 'text-[9.5px]' : 'text-[11px]',
+        )}
+      >
+        {lines[0]}
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-1 pl-4">
+      {lines.map((line, i) => (
+        <li
+          key={`${i}-${line.slice(0, 24)}`}
+          className={clsx(
+            'list-disc leading-relaxed text-slate-700 marker:text-slate-400',
+            compact ? 'text-[9.5px]' : 'text-[11px]',
+          )}
+        >
+          {line}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Chip({
+  children,
+  dark,
+  compact,
+}: {
+  children: ReactNode;
+  dark?: boolean;
+  compact?: boolean;
+}) {
   return (
     <span
       className={clsx(
-        // py không đều: bù metric font VN (dấu trên) để chữ nằm giữa nền
-        'inline-flex max-w-full items-center justify-center rounded-md px-2.5 pt-[5px] pb-[7px]',
-        'text-[9.5px] font-semibold leading-none',
+        // Bù metric dấu tiếng Việt để chữ luôn nằm giữa nền khi chụp PDF
+        'inline-flex max-w-full items-center justify-center rounded-md font-semibold leading-tight',
+        compact ? 'px-2 pt-[3px] pb-[5px] text-[8.5px]' : 'px-2.5 pt-[4px] pb-[6px] text-[10px]',
         dark
-          ? 'bg-white text-slate-800 shadow-sm'
-          : 'bg-slate-100 text-slate-800 ring-1 ring-slate-200/80',
+          ? 'bg-white/15 text-white border border-white/20'
+          : 'bg-slate-100 text-slate-800 border border-slate-200/90',
       )}
     >
       {children}
@@ -102,20 +193,25 @@ function AvatarPhoto({
   compact?: boolean;
   dark?: boolean;
 }) {
-  const size = compact ? 'h-14 w-14 text-sm' : 'h-[72px] w-[72px] text-lg';
+  const size = compact ? 'h-14 w-14 text-sm' : 'h-[82px] w-[82px] text-lg';
   return (
     <div
       className={clsx(
-        'mx-auto flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold tracking-wide ring-2',
+        'mx-auto flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 font-bold tracking-wide',
         size,
         dark
-          ? 'bg-white/20 text-white ring-white/40'
-          : 'bg-slate-100 text-slate-600 ring-slate-200',
+          ? 'border-white/45 bg-white/15 text-white'
+          : 'border-slate-200 bg-slate-100 text-slate-600',
       )}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={name} className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt={name}
+          crossOrigin="anonymous"
+          className="h-full w-full object-cover"
+        />
       ) : (
         initials(name)
       )}
@@ -123,39 +219,41 @@ function AvatarPhoto({
   );
 }
 
-function Kv({
-  label,
-  value,
-  dark,
+function InfoGrid({
+  rows,
+  compact,
 }: {
-  label: string;
-  value: ReactNode;
-  dark?: boolean;
+  rows: Array<{ label: string; value: string | null | undefined }>;
+  compact?: boolean;
 }) {
-  if (value == null || value === '' || value === false) return null;
+  const valid = rows.filter((r) => Boolean(r.value && r.value.trim()));
+  if (valid.length === 0) return null;
   return (
-    <div
-      className={clsx(
-        'flex min-h-[44px] flex-col justify-center rounded-md px-2.5 pt-[7px] pb-[9px]',
-        dark ? 'bg-white/10' : 'bg-slate-50 ring-1 ring-slate-100',
-      )}
-    >
-      <p
-        className={clsx(
-          'text-[8.5px] font-bold uppercase leading-none tracking-[0.08em]',
-          dark ? 'text-white/65' : 'text-slate-500',
-        )}
-      >
-        {label}
-      </p>
-      <p
-        className={clsx(
-          'mt-1.5 text-[10px] font-medium leading-snug',
-          dark ? 'text-white' : 'text-slate-800',
-        )}
-      >
-        {value}
-      </p>
+    <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
+      {valid.map((row) => (
+        <div
+          key={row.label}
+          data-cv-block
+          className="border-b border-slate-100 pb-1.5"
+        >
+          <p
+            className={clsx(
+              'font-bold uppercase tracking-[0.06em] text-slate-500',
+              compact ? 'text-[8px]' : 'text-[9px]',
+            )}
+          >
+            {row.label}
+          </p>
+          <p
+            className={clsx(
+              'mt-0.5 font-medium leading-snug text-slate-800',
+              compact ? 'text-[9.5px]' : 'text-[10.5px]',
+            )}
+          >
+            {row.value}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -164,16 +262,21 @@ function SectionTitle({
   title,
   accent,
   classic,
+  compact,
 }: {
   title: string;
   accent: string;
   classic?: boolean;
+  compact?: boolean;
 }) {
   if (classic) {
     return (
-      <div className="mb-2.5 border-b-2 pb-1.5" style={{ borderColor: accent }}>
+      <div className="mb-2.5 border-b-[1.5px] pb-1.5" style={{ borderColor: accent }}>
         <h3
-          className="text-[11px] font-extrabold uppercase leading-none tracking-[0.14em]"
+          className={clsx(
+            'font-extrabold uppercase leading-none tracking-[0.12em]',
+            compact ? 'text-[10px]' : 'text-[12px]',
+          )}
           style={{ color: accent }}
         >
           {title}
@@ -181,16 +284,18 @@ function SectionTitle({
       </div>
     );
   }
-  // Icon absolute theo cap-height chữ (không flex-center theo line-box → tránh lệch cao)
   return (
-    <div className="relative mb-2.5 pl-[11px]">
+    <div className="relative mb-2.5 pl-3">
       <span
         aria-hidden
-        className="absolute left-0 top-[1px] block h-[10px] w-[5px] rounded-[2px]"
+        className="absolute left-0 top-[1px] block h-[12px] w-[4px] rounded-full"
         style={{ backgroundColor: accent }}
       />
       <h3
-        className="text-[11px] font-extrabold uppercase leading-none tracking-[0.1em]"
+        className={clsx(
+          'font-extrabold uppercase leading-none tracking-[0.09em]',
+          compact ? 'text-[10px]' : 'text-[12px]',
+        )}
         style={{ color: accent }}
       >
         {title}
@@ -211,13 +316,12 @@ function ExperienceBlock({
   jobTrack?: CvDraft['jobTrack'];
 }) {
   const isTech = jobTrack === JobTrack.Technical;
-  const bullets = bulletLines(exp.bullets);
-
   const detailRows: { label: string; value: string }[] = [];
+
   if (exp.industries.length) {
     detailRows.push({
       label: 'Lĩnh vực',
-      value: exp.industries.slice(0, 5).join(', '),
+      value: exp.industries.slice(0, 6).join(', '),
     });
   }
   if (exp.productsSold.length) {
@@ -226,25 +330,30 @@ function ExperienceBlock({
       value: exp.productsSold.slice(0, 6).join(', '),
     });
   }
-  if (!isTech && (exp.brandsTechnologies?.length ?? 0) > 0) {
+  if ((exp.brandsTechnologies?.length ?? 0) > 0) {
     detailRows.push({
-      label: 'Hãng / thương hiệu',
+      label: isTech ? 'Hãng / công nghệ' : 'Hãng / thương hiệu',
       value: (exp.brandsTechnologies ?? []).slice(0, 8).join(', '),
     });
   }
   if (exp.customerSegments.length) {
     detailRows.push({
-      label: isTech ? 'Môi trường' : 'Khách hàng',
+      label: isTech ? 'Môi trường làm việc' : 'Khách hàng',
       value: exp.customerSegments.slice(0, 5).join(', '),
     });
   }
-  if (exp.marketsCovered.length && !isTech) {
-    detailRows.push({
-      label: 'Thị trường',
-      value: exp.marketsCovered.slice(0, 5).join(', '),
-    });
-  }
-  if (!isTech) {
+  if (isTech) {
+    const expAutonomy = autonomyLabel(exp.technicalAutonomyLevel);
+    if (expAutonomy) {
+      detailRows.push({ label: 'Mức độ tự chủ', value: expAutonomy });
+    }
+  } else {
+    if (exp.marketsCovered.length) {
+      detailRows.push({
+        label: 'Thị trường',
+        value: exp.marketsCovered.slice(0, 5).join(', '),
+      });
+    }
     const deal = formatDealTypes(exp.dealType);
     if (deal) detailRows.push({ label: 'Giải pháp sản phẩm', value: deal });
     const rev = formatRevenue(exp.latestRevenue);
@@ -254,424 +363,108 @@ function ExperienceBlock({
     const ratio = newCustomerBandLabel(exp.newCustomerRatioPct);
     if (ratio) detailRows.push({ label: 'KH tự tìm kiếm', value: ratio });
     const dealValue = dealValueBandLabel(exp.typicalDealValue);
-    if (dealValue) detailRows.push({ label: 'Giá trị hợp đồng', value: dealValue });
+    if (dealValue) detailRows.push({ label: 'Giá trị HĐ thường gặp', value: dealValue });
+    const maxDeal = dealValueBandLabel(exp.maxDealValue);
+    if (maxDeal) detailRows.push({ label: 'Giá trị HĐ lớn nhất', value: maxDeal });
   }
 
   return (
     <div
       data-cv-block
       className={clsx(
-        'mb-4 border-b border-slate-100 pb-3 last:mb-0 last:border-0 last:pb-0',
+        'mb-4 border-b border-slate-100 pb-3.5 last:mb-0 last:border-0 last:pb-0',
         compact && 'mb-3 pb-2.5',
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-        <p className="text-[11.5px] font-extrabold leading-tight text-slate-900">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+        <p
+          className={clsx(
+            'font-extrabold leading-snug text-slate-900',
+            compact ? 'text-[11px]' : 'text-[12.5px]',
+          )}
+        >
           {exp.role}
         </p>
         {exp.period ? (
-          <p className="inline-flex shrink-0 items-center justify-center rounded bg-slate-100 px-1.5 pt-[3px] pb-[5px] text-[9px] font-bold leading-none text-slate-600">
+          <span
+            className={clsx(
+              'inline-flex shrink-0 items-center justify-center rounded bg-slate-100 px-2 pt-[3px] pb-[5px] font-bold leading-none text-slate-600',
+              compact ? 'text-[8.5px]' : 'text-[9.5px]',
+            )}
+          >
             {exp.period}
-          </p>
+          </span>
         ) : null}
       </div>
-      <p className="mt-0.5 text-[10.5px] font-semibold" style={{ color: accent }}>
+      <p
+        className={clsx('mt-0.5 font-semibold', compact ? 'text-[10px]' : 'text-[11px]')}
+        style={{ color: accent }}
+      >
         {exp.company}
       </p>
+
       {detailRows.length > 0 && (
-        <dl className="mt-1.5 space-y-0.5">
+        <dl className="mt-2 space-y-0.5">
           {detailRows.map((row) => (
-            <div key={row.label} className="flex gap-1 text-[9px] leading-snug">
+            <div
+              key={row.label}
+              className={clsx('flex gap-1.5 leading-snug', compact ? 'text-[8.5px]' : 'text-[10px]')}
+            >
               <dt className="shrink-0 font-bold text-slate-600">{row.label}:</dt>
-              <dd className="min-w-0 text-slate-500">{row.value}</dd>
+              <dd className="min-w-0 text-slate-600">{row.value}</dd>
             </div>
           ))}
         </dl>
       )}
+
       {exp.sellingStages.length > 0 && (
-        <p className="mt-1 text-[9px] leading-snug text-slate-500">
-          <span className="font-bold text-slate-600">
-            {isTech ? 'Công việc' : 'Phạm vi công việc'}:
+        <p
+          className={clsx(
+            'mt-1.5 leading-snug text-slate-600',
+            compact ? 'text-[8.5px]' : 'text-[10px]',
+          )}
+        >
+          <span className="font-bold text-slate-700">
+            {isTech ? 'Công việc kỹ thuật' : 'Phạm vi công việc'}:
           </span>{' '}
           {exp.sellingStages.join(' · ')}
         </p>
       )}
-      {!isTech && (exp.jobDescription ?? '').trim() ? (
-        <p className="mt-1 text-[10px] leading-relaxed text-slate-700">
-          {(exp.jobDescription ?? '').trim()}
-        </p>
+
+      {(exp.jobDescription ?? '').trim() ? (
+        <div className="mt-2">
+          <p
+            className={clsx(
+              'mb-0.5 font-bold uppercase tracking-[0.06em] text-slate-500',
+              compact ? 'text-[8px]' : 'text-[9px]',
+            )}
+          >
+            Mô tả công việc
+          </p>
+          <RichOrBullets text={exp.jobDescription ?? ''} compact={compact} />
+        </div>
       ) : null}
-      {bullets.length > 0 && (
-        <ul className="mt-2 space-y-1 pl-3.5">
-          {bullets.map((b, i) => (
-            <li
-              key={`${i}-${b.slice(0, 24)}`}
-              className="list-disc text-[10px] leading-relaxed text-slate-700 marker:text-slate-400"
+
+      {(exp.bullets ?? '').trim() ? (
+        <div className="mt-2">
+          {(exp.jobDescription ?? '').trim() ? (
+            <p
+              className={clsx(
+                'mb-0.5 font-bold uppercase tracking-[0.06em] text-slate-500',
+                compact ? 'text-[8px]' : 'text-[9px]',
+              )}
             >
-              {b}
-            </li>
-          ))}
-        </ul>
-      )}
+              {isTech ? 'Kết quả / dự án nổi bật' : 'Thành tích nổi bật'}
+            </p>
+          ) : null}
+          <RichOrBullets text={exp.bullets} compact={compact} />
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function SalesCapabilitySection({
-  draft,
-  accent,
-  classic,
-}: {
-  draft: CvDraft;
-  accent: string;
-  classic?: boolean;
-}) {
-  const isTech = draft.jobTrack === JobTrack.Technical;
-  const productLabel = isTech
-    ? TRACK_FIELD_LABELS.productsSold[JobTrack.Technical]
-    : TRACK_FIELD_LABELS.productsSold[JobTrack.Sales];
-  const segmentLabel = isTech
-    ? TRACK_FIELD_LABELS.customerSegments[JobTrack.Technical]
-    : TRACK_FIELD_LABELS.customerSegments[JobTrack.Sales];
-  const highlightLabel = TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales];
-
-  const autonomy =
-    draft.technicalAutonomyLevel != null
-      ? TECHNICAL_AUTONOMY_LEVELS.find((l) => l.value === draft.technicalAutonomyLevel)?.label
-      : null;
-
-  const workTypes = draft.technicalWorkTypes.length
-    ? draft.technicalWorkTypes
-    : draft.experience.flatMap((e) => e.sellingStages);
-  const uniqueWorkTypes = [...new Set(workTypes)];
-  const equipment = draft.productsSold.length
-    ? draft.productsSold
-    : draft.experience.flatMap((e) => e.productsSold);
-  const uniqueEquipment = [...new Set(equipment)];
-  const environments = draft.customerSegments.length
-    ? draft.customerSegments
-    : draft.experience.flatMap((e) => e.customerSegments);
-  const uniqueEnvironments = [...new Set(environments)];
-
-  const has = isTech
-    ? uniqueEquipment.length > 0 ||
-      uniqueEnvironments.length > 0 ||
-      draft.industriesExperienced.length > 0 ||
-      uniqueWorkTypes.length > 0 ||
-      draft.technicalTools.length > 0 ||
-      draft.documentLiteracy.length > 0 ||
-      draft.desiredWorkEnvironments.length > 0 ||
-      !!autonomy
-    : uniqueEquipment.length > 0 ||
-      uniqueEnvironments.length > 0 ||
-      draft.marketsCovered.length > 0 ||
-      draft.industriesExperienced.length > 0 ||
-      !!draft.b2bExperienceBand ||
-      !!draft.dealType ||
-      draft.typicalDealValue != null ||
-      draft.newCustomerRatioPct != null ||
-      !!draft.salesHighlights ||
-      draft.brandsTechnologies.length > 0;
-
-  if (!has) return null;
-
-  return (
-    <section data-cv-block className="mb-3">
-      <SectionTitle
-        title={isTech ? 'Năng lực kỹ thuật' : 'Năng lực Sales B2B'}
-        accent={accent}
-        classic={classic}
-      />
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-        {draft.industriesExperienced.length > 0 && (
-          <Kv label={isTech ? 'Lĩnh vực' : 'Ngành'} value={draft.industriesExperienced.join(', ')} />
-        )}
-        {!isTech && draft.b2bExperienceBand && (
-          <Kv
-            label="Kinh nghiệm B2B"
-            value={labelOf(B2B_EXPERIENCE_BAND_LABEL, draft.b2bExperienceBand)}
-          />
-        )}
-        {uniqueEquipment.length > 0 && (
-          <Kv label={productLabel} value={uniqueEquipment.join(', ')} />
-        )}
-        {uniqueEnvironments.length > 0 && (
-          <Kv label={segmentLabel} value={uniqueEnvironments.join(', ')} />
-        )}
-        {!isTech && draft.marketsCovered.length > 0 && (
-          <Kv label="Thị trường" value={draft.marketsCovered.join(', ')} />
-        )}
-        {!isTech &&
-          [
-            ...new Set([
-              ...draft.experience.flatMap((e) => e.brandsTechnologies ?? []),
-              ...draft.brandsTechnologies,
-            ]),
-          ].length > 0 && (
-          <Kv
-            label="Hãng / thương hiệu"
-            value={[
-              ...new Set([
-                ...draft.experience.flatMap((e) => e.brandsTechnologies ?? []),
-                ...draft.brandsTechnologies,
-              ]),
-            ].join(', ')}
-          />
-        )}
-        {isTech && uniqueWorkTypes.length > 0 && (
-          <Kv label="Công việc kỹ thuật" value={uniqueWorkTypes.join(', ')} />
-        )}
-        {isTech && autonomy && (
-          <Kv label="Mức tự chủ" value={autonomy} />
-        )}
-        {isTech && draft.technicalTools.length > 0 && (
-          <Kv label="Phần mềm / công cụ" value={draft.technicalTools.join(', ')} />
-        )}
-        {isTech && draft.documentLiteracy.length > 0 && (
-          <Kv label="Đọc bản vẽ / tài liệu" value={draft.documentLiteracy.join(', ')} />
-        )}
-        {isTech && draft.desiredWorkEnvironments.length > 0 && (
-          <Kv
-            label="Môi trường mong muốn"
-            value={draft.desiredWorkEnvironments.join(', ')}
-          />
-        )}
-        {!isTech && draft.dealType && (
-          <Kv label="Giải pháp sản phẩm" value={formatDealTypes(draft.dealType)} />
-        )}
-        {!isTech && draft.typicalDealValue != null && (
-          <Kv
-            label="Giá trị hợp đồng thường gặp"
-            value={dealValueBandLabel(draft.typicalDealValue)}
-          />
-        )}
-        {!isTech && draft.newCustomerRatioPct != null && (
-          <Kv
-            label="KH tự tìm kiếm"
-            value={newCustomerBandLabel(draft.newCustomerRatioPct)}
-          />
-        )}
-      </div>
-      {!isTech && draft.salesHighlights && (
-        <div className="mt-2">
-          <p className="mb-1 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-            {highlightLabel}
-          </p>
-          <SalesHighlightsBullets text={draft.salesHighlights} />
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SalesHighlightsBullets({
-  text,
-  className,
-}: {
-  text: string;
-  className?: string;
-}) {
-  const lines = toBulletLines(text);
-  if (lines.length === 0) return null;
-  if (lines.length === 1) {
-    return (
-      <p className={clsx('text-[10px] leading-relaxed text-slate-600', className)}>
-        {lines[0]}
-      </p>
-    );
-  }
-  return (
-    <ul className={clsx('space-y-1 pl-3.5', className)}>
-      {lines.map((line, i) => (
-        <li
-          key={`${i}-${line.slice(0, 24)}`}
-          className="list-disc text-[10px] leading-relaxed text-slate-700 marker:text-slate-400"
-        >
-          {line}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ConditionsSection({
-  draft,
-  accent,
-  classic,
-}: {
-  draft: CvDraft;
-  accent: string;
-  classic?: boolean;
-}) {
-  const availability = labelOf(AVAILABILITY_BAND_LABEL, draft.availabilityBand);
-  const travel = labelOf(TRAVEL_ABILITY_LABEL, draft.travelAbility);
-  const license =
-    draft.driverLicenseType?.trim() ||
-    (draft.hasB2License == null ? null : draft.hasB2License ? 'Ô tô' : 'Chưa có');
-  const shift =
-    draft.jobTrack === JobTrack.Technical && draft.shiftFlexibility != null
-      ? SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.value === draft.shiftFlexibility)?.label
-      : null;
-  const salaryBits = [
-    draft.expectedSalaryMin != null ? `Từ ${formatVndAmount(draft.expectedSalaryMin)}` : null,
-    draft.expectedOte != null ? `OTE ${formatVndAmount(draft.expectedOte)}` : null,
-  ].filter(Boolean);
-  const has =
-    availability ||
-    travel ||
-    license ||
-    salaryBits.length > 0 ||
-    draft.desiredLocations.length > 0 ||
-    draft.languages.length > 0 ||
-    shift;
-
-  if (!has) return null;
-
-  return (
-    <section data-cv-block className="mb-3">
-      <SectionTitle title="Điều kiện công việc" accent={accent} classic={classic} />
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-        <Kv label="Nhận việc" value={availability} />
-        <Kv label="Công tác" value={travel} />
-        <Kv label="Bằng lái" value={license} />
-        <Kv label="Thu nhập kỳ vọng" value={salaryBits.join(' · ') || null} />
-        <Kv
-          label="Địa điểm mong muốn"
-          value={draft.desiredLocations.length ? draft.desiredLocations.join(', ') : null}
-        />
-        <Kv
-          label="Ngoại ngữ"
-          value={
-            draft.languageSkills?.length
-              ? draft.languageSkills.map(formatLanguageSkillSummary).join('; ')
-              : draft.languages.length
-                ? draft.languages.join(', ')
-                : null
-          }
-        />
-        {shift && <Kv label="Làm ca / ngoài giờ" value={shift} />}
-      </div>
-    </section>
-  );
-}
-
-/** Mục 36–39 + sở thích / định hướng nghề. */
-function PreferencesSection({
-  draft,
-  accent,
-  classic,
-}: {
-  draft: CvDraft;
-  accent: string;
-  classic?: boolean;
-}) {
-  const has =
-    draft.hobbies.length > 0 ||
-    draft.careerMotivations.length > 0 ||
-    draft.careerOrientations.length > 0 ||
-    draft.workStyles.length > 0 ||
-    draft.desiredPositions.length > 0 ||
-    draft.desiredWorkEnvironments.length > 0;
-
-  if (!has) return null;
-
-  return (
-    <section data-cv-block className="mb-3">
-      <SectionTitle title="Định hướng & sở thích" accent={accent} classic={classic} />
-      <div className="space-y-2">
-        {draft.hobbies.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Sở thích
-            </p>
-            {draft.hobbies.length === 1 && looksLikeHtml(draft.hobbies[0]) ? (
-              <SafeHtml
-                html={draft.hobbies[0]}
-                className="profile-normalized-rich text-[10.5px] leading-relaxed text-slate-700"
-              />
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {draft.hobbies.map((h, i) => (
-                  <Chip key={`hobby-${i}-${h}`}>{h}</Chip>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {draft.desiredPositions.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Vị trí mong muốn
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.desiredPositions.map((p, i) => (
-                <Chip key={`pos-${i}-${p}`}>{p}</Chip>
-              ))}
-            </div>
-          </div>
-        )}
-        {draft.careerMotivations.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Động lực nghề nghiệp
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.careerMotivations.map((m, i) => (
-                <Chip key={`mot-${i}-${m}`}>{m}</Chip>
-              ))}
-            </div>
-          </div>
-        )}
-        {draft.careerOrientations.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Định hướng nghề nghiệp
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.careerOrientations.map((o, i) => (
-                <Chip key={`ori-${i}-${o}`}>{o}</Chip>
-              ))}
-            </div>
-          </div>
-        )}
-        {draft.workStyles.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              {draft.jobTrack === JobTrack.Technical
-                ? 'Cách làm việc kỹ thuật'
-                : 'Phong cách & môi trường làm việc'}
-            </p>
-            <ul className="space-y-1 pl-3.5">
-              {draft.workStyles.map((w, i) => (
-                <li
-                  key={`ws-${i}-${w}`}
-                  className="list-disc text-[10px] leading-snug text-slate-700 marker:text-slate-400"
-                >
-                  {w}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {draft.jobTrack === JobTrack.Technical &&
-          draft.desiredWorkEnvironments.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-                Môi trường làm việc mong muốn
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {draft.desiredWorkEnvironments.map((e, i) => (
-                  <Chip key={`env-${i}-${e}`}>{e}</Chip>
-                ))}
-              </div>
-            </div>
-          )}
-      </div>
-    </section>
-  );
-}
-
-function MainSections({
+function CapabilitySection({
   draft,
   accent,
   classic,
@@ -682,48 +475,338 @@ function MainSections({
   classic?: boolean;
   compact?: boolean;
 }) {
+  const isTech = draft.jobTrack === JobTrack.Technical;
+  const productLabel = isTech
+    ? TRACK_FIELD_LABELS.productsSold[JobTrack.Technical]
+    : TRACK_FIELD_LABELS.productsSold[JobTrack.Sales];
+  const segmentLabel = isTech
+    ? TRACK_FIELD_LABELS.customerSegments[JobTrack.Technical]
+    : TRACK_FIELD_LABELS.customerSegments[JobTrack.Sales];
+
+  const allBrands = [
+    ...new Set([
+      ...draft.brandsTechnologies,
+      ...draft.experience.flatMap((e) => e.brandsTechnologies ?? []),
+    ]),
+  ].filter(Boolean);
+
+  const uniqueWorkTypes = [
+    ...new Set(
+      draft.technicalWorkTypes.length
+        ? draft.technicalWorkTypes
+        : draft.experience.flatMap((e) => e.sellingStages),
+    ),
+  ].filter(Boolean);
+
+  const uniqueEquipment = [
+    ...new Set(
+      draft.productsSold.length
+        ? draft.productsSold
+        : draft.experience.flatMap((e) => e.productsSold),
+    ),
+  ].filter(Boolean);
+
+  const uniqueEnvironments = [
+    ...new Set(
+      draft.customerSegments.length
+        ? draft.customerSegments
+        : draft.experience.flatMap((e) => e.customerSegments),
+    ),
+  ].filter(Boolean);
+
+  const rows: Array<{ label: string; value: string | null | undefined }> = isTech
+    ? [
+        { label: 'Lĩnh vực hoạt động', value: draft.industriesExperienced.join(', ') },
+        { label: productLabel, value: uniqueEquipment.join(', ') },
+        { label: 'Hãng / công nghệ', value: allBrands.join(', ') },
+        { label: 'Công việc kỹ thuật', value: uniqueWorkTypes.join(', ') },
+        { label: segmentLabel, value: uniqueEnvironments.join(', ') },
+        { label: 'Mức độ tự chủ', value: autonomyLabel(draft.technicalAutonomyLevel) },
+        { label: 'Mức xử lý sự cố', value: troubleshootingLabel(draft.troubleshootingLevel) },
+        { label: 'Phần mềm / công cụ', value: draft.technicalTools.join(', ') },
+        { label: 'Đọc bản vẽ / tài liệu', value: draft.documentLiteracy.join(', ') },
+        { label: 'Quy mô / công suất hệ thống', value: draft.systemScaleNote },
+      ]
+    : [
+        { label: 'Ngành hàng', value: draft.industriesExperienced.join(', ') },
+        {
+          label: 'Kinh nghiệm B2B',
+          value: labelOf(B2B_EXPERIENCE_BAND_LABEL, draft.b2bExperienceBand),
+        },
+        { label: productLabel, value: uniqueEquipment.join(', ') },
+        { label: 'Hãng / thương hiệu', value: allBrands.join(', ') },
+        { label: segmentLabel, value: uniqueEnvironments.join(', ') },
+        { label: 'Thị trường phụ trách', value: draft.marketsCovered.join(', ') },
+        { label: 'Giải pháp sản phẩm', value: formatDealTypes(draft.dealType) },
+        { label: 'Giá trị HĐ thường gặp', value: dealValueBandLabel(draft.typicalDealValue) },
+        { label: 'Giá trị HĐ lớn nhất', value: dealValueBandLabel(draft.maxDealValue) },
+        { label: 'KH tự tìm kiếm', value: newCustomerBandLabel(draft.newCustomerRatioPct) },
+        { label: 'Phong cách Sales', value: draft.salesBehavior },
+      ];
+
+  const hasRows = rows.some((r) => Boolean(r.value && r.value.trim()));
+  const hasSalesHighlights = !isTech && Boolean(draft.salesHighlights?.trim());
+  if (!hasRows && !hasSalesHighlights) return null;
+
   return (
-    <>
-      {(draft.summary ||
-        (draft.jobTrack !== JobTrack.Technical && draft.salesHighlights) ||
-        draft.careerObjective) && (
-        <section data-cv-block className="mb-4">
-          <SectionTitle title="Giới thiệu" accent={accent} classic={classic} />
-          {draft.careerObjective && (
-            <p className="mb-2 whitespace-pre-line rounded-md bg-slate-50 px-2.5 py-2 text-[10px] leading-relaxed text-slate-700 ring-1 ring-slate-100">
-              <span className="font-bold text-slate-800">Mục tiêu nghề nghiệp: </span>
-              {draft.careerObjective}
+    <section data-cv-block className="mb-4">
+      <SectionTitle
+        title={isTech ? 'Năng lực kỹ thuật' : 'Năng lực Sales B2B'}
+        accent={accent}
+        classic={classic}
+        compact={compact}
+      />
+      <InfoGrid rows={rows} compact={compact} />
+      {hasSalesHighlights && (
+        <div data-cv-block className="mt-2.5 rounded-lg bg-slate-50/90 px-3 py-2 border border-slate-100">
+          <p
+            className={clsx(
+              'mb-1 font-bold uppercase tracking-[0.08em] text-slate-500',
+              compact ? 'text-[8px]' : 'text-[9px]',
+            )}
+          >
+            {TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales]}
+          </p>
+          <RichOrBullets text={draft.salesHighlights} compact={compact} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ConditionsSection({
+  draft,
+  accent,
+  classic,
+  compact,
+  includeLanguages,
+}: {
+  draft: CvDraft;
+  accent: string;
+  classic?: boolean;
+  compact?: boolean;
+  includeLanguages?: boolean;
+}) {
+  const availability = labelOf(AVAILABILITY_BAND_LABEL, draft.availabilityBand);
+  const travel = labelOf(TRAVEL_ABILITY_LABEL, draft.travelAbility);
+  const license =
+    draft.driverLicenseType?.trim() ||
+    (draft.hasB2License == null ? null : draft.hasB2License ? 'Ô tô' : 'Chưa có');
+  const shift =
+    draft.jobTrack === JobTrack.Technical && draft.shiftFlexibility != null
+      ? SHIFT_FLEXIBILITY_OPTIONS.find((o) => o.value === draft.shiftFlexibility)?.label
+      : null;
+  const income = formatExpectedIncome(draft);
+  const langs = includeLanguages ? formatLanguageEntries(draft) : [];
+
+  const rows: Array<{ label: string; value: string | null | undefined }> = [
+    { label: 'Thời gian nhận việc', value: availability },
+    { label: 'Thu nhập kỳ vọng', value: income },
+    { label: 'Địa điểm mong muốn', value: draft.desiredLocations.join(', ') },
+    { label: 'Khả năng đi công tác', value: travel },
+    { label: 'Bằng lái xe', value: license },
+    ...(shift ? [{ label: 'Làm ca / ngoài giờ', value: shift }] : []),
+    ...(langs.length ? [{ label: 'Ngoại ngữ', value: langs.join('; ') }] : []),
+  ];
+
+  if (!rows.some((r) => Boolean(r.value && r.value.trim()))) return null;
+
+  return (
+    <section data-cv-block className="mb-4">
+      <SectionTitle
+        title="Điều kiện làm việc"
+        accent={accent}
+        classic={classic}
+        compact={compact}
+      />
+      <InfoGrid rows={rows} compact={compact} />
+    </section>
+  );
+}
+
+function PreferencesSection({
+  draft,
+  accent,
+  classic,
+  compact,
+}: {
+  draft: CvDraft;
+  accent: string;
+  classic?: boolean;
+  compact?: boolean;
+}) {
+  const isTech = draft.jobTrack === JobTrack.Technical;
+  const has =
+    draft.desiredPositions.length > 0 ||
+    draft.careerMotivations.length > 0 ||
+    draft.careerOrientations.length > 0 ||
+    draft.workStyles.length > 0 ||
+    (isTech && draft.desiredWorkEnvironments.length > 0) ||
+    draft.hobbies.length > 0;
+
+  if (!has) return null;
+
+  const subHeading = clsx(
+    'mb-1.5 font-bold uppercase tracking-[0.08em] text-slate-500',
+    compact ? 'text-[8px]' : 'text-[9px]',
+  );
+
+  return (
+    <section data-cv-block className="mb-3">
+      <SectionTitle
+        title="Định hướng & sở thích"
+        accent={accent}
+        classic={classic}
+        compact={compact}
+      />
+      <div className="space-y-2.5">
+        {draft.desiredPositions.length > 0 && (
+          <div data-cv-block>
+            <p className={subHeading}>Vị trí mong muốn</p>
+            <div className="flex flex-wrap gap-1.5">
+              {draft.desiredPositions.map((p, i) => (
+                <Chip key={`pos-${i}-${p}`} compact={compact}>
+                  {p}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+        {draft.careerOrientations.length > 0 && (
+          <div data-cv-block>
+            <p className={subHeading}>Định hướng nghề nghiệp</p>
+            <div className="flex flex-wrap gap-1.5">
+              {draft.careerOrientations.map((o, i) => (
+                <Chip key={`ori-${i}-${o}`} compact={compact}>
+                  {o}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+        {draft.careerMotivations.length > 0 && (
+          <div data-cv-block>
+            <p className={subHeading}>Động lực nghề nghiệp</p>
+            <div className="flex flex-wrap gap-1.5">
+              {draft.careerMotivations.map((m, i) => (
+                <Chip key={`mot-${i}-${m}`} compact={compact}>
+                  {m}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+        {isTech && draft.desiredWorkEnvironments.length > 0 && (
+          <div data-cv-block>
+            <p className={subHeading}>Môi trường làm việc mong muốn</p>
+            <div className="flex flex-wrap gap-1.5">
+              {draft.desiredWorkEnvironments.map((e, i) => (
+                <Chip key={`env-${i}-${e}`} compact={compact}>
+                  {e}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+        {draft.workStyles.length > 0 && (
+          <div data-cv-block>
+            <p className={subHeading}>
+              {isTech ? 'Cách làm việc kỹ thuật' : 'Phong cách & môi trường làm việc'}
             </p>
-          )}
-          {draft.summary ? (
-            looksLikeHtml(draft.summary) ? (
+            <ul className="space-y-1 pl-4">
+              {draft.workStyles.map((w, i) => (
+                <li
+                  key={`ws-${i}-${w}`}
+                  className={clsx(
+                    'list-disc leading-snug text-slate-700 marker:text-slate-400',
+                    compact ? 'text-[9.5px]' : 'text-[10.5px]',
+                  )}
+                >
+                  {w}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {draft.hobbies.length > 0 && (
+          <div data-cv-block>
+            <p className={subHeading}>Sở thích</p>
+            {draft.hobbies.length === 1 && looksLikeHtml(draft.hobbies[0]) ? (
               <SafeHtml
-                html={draft.summary}
-                className="profile-normalized-rich text-[10.5px] leading-relaxed text-slate-700"
+                html={draft.hobbies[0]}
+                className={clsx(
+                  'profile-normalized-rich leading-relaxed text-slate-700',
+                  compact ? 'text-[9.5px]' : 'text-[10.5px]',
+                )}
               />
             ) : (
-              <p className="text-[10.5px] leading-relaxed text-slate-700">{draft.summary}</p>
-            )
-          ) : null}
-          {draft.jobTrack !== JobTrack.Technical &&
-            draft.salesHighlights &&
-            draft.salesHighlights !== draft.summary && (
-              <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2 ring-1 ring-slate-100">
-                <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
-                  {TRACK_FIELD_LABELS.salesHighlights[JobTrack.Sales]}
-                </p>
-                <SalesHighlightsBullets text={draft.salesHighlights} />
+              <div className="flex flex-wrap gap-1.5">
+                {draft.hobbies.map((h, i) => (
+                  <Chip key={`hobby-${i}-${h}`} compact={compact}>
+                    {h}
+                  </Chip>
+                ))}
               </div>
             )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Thứ tự mục chuẩn HR quốc tế & B2B:
+ * 1. Giới thiệu & Mục tiêu → 2. Kinh nghiệm làm việc → 3. Năng lực chuyên môn
+ * → 4. Học vấn / Dự án / Chứng chỉ → 5. Điều kiện làm việc → 6. Định hướng & Sở thích.
+ */
+function MainSections({
+  draft,
+  accent,
+  classic,
+  compact,
+  includeLanguagesInConditions,
+}: {
+  draft: CvDraft;
+  accent: string;
+  classic?: boolean;
+  compact?: boolean;
+  includeLanguagesInConditions?: boolean;
+}) {
+  return (
+    <>
+      {(draft.summary || draft.careerObjective) && (
+        <section data-cv-block className="mb-4">
+          <SectionTitle title="Giới thiệu" accent={accent} classic={classic} compact={compact} />
+          {draft.careerObjective && (
+            <div
+              className="mb-2 border-l-2 bg-slate-50/80 py-1.5 pl-3 pr-2.5"
+              style={{ borderColor: accent }}
+            >
+              <p
+                className={clsx(
+                  'whitespace-pre-line leading-relaxed text-slate-700',
+                  compact ? 'text-[9.5px]' : 'text-[10.5px]',
+                )}
+              >
+                <span className="font-bold text-slate-900">Mục tiêu nghề nghiệp: </span>
+                {draft.careerObjective}
+              </p>
+            </div>
+          )}
+          {draft.summary ? <RichOrBullets text={draft.summary} compact={compact} /> : null}
         </section>
       )}
 
-      <PreferencesSection draft={draft} accent={accent} classic={classic} />
-
       <section data-cv-block className="mb-4">
-        <SectionTitle title="Kinh nghiệm làm việc" accent={accent} classic={classic} />
+        <SectionTitle
+          title="Kinh nghiệm làm việc"
+          accent={accent}
+          classic={classic}
+          compact={compact}
+        />
         {draft.experience.length === 0 ? (
-          <p className="text-[10px] text-slate-400">Chưa có kinh nghiệm</p>
+          <p className="text-[10.5px] text-slate-400">Chưa có kinh nghiệm</p>
         ) : (
           draft.experience.map((e, i) => (
             <ExperienceBlock
@@ -737,45 +820,74 @@ function MainSections({
         )}
       </section>
 
-      <SalesCapabilitySection draft={draft} accent={accent} classic={classic} />
-      <ConditionsSection draft={draft} accent={accent} classic={classic} />
+      <CapabilitySection draft={draft} accent={accent} classic={classic} compact={compact} />
 
       {draft.education.length > 0 && (
-        <section data-cv-block className="mb-3">
-          <SectionTitle title="Học vấn" accent={accent} classic={classic} />
-          {draft.education.map((e, i) => (
-            <div key={`${e.school}-${i}`} className="mb-1.5">
-              <p className="text-[11px] font-bold text-slate-900">{e.school || e.degree}</p>
-              <p className="text-[10px] text-slate-600">
-                {[draft.educationLevel, e.degree, e.period].filter(Boolean).join(' · ')}
-              </p>
-            </div>
-          ))}
+        <section data-cv-block className="mb-4">
+          <SectionTitle title="Học vấn" accent={accent} classic={classic} compact={compact} />
+          {draft.education.map((e, i) => {
+            const heading = e.school?.trim() || e.degree?.trim() || draft.educationLevel || '';
+            const subParts = [
+              e.school?.trim() ? draft.educationLevel : null,
+              e.school?.trim() ? e.degree : null,
+              e.period,
+            ].filter(Boolean);
+            return (
+              <div key={`${e.school}-${i}`} data-cv-block className="mb-1.5 last:mb-0">
+                <p
+                  className={clsx(
+                    'font-bold text-slate-900',
+                    compact ? 'text-[10.5px]' : 'text-[11.5px]',
+                  )}
+                >
+                  {heading}
+                </p>
+                {subParts.length > 0 ? (
+                  <p className={clsx('text-slate-600', compact ? 'text-[9.5px]' : 'text-[10.5px]')}>
+                    {subParts.join(' · ')}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
         </section>
       )}
 
       {draft.projects.length > 0 && (
-        <section data-cv-block className="mb-3">
-          <SectionTitle title="Dự án tiêu biểu" accent={accent} classic={classic} />
+        <section data-cv-block className="mb-4">
+          <SectionTitle
+            title="Dự án tiêu biểu"
+            accent={accent}
+            classic={classic}
+            compact={compact}
+          />
           {draft.projects.map((p, i) => (
-            <div key={`${p.name}-${i}`} className="mb-1.5">
-              <p className="text-[11px] font-bold text-slate-900">{p.name}</p>
-              {p.detail && (
-                <p className="text-[10px] leading-relaxed text-slate-600">{p.detail}</p>
-              )}
+            <div key={`${p.name}-${i}`} data-cv-block className="mb-2 last:mb-0">
+              <p
+                className={clsx(
+                  'font-bold text-slate-900',
+                  compact ? 'text-[10.5px]' : 'text-[11.5px]',
+                )}
+              >
+                {p.name}
+              </p>
+              {p.detail ? <RichOrBullets text={p.detail} compact={compact} /> : null}
             </div>
           ))}
         </section>
       )}
 
       {draft.certificates.length > 0 && (
-        <section data-cv-block className="mb-1">
-          <SectionTitle title="Chứng chỉ" accent={accent} classic={classic} />
-          <ul className="space-y-0.5 pl-3.5">
+        <section data-cv-block className="mb-4">
+          <SectionTitle title="Chứng chỉ" accent={accent} classic={classic} compact={compact} />
+          <ul className="space-y-1 pl-4">
             {draft.certificates.map((c, i) => (
               <li
                 key={`cert-${i}-${c}`}
-                className="list-disc text-[10px] text-slate-700 marker:text-slate-400"
+                className={clsx(
+                  'list-disc leading-snug text-slate-700 marker:text-slate-400',
+                  compact ? 'text-[9.5px]' : 'text-[10.5px]',
+                )}
               >
                 {c}
               </li>
@@ -783,6 +895,16 @@ function MainSections({
           </ul>
         </section>
       )}
+
+      <ConditionsSection
+        draft={draft}
+        accent={accent}
+        classic={classic}
+        compact={compact}
+        includeLanguages={includeLanguagesInConditions}
+      />
+
+      <PreferencesSection draft={draft} accent={accent} classic={classic} compact={compact} />
     </>
   );
 }
@@ -790,57 +912,69 @@ function MainSections({
 function SidebarSkills({
   draft,
   dark,
+  compact,
 }: {
   draft: CvDraft;
   dark?: boolean;
+  compact?: boolean;
 }) {
   const heading = clsx(
-    'mb-2 text-[9px] font-extrabold uppercase tracking-[0.14em]',
+    'mb-2 font-extrabold uppercase tracking-[0.12em]',
+    compact ? 'text-[8.5px]' : 'text-[10px]',
     dark ? 'text-white/80' : 'text-slate-500',
   );
+  const langSummaries = formatLanguageEntries(draft);
 
   return (
     <div className="space-y-4">
       {draft.skills.length > 0 && (
-        <div>
-          <p className={heading}>Kỹ năng</p>
-          <div className="flex flex-wrap gap-2">
-            {draft.skills.slice(0, 14).map((s, i) => (
-              <Chip key={`sk-${i}-${s}`} dark={dark}>
+        <div data-cv-block>
+          <p className={heading}>Kỹ năng chuyên môn</p>
+          <div className="flex flex-wrap gap-1.5">
+            {draft.skills.slice(0, 16).map((s, i) => (
+              <Chip key={`sk-${i}-${s}`} dark={dark} compact={compact}>
                 {s}
               </Chip>
             ))}
           </div>
         </div>
       )}
+      {langSummaries.length > 0 && (
+        <div data-cv-block>
+          <p className={heading}>Ngoại ngữ</p>
+          <ul className="space-y-1.5">
+            {langSummaries.map((l, i) => (
+              <li
+                key={`lang-${i}-${l}`}
+                className={clsx(
+                  'rounded-md px-2.5 pt-[5px] pb-[7px] font-medium leading-snug',
+                  compact ? 'text-[8.5px]' : 'text-[10px]',
+                  dark ? 'bg-white/12 text-white' : 'bg-slate-50 text-slate-700 border border-slate-100',
+                )}
+              >
+                {l}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {draft.softSkills.length > 0 && (
-        <div>
+        <div data-cv-block>
           <p className={heading}>Điểm mạnh</p>
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {draft.softSkills.slice(0, 6).map((s, i) => (
               <li
                 key={`ss-${i}-${s}`}
                 className={clsx(
-                  'rounded-md px-2 pt-[5px] pb-[7px] text-[10px] font-medium leading-none',
-                  dark ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-700',
+                  'rounded-md px-2.5 pt-[5px] pb-[7px] font-medium leading-snug',
+                  compact ? 'text-[8.5px]' : 'text-[10px]',
+                  dark ? 'bg-white/12 text-white' : 'bg-slate-50 text-slate-700 border border-slate-100',
                 )}
               >
                 {s}
               </li>
             ))}
           </ul>
-        </div>
-      )}
-      {draft.languages.length > 0 && (
-        <div>
-          <p className={heading}>Ngoại ngữ</p>
-          <div className="flex flex-wrap gap-2">
-            {draft.languages.map((l, i) => (
-              <Chip key={`lang-${i}-${l}`} dark={dark}>
-                {l}
-              </Chip>
-            ))}
-          </div>
         </div>
       )}
     </div>
@@ -850,48 +984,53 @@ function SidebarSkills({
 function ContactLines({
   draft,
   dark,
+  compact,
 }: {
   draft: CvDraft;
   dark?: boolean;
+  compact?: boolean;
 }) {
   const cls = clsx(
-    'flex items-start gap-1.5 text-[9px] leading-snug',
-    dark ? 'text-white/90' : 'text-slate-600',
+    'flex items-start gap-2 leading-snug',
+    compact ? 'text-[8.5px]' : 'text-[10px]',
+    dark ? 'text-white/95' : 'text-slate-600',
   );
+  const address = formatVnAddress({
+    ward: draft.ward,
+    province: draft.location,
+  });
+  const dob = draft.birthDate
+    ? draft.birthDate.includes('-')
+      ? draft.birthDate.split('-').reverse().join('/')
+      : draft.birthDate
+    : draft.birthYear != null
+      ? String(draft.birthYear)
+      : null;
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {draft.email && (
         <p className={cls}>
-          <Mail className="mt-0.5 h-2.5 w-2.5 shrink-0 opacity-80" />
+          <Mail className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
           <span className="break-all">{draft.email}</span>
         </p>
       )}
       {draft.phone && (
         <p className={cls}>
-          <Phone className="mt-0.5 h-2.5 w-2.5 shrink-0 opacity-80" />
-          {draft.phone}
+          <Phone className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <span>{draft.phone}</span>
         </p>
       )}
-      {formatVnAddress({
-        ward: draft.ward,
-        province: draft.location,
-      }) && (
+      {address && (
         <p className={cls}>
-          <MapPin className="mt-0.5 h-2.5 w-2.5 shrink-0 opacity-80" />
-          {formatVnAddress({
-            ward: draft.ward,
-            province: draft.location,
-          })}
+          <MapPin className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <span>{address}</span>
         </p>
       )}
-      {(draft.birthDate || draft.birthYear != null) && (
+      {dob && (
         <p className={cls}>
-          Ngày sinh:{' '}
-          {draft.birthDate
-            ? draft.birthDate.includes('-')
-              ? draft.birthDate.split('-').reverse().join('/')
-              : draft.birthDate
-            : draft.birthYear}
+          <Calendar className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <span>Ngày sinh: {dob}</span>
         </p>
       )}
     </div>
@@ -912,35 +1051,46 @@ function LayoutSidebar({
   return (
     <div className="flex min-h-full bg-white text-slate-800">
       <aside
-        className={clsx('shrink-0 text-white', compact ? 'w-[34%] p-3' : 'w-[32%] p-4')}
+        data-cv-sidebar
+        data-cv-sidebar-bg={template.accent}
+        className={clsx('shrink-0 text-white', compact ? 'w-[34%] p-3.5' : 'w-[31%] px-5 py-6')}
         style={{ backgroundColor: template.accent }}
       >
-        <AvatarPhoto name={draft.fullName} src={avatarUrl} compact={compact} dark />
-        <p
-          className={clsx(
-            'mt-3 font-extrabold leading-tight tracking-tight',
-            compact ? 'text-[12px]' : 'text-center text-[15px]',
-          )}
-        >
-          {draft.fullName || 'HỌ VÀ TÊN'}
-        </p>
-        <p
-          className={clsx(
-            'mt-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/85',
-            !compact && 'text-center',
-          )}
-        >
-          {draft.title || 'Vị trí ứng tuyển'}
-        </p>
-        <div className="my-3.5 h-px bg-white/25" />
-        <p className="mb-2 text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/80">
-          Liên hệ
-        </p>
-        <ContactLines draft={draft} dark />
-        <div className="my-3.5 h-px bg-white/25" />
-        <SidebarSkills draft={draft} dark />
+        <div data-cv-block>
+          <AvatarPhoto name={draft.fullName} src={avatarUrl} compact={compact} dark />
+          <p
+            className={clsx(
+              'mt-3.5 text-center font-extrabold leading-tight tracking-tight',
+              compact ? 'text-[12.5px]' : 'text-[17px]',
+            )}
+          >
+            {draft.fullName || 'HỌ VÀ TÊN'}
+          </p>
+          <p
+            className={clsx(
+              'mt-1.5 text-center font-bold uppercase tracking-[0.11em] text-white/85',
+              compact ? 'text-[8.5px]' : 'text-[10px]',
+            )}
+          >
+            {draft.title || 'Vị trí ứng tuyển'}
+          </p>
+        </div>
+        <div className="my-4 h-px bg-white/25" />
+        <div data-cv-block>
+          <p
+            className={clsx(
+              'mb-2 font-extrabold uppercase tracking-[0.12em] text-white/80',
+              compact ? 'text-[8.5px]' : 'text-[10px]',
+            )}
+          >
+            Liên hệ
+          </p>
+          <ContactLines draft={draft} dark compact={compact} />
+        </div>
+        <div className="my-4 h-px bg-white/25" />
+        <SidebarSkills draft={draft} dark compact={compact} />
       </aside>
-      <div className={clsx('min-w-0 flex-1', compact ? 'p-3' : 'px-5 py-5')}>
+      <div className={clsx('min-w-0 flex-1', compact ? 'p-3.5' : 'px-6 py-6')}>
         <MainSections draft={draft} accent={template.accent} compact={compact} />
       </div>
     </div>
@@ -960,41 +1110,55 @@ function LayoutClassic({
 }) {
   return (
     <div
-      className={clsx('min-h-full bg-white text-slate-800', compact ? 'p-3' : 'p-6')}
-      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+      className={clsx('min-h-full bg-white text-slate-800', compact ? 'p-4' : 'px-7 py-6')}
     >
-      <header className="border-b-2 pb-3" style={{ borderColor: template.accent }}>
-        <div className="flex items-start gap-4">
+      <header
+        data-cv-block
+        className="border-b-2 pb-4"
+        style={{ borderColor: template.accent }}
+      >
+        <div className="flex items-center gap-4">
           <AvatarPhoto name={draft.fullName} src={avatarUrl} compact={compact} />
           <div className="min-w-0 flex-1">
             <h1
               className={clsx(
-                'font-bold tracking-tight text-slate-900',
-                compact ? 'text-base' : 'text-xl',
+                'font-extrabold tracking-tight text-slate-900',
+                compact ? 'text-base' : 'text-[22px] leading-tight',
               )}
             >
               {draft.fullName || 'HỌ VÀ TÊN'}
             </h1>
             <p
-              className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em]"
-              style={{ color: template.accent, fontFamily: 'system-ui, sans-serif' }}
+              className={clsx(
+                'mt-1 font-bold uppercase tracking-[0.12em]',
+                compact ? 'text-[9.5px]' : 'text-[11px]',
+              )}
+              style={{ color: template.accent }}
             >
               {draft.title || 'Vị trí ứng tuyển'}
             </p>
-            <div className="mt-2" style={{ fontFamily: 'system-ui, sans-serif' }}>
-              <ContactLines draft={draft} />
+            <div className="mt-2.5">
+              <ContactLines draft={draft} compact={compact} />
             </div>
           </div>
         </div>
       </header>
-      <div className="mt-4" style={{ fontFamily: 'system-ui, sans-serif' }}>
-        <MainSections draft={draft} accent={template.accent} classic compact={compact} />
+      <div className="mt-5">
+        <MainSections
+          draft={draft}
+          accent={template.accent}
+          classic
+          compact={compact}
+          includeLanguagesInConditions
+        />
         {(draft.skills.length > 0 || draft.softSkills.length > 0) && (
-          <section className="mt-3">
-            <SectionTitle title="Kỹ năng" accent={template.accent} classic />
+          <section data-cv-block className="mt-4">
+            <SectionTitle title="Kỹ năng & Điểm mạnh" accent={template.accent} classic compact={compact} />
             <div className="flex flex-wrap gap-1.5">
-              {[...draft.skills, ...draft.softSkills].slice(0, 20).map((s, i) => (
-                <Chip key={`chip-${i}-${s}`}>{s}</Chip>
+              {[...draft.skills, ...draft.softSkills].slice(0, 22).map((s, i) => (
+                <Chip key={`chip-${i}-${s}`} compact={compact}>
+                  {s}
+                </Chip>
               ))}
             </div>
           </section>
@@ -1018,36 +1182,45 @@ function LayoutSplit({
   return (
     <div className="min-h-full bg-white text-slate-800">
       <header
-        className={clsx('text-white', compact ? 'px-3 py-3' : 'px-5 py-4')}
+        data-cv-block
+        className={clsx('text-white', compact ? 'px-4 py-3.5' : 'px-6 py-5')}
         style={{ backgroundColor: template.accent }}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3.5">
             <AvatarPhoto name={draft.fullName} src={avatarUrl} compact={compact} dark />
             <div className="min-w-0">
               <h1
-                className={clsx('font-extrabold tracking-tight', compact ? 'text-base' : 'text-xl')}
+                className={clsx(
+                  'font-extrabold tracking-tight',
+                  compact ? 'text-base' : 'text-[21px] leading-tight',
+                )}
               >
                 {draft.fullName || 'HỌ VÀ TÊN'}
               </h1>
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/85">
+              <p
+                className={clsx(
+                  'mt-1 font-bold uppercase tracking-[0.11em] text-white/85',
+                  compact ? 'text-[9px]' : 'text-[10.5px]',
+                )}
+              >
                 {draft.title || 'Vị trí ứng tuyển'}
               </p>
             </div>
           </div>
-          <div className="max-w-[40%] text-right">
-            <ContactLines draft={draft} dark />
+          <div className="max-w-[42%]">
+            <ContactLines draft={draft} dark compact={compact} />
           </div>
         </div>
       </header>
-      <div className={clsx('grid grid-cols-5 gap-0', compact ? 'p-3' : 'p-5')}>
-        <div className="col-span-2 border-r border-slate-100 pr-3">
-          <SidebarSkills draft={draft} />
+      <div className={clsx('grid grid-cols-12 gap-0', compact ? 'p-3.5' : 'px-6 py-5')}>
+        <div className="col-span-4 border-r border-slate-100 pr-4">
+          <SidebarSkills draft={draft} compact={compact} />
           {draft.softSkills.length === 0 && draft.skills.length === 0 && (
             <p className="text-[10px] text-slate-400">Chưa có kỹ năng</p>
           )}
         </div>
-        <div className="col-span-3 pl-3">
+        <div className="col-span-8 pl-5">
           <MainSections draft={draft} accent={template.accent} compact={compact} />
         </div>
       </div>
