@@ -15,6 +15,7 @@ import {
   formatLanguageSkillSummary,
   formatVnAddress,
 } from '@industriallink/contracts';
+import { SafeHtml, looksLikeHtml } from '@/components/render-safe-html';
 import { toBulletLines } from '@/lib/bullet-text';
 import type { CvDraft, CvTemplate } from '@/lib/cv-templates';
 import { formatVndAmount } from '@/lib/format';
@@ -583,11 +584,18 @@ function PreferencesSection({
             <p className="mb-1.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-slate-500">
               Sở thích
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.hobbies.map((h, i) => (
-                <Chip key={`hobby-${i}-${h}`}>{h}</Chip>
-              ))}
-            </div>
+            {draft.hobbies.length === 1 && looksLikeHtml(draft.hobbies[0]) ? (
+              <SafeHtml
+                html={draft.hobbies[0]}
+                className="text-[10.5px] leading-relaxed text-slate-700"
+              />
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {draft.hobbies.map((h, i) => (
+                  <Chip key={`hobby-${i}-${h}`}>{h}</Chip>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {draft.desiredPositions.length > 0 && (
@@ -688,7 +696,14 @@ function MainSections({
             </p>
           )}
           {draft.summary ? (
-            <p className="text-[10.5px] leading-relaxed text-slate-700">{draft.summary}</p>
+            looksLikeHtml(draft.summary) ? (
+              <SafeHtml
+                html={draft.summary}
+                className="text-[10.5px] leading-relaxed text-slate-700"
+              />
+            ) : (
+              <p className="text-[10.5px] leading-relaxed text-slate-700">{draft.summary}</p>
+            )
           ) : null}
           {draft.jobTrack !== JobTrack.Technical &&
             draft.salesHighlights &&

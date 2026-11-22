@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ConnectionStatus, InterviewType, SOURCING_OUTREACH_STATUS_META, formatJobLevel, formatJobTitle, type CandidateMatchView, type RecruiterHuntCampaignResourceView, type RecruiterSourcingEntitlements, type RecruiterSourcingOutreachItem, type RecruiterSourcingWorkspace, type SourcingOutreachStatus } from '@industriallink/contracts';
 import { handleCreditError, useCreditAlert } from '@/components/credit-alert-provider';
+import { SafeHtml, looksLikeHtml } from '@/components/render-safe-html';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { addCandidateShortlist, getCandidateById, openConnectionChat, removeCandidateShortlist, requestCandidateConnection } from '@/lib/candidate';
@@ -1294,9 +1295,16 @@ export function SourcingCandidateDrawer({
                   Tóm tắt chuyên môn & Kỳ vọng
                 </h4>
                 {detail.profile?.summary || detail.aiProfile?.summary ? (
-                  <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">
-                    {detail.profile?.summary || detail.aiProfile?.summary}
-                  </p>
+                  looksLikeHtml(detail.profile?.summary || detail.aiProfile?.summary) ? (
+                    <SafeHtml
+                      html={detail.profile?.summary || detail.aiProfile?.summary}
+                      className="text-xs leading-relaxed text-slate-700"
+                    />
+                  ) : (
+                    <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">
+                      {detail.profile?.summary || detail.aiProfile?.summary}
+                    </p>
+                  )
                 ) : null}
                 <div className="flex flex-wrap gap-2 pt-1 text-xs">
                   {detail.profile?.jobLevel ? (

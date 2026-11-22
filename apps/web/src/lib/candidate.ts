@@ -294,6 +294,17 @@ export async function saveCvDraftToProfile(
   });
 }
 
+/** Cập nhật nhanh Giới thiệu bản thân & Sở thích (không ảnh hưởng trường matching). */
+export async function updateMyCandidateIntro(payload: {
+  summary?: string | null;
+  hobbies?: string[];
+}): Promise<CandidateView> {
+  return apiRequest('/candidates/me/intro', {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
 /** Tải ảnh đại diện đã upload (cần Bearer) → blob URL. */
 export async function fetchMyAvatarObjectUrl(): Promise<string | null> {
   const token = tokenStore.get();

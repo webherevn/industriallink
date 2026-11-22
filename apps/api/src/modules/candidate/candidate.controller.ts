@@ -38,6 +38,7 @@ import { CompanySuggestService } from './company-suggest.service';
 import { CvDraftFromTextDto } from './dto/cv-draft-from-text.dto';
 import { GenerateCoverLetterDto } from './dto/generate-cover-letter.dto';
 import { SaveCvDraftDto } from './dto/save-cv-draft.dto';
+import { UpdateCandidateIntroDto } from './dto/update-candidate-intro.dto';
 import { UpdateCandidateProfileDto } from './dto/update-candidate-profile.dto';
 
 @ApiTags('Candidate')
@@ -122,6 +123,16 @@ export class CandidateController {
       user,
       body as unknown as import('@industriallink/contracts').UpdateCandidateProfileRequest,
     );
+  }
+
+  @Patch('me/intro')
+  @Roles(UserRole.Candidate)
+  @ApiOperation({ summary: 'Cập nhật nhanh Giới thiệu bản thân & Sở thích (không ảnh hưởng trường matching)' })
+  updateMyIntro(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCandidateIntroDto,
+  ) {
+    return this.candidates.updateMyIntro(user, body);
   }
 
   @Get('me/chats')

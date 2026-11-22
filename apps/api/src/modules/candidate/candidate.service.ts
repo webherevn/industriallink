@@ -403,6 +403,11 @@ export class CandidateService {
       [] as string[],
     );
 
+    const existingProfile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateId: candidate.id },
+      select: { summary: true, hobbies: true },
+    });
+
     const firstExp = experienceRows[0];
     const profileData = {
       currentPosition: emptyToNull(input.currentPosition) ?? firstExp?.jobTitle ?? null,
@@ -415,9 +420,15 @@ export class CandidateService {
         null,
       industriesExperienced,
       specialization: emptyToNull(input.specialization),
-      summary: emptyToNull(input.summary),
+      summary:
+        input.summary !== undefined
+          ? emptyToNull(input.summary)
+          : (existingProfile?.summary ?? null),
       careerObjective: emptyToNull(input.careerObjective),
-      hobbies: cleanList(input.hobbies ?? []),
+      hobbies:
+        input.hobbies !== undefined
+          ? cleanList(input.hobbies)
+          : (existingProfile?.hobbies ?? []),
       productsSold,
       customerSegments,
       b2bExperienceBand: emptyToNull(input.b2bExperienceBand),
@@ -571,6 +582,58 @@ export class CandidateService {
       message: 'Đã cập nhật hồ sơ thành công.',
       candidate: updated,
     };
+  }
+
+  /**
+   * Cập nhật trực tiếp Giới thiệu bản thân (summary) và/hoặc Sở thích (hobbies)
+   * từ trang Thông tin ứng viên mà KHÔNG động tới bất kỳ trường CV / matching nào.
+   */
+  async updateMyIntro(
+    user: AuthenticatedUser,
+    input: { summary?: string | null; hobbies?: string[] },
+  ): Promise<CandidateView> {
+    await this.ensureForUser(user);
+    const candidate = await this.getCandidateByUser(user);
+    const stripUnsafe = (raw: string): string =>
+      raw
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .trim();
+    const hasPlainText = (raw: string): boolean =>
+      raw
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim().length > 0;
+
+    const patch: { summary?: string | null; hobbies?: string[] } = {};
+
+    if (input.summary !== undefined) {
+      if (input.summary === null) {
+        patch.summary = null;
+      } else {
+        const cleaned = stripUnsafe(input.summary);
+        patch.summary = hasPlainText(cleaned) ? cleaned.slice(0, 12000) : null;
+      }
+    }
+
+    if (input.hobbies !== undefined) {
+      patch.hobbies = input.hobbies
+        .map((item) => stripUnsafe(item).slice(0, 12000))
+        .filter((item) => hasPlainText(item))
+        .slice(0, 30);
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await this.prisma.candidateProfile.upsert({
+        where: { candidateId: candidate.id },
+        create: { candidateId: candidate.id, ...patch },
+        update: patch,
+      });
+    }
+
+    return this.getMyCandidate(user);
   }
 
   /**

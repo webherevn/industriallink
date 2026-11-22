@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   Award,
@@ -19,6 +19,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  RotateCcw,
   UserRound,
   X,
 } from 'lucide-react';
@@ -32,9 +33,11 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { CvPreview } from '@/components/cv-preview';
+import { JdRichEditor } from '@/components/jd-rich-editor';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { SafeHtml, looksLikeHtml, stripHtml } from '@/components/render-safe-html';
 import { fetchMe } from '@/lib/auth';
-import { getMyCandidate } from '@/lib/candidate';
+import { getMyCandidate, updateMyCandidateIntro } from '@/lib/candidate';
 import { draftFromCandidate } from '@/lib/cv-from-profile';
 import { CV_TEMPLATES } from '@/lib/cv-templates';
 import { downloadElementAsPdf } from '@/lib/download-cv';
@@ -103,10 +106,43 @@ function formatExperiencePeriod(exp: CandidateExperienceView): string {
   return `${start} – ${end}`;
 }
 
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function toEditorHtml(raw: string | null | undefined): string {
+  if (!raw?.trim()) return '';
+  if (looksLikeHtml(raw)) return raw;
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join('');
+}
+
+function hobbiesToEditorHtml(items: string[]): string {
+  if (items.length === 0) return '';
+  if (items.length === 1 && looksLikeHtml(items[0])) return items[0];
+  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
+
 export default function ProfilePage() {
+  const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [downloadingCv, setDownloadingCv] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [aboutDraft, setAboutDraft] = useState('');
+  const [aboutError, setAboutError] = useState<string | null>(null);
+  const [editingHobbies, setEditingHobbies] = useState(false);
+  const [hobbiesDraft, setHobbiesDraft] = useState('');
+  const [hobbiesError, setHobbiesError] = useState<string | null>(null);
   const cvExportRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
@@ -114,6 +150,36 @@ export default function ProfilePage() {
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
     retry: false,
+  });
+
+  const saveAboutMutation = useMutation({
+    mutationFn: (html: string) =>
+      updateMyCandidateIntro({ summary: stripHtml(html) ? html : null }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['my-candidate'], updated);
+      setEditingAbout(false);
+      setAboutError(null);
+    },
+    onError: (err) => {
+      setAboutError(
+        err instanceof Error ? err.message : 'Không lưu được giới thiệu bản thân. Vui lòng thử lại.',
+      );
+    },
+  });
+
+  const saveHobbiesMutation = useMutation({
+    mutationFn: (html: string) =>
+      updateMyCandidateIntro({ hobbies: stripHtml(html) ? [html] : [] }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['my-candidate'], updated);
+      setEditingHobbies(false);
+      setHobbiesError(null);
+    },
+    onError: (err) => {
+      setHobbiesError(
+        err instanceof Error ? err.message : 'Không lưu được sở thích. Vui lòng thử lại.',
+      );
+    },
   });
 
   const cvDraft = useMemo(
@@ -355,12 +421,78 @@ export default function ProfilePage() {
               <SectionCard
                 title="Giới thiệu bản thân"
                 icon={<FileText className="h-4 w-4" />}
-                editHref="/profile/edit"
+                editing={editingAbout}
+                onEdit={() => {
+                  setAboutDraft(toEditorHtml(about));
+                  setAboutError(null);
+                  setEditingAbout(true);
+                }}
               >
-                {about ? (
-                  <p className="whitespace-pre-line text-[13px] leading-relaxed text-slate-700">
-                    {about}
-                  </p>
+                {editingAbout ? (
+                  <div className="space-y-3">
+                    <JdRichEditor
+                      value={aboutDraft}
+                      onChange={setAboutDraft}
+                      minRows={5}
+                      disabled={saveAboutMutation.isPending}
+                      placeholder="Giới thiệu ngắn gọn về kinh nghiệm, thế mạnh chuyên môn và định hướng nghề nghiệp hiện tại của bạn..."
+                    />
+                    {aboutError ? (
+                      <p className="text-xs font-medium text-rose-600">{aboutError}</p>
+                    ) : null}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        {candidate?.aiProfile?.summary ? (
+                          <button
+                            type="button"
+                            disabled={saveAboutMutation.isPending}
+                            onClick={() =>
+                              setAboutDraft(toEditorHtml(candidate.aiProfile?.summary))
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 disabled:opacity-50"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            <span>Dùng gợi ý AI</span>
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={saveAboutMutation.isPending}
+                          onClick={() => {
+                            setEditingAbout(false);
+                            setAboutError(null);
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saveAboutMutation.isPending}
+                          onClick={() => saveAboutMutation.mutate(aboutDraft)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#072348] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#0d3468] disabled:opacity-60"
+                        >
+                          {saveAboutMutation.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          <span>Lưu giới thiệu</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : about ? (
+                  looksLikeHtml(about) ? (
+                    <SafeHtml
+                      html={about}
+                      className="text-[13px] leading-relaxed text-slate-700"
+                    />
+                  ) : (
+                    <p className="whitespace-pre-line text-[13px] leading-relaxed text-slate-700">
+                      {about}
+                    </p>
+                  )
                 ) : (
                   <p className="text-[13px] text-slate-400">
                     Chưa có phần giới thiệu. Hãy cập nhật tóm tắt chuyên môn hoặc tải CV để AI hỗ trợ.
@@ -585,33 +717,91 @@ export default function ProfilePage() {
                 id="interests"
                 title="Sở thích"
                 icon={<Heart className="h-4 w-4" />}
-                editHref="/profile/edit"
+                editing={editingHobbies}
+                onEdit={() => {
+                  setHobbiesDraft(hobbiesToEditorHtml(hobbies));
+                  setHobbiesError(null);
+                  setEditingHobbies(true);
+                }}
               >
-                {hobbies.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {hobbies.map((hobby) => (
-                      <span
-                        key={hobby}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-slate-700"
+                {editingHobbies ? (
+                  <div className="space-y-3">
+                    <JdRichEditor
+                      value={hobbiesDraft}
+                      onChange={setHobbiesDraft}
+                      minRows={4}
+                      disabled={saveHobbiesMutation.isPending}
+                      placeholder="Chia sẻ sở thích cá nhân, hoạt động ngoại khóa, thể thao, đọc sách..."
+                    />
+                    {hobbiesError ? (
+                      <p className="text-xs font-medium text-rose-600">{hobbiesError}</p>
+                    ) : null}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={saveHobbiesMutation.isPending}
+                        onClick={() => {
+                          setEditingHobbies(false);
+                          setHobbiesError(null);
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                       >
-                        <Heart className="h-3 w-3 text-slate-400" />
-                        {hobby}
-                      </span>
-                    ))}
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saveHobbiesMutation.isPending}
+                        onClick={() => saveHobbiesMutation.mutate(hobbiesDraft)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#072348] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#0d3468] disabled:opacity-60"
+                      >
+                        {saveHobbiesMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : null}
+                        <span>Lưu sở thích</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400">Chưa có sở thích nào được thêm.</p>
-                )}
+                  <>
+                    {hobbies.length === 1 && looksLikeHtml(hobbies[0]) ? (
+                      <SafeHtml
+                        html={hobbies[0]}
+                        className="text-[13px] leading-relaxed text-slate-700"
+                      />
+                    ) : hobbies.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {hobbies.map((hobby) => (
+                          <span
+                            key={hobby}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-slate-700"
+                          >
+                            <Heart className="h-3 w-3 text-slate-400" />
+                            {hobby}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">Chưa có sở thích nào được thêm.</p>
+                    )}
 
-                <div className="mt-3">
-                  <Link
-                    href="/profile/edit"
-                    className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Thêm sở thích</span>
-                  </Link>
-                </div>
+                    {hobbies.length === 0 ? (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHobbiesDraft(hobbiesToEditorHtml(hobbies));
+                            setHobbiesError(null);
+                            setEditingHobbies(true);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-sky-100"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Thêm sở thích</span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </SectionCard>
             </div>
           </div>
@@ -685,9 +875,41 @@ export default function ProfilePage() {
                   <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
                     Giới thiệu bản thân
                   </h4>
-                  <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                    {about}
-                  </p>
+                  {looksLikeHtml(about) ? (
+                    <SafeHtml
+                      html={about}
+                      className="mt-1.5 text-sm leading-relaxed text-slate-700"
+                    />
+                  ) : (
+                    <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                      {about}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {hobbies.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    Sở thích
+                  </h4>
+                  {hobbies.length === 1 && looksLikeHtml(hobbies[0]) ? (
+                    <SafeHtml
+                      html={hobbies[0]}
+                      className="mt-1.5 text-sm leading-relaxed text-slate-700"
+                    />
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {hobbies.map((hobby) => (
+                        <span
+                          key={hobby}
+                          className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
+                        >
+                          {hobby}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -785,12 +1007,16 @@ function SectionCard({
   title,
   icon,
   editHref,
+  onEdit,
+  editing,
   children,
 }: {
   id?: string;
   title: string;
   icon: ReactNode;
-  editHref: string;
+  editHref?: string;
+  onEdit?: () => void;
+  editing?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -803,13 +1029,26 @@ function SectionCard({
           <span className="text-brand-600">{icon}</span>
           <span>{title}</span>
         </h2>
-        <Link
-          href={editHref}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 transition hover:text-brand-800"
-        >
-          <Pencil className="h-3 w-3" />
-          <span>Chỉnh sửa</span>
-        </Link>
+        {onEdit ? (
+          !editing ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 transition hover:text-brand-800"
+            >
+              <Pencil className="h-3 w-3" />
+              <span>Chỉnh sửa</span>
+            </button>
+          ) : null
+        ) : editHref ? (
+          <Link
+            href={editHref}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 transition hover:text-brand-800"
+          >
+            <Pencil className="h-3 w-3" />
+            <span>Chỉnh sửa</span>
+          </Link>
+        ) : null}
       </div>
       {children}
     </section>
