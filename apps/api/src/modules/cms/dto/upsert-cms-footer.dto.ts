@@ -1,10 +1,13 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type { CmsStructuredFooter } from '@industriallink/contracts';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsObject,
+  IsOptional,
   IsString,
   MaxLength,
   ValidateNested,
@@ -32,15 +35,22 @@ export class CmsFooterBlockDto {
 }
 
 export class UpsertCmsFooterSettingsDto {
-  @ApiProperty({ type: CmsFooterBlockDto })
+  @ApiPropertyOptional({ type: CmsFooterBlockDto })
+  @IsOptional()
   @ValidateNested()
   @Type(() => CmsFooterBlockDto)
-  footer1!: CmsFooterBlockDto;
+  footer1?: CmsFooterBlockDto;
 
-  @ApiProperty({ type: CmsFooterBlockDto })
+  @ApiPropertyOptional({ type: CmsFooterBlockDto })
+  @IsOptional()
   @ValidateNested()
   @Type(() => CmsFooterBlockDto)
-  footer2!: CmsFooterBlockDto;
+  footer2?: CmsFooterBlockDto;
+
+  @ApiPropertyOptional({ description: 'Cấu trúc chân trang chuẩn inLink (5 cột + pháp lý)' })
+  @IsOptional()
+  @IsObject()
+  structured?: CmsStructuredFooter | null;
 
   @ApiProperty({ example: '©2026 Inlink Vietnam JSC. All rights reserved.' })
   @IsString()

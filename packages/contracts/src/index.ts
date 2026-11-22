@@ -51,6 +51,7 @@ export * from './homepage-stats';
 export * from './homepage-solutions';
 export * from './homepage-audience';
 export * from './cms.dto';
+export * from './cms-footer';
 export * from './cms-media.dto';
 export * from './cms-robots';
 export * from './admin-user.dto';

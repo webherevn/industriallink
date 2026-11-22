@@ -16,6 +16,8 @@ import {
   cmsPostPublicPath,
   nextUniqueSlug,
   parseCustomSchemaInput,
+  cloneDefaultStructuredFooter,
+  normalizeStructuredFooter,
   normalizeHomepageHero,
   normalizeHomepageReasons,
   normalizeHomepageSteps,
@@ -29,6 +31,7 @@ import {
   type CmsFaqItem,
   type CmsFooterBlock,
   type CmsFooterSettingsView,
+  type CmsStructuredFooter,
   type CmsHomepageSettingsView,
   type CmsRobotsSettingsView,
   type CmsSiteCodeSettingsView,
@@ -1207,6 +1210,7 @@ export class CmsService {
     return {
       footer1: { enabled: true, columns: this.emptyFooterColumns() },
       footer2: { enabled: false, columns: this.emptyFooterColumns() },
+      structured: cloneDefaultStructuredFooter(),
       copyrightText: '©2026 Inlink Vietnam JSC. All rights reserved.',
       updatedAt: new Date().toISOString(),
     };
@@ -1226,6 +1230,84 @@ export class CmsService {
     return cols;
   }
 
+  /**
+   * Trích xuất thông tin công ty, email, hotline, Zalo và các link Social từ HTML footer1 cũ
+   * để tự động điền sang cấu trúc chân trang chuẩn inLink mà không mất dữ liệu cũ.
+   */
+  private extractLegacyFooterToStructured(footer1Columns: unknown): CmsStructuredFooter {
+    const base = cloneDefaultStructuredFooter();
+    const cols = this.parseFooterColumns(footer1Columns);
+    const allHtml = cols.map((c) => c.html).join('\n');
+    if (!allHtml.trim()) return base;
+
+    const stripTags = (s: string) =>
+      s
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const col0Text = stripTags(cols[0]?.html ?? '');
+    if (col0Text.length >= 12 && col0Text.length <= 260) {
+      base.slogan = col0Text;
+    }
+
+    const emailMatch = allHtml.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch?.[1]) base.email = emailMatch[1];
+
+    const hotlineMatch = stripTags(allHtml).match(/Hotline\s*:\s*([+0-9.\s()-]{8,20})/i);
+    if (hotlineMatch?.[1]) base.hotline = hotlineMatch[1].trim();
+
+    const companyMatch = stripTags(allHtml).match(/(CÔNG TY[^:\n]{4,100})/i);
+    if (companyMatch?.[1]) {
+      base.companyName = companyMatch[1].replace(/\s+Hotline.*$/i, '').trim();
+    }
+
+    const linkRegex = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    const links: Array<{ href: string; text: string; context: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = linkRegex.exec(allHtml)) !== null) {
+      const href = (m[1] ?? '').trim();
+      const text = stripTags(m[2] ?? '');
+      const ctxStart = Math.max(0, m.index - 45);
+      const context = stripTags(allHtml.slice(ctxStart, m.index + m[0].length)).toLowerCase();
+      if (href) links.push({ href, text, context });
+    }
+
+    for (const l of links) {
+      const lowerHref = l.href.toLowerCase();
+      if (lowerHref.includes('zalo.me') || l.context.includes('zalo')) {
+        base.zaloUrl = l.href;
+      } else if (lowerHref.includes('facebook.com') || lowerHref.includes('fb.com') || l.context.includes('fanpage')) {
+        const fb = base.socials.find((s) => s.platform === 'facebook');
+        if (fb) {
+          fb.href = l.href;
+          if (l.text) fb.label = l.text;
+        }
+      } else if (lowerHref.includes('linkedin.com') || l.context.includes('linkedin')) {
+        const li = base.socials.find((s) => s.platform === 'linkedin');
+        if (li) {
+          li.href = l.href;
+          if (l.text) li.label = l.text;
+        }
+      } else if (lowerHref.includes('threads.net') || lowerHref.includes('threads.com') || l.context.includes('thread')) {
+        const th = base.socials.find((s) => s.platform === 'threads');
+        if (th) {
+          th.href = l.href;
+          if (l.text) th.label = l.text;
+        }
+      } else if (lowerHref.includes('tiktok.com') || l.context.includes('tiktok')) {
+        const tk = base.socials.find((s) => s.platform === 'tiktok');
+        if (tk) {
+          tk.href = l.href;
+          if (l.text) tk.label = l.text;
+        }
+      }
+    }
+
+    return base;
+  }
+
   private mapFooterSettings(row: {
     footer1Enabled: boolean;
     footer1Columns: unknown;
@@ -1234,6 +1316,12 @@ export class CmsService {
     copyrightText: string;
     updatedAt: Date;
   }): CmsFooterSettingsView {
+    const rawF2 = row.footer2Columns as { __structuredFooter?: boolean; data?: unknown } | null;
+    const structured =
+      rawF2 && typeof rawF2 === 'object' && !Array.isArray(rawF2) && rawF2.__structuredFooter
+        ? normalizeStructuredFooter(rawF2.data)
+        : this.extractLegacyFooterToStructured(row.footer1Columns);
+
     return {
       footer1: {
         enabled: row.footer1Enabled,
@@ -1243,6 +1331,7 @@ export class CmsService {
         enabled: row.footer2Enabled,
         columns: this.parseFooterColumns(row.footer2Columns),
       },
+      structured,
       copyrightText: row.copyrightText || '©2026 Inlink Vietnam JSC. All rights reserved.',
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -1260,16 +1349,31 @@ export class CmsService {
     user: AuthenticatedUser,
     input: UpsertCmsFooterSettingsRequest,
   ): Promise<CmsFooterSettingsView> {
-    const normalizeBlock = (block: CmsFooterBlock): CmsFooterBlock => {
+    const existing = await this.prisma.cmsFooterSettings.findUnique({
+      where: { tenantId: 'default' },
+    });
+    const normalizeBlock = (block?: CmsFooterBlock | null): CmsFooterBlock => {
       const columns = this.emptyFooterColumns();
+      if (!block) return { enabled: true, columns };
       for (let i = 0; i < 4; i++) {
         const html = sanitizeCmsHtml(block.columns?.[i]?.html ?? '');
         columns[i] = { html };
       }
       return { enabled: Boolean(block.enabled), columns };
     };
-    const footer1 = normalizeBlock(input.footer1);
-    const footer2 = normalizeBlock(input.footer2);
+    const footer1 = input.footer1
+      ? normalizeBlock(input.footer1)
+      : {
+          enabled: existing?.footer1Enabled ?? true,
+          columns: this.parseFooterColumns(existing?.footer1Columns),
+        };
+    const footer2Payload: Prisma.InputJsonValue = input.structured
+      ? ({
+          __structuredFooter: true,
+          data: normalizeStructuredFooter(input.structured),
+        } as unknown as Prisma.InputJsonValue)
+      : (normalizeBlock(input.footer2).columns as unknown as Prisma.InputJsonValue);
+    const footer2Enabled = input.structured ? true : Boolean(input.footer2?.enabled);
     const copyrightText =
       input.copyrightText?.trim() || '©2026 Inlink Vietnam JSC. All rights reserved.';
 
@@ -1279,16 +1383,16 @@ export class CmsService {
         tenantId: 'default',
         footer1Enabled: footer1.enabled,
         footer1Columns: footer1.columns as unknown as Prisma.InputJsonValue,
-        footer2Enabled: footer2.enabled,
-        footer2Columns: footer2.columns as unknown as Prisma.InputJsonValue,
+        footer2Enabled,
+        footer2Columns: footer2Payload,
         copyrightText,
         updatedBy: user.id,
       },
       update: {
         footer1Enabled: footer1.enabled,
         footer1Columns: footer1.columns as unknown as Prisma.InputJsonValue,
-        footer2Enabled: footer2.enabled,
-        footer2Columns: footer2.columns as unknown as Prisma.InputJsonValue,
+        footer2Enabled,
+        footer2Columns: footer2Payload,
         copyrightText,
         updatedBy: user.id,
       },

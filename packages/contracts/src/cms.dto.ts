@@ -5,6 +5,7 @@ import type { HomepageStepsContent } from './homepage-steps';
 import type { HomepageStatsContent } from './homepage-stats';
 import type { HomepageSolutionsContent } from './homepage-solutions';
 import type { HomepageAudienceContent } from './homepage-audience';
+import type { CmsStructuredFooter } from './cms-footer';
 
 export interface CmsFaqItem {
   question: string;
@@ -321,12 +322,12 @@ export interface SaveCmsMenuRequest {
   items: UpsertCmsMenuItemInput[];
 }
 
-/** Một cột chân trang (HTML rich text). */
+/** Một cột chân trang (HTML rich text — legacy). */
 export interface CmsFooterColumn {
   html: string;
 }
 
-/** Một khối Footer (Footer 1 hoặc Footer 2). */
+/** Một khối Footer (Footer 1 hoặc Footer 2 — legacy). */
 export interface CmsFooterBlock {
   enabled: boolean;
   /** Luôn 4 cột; cột html rỗng sẽ ẩn trên public. */
@@ -336,13 +337,16 @@ export interface CmsFooterBlock {
 export interface CmsFooterSettingsView {
   footer1: CmsFooterBlock;
   footer2: CmsFooterBlock;
+  /** Cấu trúc chân trang chuẩn inLink (quản trị trực tiếp trong Admin). */
+  structured?: CmsStructuredFooter | null;
   copyrightText: string;
   updatedAt: string;
 }
 
 export interface UpsertCmsFooterSettingsRequest {
-  footer1: CmsFooterBlock;
-  footer2: CmsFooterBlock;
+  footer1?: CmsFooterBlock;
+  footer2?: CmsFooterBlock;
+  structured?: CmsStructuredFooter | null;
   copyrightText: string;
 }
 
