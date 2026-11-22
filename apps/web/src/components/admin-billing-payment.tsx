@@ -26,7 +26,7 @@ import type {
 } from '@industriallink/contracts';
 import { AdminShell } from '@/components/admin-shell';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
-import { ApiError } from '@/lib/api';
+import { ApiError, getApiBase } from '@/lib/api';
 import {
   cancelAdminBillingOrder,
   confirmAdminBankOrder,
@@ -167,10 +167,7 @@ function Inner({
     save.mutate(body);
   };
 
-  const bankWebhookUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin.replace(/^https?:\/\/admin\./i, 'https://api.')}/api/v1/billing/webhooks/bank`
-      : 'https://api.inlink.vn/api/v1/billing/webhooks/bank';
+  const bankWebhookUrl = `${getApiBase()}/billing/webhooks/bank`;
 
   return (
     <div className="grid gap-5 lg:grid-cols-3">
@@ -352,7 +349,7 @@ function Inner({
                 onChange={setPk}
                 current={data.publishableKeyPreview}
                 onClear={() => clearKey('pk')}
-                disabled={mode === 'mock'}
+                disabled={mode !== 'live'}
               />
               <KeyField
                 label="Secret Key (sk_*)"
@@ -363,7 +360,7 @@ function Inner({
                 onClear={() => clearKey('sk')}
                 showValue={showSk}
                 onToggleShow={() => setShowSk(!showSk)}
-                disabled={mode === 'mock'}
+                disabled={mode !== 'live'}
                 isSecret
               />
               <KeyField
@@ -375,7 +372,7 @@ function Inner({
                 onClear={() => clearKey('wh')}
                 showValue={showWh}
                 onToggleShow={() => setShowWh(!showWh)}
-                disabled={mode === 'mock'}
+                disabled={mode !== 'live'}
                 isSecret
               />
             </div>
@@ -439,9 +436,22 @@ function Inner({
         <Card className="border-amber-200 bg-amber-50/40 p-4 text-[11px] text-amber-900">
           <strong>Trạng thái hiện tại:</strong>
           <ul className="mt-1.5 space-y-1">
-            <li>• Mode: <strong>{data.mode === 'live' ? 'Live (Stripe thật)' : 'Mock'}</strong></li>
-            <li>• Secret Key: {data.hasSecretKey ? 'Đã cấu hình' : 'Chưa có'}</li>
-            <li>• Webhook Secret: {data.hasWebhookSecret ? 'Đã cấu hình' : 'Chưa có'}</li>
+            <li>
+              • Mode:{' '}
+              <strong>
+                {data.mode === 'bank_transfer'
+                  ? 'Chuyển khoản / VietQR (LIVE)'
+                  : data.mode === 'live'
+                    ? 'Stripe (Live)'
+                    : 'Mock (Test nội bộ)'}
+              </strong>
+            </li>
+            <li>
+              • TK Ngân hàng:{' '}
+              {data.bankAccountNumber ? `${data.bankName || data.bankBin} · ${data.bankAccountNumber}` : 'Chưa cấu hình'}
+            </li>
+            <li>• Bank Webhook Key: {data.hasBankWebhookSecret ? 'Đã cấu hình (tự động)' : 'Chưa có (duyệt thủ công)'}</li>
+            <li>• Stripe Secret Key: {data.hasSecretKey ? 'Đã cấu hình' : 'Chưa có'}</li>
             <li>• Cập nhật: {data.updatedAt ? new Date(data.updatedAt).toLocaleString('vi-VN') : '—'}</li>
             {data.updatedByEmail ? <li>• Bởi: {data.updatedByEmail}</li> : null}
           </ul>

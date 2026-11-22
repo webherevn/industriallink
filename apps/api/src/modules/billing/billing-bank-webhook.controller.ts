@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../shared/security/public.decorator';
 import { PaymentService } from './payment.service';
@@ -9,6 +9,7 @@ export class BillingBankWebhookController {
   constructor(private readonly payment: PaymentService) {}
 
   @Post('bank')
+  @HttpCode(200)
   @Public()
   @ApiOperation({
     summary: 'Webhook đối soát chuyển khoản ngân hàng tự động (hỗ trợ SePay & Casso)',

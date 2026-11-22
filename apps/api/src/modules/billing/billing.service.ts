@@ -213,7 +213,7 @@ export class BillingService implements OnModuleInit {
       currency: this.mapCurrency(currency),
       pageContent,
       vatPercent,
-      paymentMode: (paymentSetting?.mode as 'mock' | 'live') ?? 'mock',
+      paymentMode: (paymentSetting?.mode as 'mock' | 'bank_transfer' | 'live') ?? 'mock',
       creditEnforcement: this.config.get('billing', { infer: true })?.enforcement ?? 'log',
     };
   }

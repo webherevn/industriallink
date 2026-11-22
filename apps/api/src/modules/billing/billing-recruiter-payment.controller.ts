@@ -39,12 +39,13 @@ export class BillingRecruiterPaymentController {
   ) {}
 
   @Post('topup/checkout')
-  @ApiOperation({ summary: 'Tạo đơn mua Top-up Credit (mock hoặc Stripe)' })
+  @ApiOperation({ summary: 'Tạo đơn mua Top-up Credit (VietQR / mock / Stripe)' })
   async createCheckout(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecruiterCreateCheckoutRequest,
+    @Req() req: Request,
   ): Promise<PaymentCheckoutResponse> {
-    const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
+    const webOrigin = resolveWebOrigin(req);
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.payment.createCheckout(user, companyId, dto.topupId, webOrigin);
   }
@@ -56,7 +57,7 @@ export class BillingRecruiterPaymentController {
     @Body() dto: RecruiterCreatePlanCheckoutRequest,
     @Req() req: Request,
   ): Promise<PaymentCheckoutResponse> {
-    const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
+    const webOrigin = resolveWebOrigin(req);
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.payment.createCatalogCheckout(
       user,
@@ -75,7 +76,7 @@ export class BillingRecruiterPaymentController {
     @Body() dto: RecruiterCreateSourcingCheckoutRequest,
     @Req() req: Request,
   ): Promise<PaymentCheckoutResponse> {
-    const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
+    const webOrigin = resolveWebOrigin(req);
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.payment.createCatalogCheckout(
       user,
@@ -132,4 +133,12 @@ export class BillingRecruiterPaymentController {
 function referralCookieFrom(req: Request): string | null {
   const raw = req.cookies?.[REFERRAL_COOKIE];
   return typeof raw === 'string' ? raw : null;
+}
+
+function resolveWebOrigin(req: Request): string {
+  const rawOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+  if (/^https?:\/\/[^/\s]+$/i.test(rawOrigin)) {
+    return rawOrigin;
+  }
+  return process.env.WEB_ORIGIN || 'http://localhost:3000';
 }

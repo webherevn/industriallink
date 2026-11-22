@@ -842,6 +842,26 @@ export class PaymentService {
       throw err;
     }
 
+    const isBankTransfer =
+      extra.outcome === 'bank_webhook' || extra.outcome === 'admin_bank_confirm';
+    const paymentActorEmail = extra.mock
+      ? 'system:mock-payment'
+      : extra.outcome === 'admin_bank_confirm'
+        ? 'admin:bank-confirm'
+        : extra.outcome === 'bank_webhook'
+          ? 'system:bank-webhook'
+          : 'system:stripe-webhook';
+    const paymentSource = extra.mock
+      ? 'stripe-mock'
+      : isBankTransfer
+        ? 'bank_transfer'
+        : 'stripe';
+    const paymentChannelLabel = extra.mock
+      ? 'Stripe Mock'
+      : isBankTransfer
+        ? 'Chuyển khoản ngân hàng (VietQR)'
+        : 'Stripe';
+
     const paid = await this.prisma.$transaction(async (tx) => {
       const updated = fresh;
 
@@ -884,8 +904,8 @@ export class PaymentService {
             costPerUnit: 0,
             quantity: 1,
             actorUserId: null,
-            actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
-            note: `Top-up ${order.creditCountSnapshot} credit qua ${extra.mock ? 'Stripe Mock' : 'Stripe'} (order ${order.id})`,
+            actorEmail: paymentActorEmail,
+            note: `Top-up ${order.creditCountSnapshot} credit qua ${paymentChannelLabel} (order ${order.id})`,
             metadata: {
               orderId: order.id,
               eventId,
@@ -902,7 +922,7 @@ export class PaymentService {
             entityKey: order.companyId,
             action: 'topup',
             diff: {
-              source: extra.mock ? 'stripe-mock' : 'stripe',
+              source: paymentSource,
               orderId: order.id,
               eventId,
               creditDelta: order.creditCountSnapshot,
@@ -911,7 +931,7 @@ export class PaymentService {
               after: { balance: updatedAccount.balance, lifetimeGranted: updatedAccount.lifetimeGranted },
             },
             actorId: null,
-            actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
+            actorEmail: paymentActorEmail,
           },
         });
       } else {
@@ -921,14 +941,14 @@ export class PaymentService {
             entityKey: order.id,
             action: 'paid',
             diff: {
-              source: extra.mock ? 'stripe-mock' : 'stripe',
+              source: paymentSource,
               kind,
               planCode,
               eventId,
               priceVnd: order.priceVndSnapshot.toString(),
             },
             actorId: null,
-            actorEmail: extra.mock ? 'system:mock-payment' : 'system:stripe-webhook',
+            actorEmail: paymentActorEmail,
           },
         });
       }
@@ -1225,11 +1245,25 @@ export class PaymentService {
         select: { name: true, taxCode: true },
       }),
     ]);
-    const bank = this.assertBankSettingsReady(settings);
+    const bank =
+      order.status === 'pending'
+        ? this.assertBankSettingsReady(settings)
+        : {
+            bankBin: settings?.bankBin?.trim() ?? '',
+            bankName: settings?.bankName?.trim() || settings?.bankBin?.trim() || '',
+            bankAccountNumber: settings?.bankAccountNumber?.replace(/\s+/g, '').trim() ?? '',
+            bankAccountName: settings?.bankAccountName?.trim() ?? '',
+            bankBranch: settings?.bankBranch?.trim() || null,
+            transferPrefix: (settings?.transferPrefix?.trim() || 'INLINK').toUpperCase(),
+            bankTransferNote: settings?.bankTransferNote?.trim() || null,
+          };
     const transferCode =
       this.extractTransferCode(order) ?? `${bank.transferPrefix}${order.id.slice(0, 6).toUpperCase()}`;
     const totalPayable = order.priceVndSnapshot + order.vatAmountVnd;
-    const qrImageUrl = `https://img.vietqr.io/image/${encodeURIComponent(bank.bankBin)}-${encodeURIComponent(bank.bankAccountNumber)}-compact2.png?amount=${totalPayable.toString()}&addInfo=${encodeURIComponent(transferCode)}&accountName=${encodeURIComponent(bank.bankAccountName)}`;
+    const qrImageUrl =
+      bank.bankBin && bank.bankAccountNumber
+        ? `https://img.vietqr.io/image/${encodeURIComponent(bank.bankBin)}-${encodeURIComponent(bank.bankAccountNumber)}-compact2.png?amount=${totalPayable.toString()}&addInfo=${encodeURIComponent(transferCode)}&accountName=${encodeURIComponent(bank.bankAccountName)}`
+        : '';
     return {
       order: this.mapOrder(order),
       transferCode,
@@ -1253,7 +1287,7 @@ export class PaymentService {
   async handleBankWebhook(
     headers: Record<string, string | string[] | undefined>,
     payload: Record<string, unknown>,
-  ): Promise<{ ok: true; matched: number; ignored: number }> {
+  ): Promise<{ ok: true; success: true; error: 0; matched: number; ignored: number }> {
     const settings = await this.row();
     const expectedKey = this.decrypt(settings?.bankWebhookSecretEnc);
     if (!expectedKey) {
@@ -1276,9 +1310,12 @@ export class PaymentService {
     }
 
     const prefix = (settings?.transferPrefix?.trim() || 'INLINK').toUpperCase();
-    const codeRegex = new RegExp(`${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\d{6}`, 'i');
+    const codeRegex = new RegExp(
+      `${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s-]?(\\d{6})`,
+      'i',
+    );
 
-    type BankTxn = { id: string; amount: bigint; content: string; ref: string | null };
+    type BankTxn = { id: string; amount: bigint; content: string; ref: string | null; raw: unknown };
     const txns: BankTxn[] = [];
 
     if (Array.isArray(payload?.data)) {
@@ -1291,6 +1328,7 @@ export class PaymentService {
           amount: BigInt(Math.round(amt)),
           content: String(item.description ?? ''),
           ref: item.tid ? String(item.tid) : null,
+          raw: item,
         });
       }
     } else if (payload && typeof payload === 'object') {
@@ -1303,6 +1341,7 @@ export class PaymentService {
           amount: BigInt(Math.round(amt)),
           content: String(payload.content ?? payload.description ?? ''),
           ref: payload.referenceCode ? String(payload.referenceCode) : null,
+          raw: payload,
         });
       }
     }
@@ -1312,11 +1351,11 @@ export class PaymentService {
 
     for (const txn of txns) {
       const m = txn.content.toUpperCase().match(codeRegex);
-      if (!m) {
+      if (!m || !m[1]) {
         ignored += 1;
         continue;
       }
-      const code = m[0].toUpperCase();
+      const code = `${prefix}${m[1]}`;
       const order = await this.prisma.billingOrder.findFirst({
         where: { providerSessionId: `bt_${code}`, status: 'pending' },
       });
@@ -1332,7 +1371,23 @@ export class PaymentService {
         ignored += 1;
         continue;
       }
-      await this.markPaidAndGrant(order, `bank_wh_${txn.id}`, {
+      const eventId = `bank_wh_${txn.id}`;
+      const existingPayment = await this.prisma.billingPayment.findUnique({
+        where: { providerEventId: eventId },
+      });
+      if (!existingPayment) {
+        await this.prisma.billingPayment.create({
+          data: {
+            orderId: order.id,
+            providerEventId: eventId,
+            eventType: 'bank.transfer_in',
+            status: 'processed',
+            amountVnd: txn.amount,
+            rawPayload: txn.raw as Prisma.InputJsonValue,
+          },
+        });
+      }
+      await this.markPaidAndGrant(order, eventId, {
         mock: false,
         paymentIntent: txn.ref ?? txn.id,
         outcome: 'bank_webhook',
@@ -1340,7 +1395,7 @@ export class PaymentService {
       matched += 1;
     }
 
-    return { ok: true, matched, ignored };
+    return { ok: true, success: true, error: 0, matched, ignored };
   }
 
   async listAdminOrders(status?: string): Promise<AdminBillingOrderView[]> {
@@ -1389,15 +1444,33 @@ export class PaymentService {
     }
     const ref = bankReference?.trim() || `MANUAL-${Date.now()}`;
     const eventId = `admin_bank_${order.id}_${randomBytes(4).toString('hex')}`;
+    const totalPayable = order.priceVndSnapshot + order.vatAmountVnd;
+    await this.prisma.billingPayment.create({
+      data: {
+        orderId: order.id,
+        providerEventId: eventId,
+        eventType: 'bank.admin_confirmed',
+        status: 'processed',
+        amountVnd: totalPayable,
+        rawPayload: {
+          adminId: admin.id,
+          adminEmail: admin.email ?? null,
+          bankReference: ref,
+          note: note?.trim() || null,
+        },
+      },
+    });
     const paid = await this.markPaidAndGrant(order, eventId, {
       mock: false,
       paymentIntent: ref,
       outcome: 'admin_bank_confirm',
     });
+    let finalNote = paid.note;
     if (note?.trim()) {
+      finalNote = `[Admin ${admin.email ?? admin.id}] ${note.trim()}`;
       await this.prisma.billingOrder.update({
         where: { id: order.id },
-        data: { note: `[Admin ${admin.email ?? admin.id}] ${note.trim()}` },
+        data: { note: finalNote },
       });
     }
     await this.prisma.billingAuditLog.create({
@@ -1408,13 +1481,13 @@ export class PaymentService {
         diff: {
           bankReference: ref,
           note: note?.trim() || null,
-          payableVnd: (order.priceVndSnapshot + order.vatAmountVnd).toString(),
+          payableVnd: totalPayable.toString(),
         },
         actorId: admin.id,
         actorEmail: admin.email ?? null,
       },
     });
-    return paid;
+    return { ...paid, note: finalNote };
   }
 
   async adminCancelOrder(

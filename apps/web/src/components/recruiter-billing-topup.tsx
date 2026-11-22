@@ -85,16 +85,24 @@ export function RecruiterTopup() {
         <Card
           className={clsx(
             'flex items-center gap-3 p-3 text-xs',
-            mode === 'live'
-              ? 'border-amber-200 bg-amber-50/60 text-amber-900'
-              : 'border-blue-200 bg-blue-50/60 text-blue-900',
+            mode === 'bank_transfer'
+              ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
+              : mode === 'live'
+                ? 'border-amber-200 bg-amber-50/60 text-amber-900'
+                : 'border-blue-200 bg-blue-50/60 text-blue-900',
           )}
         >
-          {mode === 'live' ? <Lock className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+          {mode === 'bank_transfer' || mode === 'live' ? (
+            <Lock className="h-4 w-4 shrink-0" />
+          ) : (
+            <Sparkles className="h-4 w-4 shrink-0" />
+          )}
           <span>
-            {mode === 'live'
-              ? 'Stripe Live — Thanh toán thật qua Stripe Checkout (sandbox dùng test card 4242 4242 4242 4242).'
-              : 'Mock mode — Thanh toán giả lập trong app, không cần Stripe key. Bấm "Mua" sẽ hiện trang thanh toán nội bộ.'}
+            {mode === 'bank_transfer'
+              ? 'Chuyển khoản ngân hàng doanh nghiệp (VietQR) — Quét mã QR hoặc chuyển khoản từ tài khoản công ty, tự động cộng Credit và hỗ trợ xuất hóa đơn GTGT.'
+              : mode === 'live'
+                ? 'Stripe Live — Thanh toán thật qua Stripe Checkout.'
+                : 'Mock mode — Thanh toán giả lập trong app, không cần Stripe key. Bấm "Mua" sẽ hiện trang thanh toán nội bộ.'}
           </span>
         </Card>
 

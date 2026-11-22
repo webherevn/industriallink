@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Building2,
@@ -25,6 +25,7 @@ function fmtVnd(raw: string): string {
 }
 
 export default function RecruiterBankTransferPage() {
+  const qc = useQueryClient();
   const [orderId, setOrderId] = useState<string>('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -41,6 +42,18 @@ export default function RecruiterBankTransferPage() {
     retry: 1,
   });
 
+  const paid = data?.order.status === 'paid';
+  const failed = data?.order.status === 'failed';
+
+  useEffect(() => {
+    if (!paid) return;
+    void qc.invalidateQueries({ queryKey: ['recruiter-billing-overview'] });
+    void qc.invalidateQueries({ queryKey: ['recruiter-orders'] });
+    void qc.invalidateQueries({ queryKey: ['recruiter-entitlements'] });
+    void qc.invalidateQueries({ queryKey: ['recruiter-credit-balance'] });
+    void qc.invalidateQueries({ queryKey: ['recruiter-sourcing'] });
+  }, [paid, qc]);
+
   async function copyText(key: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -50,9 +63,6 @@ export default function RecruiterBankTransferPage() {
       // ignore clipboard errors
     }
   }
-
-  const paid = data?.order.status === 'paid';
-  const failed = data?.order.status === 'failed';
 
   return (
     <RecruiterShell>

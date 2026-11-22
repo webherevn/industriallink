@@ -380,8 +380,8 @@ export interface BillingPublicConfig {
   currency: CurrencyDisplay;
   /** Copy / SEO / FAQ / liên hệ — SuperAdmin chỉnh, không gồm số liệu gói. */
   pageContent: BillingPageContentView;
-  /** Bước 7: 'mock' | 'live' — Recruiter UI dùng để hiển thị banner cảnh báo. */
-  paymentMode?: 'mock' | 'live';
+  /** Bước 7: 'mock' | 'bank_transfer' | 'live' — Recruiter UI dùng để hiển thị banner trạng thái thanh toán. */
+  paymentMode?: 'mock' | 'bank_transfer' | 'live';
   /** Null khi SuperAdmin chưa đặt. Giá niêm yết không gồm số này. Thanh toán mới cộng thêm khi đã đặt. */
   vatPercent?: number | null;
   /**
