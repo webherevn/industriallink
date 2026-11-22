@@ -1697,6 +1697,7 @@ function buildReportJobs(
     )
     .map((job) => ({
       jobId: job.jobId,
+      code: job.code ?? null,
       title: job.title,
       status: job.status,
       location: job.location,

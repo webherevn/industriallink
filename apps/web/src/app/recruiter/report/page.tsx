@@ -1157,18 +1157,20 @@ function ReportBody({
                             <Briefcase className="h-3.5 w-3.5" />
                           </span>
                           <div className="min-w-0">
-                            <Link
-                              href={`/jobs/${job.jobId}/applicants`}
-                              className="font-semibold text-brand-800 hover:underline"
-                            >
-                              {formatJobTitle(job.title)}
-                            </Link>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link
+                                href={`/jobs/${job.jobId}/applicants`}
+                                className="font-semibold text-brand-800 hover:underline"
+                              >
+                                {formatJobTitle(job.title)}
+                              </Link>
                               {job.code ? (
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-slate-600">
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-600">
                                   {job.code}
                                 </span>
                               ) : null}
+                            </div>
+                            <p className="mt-0.5 text-xs text-slate-500">
                               <span
                                 className={clsx(
                                   'inline-block rounded-full px-1.5 py-0.2 text-[10px] font-semibold',
