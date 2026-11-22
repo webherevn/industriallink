@@ -920,6 +920,8 @@ export interface RecruiterBillingOverview {
   pendingPackages: RecruiterPendingPackageView[];
   /** Số dư Ví Credit (đọc trực tiếp `billing_credit_account.balance`). */
   creditBalance: number;
+  /** Số dư Credit mua thêm từ Top-up còn khả dụng trong ví (0 nếu chưa mua hoặc đã dùng hết). */
+  topupCreditBalance?: number;
   /** Tổng Credit đã cấp (vô thời hạn + có hạn). */
   lifetimeGranted: number;
   /** Tổng Credit đã sử dụng. */

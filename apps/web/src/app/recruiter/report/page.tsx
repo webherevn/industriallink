@@ -438,12 +438,19 @@ function ReportBody({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-base font-semibold">{report.companyName ?? 'Công ty'}</p>
-                  {sourcing.planName ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-white/20">
-                      <Sparkles className="h-3 w-3" />
-                      {sourcing.planName}
-                    </span>
-                  ) : null}
+                  {(() => {
+                    const badgeLabel = selectedJob
+                      ? selectedJob.packageName
+                        ? `${selectedJob.packageName}${selectedJob.packageCode ? ` · ${selectedJob.packageCode}` : ''}`
+                        : null
+                      : sourcing.planName;
+                    return badgeLabel ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-white/20">
+                        <Sparkles className="h-3 w-3" />
+                        {badgeLabel}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <p className="text-xs text-white/65">
                   Báo cáo trong {report.days === 365 ? '12 tháng' : `${report.days} ngày`} qua

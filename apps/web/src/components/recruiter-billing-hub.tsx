@@ -304,6 +304,11 @@ export function RecruiterBillingHub() {
                     {overview ? fmtNum(overview.lifetimeConsumed) : '0'} Credit
                   </span>
                   <span className="text-white/65">Đã sử dụng</span>
+                </p>
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-[#FFB366]">
+                    Credit Top-up: {overview ? fmtNum(overview.topupCreditBalance ?? 0) : '0'}
+                  </span>
                   <span className="text-white/50">·</span>
                   <span className="text-white/75">Credit nạp thêm có hiệu lực lâu dài</span>
                 </p>

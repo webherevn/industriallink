@@ -701,7 +701,15 @@ export class ApplicationService {
       this.prisma.job?.findMany
         ? this.prisma.job.findMany({
             where: jobScope,
-            select: { id: true, code: true, title: true, status: true, location: true, createdAt: true },
+            select: {
+              id: true,
+              code: true,
+              title: true,
+              status: true,
+              location: true,
+              createdAt: true,
+              jobPackage: { select: { packageName: true, code: true } },
+            },
             orderBy: { createdAt: 'desc' },
             take: 25,
           })
@@ -713,6 +721,9 @@ export class ApplicationService {
               plan: true,
               huntCampaigns: {
                 where: { jobId: { not: null }, status: { not: 'closed' } },
+                include: {
+                  package: { select: { packageName: true, code: true, status: true } },
+                },
               },
             },
           })
@@ -925,7 +936,12 @@ export class ApplicationService {
       conversionPct,
       funnel,
       trend: buildReportTrend(days, from, now, applications, hiredRows),
-      jobs: buildReportJobs(applications, companyJobs, sourcingUsages),
+      jobs: buildReportJobs(
+        applications,
+        companyJobs,
+        sourcingUsages,
+        sourcingPlan?.huntCampaigns ?? [],
+      ),
       sourcing: {
         planName: sourcingPlan?.isActive ? (sourcingPlan.plan?.name ?? null) : null,
         activeEngagements: uniqueEngagementsByJob.size,
@@ -1599,21 +1615,46 @@ function buildReportJobs(
     jobId: string;
     job: { code?: string | null; title: string; status: string; location: string | null };
   }[],
-  companyJobs: { id: string; code?: string | null; title: string; status: string; location: string | null }[] = [],
+  companyJobs: {
+    id: string;
+    code?: string | null;
+    title: string;
+    status: string;
+    location: string | null;
+    jobPackage?: { packageName: string; code: string } | null;
+  }[] = [],
   sourcingUsages: { kind: string; jobId: string | null; note: string | null }[] = [],
+  huntCampaigns: {
+    jobId: string | null;
+    package?: { packageName: string; code: string; status: string } | null;
+  }[] = [],
 ): RecruitmentReportJobRow[] {
+  const huntPkgByJob = new Map<string, { packageName: string; code: string }>();
+  for (const camp of huntCampaigns) {
+    if (!camp.jobId || !camp.package) continue;
+    if (camp.package.status === 'ACTIVE' || !huntPkgByJob.has(camp.jobId)) {
+      huntPkgByJob.set(camp.jobId, {
+        packageName: camp.package.packageName,
+        code: camp.package.code,
+      });
+    }
+  }
+
   const rows = new Map<
     string,
     RecruitmentReportJobRow & { matchSum: number; matchCount: number; maxMatch: number | null }
   >();
 
   for (const cj of companyJobs) {
+    const huntPkg = huntPkgByJob.get(cj.id);
     rows.set(cj.id, {
       jobId: cj.id,
       code: cj.code ?? null,
       title: cj.title,
       status: cj.status,
       location: cj.location,
+      packageName: huntPkg?.packageName ?? cj.jobPackage?.packageName ?? null,
+      packageCode: huntPkg?.code ?? cj.jobPackage?.code ?? null,
       applications: 0,
       screening: 0,
       interviews: 0,
@@ -1701,6 +1742,8 @@ function buildReportJobs(
       title: job.title,
       status: job.status,
       location: job.location,
+      packageName: job.packageName ?? null,
+      packageCode: job.packageCode ?? null,
       applications: job.applications,
       screening: job.screening,
       interviews: job.interviews,

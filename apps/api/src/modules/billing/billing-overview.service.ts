@@ -34,7 +34,7 @@ export class BillingOverviewService {
   async getOverview(companyId: string): Promise<RecruiterBillingOverview> {
     const now = new Date();
 
-    const [jobPackageRows, huntPackageRows, account, expiringLot] = await Promise.all([
+    const [jobPackageRows, huntPackageRows, account, expiringLot, topupAgg] = await Promise.all([
       this.prisma.billingJobPackage.findMany({
         where: { companyId },
         orderBy: [{ purchasedAt: 'desc' }, { createdAt: 'desc' }],
@@ -64,7 +64,22 @@ export class BillingOverviewService {
         orderBy: { expiresAt: 'asc' },
         select: { granted: true, consumed: true, expiresAt: true },
       }),
+      // Tổng Credit Top-up còn khả dụng trong ví (sourceType = 'topup').
+      this.prisma.billingCreditLot.aggregate
+        ? this.prisma.billingCreditLot.aggregate({
+            where: {
+              companyId,
+              sourceType: 'topup',
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            _sum: { granted: true, consumed: true },
+          })
+        : Promise.resolve({ _sum: { granted: 0, consumed: 0 } }),
     ]);
+    const topupCreditBalance = Math.max(
+      0,
+      Number(topupAgg._sum.granted ?? 0) - Number(topupAgg._sum.consumed ?? 0),
+    );
 
     // ---- Gói tin đăng: ACTIVE (đang chạy) + UNUSED (chờ kích hoạt) ----
     const activeJobPackages: RecruiterJobPackageView[] = [];
@@ -193,6 +208,7 @@ export class BillingOverviewService {
       activeHuntPackages,
       pendingPackages,
       creditBalance: account?.balance ?? 0,
+      topupCreditBalance,
       lifetimeGranted: account?.lifetimeGranted ?? 0,
       lifetimeConsumed: account?.lifetimeConsumed ?? 0,
       expiringLot: expiring,

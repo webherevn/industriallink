@@ -133,6 +133,10 @@ export interface RecruitmentReportJobRow {
   title: string;
   status: string;
   location: string | null;
+  /** Tên gói đang nuôi tin này (Tin săn cụ thể hoặc Gói tin đăng). */
+  packageName?: string | null;
+  /** Mã gói đang nuôi tin này (TS-... hoặc JD-...). */
+  packageCode?: string | null;
   applications: number;
   screening: number;
   interviews: number;
