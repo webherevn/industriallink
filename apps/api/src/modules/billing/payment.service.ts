@@ -1,12 +1,16 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
+  AdminBillingOrderView,
+  BankTransferOrderView,
   BillingOrderView,
   BillingPaymentSettingView,
   PaymentCheckoutResponse,
@@ -78,6 +82,7 @@ export class PaymentService {
     const pk = this.decrypt(row?.stripePublishableKeyEnc);
     const sk = this.decrypt(row?.stripeSecretKeyEnc);
     const wh = this.decrypt(row?.stripeWebhookSecretEnc);
+    const bankWh = this.decrypt(row?.bankWebhookSecretEnc);
     const updatedByEmail = row?.updatedBy
       ? (
           await this.prisma.user.findUnique({
@@ -97,6 +102,15 @@ export class PaymentService {
       cancelUrl: row?.cancelUrl ?? '',
       updatedAt: row?.updatedAt ? row.updatedAt.toISOString() : null,
       updatedByEmail,
+      bankBin: row?.bankBin ?? null,
+      bankName: row?.bankName ?? null,
+      bankAccountNumber: row?.bankAccountNumber ?? null,
+      bankAccountName: row?.bankAccountName ?? null,
+      bankBranch: row?.bankBranch ?? null,
+      transferPrefix: row?.transferPrefix ?? 'INLINK',
+      bankTransferNote: row?.bankTransferNote ?? null,
+      hasBankWebhookSecret: Boolean(bankWh),
+      bankWebhookSecretPreview: keyPreview(bankWh),
     };
   }
 
@@ -104,8 +118,8 @@ export class PaymentService {
     dto: UpdatePaymentSettingsRequest,
     adminId: string,
   ): Promise<BillingPaymentSettingView> {
-    if (dto.mode && !['mock', 'live'].includes(dto.mode)) {
-      throw new BadRequestException('mode chỉ nhận "mock" hoặc "live"');
+    if (dto.mode && !['mock', 'bank_transfer', 'live'].includes(dto.mode)) {
+      throw new BadRequestException('mode chỉ nhận "mock", "bank_transfer" hoặc "live"');
     }
     const secret = this.encryptionSecret();
     const keyUpdate = (
@@ -130,6 +144,27 @@ export class PaymentService {
     if (skEnc !== undefined) data.stripeSecretKeyEnc = skEnc;
     const whEnc = keyUpdate(dto.stripeWebhookSecret);
     if (whEnc !== undefined) data.stripeWebhookSecretEnc = whEnc;
+    const bankWhEnc = keyUpdate(dto.bankWebhookSecret);
+    if (bankWhEnc !== undefined) data.bankWebhookSecretEnc = bankWhEnc;
+    if (dto.bankBin !== undefined) data.bankBin = dto.bankBin?.trim() || null;
+    if (dto.bankName !== undefined) data.bankName = dto.bankName?.trim() || null;
+    if (dto.bankAccountNumber !== undefined) {
+      data.bankAccountNumber = dto.bankAccountNumber?.replace(/\s+/g, '').trim() || null;
+    }
+    if (dto.bankAccountName !== undefined) {
+      data.bankAccountName = dto.bankAccountName?.trim().toUpperCase() || null;
+    }
+    if (dto.bankBranch !== undefined) data.bankBranch = dto.bankBranch?.trim() || null;
+    if (dto.transferPrefix !== undefined) {
+      const cleaned = (dto.transferPrefix ?? '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 12);
+      data.transferPrefix = cleaned || 'INLINK';
+    }
+    if (dto.bankTransferNote !== undefined) {
+      data.bankTransferNote = dto.bankTransferNote?.trim() || null;
+    }
 
     await this.prisma.billingPaymentSetting.upsert({
       where: { scope: SCOPE },
@@ -138,6 +173,40 @@ export class PaymentService {
     });
 
     return this.getSettingsView();
+  }
+
+  private assertBankSettingsReady(settings: Row | null): {
+    bankBin: string;
+    bankName: string;
+    bankAccountNumber: string;
+    bankAccountName: string;
+    bankBranch: string | null;
+    transferPrefix: string;
+    bankTransferNote: string | null;
+  } {
+    const bankBin = settings?.bankBin?.trim() ?? '';
+    const bankName = settings?.bankName?.trim() ?? '';
+    const bankAccountNumber = settings?.bankAccountNumber?.replace(/\s+/g, '').trim() ?? '';
+    const bankAccountName = settings?.bankAccountName?.trim() ?? '';
+    if (!bankBin || !bankAccountNumber || !bankAccountName) {
+      throw new BadRequestException(
+        'Chưa cấu hình tài khoản ngân hàng công ty. Vui lòng vào /admin/billing/payment để thiết lập.',
+      );
+    }
+    return {
+      bankBin,
+      bankName: bankName || bankBin,
+      bankAccountNumber,
+      bankAccountName,
+      bankBranch: settings?.bankBranch?.trim() || null,
+      transferPrefix: (settings?.transferPrefix?.trim() || 'INLINK').toUpperCase(),
+      bankTransferNote: settings?.bankTransferNote?.trim() || null,
+    };
+  }
+
+  private generateTransferCode(prefix: string): string {
+    const digits = String(100000 + (randomBytes(4).readUInt32BE(0) % 900000));
+    return `${prefix}${digits}`;
   }
 
   // =====================================================================
@@ -164,6 +233,36 @@ export class PaymentService {
     const mode = (settings?.mode as PaymentMode) ?? 'mock';
     const successUrlTemplate = settings?.successUrl ?? '/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}';
     const cancelUrl = settings?.cancelUrl ?? '/recruiter/billing/topup/cancel';
+
+    if (mode === 'bank_transfer') {
+      const bank = this.assertBankSettingsReady(settings);
+      const transferCode = this.generateTransferCode(bank.transferPrefix);
+      const sessionId = `bt_${transferCode}`;
+      const order = await this.createOrder({
+        user,
+        companyId,
+        topupId: topup.id,
+        creditCount: topup.creditCount,
+        priceVnd: topup.priceVnd,
+        provider: 'bank_transfer',
+        sessionId,
+        planName: topup.name,
+      });
+      await this.prisma.billingOrder.update({
+        where: { id: order.id },
+        data: {
+          metadata: {
+            ...((order.metadata && typeof order.metadata === 'object' ? order.metadata : {}) as Record<string, unknown>),
+            transferCode,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      const url = new URL(
+        `/recruiter/billing/bank-transfer?order=${order.id}`,
+        webOrigin,
+      ).toString();
+      return { orderId: order.id, sessionId, url, mode: 'bank_transfer' };
+    }
 
     if (mode === 'live') {
       // Gọi Stripe API thật (yêu cầu node 18+ có global fetch).
@@ -284,14 +383,25 @@ export class PaymentService {
     const priceVnd = applyLaunchPromo(listPrice, promo.percent);
     const settings = await this.row();
     const mode = (settings?.mode as PaymentMode) ?? 'mock';
-    const sessionId = `cs_${mode === 'live' ? 'test' : 'mock'}_${randomBytes(12).toString('hex')}`;
+    const bankConfig = mode === 'bank_transfer' && priceVnd > 0n ? this.assertBankSettingsReady(settings) : null;
+    const transferCode = bankConfig ? this.generateTransferCode(bankConfig.transferPrefix) : null;
+    const sessionId = transferCode
+      ? `bt_${transferCode}`
+      : `cs_${mode === 'live' ? 'test' : 'mock'}_${randomBytes(12).toString('hex')}`;
     const order = await this.createOrder({
       user,
       companyId,
       topupId: null,
       creditCount: 0,
       priceVnd,
-      provider: mode === 'live' && priceVnd > 0n ? 'stripe' : 'stripe-mock',
+      provider:
+        priceVnd <= 0n
+          ? 'stripe-mock'
+          : mode === 'bank_transfer'
+            ? 'bank_transfer'
+            : mode === 'live'
+              ? 'stripe'
+              : 'stripe-mock',
       sessionId,
       kind,
       planCode: plan.code,
@@ -303,6 +413,18 @@ export class PaymentService {
           : null,
     });
 
+    if (transferCode) {
+      await this.prisma.billingOrder.update({
+        where: { id: order.id },
+        data: {
+          metadata: {
+            ...((order.metadata && typeof order.metadata === 'object' ? order.metadata : {}) as Record<string, unknown>),
+            transferCode,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
+
     if (priceVnd <= 0n) {
       await this.markPaidAndGrant(order, `evt_free_${randomBytes(6).toString('hex')}`, {
         mock: true,
@@ -313,6 +435,14 @@ export class PaymentService {
         webOrigin,
       ).toString();
       return { orderId: order.id, sessionId, url, mode };
+    }
+
+    if (mode === 'bank_transfer') {
+      const url = new URL(
+        `/recruiter/billing/bank-transfer?order=${order.id}`,
+        webOrigin,
+      ).toString();
+      return { orderId: order.id, sessionId, url, mode: 'bank_transfer' };
     }
 
     if (mode === 'live') {
@@ -380,7 +510,7 @@ export class PaymentService {
     topupId: string | null;
     creditCount: number;
     priceVnd: bigint;
-    provider: 'stripe' | 'stripe-mock';
+    provider: 'stripe' | 'stripe-mock' | 'bank_transfer';
     sessionId: string;
     kind?: 'topup' | 'platform' | 'sourcing';
     planCode?: string | null;
@@ -1059,5 +1189,262 @@ export class PaymentService {
       failedAt: o.failedAt ? o.failedAt.toISOString() : null,
       note: o.note,
     };
+  }
+
+  // =====================================================================
+  // BANK TRANSFER (VietQR + SePay / Casso Webhook + SuperAdmin Confirm)
+  // =====================================================================
+
+  private extractTransferCode(order: {
+    providerSessionId: string | null;
+    metadata: Prisma.JsonValue;
+  }): string | null {
+    const meta =
+      order.metadata && typeof order.metadata === 'object' && !Array.isArray(order.metadata)
+        ? (order.metadata as Record<string, unknown>)
+        : null;
+    if (typeof meta?.transferCode === 'string' && meta.transferCode.trim()) {
+      return meta.transferCode.trim().toUpperCase();
+    }
+    if (order.providerSessionId?.startsWith('bt_')) {
+      return order.providerSessionId.slice(3).toUpperCase();
+    }
+    return null;
+  }
+
+  async getBankTransferOrder(companyId: string, orderId: string): Promise<BankTransferOrderView> {
+    const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn thanh toán.');
+    if (order.companyId !== companyId) {
+      throw new ForbiddenException('Đơn hàng không thuộc công ty của bạn.');
+    }
+    const [settings, company] = await Promise.all([
+      this.row(),
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true, taxCode: true },
+      }),
+    ]);
+    const bank = this.assertBankSettingsReady(settings);
+    const transferCode =
+      this.extractTransferCode(order) ?? `${bank.transferPrefix}${order.id.slice(0, 6).toUpperCase()}`;
+    const totalPayable = order.priceVndSnapshot + order.vatAmountVnd;
+    const qrImageUrl = `https://img.vietqr.io/image/${encodeURIComponent(bank.bankBin)}-${encodeURIComponent(bank.bankAccountNumber)}-compact2.png?amount=${totalPayable.toString()}&addInfo=${encodeURIComponent(transferCode)}&accountName=${encodeURIComponent(bank.bankAccountName)}`;
+    return {
+      order: this.mapOrder(order),
+      transferCode,
+      payableVnd: totalPayable.toString(),
+      bankBin: bank.bankBin,
+      bankName: bank.bankName,
+      bankAccountNumber: bank.bankAccountNumber,
+      bankAccountName: bank.bankAccountName,
+      bankBranch: bank.bankBranch,
+      bankTransferNote: bank.bankTransferNote,
+      qrImageUrl,
+      companyName: company?.name ?? 'Doanh nghiệp',
+      companyTaxCode: company?.taxCode ?? null,
+    };
+  }
+
+  /**
+   * Webhook đối soát tự động — hỗ trợ cả SePay & Casso.
+   * Xác thực bằng Bank Webhook API Key (mã hoá AES trong BillingPaymentSetting).
+   */
+  async handleBankWebhook(
+    headers: Record<string, string | string[] | undefined>,
+    payload: Record<string, unknown>,
+  ): Promise<{ ok: true; matched: number; ignored: number }> {
+    const settings = await this.row();
+    const expectedKey = this.decrypt(settings?.bankWebhookSecretEnc);
+    if (!expectedKey) {
+      throw new UnauthorizedException('Chưa cấu hình Bank Webhook API Key trong SuperAdmin.');
+    }
+    const readHeader = (name: string): string => {
+      const val = headers[name] ?? headers[name.toLowerCase()];
+      return Array.isArray(val) ? (val[0] ?? '') : (val ?? '');
+    };
+    const authHeader = readHeader('authorization').trim();
+    const suppliedKey =
+      authHeader.replace(/^(Apikey|Bearer)\s+/i, '').trim() ||
+      readHeader('secure-token').trim() ||
+      readHeader('x-api-key').trim();
+
+    const a = Buffer.from(suppliedKey);
+    const b = Buffer.from(expectedKey);
+    if (!suppliedKey || a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new UnauthorizedException('Bank Webhook API Key không hợp lệ.');
+    }
+
+    const prefix = (settings?.transferPrefix?.trim() || 'INLINK').toUpperCase();
+    const codeRegex = new RegExp(`${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\d{6}`, 'i');
+
+    type BankTxn = { id: string; amount: bigint; content: string; ref: string | null };
+    const txns: BankTxn[] = [];
+
+    if (Array.isArray(payload?.data)) {
+      // Định dạng Casso: { error: 0, data: [{ id, amount, description, tid }] }
+      for (const item of payload.data as Array<Record<string, unknown>>) {
+        const amt = Number(item.amount ?? 0);
+        if (!Number.isFinite(amt) || amt <= 0) continue;
+        txns.push({
+          id: String(item.tid || item.id || randomBytes(6).toString('hex')),
+          amount: BigInt(Math.round(amt)),
+          content: String(item.description ?? ''),
+          ref: item.tid ? String(item.tid) : null,
+        });
+      }
+    } else if (payload && typeof payload === 'object') {
+      // Định dạng SePay: { id, transferType: 'in', transferAmount, content, referenceCode }
+      const transferType = String(payload.transferType ?? 'in').toLowerCase();
+      const amt = Number(payload.transferAmount ?? payload.amount ?? 0);
+      if (transferType === 'in' && Number.isFinite(amt) && amt > 0) {
+        txns.push({
+          id: String(payload.id || payload.referenceCode || randomBytes(6).toString('hex')),
+          amount: BigInt(Math.round(amt)),
+          content: String(payload.content ?? payload.description ?? ''),
+          ref: payload.referenceCode ? String(payload.referenceCode) : null,
+        });
+      }
+    }
+
+    let matched = 0;
+    let ignored = 0;
+
+    for (const txn of txns) {
+      const m = txn.content.toUpperCase().match(codeRegex);
+      if (!m) {
+        ignored += 1;
+        continue;
+      }
+      const code = m[0].toUpperCase();
+      const order = await this.prisma.billingOrder.findFirst({
+        where: { providerSessionId: `bt_${code}`, status: 'pending' },
+      });
+      if (!order) {
+        ignored += 1;
+        continue;
+      }
+      const expectedPayable = order.priceVndSnapshot + order.vatAmountVnd;
+      if (txn.amount < expectedPayable) {
+        this.logger.warn(
+          `[BankWebhook] Chuyển thiếu tiền cho đơn ${order.id} (${code}): nhận ${txn.amount}đ / cần ${expectedPayable}đ`,
+        );
+        ignored += 1;
+        continue;
+      }
+      await this.markPaidAndGrant(order, `bank_wh_${txn.id}`, {
+        mock: false,
+        paymentIntent: txn.ref ?? txn.id,
+        outcome: 'bank_webhook',
+      });
+      matched += 1;
+    }
+
+    return { ok: true, matched, ignored };
+  }
+
+  async listAdminOrders(status?: string): Promise<AdminBillingOrderView[]> {
+    const allowed = new Set(['pending', 'paid', 'failed', 'refunded']);
+    const where: Prisma.BillingOrderWhereInput =
+      status && allowed.has(status) ? { status } : {};
+    const rows = await this.prisma.billingOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const companyIds = [...new Set(rows.map((r) => r.companyId))];
+    const companies = companyIds.length
+      ? await this.prisma.company.findMany({
+          where: { id: { in: companyIds } },
+          select: { id: true, name: true, taxCode: true },
+        })
+      : [];
+    const companyMap = new Map(companies.map((c) => [c.id, c]));
+    return rows.map((o) => {
+      const co = companyMap.get(o.companyId);
+      const base = this.mapOrder(o);
+      return {
+        ...base,
+        companyName: co?.name ?? 'Không rõ công ty',
+        companyTaxCode: co?.taxCode ?? null,
+        transferCode: this.extractTransferCode(o),
+        payableVnd: (o.priceVndSnapshot + o.vatAmountVnd).toString(),
+      };
+    });
+  }
+
+  async adminConfirmBankOrder(
+    admin: AuthenticatedUser,
+    orderId: string,
+    bankReference?: string,
+    note?: string,
+  ): Promise<BillingOrderView> {
+    const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    if (order.status === 'paid') {
+      return this.mapOrder(order);
+    }
+    if (order.status !== 'pending') {
+      throw new BadRequestException(`Không thể xác nhận đơn ở trạng thái "${order.status}".`);
+    }
+    const ref = bankReference?.trim() || `MANUAL-${Date.now()}`;
+    const eventId = `admin_bank_${order.id}_${randomBytes(4).toString('hex')}`;
+    const paid = await this.markPaidAndGrant(order, eventId, {
+      mock: false,
+      paymentIntent: ref,
+      outcome: 'admin_bank_confirm',
+    });
+    if (note?.trim()) {
+      await this.prisma.billingOrder.update({
+        where: { id: order.id },
+        data: { note: `[Admin ${admin.email ?? admin.id}] ${note.trim()}` },
+      });
+    }
+    await this.prisma.billingAuditLog.create({
+      data: {
+        entity: 'billing_order',
+        entityKey: order.id,
+        action: 'admin_confirm_bank',
+        diff: {
+          bankReference: ref,
+          note: note?.trim() || null,
+          payableVnd: (order.priceVndSnapshot + order.vatAmountVnd).toString(),
+        },
+        actorId: admin.id,
+        actorEmail: admin.email ?? null,
+      },
+    });
+    return paid;
+  }
+
+  async adminCancelOrder(
+    admin: AuthenticatedUser,
+    orderId: string,
+    reason?: string,
+  ): Promise<BillingOrderView> {
+    const order = await this.prisma.billingOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    if (order.status !== 'pending') {
+      throw new BadRequestException('Chỉ có thể huỷ đơn đang chờ thanh toán.');
+    }
+    const updated = await this.prisma.billingOrder.update({
+      where: { id: order.id },
+      data: {
+        status: 'failed',
+        failedAt: new Date(),
+        note: reason?.trim() || `Admin ${admin.email ?? admin.id} huỷ đơn`,
+      },
+    });
+    await this.prisma.billingAuditLog.create({
+      data: {
+        entity: 'billing_order',
+        entityKey: order.id,
+        action: 'admin_cancel_order',
+        diff: { reason: reason?.trim() || null },
+        actorId: admin.id,
+        actorEmail: admin.email ?? null,
+      },
+    });
+    return this.mapOrder(updated);
   }
 }

@@ -934,7 +934,7 @@ export interface RecruiterBillingOverview {
 // PAYMENT (Bước 7)
 // =========================================================================
 
-export type PaymentMode = 'mock' | 'live';
+export type PaymentMode = 'mock' | 'bank_transfer' | 'live';
 
 export interface BillingPaymentSettingView {
   mode: PaymentMode;
@@ -947,6 +947,15 @@ export interface BillingPaymentSettingView {
   cancelUrl: string;
   updatedAt: string | null;
   updatedByEmail: string | null;
+  bankBin?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  bankBranch?: string | null;
+  transferPrefix?: string;
+  bankTransferNote?: string | null;
+  hasBankWebhookSecret?: boolean;
+  bankWebhookSecretPreview?: string | null;
 }
 
 export interface UpdatePaymentSettingsRequest {
@@ -957,12 +966,42 @@ export interface UpdatePaymentSettingsRequest {
   stripeWebhookSecret?: string | null;
   successUrl?: string;
   cancelUrl?: string;
+  bankBin?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  bankBranch?: string | null;
+  transferPrefix?: string | null;
+  bankTransferNote?: string | null;
+  bankWebhookSecret?: string | null;
+}
+
+export interface BankTransferOrderView {
+  order: BillingOrderView;
+  transferCode: string;
+  payableVnd: string;
+  bankBin: string;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  bankBranch: string | null;
+  bankTransferNote: string | null;
+  qrImageUrl: string;
+  companyName: string;
+  companyTaxCode: string | null;
+}
+
+export interface AdminBillingOrderView extends BillingOrderView {
+  companyName: string;
+  companyTaxCode: string | null;
+  transferCode: string | null;
+  payableVnd: string;
 }
 
 export interface PaymentCheckoutResponse {
   orderId: string;
   sessionId: string;
-  /** URL để client redirect (Stripe Checkout URL hoặc local mock page). */
+  /** URL để client redirect (Stripe Checkout URL, VietQR bank-transfer page hoặc local mock page). */
   url: string;
   mode: PaymentMode;
 }
@@ -985,7 +1024,7 @@ export interface BillingOrderView {
   /** Số cổng thanh toán thu: giá chưa VAT cộng tiền VAT. */
   payableVnd: string;
   status: 'pending' | 'paid' | 'failed' | 'refunded';
-  provider: 'stripe' | 'stripe-mock';
+  provider: 'stripe' | 'stripe-mock' | 'bank_transfer';
   providerSessionId: string | null;
   providerPaymentIntent: string | null;
   createdByEmail: string | null;

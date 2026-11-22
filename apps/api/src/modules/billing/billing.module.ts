@@ -6,6 +6,7 @@ import { BillingPublicController } from './billing-public.controller';
 import { BillingRecruiterController } from './billing-recruiter.controller';
 import { BillingRecruiterPaymentController } from './billing-recruiter-payment.controller';
 import { BillingMockPaymentController } from './billing-mock-payment.controller';
+import { BillingBankWebhookController } from './billing-bank-webhook.controller';
 import { BillingStripeWebhookController } from './billing-stripe-webhook.controller';
 import { BillingService } from './billing.service';
 import { BillingOverviewService } from './billing-overview.service';
@@ -26,6 +27,7 @@ import { CompanyModule } from '../company/company.module';
     BillingRecruiterController,
     BillingRecruiterPaymentController,
     BillingMockPaymentController,
+    BillingBankWebhookController,
     BillingStripeWebhookController,
   ],
   providers: [

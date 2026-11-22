@@ -327,3 +327,30 @@ export async function updateAdminPaymentSettings(
     body,
   });
 }
+
+export async function fetchAdminBillingOrders(
+  status?: string,
+): Promise<import('@industriallink/contracts').AdminBillingOrderView[]> {
+  const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+  return apiRequest(`/admin/billing/orders${qs}`);
+}
+
+export async function confirmAdminBankOrder(
+  orderId: string,
+  body: { bankReference?: string; note?: string },
+): Promise<import('@industriallink/contracts').BillingOrderView> {
+  return apiRequest(`/admin/billing/orders/${encodeURIComponent(orderId)}/confirm-bank`, {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function cancelAdminBillingOrder(
+  orderId: string,
+  reason?: string,
+): Promise<import('@industriallink/contracts').BillingOrderView> {
+  return apiRequest(`/admin/billing/orders/${encodeURIComponent(orderId)}/cancel`, {
+    method: 'POST',
+    body: reason ? { reason } : {},
+  });
+}

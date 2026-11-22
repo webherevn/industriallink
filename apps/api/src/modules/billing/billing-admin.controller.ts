@@ -399,11 +399,37 @@ export class BillingAdminController {
   }
 
   @Patch('payment-settings')
-  @ApiOperation({ summary: 'Cập nhật cấu hình thanh toán Stripe (admin)' })
+  @ApiOperation({ summary: 'Cập nhật cấu hình thanh toán (Mock / VietQR / Stripe)' })
   async updatePaymentSettings(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdatePaymentSettingsRequest,
   ): Promise<BillingPaymentSettingView> {
     return this.payment.updateSettings(dto, user.id);
+  }
+
+  @Get('orders')
+  @ApiOperation({ summary: 'Danh sách đơn hàng thanh toán (đối soát chuyển khoản)' })
+  async listOrders(@Query('status') status?: string) {
+    return this.payment.listAdminOrders(status);
+  }
+
+  @Post('orders/:id/confirm-bank')
+  @ApiOperation({ summary: 'SuperAdmin xác nhận đã nhận tiền chuyển khoản (idempotent)' })
+  async confirmBankOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { bankReference?: string; note?: string },
+  ) {
+    return this.payment.adminConfirmBankOrder(user, id, body?.bankReference, body?.note);
+  }
+
+  @Post('orders/:id/cancel')
+  @ApiOperation({ summary: 'SuperAdmin huỷ đơn chờ thanh toán' })
+  async cancelOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.payment.adminCancelOrder(user, id, body?.reason);
   }
 }

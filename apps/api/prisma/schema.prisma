@@ -1997,7 +1997,7 @@ model BillingPaymentSetting {
   id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   scope                 String   @unique @default("default")
 
-  /// 'mock' | 'live'
+  /// 'mock' | 'bank_transfer' | 'live'
   mode                  String   @default("mock")
 
   /// Stripe publishable key (pk_test_xxx / pk_live_xxx) — encrypted.
@@ -2006,6 +2006,17 @@ model BillingPaymentSetting {
   stripeSecretKeyEnc    String?  @map("stripe_secret_key_enc")
   /// Stripe webhook signing secret (whsec_xxx) — encrypted.
   stripeWebhookSecretEnc String? @map("stripe_webhook_secret_enc")
+
+  /// Thông tin tài khoản ngân hàng công ty nhận chuyển khoản (VietQR / NAPAS 247).
+  bankBin               String?  @map("bank_bin")
+  bankName              String?  @map("bank_name")
+  bankAccountNumber     String?  @map("bank_account_number")
+  bankAccountName       String?  @map("bank_account_name")
+  bankBranch            String?  @map("bank_branch")
+  transferPrefix        String   @default("INLINK") @map("transfer_prefix")
+  bankTransferNote      String?  @map("bank_transfer_note")
+  /// API Key đối soát tự động SePay / Casso — encrypted. KHÔNG trả plaintext ra API.
+  bankWebhookSecretEnc  String?  @map("bank_webhook_secret_enc")
 
   /// URL trả về sau khi thanh toán. {CHECKOUT_SESSION_ID} sẽ được replace.
   successUrl            String   @default("/recruiter/billing/topup/success?session={CHECKOUT_SESSION_ID}") @map("success_url")

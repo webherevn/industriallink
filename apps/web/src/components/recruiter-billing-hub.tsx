@@ -778,6 +778,14 @@ export function RecruiterBillingHub() {
                                   ? 'Thất bại'
                                   : 'Đã hoàn'}
                           </span>
+                          {ord.status === 'pending' && ord.provider === 'bank_transfer' ? (
+                            <Link
+                              href={`/recruiter/billing/bank-transfer?order=${encodeURIComponent(ord.id)}`}
+                              className="ml-2 inline-flex items-center rounded-lg bg-[#072348] px-2 py-0.5 text-[11px] font-semibold text-white transition hover:bg-[#0d3468]"
+                            >
+                              Xem QR / CK
+                            </Link>
+                          ) : null}
                         </td>
                       </tr>
                     ))}

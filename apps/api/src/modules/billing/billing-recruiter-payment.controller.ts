@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   UserRole,
@@ -13,7 +13,11 @@ import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
 import { Roles } from '../../shared/security/roles.decorator';
 import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
-import type { PaymentCheckoutResponse, RecruiterOrderListResponse } from '@industriallink/contracts';
+import type {
+  BankTransferOrderView,
+  PaymentCheckoutResponse,
+  RecruiterOrderListResponse,
+} from '@industriallink/contracts';
 import type { Request } from 'express';
 import { CompanyService } from '../company/company.service';
 import { BillingService } from './billing.service';
@@ -112,6 +116,16 @@ export class BillingRecruiterPaymentController {
   ): Promise<RecruiterOrderListResponse> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     return this.payment.listOrdersForCompany(companyId);
+  }
+
+  @Get('orders/:id/bank-transfer')
+  @ApiOperation({ summary: 'Thông tin chuyển khoản VietQR & trạng thái đơn hàng' })
+  async getBankTransferOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<BankTransferOrderView> {
+    const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    return this.payment.getBankTransferOrder(companyId, id);
   }
 }
 

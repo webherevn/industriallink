@@ -160,6 +160,12 @@ export async function fetchRecruiterOrders(): Promise<RecruiterOrderListResponse
   return apiRequest<RecruiterOrderListResponse>('/billing/orders');
 }
 
+export async function fetchBankTransferOrder(
+  orderId: string,
+): Promise<import('@industriallink/contracts').BankTransferOrderView> {
+  return apiRequest(`/billing/orders/${encodeURIComponent(orderId)}/bank-transfer`);
+}
+
 /** Mock-only: báo cho backend đánh dấu order thành công. */
 export async function mockTopupSuccess(orderId: string): Promise<BillingOrderView> {
   return apiRequest<BillingOrderView>(`/billing/topup/mock/${orderId}/success`, { method: 'POST' });
