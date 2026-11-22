@@ -205,10 +205,10 @@ export function CandidateSidebar({
               active={isActivePath(pathname, '/chat')}
             />
             <NavItem
-              href="/partner"
+              href="/dashboard/partner"
               label="Cộng tác viên"
               icon={Link2}
-              active={isActivePath(pathname, '/partner')}
+              active={isActivePath(pathname, '/dashboard/partner')}
             />
           </nav>
 
