@@ -169,12 +169,12 @@ function Chip({
   return (
     <span
       className={clsx(
-        // Bù metric dấu tiếng Việt để chữ luôn nằm giữa nền khi chụp PDF
-        'inline-flex max-w-full items-center justify-center rounded-md font-semibold leading-tight',
-        compact ? 'px-2 pt-[3px] pb-[5px] text-[8.5px]' : 'px-2.5 pt-[4px] pb-[6px] text-[10px]',
+        // Bù baseline shift của html2canvas cho tiếng Việt có dấu
+        'inline-flex max-w-full items-center justify-center rounded-md font-semibold leading-none',
+        compact ? 'px-2 pt-[2px] pb-[6px] text-[8.5px]' : 'px-2.5 pt-[2px] pb-[7px] text-[10px]',
         dark
-          ? 'bg-white/15 text-white border border-white/20'
-          : 'bg-slate-100 text-slate-800 border border-slate-200/90',
+          ? 'border border-white/20 bg-white/15 text-white'
+          : 'border border-slate-200/90 bg-slate-100 text-slate-800',
       )}
     >
       {children}
@@ -271,11 +271,11 @@ function SectionTitle({
 }) {
   if (classic) {
     return (
-      <div className="mb-2.5 border-b-[1.5px] pb-1.5" style={{ borderColor: accent }}>
+      <div className="mb-2 border-b-[1.5px] pb-1.5" style={{ borderColor: accent }}>
         <h3
           className={clsx(
-            'font-extrabold uppercase leading-none tracking-[0.12em]',
-            compact ? 'text-[10px]' : 'text-[12px]',
+            'font-extrabold uppercase leading-snug tracking-[0.12em]',
+            compact ? 'text-[10px]' : 'text-[11.5px]',
           )}
           style={{ color: accent }}
         >
@@ -284,19 +284,15 @@ function SectionTitle({
       </div>
     );
   }
+  // Dùng border-b trực tiếp (khớp 100% baseline trong cả browser & html2canvas, không lệch dọc)
   return (
-    <div className="relative mb-2.5 pl-3">
-      <span
-        aria-hidden
-        className="absolute left-0 top-[1px] block h-[12px] w-[4px] rounded-full"
-        style={{ backgroundColor: accent }}
-      />
+    <div className="mb-2 border-b border-slate-200/90 pb-1">
       <h3
         className={clsx(
-          'font-extrabold uppercase leading-none tracking-[0.09em]',
-          compact ? 'text-[10px]' : 'text-[12px]',
+          'inline-block border-b-2 pb-1 -mb-[5px] font-extrabold uppercase leading-snug tracking-[0.09em]',
+          compact ? 'text-[10px]' : 'text-[11.5px]',
         )}
-        style={{ color: accent }}
+        style={{ color: accent, borderColor: accent }}
       >
         {title}
       </h3>
@@ -549,7 +545,7 @@ function CapabilitySection({
   if (!hasRows && !hasSalesHighlights) return null;
 
   return (
-    <section data-cv-block className="mb-4">
+    <section data-cv-block className="mb-3.5">
       <SectionTitle
         title={isTech ? 'Năng lực kỹ thuật' : 'Năng lực Sales B2B'}
         accent={accent}
@@ -612,7 +608,7 @@ function ConditionsSection({
   if (!rows.some((r) => Boolean(r.value && r.value.trim()))) return null;
 
   return (
-    <section data-cv-block className="mb-4">
+    <section data-cv-block className="mb-3.5">
       <SectionTitle
         title="Điều kiện làm việc"
         accent={accent}
@@ -776,7 +772,7 @@ function MainSections({
   return (
     <>
       {(draft.summary || draft.careerObjective) && (
-        <section data-cv-block className="mb-4">
+        <section data-cv-block className="mb-3.5">
           <SectionTitle title="Giới thiệu" accent={accent} classic={classic} compact={compact} />
           {draft.careerObjective && (
             <div
@@ -798,17 +794,15 @@ function MainSections({
         </section>
       )}
 
-      <section data-cv-block className="mb-4">
-        <SectionTitle
-          title="Kinh nghiệm làm việc"
-          accent={accent}
-          classic={classic}
-          compact={compact}
-        />
-        {draft.experience.length === 0 ? (
-          <p className="text-[10.5px] text-slate-400">Chưa có kinh nghiệm</p>
-        ) : (
-          draft.experience.map((e, i) => (
+      {draft.experience.length > 0 && (
+        <section data-cv-block className="mb-3.5">
+          <SectionTitle
+            title="Kinh nghiệm làm việc"
+            accent={accent}
+            classic={classic}
+            compact={compact}
+          />
+          {draft.experience.map((e, i) => (
             <ExperienceBlock
               key={`${e.company}-${e.role}-${i}`}
               exp={e}
@@ -816,14 +810,14 @@ function MainSections({
               compact={compact}
               jobTrack={draft.jobTrack}
             />
-          ))
-        )}
-      </section>
+          ))}
+        </section>
+      )}
 
       <CapabilitySection draft={draft} accent={accent} classic={classic} compact={compact} />
 
       {draft.education.length > 0 && (
-        <section data-cv-block className="mb-4">
+        <section data-cv-block className="mb-3.5">
           <SectionTitle title="Học vấn" accent={accent} classic={classic} compact={compact} />
           {draft.education.map((e, i) => {
             const heading = e.school?.trim() || e.degree?.trim() || draft.educationLevel || '';
@@ -947,9 +941,9 @@ function SidebarSkills({
               <li
                 key={`lang-${i}-${l}`}
                 className={clsx(
-                  'rounded-md px-2.5 pt-[5px] pb-[7px] font-medium leading-snug',
+                  'rounded-md px-2.5 pt-[2px] pb-[7px] font-medium leading-snug',
                   compact ? 'text-[8.5px]' : 'text-[10px]',
-                  dark ? 'bg-white/12 text-white' : 'bg-slate-50 text-slate-700 border border-slate-100',
+                  dark ? 'bg-white/12 text-white' : 'border border-slate-100 bg-slate-50 text-slate-700',
                 )}
               >
                 {l}
@@ -966,9 +960,9 @@ function SidebarSkills({
               <li
                 key={`ss-${i}-${s}`}
                 className={clsx(
-                  'rounded-md px-2.5 pt-[5px] pb-[7px] font-medium leading-snug',
+                  'rounded-md px-2.5 pt-[2px] pb-[7px] font-medium leading-snug',
                   compact ? 'text-[8.5px]' : 'text-[10px]',
-                  dark ? 'bg-white/12 text-white' : 'bg-slate-50 text-slate-700 border border-slate-100',
+                  dark ? 'bg-white/12 text-white' : 'border border-slate-100 bg-slate-50 text-slate-700',
                 )}
               >
                 {s}
@@ -1011,25 +1005,25 @@ function ContactLines({
     <div className="space-y-1.5">
       {draft.email && (
         <p className={cls}>
-          <Mail className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <Mail className="mt-[3px] h-3 w-3 shrink-0 opacity-85" />
           <span className="break-all">{draft.email}</span>
         </p>
       )}
       {draft.phone && (
         <p className={cls}>
-          <Phone className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <Phone className="mt-[3px] h-3 w-3 shrink-0 opacity-85" />
           <span>{draft.phone}</span>
         </p>
       )}
       {address && (
         <p className={cls}>
-          <MapPin className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <MapPin className="mt-[3px] h-3 w-3 shrink-0 opacity-85" />
           <span>{address}</span>
         </p>
       )}
       {dob && (
         <p className={cls}>
-          <Calendar className="mt-0.5 h-3 w-3 shrink-0 opacity-80" />
+          <Calendar className="mt-[3px] h-3 w-3 shrink-0 opacity-85" />
           <span>Ngày sinh: {dob}</span>
         </p>
       )}
@@ -1213,12 +1207,9 @@ function LayoutSplit({
           </div>
         </div>
       </header>
-      <div className={clsx('grid grid-cols-12 gap-0', compact ? 'p-3.5' : 'px-6 py-5')}>
+      <div className={clsx('grid grid-cols-12 gap-0', compact ? 'p-3.5' : 'px-6 py-4')}>
         <div className="col-span-4 border-r border-slate-100 pr-4">
           <SidebarSkills draft={draft} compact={compact} />
-          {draft.softSkills.length === 0 && draft.skills.length === 0 && (
-            <p className="text-[10px] text-slate-400">Chưa có kỹ năng</p>
-          )}
         </div>
         <div className="col-span-8 pl-5">
           <MainSections draft={draft} accent={template.accent} compact={compact} />
