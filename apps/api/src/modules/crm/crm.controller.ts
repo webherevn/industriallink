@@ -82,6 +82,18 @@ export class CrmController {
     private readonly staffAccounts: AdminUsersService,
   ) {}
 
+  @Post('recruiter-events')
+  @Roles(UserRole.Recruiter, UserRole.HiringManager, UserRole.CompanyAdmin)
+  @ApiOperation({
+    summary: 'Ghi nhận sự kiện hành vi nhẹ của NTD (debounce 30 phút, tự dọn sau 90 ngày)',
+  })
+  recordRecruiterEvent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { eventType?: string; detail?: string },
+  ) {
+    return this.crm.recordRecruiterActivityEvent(user, body);
+  }
+
   @Get('board')
   @ApiOperation({ summary: 'Phễu bán gói và danh sách lead' })
   board(@CurrentUser() user: AuthenticatedUser): Promise<CrmBoard> {

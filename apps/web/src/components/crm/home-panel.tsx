@@ -10,6 +10,7 @@ import {
   CalendarClock,
   CircleDollarSign,
   Flag,
+  Flame,
   Kanban,
   Megaphone,
   Radio,
@@ -32,7 +33,7 @@ import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/
 import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { CrmWorkspaceBoard } from '@/components/crm/workspace-board';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
-import { fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
+import { fetchCrmCustomers, fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
@@ -42,6 +43,16 @@ export function CrmHomePanel() {
   const unclaimed = useQuery({ queryKey: ['crm-unclaimed'], queryFn: fetchCrmUnclaimed });
   const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
   const channels = useQuery({ queryKey: ['crm-marketing'], queryFn: fetchCrmMarketing });
+  const customers = useQuery({ queryKey: ['crm-customers', ''], queryFn: () => fetchCrmCustomers('') });
+  const hotCustomers = (customers.data ?? [])
+    .filter((row) => (row.hotSignals?.length ?? 0) > 0)
+    .sort((a, b) => {
+      const rank = (list: typeof a.hotSignals) =>
+        list?.some((s) => s.severity === 'hot') ? 2 : list?.some((s) => s.severity === 'warn') ? 1 : 0;
+      const diff = rank(b.hotSignals) - rank(a.hotSignals);
+      if (diff !== 0) return diff;
+      return (b.hotSignals?.length ?? 0) - (a.hotSignals?.length ?? 0);
+    });
   const sourceChannels = channels.data?.channels ?? [];
   const missingInvoices = (invoices.data?.orders ?? []).filter((order) => !order.invoiceNumber).length;
   const unpaidSignups = (partners.data ?? []).reduce((sum, partner) => sum + partner.signups.length, 0);
@@ -97,6 +108,84 @@ export function CrmHomePanel() {
       }
     >
       {!needle ? <CrmWorkspaceBoard /> : null}
+      {!needle && hotCustomers.length > 0 ? (
+        <section className="rounded-[22px] bg-white p-5 crm-surface">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                <Flame className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  NTD cần hỗ trợ ngay ({hotCustomers.length})
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Tổng hợp tự động theo tín hiệu hoạt động trên inLink trong phạm vi phụ trách của bạn.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/crm/customers?filter=hot"
+              className="text-xs font-semibold text-[#4c3ec9] hover:underline"
+            >
+              Xem tất cả trong Sổ khách hàng →
+            </Link>
+          </div>
+          <ul className="mt-3 divide-y divide-slate-100">
+            {hotCustomers.slice(0, 6).map((row) => (
+              <li
+                key={row.companyId}
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/crm/companies/${row.companyId}`}
+                      className="font-semibold text-slate-900 hover:text-[#4c3ec9] hover:underline"
+                    >
+                      {row.companyName}
+                    </Link>
+                    {row.contactPhone ? (
+                      <span className="text-xs text-slate-500">{row.contactPhone}</span>
+                    ) : null}
+                    {row.ownerName ? (
+                      <span className="text-xs text-slate-400">· {row.ownerName}</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {(row.hotSignals ?? []).slice(0, 3).map((sig) => (
+                      <span
+                        key={sig.code}
+                        title={sig.detail}
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+                          sig.severity === 'hot'
+                            ? 'bg-rose-50 text-rose-700 ring-rose-200/80'
+                            : sig.severity === 'warn'
+                              ? 'bg-amber-50 text-amber-800 ring-amber-200/80'
+                              : 'bg-sky-50 text-sky-700 ring-sky-200/80'
+                        }`}
+                      >
+                        {sig.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  {row.lastActivityAt ? (
+                    <span className="text-xs text-slate-400">{formatWhen(row.lastActivityAt)}</span>
+                  ) : null}
+                  <Link
+                    href={`/crm/companies/${row.companyId}`}
+                    className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                  >
+                    Xem hồ sơ
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {board.isLoading ? <CrmEmpty>Đang tải bàn làm việc…</CrmEmpty> : null}
       {board.isError ? <CrmEmpty>Không tải được dữ liệu CRM.</CrmEmpty> : null}
       {board.data && !needle ? (

@@ -4,6 +4,7 @@ import { AlertTriangle, Coins, X } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { ApiError } from '@/lib/api';
+import { trackRecruiterActivity } from '@/lib/recruiter-activity';
 
 interface CreditAlertState {
   visible: boolean;
@@ -29,6 +30,10 @@ export function CreditAlertProvider({ children }: { children: ReactNode }) {
 
   const showAlert = useCallback((s: Omit<CreditAlertState, 'visible'>) => {
     setAlert({ ...s, visible: true });
+    trackRecruiterActivity(
+      'hit_paywall',
+      s.message || s.action || 'Hết Credit / Chạm giới hạn gói',
+    );
   }, []);
 
   const dismiss = useCallback(() => setAlert((a) => ({ ...a, visible: false })), []);

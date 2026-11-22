@@ -35,6 +35,9 @@ import {
   type CrmCustomerView,
   type CrmCustomerStanding,
   type CrmTaxSuggestion,
+  type CrmCompanyActivityEvent,
+  type CrmCompanyHotSignal,
+  type CrmCompanyPlatformActivityView,
   type CrmCompanyProfileView,
   type CrmUnclaimedCustomerView,
   type CrmOwnerOption,
@@ -770,7 +773,19 @@ export class CrmService {
     if (companies.length === 0) return [];
     const companyIds = companies.map((company) => company.id);
     const now = new Date();
-    const [platformPlans, sourcingPlans, paidForPage] = await Promise.all([
+    const staleCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const pendingOrderCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const [
+      platformPlans,
+      sourcingPlans,
+      paidForPage,
+      creditAccounts,
+      jobRowsForPage,
+      pendingOrdersForPage,
+      activeCampaignsForPage,
+      staleAppsForPage,
+      intentEventsForPage,
+    ] = await Promise.all([
       this.prisma.billingCompanyPlan.findMany({
         where: { companyId: { in: companyIds } },
         include: { plan: { select: { name: true } } },
@@ -784,10 +799,109 @@ export class CrmService {
         distinct: ['companyId'],
         select: { companyId: true },
       }),
+      this.prisma.billingCreditAccount.findMany({
+        where: { companyId: { in: companyIds } },
+        select: { companyId: true, balance: true, lastActivityAt: true },
+      }),
+      this.prisma.job.findMany({
+        where: { companyId: { in: companyIds }, isDeleted: false },
+        select: { companyId: true, status: true, moderationStatus: true, updatedAt: true },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: {
+          companyId: { in: companyIds },
+          status: 'pending',
+          createdAt: { gte: pendingOrderCutoff },
+        },
+        select: {
+          companyId: true,
+          kind: true,
+          planName: true,
+          planCode: true,
+          creditCountSnapshot: true,
+          priceVndSnapshot: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.huntCampaign.findMany({
+        where: { companyId: { in: companyIds }, status: { not: 'closed' } },
+        select: { companyId: true, updatedAt: true },
+      }),
+      this.prisma.application.findMany({
+        where: {
+          isDeleted: false,
+          status: 'applied',
+          createdAt: { lt: staleCutoff },
+          job: { companyId: { in: companyIds } },
+        },
+        select: { job: { select: { companyId: true } } },
+      }),
+      this.prisma.recruiterActivityEvent.findMany({
+        where: {
+          companyId: { in: companyIds },
+          createdAt: { gte: pendingOrderCutoff },
+        },
+        select: { companyId: true, eventType: true, detail: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
     const platformByCompany = new Map(platformPlans.map((row) => [row.companyId, row]));
     const sourcingByCompany = new Map(sourcingPlans.map((row) => [row.companyId, row]));
     const paidIds = new Set(paidForPage.map((row) => row.companyId));
+    const creditByCompany = new Map(creditAccounts.map((row) => [row.companyId, row]));
+
+    const jobStatsByCompany = new Map<
+      string,
+      { published: number; draft: number; rejected: number; lastUpdatedMs: number }
+    >();
+    for (const j of jobRowsForPage) {
+      const cur = jobStatsByCompany.get(j.companyId) ?? {
+        published: 0,
+        draft: 0,
+        rejected: 0,
+        lastUpdatedMs: 0,
+      };
+      if (j.status === 'published') cur.published += 1;
+      else if (j.status === 'draft') cur.draft += 1;
+      if (j.moderationStatus === 'rejected') cur.rejected += 1;
+      const ms = j.updatedAt.getTime();
+      if (ms > cur.lastUpdatedMs) cur.lastUpdatedMs = ms;
+      jobStatsByCompany.set(j.companyId, cur);
+    }
+
+    const pendingOrdersByCompany = new Map<string, (typeof pendingOrdersForPage)>();
+    for (const o of pendingOrdersForPage) {
+      const list = pendingOrdersByCompany.get(o.companyId) ?? [];
+      list.push(o);
+      pendingOrdersByCompany.set(o.companyId, list);
+    }
+
+    const activeCampaignCountByCompany = new Map<string, number>();
+    const lastCampaignMsByCompany = new Map<string, number>();
+    for (const c of activeCampaignsForPage) {
+      activeCampaignCountByCompany.set(
+        c.companyId,
+        (activeCampaignCountByCompany.get(c.companyId) ?? 0) + 1,
+      );
+      const ms = c.updatedAt.getTime();
+      if (ms > (lastCampaignMsByCompany.get(c.companyId) ?? 0)) {
+        lastCampaignMsByCompany.set(c.companyId, ms);
+      }
+    }
+
+    const staleAppsByCompany = new Map<string, number>();
+    for (const a of staleAppsForPage) {
+      staleAppsByCompany.set(a.job.companyId, (staleAppsByCompany.get(a.job.companyId) ?? 0) + 1);
+    }
+
+    const intentByCompany = new Map<string, (typeof intentEventsForPage)>();
+    for (const ev of intentEventsForPage) {
+      const list = intentByCompany.get(ev.companyId) ?? [];
+      list.push(ev);
+      intentByCompany.set(ev.companyId, list);
+    }
+
     const pageIds = new Set(companyIds);
     const ownerByCompany = new Map<string, (typeof leadRows)[number] & { open: boolean }>();
     for (const lead of leadRows) {
@@ -802,13 +916,140 @@ export class CrmService {
     return companies.map((company) => {
       const platform = platformByCompany.get(company.id);
       const sourcing = sourcingByCompany.get(company.id);
-      const standing: CrmCustomerStanding = planLive(platform) || planLive(sourcing)
+      const platformLive = planLive(platform);
+      const sourcingLive = planLive(sourcing);
+      const standing: CrmCustomerStanding = platformLive || sourcingLive
         ? 'active'
         : paidIds.has(company.id) || platform || sourcing
           ? 'lapsed'
           : 'prospect';
       const lead = ownerByCompany.get(company.id);
       const address = customerAddress(lead, company.address);
+
+      const creditRow = creditByCompany.get(company.id);
+      const creditBalance = creditRow?.balance ?? 0;
+      const jobStats = jobStatsByCompany.get(company.id) ?? {
+        published: 0,
+        draft: 0,
+        rejected: 0,
+        lastUpdatedMs: 0,
+      };
+      const pendingOrders = pendingOrdersByCompany.get(company.id) ?? [];
+      const activeCampaigns = activeCampaignCountByCompany.get(company.id) ?? 0;
+      const staleApps = staleAppsByCompany.get(company.id) ?? 0;
+
+      const tsCandidates: number[] = [];
+      if (creditRow?.lastActivityAt) tsCandidates.push(creditRow.lastActivityAt.getTime());
+      if (jobStats.lastUpdatedMs > 0) tsCandidates.push(jobStats.lastUpdatedMs);
+      if (pendingOrders[0]) tsCandidates.push(pendingOrders[0].createdAt.getTime());
+      const campMs = lastCampaignMsByCompany.get(company.id) ?? 0;
+      if (campMs > 0) tsCandidates.push(campMs);
+      const companyIntentEvents = intentByCompany.get(company.id) ?? [];
+      if (companyIntentEvents[0]) tsCandidates.push(companyIntentEvents[0].createdAt.getTime());
+      const lastActivityAt =
+        tsCandidates.length > 0 ? new Date(Math.max(...tsCandidates)).toISOString() : null;
+
+      const hotSignals: CrmCompanyHotSignal[] = [];
+      const paywallEvent = companyIntentEvents.find((e) => e.eventType === 'hit_paywall');
+      if (paywallEvent) {
+        hotSignals.push({
+          code: 'hit_paywall',
+          severity: 'hot',
+          label: 'Chạm giới hạn / Hết Credit',
+          detail: paywallEvent.detail || 'NTD vừa bị chặn do hết Credit hoặc lượt gói — nên liên hệ ngay.',
+        });
+      }
+      if (pendingOrders.length > 0) {
+        const latest = pendingOrders[0];
+        const planLabel =
+          latest.kind === 'topup'
+            ? latest.planName || `Top-up ${latest.creditCountSnapshot} Credit`
+            : latest.planName || latest.planCode || (latest.kind === 'sourcing' ? 'Gói Tin săn' : 'Gói Tin đăng');
+        hotSignals.push({
+          code: 'pending_order',
+          severity: 'hot',
+          label: `${pendingOrders.length} đơn chờ trả`,
+          detail: `${planLabel} (${Number(latest.priceVndSnapshot).toLocaleString('vi-VN')}đ)`,
+        });
+      }
+      if (jobStats.rejected > 0) {
+        hotSignals.push({
+          code: 'rejected_job',
+          severity: 'hot',
+          label: `${jobStats.rejected} tin bị từ chối`,
+          detail: 'Cần hỗ trợ chỉnh sửa JD để đăng lại.',
+        });
+      }
+      const soonestExpiring = [
+        platformLive && platform?.endsAt ? { name: platform.plan.name, endsAt: platform.endsAt } : null,
+        sourcingLive && sourcing?.endsAt ? { name: sourcing.plan.name, endsAt: sourcing.endsAt } : null,
+      ]
+        .filter((x): x is { name: string; endsAt: Date } => Boolean(x))
+        .map((x) => ({
+          name: x.name,
+          days: Math.ceil((x.endsAt.getTime() - now.getTime()) / 86_400_000),
+        }))
+        .filter((x) => x.days >= 0 && x.days <= 7)
+        .sort((a, b) => a.days - b.days)[0];
+      if (soonestExpiring) {
+        hotSignals.push({
+          code: 'expiring_plan',
+          severity: 'warn',
+          label: `Sắp hết hạn (${soonestExpiring.days} ngày)`,
+          detail: `${soonestExpiring.name} sắp hết hiệu lực.`,
+        });
+      }
+      const hasActiveUsage =
+        platformLive || sourcingLive || jobStats.published > 0 || activeCampaigns > 0;
+      if (hasActiveUsage && creditBalance <= 2) {
+        hotSignals.push({
+          code: 'low_credit',
+          severity: 'warn',
+          label: `Còn ${creditBalance} Credit`,
+          detail: 'Ví Credit sắp cạn, phù hợp tư vấn Top-up.',
+        });
+      }
+      if (staleApps > 0) {
+        hotSignals.push({
+          code: 'unreviewed_applicants',
+          severity: 'warn',
+          label: `${staleApps} UV >48h chưa duyệt`,
+          detail: 'Nhắc NTD xử lý hồ sơ ứng viên mới nộp.',
+        });
+      }
+      if (jobStats.draft > 0) {
+        hotSignals.push({
+          code: 'draft_job',
+          severity: 'info',
+          label: `${jobStats.draft} tin nháp`,
+          detail: 'NTD soạn dở JD chưa đăng.',
+        });
+      }
+      const pricingEvent = companyIntentEvents.find(
+        (e) => e.eventType === 'view_pricing' && e.createdAt >= staleCutoff,
+      );
+      if (pricingEvent) {
+        hotSignals.push({
+          code: 'viewed_pricing',
+          severity: 'warn',
+          label: 'Đang xem Bảng giá',
+          detail: 'NTD vừa xem trang Bảng giá / Nâng cấp trong 48h qua.',
+        });
+      }
+      if (lastActivityAt && (hasActiveUsage || creditBalance > 0)) {
+        const inactiveDays = Math.floor(
+          (now.getTime() - new Date(lastActivityAt).getTime()) / 86_400_000,
+        );
+        if (inactiveDays >= 14) {
+          hotSignals.push({
+            code: 'inactive',
+            severity: 'info',
+            label: `Ngủ đông ${inactiveDays} ngày`,
+            detail: 'Còn gói/Credit nhưng chưa hoạt động gần đây.',
+          });
+        }
+      }
+
       return {
         companyId: company.id,
         companyName: company.name,
@@ -820,9 +1061,11 @@ export class CrmService {
         orgField: lead?.orgField?.trim() || lead?.industry?.trim() || company.industry?.trim() || null,
         address,
         standing,
-        platformPlanName: planLive(platform) ? platform?.plan.name ?? null : null,
-        sourcingPlanName: planLive(sourcing) ? sourcing?.plan.name ?? null : null,
+        platformPlanName: platformLive ? platform?.plan.name ?? null : null,
+        sourcingPlanName: sourcingLive ? sourcing?.plan.name ?? null : null,
         ownerName: names.get(lead?.ownerUserId ?? '') ?? null,
+        lastActivityAt,
+        hotSignals,
       };
     });
   }
@@ -2053,7 +2296,10 @@ export class CrmService {
         where: { companyId },
         include: { plan: { select: { code: true, name: true } } },
       }),
-      this.prisma.billingCreditAccount.findUnique({ where: { companyId }, select: { balance: true } }),
+      this.prisma.billingCreditAccount.findUnique({
+        where: { companyId },
+        select: { balance: true, lastActivityAt: true },
+      }),
       this.prisma.job.count({ where: { companyId, isDeleted: false, status: 'published' } }),
       this.prisma.billingOrder.findMany({
         where: { ...this.paidPlanOrderWhere(), companyId },
@@ -2091,14 +2337,26 @@ export class CrmService {
             active: row.isActive && (!row.endsAt || row.endsAt > now),
           }
         : null;
+    const platformPlanSnap = planSnapshot('platform', platform);
+    const sourcingPlanSnap = planSnapshot('sourcing', sourcing);
+    const [sourcingOutreaches, platformActivity] = await Promise.all([
+      this.sourcingOutreachOverview(actor, { companyId }),
+      this.buildCompanyPlatformActivity(companyId, {
+        now,
+        creditBalance: credit?.balance ?? 0,
+        creditLastActivityAt: credit?.lastActivityAt ?? null,
+        platformPlan: platformPlanSnap,
+        sourcingPlan: sourcingPlanSnap,
+      }),
+    ]);
     return {
       id: company.id,
       name: company.name,
       taxCode: company.taxCode,
       address: company.address,
       industry: company.industry,
-      platformPlan: planSnapshot('platform', platform),
-      sourcingPlan: planSnapshot('sourcing', sourcing),
+      platformPlan: platformPlanSnap,
+      sourcingPlan: sourcingPlanSnap,
       creditBalance: credit?.balance ?? 0,
       openJobCount,
       partnerName: partnerLead?.partner?.name ?? commission?.partner.name ?? null,
@@ -2107,7 +2365,505 @@ export class CrmService {
         this.mapPaidInvoice(order, company.name),
       ),
       leads: leads.map((lead) => this.mapLead(lead, names)),
-      sourcingOutreaches: (await this.sourcingOutreachOverview(actor, { companyId })).items,
+      sourcingOutreaches: sourcingOutreaches.items,
+      platformActivity,
+    };
+  }
+
+  /**
+   * Ghi nhận 4 sự kiện hành vi nhẹ của NTD:
+   * - login | view_pricing | hit_paywall | ai_search_no_unlock
+   * Debounce 30 phút theo (companyId, eventType), tự dọn bản ghi > 90 ngày.
+   */
+  async recordRecruiterActivityEvent(
+    actor: AuthenticatedUser,
+    input: { eventType?: string; detail?: string },
+  ): Promise<{ ok: true; deduped?: boolean }> {
+    const allowed = new Set(['login', 'view_pricing', 'hit_paywall', 'ai_search_no_unlock']);
+    const eventType = (input?.eventType ?? '').trim();
+    if (!allowed.has(eventType)) {
+      return { ok: true };
+    }
+    const member = await this.prisma.companyMember.findFirst({
+      where: { userId: actor.id, company: { isDeleted: false } },
+      select: { companyId: true },
+    });
+    if (!member) return { ok: true };
+
+    const now = Date.now();
+    const debounceCutoff = new Date(now - 30 * 60 * 1000);
+    const existing = await this.prisma.recruiterActivityEvent.findFirst({
+      where: {
+        companyId: member.companyId,
+        eventType,
+        createdAt: { gte: debounceCutoff },
+      },
+      select: { id: true },
+    });
+    if (existing) return { ok: true, deduped: true };
+
+    const detail = input?.detail?.replace(/\s+/g, ' ').trim().slice(0, 200) || null;
+    await this.prisma.recruiterActivityEvent.create({
+      data: {
+        companyId: member.companyId,
+        userId: actor.id,
+        eventType,
+        detail,
+      },
+    });
+
+    // Dọn nhẹ bản ghi quá 90 ngày (xác suất 5% để không tạo áp lực mỗi request)
+    if (Math.random() < 0.05) {
+      const retentionCutoff = new Date(now - 90 * 24 * 60 * 60 * 1000);
+      void this.prisma.recruiterActivityEvent
+        .deleteMany({ where: { createdAt: { lt: retentionCutoff } } })
+        .catch(() => undefined);
+    }
+
+    return { ok: true };
+  }
+
+  /**
+   * Tổng hợp tín hiệu chăm sóc (Hot Signals) & dòng hoạt động gần nhất của NTD
+   * từ dữ liệu sẵn có trong DB (0 migration, kế thừa phân quyền assertCompanyVisible).
+   */
+  private async buildCompanyPlatformActivity(
+    companyId: string,
+    ctx: {
+      now: Date;
+      creditBalance: number;
+      creditLastActivityAt: Date | null;
+      platformPlan: { name: string; endsAt: string | null; active: boolean } | null;
+      sourcingPlan: { name: string; endsAt: string | null; active: boolean } | null;
+    },
+  ): Promise<CrmCompanyPlatformActivityView> {
+    const staleCutoff = new Date(ctx.now.getTime() - 48 * 60 * 60 * 1000);
+    const pendingOrderCutoff = new Date(ctx.now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      allJobs,
+      recentOrders,
+      recentCreditTxns,
+      activeCampaignsCount,
+      profilesOpenedCount,
+      recentHuntActivities,
+      totalApplicants,
+      unreviewedApplicants,
+      staleUnreviewedApplicants,
+      recentApplications,
+      recentIntentEvents,
+    ] = await Promise.all([
+      this.prisma.job.findMany({
+        where: { companyId, isDeleted: false },
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          status: true,
+          moderationStatus: true,
+          publishedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.billingOrder.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          kind: true,
+          status: true,
+          planName: true,
+          planCode: true,
+          creditCountSnapshot: true,
+          priceVndSnapshot: true,
+          createdAt: true,
+          paidAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+      }),
+      this.prisma.billingCreditTransaction.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          type: true,
+          action: true,
+          creditDelta: true,
+          note: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+      }),
+      this.prisma.huntCampaign.count({
+        where: { companyId, status: { not: 'closed' } },
+      }),
+      this.prisma.huntCampaignActivity.count({
+        where: { companyId, kind: 'profile_open' },
+      }),
+      this.prisma.huntCampaignActivity.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          kind: true,
+          note: true,
+          createdAt: true,
+          campaign: { select: { code: true, title: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+      }),
+      this.prisma.application.count({
+        where: { isDeleted: false, job: { companyId } },
+      }),
+      this.prisma.application.count({
+        where: { isDeleted: false, status: 'applied', job: { companyId } },
+      }),
+      this.prisma.application.count({
+        where: {
+          isDeleted: false,
+          status: 'applied',
+          createdAt: { lt: staleCutoff },
+          job: { companyId },
+        },
+      }),
+      this.prisma.application.findMany({
+        where: { isDeleted: false, job: { companyId } },
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          job: { select: { code: true, title: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.recruiterActivityEvent.findMany({
+        where: { companyId },
+        select: { id: true, eventType: true, detail: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+      }),
+    ]);
+
+    const jobCounts = {
+      published: 0,
+      draft: 0,
+      rejected: 0,
+      pausedOrClosed: 0,
+    };
+    for (const j of allJobs) {
+      if (j.moderationStatus === 'rejected') jobCounts.rejected += 1;
+      if (j.status === 'published') jobCounts.published += 1;
+      else if (j.status === 'draft') jobCounts.draft += 1;
+      else jobCounts.pausedOrClosed += 1;
+    }
+
+    const recentPendingOrders = recentOrders.filter(
+      (o) => o.status === 'pending' && o.createdAt >= pendingOrderCutoff,
+    );
+
+    const timeline: CrmCompanyActivityEvent[] = [];
+
+    for (const j of allJobs.slice(0, 12)) {
+      const statusLabel =
+        j.moderationStatus === 'rejected'
+          ? 'Tin bị từ chối kiểm duyệt'
+          : j.status === 'published'
+            ? 'Đăng tin tuyển dụng'
+            : j.status === 'draft'
+              ? 'Soạn tin nháp'
+              : j.status === 'paused'
+                ? 'Tạm dừng tin tuyển dụng'
+                : 'Đóng tin tuyển dụng';
+      timeline.push({
+        id: `job-${j.id}`,
+        category: 'job',
+        title: `${statusLabel}: ${j.title}`,
+        detail: j.code,
+        occurredAt: (j.publishedAt && j.status === 'published' ? j.publishedAt : j.updatedAt).toISOString(),
+      });
+    }
+
+    const formatOrderLabel = (o: (typeof recentOrders)[number]): string => {
+      if (o.kind === 'topup') {
+        return o.planName || `Top-up ${o.creditCountSnapshot} Credit`;
+      }
+      return o.planName || o.planCode || (o.kind === 'sourcing' ? 'Gói Tin săn' : 'Gói Tin đăng');
+    };
+    for (const o of recentOrders) {
+      const vnd = `${Number(o.priceVndSnapshot).toLocaleString('vi-VN')}đ`;
+      const prefix =
+        o.status === 'paid'
+          ? 'Đã thanh toán đơn'
+          : o.status === 'pending'
+            ? 'Tạo đơn chờ thanh toán'
+            : o.status === 'failed'
+              ? 'Đơn thanh toán chưa thành công'
+              : 'Đơn hoàn tiền';
+      timeline.push({
+        id: `order-${o.id}`,
+        category: 'order',
+        title: `${prefix}: ${formatOrderLabel(o)}`,
+        detail: vnd,
+        occurredAt: (o.paidAt ?? o.createdAt).toISOString(),
+      });
+    }
+
+    const creditActionLabel = (action: string, type: string): string => {
+      switch (action) {
+        case 'view_profile':
+        case 'view_profile_high_match':
+          return 'Mở khoá hồ sơ ứng viên';
+        case 'reopen_profile':
+          return 'Xem lại hồ sơ đã mở';
+        case 'contact_potential':
+        case 'contact_applicant':
+          return 'Gửi liên hệ ứng viên';
+        case 'plan_grant':
+          return 'Cấp Credit từ gói dịch vụ';
+        case 'manual_grant':
+        case 'manual_adjust':
+          return 'Điều chỉnh Credit';
+        default:
+          return type === 'topup' ? 'Nạp thêm Credit' : 'Giao dịch Credit';
+      }
+    };
+    for (const tx of recentCreditTxns) {
+      const deltaStr = tx.creditDelta > 0 ? `+${tx.creditDelta} Credit` : `${tx.creditDelta} Credit`;
+      timeline.push({
+        id: `credit-${tx.id}`,
+        category: 'credit',
+        title: `${creditActionLabel(tx.action, tx.type)} (${deltaStr})`,
+        detail: tx.note?.trim() || null,
+        occurredAt: tx.createdAt.toISOString(),
+      });
+    }
+
+    const huntKindLabel = (kind: string): string => {
+      switch (kind) {
+        case 'profile_open':
+          return 'Mở hồ sơ trong chiến dịch Tin săn';
+        case 'shortlist':
+          return 'Lưu ứng viên vào Shortlist';
+        case 'search_round':
+        case 'auto_scan':
+          return 'Quét nguồn ứng viên AI';
+        case 'revision':
+          return 'Điều chỉnh tiêu chí Tin săn';
+        case 'position':
+          return 'Tạo chiến dịch Tin săn mới';
+        default:
+          return 'Hoạt động chiến dịch Tin săn';
+      }
+    };
+    for (const act of recentHuntActivities) {
+      timeline.push({
+        id: `hunt-${act.id}`,
+        category: 'sourcing',
+        title: huntKindLabel(act.kind),
+        detail: act.campaign
+          ? `${act.campaign.title} (${act.campaign.code})`
+          : act.note?.trim() || null,
+        occurredAt: act.createdAt.toISOString(),
+      });
+    }
+
+    const appStatusLabel = (status: string): string => {
+      switch (status) {
+        case 'applied':
+          return 'Ứng viên mới nộp đơn';
+        case 'screening':
+          return 'Đưa ứng viên vào sàng lọc';
+        case 'interview':
+          return 'Chuyển ứng viên sang phỏng vấn';
+        case 'offer':
+          return 'Gửi đề nghị tuyển dụng';
+        case 'hired':
+          return 'Xác nhận tuyển thành công';
+        case 'rejected':
+          return 'Từ chối hồ sơ ứng viên';
+        default:
+          return 'Cập nhật hồ sơ ứng tuyển';
+      }
+    };
+    for (const app of recentApplications) {
+      timeline.push({
+        id: `app-${app.id}`,
+        category: 'application',
+        title: `${appStatusLabel(app.status)} · ${app.job.title}`,
+        detail: `${app.code} (${app.job.code})`,
+        occurredAt: app.updatedAt.toISOString(),
+      });
+    }
+
+    const intentEventLabel = (eventType: string): string => {
+      switch (eventType) {
+        case 'login':
+          return 'NTD đăng nhập nền tảng';
+        case 'view_pricing':
+          return 'Xem trang Bảng giá / Nâng cấp gói';
+        case 'hit_paywall':
+          return 'Chạm giới hạn gói / Hết Credit';
+        case 'ai_search_no_unlock':
+          return 'Tìm kiếm ứng viên AI';
+        default:
+          return 'Hoạt động trên nền tảng';
+      }
+    };
+    for (const ev of recentIntentEvents) {
+      timeline.push({
+        id: `intent-${ev.id}`,
+        category: 'intent',
+        title: intentEventLabel(ev.eventType),
+        detail: ev.detail?.trim() || null,
+        occurredAt: ev.createdAt.toISOString(),
+      });
+    }
+
+    timeline.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+    const topTimeline = timeline.slice(0, 20);
+
+    const candidateLastTimestamps: number[] = [];
+    if (ctx.creditLastActivityAt) candidateLastTimestamps.push(ctx.creditLastActivityAt.getTime());
+    if (topTimeline[0]) candidateLastTimestamps.push(new Date(topTimeline[0].occurredAt).getTime());
+    const lastActivityAt =
+      candidateLastTimestamps.length > 0
+        ? new Date(Math.max(...candidateLastTimestamps)).toISOString()
+        : null;
+
+    const signals: CrmCompanyHotSignal[] = [];
+
+    const recentPaywall = recentIntentEvents.find(
+      (e) => e.eventType === 'hit_paywall' && e.createdAt >= pendingOrderCutoff,
+    );
+    if (recentPaywall) {
+      signals.push({
+        code: 'hit_paywall',
+        severity: 'hot',
+        label: 'Chạm giới hạn gói / Hết Credit',
+        detail:
+          recentPaywall.detail ||
+          'NTD vừa bị chặn do hết Credit hoặc hết lượt gói trong 7 ngày qua — cơ hội chốt đơn cao.',
+      });
+    }
+
+    if (recentPendingOrders.length > 0) {
+      const latest = recentPendingOrders[0];
+      signals.push({
+        code: 'pending_order',
+        severity: 'hot',
+        label: `${recentPendingOrders.length} đơn chờ thanh toán`,
+        detail: `Mới nhất: ${formatOrderLabel(latest)} (${Number(latest.priceVndSnapshot).toLocaleString('vi-VN')}đ)`,
+      });
+    }
+
+    if (jobCounts.rejected > 0) {
+      signals.push({
+        code: 'rejected_job',
+        severity: 'hot',
+        label: `${jobCounts.rejected} tin bị từ chối kiểm duyệt`,
+        detail: 'Liên hệ hỗ trợ NTD chỉnh sửa nội dung JD để đăng lại.',
+      });
+    }
+
+    const soonestExpiringDays = [ctx.platformPlan, ctx.sourcingPlan]
+      .filter((p): p is { name: string; endsAt: string; active: boolean } =>
+        Boolean(p && p.active && p.endsAt),
+      )
+      .map((p) => ({
+        name: p.name,
+        days: Math.ceil((new Date(p.endsAt).getTime() - ctx.now.getTime()) / 86_400_000),
+      }))
+      .filter((x) => x.days >= 0 && x.days <= 7)
+      .sort((a, b) => a.days - b.days)[0];
+
+    if (soonestExpiringDays) {
+      signals.push({
+        code: 'expiring_plan',
+        severity: 'warn',
+        label: `Gói sắp hết hạn (${soonestExpiringDays.days} ngày)`,
+        detail: `${soonestExpiringDays.name} sắp kết thúc — phù hợp trao đổi gia hạn.`,
+      });
+    }
+
+    const hasActiveUsage =
+      Boolean(ctx.platformPlan?.active) ||
+      Boolean(ctx.sourcingPlan?.active) ||
+      jobCounts.published > 0 ||
+      activeCampaignsCount > 0;
+    if (hasActiveUsage && ctx.creditBalance <= 2) {
+      signals.push({
+        code: 'low_credit',
+        severity: 'warn',
+        label: `Ví Credit sắp cạn (còn ${ctx.creditBalance})`,
+        detail: 'Đề xuất NTD nạp thêm Top-up Credit để không gián đoạn mở hồ sơ.',
+      });
+    }
+
+    if (staleUnreviewedApplicants > 0) {
+      signals.push({
+        code: 'unreviewed_applicants',
+        severity: 'warn',
+        label: `${staleUnreviewedApplicants} ứng viên >48h chưa duyệt`,
+        detail: 'Nhắc NTD xem hồ sơ ứng viên mới nộp để tăng tỷ lệ chốt.',
+      });
+    }
+
+    if (jobCounts.draft > 0) {
+      signals.push({
+        code: 'draft_job',
+        severity: 'info',
+        label: `${jobCounts.draft} tin nháp chưa đăng`,
+        detail: 'Có thể gọi hướng dẫn NTD hoàn tất & đăng tin tuyển dụng.',
+      });
+    }
+
+    const recentPricingView = recentIntentEvents.find(
+      (e) => e.eventType === 'view_pricing' && e.createdAt >= staleCutoff,
+    );
+    if (recentPricingView) {
+      signals.push({
+        code: 'viewed_pricing',
+        severity: 'warn',
+        label: 'Đang xem Bảng giá / Nâng cấp',
+        detail: 'NTD vừa vào xem bảng giá trong 48h qua — phù hợp chủ động tư vấn gói.',
+      });
+    }
+
+    if (lastActivityAt && (hasActiveUsage || ctx.creditBalance > 0)) {
+      const inactiveDays = Math.floor(
+        (ctx.now.getTime() - new Date(lastActivityAt).getTime()) / 86_400_000,
+      );
+      if (inactiveDays >= 14) {
+        signals.push({
+          code: 'inactive',
+          severity: 'info',
+          label: `Ngủ đông ${inactiveDays} ngày`,
+          detail: 'NTD vẫn còn gói/Credit nhưng chưa hoạt động gần đây.',
+        });
+      }
+    }
+
+    return {
+      lastActivityAt,
+      jobs: jobCounts,
+      applicants: {
+        total: totalApplicants,
+        unreviewed: unreviewedApplicants,
+        staleUnreviewed: staleUnreviewedApplicants,
+      },
+      sourcing: {
+        activeCampaigns: activeCampaignsCount,
+        profilesOpened: profilesOpenedCount,
+      },
+      pendingOrdersCount: recentPendingOrders.length,
+      signals,
+      timeline: topTimeline,
     };
   }
 

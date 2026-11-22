@@ -230,6 +230,54 @@ export interface CrmCompanyPlanSnapshot {
   active: boolean;
 }
 
+export type CrmHotSignalSeverity = 'hot' | 'warn' | 'info';
+
+export interface CrmCompanyHotSignal {
+  code:
+    | 'pending_order'
+    | 'rejected_job'
+    | 'draft_job'
+    | 'low_credit'
+    | 'expiring_plan'
+    | 'unreviewed_applicants'
+    | 'inactive'
+    | 'hit_paywall'
+    | 'viewed_pricing';
+  severity: CrmHotSignalSeverity;
+  label: string;
+  detail: string;
+}
+
+export interface CrmCompanyActivityEvent {
+  id: string;
+  category: 'job' | 'order' | 'credit' | 'sourcing' | 'application' | 'intent';
+  title: string;
+  detail: string | null;
+  occurredAt: string;
+}
+
+export interface CrmCompanyPlatformActivityView {
+  lastActivityAt: string | null;
+  jobs: {
+    published: number;
+    draft: number;
+    rejected: number;
+    pausedOrClosed: number;
+  };
+  applicants: {
+    total: number;
+    unreviewed: number;
+    staleUnreviewed: number;
+  };
+  sourcing: {
+    activeCampaigns: number;
+    profilesOpened: number;
+  };
+  pendingOrdersCount: number;
+  signals: CrmCompanyHotSignal[];
+  timeline: CrmCompanyActivityEvent[];
+}
+
 export interface CrmCompanyProfileView {
   id: string;
   name: string;
@@ -245,6 +293,7 @@ export interface CrmCompanyProfileView {
   orders: CrmPaidOrderInvoiceView[];
   leads: CrmLeadView[];
   sourcingOutreaches?: CrmSourcingOutreachItemView[];
+  platformActivity?: CrmCompanyPlatformActivityView;
 }
 
 export interface CrmPartnerView {
@@ -569,6 +618,10 @@ export interface CrmCustomerView {
   platformPlanName: string | null;
   sourcingPlanName: string | null;
   ownerName: string | null;
+  /** Thời điểm hoạt động gần nhất của NTD trên inLink. */
+  lastActivityAt?: string | null;
+  /** Các tín hiệu cần CSKH ưu tiên liên hệ. */
+  hotSignals?: CrmCompanyHotSignal[];
 }
 
 export interface CrmCompanyOption {

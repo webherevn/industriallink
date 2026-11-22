@@ -2872,3 +2872,20 @@ model CrmActivity {
   @@schema("crm")
 }
 
+/// Log hành vi ý định mua nhẹ của NTD (login, view_pricing, hit_paywall, ai_search_no_unlock).
+/// Debounce 30 phút theo (companyId, eventType), tự dọn bản ghi cũ hơn 90 ngày.
+model RecruiterActivityEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  /// 'login' | 'view_pricing' | 'hit_paywall' | 'ai_search_no_unlock'
+  eventType String   @map("event_type")
+  detail    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, createdAt])
+  @@index([companyId, eventType, createdAt])
+  @@map("recruiter_activity_event")
+  @@schema("crm")
+}
+

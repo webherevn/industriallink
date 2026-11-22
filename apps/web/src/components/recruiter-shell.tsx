@@ -53,6 +53,7 @@ import {
   getMyCompany,
 } from '@/lib/company';
 import { fetchRecruiterEntitlements } from '@/lib/recruiter-billing';
+import { trackRecruiterActivity } from '@/lib/recruiter-activity';
 
 type NavItem = {
   href: string;
@@ -304,6 +305,21 @@ export function RecruiterShell({
     },
     retryDelay: (n) => Math.min(1500 * 2 ** n, 6000),
   });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackRecruiterActivity('login');
+    if (
+      pathname.startsWith('/recruiter/pricing') ||
+      pathname.startsWith('/recruiter/billing/upgrade') ||
+      pathname.startsWith('/recruiter/billing/topup') ||
+      pathname.startsWith('/recruiter/billing/sourcing')
+    ) {
+      trackRecruiterActivity('view_pricing', pathname);
+    } else if (pathname.startsWith('/search')) {
+      trackRecruiterActivity('ai_search_no_unlock', 'Tìm kiếm ứng viên AI');
+    }
+  }, [user?.id, pathname]);
 
   const { data: company } = useQuery({
     queryKey: ['my-company', user?.id ?? 'anon'],

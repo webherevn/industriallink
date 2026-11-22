@@ -1,10 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { CrmCustomerStanding, CrmCustomerView } from '@industriallink/contracts';
+import type { CrmCompanyHotSignal, CrmCustomerStanding, CrmCustomerView } from '@industriallink/contracts';
 import { useEffect, useState } from 'react';
-import { Building2 } from 'lucide-react';
+import { Building2, Flame } from 'lucide-react';
 import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
+import { formatWhen } from '@/components/crm/format';
 import { ColumnPicker, RowActions, RowCheck, RowIconButton, crmTableClass, crmTd, filterChipClass, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { fetchCrmCustomers } from '@/lib/crm';
 
@@ -19,13 +20,16 @@ const CUSTOMER_COLUMNS = [
   { key: 'tax', label: 'Mã số thuế' },
   { key: 'standing', label: 'Trạng thái' },
   { key: 'plan', label: 'Gói đang dùng' },
+  { key: 'activity', label: 'Hoạt động gần nhất' },
+  { key: 'signals', label: 'Tín hiệu CSKH' },
   { key: 'owner', label: 'Phụ trách' },
 ] as const;
 
 type CustomerColumn = (typeof CUSTOMER_COLUMNS)[number]['key'];
 
-const FILTERS: { id: 'all' | CrmCustomerStanding; label: string }[] = [
+const FILTERS: { id: 'all' | 'hot' | CrmCustomerStanding; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
+  { id: 'hot', label: 'Cần chăm sóc nóng' },
   { id: 'active', label: 'Đang dùng' },
   { id: 'lapsed', label: 'Hết hạn' },
   { id: 'prospect', label: 'Chưa mua' },
@@ -36,13 +40,25 @@ export function CrmCustomersPanel() {
   const [needle, setNeedle] = useState('');
   const [standing, setStanding] = useState<(typeof FILTERS)[number]['id']>('all');
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('filter') === 'hot') {
+      setStanding('hot');
+    }
+  }, []);
+  useEffect(() => {
     const timer = window.setTimeout(() => setNeedle(query.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [query]);
   const customers = useQuery({ queryKey: ['crm-customers', needle], queryFn: () => fetchCrmCustomers(needle) });
-  const sort = useColumnSort<'company' | 'contact' | 'department' | 'phone' | 'email' | 'field' | 'tax' | 'standing' | 'owner'>('company');
+  const hotCount = (customers.data ?? []).filter((row) => (row.hotSignals?.length ?? 0) > 0).length;
+  const sort = useColumnSort<'company' | 'contact' | 'department' | 'phone' | 'email' | 'field' | 'tax' | 'standing' | 'activity' | 'owner'>('company');
   const rows = sortRows(
-    (customers.data ?? []).filter((row) => standing === 'all' || row.standing === standing),
+    (customers.data ?? []).filter((row) =>
+      standing === 'all'
+        ? true
+        : standing === 'hot'
+          ? (row.hotSignals?.length ?? 0) > 0
+          : row.standing === standing,
+    ),
     sort.dir,
     (row) => {
       if (sort.key === 'company') return row.companyName;
@@ -53,6 +69,7 @@ export function CrmCustomersPanel() {
       if (sort.key === 'field') return row.orgField;
       if (sort.key === 'tax') return row.taxCode;
       if (sort.key === 'standing') return standingLabel(row.standing);
+      if (sort.key === 'activity') return row.lastActivityAt ?? '';
       return row.ownerName;
     },
   );
@@ -79,7 +96,14 @@ export function CrmCustomersPanel() {
             className={filterChipClass(standing === item.id)}
             onClick={() => setStanding(item.id)}
           >
-            {item.label}
+            {item.id === 'hot' ? (
+              <span className="inline-flex items-center gap-1">
+                <Flame className="h-3.5 w-3.5 text-rose-500" />
+                {`${item.label}${hotCount > 0 ? ` (${hotCount})` : ''}`}
+              </span>
+            ) : (
+              item.label
+            )}
           </button>
         ))}
       </div>
@@ -109,6 +133,8 @@ export function CrmCustomersPanel() {
                     {columns.shown('tax') ? <SortableTh label="Mã số thuế" active={sort.key === 'tax'} dir={sort.dir} onClick={() => sort.toggle('tax')} /> : null}
                     {columns.shown('standing') ? <SortableTh label="Trạng thái" active={sort.key === 'standing'} dir={sort.dir} onClick={() => sort.toggle('standing')} /> : null}
                     {columns.shown('plan') ? <th className="whitespace-nowrap px-4 py-3">Gói đang dùng</th> : null}
+                    {columns.shown('activity') ? <SortableTh label="Hoạt động gần nhất" active={sort.key === 'activity'} dir={sort.dir} onClick={() => sort.toggle('activity')} /> : null}
+                    {columns.shown('signals') ? <th className="whitespace-nowrap px-4 py-3">Tín hiệu CSKH</th> : null}
                     {columns.shown('owner') ? <SortableTh label="Phụ trách" active={sort.key === 'owner'} dir={sort.dir} onClick={() => sort.toggle('owner')} /> : null}
                     <th className={stickyActionsHead} />
                   </tr>
@@ -161,6 +187,16 @@ function CustomerRow({
         </td>
       ) : null}
       {shown('plan') ? <td className={`${crmTd} text-slate-600`}>{plans || '—'}</td> : null}
+      {shown('activity') ? (
+        <td className={`${crmTd} whitespace-nowrap text-xs text-slate-600`}>
+          {row.lastActivityAt ? formatWhen(row.lastActivityAt) : '—'}
+        </td>
+      ) : null}
+      {shown('signals') ? (
+        <td className={crmTd}>
+          <SignalChips signals={row.hotSignals ?? []} />
+        </td>
+      ) : null}
       {shown('owner') ? <td className={`${crmTd} text-slate-600`}>{row.ownerName ?? 'Chưa có'}</td> : null}
       <td className={stickyCell(picked, 'actions')}>
         <RowActions open={picked}>
@@ -183,4 +219,34 @@ function standingClass(standing: CrmCustomerStanding): string {
   if (standing === 'active') return 'bg-emerald-50 text-emerald-800';
   if (standing === 'lapsed') return 'bg-amber-50 text-amber-800';
   return 'bg-slate-100 text-slate-600';
+}
+
+function SignalChips({ signals }: { signals: CrmCompanyHotSignal[] }) {
+  if (signals.length === 0) return <span className="text-slate-400">—</span>;
+  const visible = signals.slice(0, 2);
+  const extra = Math.max(0, signals.length - visible.length);
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {visible.map((sig) => (
+        <span
+          key={sig.code}
+          title={sig.detail}
+          className={`whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+            sig.severity === 'hot'
+              ? 'bg-rose-50 text-rose-700 ring-rose-200/80'
+              : sig.severity === 'warn'
+                ? 'bg-amber-50 text-amber-800 ring-amber-200/80'
+                : 'bg-sky-50 text-sky-700 ring-sky-200/80'
+          }`}
+        >
+          {sig.label}
+        </span>
+      ))}
+      {extra > 0 ? (
+        <span className="whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-600">
+          +{extra}
+        </span>
+      ) : null}
+    </div>
+  );
 }
