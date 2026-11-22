@@ -701,7 +701,7 @@ export class ApplicationService {
       this.prisma.job?.findMany
         ? this.prisma.job.findMany({
             where: jobScope,
-            select: { id: true, title: true, status: true, location: true, createdAt: true },
+            select: { id: true, code: true, title: true, status: true, location: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
             take: 25,
           })
@@ -1597,9 +1597,9 @@ function buildReportJobs(
     status: string;
     matchScore: number | null;
     jobId: string;
-    job: { title: string; status: string; location: string | null };
+    job: { code?: string | null; title: string; status: string; location: string | null };
   }[],
-  companyJobs: { id: string; title: string; status: string; location: string | null }[] = [],
+  companyJobs: { id: string; code?: string | null; title: string; status: string; location: string | null }[] = [],
   sourcingUsages: { kind: string; jobId: string | null; note: string | null }[] = [],
 ): RecruitmentReportJobRow[] {
   const rows = new Map<
@@ -1610,6 +1610,7 @@ function buildReportJobs(
   for (const cj of companyJobs) {
     rows.set(cj.id, {
       jobId: cj.id,
+      code: cj.code ?? null,
       title: cj.title,
       status: cj.status,
       location: cj.location,
@@ -1635,6 +1636,7 @@ function buildReportJobs(
     if (!job) {
       job = {
         jobId: row.jobId,
+        code: row.job.code ?? null,
         title: row.job.title,
         status: row.job.status,
         location: row.job.location,

@@ -129,6 +129,7 @@ export interface RecruitmentReportFunnelStep {
 /** Hiệu suất một tin trong kỳ báo cáo. */
 export interface RecruitmentReportJobRow {
   jobId: string;
+  code?: string | null;
   title: string;
   status: string;
   location: string | null;

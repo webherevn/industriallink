@@ -655,13 +655,13 @@ function JobManageCard({
                 <span
                   title={
                     job.huntCampaignCode
-                      ? `Chiến dịch Săn ${job.huntCampaignCode} · Gói ${job.huntPackageCode ?? ''}`
+                      ? `Chiến dịch Săn ${job.huntCampaignCode} · ${job.huntPackageName ?? 'Gói Tin săn'} ${job.huntPackageCode ?? ''}`.trim()
                       : 'Tin đang chạy bằng gói Săn nhân sự'
                   }
                   className="inline-flex items-center gap-1 rounded-full border border-[#FFD0A3] bg-[#FFF8F1] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]"
                 >
                   <Settings className="h-3 w-3 text-[#E8872A]" />
-                  Tin săn: Đang hoạt động
+                  {job.huntPackageName ? `${job.huntPackageName}: Đang hoạt động` : 'Tin săn: Đang hoạt động'}
                   {job.huntPackageCode ? (
                     <span className="font-medium text-[#E8872A]"> · {job.huntPackageCode}</span>
                   ) : null}

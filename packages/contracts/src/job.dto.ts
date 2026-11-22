@@ -162,6 +162,8 @@ export interface JobListItem {
   source?: 'STANDARD' | 'HUNT';
   /** Mã gói Săn (vd "TS-000101") khi tin thuộc nhóm HUNT. */
   huntPackageCode?: string | null;
+  /** Tên gói Săn (vd "Tin săn Cơ bản", "Tin săn Tiêu chuẩn", "Tin săn Chuyên sâu"). */
+  huntPackageName?: string | null;
   /** Mã chiến dịch Săn (vd "HD-000001") khi tin thuộc nhóm HUNT. */
   huntCampaignCode?: string | null;
   /** Trạng thái gói Săn: ACTIVE / EXPIRED / UNUSED. */

@@ -1008,7 +1008,7 @@ export class JobService {
         select: {
           jobId: true,
           code: true,
-          package: { select: { code: true, status: true } },
+          package: { select: { code: true, packageName: true, status: true } },
         },
       }),
     ]);
@@ -1020,6 +1020,7 @@ export class JobService {
           {
             campaignCode: r.code,
             packageCode: r.package.code,
+            packageName: r.package.packageName,
             packageStatus: r.package.status,
           },
         ]),
@@ -1046,6 +1047,7 @@ export class JobService {
         isSourcingActive: isHunt,
         source: isHunt ? 'HUNT' : 'STANDARD',
         huntPackageCode: isHunt ? (hunt?.packageCode ?? null) : null,
+        huntPackageName: isHunt ? (hunt?.packageName ?? null) : null,
         huntCampaignCode: isHunt ? (hunt?.campaignCode ?? null) : null,
         huntPackageStatus: isHunt ? (hunt?.packageStatus ?? null) : null,
       });
@@ -1515,6 +1517,7 @@ export class JobService {
       isSourcingActive?: boolean;
       source?: 'STANDARD' | 'HUNT';
       huntPackageCode?: string | null;
+      huntPackageName?: string | null;
       huntCampaignCode?: string | null;
       huntPackageStatus?: string | null;
     },
@@ -1569,6 +1572,7 @@ export class JobService {
       ...(extras?.isSourcingActive ? { isSourcingActive: true } : {}),
       ...(extras?.source ? { source: extras.source } : {}),
       ...(extras?.huntPackageCode ? { huntPackageCode: extras.huntPackageCode } : {}),
+      ...(extras?.huntPackageName ? { huntPackageName: extras.huntPackageName } : {}),
       ...(extras?.huntCampaignCode ? { huntCampaignCode: extras.huntCampaignCode } : {}),
       ...(extras?.huntPackageStatus ? { huntPackageStatus: extras.huntPackageStatus } : {}),
     };

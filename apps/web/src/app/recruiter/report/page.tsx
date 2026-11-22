@@ -86,85 +86,89 @@ export default function RecruiterReportPage() {
   return (
     <AppShell>
       <div className="w-full">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
-              Báo cáo &amp; Phân tích
-            </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-brand-800">
-              Báo cáo tuyển dụng
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Tổng hợp kết quả, hiệu quả nguồn ứng viên và chi phí tuyển dụng theo từng vị trí.
-            </p>
-          </div>
-
-          {report.data?.hasCompany ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => exportRecruitmentCsv(report.data!, selectedJobId)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-brand-300 hover:bg-slate-50 active:scale-95"
-                title="Tải file Excel (.csv) báo cáo tuyển dụng"
-              >
-                <Download className="h-3.5 w-3.5 text-brand-600" />
-                <span>Xuất Excel</span>
-              </button>
-              <button
-                type="button"
-                disabled={exportingPdf}
-                onClick={() => {
-                  setExportingPdf(true);
-                  void exportRecruitmentPdf(report.data!, selectedJobId).finally(() =>
-                    setExportingPdf(false),
-                  );
-                }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-brand-800 active:scale-95 disabled:opacity-60"
-                title="Tải file PDF báo cáo tuyển dụng chuẩn A4"
-              >
-                <Printer className="h-3.5 w-3.5 text-[#E8872A]" />
-                <span>{exportingPdf ? 'Đang xuất PDF…' : 'Xuất PDF'}</span>
-              </button>
+        <header className="brand-hero-surface relative overflow-hidden rounded-3xl px-5 py-6 sm:px-7">
+          <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
+          <div className="relative flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+                Báo cáo &amp; Phân tích
+              </p>
+              <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Báo cáo tuyển dụng
+              </h1>
+              <p className="mt-1.5 max-w-2xl text-sm text-white/80">
+                Tổng hợp kết quả, hiệu quả nguồn ứng viên và chi phí tuyển dụng theo từng vị trí.
+              </p>
             </div>
-          ) : null}
+
+            {report.data?.hasCompany ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => exportRecruitmentCsv(report.data!, selectedJobId)}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white/15 px-4 text-xs font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/25 active:scale-95"
+                  title="Tải file Excel (.csv) báo cáo tuyển dụng"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Xuất Excel</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={exportingPdf}
+                  onClick={() => {
+                    setExportingPdf(true);
+                    void exportRecruitmentPdf(report.data!, selectedJobId).finally(() =>
+                      setExportingPdf(false),
+                    );
+                  }}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#E8872A] px-4 text-xs font-bold text-white shadow-md transition hover:bg-[#d6761b] active:scale-95 disabled:opacity-60"
+                  title="Tải file PDF báo cáo tuyển dụng chuẩn A4"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>{exportingPdf ? 'Đang xuất PDF…' : 'Xuất PDF'}</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
         </header>
 
         {/* Thanh lọc vị trí & khoảng thời gian */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs sm:px-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex items-end gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#072348]">
                 <Briefcase className="h-4 w-4" />
               </span>
               <div>
-                <span className="block text-[10.5px] font-medium text-slate-400">Tin tuyển dụng</span>
+                <span className="mb-1 block text-[11px] font-medium leading-none text-slate-500">Tin tuyển dụng</span>
                 <select
                   aria-label="Lọc theo vị trí tuyển dụng"
                   value={selectedJobId}
                   onChange={(e) => setSelectedJobId(e.target.value)}
-                  className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-[#072348] outline-none"
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none transition focus:border-[#0B468C]"
                 >
                   <option value="all">Tất cả vị trí ({jobsList.length})</option>
                   {jobsList.map((job) => (
                     <option key={job.jobId} value={job.jobId}>
                       {formatJobTitle(job.title)}
+                      {job.code ? ` · ${job.code}` : ''}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+            <div className="flex items-end gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#072348]">
                 <CalendarDays className="h-4 w-4" />
               </span>
               <div>
-                <span className="block text-[10.5px] font-medium text-slate-400">Khoảng thời gian</span>
+                <span className="mb-1 block text-[11px] font-medium leading-none text-slate-500">Khoảng thời gian</span>
                 <select
                   aria-label="Khoảng thời gian"
                   value={days}
                   onChange={(e) => setDays(Number(e.target.value))}
-                  className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-[#072348] outline-none"
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#072348] outline-none transition focus:border-[#0B468C]"
                 >
                   {PERIODS.map((p) => (
                     <option key={p.days} value={p.days}>
@@ -1159,7 +1163,12 @@ function ReportBody({
                             >
                               {formatJobTitle(job.title)}
                             </Link>
-                            <p className="mt-0.5 text-xs text-slate-500">
+                            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                              {job.code ? (
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-slate-600">
+                                  {job.code}
+                                </span>
+                              ) : null}
                               <span
                                 className={clsx(
                                   'inline-block rounded-full px-1.5 py-0.2 text-[10px] font-semibold',
