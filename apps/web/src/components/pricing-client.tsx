@@ -1589,7 +1589,20 @@ function CreditTopupView({
         />
       </div>
 
-      <div className="grid items-stretch gap-4 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className={clsx(
+          'grid items-stretch gap-4 pt-4',
+          activeTopups.length === 1
+            ? 'mx-auto max-w-sm grid-cols-1'
+            : activeTopups.length === 2
+              ? 'mx-auto max-w-3xl sm:grid-cols-2'
+              : activeTopups.length === 3
+                ? 'mx-auto max-w-5xl sm:grid-cols-2 lg:grid-cols-3'
+                : activeTopups.length === 4
+                  ? 'sm:grid-cols-2 lg:grid-cols-4'
+                  : 'sm:grid-cols-2 lg:grid-cols-3',
+        )}
+      >
         {activeTopups.map((t, idx) => (
           <CreditTopupCard
             key={t.id}
@@ -1681,10 +1694,10 @@ function CreditTopupCard({
       </div>
 
       <div className="mt-4 rounded-xl bg-slate-50/80 px-4 py-3.5">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           <PlanPrice value={topup.priceVnd} currency={currency} />
           {savingPct > 0 ? (
-            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+            <span className="shrink-0 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
               Tiết kiệm {savingPct}%
             </span>
           ) : null}
@@ -1702,7 +1715,7 @@ function CreditTopupCard({
         </p>
       </div>
 
-      <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-600">
+      <ul className="mt-4 flex-1 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-600">
         <li className="flex items-center gap-2">
           <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" strokeWidth={2.6} />
           <span>Hiệu lực sử dụng <strong>vô thời hạn</strong>, bảo lưu qua các kỳ</span>
@@ -2178,13 +2191,13 @@ export function PricingClient({
   const { data: fetched, isLoading, refetch } = useQuery({
     queryKey: ['billing-public-config'],
     queryFn: fetchPublicBillingConfig,
-    enabled: embedded || !config,
-    staleTime: embedded ? 0 : 60_000,
+    enabled: true,
+    staleTime: 0,
     refetchOnWindowFocus: embedded,
-    refetchOnMount: embedded ? 'always' : true,
+    refetchOnMount: 'always',
     retry: 1,
   });
-  const resolvedRaw = embedded ? (fetched ?? null) : (config ?? fetched ?? null);
+  const resolvedRaw = embedded ? (fetched ?? null) : (fetched ?? config ?? null);
   const resolved = resolvedRaw ? normalizePricingConfig(resolvedRaw) : null;
 
   /** NTD đã login → trang thanh toán / billing. Khách → đăng ký. */
