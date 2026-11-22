@@ -146,6 +146,20 @@ export async function uploadCompanyVerificationLicense(
   });
 }
 
+/** Đối chiếu MST thực (Tổng cục Thuế) & kích hoạt gói Khám phá FREE + Credit miễn phí. */
+export async function activateFreePlanWithTaxCode(taxCode: string): Promise<{
+  taxCode: string;
+  businessName: string;
+  address: string | null;
+  activated: boolean;
+  message: string;
+}> {
+  return apiRequest('/companies/me/activate-free', {
+    method: 'POST',
+    body: { taxCode },
+  });
+}
+
 /** Tải file Giấy phép ĐKKD riêng tư (Bearer) → blob URL để xem trước. */
 export async function fetchMyCompanyLicenseObjectUrl(): Promise<string | null> {
   const token = tokenStore.get();

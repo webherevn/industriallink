@@ -756,9 +756,27 @@ export class BillingService implements OnModuleInit {
 
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true, tenantId: true, createdBy: true },
+      select: { id: true, tenantId: true, createdBy: true, taxCode: true, profile: true },
     });
     if (!company) return null;
+
+    // Giai đoạn 2 chống bào Free: công ty mới chưa từng có gói phải đối chiếu MST thực trước khi cấp gói Khám phá FREE.
+    if (!already) {
+      const cleanTax = company.taxCode?.replace(/\s+/g, '').trim() ?? '';
+      const rawProfile =
+        company.profile && typeof company.profile === 'object' && !Array.isArray(company.profile)
+          ? (company.profile as { taxRegistryCheck?: { taxCode?: string; businessName?: string } })
+          : null;
+      const taxOk = Boolean(
+        cleanTax &&
+          /^\d{10}(-\d{3})?$/.test(cleanTax) &&
+          rawProfile?.taxRegistryCheck?.taxCode === cleanTax &&
+          rawProfile?.taxRegistryCheck?.businessName?.trim(),
+      );
+      if (!taxOk) {
+        return null;
+      }
+    }
 
     const startsAt = new Date();
     const endsAt = addUtcDays(startsAt, STARTER_CYCLE_DAYS);

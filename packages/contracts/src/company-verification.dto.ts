@@ -16,6 +16,8 @@ export interface CompanyVerificationView {
   licenseDocMime?: string | null;
   licenseDocSize?: number | null;
   licenseUploadedAt?: string | null;
+  taxRegistryVerified?: boolean;
+  taxRegistryBusinessName?: string | null;
 }
 
 export interface SubmitCompanyVerificationRequest {

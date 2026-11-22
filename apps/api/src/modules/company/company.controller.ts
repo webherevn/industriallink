@@ -138,6 +138,18 @@ export class CompanyController {
     });
   }
 
+  @Post('me/activate-free')
+  @ApiOperation({
+    summary: 'Đối chiếu MST thực (Tổng cục Thuế) và kích hoạt gói Khám phá FREE + Credit miễn phí',
+  })
+  activateFreePlan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { taxCode?: string },
+    @CorrelationId() correlationId: string,
+  ) {
+    return this.companies.activateFreePlanWithTaxCode(user, body?.taxCode, correlationId);
+  }
+
   @Get('me/verification')
   @ApiOperation({ summary: 'Trạng thái xác minh NTD (huy hiệu do SuperAdmin cấp)' })
   getMyVerification(@CurrentUser() user: AuthenticatedUser) {

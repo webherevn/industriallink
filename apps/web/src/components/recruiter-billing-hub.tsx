@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   ArrowRight,
@@ -8,12 +8,15 @@ import {
   BarChart3,
   Briefcase,
   CalendarDays,
+  CheckCircle2,
   Coins,
   CreditCard,
   FileText,
   Link2,
+  Loader2,
   Pencil,
   Plus,
+  ShieldCheck,
   Sparkles,
   Star,
   Target,
@@ -34,6 +37,7 @@ import { describeCreditAction } from '@industriallink/contracts';
 import { RecruiterShell } from '@/components/recruiter-shell';
 import { fetchPublicBillingConfig } from '@/lib/admin-billing';
 import { ApiError } from '@/lib/api';
+import { activateFreePlanWithTaxCode } from '@/lib/company';
 import {
   fetchRecruiterBillingOverview,
   fetchRecruiterCreditTransactions,
@@ -358,6 +362,15 @@ export function RecruiterBillingHub() {
             </div>
           </div>
         </div>
+
+        {/* Giai đoạn 2: Kích hoạt gói Khám phá FREE bằng MST thực khi công ty mới chưa có gói */}
+        {entitlements &&
+        !entitlements.plan &&
+        activeJobPackages.length === 0 &&
+        activeHuntPackages.length === 0 &&
+        pendingPackages.length === 0 ? (
+          <FreePlanTaxActivationCard />
+        ) : null}
 
         {/* Hàng 2: Gói đang sử dụng — 2 cột ( trái: tin đăng · phải: từng gói Săn) */}
         <div>
@@ -1287,6 +1300,99 @@ function RequestedSourcingBanner({
           </Link>
         )}
       </div>
+    </div>
+  );
+}
+
+function FreePlanTaxActivationCard() {
+  const qc = useQueryClient();
+  const [taxCode, setTaxCode] = useState('');
+  const [feedback, setFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  const activate = useMutation({
+    mutationFn: () => activateFreePlanWithTaxCode(taxCode.trim()),
+    onSuccess: async (res) => {
+      setFeedback({ tone: 'ok', text: res.message });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['recruiter-billing-overview'] }),
+        qc.invalidateQueries({ queryKey: ['recruiter-entitlements'] }),
+        qc.invalidateQueries({ queryKey: ['recruiter-credit-txns'] }),
+        qc.invalidateQueries({ queryKey: ['my-company'] }),
+        qc.invalidateQueries({ queryKey: ['my-company-verification'] }),
+      ]);
+    },
+    onError: (err) => {
+      setFeedback({
+        tone: 'err',
+        text:
+          err instanceof ApiError
+            ? err.message
+            : 'Không kiểm tra được Mã số thuế. Vui lòng thử lại.',
+      });
+    },
+  });
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-[#FFF9F0] via-white to-[#F4F8FF] p-4 shadow-2xs sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h3 className="text-sm font-bold text-[#072348]">
+              Nhập Mã số thuế để kích hoạt gói Khám phá (FREE) &amp; nhận Credit miễn phí
+            </h3>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+              Hệ thống đối chiếu Mã số thuế doanh nghiệp với dữ liệu Tổng cục Thuế (mỗi MST kích hoạt
+              gói miễn phí cho 01 tài khoản công ty duy nhất).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <form
+        className="mt-3.5 flex flex-col gap-2 sm:flex-row sm:items-center"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setFeedback(null);
+          activate.mutate();
+        }}
+      >
+        <input
+          type="text"
+          value={taxCode}
+          disabled={activate.isPending}
+          onChange={(e) => setTaxCode(e.target.value)}
+          placeholder="Nhập MST doanh nghiệp (VD: 0101234567 hoặc 0101234567-001)"
+          className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#072348] focus:outline-none focus:ring-2 focus:ring-[#072348]/15"
+        />
+        <button
+          type="submit"
+          disabled={activate.isPending || taxCode.trim().length < 10}
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#072348] px-4 text-xs font-bold text-white shadow-xs transition hover:bg-[#0d3468] disabled:opacity-60"
+        >
+          {activate.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          )}
+          <span>{activate.isPending ? 'Đang đối chiếu MST…' : 'Kiểm tra MST & Kích hoạt FREE'}</span>
+        </button>
+      </form>
+
+      {feedback ? (
+        <p
+          className={clsx(
+            'mt-2.5 rounded-xl border px-3 py-2 text-xs font-medium',
+            feedback.tone === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-700',
+          )}
+        >
+          {feedback.text}
+        </p>
+      ) : null}
     </div>
   );
 }

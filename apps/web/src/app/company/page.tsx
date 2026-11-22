@@ -1518,6 +1518,11 @@ function CompanyVerificationCard() {
                 <Lock className="h-3 w-3 shrink-0" />
                 MST đã được khóa cố định sau khi xác thực.
               </span>
+            ) : data.taxRegistryVerified && data.taxRegistryBusinessName ? (
+              <span className="inline-flex items-center gap-1 text-emerald-700">
+                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                Đã đối chiếu dữ liệu thuế: {data.taxRegistryBusinessName}
+              </span>
             ) : (
               'Mỗi MST chỉ gắn với 01 tài khoản doanh nghiệp duy nhất trên inLink (10 số hoặc 10 số-3 số cho chi nhánh).'
             )}

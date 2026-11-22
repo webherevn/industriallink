@@ -22,6 +22,13 @@ export interface VerificationLicenseStored {
   uploadedAt: string;
 }
 
+export interface TaxRegistryCheckStored {
+  taxCode: string;
+  businessName: string;
+  address: string | null;
+  checkedAt: string;
+}
+
 export type CultureStoredItem = CompanyCultureItem & {
   storageKey?: string | null;
   mime?: string | null;
@@ -35,7 +42,19 @@ export type BrandJson = Omit<CompanyBrandProfile, 'cultureGallery'> & {
   cultureGallery?: CultureStoredItem[];
   verificationRequest?: VerificationRequestStored | null;
   licenseDoc?: VerificationLicenseStored | null;
+  taxRegistryCheck?: TaxRegistryCheckStored | null;
 };
+
+/** Kiểm tra công ty đã có MST khớp kết quả đối chiếu từ dữ liệu thuế thực hay chưa. */
+export function hasVerifiedRealTaxCode(
+  taxCode: string | null | undefined,
+  rawProfile: Prisma.JsonValue | null | undefined,
+): boolean {
+  const clean = taxCode?.replace(/\s+/g, '').trim();
+  if (!clean || !/^\d{10}(-\d{3})?$/.test(clean)) return false;
+  const check = readBrandJson(rawProfile).taxRegistryCheck;
+  return Boolean(check && check.taxCode === clean && check.businessName?.trim());
+}
 
 /**
  * Chuẩn hoá và kiểm tra định dạng Mã số thuế Việt Nam:
@@ -69,6 +88,7 @@ export function toPublicBrand(stored: BrandJson): CompanyBrandProfile {
   delete rest.bannerMime;
   delete rest.verificationRequest;
   delete rest.licenseDoc;
+  delete rest.taxRegistryCheck;
   return {
     ...rest,
     cultureGallery: (cultureGallery ?? []).map((item) => ({

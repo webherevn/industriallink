@@ -36,13 +36,16 @@ import { CodeGeneratorService } from '../../shared/infrastructure/code-generator
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import { compressUploadedImage } from '../../shared/media/optimize-image';
+import { assertRealVietnameseTaxCode } from '../../shared/company/tax-registry.util';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import {
+  hasVerifiedRealTaxCode,
   normalizeAndValidateTaxCode,
   readBrandJson,
   toPublicBrand,
   type BrandJson,
   type CultureStoredItem,
+  type TaxRegistryCheckStored,
   type VerificationLicenseStored,
   type VerificationRequestStored,
 } from './company-verification';
@@ -70,6 +73,7 @@ type BrandProfileStored = CompanyBrandProfile & {
   logoMime?: string | null;
   verificationRequest?: VerificationRequestStored | null;
   licenseDoc?: VerificationLicenseStored | null;
+  taxRegistryCheck?: TaxRegistryCheckStored | null;
 };
 
 @Injectable()
@@ -97,8 +101,16 @@ export class CompanyService {
     }
 
     const normalizedTaxCode = normalizeAndValidateTaxCode(dto.taxCode);
+    let taxRegistryCheck: TaxRegistryCheckStored | null = null;
     if (normalizedTaxCode) {
       await this.assertUniqueTaxCode(normalizedTaxCode);
+      const reg = await assertRealVietnameseTaxCode(normalizedTaxCode);
+      taxRegistryCheck = {
+        taxCode: reg.taxCode,
+        businessName: reg.businessName,
+        address: reg.address,
+        checkedAt: new Date().toISOString(),
+      };
     }
 
     const code = await this.codeGen.next('COM');
@@ -115,6 +127,9 @@ export class CompanyService {
         address: dto.address ?? null,
         website: dto.website ?? null,
         description: dto.description ?? null,
+        ...(taxRegistryCheck
+          ? { profile: { taxRegistryCheck } as unknown as Prisma.InputJsonValue }
+          : {}),
         createdBy: user.id,
         members: {
           create: {
@@ -145,7 +160,10 @@ export class CompanyService {
     );
 
     this.logger.log(`Đã tạo Company ${code} cho user ${user.id}`);
-    await this.assignStarterPlan(company.id, user.id);
+    // Giai đoạn 2 chống bào Free: chỉ tự động cấp gói Khám phá FREE khi đã đối chiếu MST thực.
+    if (taxRegistryCheck) {
+      await this.assignStarterPlan(company.id, user.id);
+    }
     return this.toView(company, 1, CompanyRole.Owner);
   }
 
@@ -203,7 +221,7 @@ export class CompanyService {
     );
 
     this.logger.log(`Đã tạo Company ${code} (provision) cho NTD ${input.userId}`);
-    await this.assignStarterPlan(company.id, input.userId);
+    // Giai đoạn 2: chưa cấp gói Khám phá FREE khi công ty chưa có MST hợp lệ đối chiếu thực.
     return { companyId: company.id, companyName: company.name };
   }
 
@@ -266,8 +284,22 @@ export class CompanyService {
         'Công ty đã xác thực không thể tự thay đổi Mã số thuế. Vui lòng liên hệ CSKH inLink nếu cần điều chỉnh.',
       );
     }
+    let nextProfile: Prisma.InputJsonValue | undefined;
+    let justVerifiedTax = false;
     if (normalizedTaxCode) {
       await this.assertUniqueTaxCode(normalizedTaxCode, membership.companyId);
+      const alreadyChecked = hasVerifiedRealTaxCode(normalizedTaxCode, before?.profile);
+      if (!alreadyChecked) {
+        const reg = await assertRealVietnameseTaxCode(normalizedTaxCode);
+        beforeBrand.taxRegistryCheck = {
+          taxCode: reg.taxCode,
+          businessName: reg.businessName,
+          address: reg.address,
+          checkedAt: new Date().toISOString(),
+        };
+        nextProfile = beforeBrand as Prisma.InputJsonValue;
+        justVerifiedTax = true;
+      }
     }
     const updated = await this.prisma.company.update({
       where: { id: membership.companyId },
@@ -279,9 +311,13 @@ export class CompanyService {
         address: dto.address ?? null,
         website: dto.website ?? null,
         description: dto.description ?? null,
+        ...(nextProfile ? { profile: nextProfile } : {}),
         updatedBy: user.id,
       },
     });
+    if (justVerifiedTax) {
+      await this.assignStarterPlan(updated.id, user.id);
+    }
 
     await this.audit.record({
       tenantId: user.tenantId,
@@ -445,6 +481,15 @@ export class CompanyService {
       }
       if (incoming) {
         await this.assertUniqueTaxCode(incoming, company.id);
+        if (!hasVerifiedRealTaxCode(incoming, company.profile)) {
+          const reg = await assertRealVietnameseTaxCode(incoming);
+          brand.taxRegistryCheck = {
+            taxCode: reg.taxCode,
+            businessName: reg.businessName,
+            address: reg.address,
+            checkedAt: new Date().toISOString(),
+          };
+        }
       }
       effectiveTaxCode = incoming;
     }
@@ -492,6 +537,78 @@ export class CompanyService {
       correlationId,
     });
     return this.toVerificationView(brand, effectiveTaxCode);
+  }
+
+  /**
+   * Giai đoạn 2: Kiểm tra MST thực (VietQR / Tổng cục Thuế) + chống trùng → kích hoạt gói Khám phá (FREE).
+   */
+  async activateFreePlanWithTaxCode(
+    user: AuthenticatedUser,
+    rawTaxCode: string | undefined,
+    correlationId: string,
+  ): Promise<{
+    taxCode: string;
+    businessName: string;
+    address: string | null;
+    activated: boolean;
+    message: string;
+  }> {
+    const membership = await this.requireMembership(user.id);
+    this.requireAdmin(membership.roleInCompany as CompanyRole);
+    const normalizedTaxCode = normalizeAndValidateTaxCode(rawTaxCode);
+    if (!normalizedTaxCode) {
+      throw new BadRequestException(
+        'Vui lòng nhập Mã số thuế hợp lệ (10 số hoặc 10 số-3 số) để kích hoạt gói Khám phá FREE.',
+      );
+    }
+
+    const company = await this.prisma.company.findFirst({
+      where: { id: membership.companyId, isDeleted: false },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+    const brand = readBrandJson(company.profile);
+    if (brand.verified && normalizedTaxCode !== (company.taxCode ?? null)) {
+      throw new BadRequestException(
+        'Công ty đã xác thực không thể thay đổi Mã số thuế.',
+      );
+    }
+
+    await this.assertUniqueTaxCode(normalizedTaxCode, company.id);
+    const reg = await assertRealVietnameseTaxCode(normalizedTaxCode);
+    brand.taxRegistryCheck = {
+      taxCode: reg.taxCode,
+      businessName: reg.businessName,
+      address: reg.address,
+      checkedAt: new Date().toISOString(),
+    };
+
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: {
+        taxCode: normalizedTaxCode,
+        profile: brand as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
+    });
+
+    await this.assignStarterPlan(company.id, user.id);
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      action: 'company.tax.activate_free',
+      entityType: 'company',
+      entityId: company.id,
+      after: { taxCode: normalizedTaxCode, businessName: reg.businessName },
+      correlationId,
+    });
+
+    return {
+      taxCode: normalizedTaxCode,
+      businessName: reg.businessName,
+      address: reg.address,
+      activated: true,
+      message: `Đã xác thực MST ${normalizedTaxCode} (${reg.businessName}) và kích hoạt gói Khám phá miễn phí!`,
+    };
   }
 
   private async assertUniqueTaxCode(taxCode: string, excludeCompanyId?: string): Promise<void> {
@@ -1184,6 +1301,10 @@ export class CompanyService {
   ): CompanyVerificationView {
     const req = brand.verificationRequest;
     const doc = brand.licenseDoc;
+    const reg = brand.taxRegistryCheck;
+    const taxRegistryVerified = Boolean(
+      taxCode && reg && reg.taxCode === taxCode && reg.businessName?.trim(),
+    );
     return {
       verified: Boolean(brand.verified),
       trustedEmployer: Boolean(brand.trustedEmployer),
@@ -1199,6 +1320,8 @@ export class CompanyService {
       licenseDocMime: doc?.mime ?? null,
       licenseDocSize: doc?.sizeBytes ?? null,
       licenseUploadedAt: doc?.uploadedAt ?? null,
+      taxRegistryVerified,
+      taxRegistryBusinessName: taxRegistryVerified ? (reg?.businessName ?? null) : null,
     };
   }
 }
