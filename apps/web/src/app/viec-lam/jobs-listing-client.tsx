@@ -511,6 +511,7 @@ function JobsPageInner({
     .sort((a, b) =>
       sort === 'salary'
         ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
+          (b.salaryMin ?? -1) - (a.salaryMin ?? -1) ||
           postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt)
         : postedTime(b.publishedAt, b.createdAt) - postedTime(a.publishedAt, a.createdAt),
     )
@@ -518,6 +519,7 @@ function JobsPageInner({
   const allApplications = (applications ?? []).slice().sort((a, b) =>
     sort === 'salary'
       ? salaryHigh(b.salaryMin, b.salaryMax) - salaryHigh(a.salaryMin, a.salaryMax) ||
+        (b.salaryMin ?? -1) - (a.salaryMin ?? -1) ||
         postedTime(b.createdAt) - postedTime(a.createdAt)
       : postedTime(b.createdAt) - postedTime(a.createdAt),
   );
@@ -531,23 +533,37 @@ function JobsPageInner({
     return () => window.clearTimeout(timer);
   }, [boardLeaving, usingAi]);
   const isAiAllTab = listAi && tab === 'all';
+  const isSearchOrSorted =
+    Boolean(
+      keyword.trim() ||
+        industry ||
+        subIndustry ||
+        roleFilter ||
+        desiredPosition ||
+        locations.length > 0 ||
+        jobLevels.length > 0 ||
+        experienceBands.length > 0 ||
+        salaryPreset ||
+        byPlace,
+    ) || sort === 'salary';
+  const useDynamicBoard = tab === 'all' && !listAi && !isSearchOrSorted;
   const activeJobSource = isAiAllTab ? rankedAi : allJobs;
   const jobBoard = useMemo(
-    () => (tab === 'all' && !listAi ? composeJobBoard(allJobs, page - 1, boardNow) : null),
-    [tab, listAi, allJobs, page, boardNow],
+    () => (useDynamicBoard ? composeJobBoard(allJobs, page - 1, boardNow) : null),
+    [useDynamicBoard, allJobs, page, boardNow],
   );
   const pageSize = tab === 'applied' ? APPLIED_PAGE_SIZE : JOB_PAGE_SIZE;
   const totalItems =
     tab === 'applied' ? allApplications.length : activeJobSource.length;
   const totalPages =
-    tab === 'all' && !listAi
+    useDynamicBoard
       ? (jobBoard?.totalPages ?? 1)
       : Math.max(1, Math.ceil(totalItems / pageSize) || 1);
   const currentPage = Math.min(page, totalPages);
   const pageOffset = (currentPage - 1) * pageSize;
   const displayJobs = isAiAllTab
     ? rankedAi.slice(pageOffset, pageOffset + pageSize)
-    : tab === 'all'
+    : useDynamicBoard
       ? (jobBoard && currentPage === page ? jobBoard.page : composeJobBoard(allJobs, currentPage - 1, boardNow).page)
       : allJobs.slice(pageOffset, pageOffset + pageSize);
   const displayApplications = allApplications.slice(
@@ -592,12 +608,21 @@ function JobsPageInner({
 
         <div className="relative px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
           <div className="max-w-xl">
-            <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-[2rem]">
-              {renderHeroHeading(
-                heroHeading || 'Tìm đúng cơ hội trong ngành công nghiệp',
-                heroHeadingAccent ?? 'ngành công nghiệp',
-              )}
-            </h1>
+            {leading ? (
+              <h2 className="text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-[2rem]">
+                {renderHeroHeading(
+                  heroHeading || 'Tìm đúng cơ hội trong ngành công nghiệp',
+                  heroHeadingAccent ?? 'ngành công nghiệp',
+                )}
+              </h2>
+            ) : (
+              <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-[2rem]">
+                {renderHeroHeading(
+                  heroHeading || 'Tìm đúng cơ hội trong ngành công nghiệp',
+                  heroHeadingAccent ?? 'ngành công nghiệp',
+                )}
+              </h1>
+            )}
             <p className="mt-2.5 max-w-md text-sm leading-relaxed text-slate-600">
               {heroSubtitle ??
                 'Hàng nghìn cơ hội việc làm từ các doanh nghiệp uy tín trong lĩnh vực kỹ thuật, sản xuất, vận hành và kinh doanh B2B.'}

@@ -2,6 +2,7 @@ import type { HomepageHeroContent, HomepageHeroJob, HomepageHeroPerson } from '@
 import { ArrowRight, Building2, MapPin, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
+import { MATCH_RING_TRACK_COLOR, matchRingColor, matchScoreTextColor } from '@/lib/match-percent';
 
 function accentTitle(title: string, accent: string) {
   return title.split('\n').map((line, index) => {
@@ -41,6 +42,59 @@ function Portrait({ url, name, className }: { url: string; name: string; classNa
   );
 }
 
+function HeroScoreRing({ score, featured }: { score: string; featured?: boolean }) {
+  const value = Number(score.replace('%', '').replace(',', '.'));
+  const percent = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+  const size = featured ? 48 : 36;
+  const radius = featured ? 19.5 : 14.5;
+  const strokeWidth = featured ? 3.4 : 2.8;
+  const length = 2 * Math.PI * radius;
+  const ringColor = matchRingColor(percent);
+  const textColor = matchScoreTextColor(percent);
+  return (
+    <span
+      className={
+        featured
+          ? 'relative inline-flex h-12 w-12 shrink-0 items-center justify-center'
+          : 'relative inline-flex h-9 w-9 shrink-0 items-center justify-center'
+      }
+    >
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90" aria-hidden>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={MATCH_RING_TRACK_COLOR}
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={ringColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={length}
+          strokeDashoffset={length * (1 - percent / 100)}
+          className="home-score-arc"
+        />
+      </svg>
+      <span
+        className={
+          featured
+            ? 'absolute text-[12px] font-extrabold tabular-nums'
+            : 'absolute text-[10px] font-extrabold tabular-nums'
+        }
+        style={{ color: textColor }}
+      >
+        {score}
+      </span>
+    </span>
+  );
+}
+
 function PersonRow({ person, featured }: { person: HomepageHeroPerson; featured?: boolean }) {
   const lines = person.detail.split('\n').map((line) => line.trim()).filter(Boolean);
   return (
@@ -56,15 +110,11 @@ function PersonRow({ person, featured }: { person: HomepageHeroPerson; featured?
           }
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
+          <div className={featured ? 'flex items-start justify-between gap-2' : 'flex items-center justify-between gap-2'}>
             <p className={featured ? 'text-sm font-bold text-[#072348]' : 'truncate text-[13px] font-semibold text-[#072348]'}>
               {person.name}
             </p>
-            {person.score ? (
-              <p className={featured ? 'text-2xl font-bold leading-none text-emerald-500' : 'text-sm font-bold text-emerald-500'}>
-                {person.score}
-              </p>
-            ) : null}
+            {person.score ? <HeroScoreRing score={person.score} featured={featured} /> : null}
           </div>
           {lines.map((line) => (
             <p key={line} className="text-[12px] leading-4 text-slate-500">
@@ -103,18 +153,14 @@ function JobRow({ job, featured }: { job: HomepageHeroJob; featured?: boolean })
   );
   return (
     <div>
-      <div className="flex items-start gap-2.5">
+      <div className={featured ? 'flex items-start gap-2.5' : 'flex items-center gap-2.5'}>
         {icon}
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
+          <div className={featured ? 'flex items-start justify-between gap-2' : 'flex items-center justify-between gap-2'}>
             <p className={featured ? 'text-sm font-bold leading-5 text-[#072348]' : 'truncate text-[13px] font-semibold text-[#072348]'}>
               {job.title}
             </p>
-            {job.score ? (
-              <p className={featured ? 'text-2xl font-bold leading-none text-emerald-500' : 'shrink-0 text-sm font-bold text-emerald-500'}>
-                {job.score}
-              </p>
-            ) : null}
+            {job.score ? <HeroScoreRing score={job.score} featured={featured} /> : null}
           </div>
           {job.company ? <p className="text-[12px] text-slate-500">{job.company}</p> : null}
           {job.location ? (
