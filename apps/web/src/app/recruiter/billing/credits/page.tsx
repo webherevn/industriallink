@@ -55,7 +55,7 @@ function fmtCredit(n: number) {
 
 export default function RecruiterBillingCreditsPage() {
   const [page, setPage] = useState(0);
-  const LIMIT = 50;
+  const LIMIT = 10;
 
   const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = useQuery({
     queryKey: ['recruiter-credit-balance'],
@@ -270,7 +270,8 @@ export default function RecruiterBillingCreditsPage() {
                       ←
                     </button>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      const pg = Math.max(0, page - 2) + i;
+                      const start = Math.min(Math.max(0, page - 2), Math.max(0, totalPages - 5));
+                      const pg = start + i;
                       if (pg >= totalPages) return null;
                       return (
                         <button

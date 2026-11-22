@@ -86,6 +86,7 @@ function fmtVnd(raw: string) {
 }
 
 type HistoryTab = 'transactions' | 'usage' | 'orders';
+const HISTORY_PAGE_SIZE = 10;
 
 export function RecruiterBillingHub() {
   const searchParams = useSearchParams();
@@ -94,6 +95,7 @@ export function RecruiterBillingHub() {
   const [activeTab, setActiveTab] = useState<HistoryTab>('transactions');
   const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'in' | 'out'>('all');
   const [txDays, setTxDays] = useState<30 | 90 | 0>(30);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const { data: entitlements } = useQuery({
     queryKey: ['recruiter-billing-entitlements'],
@@ -565,7 +567,10 @@ export function RecruiterBillingHub() {
                 <button
                   key={t.key}
                   type="button"
-                  onClick={() => setActiveTab(t.key)}
+                  onClick={() => {
+                    setActiveTab(t.key);
+                    setHistoryPage(1);
+                  }}
                   className={clsx(
                     'shrink-0 border-b-2 px-3.5 pb-3 pt-1 text-xs font-semibold transition',
                     activeTab === t.key
@@ -582,7 +587,10 @@ export function RecruiterBillingHub() {
               {activeTab === 'transactions' && (
                 <select
                   value={txTypeFilter}
-                  onChange={(e) => setTxTypeFilter(e.target.value as 'all' | 'in' | 'out')}
+                  onChange={(e) => {
+                    setTxTypeFilter(e.target.value as 'all' | 'in' | 'out');
+                    setHistoryPage(1);
+                  }}
                   className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none"
                 >
                   <option value="all">Tất cả giao dịch</option>
@@ -592,7 +600,10 @@ export function RecruiterBillingHub() {
               )}
               <select
                 value={txDays}
-                onChange={(e) => setTxDays(Number(e.target.value) as 30 | 90 | 0)}
+                onChange={(e) => {
+                  setTxDays(Number(e.target.value) as 30 | 90 | 0);
+                  setHistoryPage(1);
+                }}
                 className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none"
               >
                 <option value={30}>30 ngày qua</option>
@@ -631,7 +642,14 @@ export function RecruiterBillingHub() {
                     </tr>
                   )}
                   {!loadingLedger &&
-                    filteredTx.map((tx) => {
+                    filteredTx
+                      .slice(
+                        (Math.min(historyPage, Math.max(1, Math.ceil(filteredTx.length / HISTORY_PAGE_SIZE))) - 1) *
+                          HISTORY_PAGE_SIZE,
+                        Math.min(historyPage, Math.max(1, Math.ceil(filteredTx.length / HISTORY_PAGE_SIZE))) *
+                          HISTORY_PAGE_SIZE,
+                      )
+                      .map((tx) => {
                       const isPositive = tx.creditDelta > 0;
                       return (
                         <tr key={tx.id} className="hover:bg-slate-50/60">
@@ -701,7 +719,14 @@ export function RecruiterBillingHub() {
                     </tr>
                   )}
                   {!loadingOrders &&
-                    filteredOrders.map((ord) => (
+                    filteredOrders
+                      .slice(
+                        (Math.min(historyPage, Math.max(1, Math.ceil(filteredOrders.length / HISTORY_PAGE_SIZE))) - 1) *
+                          HISTORY_PAGE_SIZE,
+                        Math.min(historyPage, Math.max(1, Math.ceil(filteredOrders.length / HISTORY_PAGE_SIZE))) *
+                          HISTORY_PAGE_SIZE,
+                      )
+                      .map((ord) => (
                       <tr key={ord.id} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3 text-xs text-slate-500">
                           {fmtDateTime(ord.createdAt)}
@@ -747,6 +772,44 @@ export function RecruiterBillingHub() {
               </table>
             )}
           </div>
+
+          {(() => {
+            const totalItems = activeTab === 'orders' ? filteredOrders.length : filteredTx.length;
+            const totalPages = Math.max(1, Math.ceil(totalItems / HISTORY_PAGE_SIZE));
+            if (totalItems <= HISTORY_PAGE_SIZE) return null;
+            const currentPage = Math.min(historyPage, totalPages);
+            const fromIdx = (currentPage - 1) * HISTORY_PAGE_SIZE + 1;
+            const toIdx = Math.min(totalItems, currentPage * HISTORY_PAGE_SIZE);
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+                <span>
+                  Hiển thị <strong className="text-[#072348]">{fromIdx}–{toIdx}</strong> /{' '}
+                  <strong className="text-[#072348]">{totalItems}</strong> mục
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-[#072348] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    ‹ Trước
+                  </button>
+                  <span className="px-2 font-semibold text-[#072348]">
+                    Trang {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setHistoryPage((p) => Math.min(totalPages, p + 1))}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-[#072348] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    Sau ›
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </RecruiterShell>
