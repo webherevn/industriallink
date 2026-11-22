@@ -64,7 +64,7 @@ export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
       className="bg-[radial-gradient(ellipse_90%_80%_at_50%_0%,#ffffff_0%,rgba(255,255,255,0)_58%),linear-gradient(180deg,#f8fbfe_0%,#eef4fa_100%)] py-14 sm:py-16 lg:py-20"
       aria-labelledby="home-reasons-title"
     >
-      <div className="mx-auto max-w-[1120px] px-4 sm:px-6">
+      <div className="mx-auto max-w-[1240px] px-4 sm:px-6">
         <div className="home-reasons-head text-center">
           <h2
             id="home-reasons-title"
@@ -79,13 +79,13 @@ export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
             {reasons.subtitle}
           </p>
         </div>
-        <ul className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-12 lg:mt-14 lg:grid-cols-5 lg:gap-6">
+        <ul className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-12 lg:mt-14 lg:grid-cols-5 lg:gap-7">
           {items.map((item, index) => {
             const image = resolveCmsAssetUrl(item.imageUrl);
             return (
               <li
                 key={`${item.icon}-${index}`}
-                className="home-reasons-item mx-auto w-full max-w-[240px] text-center sm:max-w-none"
+                className="home-reasons-item mx-auto w-full max-w-[260px] text-center sm:max-w-none"
                 style={{ animationDelay: `${120 + index * 90}ms` }}
               >
                 <span
@@ -103,10 +103,10 @@ export function HomeReasons({ reasons }: { reasons: HomepageReasonsContent }) {
                     </span>
                   )}
                 </span>
-                <h3 className="mx-auto mt-5 max-w-[11.5rem] text-balance text-[15px] font-bold leading-snug text-[#12315c]">
+                <h3 className="mx-auto mt-5 max-w-[13rem] text-balance text-[15px] font-bold leading-snug text-[#12315c]">
                   {item.title}
                 </h3>
-                <p className="mx-auto mt-2 max-w-[13.5rem] text-balance text-[13px] leading-relaxed text-[#7d8b9a]">
+                <p className="mx-auto mt-2 max-w-[15rem] text-balance text-[13px] leading-relaxed text-[#7d8b9a]">
                   {item.description}
                 </p>
               </li>

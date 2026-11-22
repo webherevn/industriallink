@@ -90,7 +90,7 @@ export function HomeAudience({ audience }: { audience: HomepageAudienceContent }
   const photo = resolveCmsAssetUrl(audience.imageUrl);
   return (
     <section className="bg-[#f4f8fc] px-4 py-14 sm:px-6 sm:py-16 lg:py-20" aria-labelledby="home-audience-title">
-      <div className="mx-auto grid max-w-[1120px] items-center gap-10 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-8">
+      <div className="mx-auto grid max-w-[1240px] items-center gap-10 lg:grid-cols-[minmax(0,0.76fr)_minmax(0,1.24fr)] lg:gap-6">
         <div className="home-reasons-head">
           <h2 id="home-audience-title" className="text-[1.85rem] font-extrabold leading-tight tracking-tight text-[#0c2f57] sm:text-[2.2rem]">
             <span className="block">{audience.kicker}</span>
@@ -112,21 +112,25 @@ export function HomeAudience({ audience }: { audience: HomepageAudienceContent }
           </ul>
         </div>
 
-        <div className="home-reasons-item relative mx-auto w-full max-w-[560px] lg:max-w-none" style={{ animationDelay: '120ms' }}>
-          <div className="group overflow-hidden rounded-[28px] bg-[#e7f1fa] lg:ml-10 lg:h-[500px]">
+        <div className="home-reasons-item relative mx-auto w-full max-w-[640px] lg:max-w-none" style={{ animationDelay: '120ms' }}>
+          <div className="group relative overflow-hidden rounded-[28px] bg-[#e7f1fa] lg:h-[480px]">
             {photo ? (
               <img
                 src={photo}
                 alt=""
-                className="h-72 w-full object-cover object-[center_18%] transition-transform duration-700 group-hover:scale-[1.03] sm:h-96 lg:h-full"
+                className="h-72 w-full object-cover object-[22%_18%] transition-transform duration-700 group-hover:scale-[1.03] sm:h-96 lg:h-full"
               />
             ) : (
               <div className="h-72 transition-transform duration-700 group-hover:scale-[1.02] sm:h-96 lg:h-full">
                 <PortraitFallback />
               </div>
             )}
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 hidden w-20 bg-gradient-to-r from-[#f4f8fc] via-[#f4f8fc]/45 to-transparent lg:block"
+              aria-hidden
+            />
           </div>
-          <aside className="home-audience-card relative z-10 -mt-16 ml-auto mr-3 w-[min(100%-1.5rem,320px)] rounded-[22px] bg-white p-4 shadow-[0_18px_40px_-24px_rgba(18,49,92,0.55)] sm:mr-0 sm:p-5 lg:absolute lg:right-0 lg:top-8 lg:mt-0 lg:w-[300px]">
+          <aside className="home-audience-card relative z-10 -mt-16 ml-auto mr-3 w-[min(100%-1.5rem,320px)] rounded-[22px] bg-white p-4 shadow-[0_18px_40px_-24px_rgba(18,49,92,0.55)] sm:mr-0 sm:p-5 lg:absolute lg:right-4 lg:top-10 lg:mt-0 lg:w-[292px]">
             <p className="text-[13px] font-semibold text-[#7d8b9a]">{audience.cardTitle}</p>
             <ul className="mt-3 divide-y divide-[#eef2f6]">
               {audience.jobs.map((job, index) => {

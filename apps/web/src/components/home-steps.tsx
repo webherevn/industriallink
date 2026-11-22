@@ -59,7 +59,7 @@ export function HomeSteps({ steps }: { steps: HomepageStepsContent }) {
       className="bg-[linear-gradient(180deg,#f7fbfe_0%,#ffffff_40%,#f4f8fc_100%)] py-14 sm:py-16 lg:py-20"
       aria-labelledby="home-steps-title"
     >
-      <div className="mx-auto max-w-[1080px] px-4 sm:px-6">
+      <div className="mx-auto max-w-[1240px] px-4 sm:px-6">
         <div className="home-reasons-head text-center">
           <h2
             id="home-steps-title"
@@ -72,17 +72,17 @@ export function HomeSteps({ steps }: { steps: HomepageStepsContent }) {
           </span>
           <p className="mx-auto mt-3 max-w-2xl text-[15px] text-[#5c6b7d] sm:text-base">{steps.subtitle}</p>
         </div>
-        <ol className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-12 lg:mt-14 lg:grid-cols-4 lg:gap-6">
+        <ol className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-12 lg:mt-14 lg:grid-cols-4 lg:gap-8">
           {items.map((item, index) => {
             const image = resolveCmsAssetUrl(item.imageUrl);
             return (
               <li
                 key={`${item.icon}-${index}`}
-                className="home-reasons-item relative mx-auto w-full max-w-[240px] text-center sm:max-w-none"
+                className="home-reasons-item relative mx-auto w-full max-w-[260px] text-center sm:max-w-none"
                 style={{ animationDelay: `${140 + index * 110}ms` }}
               >
                 {index < items.length - 1 ? (
-                  <span className="pointer-events-none absolute left-[calc(100%+2px)] top-11 hidden -translate-y-1/2 lg:block" aria-hidden>
+                  <span className="pointer-events-none absolute left-[calc(100%-2px)] top-11 hidden -translate-y-1/2 lg:block" aria-hidden>
                     <StepArrow />
                   </span>
                 ) : null}
@@ -109,10 +109,10 @@ export function HomeSteps({ steps }: { steps: HomepageStepsContent }) {
                     {index + 1}
                   </span>
                 </span>
-                <h3 className="mx-auto mt-5 max-w-[12rem] text-balance text-[15px] font-bold leading-snug text-[#12315c]">
+                <h3 className="mx-auto mt-5 max-w-[14rem] text-balance text-[15px] font-bold leading-snug text-[#12315c]">
                   {item.title}
                 </h3>
-                <p className="mx-auto mt-2 max-w-[15rem] text-balance text-[13px] leading-relaxed text-[#7d8b9a]">
+                <p className="mx-auto mt-2 max-w-[16.5rem] text-balance text-[13px] leading-relaxed text-[#7d8b9a]">
                   {item.description}
                 </p>
                 {index < items.length - 1 ? (
