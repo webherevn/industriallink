@@ -229,37 +229,39 @@ export default function RecruiterInboxPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-600">
-            <span className="h-4 w-1 rounded-full bg-accent-500" />
-            Tuyển dụng
-          </p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-800">
-            Hộp thư ứng viên
-          </h1>
-          <p className="mt-1 max-w-xl text-sm text-slate-500">
-            Theo dõi và xử lý toàn bộ hồ sơ ứng tuyển — ưu tiên điểm phù hợp AI cao.
-          </p>
+      <header className="brand-hero-surface relative overflow-hidden rounded-3xl px-5 py-6 sm:px-7">
+        <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#E8872A] via-amber-200 to-transparent" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+              Tuyển dụng
+            </p>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Hộp thư ứng viên
+            </h1>
+            <p className="mt-1.5 max-w-xl text-sm text-white/80">
+              Theo dõi và xử lý toàn bộ hồ sơ ứng tuyển — ưu tiên điểm phù hợp AI cao.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            <button
+              type="button"
+              onClick={goToBulkEmail}
+              className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-white/25 transition duration-200 hover:bg-white/25"
+            >
+              <Mail className="h-4 w-4" />
+              Gửi email hàng loạt
+            </button>
+            <Link
+              href="/search"
+              className="inline-flex items-center gap-2 rounded-full bg-[#E8872A] px-4 py-2.5 text-sm font-bold text-white shadow-md transition duration-200 hover:bg-[#d6761b]"
+            >
+              <Sparkles className="h-4 w-4" />
+              Tìm ứng viên AI
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={goToBulkEmail}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-sm transition duration-200 hover:border-brand-200 hover:bg-brand-50"
-          >
-            <Mail className="h-4 w-4" />
-            Gửi email hàng loạt
-          </button>
-          <Link
-            href="/search"
-            className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-brand-700"
-          >
-            <Sparkles className="h-4 w-4" />
-            Tìm ứng viên AI
-          </Link>
-        </div>
-      </div>
+      </header>
 
       {/* Thanh lọc: tìm kiếm + vị trí + nguồn + dải trạng thái */}
       <div className="mt-5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(7,35,72,0.04)] sm:p-4">
@@ -447,18 +449,18 @@ export default function RecruiterInboxPage() {
         )}
 
         {!isLoading && filtered.length > 0 && (
-          <div className="flex items-center gap-2.5 px-1">
+          <label className="inline-flex cursor-pointer items-center gap-3.5 px-[17px] py-1 sm:px-[21px]">
             <input
               type="checkbox"
               aria-label="Chọn tất cả"
               checked={allVisibleChecked}
               onChange={(e) => toggleAll(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 accent-[#0B468C]"
             />
             <span className="text-[13px] font-medium text-slate-500">
               Chọn tất cả ({visibleIds.length})
             </span>
-          </div>
+          </label>
         )}
 
         {filtered.map((a) => (
@@ -555,13 +557,13 @@ function ApplicantRow({
       )}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3.5">
+        <div className="flex min-w-0 items-center gap-3.5">
           <input
             type="checkbox"
             aria-label={`Chọn ${a.displayName}`}
             checked={checked}
             onChange={onToggle}
-            className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 accent-[#0B468C]"
           />
 
           <ScoreRing score={a.matchScore} />

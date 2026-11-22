@@ -18,9 +18,10 @@ import { saveHomepageSolutionsAdmin, uploadCmsMedia } from '@/lib/admin-cms';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
 const ICON_LABEL: Record<HomepageSolutionIcon, string> = {
-  document: 'Tài liệu',
-  target: 'Mục tiêu',
-  building: 'Tòa nhà',
+  document: 'Tài liệu (Tin đăng)',
+  target: 'Mục tiêu (Tin săn)',
+  coins: 'Credit / Top-up',
+  building: 'Tòa nhà (Doanh nghiệp)',
 };
 
 export function AdminHomepageSolutionsForm({ initial }: { initial: HomepageSolutionsContent | null }) {

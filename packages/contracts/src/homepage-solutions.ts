@@ -1,6 +1,6 @@
 /** Khối «Giải pháp dành cho doanh nghiệp» trên trang chủ. */
 
-export const HOMEPAGE_SOLUTION_ICONS = ['document', 'target', 'building'] as const;
+export const HOMEPAGE_SOLUTION_ICONS = ['document', 'target', 'coins', 'building'] as const;
 export type HomepageSolutionIcon = (typeof HOMEPAGE_SOLUTION_ICONS)[number];
 
 export interface HomepageSolutionItem {
@@ -44,12 +44,16 @@ export const DEFAULT_HOMEPAGE_SOLUTIONS: HomepageSolutionsContent = {
       href: 'https://tuyendung.inlink.vn/bang-gia#tinsan',
     },
     {
-      title: 'Gói doanh nghiệp',
-      description: 'Dành cho doanh nghiệp tuyển dụng thường xuyên, nhiều vị trí.',
-      points: ['Quản lý nhiều tin tuyển dụng', 'Sử dụng Matching theo hạn mức', 'Dịch vụ hỗ trợ chuyên sâu (tùy gói)'],
-      icon: 'building',
+      title: 'Top-up Credit',
+      description: 'Mua thêm lượt mở hồ sơ ứng viên tiềm năng linh hoạt bất cứ lúc nào.',
+      points: [
+        'Credit có hiệu lực vô thời hạn, không lo hết hạn',
+        'Bảo lưu số dư ngay cả khi gói đăng tin kết thúc',
+        'Chiết khấu theo mức nạp, hỗ trợ xuất hoá đơn VAT',
+      ],
+      icon: 'coins',
       imageUrl: '',
-      href: 'https://tuyendung.inlink.vn/bang-gia#doanhnghiep',
+      href: 'https://tuyendung.inlink.vn/bang-gia#credit',
     },
   ],
 };
@@ -84,13 +88,23 @@ function iconOf(value: unknown, fallback: HomepageSolutionIcon): HomepageSolutio
   return (HOMEPAGE_SOLUTION_ICONS as readonly string[]).includes(raw) ? (raw as HomepageSolutionIcon) : fallback;
 }
 
-function itemOf(value: unknown, fallback: HomepageSolutionItem): HomepageSolutionItem {
+function itemOf(value: unknown, fallback: HomepageSolutionItem, index: number): HomepageSolutionItem {
   const row = value && typeof value === 'object' ? (value as Partial<HomepageSolutionItem>) : {};
+  const rawTitle = clip(row.title, 80);
+  const rawHref = clip(row.href, 300);
+  // Chuyển đổi tự động dữ liệu mặc định cũ "Gói doanh nghiệp" (#doanhnghiep) ở thẻ 3 sang Top-up Credit (#credit).
+  if (
+    index === 2 &&
+    rawTitle.toLowerCase() === 'gói doanh nghiệp' &&
+    (!rawHref || /\/bang-gia(#doanhnghiep)?\/?$/i.test(rawHref))
+  ) {
+    return { ...fallback, points: [...fallback.points] as [string, string, string] };
+  }
   const source = Array.isArray(row.points) ? row.points : [];
   return {
-    title: clip(row.title, 80),
+    title: rawTitle,
     description: clip(row.description, 240),
-    points: [0, 1, 2].map((index) => clip(source[index], 120) || fallback.points[index]) as [string, string, string],
+    points: [0, 1, 2].map((idx) => clip(source[idx], 120) || fallback.points[idx]) as [string, string, string],
     icon: iconOf(row.icon, fallback.icon),
     imageUrl: assetUrl(row.imageUrl),
     href: pageUrl(row.href, fallback.href),
@@ -115,7 +129,7 @@ export function normalizeHomepageSolutions(input: unknown): HomepageSolutionsCon
     titleAccent: clip(row.titleAccent, 40),
     subtitle: clip(row.subtitle, 280) || base.subtitle,
     items: base.items.map((fallback, index) =>
-      source[index] == null ? { ...fallback, points: [...fallback.points] as [string, string, string] } : itemOf(source[index], fallback),
+      source[index] == null ? { ...fallback, points: [...fallback.points] as [string, string, string] } : itemOf(source[index], fallback, index),
     ),
   };
 }

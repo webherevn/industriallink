@@ -2,7 +2,7 @@ import type { HomepageSolutionIcon, HomepageSolutionItem, HomepageSolutionsConte
 import Link from 'next/link';
 import { resolveCmsAssetUrl } from '@/lib/cms-assets';
 
-const DEFAULT_ANCHOR_BY_INDEX = ['#nentang', '#tinsan', '#doanhnghiep'] as const;
+const DEFAULT_ANCHOR_BY_INDEX = ['#nentang', '#tinsan', '#credit'] as const;
 
 function resolveSolutionHref(item: HomepageSolutionItem, index: number): string {
   const raw = (item.href ?? '').trim();
@@ -10,8 +10,8 @@ function resolveSolutionHref(item: HomepageSolutionItem, index: number): string 
   const fallbackHash =
     titleLower.includes('săn') || item.icon === 'target'
       ? '#tinsan'
-      : titleLower.includes('doanh nghiệp') || item.icon === 'building'
-        ? '#doanhnghiep'
+      : titleLower.includes('credit') || titleLower.includes('top-up') || titleLower.includes('topup') || item.icon === 'coins'
+        ? '#credit'
         : DEFAULT_ANCHOR_BY_INDEX[index] ?? '#nentang';
 
   if (!raw || /^(https?:\/\/[^/]+)?\/bang-gia\/?$/i.test(raw)) {
@@ -37,6 +37,16 @@ function SolutionGlyph({ icon }: { icon: HomepageSolutionIcon }) {
         <circle {...stroke} cx="24" cy="24" r="12" />
         <circle {...stroke} cx="24" cy="24" r="6.5" />
         <circle cx="24" cy="24" r="2.2" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  if (icon === 'coins') {
+    return (
+      <svg viewBox="0 0 48 48" className="h-8 w-8" aria-hidden>
+        <ellipse {...stroke} cx="21" cy="18" rx="9" ry="4.5" />
+        <path {...stroke} d="M12 18v12c0 2.5 4 4.5 9 4.5s9-2 9-4.5V18" />
+        <path {...stroke} d="M12 24c0 2.5 4 4.5 9 4.5s9-2 9-4.5" />
+        <path {...stroke} d="M30 21.5c3.5.7 6 2.2 6 4v7.5c0 2.2-3.4 4-7.5 4.2" />
       </svg>
     );
   }
