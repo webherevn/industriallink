@@ -10,12 +10,20 @@ export interface CompanyVerificationView {
   requestedAt: string | null;
   askVerified: boolean;
   askTrusted: boolean;
+  taxCode?: string | null;
+  hasLicenseDoc?: boolean;
+  licenseDocName?: string | null;
+  licenseDocMime?: string | null;
+  licenseDocSize?: number | null;
+  licenseUploadedAt?: string | null;
 }
 
 export interface SubmitCompanyVerificationRequest {
   note: string;
   askVerified?: boolean;
   askTrusted?: boolean;
+  /** Cho phép nhập/cập nhật MST trực tiếp khi gửi đơn xác minh. */
+  taxCode?: string;
 }
 
 export interface AdminVerificationQueueItem {
@@ -23,6 +31,7 @@ export interface AdminVerificationQueueItem {
   companyCode: string;
   companyName: string;
   companyStatus: string;
+  taxCode?: string | null;
   verified: boolean;
   trustedEmployer: boolean;
   requestStatus: Exclude<CompanyVerificationStatus, 'none'>;
@@ -32,6 +41,9 @@ export interface AdminVerificationQueueItem {
   requestedByEmail: string | null;
   askVerified: boolean;
   askTrusted: boolean;
+  hasLicenseDoc?: boolean;
+  licenseDocName?: string | null;
+  licenseDocMime?: string | null;
 }
 
 export interface ReviewCompanyVerificationRequest {

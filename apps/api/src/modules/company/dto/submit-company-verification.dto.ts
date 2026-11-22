@@ -17,4 +17,10 @@ export class SubmitCompanyVerificationDto {
   @IsOptional()
   @IsBoolean()
   askTrusted?: boolean;
+
+  @ApiPropertyOptional({ description: 'Mã số thuế doanh nghiệp (10 số hoặc 10 số-3 số)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  taxCode?: string;
 }

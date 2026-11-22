@@ -3,15 +3,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
+  AlertCircle,
   Building2,
   Camera,
   CheckCircle2,
   Circle,
   ExternalLink,
+  FileText,
   Globe,
   ImagePlus,
   Info,
   Loader2,
+  Lock,
   Mail,
   MapPin,
   Pencil,
@@ -21,6 +24,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Upload,
   UserPlus,
   Users,
   X,
@@ -44,6 +48,7 @@ import {
   companyMediaUrl,
   createCompany,
   deleteCompanyCulture,
+  fetchMyCompanyLicenseObjectUrl,
   fetchMyCompanyLogoObjectUrl,
   getMyCompany,
   getMyCompanyVerification,
@@ -56,6 +61,7 @@ import {
   uploadCompanyBanner,
   uploadCompanyCulture,
   uploadCompanyLogo,
+  uploadCompanyVerificationLicense,
 } from '@/lib/company';
 
 const SIZE_LABEL: Record<CompanySize, string> = {
@@ -616,13 +622,25 @@ export default function CompanyPage() {
                     />
                   </Field>
 
-                  <Field label="Mã số thuế">
+                  <Field
+                    label={
+                      company.brand?.verified
+                        ? 'Mã số thuế (đã khóa sau khi xác thực)'
+                        : 'Mã số thuế'
+                    }
+                  >
                     <Input
                       value={form.taxCode}
-                      disabled={!isAdmin}
+                      disabled={!isAdmin || Boolean(company.brand?.verified)}
                       onChange={(e) => setForm({ ...form, taxCode: e.target.value })}
-                      placeholder="0101234567"
+                      placeholder="0101234567 hoặc 0101234567-001"
                     />
+                    {company.brand?.verified ? (
+                      <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+                        <Lock className="h-3 w-3 shrink-0 text-emerald-600" />
+                        <span>Đã xác thực — liên hệ CSKH inLink nếu cần điều chỉnh MST.</span>
+                      </p>
+                    ) : null}
                   </Field>
 
                   <Field label="Năm thành lập">
@@ -1279,96 +1297,400 @@ function MembersCard({ isAdmin }: { isAdmin: boolean }) {
 function CompanyVerificationCard() {
   const qc = useQueryClient();
   const [note, setNote] = useState('');
+  const [taxCodeInput, setTaxCodeInput] = useState('');
+  const [taxCodeTouched, setTaxCodeTouched] = useState(false);
   const [askVerified, setAskVerified] = useState(true);
   const [askTrusted, setAskTrusted] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [openingDoc, setOpeningDoc] = useState(false);
+  const licenseInputRef = useRef<HTMLInputElement>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['my-company-verification'],
     queryFn: getMyCompanyVerification,
+    retry: 1,
   });
 
-  const submit = useMutation({
-    mutationFn: () => submitCompanyVerification({ note: note.trim(), askVerified, askTrusted }),
+  useEffect(() => {
+    if (data && !taxCodeTouched) {
+      setTaxCodeInput(data.taxCode ?? '');
+    }
+  }, [data, taxCodeTouched]);
+
+  const uploadLicense = useMutation({
+    mutationFn: (file: File) => uploadCompanyVerificationLicense(file),
     onSuccess: async () => {
-      setMessage('Đã gửi. SuperAdmin sẽ xét đơn.');
-      setNote('');
+      setMessage({
+        tone: 'ok',
+        text: 'Đã tải Giấy phép ĐKKD thành công (ảnh đã tự động tối ưu WebP và lưu riêng tư).',
+      });
       await qc.invalidateQueries({ queryKey: ['my-company-verification'] });
     },
     onError: (err) => {
-      setMessage(err instanceof ApiError ? err.message : 'Không gửi được đơn');
+      setMessage({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không tải được Giấy phép ĐKKD.',
+      });
     },
   });
 
-  if (isLoading || !data) return null;
+  const submit = useMutation({
+    mutationFn: () =>
+      submitCompanyVerification({
+        note: note.trim(),
+        askVerified,
+        askTrusted,
+        ...(!data?.verified ? { taxCode: taxCodeInput.trim() } : {}),
+      }),
+    onSuccess: async () => {
+      setMessage({
+        tone: 'ok',
+        text: 'Đã gửi hồ sơ xác minh. SuperAdmin sẽ đối chiếu MST & Giấy phép ĐKKD và phản hồi sớm.',
+      });
+      setNote('');
+      await qc.invalidateQueries({ queryKey: ['my-company-verification'] });
+      await qc.invalidateQueries({ queryKey: ['my-company'] });
+    },
+    onError: (err) => {
+      setMessage({
+        tone: 'err',
+        text: err instanceof ApiError ? err.message : 'Không gửi được đơn xác minh.',
+      });
+    },
+  });
+
+  async function onPreviewLicense() {
+    setOpeningDoc(true);
+    setMessage(null);
+    try {
+      const url = await fetchMyCompanyLicenseObjectUrl();
+      if (!url) {
+        setMessage({ tone: 'err', text: 'Không mở được tài liệu Giấy phép ĐKKD.' });
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      setMessage({ tone: 'err', text: 'Không mở được tài liệu Giấy phép ĐKKD.' });
+    } finally {
+      setOpeningDoc(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="space-y-3 border-slate-200/80">
+        <div className="h-5 w-48 animate-pulse rounded bg-slate-200" />
+        <div className="h-20 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-28 animate-pulse rounded-xl bg-slate-100" />
+      </Card>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <Card className="space-y-3 border-rose-200 bg-rose-50/50">
+        <div className="flex items-start gap-2.5 text-rose-800">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <h2 className="text-sm font-bold">Không tải được trạng thái xác minh doanh nghiệp</h2>
+            <p className="mt-1 text-xs text-rose-700">
+              {error instanceof ApiError
+                ? error.message
+                : 'Vui lòng kiểm tra kết nối và thử tải lại.'}
+            </p>
+          </div>
+        </div>
+        <Button type="button" variant="outline" onClick={() => void refetch()}>
+          Thử tải lại
+        </Button>
+      </Card>
+    );
+  }
 
   const pending = data.status === 'pending';
   const canAskVerified = !data.verified;
   const canAskTrusted = !data.trustedEmployer;
+  const effectiveTax = (data.verified ? data.taxCode : taxCodeInput.trim()) || '';
+  const hasValidTax = /^\d{10}(-\d{3})?$/.test(effectiveTax.replace(/\s+/g, ''));
+  const hasLicense = Boolean(data.hasLicenseDoc);
+  const licenseSizeLabel =
+    data.licenseDocSize != null
+      ? data.licenseDocSize >= 1024 * 1024
+        ? `${(data.licenseDocSize / (1024 * 1024)).toFixed(2)} MB`
+        : `${Math.max(1, Math.round(data.licenseDocSize / 1024))} KB`
+      : null;
 
   return (
-    <Card className="space-y-3 border-slate-200/80">
-      <h2 className="text-base font-bold text-[#072348]">Xác minh nhà tuyển dụng</h2>
-      <p className="text-sm text-slate-600">
-        Huy hiệu «Đã xác thực» và «Nhà tuyển dụng uy tín» do SuperAdmin cấp. Bạn gửi đơn, không tự bật được.
-      </p>
-      <p className="text-sm text-slate-700">
-        Hiện tại: {data.verified ? 'Đã xác thực' : 'Chưa xác thực'}
-        {data.trustedEmployer ? ' · Nhà tuyển dụng uy tín' : ''}
-      </p>
+    <Card className="space-y-5 border-slate-200/80">
+      {/* Header + Trạng thái hiện tại */}
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-bold text-[#072348]">
+            <ShieldCheck className="h-5 w-5 text-brand-600" />
+            <span>Xác minh doanh nghiệp</span>
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Xác minh bằng Mã số thuế duy nhất &amp; Giấy phép ĐKKD giúp bảo vệ thương hiệu công ty,
+            chống giả mạo và cấp huy hiệu «Đã xác thực» trên toàn sàn inLink.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={clsx(
+              'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset',
+              data.verified
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                : pending
+                  ? 'bg-amber-50 text-amber-800 ring-amber-200'
+                  : 'bg-slate-100 text-slate-600 ring-slate-200',
+            )}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {data.verified
+              ? 'Đã xác thực'
+              : pending
+                ? 'Đang chờ duyệt'
+                : 'Chưa xác thực'}
+          </span>
+          {data.trustedEmployer ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+              Nhà tuyển dụng uy tín
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Trạng thái đơn gần nhất */}
       {data.status !== 'none' && (
-        <p className="text-sm text-slate-600">
-          Đơn gần nhất:{' '}
-          {data.status === 'pending' ? 'đang chờ' : data.status === 'approved' ? 'đã duyệt' : 'bị từ chối'}
-          {data.reviewNote ? ` — ${data.reviewNote}` : ''}
-        </p>
+        <div
+          className={clsx(
+            'rounded-xl border px-3.5 py-3 text-xs leading-relaxed',
+            data.status === 'approved'
+              ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
+              : data.status === 'pending'
+                ? 'border-amber-200 bg-amber-50/70 text-amber-900'
+                : 'border-rose-200 bg-rose-50/70 text-rose-900',
+          )}
+        >
+          <p className="font-semibold">
+            Đơn xác minh gần nhất:{' '}
+            {data.status === 'pending'
+              ? 'Đang chờ SuperAdmin đối chiếu'
+              : data.status === 'approved'
+                ? 'Đã được phê duyệt'
+                : 'Bị từ chối — vui lòng cập nhật lại hồ sơ'}
+          </p>
+          {data.note ? <p className="mt-1 opacity-90">Nội dung đã gửi: {data.note}</p> : null}
+          {data.reviewNote ? (
+            <p className="mt-1 font-medium">Phản hồi từ SuperAdmin: {data.reviewNote}</p>
+          ) : null}
+        </div>
       )}
+
+      {/* Checklist 2 điều kiện cốt lõi: MST + GPKD */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Bước 1: Mã số thuế */}
+        <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-[#072348]">
+              1. Mã số thuế doanh nghiệp
+            </span>
+            {hasValidTax ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Hợp lệ
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium text-amber-700">Cần bổ sung</span>
+            )}
+          </div>
+          <Input
+            value={data.verified ? (data.taxCode ?? '') : taxCodeInput}
+            disabled={data.verified || pending}
+            onChange={(e) => {
+              setTaxCodeTouched(true);
+              setTaxCodeInput(e.target.value);
+            }}
+            placeholder="VD: 0101234567 hoặc 0101234567-001"
+          />
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            {data.verified ? (
+              <span className="inline-flex items-center gap-1 text-emerald-700">
+                <Lock className="h-3 w-3 shrink-0" />
+                MST đã được khóa cố định sau khi xác thực.
+              </span>
+            ) : (
+              'Mỗi MST chỉ gắn với 01 tài khoản doanh nghiệp duy nhất trên inLink (10 số hoặc 10 số-3 số cho chi nhánh).'
+            )}
+          </p>
+        </div>
+
+        {/* Bước 2: Giấy phép ĐKKD */}
+        <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-[#072348]">
+              2. Giấy chứng nhận ĐKKD
+            </span>
+            {hasLicense ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Đã tải lên
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium text-amber-700">Bắt buộc</span>
+            )}
+          </div>
+
+          <input
+            ref={licenseInputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setMessage(null);
+              uploadLicense.mutate(file);
+            }}
+          />
+
+          {hasLicense ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-brand-600" />
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-slate-800">
+                    {data.licenseDocName || 'Giấy phép ĐKKD'}
+                  </p>
+                  {licenseSizeLabel ? (
+                    <p className="text-[11px] text-slate-500">{licenseSizeLabel} · Lưu riêng tư</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={openingDoc}
+                  onClick={() => void onPreviewLicense()}
+                  className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 transition hover:bg-sky-100 disabled:opacity-50"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  <span>{openingDoc ? 'Đang mở…' : 'Xem'}</span>
+                </button>
+                {!pending ? (
+                  <button
+                    type="button"
+                    disabled={uploadLicense.isPending}
+                    onClick={() => licenseInputRef.current?.click()}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {uploadLicense.isPending ? 'Đang tải…' : 'Đổi tệp'}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={uploadLicense.isPending || pending}
+              onClick={() => licenseInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-semibold text-[#072348] transition hover:border-brand-400 hover:bg-sky-50/40 disabled:opacity-50"
+            >
+              {uploadLicense.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 text-brand-600" />
+              )}
+              <span>
+                {uploadLicense.isPending
+                  ? 'Đang nén & tải lên…'
+                  : 'Tải lên Giấy phép ĐKKD (JPG, PNG, WebP hoặc PDF)'}
+              </span>
+            </button>
+          )}
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            Ảnh tự động nén sang WebP siêu nhẹ. Tài liệu lưu riêng tư, chỉ quản trị công ty và
+            SuperAdmin đối chiếu khi duyệt.
+          </p>
+        </div>
+      </div>
+
+      {/* Form gửi đơn xác minh */}
       {pending ? (
-        <p className="text-sm text-amber-800">Đơn đang chờ xét: {data.note}</p>
+        <p className="text-xs font-medium text-amber-800">
+          Hồ sơ xác minh của bạn đang nằm trong hàng đợi xét duyệt của SuperAdmin.
+        </p>
       ) : canAskVerified || canAskTrusted ? (
-        <div className="space-y-2">
-          {canAskVerified && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                className="rounded border-slate-300 text-brand-600"
-                checked={askVerified}
-                onChange={(e) => setAskVerified(e.target.checked)}
-              />
-              Xin «Đã xác thực»
-            </label>
-          )}
-          {canAskTrusted && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                className="rounded border-slate-300 text-brand-600"
-                checked={askTrusted}
-                onChange={(e) => setAskTrusted(e.target.checked)}
-              />
-              Xin «Nhà tuyển dụng uy tín»
-            </label>
-          )}
+        <div className="space-y-3 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap gap-2">
+            {canAskVerified && (
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300 text-brand-600"
+                  checked={askVerified}
+                  onChange={(e) => setAskVerified(e.target.checked)}
+                />
+                Xin huy hiệu «Đã xác thực»
+              </label>
+            )}
+            {canAskTrusted && (
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300 text-brand-600"
+                  checked={askTrusted}
+                  onChange={(e) => setAskTrusted(e.target.checked)}
+                />
+                Xin huy hiệu «Nhà tuyển dụng uy tín»
+              </label>
+            )}
+          </div>
           <Textarea
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="MST, website, người liên hệ… (ít nhất 10 ký tự)"
+            placeholder="Thông tin đối chiếu thêm: website công ty, người liên hệ, chức vụ… (ít nhất 10 ký tự)"
           />
-          <Button
-            disabled={submit.isPending || note.trim().length < 10 || (!askVerified && !askTrusted)}
-            onClick={() => {
-              setMessage(null);
-              submit.mutate();
-            }}
-          >
-            {submit.isPending ? 'Đang gửi…' : 'Gửi đơn xác minh'}
-          </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] text-slate-500">
+              {askVerified && (!hasValidTax || !hasLicense)
+                ? 'Cần hoàn tất MST hợp lệ và tải lên Giấy phép ĐKKD trước khi gửi đơn.'
+                : 'Đơn sẽ được SuperAdmin kiểm tra và duyệt trong giờ làm việc.'}
+            </p>
+            <Button
+              disabled={
+                submit.isPending ||
+                note.trim().length < 10 ||
+                (!askVerified && !askTrusted) ||
+                (askVerified && (!hasValidTax || !hasLicense))
+              }
+              onClick={() => {
+                setMessage(null);
+                submit.mutate();
+              }}
+            >
+              {submit.isPending ? 'Đang gửi…' : 'Gửi đơn xác minh'}
+            </Button>
+          </div>
         </div>
       ) : (
-        <p className="text-sm text-emerald-700">Công ty đã có đủ huy hiệu.</p>
+        <p className="text-sm font-medium text-emerald-700">
+          Doanh nghiệp của bạn đã hoàn tất xác minh và có đầy đủ huy hiệu.
+        </p>
       )}
-      {message && <p className="text-sm text-slate-600">{message}</p>}
+
+      {message && (
+        <p
+          className={clsx(
+            'rounded-xl border px-3 py-2 text-xs font-medium',
+            message.tone === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-700',
+          )}
+        >
+          {message.text}
+        </p>
+      )}
     </Card>
   );
 }

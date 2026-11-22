@@ -154,6 +154,33 @@ export class CompanyController {
     return this.companies.submitVerification(user, dto, correlationId);
   }
 
+  @Post('me/verification/license')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 8 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Tải lên Giấy phép ĐKKD (ảnh tự nén WebP hoặc PDF, lưu riêng tư)' })
+  uploadVerificationLicense(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.companies.uploadVerificationLicense(user, file);
+  }
+
+  @Get('me/verification/license')
+  @ApiOperation({ summary: 'Xem Giấy phép ĐKKD của công ty (riêng tư, cần Bearer)' })
+  @Header('Cache-Control', 'private, no-store')
+  async getMyVerificationLicense(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StreamableFile> {
+    const doc = await this.companies.getMyVerificationLicenseBuffer(user);
+    if (!doc) {
+      throw new NotFoundException('Chưa có Giấy phép ĐKKD.');
+    }
+    return new StreamableFile(doc.buffer, {
+      type: doc.mime,
+      disposition: 'inline',
+    });
+  }
+
   @Get('me/members')
   @ApiOperation({ summary: 'Danh sách thành viên công ty của tôi' })
   listMembers(@CurrentUser() user: AuthenticatedUser) {

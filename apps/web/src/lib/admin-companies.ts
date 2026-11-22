@@ -6,7 +6,7 @@ import type {
   ReviewCompanyVerificationRequest,
   UpdateAdminCompanyRequest,
 } from '@industriallink/contracts';
-import { apiRequest, asArray, withItems } from './api';
+import { apiRequest, asArray, getApiBase, tokenStore, withItems } from './api';
 
 export async function fetchAdminCompanies(
   params: AdminCompanyListQuery = {},
@@ -47,4 +47,18 @@ export async function updateAdminCompany(
   body: UpdateAdminCompanyRequest,
 ): Promise<AdminCompanyDetail> {
   return apiRequest<AdminCompanyDetail>(`/admin/companies/${id}`, { method: 'PATCH', body });
+}
+
+/** SuperAdmin tải file Giấy phép ĐKKD riêng tư (Bearer) → blob URL. */
+export async function fetchAdminCompanyLicenseObjectUrl(
+  companyId: string,
+): Promise<string | null> {
+  const token = tokenStore.get();
+  if (!token) return null;
+  const res = await fetch(`${getApiBase()}/admin/companies/${companyId}/verification/license`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }

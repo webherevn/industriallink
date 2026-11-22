@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CompanyStatus, UserRole } from '@industriallink/contracts';
 import { CorrelationId } from '../../shared/common/correlation-id.decorator';
@@ -59,6 +71,20 @@ export class AdminCompaniesController {
     @CorrelationId() correlationId: string,
   ) {
     return this.adminCompanies.reviewVerification(user, id, dto, correlationId);
+  }
+
+  @Get(':id/verification/license')
+  @ApiOperation({ summary: 'Xem Giấy phép ĐKKD riêng tư của doanh nghiệp (SuperAdmin)' })
+  @Header('Cache-Control', 'private, no-store')
+  async getVerificationLicense(@Param('id') id: string): Promise<StreamableFile> {
+    const doc = await this.adminCompanies.getVerificationLicenseBuffer(id);
+    if (!doc) {
+      throw new NotFoundException('Doanh nghiệp chưa tải lên Giấy phép ĐKKD.');
+    }
+    return new StreamableFile(doc.buffer, {
+      type: doc.mime,
+      disposition: 'inline',
+    });
   }
 
   @Get(':id')

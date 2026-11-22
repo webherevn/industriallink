@@ -132,3 +132,28 @@ export async function inviteCompanyMember(
 export async function removeCompanyMember(memberId: string): Promise<{ message: string }> {
   return apiRequest(`/companies/me/members/${memberId}`, { method: 'DELETE' });
 }
+
+/** Tải lên Giấy phép ĐKKD (ảnh tự nén WebP ở server hoặc PDF, lưu riêng tư). */
+export async function uploadCompanyVerificationLicense(
+  file: File,
+): Promise<CompanyVerificationView> {
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest('/companies/me/verification/license', {
+    method: 'POST',
+    body: form,
+    isForm: true,
+  });
+}
+
+/** Tải file Giấy phép ĐKKD riêng tư (Bearer) → blob URL để xem trước. */
+export async function fetchMyCompanyLicenseObjectUrl(): Promise<string | null> {
+  const token = tokenStore.get();
+  if (!token) return null;
+  const res = await fetch(`${getApiBase()}/companies/me/verification/license`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}

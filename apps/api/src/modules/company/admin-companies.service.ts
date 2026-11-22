@@ -16,6 +16,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { AuditService } from '../../shared/infrastructure/audit.service';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
+import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { readBrandJson, type BrandJson, type VerificationRequestStored } from './company-verification';
@@ -45,6 +46,7 @@ export class AdminCompaniesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly indexing: GoogleIndexingService,
+    private readonly storage: StorageService,
   ) {}
 
   async list(query: AdminCompanyListQuery = {}): Promise<AdminCompanyListPage> {
@@ -216,7 +218,15 @@ export class AdminCompaniesService {
           profile: { path: ['verificationRequest', 'status'], equals: value },
         })),
       },
-      select: { id: true, code: true, name: true, status: true, profile: true, updatedAt: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        taxCode: true,
+        status: true,
+        profile: true,
+        updatedAt: true,
+      },
       orderBy: { updatedAt: 'desc' },
       take: 200,
     });
@@ -240,6 +250,7 @@ export class AdminCompaniesService {
           companyCode: row.code,
           companyName: row.name,
           companyStatus: row.status,
+          taxCode: row.taxCode ?? null,
           verified: Boolean(brand.verified),
           trustedEmployer: Boolean(brand.trustedEmployer),
           requestStatus: req.status,
@@ -249,9 +260,31 @@ export class AdminCompaniesService {
           requestedByEmail: emailById.get(req.requestedBy) ?? null,
           askVerified: req.askVerified,
           askTrusted: req.askTrusted,
+          hasLicenseDoc: Boolean(brand.licenseDoc?.storageKey),
+          licenseDocName: brand.licenseDoc?.fileName ?? null,
+          licenseDocMime: brand.licenseDoc?.mime ?? null,
         },
       ];
     });
+  }
+
+  /** SuperAdmin xem Giấy phép ĐKKD riêng tư của công ty đang xác minh. */
+  async getVerificationLicenseBuffer(
+    companyId: string,
+  ): Promise<{ buffer: Buffer; mime: string; fileName: string } | null> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, isDeleted: false },
+      select: { profile: true },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+    const doc = readBrandJson(company.profile).licenseDoc;
+    if (!doc?.storageKey) return null;
+    try {
+      const buffer = await this.storage.getObject(doc.storageKey);
+      return { buffer, mime: doc.mime, fileName: doc.fileName };
+    } catch {
+      return null;
+    }
   }
 
   async reviewVerification(

@@ -37,7 +37,15 @@ import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service
 import { StorageService } from '../../shared/infrastructure/storage/storage.service';
 import { compressUploadedImage } from '../../shared/media/optimize-image';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
-import { readBrandJson, toPublicBrand, type BrandJson, type CultureStoredItem, type VerificationRequestStored } from './company-verification';
+import {
+  normalizeAndValidateTaxCode,
+  readBrandJson,
+  toPublicBrand,
+  type BrandJson,
+  type CultureStoredItem,
+  type VerificationLicenseStored,
+  type VerificationRequestStored,
+} from './company-verification';
 import type { CreateCompanyDto } from './dto/create-company.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
 import type { UpdateCompanyBrandDto } from './dto/update-company-brand.dto';
@@ -61,6 +69,7 @@ type BrandProfileStored = CompanyBrandProfile & {
   logoStorageKey?: string | null;
   logoMime?: string | null;
   verificationRequest?: VerificationRequestStored | null;
+  licenseDoc?: VerificationLicenseStored | null;
 };
 
 @Injectable()
@@ -87,6 +96,11 @@ export class CompanyService {
       throw new BadRequestException('Bạn đã thuộc một công ty, không thể tạo thêm');
     }
 
+    const normalizedTaxCode = normalizeAndValidateTaxCode(dto.taxCode);
+    if (normalizedTaxCode) {
+      await this.assertUniqueTaxCode(normalizedTaxCode);
+    }
+
     const code = await this.codeGen.next('COM');
     const slug = await allocateUniqueCompanySlug(this.prisma, dto.name);
     const company = await this.prisma.company.create({
@@ -95,7 +109,7 @@ export class CompanyService {
         slug,
         tenantId: user.tenantId,
         name: dto.name,
-        taxCode: dto.taxCode ?? null,
+        taxCode: normalizedTaxCode,
         industry: normalizeIndustry(dto.industry) ?? dto.industry ?? null,
         size: dto.size ?? null,
         address: dto.address ?? null,
@@ -242,11 +256,24 @@ export class CompanyService {
     this.requireAdmin(membership.roleInCompany as CompanyRole);
 
     const before = await this.prisma.company.findUnique({ where: { id: membership.companyId } });
+    const beforeBrand = readBrandJson(before?.profile);
+    const normalizedTaxCode = normalizeAndValidateTaxCode(dto.taxCode);
+    if (
+      beforeBrand.verified &&
+      normalizedTaxCode !== (before?.taxCode ?? null)
+    ) {
+      throw new BadRequestException(
+        'Công ty đã xác thực không thể tự thay đổi Mã số thuế. Vui lòng liên hệ CSKH inLink nếu cần điều chỉnh.',
+      );
+    }
+    if (normalizedTaxCode) {
+      await this.assertUniqueTaxCode(normalizedTaxCode, membership.companyId);
+    }
     const updated = await this.prisma.company.update({
       where: { id: membership.companyId },
       data: {
         name: dto.name,
-        taxCode: dto.taxCode ?? null,
+        taxCode: normalizedTaxCode,
         industry: normalizeIndustry(dto.industry) ?? dto.industry ?? null,
         size: dto.size ?? null,
         address: dto.address ?? null,
@@ -277,10 +304,105 @@ export class CompanyService {
     const membership = await this.requireMembership(user.id);
     const company = await this.prisma.company.findFirst({
       where: { id: membership.companyId, isDeleted: false },
-      select: { profile: true },
+      select: { profile: true, taxCode: true },
     });
     if (!company) throw new NotFoundException('Không tìm thấy công ty');
-    return this.toVerificationView(readBrandJson(company.profile));
+    return this.toVerificationView(readBrandJson(company.profile), company.taxCode);
+  }
+
+  /**
+   * Tải lên Giấy phép ĐKKD / tài liệu xác minh doanh nghiệp (lưu riêng tư).
+   * Ảnh (JPEG/PNG/WebP) tự động nén sang WebP tối đa 1800px để nhẹ nhưng vẫn đọc rõ chữ pháp lý.
+   */
+  async uploadVerificationLicense(
+    user: AuthenticatedUser,
+    file: Express.Multer.File | undefined,
+  ): Promise<CompanyVerificationView> {
+    if (!file || !file.buffer?.length) {
+      throw new BadRequestException('Vui lòng chọn tệp Giấy phép ĐKKD (ảnh hoặc PDF).');
+    }
+    const membership = await this.requireMembership(user.id);
+    this.requireAdmin(membership.roleInCompany as CompanyRole);
+    const company = await this.prisma.company.findFirst({
+      where: { id: membership.companyId, isDeleted: false },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty');
+
+    const mime = (file.mimetype || '').toLowerCase();
+    const isPdf = mime === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+    let outBuffer: Buffer;
+    let outMime: string;
+    let outExt: string;
+
+    if (isPdf) {
+      if (file.size > 5 * 1024 * 1024) {
+        throw new BadRequestException('Tệp PDF tối đa 5MB.');
+      }
+      if (file.buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
+        throw new BadRequestException('Tệp PDF không hợp lệ.');
+      }
+      outBuffer = file.buffer;
+      outMime = 'application/pdf';
+      outExt = 'pdf';
+    } else if (COMPANY_PHOTO_MIME.has(mime)) {
+      if (file.size > 8 * 1024 * 1024) {
+        throw new BadRequestException('Ảnh tải lên tối đa 8MB.');
+      }
+      const optimized = await compressUploadedImage(file.buffer, 1800);
+      outBuffer = optimized.buffer;
+      outMime = optimized.mime;
+      outExt = optimized.ext;
+    } else {
+      throw new BadRequestException('Chỉ hỗ trợ ảnh (JPG, PNG, WebP) hoặc PDF.');
+    }
+
+    const brand = readBrandJson(company.profile);
+    const previousKey = brand.licenseDoc?.storageKey ?? null;
+    const storageKey = `companies/${company.id}/verification/license-${Date.now()}.${outExt}`;
+    await this.storage.putObject(storageKey, outBuffer, outMime);
+    if (previousKey && previousKey !== storageKey) {
+      await this.storage.deleteObject(previousKey).catch(() => undefined);
+    }
+
+    const baseName = (file.originalname || `giay-phep-dkkd.${outExt}`)
+      .replace(/[^a-zA-Z0-9._\-\u00C0-\u024F\u1E00-\u1EFF ]/g, '_')
+      .trim()
+      .slice(0, 120);
+    const displayName =
+      outExt === 'webp' ? baseName.replace(/\.[a-z0-9]+$/i, '') + '.webp' : baseName;
+
+    brand.licenseDoc = {
+      storageKey,
+      mime: outMime,
+      fileName: displayName,
+      sizeBytes: outBuffer.length,
+      uploadedAt: new Date().toISOString(),
+    };
+    await this.prisma.company.update({
+      where: { id: company.id },
+      data: { profile: brand as Prisma.InputJsonValue, updatedBy: user.id },
+    });
+    return this.toVerificationView(brand, company.taxCode);
+  }
+
+  /** Trả về file Giấy phép ĐKKD riêng tư cho thành viên công ty. */
+  async getMyVerificationLicenseBuffer(
+    user: AuthenticatedUser,
+  ): Promise<{ buffer: Buffer; mime: string; fileName: string } | null> {
+    const membership = await this.requireMembership(user.id);
+    const company = await this.prisma.company.findFirst({
+      where: { id: membership.companyId, isDeleted: false },
+      select: { profile: true },
+    });
+    if (!company) return null;
+    const doc = readBrandJson(company.profile).licenseDoc;
+    if (!doc?.storageKey) return null;
+    try {
+      const buffer = await this.storage.getObject(doc.storageKey);
+      return { buffer, mime: doc.mime, fileName: doc.fileName };
+    } catch {
+      return null;
+    }
   }
 
   /** NTD gửi đơn — không tự bật verified / trustedEmployer. */
@@ -313,6 +435,33 @@ export class CompanyService {
       throw new BadRequestException('Công ty đã có các huy hiệu bạn xin, hoặc chưa chọn mục nào');
     }
 
+    let effectiveTaxCode = company.taxCode;
+    if (input.taxCode !== undefined) {
+      const incoming = normalizeAndValidateTaxCode(input.taxCode);
+      if (brand.verified && incoming !== (company.taxCode ?? null)) {
+        throw new BadRequestException(
+          'Công ty đã xác thực không thể tự thay đổi Mã số thuế.',
+        );
+      }
+      if (incoming) {
+        await this.assertUniqueTaxCode(incoming, company.id);
+      }
+      effectiveTaxCode = incoming;
+    }
+
+    if (askVerified) {
+      if (!effectiveTaxCode) {
+        throw new BadRequestException(
+          'Vui lòng nhập Mã số thuế hợp lệ (10 số hoặc 10 số-3 số) trước khi gửi đơn xác minh.',
+        );
+      }
+      if (!brand.licenseDoc?.storageKey) {
+        throw new BadRequestException(
+          'Vui lòng tải lên Giấy phép ĐKKD (ảnh hoặc PDF) trước khi gửi đơn xác minh.',
+        );
+      }
+    }
+
     const request: VerificationRequestStored = {
       status: 'pending',
       note,
@@ -327,7 +476,11 @@ export class CompanyService {
     brand.verificationRequest = request;
     await this.prisma.company.update({
       where: { id: company.id },
-      data: { profile: brand as Prisma.InputJsonValue, updatedBy: user.id },
+      data: {
+        ...(effectiveTaxCode !== company.taxCode ? { taxCode: effectiveTaxCode } : {}),
+        profile: brand as Prisma.InputJsonValue,
+        updatedBy: user.id,
+      },
     });
     await this.audit.record({
       tenantId: user.tenantId,
@@ -335,10 +488,26 @@ export class CompanyService {
       action: 'company.verification.request',
       entityType: 'company',
       entityId: company.id,
-      after: { askVerified, askTrusted, note },
+      after: { askVerified, askTrusted, note, taxCode: effectiveTaxCode },
       correlationId,
     });
-    return this.toVerificationView(brand);
+    return this.toVerificationView(brand, effectiveTaxCode);
+  }
+
+  private async assertUniqueTaxCode(taxCode: string, excludeCompanyId?: string): Promise<void> {
+    const duplicate = await this.prisma.company.findFirst({
+      where: {
+        taxCode,
+        isDeleted: false,
+        ...(excludeCompanyId ? { id: { not: excludeCompanyId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        'Mã số thuế này đã được đăng ký bởi một doanh nghiệp khác trên inLink. Nếu bạn thuộc cùng công ty, vui lòng yêu cầu quản trị viên mời vào mục Thành viên hoặc liên hệ CSKH.',
+      );
+    }
   }
 
   async getById(ref: string): Promise<CompanyView> {
@@ -1009,8 +1178,12 @@ export class CompanyService {
     };
   }
 
-  private toVerificationView(brand: BrandProfileStored): CompanyVerificationView {
+  private toVerificationView(
+    brand: BrandProfileStored,
+    taxCode?: string | null,
+  ): CompanyVerificationView {
     const req = brand.verificationRequest;
+    const doc = brand.licenseDoc;
     return {
       verified: Boolean(brand.verified),
       trustedEmployer: Boolean(brand.trustedEmployer),
@@ -1020,6 +1193,12 @@ export class CompanyService {
       requestedAt: req?.requestedAt ?? null,
       askVerified: Boolean(req?.askVerified),
       askTrusted: Boolean(req?.askTrusted),
+      taxCode: taxCode ?? null,
+      hasLicenseDoc: Boolean(doc?.storageKey),
+      licenseDocName: doc?.fileName ?? null,
+      licenseDocMime: doc?.mime ?? null,
+      licenseDocSize: doc?.sizeBytes ?? null,
+      licenseUploadedAt: doc?.uploadedAt ?? null,
     };
   }
 }

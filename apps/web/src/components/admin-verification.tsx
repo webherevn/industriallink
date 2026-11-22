@@ -7,7 +7,11 @@ import type { AdminVerificationQueueItem } from '@industriallink/contracts';
 import { AdminShell } from '@/components/admin-shell';
 import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { fetchVerificationQueue, reviewCompanyVerification } from '@/lib/admin-companies';
+import {
+  fetchAdminCompanyLicenseObjectUrl,
+  fetchVerificationQueue,
+  reviewCompanyVerification,
+} from '@/lib/admin-companies';
 
 const TABS = [
   { value: 'pending', label: 'Đang chờ' },
@@ -129,7 +133,26 @@ function QueueCard({
   const [verified, setVerified] = useState(item.askVerified || item.verified);
   const [trusted, setTrusted] = useState(item.askTrusted || item.trustedEmployer);
   const [note, setNote] = useState('');
+  const [openingDoc, setOpeningDoc] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
   const pending = item.requestStatus === 'pending';
+
+  async function onOpenLicense() {
+    setOpeningDoc(true);
+    setDocError(null);
+    try {
+      const url = await fetchAdminCompanyLicenseObjectUrl(item.companyId);
+      if (!url) {
+        setDocError('Không tải được Giấy phép ĐKKD.');
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      setDocError('Không tải được Giấy phép ĐKKD.');
+    } finally {
+      setOpeningDoc(false);
+    }
+  }
 
   return (
     <Card className="admin-dash-card space-y-3">
@@ -143,6 +166,7 @@ function QueueCard({
           </Link>
           <p className="text-xs text-slate-500">
             {item.companyCode}
+            {item.taxCode ? ` · MST: ${item.taxCode}` : ' · Chưa có MST'}
             {item.requestedByEmail ? ` · ${item.requestedByEmail}` : ''} ·{' '}
             {new Date(item.requestedAt).toLocaleString('vi-VN')}
           </p>
@@ -156,6 +180,34 @@ function QueueCard({
         </span>
       </div>
       <p className="text-sm text-slate-700">{item.note}</p>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {item.taxCode ? (
+          <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono font-semibold text-[#072348]">
+            MST: {item.taxCode}
+          </span>
+        ) : (
+          <span className="rounded-lg bg-amber-50 px-2.5 py-1 font-medium text-amber-800">
+            Chưa có MST
+          </span>
+        )}
+        {item.hasLicenseDoc ? (
+          <button
+            type="button"
+            disabled={openingDoc}
+            onClick={() => void onOpenLicense()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-1 font-semibold text-[#072348] ring-1 ring-sky-200 transition hover:bg-sky-100 disabled:opacity-60"
+          >
+            {openingDoc
+              ? 'Đang mở tài liệu…'
+              : `Xem Giấy phép ĐKKD (${item.licenseDocName || 'tệp đính kèm'})`}
+          </button>
+        ) : (
+          <span className="rounded-lg bg-rose-50 px-2.5 py-1 font-medium text-rose-700">
+            Chưa tải Giấy phép ĐKKD
+          </span>
+        )}
+      </div>
+      {docError ? <p className="text-xs font-medium text-rose-600">{docError}</p> : null}
       <p className="text-xs text-slate-500">
         Xin: {item.askVerified ? 'Đã xác thực' : ''}
         {item.askVerified && item.askTrusted ? ' · ' : ''}
