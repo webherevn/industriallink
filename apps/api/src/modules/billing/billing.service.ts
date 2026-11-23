@@ -1075,16 +1075,6 @@ export class BillingService implements OnModuleInit {
       where: {
         companyId,
         isDeleted: false,
-        OR: [
-          // Tin nháp (DRAFT) hoặc tin đã đóng.
-          { status: { in: ['draft', 'closed'] } },
-          // Tin đã đăng nhưng đã hết hạn (deadline < now).
-          { status: 'published', deadline: { not: null, lt: now } },
-          // Tin đang dùng gói FREE (khám phá) → có thể nâng lên gói trả phí.
-          { jobPackage: { packageType: 'FREE' } },
-          // Tin chưa gắn gói nào.
-          { jobPackageId: null },
-        ],
       },
       orderBy: { updatedAt: 'desc' },
       take: 100,
@@ -1103,6 +1093,15 @@ export class BillingService implements OnModuleInit {
         isHuntOwned,
         jobStatus: row.status,
       });
+      const hasPaidPkg = Boolean(row.jobPackage && row.jobPackage.packageType !== 'FREE');
+      const isExpired = Boolean(row.deadline && row.deadline.getTime() < now.getTime());
+      const actionHint: 'apply' | 'resume' | 'clone' =
+        row.status === 'paused' && hasPaidPkg && !isExpired
+          ? 'resume'
+          : row.status === 'published' && hasPaidPkg && !isExpired
+            ? 'clone'
+            : 'apply';
+
       return {
         id: row.id,
         code: row.code,
@@ -1114,6 +1113,7 @@ export class BillingService implements OnModuleInit {
         createdAt: row.createdAt.toISOString(),
         eligible,
         disabledReason,
+        actionHint,
       };
     });
   }

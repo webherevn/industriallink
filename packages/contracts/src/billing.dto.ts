@@ -286,6 +286,13 @@ export interface RecruiterApplicableJobView {
   eligible: boolean;
   /** Lý do không gắn được (chỉ có khi `eligible === false`). */
   disabledReason: string | null;
+  /**
+   * Hành động phù hợp khi NTD chọn tin này trong modal Dùng gói:
+   * - `apply`: áp dụng gói trực tiếp (nháp / đã đóng / hết hạn / gói Khám phá)
+   * - `resume`: tin đang tạm dừng trên gói trả phí còn hạn → tiếp tục chạy lại (không trừ thêm lượt)
+   * - `clone`: tin đang chạy trên gói trả phí → sao chép nội dung để đăng tin mới bằng gói này
+   */
+  actionHint?: 'apply' | 'resume' | 'clone';
 }
 
 /**

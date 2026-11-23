@@ -5,16 +5,19 @@ import clsx from 'clsx';
 import {
   AlertCircle,
   Check,
+  Copy,
   FilePlus2,
   Loader2,
   Package,
+  Play,
   RefreshCw,
   X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { RecruiterJobPackageView } from '@industriallink/contracts';
+import { JobStatus, type RecruiterJobPackageView } from '@industriallink/contracts';
 import { ApiError } from '@/lib/api';
+import { updateJobStatus } from '@/lib/jobs';
 import {
   applyJobPackageToJob,
   fetchApplicableJobs,
@@ -82,14 +85,34 @@ export function JobPackageApplyModal({
     },
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: (jobId: string) => updateJobStatus(jobId, JobStatus.Published),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recruiter-job-packages'] });
+      queryClient.invalidateQueries({ queryKey: ['my-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['applicable-jobs'] });
+      onApplied?.();
+      onClose();
+    },
+  });
+
+  const isBusy = applyMutation.isPending || resumeMutation.isPending;
+  const activeError = applyMutation.isError
+    ? applyMutation.error
+    : resumeMutation.isError
+      ? resumeMutation.error
+      : null;
+  const selectedJob = (jobs ?? []).find((j) => j.id === selectedJobId) ?? null;
+  const selectedAction = selectedJob?.actionHint ?? 'apply';
+
   // Đóng modal bằng ESC.
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !applyMutation.isPending) onClose();
+      if (e.key === 'Escape' && !isBusy) onClose();
     }
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose, applyMutation.isPending]);
+  }, [onClose, isBusy]);
 
   const remaining = pkg.jobsRemaining;
 
@@ -165,8 +188,8 @@ export function JobPackageApplyModal({
 
               <OptionCard
                 icon={<RefreshCw className="h-4 w-4" />}
-                title="Áp dụng cho tin tuyển dụng có sẵn"
-                description="Chọn 1 tin đang nháp, đã đóng/hết hạn hoặc đang dùng gói Khám phá để đăng lại bằng gói này."
+                title="Chọn từ danh sách tin tuyển dụng có sẵn"
+                description="Chọn tin nháp/đã đóng để gắn gói, mở lại tin đang tạm dừng, hoặc sao chép tin đang chạy để đăng tin mới."
                 onClick={() => setMode('existing')}
               />
             </div>
@@ -215,13 +238,34 @@ export function JobPackageApplyModal({
                         className="mt-0.5 h-4 w-4 accent-[#E8872A]"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold text-[#072348]">
-                          {job.title}
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="truncate text-[13px] font-semibold text-[#072348]">
+                            {job.title}
+                          </span>
+                          {job.eligible !== false && job.actionHint === 'resume' && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                              Tiếp tục chạy
+                            </span>
+                          )}
+                          {job.eligible !== false && job.actionHint === 'clone' && (
+                            <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[10.5px] font-semibold text-sky-700 ring-1 ring-sky-200">
+                              Sao chép &amp; đăng mới
+                            </span>
+                          )}
                         </span>
                         <span className="mt-0.5 block text-[11.5px] text-slate-500">
                           {job.code} · {jobStatusLabel(job.status)}
                           {job.jobPackageCode ? ` · gói ${job.jobPackageCode}` : ''}
                         </span>
+                        {job.eligible !== false && job.actionHint === 'resume' ? (
+                          <span className="mt-1 block text-[11px] text-emerald-700">
+                            Mở lại tin đang tạm dừng bằng gói sẵn có — không trừ thêm lượt đăng.
+                          </span>
+                        ) : job.eligible !== false && job.actionHint === 'clone' ? (
+                          <span className="mt-1 block text-[11px] text-sky-700">
+                            Sao chép nội dung tin đang chạy sang form tạo tin mới bằng gói {pkg.code}.
+                          </span>
+                        ) : null}
                         {job.eligible === false && job.disabledReason ? (
                           <span className="mt-1 block text-[11px] font-medium leading-relaxed text-[#C25E12]">
                             {job.disabledReason}
@@ -235,12 +279,12 @@ export function JobPackageApplyModal({
             </div>
           )}
 
-          {applyMutation.isError && (
+          {activeError && (
             <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-rose-50 px-3 py-2.5 text-[12.5px] text-rose-600">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {applyMutation.error instanceof ApiError
-                ? applyMutation.error.message
-                : 'Không áp dụng được gói. Vui lòng thử lại.'}
+              {activeError instanceof ApiError
+                ? activeError.message
+                : 'Không thực hiện được thao tác. Vui lòng thử lại.'}
             </p>
           )}
         </div>
@@ -251,23 +295,45 @@ export function JobPackageApplyModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={applyMutation.isPending}
+              disabled={isBusy}
               className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3.5 text-[12.5px] font-semibold text-[#072348] transition hover:bg-slate-50 disabled:opacity-50"
             >
               Huỷ
             </button>
             <button
               type="button"
-              disabled={!selectedJobId || applyMutation.isPending}
-              onClick={() => selectedJobId && applyMutation.mutate(selectedJobId)}
+              disabled={!selectedJob || isBusy}
+              onClick={() => {
+                if (!selectedJob) return;
+                if (selectedAction === 'resume') {
+                  resumeMutation.mutate(selectedJob.id);
+                  return;
+                }
+                if (selectedAction === 'clone') {
+                  router.push(
+                    `/jobs/new?from=${encodeURIComponent(selectedJob.id)}&packageCode=${encodeURIComponent(pkg.code)}`,
+                  );
+                  onClose();
+                  return;
+                }
+                applyMutation.mutate(selectedJob.id);
+              }}
               className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#E8872A] px-4 text-[12.5px] font-semibold text-white transition hover:bg-[#d6761b] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {applyMutation.isPending ? (
+              {isBusy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : selectedAction === 'resume' ? (
+                <Play className="h-3.5 w-3.5" />
+              ) : selectedAction === 'clone' ? (
+                <Copy className="h-3.5 w-3.5" />
               ) : (
                 <Check className="h-3.5 w-3.5" />
               )}
-              Xác nhận áp dụng
+              {selectedAction === 'resume'
+                ? 'Tiếp tục chạy tin này'
+                : selectedAction === 'clone'
+                  ? 'Sao chép & đăng tin mới'
+                  : 'Xác nhận áp dụng'}
             </button>
           </div>
         )}
