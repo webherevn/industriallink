@@ -1982,21 +1982,23 @@ export class CrmService {
     return this.mapCommissionPeriod(row);
   }
 
-  async registerPartner(actor: AuthenticatedUser, input: RegisterCrmPartnerRequest): Promise<CrmPartnerView> {
+  async registerPartner(actor: AuthenticatedUser, _input: RegisterCrmPartnerRequest): Promise<CrmPartnerView> {
     const existing = await this.prisma.crmPartner.findUnique({ where: { userId: actor.id } });
     if (existing) return this.mapPartner(existing);
 
-    const phone = normalizePhone(input.phone ?? '');
     const name = actor.displayName?.trim() || 'Cộng tác viên';
-    if (phone.length < 9) throw new BadRequestException('Cần số điện thoại');
-
-    const byPhone = await this.prisma.crmPartner.findUnique({ where: { phone } });
-    if (byPhone) throw new BadRequestException('Số này đã có cộng tác viên');
+    // Định danh riêng theo tài khoản đang đăng nhập (không dùng SĐT nhập tay để tránh bị dò thông tin HR).
+    const emailKey = actor.email?.trim().toLowerCase();
+    const fallbackKey = `ctv:${actor.id}`;
+    const contactKey =
+      emailKey && !(await this.prisma.crmPartner.findUnique({ where: { phone: emailKey }, select: { id: true } }))
+        ? emailKey
+        : fallbackKey;
 
     const row = await this.prisma.crmPartner.create({
       data: {
         name,
-        phone,
+        phone: contactKey,
         code: await this.nextPartnerCode(),
         userId: actor.id,
         createdByUserId: actor.id,

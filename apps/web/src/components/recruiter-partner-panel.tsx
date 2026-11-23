@@ -27,22 +27,22 @@ type HistoryFilter = 'all' | 'month';
 export function RecruiterPartnerPanel({ embedded = false }: { embedded?: boolean }) {
   const qc = useQueryClient();
   const mine = useQuery({ queryKey: ['recruiter-partner'], queryFn: fetchMyPartner });
-  const [phone, setPhone] = useState('');
+  const [accepted, setAccepted] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const register = useMutation({
-    mutationFn: () => registerMyPartner({ phone }),
+    mutationFn: () => registerMyPartner({ acceptTerms: true }),
     onSuccess: () => {
       setError(null);
-      setPhone('');
       void qc.invalidateQueries({ queryKey: ['recruiter-partner'] });
     },
-    onError: (err) => setError(errorText(err, 'Không đăng ký được cộng tác viên')),
+    onError: (err) => setError(errorText(err, 'Không kích hoạt được tài khoản cộng tác viên')),
   });
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!accepted) return;
     register.mutate();
   }
 
@@ -76,20 +76,27 @@ export function RecruiterPartnerPanel({ embedded = false }: { embedded?: boolean
 
         {mine.data && !partner ? (
           <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(7,35,72,0.04),0_12px_32px_-18px_rgba(7,35,72,0.22)]">
-            <h2 className="text-sm font-bold text-brand-800">Đăng ký làm cộng tác viên</h2>
+            <h2 className="text-sm font-bold text-brand-800">Kích hoạt tài khoản Cộng tác viên</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã. Không tạo mã thứ hai cho tài khoản này.
+              Hệ thống tự gắn mã giới thiệu riêng với tài khoản đang đăng nhập (không cần nhập số điện thoại, bảo mật thông tin cá nhân). Thông tin nhận chi trả chỉ bổ sung riêng trong mục KYC khi rút hoa hồng.
             </p>
-            <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:max-w-xl sm:flex-row sm:items-center">
-              <Input
-                placeholder="Số điện thoại"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-              />
-              <Button type="submit" disabled={register.isPending}>
-                {register.isPending ? 'Đang tạo mã…' : 'Đăng ký'}
-              </Button>
+            <form onSubmit={onSubmit} className="mt-4 space-y-3">
+              <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={accepted}
+                  onChange={(e) => setAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#E8872A]"
+                />
+                <span>
+                  Tôi đồng ý với Điều khoản chương trình Cộng tác viên inLink (mỗi tài khoản 1 mã riêng, hoa hồng ghi nhận khi khách hàng mới đăng ký qua link và thanh toán trong 14 ngày).
+                </span>
+              </label>
+              <div>
+                <Button type="submit" disabled={!accepted || register.isPending}>
+                  {register.isPending ? 'Đang kích hoạt…' : 'Kích hoạt mã Cộng tác viên ngay'}
+                </Button>
+              </div>
             </form>
             {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
           </section>
@@ -162,7 +169,7 @@ export function RecruiterPartnerPanel({ embedded = false }: { embedded?: boolean
                   <div>
                     <h2 className="text-sm font-bold text-brand-800">Link giới thiệu</h2>
                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      {partner.phone}. Gửi link này. Cookie giữ 14 ngày, lần bấm sau thay mã và tính lại 14 ngày.
+                      Mã {partner.code}. Gửi link này để ghi nhận khách hàng mới. Cookie giữ 14 ngày, lần bấm sau thay mã và tính lại 14 ngày.
                     </p>
                   </div>
                 </div>

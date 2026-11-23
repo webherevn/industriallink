@@ -536,7 +536,9 @@ export interface CreateCrmPartnerRequest {
 }
 
 export interface RegisterCrmPartnerRequest {
-  phone: string;
+  /** Không bắt buộc — hệ thống tự định danh theo tài khoản đăng nhập để bảo mật quyền riêng tư. */
+  phone?: string;
+  acceptTerms?: boolean;
 }
 
 export interface CaptureCrmReferralRequest {

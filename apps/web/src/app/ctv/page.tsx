@@ -92,11 +92,10 @@ export default function CtvOverviewPage() {
       <div className="mx-auto max-w-3xl space-y-5">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <h2 className="text-xl font-bold tracking-tight text-[#0F2440]">
-            Đăng ký làm cộng tác viên
+            Kích hoạt tài khoản Cộng tác viên
           </h2>
           <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-            Dùng tên tài khoản đang đăng nhập. Nhập số điện thoại để nhận mã giới thiệu riêng.
-            Mỗi tài khoản chỉ có một mã.
+            Hệ thống tự cấp mã giới thiệu riêng gắn với tài khoản đang đăng nhập — không cần nhập số điện thoại, bảo mật thông tin cá nhân. Mỗi tài khoản chỉ có một mã.
           </p>
           <PartnerRegisterForm onDone={() => void qc.invalidateQueries({ queryKey: ['recruiter-partner'] })} />
         </section>
@@ -519,36 +518,43 @@ function formatMonth(yearMonth: string): string {
 
 function PartnerRegisterForm({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient();
-  const [phone, setPhone] = useState('');
+  const [accepted, setAccepted] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const register = useMutation({
-    mutationFn: () => registerMyPartner({ phone }),
+    mutationFn: () => registerMyPartner({ acceptTerms: true }),
     onSuccess: () => {
       setError(null);
-      setPhone('');
       onDone();
       void qc.invalidateQueries({ queryKey: ['recruiter-partner'] });
     },
-    onError: (err) => setError(errorText(err, 'Không đăng ký được cộng tác viên')),
+    onError: (err) => setError(errorText(err, 'Không kích hoạt được cộng tác viên')),
   });
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        if (!accepted) return;
         register.mutate();
       }}
-      className="mt-4 flex flex-col gap-3 sm:max-w-xl sm:flex-row sm:items-center"
+      className="mt-4 space-y-3"
     >
-      <Input
-        placeholder="Số điện thoại"
-        value={phone}
-        onChange={(event) => setPhone(event.target.value)}
-        required
-      />
-      <Button type="submit" disabled={register.isPending}>
-        {register.isPending ? 'Đang tạo mã…' : 'Đăng ký'}
-      </Button>
+      <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-slate-600">
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#E8872A]"
+        />
+        <span>
+          Tôi đồng ý với Điều khoản chương trình Cộng tác viên inLink. Thông tin nhận chi trả sẽ bổ sung riêng trong mục Hồ sơ &amp; KYC.
+        </span>
+      </label>
+      <div>
+        <Button type="submit" disabled={!accepted || register.isPending}>
+          {register.isPending ? 'Đang kích hoạt…' : 'Kích hoạt mã Cộng tác viên ngay'}
+        </Button>
+      </div>
       {error ? <p className="w-full text-sm text-rose-600">{error}</p> : null}
     </form>
   );
