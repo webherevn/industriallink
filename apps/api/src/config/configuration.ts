@@ -49,6 +49,9 @@ export interface AppConfig {
     accessTtl: number;
     refreshTtl: number;
   };
+  googleAuth: {
+    clientIds: string[];
+  };
   ai: {
     provider: 'mock' | 'openai' | 'anthropic' | 'gemini';
     embeddingDim: number;
@@ -151,6 +154,12 @@ export default (): AppConfig => ({
         : 'dev-refresh-secret-change-me'),
     accessTtl: Number(process.env.JWT_ACCESS_TTL ?? 900),
     refreshTtl: Number(process.env.JWT_REFRESH_TTL ?? 1209600),
+  },
+  googleAuth: {
+    clientIds: (process.env.GOOGLE_CLIENT_ID ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
   },
   ai: {
     provider: (process.env.AI_PROVIDER as AppConfig['ai']['provider']) ?? 'mock',

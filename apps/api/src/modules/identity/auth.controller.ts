@@ -23,6 +23,7 @@ import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResendLoginOtpDto } from './dto/resend-login-otp.dto';
@@ -97,6 +98,37 @@ export class AuthController {
       correlationId,
       ip: req.ip,
       userAgent: req.headers['user-agent'],
+    });
+    if (result.kind === 'mfa') {
+      return result.response;
+    }
+    this.setRefreshCookie(res, result.refreshToken);
+    return result.response;
+  }
+
+  @Get('google/config')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Cấu hình public Google Sign-In (enabled + clientId)' })
+  googleConfig() {
+    return this.identity.getGoogleAuthConfig();
+  }
+
+  @Post('google')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Đăng nhập / đăng ký nhanh bằng Google Identity Services' })
+  async loginWithGoogle(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @CorrelationId() correlationId: string,
+  ): Promise<LoginResponse> {
+    const raw = req.cookies?.[REFERRAL_COOKIE];
+    const result = await this.identity.loginWithGoogle(dto, {
+      correlationId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      referralCookie: typeof raw === 'string' ? raw : null,
     });
     if (result.kind === 'mfa') {
       return result.response;

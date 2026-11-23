@@ -17,6 +17,18 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface GoogleLoginRequest {
+  /** Google ID Token (credential) trả về từ Google Identity Services. */
+  idToken: string;
+  /** Chỉ áp dụng khi tạo tài khoản mới qua Google (chỉ nhận candidate | recruiter). */
+  role?: UserRole.Candidate | UserRole.Recruiter;
+}
+
+export interface GoogleAuthConfigResponse {
+  enabled: boolean;
+  clientId: string | null;
+}
+
 export interface VerifyLoginOtpRequest {
   mfaToken: string;
   otp: string;

@@ -1,5 +1,6 @@
 import type {
   AuthUserView,
+  GoogleAuthConfigResponse,
   LoginResponse,
   RegisterRequest,
   TotpSetupResponse,
@@ -24,6 +25,31 @@ export async function login(email: string, password: string): Promise<LoginRespo
   const res = await apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
     body: { email, password },
+    retryOnUnauthorized: false,
+  });
+  if (!isLoginMfaChallenge(res)) {
+    tokenStore.set(res.accessToken);
+  }
+  return res;
+}
+
+export async function fetchGoogleAuthConfig(): Promise<GoogleAuthConfigResponse> {
+  try {
+    return await apiRequest<GoogleAuthConfigResponse>('/auth/google/config', {
+      retryOnUnauthorized: false,
+    });
+  } catch {
+    return { enabled: false, clientId: null };
+  }
+}
+
+export async function loginWithGoogle(
+  idToken: string,
+  role?: UserRole.Candidate | UserRole.Recruiter,
+): Promise<LoginResponse> {
+  const res = await apiRequest<LoginResponse>('/auth/google', {
+    method: 'POST',
+    body: role ? { idToken, role } : { idToken },
     retryOnUnauthorized: false,
   });
   if (!isLoginMfaChallenge(res)) {

@@ -1,16 +1,20 @@
 'use client';
 
-import { UserRole } from '@industriallink/contracts';
+import { isLoginMfaChallenge, UserRole } from '@industriallink/contracts';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/brand-logo';
+import { GoogleAuthButton } from '@/components/google-auth-button';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { register, resendOtp, verifyOtp } from '@/lib/auth';
+import { clearAuthQueryCache, register, resendOtp, verifyOtp } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
+import { navigateAfterLogin } from '@/lib/hosts';
 import { loginHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function RegisterPage() {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +138,27 @@ export default function RegisterPage() {
                 {loading ? 'Đang xử lý...' : 'Đăng ký'}
               </Button>
             </form>
+            <GoogleAuthButton
+              mode="register"
+              role={role}
+              disabled={loading}
+              onError={(msg) => {
+                setInfo(null);
+                setError(msg);
+              }}
+              onSuccess={(res) => {
+                setError(null);
+                if (isLoginMfaChallenge(res)) {
+                  router.push(loginHref(nextPath));
+                  return;
+                }
+                clearAuthQueryCache(queryClient);
+                navigateAfterLogin(
+                  res.user.role,
+                  res.user.role === UserRole.Candidate ? nextPath : null,
+                );
+              }}
+            />
           </>
         ) : (
           <>

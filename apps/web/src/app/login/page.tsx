@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/components/brand-logo';
+import { GoogleAuthButton } from '@/components/google-auth-button';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError, tokenStore } from '@/lib/api';
 import { clearAuthQueryCache, login, logout, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
-import { isAdminHostname, isCrmHostname, navigateAfterLogin } from '@/lib/hosts';
+import { isAdminHostname, isCrmHostname, isRecruiterHostname, navigateAfterLogin } from '@/lib/hosts';
 import { registerHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function LoginPage() {
@@ -27,12 +28,16 @@ export default function LoginPage() {
   const [verified, setVerified] = useState(false);
   const [nextPath, setNextPath] = useState<string | null>(null);
   const [onAdminHost, setOnAdminHost] = useState(false);
+  const [onCrmHost, setOnCrmHost] = useState(false);
+  const [onRecruiterHost, setOnRecruiterHost] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setVerified(params.get('verified') === '1');
     setNextPath(safeInternalPath(params.get('next')));
     setOnAdminHost(isAdminHostname());
+    setOnCrmHost(isCrmHostname());
+    setOnRecruiterHost(isRecruiterHostname());
   }, []);
 
   function goHome(role: UserRole) {
@@ -178,6 +183,30 @@ export default function LoginPage() {
                 {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </Button>
             </form>
+            {!onAdminHost && !onCrmHost && (
+              <GoogleAuthButton
+                mode="login"
+                role={onRecruiterHost ? UserRole.Recruiter : UserRole.Candidate}
+                disabled={loading}
+                onError={(msg) => {
+                  setInfo(null);
+                  setError(msg);
+                }}
+                onSuccess={(res) => {
+                  setError(null);
+                  if (isLoginMfaChallenge(res)) {
+                    setMfaToken(res.mfaToken);
+                    setMfaMethod(res.mfaMethod);
+                    setDevOtp(res.devOtp ?? null);
+                    if (res.devOtp) setOtp(res.devOtp);
+                    setInfo(res.message);
+                    setStep('mfa');
+                    return;
+                  }
+                  goHome(res.user.role);
+                }}
+              />
+            )}
           </>
         ) : (
           <>

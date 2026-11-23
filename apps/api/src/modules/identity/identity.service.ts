@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -14,6 +14,7 @@ import {
   UserRole,
   UserStatus,
   type AuthUserView,
+  type GoogleAuthConfigResponse,
   type LoginMfaChallengeResponse,
   type LoginSuccessResponse,
   type TotpSetupResponse,
@@ -256,6 +257,199 @@ export class IdentityService {
         };
       }
 
+      const otp = await this.issueOtp(
+        user.id,
+        user.email,
+        user.tenantId,
+        MFA_PURPOSE,
+        meta.correlationId,
+      );
+      return {
+        kind: 'mfa',
+        response: {
+          mfaRequired: true,
+          mfaToken,
+          mfaMethod: MfaMethod.EmailOtp,
+          expiresIn: MFA_TOKEN_TTL_SEC,
+          message: 'Đã gửi mã OTP tới email. Nhập mã để hoàn tất đăng nhập.',
+          devOtp: this.devOtpOrUndefined(otp),
+        },
+      };
+    }
+
+    const session = await this.issueSession(user, meta);
+    return { kind: 'tokens', ...session };
+  }
+
+  getGoogleAuthConfig(): GoogleAuthConfigResponse {
+    const clientIds = this.config.get('googleAuth', { infer: true }).clientIds;
+    return {
+      enabled: clientIds.length > 0,
+      clientId: clientIds[0] ?? null,
+    };
+  }
+
+  private async verifyGoogleIdToken(idToken: string): Promise<{
+    email: string;
+    displayName: string;
+    sub: string;
+  }> {
+    const clientIds = this.config.get('googleAuth', { infer: true }).clientIds;
+    if (clientIds.length === 0) {
+      throw new BadRequestException('Đăng nhập bằng Google chưa được cấu hình trên hệ thống.');
+    }
+
+    let res: globalThis.Response;
+    try {
+      res = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+        { signal: AbortSignal.timeout(8000) },
+      );
+    } catch (err) {
+      this.logger.warn(`Không kết nối được Google tokeninfo: ${String(err)}`);
+      throw new UnauthorizedException('Không thể xác thực tài khoản Google. Vui lòng thử lại.');
+    }
+
+    if (!res.ok) {
+      throw new UnauthorizedException('Phiên Google không hợp lệ hoặc đã hết hạn.');
+    }
+
+    const payload = (await res.json()) as {
+      aud?: string;
+      iss?: string;
+      sub?: string;
+      email?: string;
+      email_verified?: string | boolean;
+      name?: string;
+      exp?: string | number;
+    };
+
+    if (!payload.aud || !clientIds.includes(payload.aud)) {
+      throw new UnauthorizedException('Google Client ID không khớp với cấu hình hệ thống.');
+    }
+    if (
+      payload.iss !== 'accounts.google.com' &&
+      payload.iss !== 'https://accounts.google.com'
+    ) {
+      throw new UnauthorizedException('Nguồn xác thực Google không hợp lệ.');
+    }
+    const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+    const email = (payload.email ?? '').toLowerCase().trim();
+    if (!emailVerified || !email || !payload.sub) {
+      throw new UnauthorizedException('Tài khoản Google chưa xác minh email.');
+    }
+    const expSec = Number(payload.exp ?? 0);
+    if (!Number.isFinite(expSec) || expSec * 1000 <= Date.now()) {
+      throw new UnauthorizedException('Phiên đăng nhập Google đã hết hạn. Vui lòng thử lại.');
+    }
+
+    const fallbackName = email.split('@')[0] || 'Thành viên inLink';
+    const displayName = (payload.name ?? '').trim().slice(0, 120) || fallbackName;
+    return { email, displayName, sub: payload.sub };
+  }
+
+  /**
+   * Đăng nhập hoặc tự động tạo tài khoản (Candidate / Recruiter) qua Google Identity Services.
+   * Tài khoản đã bật MFA vẫn phải đi qua bước xác thực MFA như đăng nhập thường.
+   */
+  async loginWithGoogle(
+    input: { idToken: string; role?: UserRole.Candidate | UserRole.Recruiter },
+    meta: RequestMeta,
+  ): Promise<LoginResult> {
+    const profile = await this.verifyGoogleIdToken(input.idToken);
+    let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    let isNewUser = false;
+
+    if (user) {
+      if (user.isDeleted || user.status === UserStatus.Deleted) {
+        throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị xoá.');
+      }
+      if (user.status === UserStatus.Locked) {
+        throw new UnauthorizedException('Tài khoản đã bị khoá.');
+      }
+      if (!user.isVerified) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { isVerified: true, status: UserStatus.Active },
+        });
+      }
+    } else {
+      isNewUser = true;
+      const role =
+        input.role === UserRole.Recruiter ? UserRole.Recruiter : UserRole.Candidate;
+      const code = await this.codeGen.next('USR');
+      const randomPassword = randomBytes(32).toString('hex');
+      const passwordHash = await this.password.hash(randomPassword);
+
+      user = await this.prisma.user.create({
+        data: {
+          code,
+          tenantId: DEFAULT_TENANT_ID,
+          email: profile.email,
+          passwordHash,
+          displayName: profile.displayName,
+          role,
+          status: UserStatus.Active,
+          isVerified: true,
+        },
+      });
+
+      if (role === UserRole.Recruiter) {
+        try {
+          await this.crm.recordReferralSignup({
+            cookie: meta.referralCookie,
+            userId: user.id,
+            role: user.role,
+            displayName: user.displayName,
+            registeredAt: user.createdAt,
+          });
+        } catch (err) {
+          this.logger.error(`Không ghi được đăng ký giới thiệu cho ${user.id}: ${String(err)}`);
+        }
+      }
+
+      this.events.publish(
+        createDomainEvent({
+          name: DomainEvents.UserRegistered,
+          tenantId: user.tenantId,
+          correlationId: meta.correlationId,
+          payload: {
+            userId: user.id,
+            email: user.email,
+            displayName: user.displayName,
+            role: user.role,
+          },
+        }),
+      );
+    }
+
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      action: isNewUser ? 'user.google_register' : 'user.google_login',
+      entityType: 'identity.user',
+      entityId: user.id,
+      after: { email: user.email, role: user.role, provider: 'google' },
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+      correlationId: meta.correlationId,
+    });
+
+    if (user.mfaEnabled) {
+      const method = this.resolveMfaMethod(user.mfaMethod);
+      const mfaToken = await this.signMfaToken(user.id);
+      if (method === MfaMethod.Totp) {
+        return {
+          kind: 'mfa',
+          response: {
+            mfaRequired: true,
+            mfaToken,
+            mfaMethod: MfaMethod.Totp,
+            expiresIn: MFA_TOKEN_TTL_SEC,
+            message: 'Nhập mã 6 số từ ứng dụng xác thực để hoàn tất đăng nhập.',
+          },
+        };
+      }
       const otp = await this.issueOtp(
         user.id,
         user.email,
