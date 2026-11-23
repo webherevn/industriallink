@@ -26,6 +26,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole.Candidate | UserRole.Recruiter>(UserRole.Candidate);
+  const [acceptedTerms, setAcceptedTerms] = useState(true);
   const [otp, setOtp] = useState('');
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [nextPath, setNextPath] = useState<string | null>(null);
@@ -46,6 +47,10 @@ export default function RegisterPage() {
 
   async function onSubmitForm(e: React.FormEvent) {
     e.preventDefault();
+    if (!acceptedTerms) {
+      setError('Vui lòng đồng ý với Điều khoản dịch vụ và Chính sách bảo mật để đăng ký.');
+      return;
+    }
     setError(null);
     setInfo(null);
     setLoading(true);
@@ -133,8 +138,37 @@ export default function RegisterPage() {
                   required
                 />
               </Field>
+              <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-[#E8872A]"
+                />
+                <span>
+                  Tôi đã đọc và đồng ý với{' '}
+                  <a
+                    href="/trang/dieu-khoan-dich-vu"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-brand-600 hover:underline"
+                  >
+                    Điều khoản dịch vụ
+                  </a>{' '}
+                  và{' '}
+                  <a
+                    href="/trang/chinh-sach-quyen-rieng-tu"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-brand-600 hover:underline"
+                  >
+                    Chính sách bảo mật &amp; Dữ liệu cá nhân
+                  </a>{' '}
+                  của inLink.
+                </span>
+              </label>
               {error && <p className="text-sm text-red-600">{error}</p>}
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || !acceptedTerms}>
                 {loading ? 'Đang xử lý...' : 'Đăng ký'}
               </Button>
             </form>
@@ -159,6 +193,27 @@ export default function RegisterPage() {
                 );
               }}
             />
+            <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">
+              Bằng việc tiếp tục với Google, bạn đồng ý với{' '}
+              <a
+                href="/trang/dieu-khoan-dich-vu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-slate-600"
+              >
+                Điều khoản dịch vụ
+              </a>{' '}
+              và{' '}
+              <a
+                href="/trang/chinh-sach-quyen-rieng-tu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-slate-600"
+              >
+                Chính sách bảo mật
+              </a>{' '}
+              của inLink.
+            </p>
           </>
         ) : (
           <>

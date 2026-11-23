@@ -89,7 +89,16 @@ export function RecruiterPartnerPanel({ embedded = false }: { embedded?: boolean
                   className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#E8872A]"
                 />
                 <span>
-                  Tôi đồng ý với Điều khoản chương trình Cộng tác viên inLink (mỗi tài khoản 1 mã riêng, hoa hồng ghi nhận khi khách hàng mới đăng ký qua link và thanh toán trong 14 ngày).
+                  Tôi đồng ý với{' '}
+                  <a
+                    href="/ctv/policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-brand-700 hover:underline"
+                  >
+                    Điều khoản chương trình Cộng tác viên inLink
+                  </a>{' '}
+                  (mỗi tài khoản 1 mã riêng, hoa hồng ghi nhận khi khách hàng mới đăng ký qua link và thanh toán trong 14 ngày).
                 </span>
               </label>
               <div>

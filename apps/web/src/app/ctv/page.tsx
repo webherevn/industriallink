@@ -547,7 +547,16 @@ function PartnerRegisterForm({ onDone }: { onDone: () => void }) {
           className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#E8872A]"
         />
         <span>
-          Tôi đồng ý với Điều khoản chương trình Cộng tác viên inLink. Thông tin nhận chi trả sẽ bổ sung riêng trong mục Hồ sơ &amp; KYC.
+          Tôi đồng ý với{' '}
+          <a
+            href="/ctv/policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-[#0B468C] hover:underline"
+          >
+            Điều khoản chương trình Cộng tác viên inLink
+          </a>
+          . Thông tin nhận chi trả sẽ bổ sung riêng trong mục Hồ sơ &amp; KYC.
         </span>
       </label>
       <div>

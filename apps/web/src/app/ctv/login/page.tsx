@@ -39,6 +39,7 @@ export default function CtvLoginPage() {
   const [otp, setOtp] = useState('');
   const [authMsg, setAuthMsg] = useState<string | null>(null);
   const [authErr, setAuthErr] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(true);
 
   const loginMut = useMutation({
     mutationFn: () => login(email.trim(), password),
@@ -264,9 +265,54 @@ export default function CtvLoginPage() {
                   </div>
                 )}
 
+                {mode === 'register' && (
+                  <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(e) => setAcceptedTerms(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-[#E8872A]"
+                    />
+                    <span>
+                      Tôi đã đọc và đồng ý với{' '}
+                      <a
+                        href="https://inlink.vn/trang/dieu-khoan-dich-vu"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-[#0B468C] hover:underline"
+                      >
+                        Điều khoản dịch vụ
+                      </a>
+                      ,{' '}
+                      <a
+                        href="https://inlink.vn/trang/chinh-sach-quyen-rieng-tu"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-[#0B468C] hover:underline"
+                      >
+                        Chính sách bảo mật
+                      </a>{' '}
+                      và{' '}
+                      <a
+                        href="/ctv/policy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-[#0B468C] hover:underline"
+                      >
+                        Chính sách Cộng tác viên
+                      </a>{' '}
+                      của inLink.
+                    </span>
+                  </label>
+                )}
+
                 {authErr && <p className="text-xs font-medium text-rose-600">{authErr}</p>}
 
-                <Button type="submit" className="w-full" disabled={busy}>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={busy || (mode === 'register' && !acceptedTerms)}
+                >
                   {busy
                     ? 'Đang xử lý...'
                     : mode === 'login'
