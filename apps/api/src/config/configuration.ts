@@ -156,7 +156,10 @@ export default (): AppConfig => ({
     refreshTtl: Number(process.env.JWT_REFRESH_TTL ?? 1209600),
   },
   googleAuth: {
-    clientIds: (process.env.GOOGLE_CLIENT_ID ?? '')
+    clientIds: (
+      process.env.GOOGLE_CLIENT_ID ??
+      '752229616116-irl8jplcthgul256b3536dggkgu7mejm.apps.googleusercontent.com'
+    )
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
