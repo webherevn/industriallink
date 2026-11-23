@@ -38,7 +38,6 @@ import {
   formatCompanySize,
 } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
-import { CompanyPublicEditor } from './company-public-editor';
 import { companyPublicPath } from '@/lib/public-paths';
 import { Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -78,7 +77,7 @@ const ROLE_LABEL: Record<CompanyRole, string> = {
   [CompanyRole.Member]: 'Thành viên',
 };
 
-type CompanyTab = 'info' | 'culture' | 'media' | 'verification' | 'members' | 'public';
+type CompanyTab = 'info' | 'culture' | 'media' | 'verification' | 'members';
 
 type CompanyForm = {
   name: string;
@@ -559,7 +558,7 @@ export default function CompanyPage() {
             </div>
           </div>
 
-          {/* 6 Tabs */}
+          {/* 5 Tabs */}
           <div className="mt-4 flex gap-1 overflow-x-auto border-t border-slate-100 pt-2.5">
             {(
               [
@@ -568,7 +567,6 @@ export default function CompanyPage() {
                 { key: 'media', label: 'Hình ảnh & Hoạt động', icon: ImagePlus },
                 { key: 'verification', label: 'Xác minh doanh nghiệp', icon: ShieldCheck },
                 { key: 'members', label: 'Thành viên', icon: Users },
-                { key: 'public', label: 'Hiển thị công khai', icon: Globe },
               ] as const
             ).map((t) => {
               const Icon = t.icon;
@@ -995,9 +993,6 @@ export default function CompanyPage() {
 
           {activeTab === 'verification' && <CompanyVerificationCard />}
           {activeTab === 'members' && <MembersCard isAdmin={isAdmin} />}
-          {activeTab === 'public' && (
-            <CompanyPublicEditor companyId={company.id} brand={company.brand} canEdit={isAdmin} />
-          )}
 
           {/* Thanh lưu thay đổi (chỉ hiện ở các tab chỉnh sửa form chung) */}
           {isAdmin && (activeTab === 'info' || activeTab === 'culture') && (
@@ -1156,7 +1151,7 @@ export default function CompanyPage() {
             <div className="mt-3 space-y-2">
               {completion.checks.filter((c) => !c.done).length === 0 ? (
                 <p className="text-xs text-emerald-700">
-                  Hồ sơ doanh nghiệp đã đầy đủ các hạng mục cơ bản! Bạn có thể cập nhật thêm giải thưởng hoặc con số nổi bật ở tab <strong>Hiển thị công khai</strong>.
+                  Hồ sơ doanh nghiệp đã đầy đủ các hạng mục cơ bản! Bạn có thể bấm <strong>Xem trang công khai</strong> phía trên để kiểm tra hiển thị với ứng viên.
                 </p>
               ) : (
                 completion.checks
