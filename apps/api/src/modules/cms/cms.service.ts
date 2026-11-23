@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
+  type OnModuleInit,
 } from '@nestjs/common';
 import {
   CmsContentStatus,
@@ -63,6 +65,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { GoogleIndexingService } from '../../shared/seo/google-indexing.service';
+import { DEFAULT_LEGAL_PAGES } from './legal-pages.seed';
 import { sanitizeCmsHtml } from './sanitize-cms-html';
 
 function siteHosts(siteUrl: string): Set<string> {
@@ -174,11 +177,86 @@ type PostWithCategory = CmsPost & {
 };
 
 @Injectable()
-export class CmsService {
+export class CmsService implements OnModuleInit {
+  private readonly logger = new Logger(CmsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly indexing: GoogleIndexingService,
   ) {}
+
+  onModuleInit(): void {
+    void this.ensureDefaultLegalPages();
+  }
+
+  /**
+   * Tự động khởi tạo 8 trang chính sách & điều khoản pháp lý chuẩn Bộ Công Thương / NĐ 13
+   * vào bảng `cms.cms_post` (type='page', status='published') nếu slug chưa tồn tại.
+   * Không bao giờ ghi đè trang đã tồn tại để SuperAdmin tự do chỉnh sửa trong Admin CMS.
+   */
+  async ensureDefaultLegalPages(): Promise<void> {
+    if (!this.prisma?.user?.findFirst || !this.prisma?.cmsPost?.findFirst) {
+      return;
+    }
+    try {
+      const author =
+        (await this.prisma.user.findFirst({
+          where: { role: 'super_admin', isDeleted: false },
+          select: { id: true },
+        })) ??
+        (await this.prisma.user.findFirst({
+          where: { isDeleted: false },
+          select: { id: true },
+        }));
+      if (!author) return;
+
+      let created = 0;
+      const now = new Date();
+      for (const page of DEFAULT_LEGAL_PAGES) {
+        const existing = await this.prisma.cmsPost.findFirst({
+          where: {
+            type: CmsContentType.Page,
+            slug: page.slug,
+          },
+          select: { id: true },
+        });
+        if (existing) continue;
+
+        await this.prisma.cmsPost.create({
+          data: {
+            type: CmsContentType.Page,
+            title: page.title,
+            slug: page.slug,
+            excerpt: page.excerpt,
+            bodyHtml: sanitizeCmsHtml(page.bodyHtml),
+            status: CmsContentStatus.Published,
+            publishedAt: now,
+            categoryId: null,
+            authorId: author.id,
+            authorName: 'Ban quản trị inLink',
+            seoTitle: page.seoTitle,
+            seoDescription: page.seoDescription,
+            canonicalPath: cmsPagePublicPath(page.slug),
+            robotsIndex: true,
+            robotsFollow: true,
+            robotsMaxImagePreview: true,
+            robots: buildCmsRobotsString(true, true),
+            createdBy: author.id,
+            updatedBy: author.id,
+          },
+        });
+        created += 1;
+      }
+
+      if (created > 0) {
+        this.logger.log(`Seeded ${created} default legal/policy CMS page(s).`);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not seed default legal CMS pages on startup: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   // ---- Categories ----
 
