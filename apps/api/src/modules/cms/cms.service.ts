@@ -211,6 +211,7 @@ export class CmsService implements OnModuleInit {
       if (!author) return;
 
       let created = 0;
+      let upgraded = 0;
       const now = new Date();
       for (const page of DEFAULT_LEGAL_PAGES) {
         const existing = await this.prisma.cmsPost.findFirst({
@@ -218,9 +219,30 @@ export class CmsService implements OnModuleInit {
             type: CmsContentType.Page,
             slug: page.slug,
           },
-          select: { id: true },
+          select: { id: true, bodyHtml: true },
         });
-        if (existing) continue;
+        if (existing) {
+          // Nâng cấp 1 lần duy nhất cho trang gioi-thieu cũ bị lỗi ảnh 404; sau khi cập nhật sẽ không bao giờ ghi đè chỉnh sửa của Admin.
+          if (
+            page.slug === 'gioi-thieu' &&
+            existing.bodyHtml.includes('01a0d927-a694-7749-aa2e-9d691cd7ea05.webp')
+          ) {
+            await this.prisma.cmsPost.update({
+              where: { id: existing.id },
+              data: {
+                title: page.title,
+                excerpt: page.excerpt,
+                bodyHtml: sanitizeCmsHtml(page.bodyHtml),
+                seoTitle: page.seoTitle,
+                seoDescription: page.seoDescription,
+                status: CmsContentStatus.Published,
+                updatedBy: author.id,
+              },
+            });
+            upgraded += 1;
+          }
+          continue;
+        }
 
         await this.prisma.cmsPost.create({
           data: {
@@ -248,8 +270,10 @@ export class CmsService implements OnModuleInit {
         created += 1;
       }
 
-      if (created > 0) {
-        this.logger.log(`Seeded ${created} default legal/policy CMS page(s).`);
+      if (created > 0 || upgraded > 0) {
+        this.logger.log(
+          `Seeded ${created} default CMS page(s), upgraded ${upgraded} legacy page(s).`,
+        );
       }
     } catch (err) {
       this.logger.warn(

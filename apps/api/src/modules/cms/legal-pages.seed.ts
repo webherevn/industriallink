@@ -17,6 +17,86 @@ export interface LegalPageSeed {
 
 export const DEFAULT_LEGAL_PAGES: LegalPageSeed[] = [
   {
+    slug: 'gioi-thieu',
+    title: 'Giới thiệu inLink — Nền tảng kết nối nhân tài ngành công nghiệp ứng dụng AI',
+    excerpt:
+      'inLink là nền tảng tuyển dụng công nghệ chuyên sâu cho ngành công nghiệp B2B tại Việt Nam — ứng dụng AI Matching hai chiều giúp Doanh nghiệp tuyển đúng người nhanh hơn và Ứng viên kỹ thuật, kinh doanh công nghiệp tìm đúng bến đỗ sự nghiệp.',
+    seoTitle: 'Giới thiệu inLink | Kết nối nhân tài — Dẫn lối công nghiệp',
+    seoDescription:
+      'Tìm hiểu về CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK và nền tảng tuyển dụng công nghiệp B2B inLink: AI Matching hai chiều, AI JD Copilot, Dịch vụ Săn nhân sự công nghiệp và cam kết minh bạch.',
+    bodyHtml: `
+<p><strong>inLink — Kết nối nhân tài, dẫn lối công nghiệp.</strong> Trong bối cảnh chuỗi cung ứng sản xuất, tự động hóa, cơ điện và thương mại thiết bị B2B tại Việt Nam tăng tốc mạnh mẽ, bài toán khó nhất của mọi doanh nghiệp công nghiệp không phải là thiếu ứng viên — mà là <strong>tìm đúng người am hiểu kỹ thuật, nắm vững thị trường công nghiệp và sẵn sàng tạo ra kết quả thực chiến</strong>.</p>
+
+<p>Các sàn tuyển dụng đại trà thường gộp chung mọi ngành nghề vào một bộ lọc đơn giản, khiến Nhà tuyển dụng mất hàng tuần sàng lọc hàng trăm CV không đúng chuyên môn, còn Kỹ sư và Chuyên viên Kinh doanh B2B chất lượng cao lại bị chìm giữa biển tin tuyển dụng thiếu rõ ràng. <strong>inLink</strong> ra đời để giải quyết tận gốc khoảng trống đó.</p>
+
+<h2>1. inLink là ai?</h2>
+<p><strong>inLink</strong> (thuộc <strong>CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK</strong>) là nền tảng công nghệ tuyển dụng và kết nối nhân tài chuyên biệt 100% cho <strong>ngành công nghiệp B2B tại Việt Nam</strong>.</p>
+<p>Chúng tôi tập trung sâu vào các nhóm vị trí cốt lõi tạo nên năng lực cạnh tranh của doanh nghiệp sản xuất và thương mại kỹ thuật:</p>
+<ul>
+  <li><strong>Khối Kinh doanh Công nghiệp B2B:</strong> Kỹ sư bán hàng (Sales Engineer), Chuyên viên Kinh doanh dự án, Quản lý khách hàng trọng điểm (Key Account Manager), Giám đốc Kinh doanh thiết bị, vật tư, giải pháp nhà máy &amp; EPC.</li>
+  <li><strong>Khối Kỹ thuật &amp; Vận hành Công nghiệp:</strong> Kỹ sư Tự động hóa (PLC/SCADA/Robotics), Cơ khí chế tạo, Điện công nghiệp – M&amp;E, Bảo trì &amp; Dịch vụ kỹ thuật hiện trường, Quản lý sản xuất, QA/QC, HSE và Chuỗi cung ứng công nghiệp.</li>
+</ul>
+
+<h2>2. Tầm nhìn, Sứ mệnh &amp; Giá trị cốt lõi</h2>
+<h3>2.1. Tầm nhìn</h3>
+<p>Trở thành <strong>nền tảng kết nối nhân lực công nghiệp ứng dụng AI hàng đầu Việt Nam</strong> — nơi mỗi doanh nghiệp sản xuất, thương mại kỹ thuật và nhà thầu công nghiệp có thể tìm thấy đúng nhân sự nòng cốt với chi phí minh bạch và tốc độ vượt trội.</p>
+
+<h3>2.2. Sứ mệnh</h3>
+<p>Chuẩn hóa ngôn ngữ tuyển dụng ngành công nghiệp bằng trí tuệ nhân tạo, rút ngắn khoảng cách giữa năng lực thực chiến của ứng viên và yêu cầu chuyên sâu của doanh nghiệp — góp phần nâng cao năng suất và sức cạnh tranh của ngành công nghiệp Việt Nam.</p>
+
+<h3>2.3. 4 Giá trị cốt lõi</h3>
+<ul>
+  <li><strong>Chuyên sâu ngành công nghiệp:</strong> Không chạy theo số lượng tin đại trà. Mọi trường dữ liệu, bộ lọc và thuật toán đều được thiết kế riêng cho đặc thù tuyển dụng B2B và kỹ thuật công nghiệp.</li>
+  <li><strong>Công nghệ AI thực chiến:</strong> AI không chỉ để trưng bày — AI của inLink trực tiếp bóc tách JD, chuẩn hóa CV, chấm điểm phù hợp theo từng tiêu chí và giải thích rõ lý do phù hợp cũng như điểm cần lưu ý.</li>
+  <li><strong>Minh bạch tuyệt đối:</strong> Minh bạch mức độ phù hợp, minh bạch cơ chế tính Credit (xem điểm AI miễn phí, 0 Credit với ứng viên tự ứng tuyển), minh bạch báo giá và xuất hóa đơn GTGT đầy đủ.</li>
+  <li><strong>Đồng hành trọn vòng đời tuyển dụng:</strong> Từ khâu viết JD, sàng lọc hồ sơ, nhắn tin trực tiếp, quản lý quy trình phỏng vấn đến gửi đề nghị nhận việc (Offer) và hội nhập (Onboarding).</li>
+</ul>
+
+<h2>3. Khác biệt công nghệ: AI Matching hai chiều chuyên biệt công nghiệp</h2>
+<p>Thay vì chỉ khớp từ khóa rời rạc, <strong>inLink AI Matching</strong> phân tách rõ hai khung năng lực chuyên sâu — <strong>Nhóm Kinh doanh Công nghiệp</strong> và <strong>Nhóm Kỹ thuật Công nghiệp</strong> — để đánh giá độ phù hợp đa chiều:</p>
+<ul>
+  <li><strong>Chuẩn hóa tiêu chí tuyển dụng thực tế:</strong> Đối chiếu sâu theo lĩnh vực công nghiệp, dải sản phẩm/thiết bị, tệp khách hàng/nhà máy, kinh nghiệm triển khai thực tế, kỹ năng chuyên môn, ngoại ngữ, khu vực làm việc và khung thu nhập.</li>
+  <li><strong>Giải thích điểm phù hợp trực quan:</strong> Cả Nhà tuyển dụng và Ứng viên đều nhìn thấy rõ <em>điểm mạnh đáp ứng tốt</em> và <em>khoảng trống cần bổ sung</em> trước khi kết nối, giảm tối đa thời gian phỏng vấn sai đối tượng.</li>
+  <li><strong>AI JD Copilot &amp; AI CV Builder:</strong> Hỗ trợ Nhà tuyển dụng chuyển hóa mô tả công việc thô thành tin tuyển dụng chuẩn hóa trong vài phút; đồng thời giúp Ứng viên trình bày kinh nghiệm kỹ thuật &amp; doanh số B2B mạch lạc, ấn tượng chỉ với 3 bước.</li>
+</ul>
+
+<h2>4. Hệ sinh thái giải pháp toàn diện của inLink</h2>
+<h3>4.1. Dành cho Doanh nghiệp tuyển dụng (tuyendung.inlink.vn)</h3>
+<ul>
+  <li><strong>Đăng tin &amp; Quản trị tuyển dụng (ATS tích hợp):</strong> Đăng tin chuẩn AI, theo dõi ứng viên theo bảng quy trình (Kanban), đặt lịch phỏng vấn, gửi email hàng loạt, báo cáo hiệu quả tuyển dụng và tham chiếu lương thị trường.</li>
+  <li><strong>Chủ động tìm kiếm ứng viên AI:</strong> Lọc nhanh ứng viên tiềm năng theo đúng chuyên môn ngành, xem điểm phù hợp AI hoàn toàn miễn phí và chỉ dùng Credit khi chủ động mở liên hệ hồ sơ bạn thực sự ưng ý.</li>
+  <li><strong>Dịch vụ Săn nhân sự công nghiệp (AI VIP):</strong> Kết hợp hệ thống AI quét nguồn ứng viên tự động liên tục cùng đội ngũ chuyên viên săn nhân sự am hiểu ngành, trực tiếp tiếp cận, thẩm định và bàn giao danh sách ứng viên sẵn sàng phỏng vấn cho doanh nghiệp.</li>
+</ul>
+
+<h3>4.2. Dành cho Ứng viên ngành công nghiệp (inlink.vn)</h3>
+<ul>
+  <li><strong>Hồ sơ năng lực &amp; CV chuẩn ngành công nghiệp:</strong> Xây dựng CV chuyên nghiệp miễn phí với AI, làm nổi bật dự án kỹ thuật, thiết bị từng vận hành hoặc thành tích doanh số B2B.</li>
+  <li><strong>Gợi ý việc làm trúng đích:</strong> Nhận đề xuất cơ hội nghề nghiệp phù hợp năng lực từ các doanh nghiệp sản xuất, nhà thầu và công ty thương mại thiết bị đã được xác thực.</li>
+  <li><strong>Chủ động &amp; An toàn dữ liệu:</strong> Theo dõi minh bạch từng bước đơn ứng tuyển, trò chuyện trực tiếp với Nhà tuyển dụng và được bảo vệ dữ liệu cá nhân nghiêm ngặt theo Nghị định 13/2023/NĐ-CP.</li>
+</ul>
+
+<h3>4.3. Mạng lưới Cộng tác viên &amp; Đối tác (ctv.inlink.vn)</h3>
+<p>inLink phát triển chương trình <strong>Cộng tác viên giới thiệu doanh nghiệp</strong> với cơ chế ghi nhận tự động, theo dõi trạng thái minh bạch và chính sách hoa hồng rõ ràng — mở rộng mạng lưới kết nối giữa các doanh nghiệp công nghiệp trên toàn quốc.</p>
+
+<h2>5. Cam kết chuẩn mực vận hành</h2>
+<ol>
+  <li><strong>Không biến nền tảng thành sàn tin rác:</strong> Mọi doanh nghiệp và tin tuyển dụng đều được kiểm duyệt minh bạch nhằm bảo vệ trải nghiệm ứng viên và uy tín thương hiệu tuyển dụng.</li>
+  <li><strong>Chi phí rõ ràng — Không bẫy gia hạn ẩn:</strong> Doanh nghiệp chủ động lựa chọn gói dịch vụ theo đúng nhu cầu thực tế, không tự động trừ tiền gia hạn khi hết chu kỳ.</li>
+  <li><strong>Tuân thủ pháp luật Việt Nam:</strong> Vận hành đầy đủ theo Nghị định 52/2013/NĐ-CP, Nghị định 85/2021/NĐ-CP về thương mại điện tử và Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.</li>
+</ol>
+
+<h2>6. Thông tin doanh nghiệp &amp; Kết nối cùng inLink</h2>
+<ul>
+  <li><strong>Đơn vị chủ quản:</strong> CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK</li>
+  <li><strong>Cổng Ứng viên:</strong> <a href="https://inlink.vn">https://inlink.vn</a></li>
+  <li><strong>Cổng Nhà tuyển dụng B2B:</strong> <a href="https://tuyendung.inlink.vn">https://tuyendung.inlink.vn</a></li>
+  <li><strong>Cổng Cộng tác viên:</strong> <a href="https://ctv.inlink.vn">https://ctv.inlink.vn</a></li>
+  <li><strong>Email hỗ trợ &amp; tư vấn hợp tác B2B:</strong> hotro@inlink.vn</li>
+</ul>
+<p>Dù bạn là <strong>Doanh nghiệp công nghiệp</strong> đang tìm kiếm kỹ sư, quản lý sản xuất hay đội ngũ kinh doanh B2B xuất sắc, hay là <strong>Ứng viên</strong> muốn bứt phá sự nghiệp trong ngành công nghiệp — <strong>inLink</strong> luôn sẵn sàng đồng hành để kết nối đúng người, đúng công việc, đúng thời điểm.</p>
+`.trim(),
+  },
+  {
     slug: 'quy-che-hoat-dong',
     title: 'Quy chế hoạt động nền tảng tuyển dụng inLink',
     excerpt:
