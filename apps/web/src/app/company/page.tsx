@@ -123,6 +123,19 @@ export default function CompanyPage() {
 
   const [activeTab, setActiveTab] = useState<CompanyTab>('info');
   const [form, setForm] = useState<CompanyForm>(emptyForm);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (
+      tab === 'info' ||
+      tab === 'culture' ||
+      tab === 'media' ||
+      tab === 'verification' ||
+      tab === 'members'
+    ) {
+      setActiveTab(tab);
+    }
+  }, []);
   const [newActivity, setNewActivity] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);

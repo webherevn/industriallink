@@ -22,6 +22,7 @@ import {
 } from '@industriallink/contracts';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { AppShell } from '@/components/app-shell';
+import { CompanyLicenseBanner, useCompanyLicenseGate } from '@/components/company-license-banner';
 import { JdCreateGuide } from '@/components/jd-create-guide';
 import { JdSourceStep } from './jd-source-step';
 import { JdSalesForm } from '@/components/jd-sales-form';
@@ -145,9 +146,11 @@ export function JdSalesCreateFlow({
     },
   });
 
+  const { canSubmitPublish } = useCompanyLicenseGate();
   const analyzing = fileMutation.isPending || textMutation.isPending;
   const busy = analyzing || saveMutation.isPending;
   const canPublish =
+    canSubmitPublish &&
     form.title.trim().length >= 3 &&
     form.description.trim().length >= 10 &&
     Boolean(form.jobLevel);
@@ -175,6 +178,10 @@ export function JdSalesCreateFlow({
         >
           {saveMutation.isPending && saveMutation.variables === false ? 'Đang lưu...' : 'Lưu nháp'}
         </Button>
+      </div>
+
+      <div className="mt-4">
+        <CompanyLicenseBanner />
       </div>
 
       {step !== 1 && (
@@ -371,6 +378,14 @@ export function JdSalesCreateFlow({
               )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {step === 3 && !canSubmitPublish && (
+                <Link
+                  href="/company?tab=verification"
+                  className="text-[13px] font-semibold text-amber-700 hover:underline"
+                >
+                  Tải Giấy phép ĐKKD để đăng tin công khai →
+                </Link>
+              )}
               {step === 3 && !form.jobLevel && (
                 <span className="text-[13px] font-medium text-amber-700">Chọn Cấp bậc ở bước 2 để đăng tin.</span>
               )}

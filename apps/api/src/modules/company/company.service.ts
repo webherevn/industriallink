@@ -887,11 +887,16 @@ export class CompanyService {
     return { companyId: membership.companyId, companyName: membership.company.name };
   }
 
-  /** SuperAdmin treo/cấm công ty → NTD không được đăng tin mới. */
+  /**
+   * Kiểm tra doanh nghiệp có đủ điều kiện đăng tin công khai hay không:
+   * 1. Công ty đang hoạt động (không bị tạm dừng/cấm).
+   * 2. Đã xác minh ĐKKD hoặc đã tải lên Giấy phép ĐKKD (nếu đang chờ duyệt ĐKKD, tin sẽ vào hàng chờ duyệt tay).
+   * Lưu ý: Tạo/sửa tin Nháp không gọi hàm này nên NTD vẫn soạn & lưu nháp bình thường.
+   */
   async assertCompanyCanPost(companyId: string): Promise<void> {
     const company = await this.prisma.company.findFirst({
       where: { id: companyId, isDeleted: false },
-      select: { status: true, name: true },
+      select: { status: true, name: true, profile: true },
     });
     if (!company) throw new NotFoundException('Không tìm thấy công ty');
     if (company.status !== CompanyStatus.Active) {
@@ -899,6 +904,16 @@ export class CompanyService {
         company.status === CompanyStatus.Banned
           ? 'Công ty đã bị cấm đăng tin. Liên hệ SuperAdmin.'
           : 'Công ty đang bị tạm dừng. Liên hệ SuperAdmin.',
+      );
+    }
+    const brand = readBrandJson(company.profile);
+    const isVerified = Boolean(
+      brand.verified || brand.verificationRequest?.status === 'approved',
+    );
+    const hasLicenseUploaded = Boolean(brand.licenseDoc?.storageKey);
+    if (!isVerified && !hasLicenseUploaded) {
+      throw new ForbiddenException(
+        'Doanh nghiệp cần tải Giấy phép ĐKKD tại mục Xác minh doanh nghiệp trước khi đăng tin công khai. Bạn vẫn có thể lưu nháp tin tuyển dụng này.',
       );
     }
   }

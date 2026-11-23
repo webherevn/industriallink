@@ -25,6 +25,7 @@ import type { AuthenticatedUser } from '../../../shared/security/security.types'
 import { AiGatewayService } from '../../ai/ai-gateway.service';
 import { BillingService } from '../../billing/billing.service';
 import { stripHtml } from '../html.util';
+import { readBrandJson } from '../../company/company-verification';
 import { JobService } from '../job.service';
 import { runJobStaticFilter } from './job-static-filter';
 import type { JobModerationJobData } from './job-moderation.constants';
@@ -89,7 +90,7 @@ export class JobModerationService {
   async process(data: JobModerationJobData): Promise<void> {
     const job = await this.prisma.job.findFirst({
       where: { id: data.jobId, isDeleted: false },
-      include: { company: { select: { name: true } } },
+      include: { company: { select: { name: true, profile: true } } },
     });
     if (!job) {
       this.logger.warn(`Bỏ qua kiểm duyệt: không tìm thấy job ${data.jobId}`);
@@ -154,6 +155,38 @@ export class JobModerationService {
     const moderationNote = noteBits.join(' ') || null;
 
     if (ai.suggested_action === JobModerationAction.Publish) {
+      const brand = readBrandJson(job.company?.profile);
+      const companyVerified = Boolean(
+        brand.verified || brand.verificationRequest?.status === 'approved',
+      );
+      if (!companyVerified) {
+        const verifyNote =
+          'Doanh nghiệp đã tải Giấy phép ĐKKD nhưng chưa được xác minh — cần SuperAdmin duyệt ĐKKD cùng tin tuyển dụng.';
+        const mergedNote = moderationNote ? `${moderationNote} ${verifyNote}` : verifyNote;
+        await this.prisma.job.update({
+          where: { id: job.id },
+          data: {
+            moderationStatus: JobModerationStatus.NeedsManualReview,
+            aiRiskScore: ai.risk_score,
+            aiReason: ai.reason,
+            aiIsB2b: ai.is_b2b,
+            aiSuggestedAction: ai.suggested_action,
+            moderationNote: mergedNote,
+            moderatedAt: new Date(),
+          },
+        });
+        this.emitModerated(
+          job.id,
+          job.tenantId,
+          JobModerationStatus.NeedsManualReview,
+          data.correlationId,
+        );
+        this.logger.log(
+          `Job ${job.code} chuyển duyệt tay vì doanh nghiệp chưa được duyệt ĐKKD.`,
+        );
+        return;
+      }
+
       await this.prisma.job.update({
         where: { id: job.id },
         data: {
