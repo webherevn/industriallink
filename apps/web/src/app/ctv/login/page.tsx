@@ -294,7 +294,7 @@ export default function CtvLoginPage() {
                       </a>{' '}
                       và{' '}
                       <a
-                        href="/ctv/policy"
+                        href="https://inlink.vn/partner"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-semibold text-[#0B468C] hover:underline"
