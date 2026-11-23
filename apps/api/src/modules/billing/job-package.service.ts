@@ -156,6 +156,90 @@ export class JobPackageService {
   }
 
   /**
+   * Đồng bộ gói tin đăng (BillingJobPackage) từ BillingCompanyPlan khi SuperAdmin gán gói trực tiếp
+   * cho công ty (hoặc tự backfill cho công ty đã được gán gói trả phí trước đó).
+   * Credit đã được cấp bởi BillingService.assignCompanyPlan → đặt creditsGranted=true (không cấp trùng).
+   */
+  async syncFromCompanyPlan(companyId: string): Promise<BillingJobPackage | null> {
+    const now = new Date();
+    const companyPlan = await this.prisma.billingCompanyPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (!companyPlan || !companyPlan.isActive || !companyPlan.plan) return null;
+    if (companyPlan.plan.code === 'KHAM_PHA') return null;
+    if (companyPlan.endsAt && companyPlan.endsAt.getTime() < now.getTime()) return null;
+
+    const baseQuota = companyPlan.customJobPostQuota ?? companyPlan.plan.jobPostQuota;
+    const totalJobs =
+      baseQuota == null ? null : baseQuota + (companyPlan.extraJobPostQuota ?? 0);
+    const creditQuota = companyPlan.customCreditQuota ?? companyPlan.plan.creditQuota ?? 0;
+    const durationDays = companyPlan.customDurationDays ?? companyPlan.plan.durationDays ?? 30;
+    const startsAt = companyPlan.activatedAt ?? companyPlan.startsAt;
+    const expiresAt = companyPlan.endsAt ?? addUtcDays(startsAt, durationDays);
+
+    // Nếu đã có gói trả phí từ đơn hàng (orderId != null) còn hiệu lực cho cùng planId thì không tạo trùng
+    const paidPkg = await this.prisma.billingJobPackage.findFirst({
+      where: {
+        companyId,
+        planId: companyPlan.planId,
+        orderId: { not: null },
+        status: { in: ['ACTIVE', 'UNUSED'] },
+        OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+      },
+      select: { id: true },
+    });
+    if (paidPkg) return null;
+
+    const existingAdminPkg = await this.prisma.billingJobPackage.findFirst({
+      where: {
+        companyId,
+        orderId: null,
+        planId: companyPlan.planId,
+        status: 'ACTIVE',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingAdminPkg) {
+      return this.prisma.billingJobPackage.update({
+        where: { id: existingAdminPkg.id },
+        data: {
+          packageName: companyPlan.plan.name,
+          totalJobs,
+          creditsIncluded: creditQuota,
+          durationDays,
+          expiresAt,
+        },
+      });
+    }
+
+    const packageType = this.packageTypeForPlan(companyPlan.plan.code);
+    const code = await this.nextCode(packageType);
+    return this.prisma.billingJobPackage.create({
+      data: {
+        code,
+        companyId,
+        orderId: null,
+        planId: companyPlan.planId,
+        packageType,
+        packageName: companyPlan.plan.name,
+        status: 'ACTIVE',
+        totalJobs,
+        usedJobs: 0,
+        creditsIncluded: creditQuota,
+        durationDays,
+        activationDeadlineAt: null,
+        activatedAt: startsAt,
+        expiresAt,
+        creditsGranted: true,
+        priceVnd: 0n,
+        purchasedAt: startsAt,
+      },
+    });
+  }
+
+  /**
    * Sinh mã gói kế tiếp theo loại: JD-ST-000001, JD-PL-000001…
    *
    * Có retry khi trùng mã (2 đơn mua song song có thể cùng sinh 1 số) — tránh
@@ -189,6 +273,7 @@ export class JobPackageService {
    */
   async listForCompany(companyId: string): Promise<RecruiterJobPackageListResponse> {
     await this.syncExpiredPackages(companyId);
+    await this.syncFromCompanyPlan(companyId);
 
     const rows = await this.prisma.billingJobPackage.findMany({
       where: { companyId },

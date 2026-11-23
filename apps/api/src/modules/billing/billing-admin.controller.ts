@@ -40,6 +40,7 @@ import type {
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
+import { JobPackageService } from './job-package.service';
 import { PaymentService } from './payment.service';
 import { SourcingService } from './sourcing.service';
 
@@ -52,6 +53,7 @@ export class BillingAdminController {
   constructor(
     private readonly billing: BillingService,
     private readonly credit: CreditService,
+    private readonly jobPackages: JobPackageService,
     private readonly payment: PaymentService,
     private readonly sourcing: SourcingService,
   ) {}
@@ -118,11 +120,13 @@ export class BillingAdminController {
 
   @Put('company-plans')
   @ApiOperation({ summary: 'Gán / đổi gói nền tảng cho công ty' })
-  assignCompanyPlan(
+  async assignCompanyPlan(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: AdminAssignCompanyPlanRequest,
   ): Promise<BillingCompanyPlanView> {
-    return this.billing.assignCompanyPlan(user, dto);
+    const assigned = await this.billing.assignCompanyPlan(user, dto);
+    await this.jobPackages.syncFromCompanyPlan(assigned.companyId);
+    return assigned;
   }
 
   @Delete('company-plans/:companyId')
