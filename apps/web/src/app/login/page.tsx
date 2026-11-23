@@ -1,6 +1,7 @@
 'use client';
 
 import { isCmsAdminRole, isCrmRole, isSalesStaff, MfaMethod, UserRole, isLoginMfaChallenge } from '@industriallink/contracts';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaMethod, setMfaMethod] = useState<MfaMethod>(MfaMethod.EmailOtp);
@@ -171,12 +173,23 @@ export default function LoginPage() {
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </Field>
               <Field label="Mật khẩu">
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </Field>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <Button type="submit" className="w-full" disabled={loading}>

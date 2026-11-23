@@ -1532,9 +1532,9 @@ export class JobService {
       if (candidate) {
         const existing = await this.prisma.application.findUnique({
           where: { jobId_candidateId: { jobId: job.id, candidateId: candidate.id } },
-          select: { id: true },
+          select: { id: true, isDeleted: true },
         });
-        view.hasApplied = Boolean(existing);
+        view.hasApplied = Boolean(existing && !existing.isDeleted);
       }
     }
     return view;

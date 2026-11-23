@@ -75,7 +75,7 @@ export const DEFAULT_STRUCTURED_FOOTER: CmsStructuredFooter = {
       title: 'Dành cho Ứng viên',
       links: [
         { label: 'Tìm việc làm công nghiệp', href: '/viec-lam' },
-        { label: 'Tạo CV & Hồ sơ AI', href: '/cv' },
+        { label: 'Tạo CV & Hồ sơ AI', href: '/cv/create' },
         { label: 'Cẩm nang nghề nghiệp', href: '/cam-nang' },
         { label: 'Hỏi đáp ứng viên', href: '/trang/hoi-dap' },
       ],

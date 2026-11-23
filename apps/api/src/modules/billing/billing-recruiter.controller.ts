@@ -83,6 +83,7 @@ export class BillingRecruiterController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<RecruiterBillingOverview> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    await this.billing.syncJobPackagesFromCompanyPlan(companyId);
     return this.overview.getOverview(companyId);
   }
 

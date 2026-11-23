@@ -292,7 +292,9 @@ export default function DashboardPage() {
                 <h2 className="text-[17px] font-bold text-[#072348]">
                   {completionPct >= 100
                     ? 'Hồ sơ của bạn đã hoàn thiện!'
-                    : 'Hồ sơ của bạn gần hoàn thiện!'}
+                    : completionPct >= 60
+                      ? 'Hồ sơ của bạn gần hoàn thiện!'
+                      : 'Hoàn thiện hồ sơ để AI gợi ý việc chuẩn hơn'}
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {missingSteps.length > 0
@@ -386,7 +388,7 @@ export default function DashboardPage() {
               iconTone="bg-indigo-50 text-brand-700"
               label="Việc đã lưu"
               value={bookmarks?.length ?? 0}
-              hint={`${notifications?.unreadCount ?? 0} thông báo chưa đọc`}
+              hint={(bookmarks?.length ?? 0) > 0 ? 'Xem việc làm đã lưu ›' : 'Chưa lưu việc làm nào'}
             />
           </section>
 

@@ -6,7 +6,6 @@ import { Camera, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import { fetchMyAvatarObjectUrl, uploadAvatar } from '@/lib/candidate';
-import { gravatarUrl } from '@/lib/gravatar';
 
 export const MY_AVATAR_QUERY_KEY = ['my-avatar'] as const;
 
@@ -80,27 +79,8 @@ export function ProfileAvatar({
   }, [uploaded.dataUpdatedAt, hasAvatar]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (hasAvatar && uploaded.data && !brokenUpload) {
-      setGravatarSrc(null);
-      setGravatarLoading(false);
-      return;
-    }
-    if (!email) {
-      setGravatarSrc(null);
-      setGravatarLoading(false);
-      return;
-    }
-    setGravatarLoading(true);
-    void gravatarUrl(email, size === 'sm' ? 64 : 200).then((gUrl) => {
-      if (!cancelled) {
-        setGravatarSrc(gUrl);
-        setGravatarLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
+    setGravatarSrc(null);
+    setGravatarLoading(false);
   }, [hasAvatar, email, size, uploaded.data, brokenUpload]);
 
   const mutation = useMutation({

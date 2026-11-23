@@ -157,7 +157,7 @@ export class JobPackageService {
 
   /**
    * Đồng bộ gói tin đăng (BillingJobPackage) từ BillingCompanyPlan khi SuperAdmin gán gói trực tiếp
-   * cho công ty (hoặc tự backfill cho công ty đã được gán gói trả phí trước đó).
+   * cho công ty hoặc công ty đang ở gói mặc định Khám phá (KHAM_PHA).
    * Credit đã được cấp bởi BillingService.assignCompanyPlan → đặt creditsGranted=true (không cấp trùng).
    */
   async syncFromCompanyPlan(companyId: string): Promise<BillingJobPackage | null> {
@@ -167,7 +167,6 @@ export class JobPackageService {
       include: { plan: true },
     });
     if (!companyPlan || !companyPlan.isActive || !companyPlan.plan) return null;
-    if (companyPlan.plan.code === 'KHAM_PHA') return null;
     if (companyPlan.endsAt && companyPlan.endsAt.getTime() < now.getTime()) return null;
 
     const baseQuota = companyPlan.customJobPostQuota ?? companyPlan.plan.jobPostQuota;
@@ -196,22 +195,25 @@ export class JobPackageService {
         companyId,
         orderId: null,
         planId: companyPlan.planId,
-        status: 'ACTIVE',
       },
       orderBy: { createdAt: 'desc' },
     });
 
     if (existingAdminPkg) {
-      return this.prisma.billingJobPackage.update({
-        where: { id: existingAdminPkg.id },
-        data: {
-          packageName: companyPlan.plan.name,
-          totalJobs,
-          creditsIncluded: creditQuota,
-          durationDays,
-          expiresAt,
-        },
-      });
+      if (existingAdminPkg.status === 'ACTIVE') {
+        return this.prisma.billingJobPackage.update({
+          where: { id: existingAdminPkg.id },
+          data: {
+            packageName: companyPlan.plan.name,
+            totalJobs,
+            creditsIncluded: creditQuota,
+            durationDays,
+            expiresAt,
+          },
+        });
+      }
+      // Không tự cấp lại gói dùng thử Khám phá nếu đã hết hạn / đã dùng xong
+      if (companyPlan.plan.code === 'KHAM_PHA') return null;
     }
 
     const packageType = this.packageTypeForPlan(companyPlan.plan.code);

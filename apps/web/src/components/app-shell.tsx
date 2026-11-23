@@ -4,11 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   Bell,
+  Bookmark,
   Briefcase,
   ChevronDown,
   ClipboardList,
   FilePenLine,
   FileUp,
+  Handshake,
   LayoutDashboard,
   LogOut,
   MessageCircle,
@@ -58,7 +60,9 @@ const CANDIDATE_MOBILE_NAV = [
 const CANDIDATE_ACCOUNT_LINKS = [
   { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
   { href: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
+  { href: '/saved-jobs', label: 'Việc làm đã lưu', icon: Bookmark },
   { href: '/upload', label: 'Tải / phân tích CV', icon: FileUp },
+  { href: '/partner', label: 'Cộng tác viên (CTV)', icon: Handshake },
   { href: '/account', label: 'Tài khoản & bảo mật', icon: Settings2 },
 ] as const;
 

@@ -51,7 +51,14 @@ export function CornerRobot({ name }: { name?: string | null }) {
 
   useEffect(() => {
     setHasToken(Boolean(tokenStore.get()));
-    setHintHidden(window.sessionStorage.getItem('inlink-robot-hint-hidden') === '1');
+    const dismissed = window.sessionStorage.getItem('inlink-robot-hint-hidden') === '1';
+    setHintHidden(dismissed);
+    if (!dismissed) {
+      const autoHide = window.setTimeout(() => {
+        setHintHidden(true);
+      }, 6000);
+      return () => window.clearTimeout(autoHide);
+    }
   }, []);
 
   useEffect(() => {

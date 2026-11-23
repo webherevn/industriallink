@@ -708,8 +708,17 @@ function CreateCvEditor() {
       setDownloadError('Không tìm thấy bản xem trước CV để tải.');
       return;
     }
-    if (!analyzed && !draft) {
-      setDownloadError('Hãy phân tích nội dung CV trước khi tải xuống.');
+    const hasContent = Boolean(
+      analyzed ||
+        draft ||
+        step >= 2 ||
+        activeDraft.fullName?.trim() ||
+        activeDraft.title?.trim() ||
+        activeDraft.summary?.trim() ||
+        activeDraft.experience.length > 0,
+    );
+    if (!hasContent) {
+      setDownloadError('Hãy nhập hoặc phân tích nội dung CV trước khi tải xuống.');
       return;
     }
     setDownloading(true);
@@ -2109,7 +2118,7 @@ function CreateCvEditor() {
                 <button
                   type="button"
                   onClick={onDownloadCv}
-                  disabled={downloading || (!analyzed && !draft)}
+                  disabled={downloading}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-60"
                 >
                   {downloading ? (
@@ -2405,48 +2414,6 @@ function CreateCvEditor() {
             </ul>
           </div>
         </aside>
-      </div>
-
-      <div className="mt-4 xl:hidden">
-        <div className="progress-card overflow-hidden p-0">
-          <div className="border-b border-slate-100 px-3 py-2">
-            <h2 className="text-sm font-bold text-slate-900">Xem trước CV</h2>
-          </div>
-          <div className="max-h-[min(52vh,420px)] overflow-y-auto overscroll-contain bg-slate-100/80 p-2">
-            <div
-              className="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-slate-200/80"
-              style={{ zoom: 0.88 }}
-            >
-              <CvPreview
-                draft={activeDraft}
-                template={selected}
-                compact
-                empty={!analyzed && step === 1}
-                avatarUrl={previewAvatarUrl}
-              />
-            </div>
-          </div>
-          <div className="border-t border-slate-100 p-3">
-            <button
-              type="button"
-              onClick={onDownloadCv}
-              disabled={downloading || (!analyzed && !draft)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
-            >
-              {downloading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-              {downloading ? 'Đang tạo PDF…' : 'Tải xuống CV'}
-            </button>
-            {downloadError && (
-              <p className="mt-2 text-center text-[11px] font-medium text-rose-600">
-                {downloadError}
-              </p>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Bản đầy đủ ẩn — chỉ dùng để render PDF tải về */}

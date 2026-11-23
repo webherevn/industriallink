@@ -1007,6 +1007,10 @@ export class BillingService implements OnModuleInit {
     return this.jobPackages.listForCompany(companyId);
   }
 
+  async syncJobPackagesFromCompanyPlan(companyId: string): Promise<void> {
+    await this.jobPackages.syncFromCompanyPlan(companyId);
+  }
+
   /**
    * Gắn 1 gói tin đăng vào 1 tin tuyển dụng có sẵn — chống "kích hoạt rỗng".
    *

@@ -714,8 +714,8 @@ export function RecruiterSourcingWorkspace({
                   : hasPlan
                     ? ended
                       ? 'Kỳ gói đã kết thúc.'
-                      : 'iLink đối chiếu ứng viên theo tin bạn gắn, tự động quét 2h/lần và xử lý tuyển dụng từ A–Z ngay tại đây.'
-                    : 'Kích hoạt gói để iLink săn ứng viên cho vị trí đang tuyển.'}
+                      : 'inLink đối chiếu ứng viên theo tin bạn gắn, tự động quét 2h/lần và xử lý tuyển dụng từ A–Z ngay tại đây.'
+                    : 'Kích hoạt gói để inLink săn ứng viên cho vị trí đang tuyển.'}
               </p>
               {/* Chuyển nhanh giữa các chiến dịch */}
               {campaignId && validCampaigns.length > 1 ? (
@@ -876,7 +876,7 @@ export function RecruiterSourcingWorkspace({
             <Sparkles className="h-6 w-6 text-[#E8872A]" />
             <p className="mt-3 text-xl font-bold text-[#072348]">Chưa có gói Săn</p>
             <p className="mt-1 max-w-lg text-sm text-slate-500">
-              Chọn gói trên bảng giá. Sau khi kích hoạt, iLink đưa danh sách ứng viên phù hợp vào đây.
+              Chọn gói trên bảng giá. Sau khi kích hoạt, inLink đưa danh sách ứng viên phù hợp vào đây.
             </p>
             <Link
               href="/recruiter/pricing"

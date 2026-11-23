@@ -379,4 +379,97 @@ Email: <strong>hotro@inlink.vn</strong> (Thời gian phản hồi trong vòng 72
 <p>Nếu có câu hỏi về Chính sách Cookie, vui lòng liên hệ <strong>hotro@inlink.vn</strong>.</p>
 `.trim(),
   },
+  {
+    slug: 'hoi-dap',
+    title: 'Hỏi đáp ứng viên (FAQ)',
+    excerpt:
+      'Giải đáp các câu hỏi thường gặp dành cho ứng viên khi tạo hồ sơ, tạo CV bằng AI và ứng tuyển việc làm công nghiệp trên inLink.',
+    seoTitle: 'Hỏi đáp ứng viên | inLink',
+    seoDescription:
+      'Câu hỏi thường gặp về cách tạo hồ sơ ứng viên, tạo CV bằng AI, cách AI Matching chấm điểm phù hợp và bảo mật thông tin trên inLink.',
+    bodyHtml: `
+<h2>1. Làm thế nào để tạo hồ sơ và CV bằng AI trên inLink?</h2>
+<p>Sau khi đăng nhập tài khoản Ứng viên tại <strong>inlink.vn</strong>, bạn có thể tải lên CV có sẵn (PDF/DOCX) tại mục <strong>Tạo CV &amp; Hồ sơ AI</strong> để hệ thống tự động trích xuất kinh nghiệm, kỹ năng và đề xuất mẫu CV chuẩn ngành công nghiệp B2B.</p>
+
+<h2>2. Điểm phù hợp AI Matching được tính như thế nào?</h2>
+<p>AI Matching của inLink đối chiếu đa chiều giữa hồ sơ ứng viên (ngành hàng công nghiệp, nhóm vị trí Kinh doanh/Kỹ thuật, năm kinh nghiệm, kỹ năng chuyên môn, khu vực làm việc, mức lương kỳ vọng) với yêu cầu thực tế của Doanh nghiệp để hiển thị mức độ phù hợp minh bạch.</p>
+
+<h2>3. Thông tin cá nhân của tôi có được bảo mật không?</h2>
+<p>inLink tuân thủ nghiêm ngặt <strong>Nghị định 13/2023/NĐ-CP</strong> về bảo vệ dữ liệu cá nhân. Số điện thoại và email của bạn chỉ được hiển thị cho Nhà tuyển dụng đã xác thực khi bạn chủ động ứng tuyển hoặc đồng ý mở kết nối.</p>
+
+<h2>4. Cần hỗ trợ thêm?</h2>
+<p>Nếu gặp khó khăn khi sử dụng tài khoản hoặc ứng tuyển, vui lòng gửi email về <strong>hotro@inlink.vn</strong> để được đội ngũ hỗ trợ phản hồi trong giờ hành chính.</p>
+`.trim(),
+  },
+  {
+    slug: 'goc-bao-chi',
+    title: 'Góc báo chí & Truyền thông',
+    excerpt:
+      'Thông tin chính thức, bộ nhận diện thương hiệu và đầu mối liên hệ truyền thông của CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK.',
+    seoTitle: 'Góc báo chí & Truyền thông | inLink',
+    seoDescription:
+      'Thông tin chính thức và đầu mối liên hệ báo chí, truyền thông của nền tảng tuyển dụng công nghiệp B2B inLink.',
+    bodyHtml: `
+<h2>1. Giới thiệu nhanh về inLink</h2>
+<p><strong>inLink</strong> là nền tảng công nghệ kết nối nhân tài chuyên sâu cho ngành công nghiệp B2B tại Việt Nam (kỹ sư kinh doanh, tự động hóa, cơ điện M&amp;E, sản xuất, vận hành, thiết bị công nghiệp…), ứng dụng trí tuệ nhân tạo AI Matching hai chiều giúp doanh nghiệp rút ngắn thời gian tuyển đúng người.</p>
+
+<h2>2. Thông tin pháp nhân</h2>
+<ul>
+  <li><strong>Đơn vị chủ quản:</strong> CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK</li>
+  <li><strong>Hệ sinh thái nền tảng:</strong> inlink.vn (Ứng viên) · tuyendung.inlink.vn (Doanh nghiệp) · ctv.inlink.vn (Cộng tác viên)</li>
+</ul>
+
+<h2>3. Liên hệ báo chí &amp; Truyền thông</h2>
+<p>Các cơ quan báo chí, đối tác sự kiện hoặc tổ chức cần thông cáo báo chí, dữ liệu thị trường lao động công nghiệp hoặc bộ nhận diện thương hiệu inLink, vui lòng liên hệ qua email: <strong>hotro@inlink.vn</strong>.</p>
+`.trim(),
+  },
+  {
+    slug: 'tuyen-dung',
+    title: 'Tuyển dụng tại inLink',
+    excerpt:
+      'Gia nhập đội ngũ inLink để cùng xây dựng nền tảng tuyển dụng công nghiệp ứng dụng AI hàng đầu Việt Nam.',
+    seoTitle: 'Tuyển dụng tại inLink | inLink',
+    seoDescription:
+      'Cơ hội nghề nghiệp tại CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK — môi trường công nghệ, tuyển dụng B2B và dữ liệu AI.',
+    bodyHtml: `
+<h2>1. Về đội ngũ inLink</h2>
+<p>Tại <strong>inLink</strong>, chúng tôi kết hợp công nghệ AI với sự am hiểu sâu sắc ngành công nghiệp sản xuất và thương mại B2B để giải quyết bài toán tuyển dụng nhân sự kỹ thuật &amp; kinh doanh chất lượng cao tại Việt Nam.</p>
+
+<h2>2. Các nhóm vị trí thường xuyên tuyển dụng</h2>
+<ul>
+  <li><strong>Kinh doanh giải pháp tuyển dụng B2B (Account Executive / B2B Sales)</strong></li>
+  <li><strong>Chuyên viên Tư vấn &amp; Săn nhân sự công nghiệp (Industrial Headhunter / Talent Partner)</strong></li>
+  <li><strong>Kỹ sư phần mềm Fullstack / AI &amp; Data Engineer</strong></li>
+  <li><strong>Chuyên viên Marketing B2B &amp; Phát triển cộng đồng</strong></li>
+</ul>
+
+<h2>3. Cách thức ứng tuyển</h2>
+<p>Gửi CV của bạn về địa chỉ email <strong>hotro@inlink.vn</strong> với tiêu đề <em>[Ứng tuyển inLink] Họ tên - Vị trí</em>. Bộ phận Nhân sự sẽ liên hệ phản hồi trong vòng 03 ngày làm việc đối với các hồ sơ phù hợp.</p>
+`.trim(),
+  },
+  {
+    slug: 'lien-he',
+    title: 'Liên hệ hợp tác & Tư vấn B2B',
+    excerpt:
+      'Thông tin liên hệ chính thức dành cho Doanh nghiệp tuyển dụng, Ứng viên và Đối tác hợp tác với nền tảng inLink.',
+    seoTitle: 'Liên hệ hợp tác & Tư vấn B2B | inLink',
+    seoDescription:
+      'Liên hệ CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK để được tư vấn gói tuyển dụng B2B, dịch vụ Săn nhân sự công nghiệp và hỗ trợ tài khoản.',
+    bodyHtml: `
+<h2>1. Thông tin liên hệ chính thức</h2>
+<ul>
+  <li><strong>Đơn vị chủ quản:</strong> CÔNG TY CỔ PHẦN GIẢI PHÁP INLINK</li>
+  <li><strong>Email hỗ trợ &amp; tư vấn B2B:</strong> hotro@inlink.vn</li>
+  <li><strong>Cổng Nhà tuyển dụng:</strong> https://tuyendung.inlink.vn</li>
+  <li><strong>Cổng Ứng viên:</strong> https://inlink.vn</li>
+  <li><strong>Cổng Cộng tác viên:</strong> https://ctv.inlink.vn</li>
+</ul>
+
+<h2>2. Thời gian làm việc</h2>
+<p>Thứ 2 – Thứ 6: 08:30 – 17:30 · Thứ 7: 08:30 – 12:00 (trừ ngày Lễ, Tết theo quy định).</p>
+
+<h2>3. Dành cho Doanh nghiệp cần tư vấn gói dịch vụ</h2>
+<p>Nếu doanh nghiệp của bạn đang cần tuyển gấp kỹ sư kinh doanh, kỹ sư tự động hóa, quản lý sản xuất hoặc gói <strong>Săn nhân sự công nghiệp</strong>, hãy gửi yêu cầu về <strong>hotro@inlink.vn</strong> kèm tên công ty, vị trí cần tuyển và số điện thoại liên hệ — đội ngũ chuyên viên B2B của inLink sẽ phản hồi trong vòng 2 giờ làm việc.</p>
+`.trim(),
+  },
 ];

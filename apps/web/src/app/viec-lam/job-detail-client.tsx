@@ -1020,7 +1020,7 @@ export function JobDetailClient({
 
       {/* Sticky apply bar — mobile only */}
       {showApplyCta && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur-md md:hidden">
           <div className="mx-auto flex max-w-[1280px] items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-medium uppercase tracking-wide text-amber-700">

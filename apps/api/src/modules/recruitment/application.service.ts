@@ -103,7 +103,7 @@ export class ApplicationService {
     const existing = await this.prisma.application.findUnique({
       where: { jobId_candidateId: { jobId, candidateId: candidate.id } },
     });
-    if (existing) {
+    if (existing && !existing.isDeleted) {
       throw new BadRequestException('Bạn đã ứng tuyển vị trí này');
     }
 
@@ -113,28 +113,49 @@ export class ApplicationService {
     const trackNotice = resolveApplyTrackNotice(candidate, job);
 
     const match = await this.matching.computePairMatch(jobId, candidate.id);
-    const code = await this.codeGen.next('APP');
+    const code = existing?.code ?? (await this.codeGen.next('APP'));
 
-    const application = await this.prisma.application.create({
-      data: {
-        code,
-        tenantId: candidate.tenantId,
-        jobId,
-        candidateId: candidate.id,
-        status: ApplicationStatus.Applied,
-        matchScore: match.score,
-        coverLetter: dto.coverLetter ?? null,
-        createdBy: user.id,
-        timeline: {
-          create: {
-            tenantId: candidate.tenantId,
-            type: 'applied',
-            title: 'Ứng tuyển',
-            description: `Điểm phù hợp AI: ${match.score}%`,
+    const application = existing
+      ? await this.prisma.application.update({
+          where: { id: existing.id },
+          data: {
+            isDeleted: false,
+            deletedAt: null,
+            deletedBy: null,
+            status: ApplicationStatus.Applied,
+            matchScore: match.score,
+            coverLetter: dto.coverLetter ?? null,
+            updatedBy: user.id,
+            timeline: {
+              create: {
+                tenantId: candidate.tenantId,
+                type: 'applied',
+                title: 'Ứng tuyển lại',
+                description: `Điểm phù hợp AI: ${match.score}%`,
+              },
+            },
           },
-        },
-      },
-    });
+        })
+      : await this.prisma.application.create({
+          data: {
+            code,
+            tenantId: candidate.tenantId,
+            jobId,
+            candidateId: candidate.id,
+            status: ApplicationStatus.Applied,
+            matchScore: match.score,
+            coverLetter: dto.coverLetter ?? null,
+            createdBy: user.id,
+            timeline: {
+              create: {
+                tenantId: candidate.tenantId,
+                type: 'applied',
+                title: 'Ứng tuyển',
+                description: `Điểm phù hợp AI: ${match.score}%`,
+              },
+            },
+          },
+        });
 
     await this.audit.record({
       tenantId: candidate.tenantId,
@@ -488,10 +509,18 @@ export class ApplicationService {
 
   /** Tóm tắt workspace nhà tuyển dụng. */
   async getWorkspaceSummary(user: AuthenticatedUser): Promise<RecruiterWorkspaceSummary> {
-    const membership = await this.prisma.companyMember.findFirst({
+    let membership = await this.prisma.companyMember.findFirst({
       where: { userId: user.id },
       include: { company: true },
     });
+
+    if (!membership && this.companies?.requireOrProvisionCompany) {
+      await this.companies.requireOrProvisionCompany(user).catch(() => null);
+      membership = await this.prisma.companyMember.findFirst({
+        where: { userId: user.id },
+        include: { company: true },
+      });
+    }
 
     if (!membership) {
       return {

@@ -544,9 +544,9 @@ export default function CompanyPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-start gap-1.5 sm:items-end">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                <CheckCircle2 className="h-3.5 w-3.5" />
+            <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
+              <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                 Hồ sơ hoàn thiện {completion.pct}%
               </span>
               <div className="h-1.5 w-36 overflow-hidden rounded-full bg-slate-100">

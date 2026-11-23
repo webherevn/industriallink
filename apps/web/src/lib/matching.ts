@@ -5,7 +5,7 @@ import type {
   OpenJobMatchBoard,
   RecruiterMatchExplanation,
 } from '@industriallink/contracts';
-import { apiRequest, asArray } from './api';
+import { apiRequest, asArray, tokenStore } from './api';
 
 function withMatch<T extends { match?: RecruiterMatchExplanation | MatchExplanation }>(row: T): T {
   if (!row || typeof row !== 'object') return row;
@@ -56,6 +56,7 @@ export async function jobFit(jobId: string): Promise<MatchExplanation> {
 }
 
 export async function recommendedJobs(): Promise<JobMatchView[]> {
+  if (!tokenStore.get()) return [];
   return asArray<JobMatchView>(await apiRequest('/matching/recommended-jobs')).map((row) =>
     withMatch({ ...row, skills: asArray(row?.skills) }),
   );

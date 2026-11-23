@@ -72,11 +72,14 @@ function SocialGlyph({ platform }: { platform: CmsFooterSocial['platform'] }) {
 }
 
 function FooterNavLink({ link, className }: { link: CmsFooterLink; className?: string }) {
-  const isExternal = Boolean(link.external || /^https?:\/\//i.test(link.href));
+  const rawHref = link.href.trim();
+  const href = rawHref === '/cv' ? '/cv/create' : rawHref;
+  const isExternal = Boolean(link.external || /^https?:\/\//i.test(href));
+  const isCrossSubdomainRedirect = /^\/(bang-gia|company)(\b|#|\?|\/|$)/i.test(href);
   if (isExternal) {
     return (
       <a
-        href={link.href}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className={className}
@@ -85,8 +88,15 @@ function FooterNavLink({ link, className }: { link: CmsFooterLink; className?: s
       </a>
     );
   }
+  if (isCrossSubdomainRedirect) {
+    return (
+      <a href={href} className={className}>
+        {link.label}
+      </a>
+    );
+  }
   return (
-    <Link href={link.href} className={className}>
+    <Link href={href} className={className}>
       {link.label}
     </Link>
   );

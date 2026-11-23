@@ -802,7 +802,7 @@ function PromoRibbon({
     ];
 
     return (
-      <div className="home-reasons-item mx-auto mt-6 max-w-5xl overflow-hidden rounded-2xl border border-[#123d73] bg-gradient-to-r from-[#072348] via-[#0b2f5c] to-[#113d73] px-4 py-3.5 text-white shadow-[0_16px_36px_-18px_rgba(7,35,72,0.55)] sm:px-6">
+      <div className="mx-auto mt-6 max-w-5xl overflow-hidden rounded-2xl border border-[#123d73] bg-[#072348] bg-gradient-to-r from-[#072348] via-[#0b2f5c] to-[#113d73] px-4 py-3.5 text-white shadow-[0_16px_36px_-18px_rgba(7,35,72,0.55)] sm:px-6">
         <div className="flex flex-col items-center justify-between gap-3.5 lg:flex-row">
           {/* Left: Promo message & VAT */}
           <div className="flex flex-col items-center gap-1.5 text-center sm:flex-row sm:gap-3 sm:text-left">
@@ -937,12 +937,12 @@ function PlatformPlansView({
 
   return (
     <section id="nentang" aria-labelledby="pricing-title" className="scroll-mt-36">
-      <div id="pricing" className="home-reasons-head mb-8 text-center scroll-mt-36">
+      <div id="pricing" className="mb-8 text-center scroll-mt-36">
         <PricingH2 id="pricing-title" className="text-2xl font-bold text-[#072348] sm:text-3xl">
           {page.platformTitle}
         </PricingH2>
-        <p className="mt-1.5 text-sm text-slate-500">{page.platformSubtitle}</p>
-        <span className="home-reasons-mark mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
+        <p className="mt-1.5 text-sm text-slate-600">{page.platformSubtitle}</p>
+        <span className="mx-auto mt-3.5 block h-1 w-14 rounded-full bg-[#F08A24]" />
         <PromoRibbon promoNote={promoNote} vatPercent={vatPercent} showCountdown={Boolean(promoNote)} />
       </div>
 
