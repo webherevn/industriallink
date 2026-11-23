@@ -1,28 +1,66 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { MfaMethod, UserRole } from '@industriallink/contracts';
+import { isCmsAdminRole, isSalesStaff, MfaMethod, UserRole } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
 import { Badge, Button, Card, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { confirmTotp, disableTotp, fetchMe, setupTotp, updateMfa } from '@/lib/auth';
+import {
+  clearAuthQueryCache,
+  confirmTotp,
+  deleteMyAccount,
+  disableTotp,
+  fetchDeleteAccountStatus,
+  fetchMe,
+  setupTotp,
+  updateMfa,
+} from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
 
 export default function AccountPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
   });
   const isCandidate = user?.role === UserRole.Candidate;
+  const isInternalAccount = Boolean(
+    user &&
+      (user.role === UserRole.SuperAdmin || isCmsAdminRole(user.role) || isSalesStaff(user.role)),
+  );
   const { data: candidate } = useQuery({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
     enabled: isCandidate,
     retry: false,
+  });
+  const { data: deleteStatus, isLoading: deleteStatusLoading } = useQuery({
+    queryKey: ['account-delete-status'],
+    queryFn: fetchDeleteAccountStatus,
+    enabled: Boolean(user && !isInternalAccount),
+    retry: false,
+  });
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
+
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      deleteMyAccount({
+        confirmText: confirmText.trim(),
+        reason: deleteReason.trim() || undefined,
+      }),
+    onSuccess: () => {
+      clearAuthQueryCache(qc);
+      router.replace('/login');
+    },
   });
 
   const mfaMutation = useMutation({
@@ -205,6 +243,110 @@ export default function AccountPage() {
             Chỉ một phương thức MFA có thể bật cùng lúc — bật phương thức mới sẽ tự tắt phương
             thức cũ.
           </p>
+        )}
+
+        {!isInternalAccount && (
+          <Card className="border-rose-200/80 bg-rose-50/30">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-rose-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                  Đóng / Xóa tài khoản
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {deleteStatus?.note ??
+                    'Yêu cầu đóng tài khoản và ẩn danh dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP.'}
+                </p>
+              </div>
+              {deleteStatus?.canDelete && !deleteOpen && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(true)}
+                  className="shrink-0 rounded-xl border border-rose-300 bg-white px-3.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                >
+                  Yêu cầu xóa tài khoản
+                </button>
+              )}
+            </div>
+
+            {deleteStatusLoading && (
+              <p className="mt-3 text-xs text-slate-500">Đang kiểm tra điều kiện tài khoản...</p>
+            )}
+
+            {deleteStatus && !deleteStatus.canDelete && deleteStatus.blockers.length > 0 && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs text-amber-900">
+                <p className="font-semibold">
+                  Chưa thể tự đóng tài khoản do đang có các ràng buộc sau:
+                </p>
+                <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                  {deleteStatus.blockers.map((b) => (
+                    <li key={b.code}>{b.message}</li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-amber-800">
+                  Vui lòng hoàn tất/tất toán các mục trên hoặc liên hệ{' '}
+                  <a href="mailto:hotro@inlink.vn" className="font-semibold underline">
+                    hotro@inlink.vn
+                  </a>{' '}
+                  để được hỗ trợ đóng tài khoản.
+                </p>
+              </div>
+            )}
+
+            {deleteStatus?.canDelete && deleteOpen && (
+              <div className="mt-4 space-y-3 rounded-xl border border-rose-200 bg-white p-4">
+                <p className="text-xs leading-relaxed text-slate-700">
+                  Hành động này sẽ <strong>khóa vĩnh viễn</strong> quyền đăng nhập và không thể hoàn
+                  tác. Nhập chính xác <code className="rounded bg-rose-50 px-1.5 py-0.5 font-bold text-rose-700">XOA TAI KHOAN</code> để xác nhận:
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  <Input
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder="Nhập XOA TAI KHOAN"
+                  />
+                  <Input
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="Lý do (không bắt buộc)"
+                    maxLength={500}
+                  />
+                </div>
+                {deleteMutation.isError && (
+                  <p className="text-xs font-medium text-rose-600">
+                    {deleteMutation.error instanceof ApiError
+                      ? deleteMutation.error.message
+                      : 'Không thể xóa tài khoản. Vui lòng thử lại.'}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={
+                      deleteMutation.isPending ||
+                      confirmText.trim().toUpperCase() !== 'XOA TAI KHOAN'
+                    }
+                    onClick={() => deleteMutation.mutate()}
+                    className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deleteMutation.isPending ? 'Đang xử lý...' : 'Xác nhận xóa vĩnh viễn'}
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      setDeleteOpen(false);
+                      setConfirmText('');
+                      setDeleteReason('');
+                    }}
+                  >
+                    Hủy
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
         )}
       </div>
   );

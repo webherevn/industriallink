@@ -17,6 +17,7 @@ import {
   Percent,
   Receipt,
   ScrollText,
+  Settings2,
   ShieldCheck,
   Users,
   Wallet,
@@ -73,6 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Tài khoản & Pháp lý',
     items: [
       { href: '/ctv/kyc', label: 'Xác thực CCCD & Ngân hàng', icon: ShieldCheck, kyc: true },
+      { href: '/account', label: 'Bảo mật & Tài khoản', icon: Settings2 },
       { href: '/ctv/policy', label: 'Chính sách & Hướng dẫn', icon: CircleHelp },
     ],
   },

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Patch,
@@ -13,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type {
+  AccountDeletionStatusResponse,
   AuthUserView,
   LoginResponse,
   TotpSetupResponse,
@@ -23,6 +25,7 @@ import { CorrelationId } from '../../shared/common/correlation-id.decorator';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -262,6 +265,37 @@ export class AuthController {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
+  }
+
+  @Get('me/delete-status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kiểm tra điều kiện & ràng buộc trước khi đóng/xóa tài khoản' })
+  getDeleteAccountStatus(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AccountDeletionStatusResponse> {
+    return this.identity.getDeleteAccountStatus(user);
+  }
+
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Đóng / xóa mềm & ẩn danh hóa tài khoản cá nhân (NĐ 13/2023)' })
+  async deleteMyAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DeleteAccountDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @CorrelationId() correlationId: string,
+  ): Promise<{ message: string }> {
+    const result = await this.identity.deleteMyAccount(user, dto, {
+      correlationId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    res.clearCookie(REFRESH_COOKIE, this.refreshCookieOptions());
+    return result;
   }
 
   private refreshCookieOptions(): {

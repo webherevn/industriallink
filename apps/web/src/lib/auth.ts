@@ -1,5 +1,7 @@
 import type {
+  AccountDeletionStatusResponse,
   AuthUserView,
+  DeleteAccountRequest,
   GoogleAuthConfigResponse,
   LoginResponse,
   RegisterRequest,
@@ -98,6 +100,20 @@ export async function confirmTotp(code: string): Promise<AuthUserView> {
 
 export async function disableTotp(): Promise<AuthUserView> {
   return apiRequest('/auth/me/totp/disable', { method: 'POST' });
+}
+
+export async function fetchDeleteAccountStatus(): Promise<AccountDeletionStatusResponse> {
+  return apiRequest('/auth/me/delete-status');
+}
+
+export async function deleteMyAccount(input: DeleteAccountRequest): Promise<{ message: string }> {
+  const res = await apiRequest<{ message: string }>('/auth/me', {
+    method: 'DELETE',
+    body: input,
+    retryOnUnauthorized: false,
+  });
+  tokenStore.clear();
+  return res;
 }
 
 export async function logout(): Promise<void> {

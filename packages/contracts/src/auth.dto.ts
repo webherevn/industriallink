@@ -97,3 +97,20 @@ export type LoginResponse = LoginSuccessResponse | LoginMfaChallengeResponse;
 export function isLoginMfaChallenge(res: LoginResponse): res is LoginMfaChallengeResponse {
   return res.mfaRequired === true;
 }
+
+export interface AccountDeletionBlocker {
+  code: string;
+  message: string;
+}
+
+export interface AccountDeletionStatusResponse {
+  canDelete: boolean;
+  role: UserRole;
+  blockers: AccountDeletionBlocker[];
+  note: string;
+}
+
+export interface DeleteAccountRequest {
+  confirmText: string;
+  reason?: string;
+}

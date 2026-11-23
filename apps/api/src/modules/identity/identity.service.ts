@@ -13,7 +13,10 @@ import {
   MfaMethod,
   UserRole,
   UserStatus,
+  type AccountDeletionBlocker,
+  type AccountDeletionStatusResponse,
   type AuthUserView,
+  type DeleteAccountRequest,
   type GoogleAuthConfigResponse,
   type LoginMfaChallengeResponse,
   type LoginSuccessResponse,
@@ -890,5 +893,256 @@ export class IdentityService {
   private devOtpOrUndefined(otp: string): string | undefined {
     const isProd = this.config.get('nodeEnv', { infer: true }) === 'production';
     return isProd ? undefined : otp;
+  }
+
+  /**
+   * Kiểm tra điều kiện & ràng buộc trước khi đóng/xóa tài khoản (theo vai trò Ứng viên / NTD / CTV).
+   */
+  async getDeleteAccountStatus(
+    user: AuthenticatedUser,
+  ): Promise<AccountDeletionStatusResponse> {
+    const role = user.role;
+    const blockers: AccountDeletionBlocker[] = [];
+
+    const internalRoles = new Set<string>([
+      UserRole.SuperAdmin,
+      'sales_staff',
+      'cms_admin',
+      'cms_editor',
+    ]);
+    if (internalRoles.has(role)) {
+      blockers.push({
+        code: 'INTERNAL_ROLE',
+        message: 'Tài khoản quản trị nội bộ không thể tự xóa. Vui lòng liên hệ Quản trị viên hệ thống.',
+      });
+      return {
+        canDelete: false,
+        role,
+        blockers,
+        note: 'Tài khoản nội bộ do SuperAdmin quản lý.',
+      };
+    }
+
+    const now = new Date();
+    const isRecruiterRole =
+      role === UserRole.Recruiter ||
+      role === UserRole.HiringManager ||
+      role === UserRole.CompanyAdmin;
+
+    // 1. Kiểm tra ràng buộc doanh nghiệp (chỉ áp dụng nếu NTD là thành viên duy nhất của công ty)
+    if (isRecruiterRole) {
+      const membership = await this.prisma.companyMember.findFirst({
+        where: { userId: user.id },
+        select: { companyId: true },
+      });
+      if (membership) {
+        const memberCount = await this.prisma.companyMember.count({
+          where: { companyId: membership.companyId },
+        });
+        if (memberCount <= 1) {
+          const [activePaidJobPkg, activeHuntPkg, creditAcc, pendingOrder] = await Promise.all([
+            this.prisma.billingJobPackage.findFirst({
+              where: {
+                companyId: membership.companyId,
+                packageType: { not: 'FREE' },
+                status: { in: ['ACTIVE', 'UNUSED'] },
+                OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+              },
+              select: { id: true, packageName: true },
+            }),
+            this.prisma.billingHuntPackage.findFirst({
+              where: {
+                companyId: membership.companyId,
+                status: { in: ['ACTIVE', 'UNUSED'] },
+                OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+              },
+              select: { id: true, packageName: true },
+            }),
+            this.prisma.billingCreditAccount.findUnique({
+              where: { companyId: membership.companyId },
+              select: { balance: true },
+            }),
+            this.prisma.billingOrder.findFirst({
+              where: { companyId: membership.companyId, status: 'pending' },
+              select: { id: true },
+            }),
+          ]);
+
+          if (activePaidJobPkg) {
+            blockers.push({
+              code: 'ACTIVE_JOB_PACKAGE',
+              message: `Doanh nghiệp đang có gói tin đăng trả phí (${activePaidJobPkg.packageName}) còn hiệu lực hoặc chờ kích hoạt.`,
+            });
+          }
+          if (activeHuntPkg) {
+            blockers.push({
+              code: 'ACTIVE_HUNT_PACKAGE',
+              message: `Doanh nghiệp đang có gói Săn nhân sự (${activeHuntPkg.packageName}) đang chạy hoặc chờ kích hoạt.`,
+            });
+          }
+          if ((creditAcc?.balance ?? 0) > 0) {
+            blockers.push({
+              code: 'CREDIT_BALANCE',
+              message: `Ví doanh nghiệp vẫn còn ${creditAcc!.balance} Credit khả dụng.`,
+            });
+          }
+          if (pendingOrder) {
+            blockers.push({
+              code: 'PENDING_ORDER',
+              message: 'Doanh nghiệp đang có đơn hàng chờ đối soát thanh toán.',
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Kiểm tra ràng buộc Cộng tác viên (áp dụng cho mọi tài khoản đã kích hoạt CTV)
+    const partner = await this.prisma.crmPartner.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (partner) {
+      const pendingStatement = await this.prisma.ctvMonthlyStatement.findFirst({
+        where: {
+          ctvId: partner.id,
+          status: { in: ['OPEN', 'RECONCILED'] },
+          finalCommission: { gt: 0n },
+        },
+        select: { id: true, yearMonth: true },
+      });
+      if (pendingStatement) {
+        blockers.push({
+          code: 'PENDING_CTV_COMMISSION',
+          message: `Bạn đang có kỳ hoa hồng Cộng tác viên (${pendingStatement.yearMonth}) chờ đối soát / chi trả.`,
+        });
+      }
+    }
+
+    const note =
+      role === UserRole.Candidate
+        ? 'Tài khoản sẽ bị khóa đăng nhập vĩnh viễn, ẩn danh thông tin cá nhân và gỡ khỏi kết quả tìm kiếm AI. Nếu bạn chỉ muốn tạm ngừng nhận lời mời từ Nhà tuyển dụng, hãy bật nút «Đã nhận việc» trên thanh tiêu đề thay vì xóa tài khoản.'
+        : partner
+          ? 'Tài khoản đăng nhập sẽ bị khóa mềm và ẩn thông tin cá nhân. Sổ cái hoa hồng CTV, chứng từ KYC/thuế, mã số thuế doanh nghiệp và hóa đơn đã phát sinh vẫn được lưu trữ theo Luật Kế toán & Thuế.'
+          : 'Tài khoản cá nhân sẽ bị khóa mềm và ẩn thông tin liên hệ. Lịch sử mã số thuế, gói dịch vụ và hóa đơn doanh nghiệp được lưu trữ theo quy định kế toán và chống gian lận.';
+
+    return {
+      canDelete: blockers.length === 0,
+      role,
+      blockers,
+      note,
+    };
+  }
+
+  /**
+   * Đóng / xóa mềm & ẩn danh hóa tài khoản cá nhân (tuân thủ NĐ 13/2023/NĐ-CP).
+   * Không xóa cứng dữ liệu kế toán/thuế (hóa đơn, MST công ty, sổ cái hoa hồng CTV).
+   */
+  async deleteMyAccount(
+    user: AuthenticatedUser,
+    input: DeleteAccountRequest,
+    meta: RequestMeta,
+  ): Promise<{ message: string }> {
+    const status = await this.getDeleteAccountStatus(user);
+    if (!status.canDelete) {
+      throw new BadRequestException(
+        status.blockers[0]?.message ??
+          'Tài khoản hiện còn ràng buộc dịch vụ hoặc tài chính, vui lòng liên hệ hotro@inlink.vn để được hỗ trợ.',
+      );
+    }
+
+    if (input.confirmText.trim().toUpperCase() !== 'XOA TAI KHOAN') {
+      throw new BadRequestException('Vui lòng nhập chính xác cụm từ XOA TAI KHOAN để xác nhận.');
+    }
+
+    const now = new Date();
+    const anonEmail = `deleted_${user.id.slice(0, 8)}_${now.getTime()}@deleted.inlink.vn`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          isDeleted: true,
+          deletedAt: now,
+          deletedBy: user.id,
+          status: 'deleted',
+          email: anonEmail,
+          displayName: 'Tài khoản đã xóa',
+          mfaEnabled: false,
+          mfaMethod: null,
+          totpSecret: null,
+          totpPendingSecret: null,
+          updatedBy: user.id,
+        },
+      });
+
+      // Nếu có hồ sơ Ứng viên → khóa mềm, ẩn danh PII & gỡ khỏi chỉ mục tìm kiếm AI
+      const candidate = await tx.candidate.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      if (candidate) {
+        await tx.candidate.update({
+          where: { id: candidate.id },
+          data: {
+            isDeleted: true,
+            deletedAt: now,
+            deletedBy: user.id,
+            status: 'deleted',
+            displayName: 'Ứng viên đã xóa',
+            outreachEmailEnabled: false,
+            avatarStorageKey: null,
+            avatarMime: null,
+            updatedBy: user.id,
+          },
+        });
+        await tx.candidateProfile.updateMany({
+          where: { candidateId: candidate.id },
+          data: {
+            phone: null,
+            summary: null,
+            careerObjective: null,
+            salesHighlights: null,
+          },
+        });
+        await tx.candidateSearchIndex.deleteMany({
+          where: { candidateId: candidate.id },
+        });
+      }
+
+      // Nếu là thành viên trong công ty có nhiều người → chỉ rời khỏi danh sách thành viên, giữ nguyên dữ liệu công ty
+      const memberships = await tx.companyMember.findMany({
+        where: { userId: user.id },
+        select: { id: true, companyId: true },
+      });
+      for (const m of memberships) {
+        const count = await tx.companyMember.count({ where: { companyId: m.companyId } });
+        if (count > 1) {
+          await tx.companyMember.delete({ where: { id: m.id } });
+        }
+      }
+    });
+
+    await this.audit.record({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      action: 'account.self_delete',
+      entityType: 'user',
+      entityId: user.id,
+      after: {
+        role: user.role,
+        reason: input.reason?.trim() || null,
+      },
+      correlationId: meta.correlationId,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    this.logger.log(`Người dùng ${user.id} (${user.role}) đã tự đóng/ẩn danh tài khoản.`);
+    return { message: 'Tài khoản của bạn đã được đóng và ẩn danh hóa thành công.' };
   }
 }
