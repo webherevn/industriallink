@@ -71,21 +71,21 @@ function statusTone(status: JobStatus): 'green' | 'slate' | 'amber' | 'red' {
   return 'slate';
 }
 
-/** Tin nháp đã bấm "Đăng tin" và đang chờ worker kiểm duyệt (vài giây). */
+/** Tin chưa đăng (nháp / tạm dừng / đã đóng) vừa bấm "Đăng tin" hoặc "Mở lại tin" và đang chờ worker kiểm duyệt. */
 function isModerating(job: JobListItem): boolean {
-  return job.status === JobStatus.Draft && job.moderationStatus === JobModerationStatus.Pending;
+  return job.status !== JobStatus.Published && job.moderationStatus === JobModerationStatus.Pending;
 }
 
 function isAwaitingAdmin(job: JobListItem): boolean {
   return (
-    job.status === JobStatus.Draft &&
+    job.status !== JobStatus.Published &&
     job.moderationStatus === JobModerationStatus.NeedsManualReview
   );
 }
 
 function isRejected(job: JobListItem): boolean {
   return (
-    job.status === JobStatus.Draft &&
+    job.status !== JobStatus.Published &&
     (job.moderationStatus === JobModerationStatus.RejectedAuto ||
       job.moderationStatus === JobModerationStatus.RejectedManual)
   );

@@ -167,12 +167,88 @@ export class HuntPackageService {
   }
 
   /**
+   * Đồng bộ gói Săn (BillingHuntPackage) từ BillingCompanySourcingPlan khi SuperAdmin gán gói
+   * trực tiếp cho công ty (hoặc tự backfill cho công ty đã được SuperAdmin gán trước đó).
+   * Gói được tạo ở trạng thái `UNUSED` giống hệt luồng NTD tự mua — khi NTD bấm tạo chiến dịch
+   * hệ thống sẽ kích hoạt, cộng Credit đi kèm và gắn 1-1 với chiến dịch Săn.
+   */
+  async syncFromCompanySourcingPlan(companyId: string): Promise<BillingHuntPackage | null> {
+    if (
+      !this.prisma?.billingCompanySourcingPlan?.findUnique ||
+      !this.prisma?.billingHuntPackage?.findFirst
+    ) {
+      return null;
+    }
+    const now = new Date();
+    const assignment = await this.prisma.billingCompanySourcingPlan.findUnique({
+      where: { companyId },
+      include: { plan: true },
+    });
+    if (!assignment || !assignment.isActive || !assignment.plan) return null;
+    if (assignment.endsAt && assignment.endsAt.getTime() < now.getTime()) return null;
+
+    // Nếu đã có gói trả phí từ đơn hàng (orderId != null) còn hiệu lực cho cùng planId thì không tạo trùng.
+    const paidPkg = await this.prisma.billingHuntPackage.findFirst({
+      where: {
+        companyId,
+        planId: assignment.planId,
+        orderId: { not: null },
+        status: { in: ['ACTIVE', 'UNUSED'] },
+        OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+      },
+      select: { id: true },
+    });
+    if (paidPkg) return null;
+
+    // Nếu đã có gói do SuperAdmin gán (orderId = null) cho cùng planId thì không tạo trùng.
+    const existingAdminPkg = await this.prisma.billingHuntPackage.findFirst({
+      where: {
+        companyId,
+        orderId: null,
+        planId: assignment.planId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existingAdminPkg) {
+      return existingAdminPkg;
+    }
+
+    const packageType = this.packageTypeForPlan(assignment.plan.code);
+    const quota = PACKAGE_QUOTA[packageType];
+    const durationDays =
+      assignment.plan.durationDays && assignment.plan.durationDays > 0
+        ? assignment.plan.durationDays
+        : HUNT_PACKAGE_DURATION_DAYS;
+    const code = await this.nextUniqueCode();
+    return this.prisma.billingHuntPackage.create({
+      data: {
+        code,
+        companyId,
+        planId: assignment.planId,
+        orderId: null,
+        packageType,
+        packageName: assignment.plan.name,
+        status: 'UNUSED',
+        durationDays,
+        purchasedAt: assignment.startsAt ?? now,
+        activationDeadlineAt: addUtcDays(now, HUNT_PACKAGE_ACTIVATION_DAYS),
+        creditsIncluded: quota.creditsIncluded,
+        creditsGranted: false,
+        totalCriteriaEdits: quota.totalCriteriaEdits,
+        totalReports: quota.totalReports,
+        totalHandovers: quota.totalHandovers,
+      },
+    });
+  }
+
+  /**
    * Danh sách gói Săn của công ty (kèm chiến dịch 1-1 đang gắn).
    * Đồng bộ trạng thái trước khi trả về: gói UNUSED quá hạn → EXPIRED,
    * gói ACTIVE quá hạn → EXPIRED (chiến dịch vẫn còn để tra cứu lịch sử).
    */
   async listForCompany(companyId: string): Promise<RecruiterHuntPackageView[]> {
     await this.syncExpiredPackages(companyId);
+    await this.syncFromCompanySourcingPlan(companyId);
     const rows = await this.prisma.billingHuntPackage.findMany({
       where: { companyId },
       orderBy: [{ purchasedAt: 'desc' }, { createdAt: 'desc' }],

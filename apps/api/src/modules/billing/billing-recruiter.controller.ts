@@ -23,6 +23,7 @@ import type {
 import { BillingService } from './billing.service';
 import { BillingOverviewService } from './billing-overview.service';
 import { CreditService } from './credit.service';
+import { HuntPackageService } from './hunt-package.service';
 import { SourcingService } from './sourcing.service';
 import { CompanyService } from '../company/company.service';
 
@@ -44,6 +45,7 @@ export class BillingRecruiterController {
     private readonly billing: BillingService,
     private readonly overview: BillingOverviewService,
     private readonly sourcing: SourcingService,
+    private readonly huntPackages: HuntPackageService,
     private readonly companies: CompanyService,
   ) {}
 
@@ -71,6 +73,7 @@ export class BillingRecruiterController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<RecruiterSourcingWorkspace> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
+    await this.huntPackages.syncFromCompanySourcingPlan(companyId);
     return this.sourcing.getWorkspace(companyId);
   }
 
@@ -84,6 +87,7 @@ export class BillingRecruiterController {
   ): Promise<RecruiterBillingOverview> {
     const { companyId } = await this.companies.requireOrProvisionCompany(user);
     await this.billing.syncJobPackagesFromCompanyPlan(companyId);
+    await this.huntPackages.syncFromCompanySourcingPlan(companyId);
     return this.overview.getOverview(companyId);
   }
 

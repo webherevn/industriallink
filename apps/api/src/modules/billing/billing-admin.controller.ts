@@ -40,6 +40,7 @@ import type {
 } from '@industriallink/contracts';
 import { BillingService } from './billing.service';
 import { CreditService } from './credit.service';
+import { HuntPackageService } from './hunt-package.service';
 import { JobPackageService } from './job-package.service';
 import { PaymentService } from './payment.service';
 import { SourcingService } from './sourcing.service';
@@ -54,6 +55,7 @@ export class BillingAdminController {
     private readonly billing: BillingService,
     private readonly credit: CreditService,
     private readonly jobPackages: JobPackageService,
+    private readonly huntPackages: HuntPackageService,
     private readonly payment: PaymentService,
     private readonly sourcing: SourcingService,
   ) {}
@@ -149,11 +151,13 @@ export class BillingAdminController {
 
   @Put('company-sourcing-plans')
   @ApiOperation({ summary: 'Gán / đổi gói Săn cho công ty' })
-  assignCompanySourcingPlan(
+  async assignCompanySourcingPlan(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: AdminAssignCompanySourcingPlanRequest,
   ): Promise<BillingCompanySourcingPlanView> {
-    return this.sourcing.assignCompanyPlan(user, dto);
+    const assigned = await this.sourcing.assignCompanyPlan(user, dto);
+    await this.huntPackages.syncFromCompanySourcingPlan(assigned.companyId);
+    return assigned;
   }
 
   @Delete('company-sourcing-plans/:companyId')
