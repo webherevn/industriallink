@@ -47,17 +47,22 @@ export default function CtvOverviewPage() {
     queryFn: fetchMyPartner,
     enabled: Boolean(session.data),
   });
-  const kyc = useQuery({ queryKey: ['ctv-kyc'], queryFn: fetchMyKyc, retry: false });
+  const partner = mine.data?.partner ?? null;
+  const kyc = useQuery({
+    queryKey: ['ctv-kyc'],
+    queryFn: fetchMyKyc,
+    enabled: Boolean(partner?.id),
+    retry: false,
+  });
   const tier = useQuery({
     queryKey: ['ctv-commission-tier'],
     queryFn: () => fetchMyCommissionTier(),
-    enabled: Boolean(session.data),
+    enabled: Boolean(partner?.id),
     retry: false,
   });
   const [copied, setCopied] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
 
-  const partner = mine.data?.partner ?? null;
   const entries = mine.data?.commissions ?? [];
   const payoutDay = mine.data?.payoutDay ?? 10;
   const monthEntries = entries.filter((entry) => inThisMonth(entry.paidAt));
