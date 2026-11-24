@@ -111,13 +111,15 @@ Tốt nghiệp Đại học Bách Khoa Hà Nội ngành Điện - Điện tử (
 Có chứng chỉ An toàn lao động và ISO 9001 Awareness.
 Dự án: nâng cấp hệ thống PLC dây chuyền đóng gói, giảm 18% thời gian đổi mã.`;
 
-const SAVED_CV_STORAGE_KEY = 'inlink_saved_cvs_v1';
+const SAVED_CV_STORAGE_PREFIX = 'inlink_saved_cvs_v2_';
 
 interface SavedCvRecord {
   id: string;
   fileName: string;
   updatedAt: string;
   templateId: string;
+  templateName?: string;
+  draft?: CvDraft;
   isDefault?: boolean;
 }
 
@@ -307,6 +309,7 @@ function CreateCvEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [pendingReExport, setPendingReExport] = useState<string | null>(null);
   const [importSource, setImportSource] = useState<'ai' | 'profile' | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   /** Ảnh CV dạng data URL — ổn định cho preview + PDF (html2canvas). */
@@ -408,17 +411,26 @@ function CreateCvEditor() {
   const previewAvatarUrl = cvAvatarDataUrl;
   const carouselTemplate = CV_TEMPLATES[carouselIndex % CV_TEMPLATES.length] ?? CV_TEMPLATES[0];
 
+  const savedCvStorageKey = me?.id ? `${SAVED_CV_STORAGE_PREFIX}${me.id}` : null;
+
   useEffect(() => {
+    if (!savedCvStorageKey) {
+      setSavedCvs([]);
+      return;
+    }
     try {
-      const raw = window.localStorage.getItem(SAVED_CV_STORAGE_KEY);
+      const raw = window.localStorage.getItem(savedCvStorageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as SavedCvRecord[];
         if (Array.isArray(parsed)) setSavedCvs(parsed);
+        else setSavedCvs([]);
+      } else {
+        setSavedCvs([]);
       }
     } catch {
-      // ignore storage errors
+      setSavedCvs([]);
     }
-  }, []);
+  }, [savedCvStorageKey]);
 
   useEffect(() => {
     if (!openCvMenuId) return;
@@ -436,7 +448,7 @@ function CreateCvEditor() {
     return {
       id: 'profile-default',
       fileName: `CV_${safeTitle || 'Inlink'}.pdf`,
-      updatedAt: 'Từ hồ sơ Inlink',
+      updatedAt: 'Đồng bộ Hồ sơ inLink & AI',
       templateId: selectedId,
       isDefault: true,
     };
@@ -451,17 +463,21 @@ function CreateCvEditor() {
     return list;
   }, [profileCvRecord, savedCvs]);
 
-  function recordSavedCv(fileName: string, templateId: string) {
+  function recordSavedCv(fileName: string, templateId: string, snapshotDraft: CvDraft) {
+    if (!savedCvStorageKey) return;
+    const tpl = CV_TEMPLATES.find((t) => t.id === templateId);
     const entry: SavedCvRecord = {
       id: `${Date.now()}`,
       fileName: fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`,
       updatedAt: new Date().toLocaleDateString('vi-VN'),
       templateId,
+      templateName: tpl?.name,
+      draft: JSON.parse(JSON.stringify(snapshotDraft)) as CvDraft,
     };
     setSavedCvs((prev) => {
-      const next = [entry, ...prev.filter((x) => x.fileName !== entry.fileName)].slice(0, 5);
+      const next = [entry, ...prev].slice(0, 5);
       try {
-        window.localStorage.setItem(SAVED_CV_STORAGE_KEY, JSON.stringify(next));
+        window.localStorage.setItem(savedCvStorageKey, JSON.stringify(next));
       } catch {
         // ignore storage errors
       }
@@ -472,13 +488,39 @@ function CreateCvEditor() {
   function removeSavedCv(id: string) {
     setSavedCvs((prev) => {
       const next = prev.filter((x) => x.id !== id);
-      try {
-        window.localStorage.setItem(SAVED_CV_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore storage errors
+      if (savedCvStorageKey) {
+        try {
+          window.localStorage.setItem(savedCvStorageKey, JSON.stringify(next));
+        } catch {
+          // ignore storage errors
+        }
       }
       return next;
     });
+  }
+
+  function restoreCvRecordToEditor(cvItem: SavedCvRecord, openStep: number) {
+    setMainTab('cv');
+    const tplIdx = CV_TEMPLATES.findIndex((t) => t.id === cvItem.templateId);
+    const targetTplId = tplIdx >= 0 ? CV_TEMPLATES[tplIdx].id : CV_TEMPLATES[0].id;
+    setSelectedId(targetTplId);
+    if (tplIdx >= 0) setCarouselIndex(tplIdx);
+
+    if (cvItem.isDefault) {
+      if (candidate) importFromProfile();
+    } else if (cvItem.draft) {
+      const restored = JSON.parse(JSON.stringify(cvItem.draft)) as CvDraft;
+      setDraft(restored);
+      setFields(fieldHintsFromDraft(restored));
+      setAnalyzed(true);
+      setImportSource(null);
+      setAnalyzeMessage(
+        `Đã khôi phục bản nháp "${cvItem.fileName}" (${cvItem.updatedAt}). Mọi chỉnh sửa chỉ dùng để xuất PDF và không tự ghi đè Hồ sơ gốc trừ khi bạn bấm Lưu vào hồ sơ.`,
+      );
+    } else if (candidate) {
+      importFromProfile();
+    }
+    goToStep(openStep);
   }
 
   function buildCoverLetterText() {
@@ -730,14 +772,34 @@ function CreateCvEditor() {
         ),
       );
       const name = (activeDraft.fullName || 'CV').trim();
+      const activeTpl = step >= 2 ? selected : carouselTemplate;
       await downloadElementAsPdf(el, `CV-${name}`);
-      recordSavedCv(`CV-${name}.pdf`, selected.id);
+      recordSavedCv(`CV-${name}.pdf`, activeTpl.id, activeDraft);
     } catch {
       setDownloadError('Không tải được PDF. Thử lại hoặc dùng trình duyệt khác.');
     } finally {
       setDownloading(false);
     }
   }
+
+  useEffect(() => {
+    if (!pendingReExport) return;
+    const baseName = pendingReExport.replace(/\.pdf$/i, '');
+    setPendingReExport(null);
+    const timer = window.setTimeout(() => {
+      const el = cvPreviewRef.current;
+      if (!el) return;
+      setDownloading(true);
+      setDownloadError(null);
+      void Promise.all(
+        Array.from(el.querySelectorAll('img')).map((img) => img.decode().catch(() => undefined)),
+      )
+        .then(() => downloadElementAsPdf(el, baseName))
+        .catch(() => setDownloadError('Không tải được PDF. Thử lại hoặc dùng trình duyệt khác.'))
+        .finally(() => setDownloading(false));
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [pendingReExport]);
 
   function onAnalyze() {
     uploadMutation.reset();
@@ -2185,7 +2247,9 @@ function CreateCvEditor() {
                             {cvItem.fileName}
                           </p>
                           <p className="mt-0.5 truncate text-[10.5px] text-slate-500">
-                            {cvItem.updatedAt}
+                            {cvItem.isDefault
+                              ? cvItem.updatedAt
+                              : `Đã xuất ${cvItem.updatedAt}${cvItem.templateName ? ` · ${cvItem.templateName}` : ''}`}
                           </p>
                         </div>
                       </div>
@@ -2193,7 +2257,7 @@ function CreateCvEditor() {
                       <div className="relative flex shrink-0 items-center gap-1.5">
                         {cvItem.isDefault && (
                           <span className="rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-brand-700 ring-1 ring-sky-200/70">
-                            Mặc định
+                            Hồ sơ gốc
                           </span>
                         )}
                         <button
@@ -2211,37 +2275,30 @@ function CreateCvEditor() {
                         {menuOpen && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute right-0 top-full z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+                            className="absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
                           >
                             <button
                               type="button"
                               onClick={() => {
                                 setOpenCvMenuId(null);
-                                if (cvItem.isDefault && candidate && !draft) {
-                                  importFromProfile();
-                                }
-                                setSelectedId(cvItem.templateId || CV_TEMPLATES[0].id);
-                                window.setTimeout(() => {
-                                  void onDownloadCv();
-                                }, 60);
+                                restoreCvRecordToEditor(cvItem, step);
+                                setPendingReExport(cvItem.fileName);
                               }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
                             >
                               <Download className="h-3.5 w-3.5 text-brand-600" />
-                              <span>Tải xuống PDF</span>
+                              <span>{cvItem.isDefault ? 'Tải xuống PDF' : 'Tải lại bản PDF này'}</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => {
                                 setOpenCvMenuId(null);
-                                setMainTab('cv');
-                                if (candidate) importFromProfile();
-                                goToStep(2);
+                                restoreCvRecordToEditor(cvItem, cvItem.isDefault ? 2 : 1);
                               }}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
                             >
                               <Pencil className="h-3.5 w-3.5 text-slate-500" />
-                              <span>Mở chỉnh sửa</span>
+                              <span>{cvItem.isDefault ? 'Chỉnh sửa / Đổi mẫu' : 'Khôi phục vào bản nháp'}</span>
                             </button>
                             {!cvItem.isDefault && (
                               <button
@@ -2482,8 +2539,9 @@ function CreateCvEditor() {
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-[#072348]">{cvItem.fileName}</p>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      {cvItem.updatedAt}
-                      {cvItem.isDefault ? ' · Mặc định từ hồ sơ' : ''}
+                      {cvItem.isDefault
+                        ? 'Đồng bộ trực tiếp Hồ sơ inLink & AI Matching'
+                        : `Bản PDF xuất ngày ${cvItem.updatedAt}${cvItem.templateName ? ` · ${cvItem.templateName}` : ''}`}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -2491,9 +2549,18 @@ function CreateCvEditor() {
                       type="button"
                       onClick={() => {
                         setManageCvsOpen(false);
-                        if (cvItem.isDefault && candidate && !draft) importFromProfile();
-                        setSelectedId(cvItem.templateId || CV_TEMPLATES[0].id);
-                        window.setTimeout(() => void onDownloadCv(), 60);
+                        restoreCvRecordToEditor(cvItem, cvItem.isDefault ? 2 : 1);
+                      }}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      {cvItem.isDefault ? 'Chỉnh sửa' : 'Khôi phục nháp'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManageCvsOpen(false);
+                        restoreCvRecordToEditor(cvItem, step);
+                        setPendingReExport(cvItem.fileName);
                       }}
                       className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#072348] hover:bg-slate-50"
                     >
