@@ -36,7 +36,7 @@ export class CrmMarketingService {
       this.prisma.crmMarketingChannel.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }),
       this.prisma.crmCampaign.findMany({
         where: own,
-        include: { channel: { select: { name: true, groupCode: true } } },
+        include: { channel: { select: { code: true, name: true, groupCode: true } } },
         orderBy: { createdAt: 'desc' },
         take: 100,
       }),
@@ -52,28 +52,109 @@ export class CrmMarketingService {
     ]);
     const names = await this.ownerNames(campaigns.map((row) => row.ownerUserId));
     const spentByCampaign = new Map<string, bigint>();
+    const leadCountByCampaign = new Map<string, number>();
+    const companyIdsByCampaign = new Map<string, Set<string>>();
+    const allCompanyIds = new Set<string>();
     const visibleIds = campaigns.map((row) => row.id);
     if (visibleIds.length > 0) {
-      const sums = await this.prisma.crmMarketingCost.groupBy({
-        by: ['campaignId'],
-        where: { campaignId: { in: visibleIds } },
-        _sum: { amountVnd: true },
-      });
+      const [sums, leads, deals] = await Promise.all([
+        this.prisma.crmMarketingCost.groupBy({
+          by: ['campaignId'],
+          where: { campaignId: { in: visibleIds } },
+          _sum: { amountVnd: true },
+        }),
+        this.prisma.crmLead.findMany({
+          where: { campaignId: { in: visibleIds } },
+          select: { campaignId: true, companyId: true },
+        }),
+        this.prisma.crmDeal.findMany({
+          where: { lead: { campaignId: { in: visibleIds } } },
+          select: { companyId: true, lead: { select: { campaignId: true } } },
+        }),
+      ]);
       for (const row of sums) spentByCampaign.set(row.campaignId, row._sum.amountVnd ?? 0n);
+      for (const l of leads) {
+        if (!l.campaignId) continue;
+        leadCountByCampaign.set(l.campaignId, (leadCountByCampaign.get(l.campaignId) ?? 0) + 1);
+        if (l.companyId) {
+          let set = companyIdsByCampaign.get(l.campaignId);
+          if (!set) {
+            set = new Set();
+            companyIdsByCampaign.set(l.campaignId, set);
+          }
+          set.add(l.companyId);
+          allCompanyIds.add(l.companyId);
+        }
+      }
+      for (const d of deals) {
+        const campaignId = d.lead?.campaignId;
+        if (!campaignId || !d.companyId) continue;
+        let set = companyIdsByCampaign.get(campaignId);
+        if (!set) {
+          set = new Set();
+          companyIdsByCampaign.set(campaignId, set);
+        }
+        set.add(d.companyId);
+        allCompanyIds.add(d.companyId);
+      }
     }
+
+    const revenueByCompany = new Map<string, bigint>();
+    if (allCompanyIds.size > 0) {
+      const paidOrders = await this.prisma.billingOrder.findMany({
+        where: {
+          companyId: { in: Array.from(allCompanyIds) },
+          status: 'paid',
+          priceVndSnapshot: { gt: 0n },
+        },
+        select: { companyId: true, priceVndSnapshot: true },
+      });
+      for (const o of paidOrders) {
+        revenueByCompany.set(
+          o.companyId,
+          (revenueByCompany.get(o.companyId) ?? 0n) + o.priceVndSnapshot,
+        );
+      }
+    }
+
     let budget = 0n;
     let spent = 0n;
+    let totalRevenue = 0n;
+    let totalLeads = 0;
+    const overallPaidCompanyIds = new Set<string>();
+
     const mapped = campaigns.map((row) => {
       const rowSpent = spentByCampaign.get(row.id) ?? 0n;
+      const leadCount = leadCountByCampaign.get(row.id) ?? 0;
+      const compIds = companyIdsByCampaign.get(row.id);
+      let rowRevenue = 0n;
+      let paidCustomerCount = 0;
+      if (compIds) {
+        for (const cid of compIds) {
+          const rev = revenueByCompany.get(cid) ?? 0n;
+          if (rev > 0n) {
+            rowRevenue += rev;
+            paidCustomerCount += 1;
+            if (row.status !== 'cancelled') overallPaidCompanyIds.add(cid);
+          }
+        }
+      }
       if (row.status !== 'cancelled') {
         budget += row.budgetVnd ?? 0n;
         spent += rowSpent;
+        totalRevenue += rowRevenue;
+        totalLeads += leadCount;
       }
+      const cacVnd =
+        paidCustomerCount > 0 ? (rowSpent / BigInt(paidCustomerCount)).toString() : null;
+      const roas =
+        rowSpent > 0n ? Math.round((Number(rowRevenue) / Number(rowSpent)) * 100) / 100 : null;
       return {
         id: row.id,
         campaignCode: row.campaignCode,
         name: row.name,
         channelId: row.channelId,
+        channelCode: row.channel.code,
         channelName: row.channel.name,
         channelGroup: this.group(row.channel.groupCode),
         status: campaignStatus(row.status) ?? 'draft',
@@ -81,18 +162,33 @@ export class CrmMarketingService {
         endsOn: dayKey(row.endsOn),
         budgetVnd: row.budgetVnd?.toString() ?? null,
         spentVnd: rowSpent.toString(),
+        leadCount,
+        paidCustomerCount,
+        revenueVnd: rowRevenue.toString(),
+        cacVnd,
+        roas,
         ownerUserId: row.ownerUserId,
         ownerName: names.get(row.ownerUserId) ?? 'Người phụ trách',
         note: row.note,
         createdAt: row.createdAt.toISOString(),
       };
     });
+    const totalPaidCustomers = overallPaidCompanyIds.size;
+    const overallRoas =
+      spent > 0n ? Math.round((Number(totalRevenue) / Number(spent)) * 100) / 100 : null;
+    const overallCacVnd =
+      totalPaidCustomers > 0 ? (spent / BigInt(totalPaidCustomers)).toString() : null;
     return {
       canManageSpend: this.seesAll(actor),
       budgetVnd: budget.toString(),
       spentVnd: spent.toString(),
       activeCount: campaigns.filter((row) => row.status === 'active').length,
       campaignCount: campaigns.length,
+      totalRevenueVnd: totalRevenue.toString(),
+      totalLeadCount: totalLeads,
+      totalPaidCustomers,
+      overallRoas,
+      overallCacVnd,
       channels: channels.map((row) => ({
         id: row.id,
         code: row.code,

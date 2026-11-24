@@ -1063,6 +1063,7 @@ export interface CrmCampaignView {
   name: string;
   channelId: string;
   channelName: string;
+  channelCode?: string;
   channelGroup: CrmMarketingChannelGroup;
   status: CrmCampaignStatus;
   startsOn: string | null;
@@ -1071,6 +1072,11 @@ export interface CrmCampaignView {
   budgetVnd: string | null;
   /** Đã chi, không gồm hoa hồng. */
   spentVnd: string;
+  leadCount?: number;
+  paidCustomerCount?: number;
+  revenueVnd?: string;
+  cacVnd?: string | null;
+  roas?: number | null;
   ownerUserId: string;
   ownerName: string;
   note: string | null;
@@ -1095,6 +1101,11 @@ export interface CrmMarketingOverview {
   canManageSpend: boolean;
   budgetVnd: string;
   spentVnd: string;
+  totalRevenueVnd?: string;
+  totalLeadCount?: number;
+  totalPaidCustomers?: number;
+  overallRoas?: number | null;
+  overallCacVnd?: string | null;
   activeCount: number;
   campaignCount: number;
   channels: CrmMarketingChannelView[];

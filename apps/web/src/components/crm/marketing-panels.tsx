@@ -1,12 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleDollarSign, Flag, Radio } from 'lucide-react';
+import { Check, CircleDollarSign, Copy, Flag, Radio, TrendingUp } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import type { CrmCampaignStatus, CrmCampaignView, CrmMarketingChannelGroup } from '@industriallink/contracts';
 import { CrmCard, CrmCardGrid, CrmEmpty, CrmFrame, crmActionClass, crmButtonClass, crmFieldClass } from '@/components/crm-frame';
 import { CrmSelect } from '@/components/crm/fields';
 import { errorText, formatVnd } from '@/components/crm/format';
+import { BRAND_RECRUITER_SITE_URL } from '@/lib/brand';
 import { fetchCrmOwners } from '@/lib/crm';
 import {
   createCrmCampaign,
@@ -45,22 +46,165 @@ function useMarketing() {
 export function CrmMarketingHomePanel() {
   const marketing = useMarketing();
   const data = marketing.data;
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function buildUtmLink(c: CrmCampaignView): string {
+    const qs = new URLSearchParams({
+      utm_source: c.channelCode || 'web',
+      utm_medium: c.channelGroup === 'social' ? 'paid_social' : 'owned',
+      utm_campaign: c.campaignCode,
+    });
+    return `${BRAND_RECRUITER_SITE_URL}/bang-gia?${qs.toString()}`;
+  }
+
+  function copyUtm(c: CrmCampaignView) {
+    void navigator.clipboard?.writeText(buildUtmLink(c)).then(() => {
+      setCopiedId(c.id);
+      window.setTimeout(() => setCopiedId((cur) => (cur === c.id ? null : cur)), 2000);
+    });
+  }
 
   return (
     <CrmFrame
-      kicker="Kênh, chiến dịch và khoản đã chi"
-      title="Quản lý marketing"
-      description="Sale tạo chiến dịch của mình và gắn cơ hội. SuperAdmin đặt ngân sách và ghi chi phí. Chưa tính doanh thu ở màn này."
-      footnote="Không tạo đơn, không bật gói và không cộng hoa hồng vào chi phí."
+      kicker="Kênh, chiến dịch & Hiệu quả ROI"
+      title="Quản lý Marketing · UTM → ROAS & CAC"
+      description="Theo dõi chi phí quảng cáo, doanh thu chưa VAT mang về từ các chiến dịch, chỉ số ROAS/CAC và sao chép nhanh link UTM chuẩn để chạy Ads."
+      footnote="Doanh thu tính từ đơn hàng đã thanh toán (chưa VAT) của doanh nghiệp gắn với chiến dịch. Không cộng hoa hồng CTV vào chi phí Ads."
     >
       {marketing.isLoading ? <CrmEmpty>Đang tải marketing…</CrmEmpty> : null}
       {marketing.isError ? <CrmEmpty>Không tải được marketing.</CrmEmpty> : null}
       {data ? (
-        <CrmCardGrid columns={3}>
-          <CrmCard tone="violet" icon={<Flag className="h-5 w-5" />} title={`${data.activeCount} chiến dịch đang chạy`} text={`${data.campaignCount} chiến dịch trong sổ.`} />
-          <CrmCard tone="sky" icon={<Radio className="h-5 w-5" />} title={money(data.budgetVnd === '0' && data.campaignCount === 0 ? null : data.budgetVnd)} text="Ngân sách các chiến dịch chưa hủy." />
-          <CrmCard tone="orange" icon={<CircleDollarSign className="h-5 w-5" />} title={formatVnd(data.spentVnd)} text="Đã chi. Không gồm hoa hồng cộng tác viên." />
-        </CrmCardGrid>
+        <div className="space-y-5">
+          <CrmCardGrid columns={4}>
+            <CrmCard
+              tone="sky"
+              icon={<Flag className="h-5 w-5" />}
+              title={`${data.activeCount} đang chạy`}
+              text={`${data.campaignCount} chiến dịch · ${data.totalLeadCount ?? 0} Lead gắn nguồn.`}
+            />
+            <CrmCard
+              tone="orange"
+              icon={<CircleDollarSign className="h-5 w-5" />}
+              title={formatVnd(data.spentVnd)}
+              text={`Chi phí đã chi · Ngân sách ${money(data.budgetVnd === '0' && data.campaignCount === 0 ? null : data.budgetVnd)}.`}
+            />
+            <CrmCard
+              tone="green"
+              icon={<Radio className="h-5 w-5" />}
+              title={formatVnd(data.totalRevenueVnd ?? '0')}
+              text={`Doanh thu chưa VAT · ${data.totalPaidCustomers ?? 0} DN đã thanh toán.`}
+            />
+            <CrmCard
+              tone="violet"
+              icon={<TrendingUp className="h-5 w-5" />}
+              title={data.overallRoas != null ? `ROAS ${data.overallRoas.toFixed(2)}x` : 'ROAS —'}
+              text={`CAC: ${data.overallCacVnd ? formatVnd(data.overallCacVnd) : 'Chưa có đơn trả phí'}.`}
+            />
+          </CrmCardGrid>
+
+          <section className="overflow-hidden rounded-2xl border border-[#DCE6F4] bg-white shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-[#072348]/[0.03] px-5 py-3.5">
+              <div>
+                <h2 className="text-sm font-bold text-[#072348]">
+                  Hiệu quả chiến dịch (UTM → Lead → Doanh thu · CAC · ROAS)
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Bấm «Copy link UTM» để gắn trực tiếp vào quảng cáo Facebook, Google, LinkedIn, Zalo.
+                </p>
+              </div>
+            </div>
+
+            {data.campaigns.length === 0 ? (
+              <p className="px-5 py-8 text-center text-xs text-slate-500">
+                Chưa có chiến dịch nào. Vào mục <strong>Chiến dịch</strong> để tạo chiến dịch mới.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[780px] text-left text-xs">
+                  <thead className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Chiến dịch</th>
+                      <th className="px-3 py-3">Kênh</th>
+                      <th className="px-3 py-3 text-right">Lead / DN trả phí</th>
+                      <th className="px-3 py-3 text-right">Chi phí</th>
+                      <th className="px-3 py-3 text-right">Doanh thu</th>
+                      <th className="px-3 py-3 text-right">CAC</th>
+                      <th className="px-3 py-3 text-right">ROAS</th>
+                      <th className="px-4 py-3 text-right">Link UTM</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {data.campaigns.map((c) => {
+                      const roas = c.roas ?? null;
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/60">
+                          <td className="px-4 py-3">
+                            <p className="font-semibold text-[#072348]">{c.name}</p>
+                            <p className="mt-0.5 font-mono text-[11px] text-slate-400">
+                              {c.campaignCode} · {statusLabel(c.status)}
+                            </p>
+                          </td>
+                          <td className="px-3 py-3 text-slate-600">{c.channelName}</td>
+                          <td className="px-3 py-3 text-right tabular-nums font-medium text-slate-700">
+                            {c.leadCount ?? 0} /{' '}
+                            <span className="font-bold text-emerald-700">
+                              {c.paidCustomerCount ?? 0}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-700">
+                            {formatVnd(c.spentVnd)}
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums font-semibold text-[#072348]">
+                            {formatVnd(c.revenueVnd ?? '0')}
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-600">
+                            {c.cacVnd ? formatVnd(c.cacVnd) : '—'}
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums">
+                            {roas != null ? (
+                              <span
+                                className={
+                                  roas >= 3
+                                    ? 'inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700'
+                                    : roas >= 1
+                                      ? 'inline-flex rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800'
+                                      : 'inline-flex rounded-full bg-rose-50 px-2 py-0.5 font-bold text-rose-700'
+                                }
+                              >
+                                {roas.toFixed(2)}x
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => copyUtm(c)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-[#072348]/20 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#072348] transition hover:border-[#E8872A] hover:text-[#E8872A]"
+                            >
+                              {copiedId === c.id ? (
+                                <>
+                                  <Check className="h-3 w-3 text-emerald-600" />
+                                  Đã sao chép
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3" />
+                                  Copy link UTM
+                                </>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
       ) : null}
     </CrmFrame>
   );
