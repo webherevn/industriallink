@@ -1027,7 +1027,6 @@ function JobsPageInner({
               <ul
                 className={clsx(
                   'mt-4 grid grid-cols-1 items-stretch gap-3 rounded-2xl bg-[#eef3f8] p-3 ring-1 ring-slate-200/80 transition-[padding,gap] duration-500 ease-soft motion-reduce:transition-none sm:grid-cols-2',
-                  activeJobSource.length > 0 && 'sm:auto-rows-fr',
                   !filtersOpen && 'sm:gap-4 sm:p-4',
                 )}
               >
@@ -1664,21 +1663,24 @@ function JobCard({
               )}
 
               {/* Hàng 4: Địa điểm, Mức lương, Kinh nghiệm */}
-              <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-2.5 text-[12px] text-slate-600">
-                <span className="inline-flex min-w-0 items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
-                </span>
-                <span className="sr-only"> · </span>
-                <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-                  <Banknote className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                  {formatSalary(job.salaryMin, job.salaryMax)}
-                </span>
-                <span className="sr-only"> · </span>
-                <span className="inline-flex items-center gap-1">
-                  <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  {expText}
-                </span>
+              <div className="mt-auto pt-3">
+                <div className="space-y-1 border-t border-slate-200/60 pt-2.5 text-[12px] text-slate-600">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="truncate">{job.location ?? 'Linh hoạt'}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+                      <Banknote className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                      {formatSalary(job.salaryMin, job.salaryMax)}
+                    </span>
+                    <span className="sr-only"> · </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Briefcase className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {expText}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {applyFeedback && (
