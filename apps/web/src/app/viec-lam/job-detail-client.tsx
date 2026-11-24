@@ -26,6 +26,7 @@ import {
   JobStatus,
   SALES_MATCH_FIELD_LABEL,
   TECH_MATCH_FIELD_LABEL,
+  UserRole,
   looksLikeUuid,
   shouldUseSalesMatchEngine,
   shouldUseTechnicalMatchEngine,
@@ -34,6 +35,7 @@ import {
 import { AppShell } from '@/components/app-shell';
 import { looksLikeHtml, SafeHtml } from '@/components/render-safe-html';
 import { ApiError, tokenStore } from '@/lib/api';
+import { fetchMe } from '@/lib/auth';
 import { loadSavedCoverLetter } from '@/lib/cover-letter';
 import { getMyCandidate } from '@/lib/candidate';
 import {
@@ -266,10 +268,20 @@ export function JobDetailClient({
     initialData: initialJob ?? undefined,
   });
 
+  const hasToken = typeof window !== 'undefined' && Boolean(tokenStore.get());
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchMe,
+    enabled: hasToken,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const isCandidate = hasToken && me?.role === UserRole.Candidate;
+
   const { data: bookmarks } = useQuery({
     queryKey: ['job-bookmarks'],
     queryFn: listBookmarkedJobs,
-    enabled: Boolean(tokenStore.get()),
+    enabled: isCandidate,
     retry: false,
   });
 
@@ -283,7 +295,7 @@ export function JobDetailClient({
   const { data: myCandidate } = useQuery({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
-    enabled: Boolean(tokenStore.get()),
+    enabled: isCandidate,
     retry: false,
   });
 

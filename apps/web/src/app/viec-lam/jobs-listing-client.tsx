@@ -38,6 +38,7 @@ import {
   SALARY_BANDS_VND,
   SALARY_PRESETS,
   TECHNICAL_DESIRED_POSITIONS,
+  UserRole,
   type ApplicationView,
   type JobListItem,
   type JobMatchView,
@@ -49,6 +50,7 @@ import { LocationPicker } from '@/components/location-picker';
 import { Badge, Input, Select } from '@/components/ui';
 import { myApplications } from '@/lib/applications';
 import { ApiError, tokenStore } from '@/lib/api';
+import { fetchMe } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
 import { apiPublicBase, companyPublicPath, jobPublicPath } from '@/lib/public-paths';
 import {
@@ -339,10 +341,20 @@ function JobsPageInner({
       byPlace,
   );
 
+  const loggedIn = typeof window !== 'undefined' && Boolean(tokenStore.get());
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchMe,
+    enabled: loggedIn,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const isCandidate = loggedIn && me?.role === UserRole.Candidate;
+
   const { data: candidate } = useQuery({
     queryKey: ['my-candidate'],
     queryFn: getMyCandidate,
-    enabled: typeof window !== 'undefined' && Boolean(tokenStore.get()),
+    enabled: isCandidate,
     retry: false,
   });
   const provinces = useMemo(
@@ -363,26 +375,25 @@ function JobsPageInner({
     staleTime: 60_000,
   });
 
-  const loggedIn = typeof window !== 'undefined' && Boolean(tokenStore.get());
-
   const { data: bookmarks, isLoading: bookmarksLoading } = useQuery({
     queryKey: ['job-bookmarks'],
     queryFn: listBookmarkedJobs,
     retry: false,
-    enabled: loggedIn,
+    enabled: isCandidate,
   });
 
   const { data: applications, isLoading: appsLoading } = useQuery({
     queryKey: ['my-applications'],
     queryFn: myApplications,
     retry: false,
-    enabled: loggedIn,
+    enabled: isCandidate,
   });
 
   const { data: matches, isLoading: matchesLoading } = useQuery({
     queryKey: ['jobs-match-preview'],
     queryFn: recommendedJobs,
     retry: false,
+    enabled: isCandidate,
   });
 
   const matchByJobId = useMemo(() => {

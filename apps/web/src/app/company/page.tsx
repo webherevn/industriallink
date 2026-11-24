@@ -444,13 +444,15 @@ export default function CompanyPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link
+          <a
             href={publicUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-[#072348] shadow-2xs transition hover:border-brand-300 hover:bg-slate-50"
           >
             <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
             Xem trang công khai
-          </Link>
+          </a>
 
           <button
             type="button"
@@ -1055,9 +1057,14 @@ export default function CompanyPage() {
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-[#072348]">Xem trước trang công khai</h3>
-              <Link href={publicUrl} className="text-xs font-semibold text-[#1D4ED8] hover:underline">
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold text-[#1D4ED8] hover:underline"
+              >
                 Mở trang →
-              </Link>
+              </a>
             </div>
 
             <div className="mt-3 overflow-hidden rounded-xl border border-slate-200/80 bg-white">
@@ -1512,8 +1519,8 @@ function CompanyVerificationCard() {
             )}
           </div>
           <Input
-            value={data.verified ? (data.taxCode ?? '') : taxCodeInput}
-            disabled={data.verified || pending}
+            value={data.verified && data.taxCode ? data.taxCode : taxCodeInput}
+            disabled={Boolean(data.verified && data.taxCode) || pending}
             onChange={(e) => {
               setTaxCodeTouched(true);
               setTaxCodeInput(e.target.value);
@@ -1521,10 +1528,15 @@ function CompanyVerificationCard() {
             placeholder="VD: 0101234567 hoặc 0101234567-001"
           />
           <p className="text-[11px] leading-relaxed text-slate-500">
-            {data.verified ? (
+            {data.verified && data.taxCode ? (
               <span className="inline-flex items-center gap-1 text-emerald-700">
                 <Lock className="h-3 w-3 shrink-0" />
                 MST đã được khóa cố định sau khi xác thực.
+              </span>
+            ) : data.verified ? (
+              <span className="inline-flex items-center gap-1 text-emerald-700">
+                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                Doanh nghiệp đã được xác thực — bạn vẫn có thể bổ sung Mã số thuế nếu cần.
               </span>
             ) : data.taxRegistryVerified && data.taxRegistryBusinessName ? (
               <span className="inline-flex items-center gap-1 text-emerald-700">
