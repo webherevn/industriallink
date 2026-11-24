@@ -1042,50 +1042,125 @@ function LayoutSidebar({
   compact?: boolean;
   avatarUrl?: string | null;
 }) {
+  const {
+    subtitleText,
+    addressText,
+    mainSections,
+    eduItems,
+    conditionItems,
+    aspirationItems,
+  } = buildExecutiveCvModel(draft, template, compact);
+
+  const sideGroups = [
+    { key: 'edu', title: 'Học vấn & Chứng chỉ', items: eduItems },
+    { key: 'cond', title: 'Điều kiện làm việc', items: conditionItems },
+    { key: 'asp', title: 'Mong muốn & Môi trường', items: aspirationItems },
+  ].filter((g) => g.items.length > 0);
+
   return (
     <div className="flex min-h-full bg-white text-slate-800">
       <aside
         data-cv-sidebar
         data-cv-sidebar-bg={template.accent}
-        className={clsx('shrink-0 text-white', compact ? 'w-[34%] p-3.5' : 'w-[31%] px-5 py-6')}
+        className={clsx('shrink-0 text-white', compact ? 'w-[34%] p-3.5' : 'w-[32%] px-5 py-6')}
         style={{ backgroundColor: template.accent }}
       >
         <div data-cv-block>
           <AvatarPhoto name={draft.fullName} src={avatarUrl} compact={compact} dark />
           <p
             className={clsx(
-              'mt-3.5 text-center font-extrabold leading-tight tracking-tight',
-              compact ? 'text-[12.5px]' : 'text-[17px]',
+              'mt-3.5 break-words text-center font-extrabold uppercase leading-[1.3] tracking-tight text-white',
+              compact ? 'text-[12.5px]' : 'text-[16px]',
             )}
           >
             {draft.fullName || 'HỌ VÀ TÊN'}
           </p>
           <p
             className={clsx(
-              'mt-1.5 text-center font-bold uppercase tracking-[0.11em] text-white/85',
-              compact ? 'text-[8.5px]' : 'text-[10px]',
+              'mt-1 break-words text-center font-bold uppercase leading-[1.35] tracking-[0.08em] text-white/85',
+              compact ? 'text-[8px]' : 'text-[9.5px]',
             )}
           >
-            {draft.title || 'Vị trí ứng tuyển'}
+            {subtitleText}
           </p>
         </div>
+
         <div className="my-4 h-px bg-white/25" />
-        <div data-cv-block>
+
+        <div data-cv-block className="space-y-1.5">
           <p
             className={clsx(
-              'mb-2 font-extrabold uppercase tracking-[0.12em] text-white/80',
-              compact ? 'text-[8.5px]' : 'text-[10px]',
+              'font-extrabold uppercase tracking-[0.1em] text-white/80',
+              compact ? 'text-[8px]' : 'text-[9.5px]',
             )}
           >
             Liên hệ
           </p>
-          <ContactLines draft={draft} dark compact={compact} />
+          <div
+            className={clsx(
+              'space-y-1 leading-[1.4] text-white/95',
+              compact ? 'text-[8.5px]' : 'text-[10px]',
+            )}
+          >
+            {draft.phone ? <p className="break-words">Di động: {draft.phone}</p> : null}
+            {draft.email ? <p className="break-words">Email: {draft.email}</p> : null}
+            {addressText ? <p className="break-words">Địa chỉ: {addressText}</p> : null}
+          </div>
         </div>
-        <div className="my-4 h-px bg-white/25" />
-        <SidebarSkills draft={draft} dark compact={compact} />
+
+        {sideGroups.map((group) => (
+          <div key={group.key} data-cv-block>
+            <div className="my-4 h-px bg-white/25" />
+            <p
+              className={clsx(
+                'mb-2 font-extrabold uppercase tracking-[0.1em] text-white/80',
+                compact ? 'text-[8px]' : 'text-[9.5px]',
+              )}
+            >
+              {group.title}
+            </p>
+            <div className="space-y-2">
+              {group.items.map((item) => (
+                <div key={item.label}>
+                  <p
+                    className={clsx(
+                      'font-semibold uppercase tracking-[0.04em] text-white/70',
+                      compact ? 'text-[7px]' : 'text-[8px]',
+                    )}
+                  >
+                    {item.label}
+                  </p>
+                  <p
+                    className={clsx(
+                      'mt-0.5 break-words font-semibold leading-[1.35] text-white',
+                      compact ? 'text-[8.5px]' : 'text-[9.5px]',
+                    )}
+                  >
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </aside>
-      <div className={clsx('min-w-0 flex-1', compact ? 'p-3.5' : 'px-6 py-6')}>
-        <MainSections draft={draft} accent={template.accent} compact={compact} />
+
+      <div className={clsx('min-w-0 flex-1 space-y-4', compact ? 'p-3.5' : 'px-6 py-6')}>
+        {mainSections.map((sec, idx) => (
+          <section key={sec.key} data-cv-block className="space-y-2">
+            <h2
+              style={{ color: template.accent }}
+              className={clsx(
+                'flex items-center gap-2 font-extrabold uppercase tracking-[0.06em]',
+                compact ? 'text-[9.5px]' : 'text-[11px]',
+              )}
+            >
+              <span>{String(idx + 1).padStart(2, '0')}</span>
+              <span>{sec.title}</span>
+            </h2>
+            {sec.content}
+          </section>
+        ))}
       </div>
     </div>
   );
@@ -1276,21 +1351,14 @@ function ExecMetricStrip({
 }
 
 /**
- * Layout chuẩn form PDF chuyên nghiệp (Sales B2B & Kỹ sư Kỹ thuật):
- * Header banner màu theo template kèm ảnh ứng viên, thân 1 cột đánh số tự động 01..08,
- * tự ẩn các mục/cột không có dữ liệu và cân đối lưới cột tự động.
+ * Tạo dữ liệu nội dung chuẩn (Sales B2B & Kỹ sư Kỹ thuật) dùng chung cho cả LayoutExecutive và LayoutSidebar:
+ * tự động ẩn các mục/cột trống và đánh số liên tục 01..08.
  */
-function LayoutExecutive({
-  draft,
-  template,
-  compact,
-  avatarUrl,
-}: {
-  draft: CvDraft;
-  template: CvTemplate;
-  compact?: boolean;
-  avatarUrl?: string | null;
-}) {
+function buildExecutiveCvModel(
+  draft: CvDraft,
+  template: CvTemplate,
+  compact?: boolean,
+) {
   const isTech =
     draft.jobTrack === JobTrack.Technical ||
     (draft.jobTrack !== JobTrack.Sales && template.industry === 'technical');
@@ -1651,6 +1719,8 @@ function LayoutExecutive({
     });
   }
 
+  const mainSections = [...sections];
+
   if (eduItems.length > 0) {
     sections.push({
       key: 'education',
@@ -1674,6 +1744,30 @@ function LayoutExecutive({
       content: <ExecMetricStrip items={aspirationItems} compact={compact} maxCols={4} />,
     });
   }
+
+  return {
+    subtitleText,
+    addressText,
+    sections,
+    mainSections,
+    eduItems,
+    conditionItems,
+    aspirationItems,
+  };
+}
+
+function LayoutExecutive({
+  draft,
+  template,
+  compact,
+  avatarUrl,
+}: {
+  draft: CvDraft;
+  template: CvTemplate;
+  compact?: boolean;
+  avatarUrl?: string | null;
+}) {
+  const { subtitleText, addressText, sections } = buildExecutiveCvModel(draft, template, compact);
 
   return (
     <div className="bg-white text-slate-900">

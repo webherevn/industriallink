@@ -35,43 +35,35 @@ export const CV_INDUSTRY_FILTERS: { id: CvTemplateIndustry; label: string }[] = 
 ];
 
 export const CV_TEMPLATES: CvTemplate[] = [
-  { id: 'modern-01', name: 'Hiện đại 01', category: 'modern', accent: '#0B3A6E', layout: 'sidebar' },
-  { id: 'modern-02', name: 'Hiện đại 02', category: 'modern', accent: '#0E7490', layout: 'split' },
-  { id: 'pro-01', name: 'Chuyên nghiệp 01', category: 'professional', accent: '#1E293B', layout: 'executive' },
-  { id: 'pro-02', name: 'Chuyên nghiệp 02', category: 'professional', accent: '#334155', layout: 'sidebar' },
-  { id: 'creative-01', name: 'Sáng tạo 01', category: 'creative', accent: '#5B21B6', layout: 'split' },
-  { id: 'minimal-01', name: 'Tối giản 01', category: 'minimal', accent: '#0F172A', layout: 'classic' },
   {
     id: 'sales-01',
-    name: 'CV Nhân viên kinh doanh',
+    name: 'CV Kinh doanh · Chuẩn inLink',
     category: 'professional',
     industry: 'sales',
-    accent: '#B45309',
+    accent: '#0F3557',
     layout: 'executive',
   },
   {
-    id: 'sales-02',
-    name: 'CV Sales B2B',
-    category: 'modern',
-    industry: 'sales',
-    accent: '#C2410C',
-    layout: 'split',
-  },
-  {
     id: 'tech-01',
-    name: 'CV Kỹ thuật',
+    name: 'CV Kỹ thuật · Chuẩn inLink',
     category: 'professional',
     industry: 'technical',
     accent: '#0F766E',
     layout: 'executive',
   },
   {
-    id: 'tech-02',
-    name: 'CV Kỹ sư công nghiệp',
+    id: 'modern-01',
+    name: 'Hiện đại · Cột trái',
     category: 'modern',
-    industry: 'technical',
-    accent: '#155E75',
+    accent: '#0B3A6E',
     layout: 'sidebar',
+  },
+  {
+    id: 'pro-01',
+    name: 'Chuyên nghiệp · Tối giản',
+    category: 'minimal',
+    accent: '#1E293B',
+    layout: 'executive',
   },
 ];
 
