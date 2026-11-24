@@ -17,16 +17,19 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type {
-  CrmKycProfileView,
-  CrmKycReviewListView,
-  CrmKycReviewResultView,
-  CrmKycUploadResult,
-  ReviewCrmKycRequest,
-  UpdateCrmKycRequest,
+import {
+  UserRole,
+  type CrmKycProfileView,
+  type CrmKycReviewListView,
+  type CrmKycReviewResultView,
+  type CrmKycUploadResult,
+  type ReviewCrmKycRequest,
+  type UpdateCrmKycRequest,
 } from '@industriallink/contracts';
 import { CurrentUser } from '../../shared/security/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/jwt-auth.guard';
+import { Roles } from '../../shared/security/roles.decorator';
+import { RolesGuard } from '../../shared/security/roles.guard';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
 import { CtvKycService, KYC_MAX_IMAGE_BYTES } from './ctv-kyc.service';
 
@@ -102,7 +105,8 @@ export class CtvKycSelfController {
 /** CRM Admin — duyệt hồ sơ xác thực CTV. */
 @ApiTags('CRM')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SuperAdmin, UserRole.SalesManager)
 @Controller('crm/ctv/kyc')
 export class CrmKycAdminController {
   constructor(private readonly kyc: CtvKycService) {}

@@ -1597,6 +1597,19 @@ export class CrmService {
     // Đã gán rồi → giữ nguyên CTV cũ (hưởng trọn đời).
     if (company.referredByCtvId) return;
 
+    // Khách hàng đã từng tự thanh toán trước thời điểm gắn CTV → không gán ngược cho CTV.
+    if (tx.billingOrder?.findFirst) {
+      const priorPaidOrder = await tx.billingOrder.findFirst({
+        where: {
+          companyId,
+          status: 'paid',
+          paidAt: { lt: at },
+        },
+        select: { id: true },
+      });
+      if (priorPaidOrder) return;
+    }
+
     await tx.company.update({
       where: { id: companyId },
       data: {
@@ -5012,6 +5025,15 @@ export class CrmService {
       select: { id: true },
     });
     if (lead) throw new BadRequestException('Mã số thuế này đã có trong CRM');
+    const existingCompany = await this.prisma.company.findFirst({
+      where: { taxCode, isDeleted: false },
+      select: { id: true },
+    });
+    if (existingCompany) {
+      throw new BadRequestException(
+        'Doanh nghiệp có mã số thuế này đã tồn tại trên inLink nên không thể khóa mới.',
+      );
+    }
     try {
       const row = await this.prisma.crmPartnerClaim.create({
         data: {

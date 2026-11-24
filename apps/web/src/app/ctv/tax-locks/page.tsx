@@ -91,42 +91,57 @@ export default function CtvTaxLocksPage() {
           </div>
         </div>
 
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            add.mutate();
-          }}
-          className="mt-4 grid gap-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/40 p-3 sm:grid-cols-4"
-        >
-          <Input
-            placeholder="Tên công ty"
-            value={companyName}
-            maxLength={160}
-            onChange={(event) => setCompanyName(event.target.value)}
-            required
-          />
-          <Input
-            placeholder="Mã số thuế (10 hoặc 13 số)"
-            value={taxCode}
-            onChange={(event) => setTaxCode(event.target.value)}
-            required
-          />
-          <Input
-            placeholder="Số điện thoại liên hệ"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            required
-          />
-          <Button type="submit" disabled={add.isPending}>
-            {add.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            {add.isPending ? 'Đang khóa…' : 'Khóa mã số thuế'}
-          </Button>
-          {error ? <p className="text-sm text-rose-600 sm:col-span-4">{error}</p> : null}
-        </form>
+        {!mine.isLoading && !mine.data?.partner ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900">
+            <span>
+              Bạn chưa kích hoạt tài khoản Cộng tác viên. Hãy kích hoạt tại trang{' '}
+              <strong>Tổng quan</strong> trước khi khóa mã số thuế doanh nghiệp.
+            </span>
+            <a
+              href="/ctv"
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-semibold text-white transition hover:bg-amber-700"
+            >
+              Kích hoạt CTV →
+            </a>
+          </div>
+        ) : (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              add.mutate();
+            }}
+            className="mt-4 grid gap-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/40 p-3 sm:grid-cols-4"
+          >
+            <Input
+              placeholder="Tên công ty"
+              value={companyName}
+              maxLength={160}
+              onChange={(event) => setCompanyName(event.target.value)}
+              required
+            />
+            <Input
+              placeholder="Mã số thuế (10 hoặc 13 số)"
+              value={taxCode}
+              onChange={(event) => setTaxCode(event.target.value)}
+              required
+            />
+            <Input
+              placeholder="Số điện thoại liên hệ"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              required
+            />
+            <Button type="submit" disabled={add.isPending}>
+              {add.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {add.isPending ? 'Đang khóa…' : 'Khóa mã số thuế'}
+            </Button>
+            {error ? <p className="text-sm text-rose-600 sm:col-span-4">{error}</p> : null}
+          </form>
+        )}
       </section>
 
       {/* Bảng danh sách MST đã khóa */}

@@ -21,6 +21,7 @@ import type {
 import { UserRole } from '@industriallink/contracts';
 import { PrismaService } from '../../shared/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/security/security.types';
+import { vietnamMonthHasEnded } from './commission-period';
 import {
   CommissionTier,
   CommissionTierCode,
@@ -676,6 +677,24 @@ export class CtvCommissionPolicyService {
       },
     });
 
+    // Đồng bộ bút toán debit lên ví hoa hồng (nếu CTV đã có ví) để không bị treo số dư ảo.
+    if (item.commissionAmount > 0n && tx.crmCommissionWallet?.findUnique && tx.crmCommissionWalletTxn?.create) {
+      const wallet = await tx.crmCommissionWallet.findUnique({
+        where: { partnerId: input.ctvId },
+        select: { id: true },
+      });
+      if (wallet) {
+        await tx.crmCommissionWalletTxn.create({
+          data: {
+            walletId: wallet.id,
+            partnerId: input.ctvId,
+            amountVnd: item.commissionAmount,
+            kind: 'debit',
+          },
+        });
+      }
+    }
+
     this.logger.log(
       `Hoàn tiền đơn ${input.billingOrderId} (kỳ ${input.yearMonth} đã chốt) ` +
         `→ điều chỉnh ${negative} vào kỳ ${currentMonth}`,
@@ -785,6 +804,11 @@ export class CtvCommissionPolicyService {
     yearMonth: string,
     reconciledAt: Date = new Date(),
   ): Promise<CtvMonthlyStatementView> {
+    if (!vietnamMonthHasEnded(yearMonth, reconciledAt)) {
+      throw new BadRequestException(
+        `Tháng ${yearMonth} chưa kết thúc — chỉ được chốt kỳ đối soát sau khi hết tháng để không rơi hoa hồng đơn mới.`,
+      );
+    }
     const statement = await this.prisma.ctvMonthlyStatement.findUnique({
       where: { ctvId_yearMonth: { ctvId, yearMonth } },
     });

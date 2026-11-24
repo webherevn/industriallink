@@ -40,7 +40,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { isCrmRole, UserRole } from '@industriallink/contracts';
 import { BrandSidebarLockup } from '@/components/brand-logo';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { restoreSession, tokenStore } from '@/lib/api';
+import { ApiError, restoreSession, tokenStore } from '@/lib/api';
 import { fetchMe, logout } from '@/lib/auth';
 import { fetchCrmKycList } from '@/lib/ctv-kyc';
 import { bounceIfWrongHost, goToPublicApp } from '@/lib/hosts';
@@ -123,7 +123,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
   }, []);
 
   const hasToken = sessionReady && Boolean(tokenStore.get());
-  const { data: user, isError, isLoading } = useQuery({
+  const { data: user, isError, isLoading, error } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
     enabled: hasToken,
@@ -146,8 +146,10 @@ export function CrmShell({ children }: { children: ReactNode }) {
   }, [router, sessionReady]);
 
   useEffect(() => {
-    if (isError) router.replace('/login');
-  }, [isError, router]);
+    if (!isError) return;
+    if (error instanceof ApiError && error.status >= 500) return;
+    router.replace('/login');
+  }, [error, isError, router]);
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
@@ -178,7 +180,12 @@ export function CrmShell({ children }: { children: ReactNode }) {
     return !coveredByChild;
   }
 
-  if (!sessionReady || isLoading || (hasToken && !user && !isError)) {
+  if (
+    !sessionReady ||
+    isLoading ||
+    (hasToken && !user && !isError) ||
+    (user && !isCrmRole(user.role))
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--admin-bg)] text-sm text-slate-500">
         Đang tải CRM...

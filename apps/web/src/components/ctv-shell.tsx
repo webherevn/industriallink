@@ -161,21 +161,21 @@ export function CtvShell({ children }: { children: ReactNode }) {
     retry: false,
   });
 
-  const { data: kyc } = useQuery({
-    queryKey: ['ctv-kyc'],
-    queryFn: fetchMyKyc,
-    enabled: hasToken && Boolean(user),
-    retry: false,
-    staleTime: 30_000,
-  });
-
-  // Số MST đang bảo vệ (X/30) cho badge sidebar.
+  // Số MST đang bảo vệ (X/30) cho badge sidebar — tải trước để chỉ gọi KYC khi đã là CTV.
   const { data: partner } = useQuery({
     queryKey: ['recruiter-partner'],
     queryFn: () => import('@/lib/crm').then((mod) => mod.fetchMyPartner()),
     enabled: hasToken && Boolean(user),
     retry: false,
     staleTime: 60_000,
+  });
+
+  const { data: kyc } = useQuery({
+    queryKey: ['ctv-kyc'],
+    queryFn: fetchMyKyc,
+    enabled: hasToken && Boolean(user) && Boolean(partner?.partner?.id),
+    retry: false,
+    staleTime: 30_000,
   });
 
   useEffect(() => {
@@ -186,13 +186,13 @@ export function CtvShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!sessionReady) return;
-    if (!tokenStore.get()) router.replace('/login');
+    if (!tokenStore.get()) router.replace('/ctv/login');
   }, [router, sessionReady]);
 
   useEffect(() => {
     if (!isError) return;
     if (error instanceof ApiError && error.status >= 500) return;
-    router.replace('/login');
+    router.replace('/ctv/login');
   }, [error, isError, router]);
 
   useEffect(() => {
@@ -209,7 +209,7 @@ export function CtvShell({ children }: { children: ReactNode }) {
   async function onLogout() {
     await logout();
     clearAuthQueryCache(queryClient);
-    router.replace('/login');
+    router.replace('/ctv/login');
   }
 
   if (!sessionReady || (hasToken && !user && isFetching)) {
@@ -235,8 +235,8 @@ export function CtvShell({ children }: { children: ReactNode }) {
   const sections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.map((item) => {
-      if (item.badge === 'taxLocks' && taxLockCount != null) {
-        return { ...item, badge: `${taxLockCount}/30` };
+      if (item.badge === 'taxLocks') {
+        return { ...item, badge: taxLockCount != null ? `${taxLockCount}/30` : undefined };
       }
       return item;
     }),

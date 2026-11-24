@@ -51,11 +51,16 @@ const BANKS = [
 
 export default function CtvKycPage() {
   const qc = useQueryClient();
-  const kycQuery = useQuery({ queryKey: ['ctv-kyc'], queryFn: fetchMyKyc, retry: false });
   const partnerQuery = useQuery({ queryKey: ['recruiter-partner'], queryFn: fetchMyPartner });
+  const partnerId = partnerQuery.data?.partner?.id ?? null;
+  const kycQuery = useQuery({
+    queryKey: ['ctv-kyc'],
+    queryFn: fetchMyKyc,
+    enabled: Boolean(partnerId),
+    retry: false,
+  });
 
   const kyc = kycQuery.data;
-  const partnerId = partnerQuery.data?.partner?.id ?? null;
   const status: CrmKycStatus = kyc?.status ?? 'UNVERIFIED';
   const meta = KYC_STATUS_META[status];
 

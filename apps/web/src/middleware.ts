@@ -147,7 +147,12 @@ export function middleware(req: NextRequest) {
     if (isRecruiterAppPath(pathname)) {
       return applyNoStore(NextResponse.redirect(`https://${BRAND_RECRUITER_HOST}${pathname}${search}`));
     }
-    if (!isCtvAppPath(pathname) && pathname !== '/login' && pathname !== '/register') {
+    if (
+      !isCtvAppPath(pathname) &&
+      pathname !== '/account' &&
+      pathname !== '/login' &&
+      pathname !== '/register'
+    ) {
       const dest = req.nextUrl.clone();
       dest.pathname = '/ctv';
       return applyNoStore(NextResponse.redirect(dest));
@@ -160,6 +165,9 @@ export function middleware(req: NextRequest) {
       const dest = req.nextUrl.clone();
       dest.pathname = '/recruiter';
       return applyNoStore(NextResponse.redirect(dest));
+    }
+    if (isCtvAppPath(pathname)) {
+      return applyNoStore(NextResponse.redirect(`https://${BRAND_CTV_HOST}${pathname}${search}`));
     }
     if (isAdminAppPath(pathname)) {
       return applyNoStore(NextResponse.redirect(`https://${BRAND_ADMIN_HOST}${pathname}${search}`));

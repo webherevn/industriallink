@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Building2 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isCmsAdminRole, isSalesStaff, MfaMethod, UserRole } from '@industriallink/contracts';
 import { AppShell } from '@/components/app-shell';
 import { CandidateSidebar } from '@/components/candidate-sidebar';
+import { CtvShell } from '@/components/ctv-shell';
 import { Badge, Button, Card, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import {
@@ -22,11 +23,15 @@ import {
   updateMfa,
 } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
-import { goToRecruiterApp } from '@/lib/hosts';
+import { goToRecruiterApp, isCtvHostname } from '@/lib/hosts';
 
 export default function AccountPage() {
   const router = useRouter();
   const qc = useQueryClient();
+  const [onCtvHost, setOnCtvHost] = useState(false);
+  useEffect(() => {
+    setOnCtvHost(isCtvHostname());
+  }, []);
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: fetchMe,
@@ -109,6 +114,13 @@ export default function AccountPage() {
   const isTotpActive = user?.mfaEnabled && user.mfaMethod === MfaMethod.Totp;
 
   if (isLoading || !user) {
+    if (onCtvHost) {
+      return (
+        <CtvShell>
+          <p className="text-sm text-slate-500">Đang tải...</p>
+        </CtvShell>
+      );
+    }
     return (
       <AppShell>
         <p className="text-sm text-slate-500">Đang tải...</p>
@@ -430,6 +442,10 @@ export default function AccountPage() {
         )}
       </div>
   );
+
+  if (onCtvHost) {
+    return <CtvShell>{content}</CtvShell>;
+  }
 
   return (
     <AppShell wide={isCandidate}>

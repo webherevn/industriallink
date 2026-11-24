@@ -123,6 +123,11 @@ export function goToPublicApp(path = '/'): void {
 }
 
 export function navigateAfterLogin(role: UserRole, nextPath?: string | null): void {
+  if (isCtvHostname()) {
+    const dest = nextPath && (nextPath === '/account' || nextPath.startsWith('/ctv')) ? nextPath : '/ctv';
+    window.location.assign(dest);
+    return;
+  }
   if (isSalesStaff(role)) {
     const dest = nextPath && isCrmAppPath(nextPath) ? nextPath : '/crm';
     if (isCrmHostname()) {

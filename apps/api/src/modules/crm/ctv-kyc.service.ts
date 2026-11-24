@@ -170,10 +170,13 @@ export class CtvKycService {
       ? await this.prisma.crmPartnerKyc.update({ where: { id: existing.id }, data })
       : await this.prisma.crmPartnerKyc.create({ data: { ...data, partnerId: partner.id } });
 
-    if (existing?.status === 'VERIFIED') {
-      // Hồ sơ đã xác thực mà sửa lại → báo SuperAdmin duyệt lại trước kỳ chi trả.
-      await this.notifyReviewers(partner, 'Yêu cầu cập nhật lại thông tin xác thực CTV');
-    }
+    const isUpdateAfterVerify = Boolean(existing?.kycReviewedAt || existing?.status === 'VERIFIED');
+    await this.notifyReviewers(
+      partner,
+      isUpdateAfterVerify
+        ? 'Yêu cầu cập nhật lại thông tin xác thực CTV'
+        : 'Hồ sơ xác thực CCCD CTV mới chờ duyệt',
+    );
     return this.mapProfile(saved);
   }
 
