@@ -465,3 +465,23 @@ export function fetchCrmCustomerHealth(): Promise<
 > {
   return apiRequest('/crm/customer-health');
 }
+
+
+export function fetchCrmAiCompanyBrief(
+  companyId: string,
+): Promise<import('@industriallink/contracts').CrmAiBriefResponse> {
+  return apiRequest(`/crm/ai/companies/${companyId}/brief`, { method: 'POST', body: {} });
+}
+
+export function draftCrmAiOutreach(
+  companyId: string,
+  body: import('@industriallink/contracts').CrmAiOutreachRequest,
+): Promise<import('@industriallink/contracts').CrmAiOutreachResponse> {
+  return apiRequest(`/crm/ai/companies/${companyId}/outreach`, { method: 'POST', body });
+}
+
+export function diagnoseCrmAiCompanyJds(
+  companyId: string,
+): Promise<import('@industriallink/contracts').CrmAiJdDiagnosisResponse> {
+  return apiRequest(`/crm/ai/companies/${companyId}/jd-diagnosis`, { method: 'POST', body: {} });
+}

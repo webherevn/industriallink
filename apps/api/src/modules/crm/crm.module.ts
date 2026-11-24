@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from '../ai/ai.module';
 import { CmsModule } from '../cms/cms.module';
 import { NotificationModule } from '../notification/notification.module';
+import { CrmAiController } from './crm-ai.controller';
+import { CrmAiService } from './crm-ai.service';
 import { CrmEnterpriseController } from './crm-enterprise.controller';
 import { CrmPartnerSelfController } from './crm-partner-self.controller';
 import { CrmReferralController } from './crm-referral.controller';
@@ -17,9 +20,10 @@ import { CrmService } from './crm.service';
 import { CtvCommissionPolicyService } from './ctv-commission-policy.service';
 
 @Module({
-  imports: [NotificationModule, CmsModule],
+  imports: [NotificationModule, CmsModule, AiModule],
   controllers: [
     CrmController,
+    CrmAiController,
     CrmCommissionPolicyController,
     CrmMarketingController,
     CrmPartnerSelfController,
@@ -32,6 +36,7 @@ import { CtvCommissionPolicyService } from './ctv-commission-policy.service';
   ],
   providers: [
     CrmService,
+    CrmAiService,
     CrmMarketingService,
     CommissionCloseService,
     SupportChatService,

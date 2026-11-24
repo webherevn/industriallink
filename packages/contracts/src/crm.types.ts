@@ -1282,3 +1282,39 @@ export interface CrmCustomerHealthOverview {
   healthyCount: number;
   items: CrmCustomerHealthItem[];
 }
+
+
+export type CrmAiOutreachChannel = 'zalo' | 'email';
+export type CrmAiOutreachPurpose =
+  | 'missing_license'
+  | 'upgrade_free'
+  | 'renewal_churn'
+  | 'stale_quote'
+  | 'general_care';
+
+export interface CrmAiBriefResponse {
+  provider: string;
+  generatedAt: string;
+  content: string;
+}
+
+export interface CrmAiOutreachRequest {
+  channel: CrmAiOutreachChannel;
+  purpose: CrmAiOutreachPurpose;
+  customNote?: string;
+}
+
+export interface CrmAiOutreachResponse {
+  provider: string;
+  channel: CrmAiOutreachChannel;
+  purpose: CrmAiOutreachPurpose;
+  subject?: string | null;
+  message: string;
+}
+
+export interface CrmAiJdDiagnosisResponse {
+  provider: string;
+  analyzedJobCount: number;
+  jobTitles: string[];
+  diagnosis: string;
+}

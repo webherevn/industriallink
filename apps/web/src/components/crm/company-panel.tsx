@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { CrmEmpty, CrmFrame } from '@/components/crm-frame';
 import { contactPhoneLabel, errorText, followUpLabel, formatVnd, formatWhen, leadStatusLabel } from '@/components/crm/format';
+import { CrmCompanyAiCopilot } from '@/components/crm/company-ai-copilot';
 import { CrmCompanySourcingOutreachSection } from '@/components/crm/sourcing-outreach-panel';
 import { claimCrmCustomer, fetchCrmCompany } from '@/lib/crm';
 
@@ -66,13 +67,14 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
             <ul className="mt-2 space-y-2">
               {data.leads.map((lead) => (
                 <li key={lead.id} className="text-sm text-slate-700">
-                  <Link href="/crm/leads" className="font-medium text-[#4c3ec9]">{lead.leadCode}</Link>
+                  <Link href="/crm/leads" className="font-medium text-[#0B468C] hover:underline">{lead.leadCode}</Link>
                   {` · ${lead.ownerName} · ${leadStatusLabel(lead.status)} · ${contactPhoneLabel(lead.contactPhone)}`}
                   {lead.nextFollowUpAt ? ` · ${followUpLabel(lead.nextFollowUpAt)}` : ''}
                 </li>
               ))}
             </ul>
           </section>
+          <CrmCompanyAiCopilot companyId={companyId} />
           {data.platformActivity ? (
             <PlatformActivitySection activity={data.platformActivity} />
           ) : null}
@@ -87,7 +89,7 @@ export function CrmCompanyPanel({ companyId }: { companyId: string }) {
               {data.orders.map((order) => (
                 <li key={order.billingOrderId} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm text-slate-700">
                   <span>{order.planName ?? order.planCode ?? (order.orderKind === 'sourcing' ? 'Gói Săn' : 'Gói tin')} · chưa VAT {formatVnd(order.paidAmountVnd)} · khách trả {formatVnd(order.payableVnd)} · {formatWhen(order.paidAt)}</span>
-                  <Link href={`/crm/finance?q=${encodeURIComponent(order.invoiceNumber ?? data.name)}`} className="text-[#4c3ec9]">
+                  <Link href={`/crm/finance?q=${encodeURIComponent(order.invoiceNumber ?? data.name)}`} className="text-[#0B468C] hover:underline">
                     {order.invoiceNumber ? `Hóa đơn ${order.invoiceNumber}` : 'Chưa ghi số hóa đơn'}
                   </Link>
                 </li>
