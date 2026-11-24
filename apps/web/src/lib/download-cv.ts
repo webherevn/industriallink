@@ -161,7 +161,11 @@ export async function downloadElementAsPdf(
 
   const scaleY = canvas.height / Math.max(1, element.scrollHeight);
   const breakPoints = collectBreakPoints(element, scaleY);
-  const slices = buildPageSlices(canvas.height, firstCapacityPx, nextCapacityPx, breakPoints);
+  const fullFirstPagePx = pageHeight * pxPerMm;
+  const slices =
+    canvas.height <= fullFirstPagePx + 4
+      ? [{ start: 0, end: canvas.height }]
+      : buildPageSlices(canvas.height, firstCapacityPx, nextCapacityPx, breakPoints);
 
   slices.forEach((slice, index) => {
     if (index > 0) pdf.addPage();

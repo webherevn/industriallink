@@ -1232,7 +1232,7 @@ function ExecMetricStrip({
 }) {
   const valid = items.filter((item) => Boolean(item.value && item.value.trim()));
   if (valid.length === 0) return null;
-  const cols = Math.min(valid.length, compact ? Math.min(maxCols, 2) : maxCols);
+  const cols = Math.min(valid.length, maxCols);
   const gridClass =
     cols === 1
       ? 'grid-cols-1'
@@ -1248,23 +1248,23 @@ function ExecMetricStrip({
       className={clsx(
         'grid rounded-md bg-[#F1F5F9]',
         gridClass,
-        compact ? 'gap-x-3 gap-y-2 px-2.5 py-2' : 'gap-x-4 gap-y-2.5 px-3.5 py-2.5',
+        compact ? 'gap-x-3 gap-y-2 px-3 py-2.5' : 'gap-x-4 gap-y-2.5 px-3.5 py-2.5',
       )}
     >
       {valid.map((item) => (
         <div key={item.label} className="min-w-0">
           <p
             className={clsx(
-              'font-bold uppercase tracking-[0.05em] text-slate-500',
-              compact ? 'text-[7.5px]' : 'text-[8.5px]',
+              'font-bold uppercase tracking-[0.05em] leading-[1.35] text-slate-500',
+              compact ? 'text-[8px]' : 'text-[8.5px]',
             )}
           >
             {item.label}
           </p>
           <p
             className={clsx(
-              'mt-0.5 break-words font-bold leading-snug text-slate-900',
-              compact ? 'text-[9px]' : 'text-[10.5px]',
+              'mt-0.5 break-words font-bold leading-[1.4] text-slate-900',
+              compact ? 'text-[9.5px]' : 'text-[10.5px]',
             )}
           >
             {item.value}
@@ -1682,16 +1682,16 @@ function LayoutExecutive({
         style={{ backgroundColor: template.accent }}
         className={clsx(
           'text-white',
-          compact ? 'px-3.5 py-3' : 'px-7 py-5',
+          compact ? 'px-5 py-4' : 'px-7 py-5',
         )}
       >
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3.5">
+          <div className="flex min-w-0 flex-1 items-center gap-3.5">
             {avatarUrl ? (
               <div
                 className={clsx(
                   'shrink-0 overflow-hidden rounded-xl border-2 border-white/35 bg-white/10',
-                  compact ? 'h-11 w-11' : 'h-[66px] w-[66px]',
+                  compact ? 'h-14 w-14' : 'h-[66px] w-[66px]',
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1703,21 +1703,28 @@ function LayoutExecutive({
                 />
               </div>
             ) : (
-              <AvatarPhoto name={draft.fullName} src={null} compact={compact} dark />
+              <div
+                className={clsx(
+                  'flex shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-white/15 font-bold tracking-wide text-white',
+                  compact ? 'h-12 w-12 text-sm' : 'h-14 w-14 text-base',
+                )}
+              >
+                {initials(draft.fullName)}
+              </div>
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1
                 className={clsx(
-                  'truncate font-extrabold uppercase tracking-tight text-white',
-                  compact ? 'text-sm leading-tight' : 'text-[22px] leading-tight',
+                  'break-words font-extrabold uppercase tracking-tight leading-[1.3] text-white',
+                  compact ? 'text-base' : 'text-[22px]',
                 )}
               >
                 {draft.fullName || 'HỌ VÀ TÊN'}
               </h1>
               <p
                 className={clsx(
-                  'mt-1 truncate font-bold uppercase tracking-[0.09em] text-white/85',
-                  compact ? 'text-[8px]' : 'text-[10.5px]',
+                  'mt-0.5 break-words font-bold uppercase tracking-[0.08em] leading-[1.35] text-white/85',
+                  compact ? 'text-[9px]' : 'text-[10.5px]',
                 )}
               >
                 {subtitleText}
@@ -1727,13 +1734,13 @@ function LayoutExecutive({
 
           <div
             className={clsx(
-              'shrink-0 space-y-0.5 text-right text-white/90',
-              compact ? 'max-w-[44%] text-[8px]' : 'max-w-[42%] text-[10px]',
+              'shrink-0 space-y-1 text-right leading-[1.35] text-white/90',
+              compact ? 'max-w-[44%] text-[8.5px]' : 'max-w-[42%] text-[10px]',
             )}
           >
-            {draft.phone ? <p className="truncate">Di động: {draft.phone}</p> : null}
-            {draft.email ? <p className="truncate">Email: {draft.email}</p> : null}
-            {addressText ? <p className="truncate">Địa chỉ: {addressText}</p> : null}
+            {draft.phone ? <p className="break-words">Di động: {draft.phone}</p> : null}
+            {draft.email ? <p className="break-words">Email: {draft.email}</p> : null}
+            {addressText ? <p className="break-words">Địa chỉ: {addressText}</p> : null}
           </div>
         </div>
       </header>
@@ -1828,7 +1835,7 @@ export function CvPreview({
       className="overflow-hidden bg-white shadow-sm"
       style={
         exportWidth
-          ? { width: exportWidth, minHeight: Math.round(exportWidth * 1.414) }
+          ? { width: exportWidth }
           : { minHeight: compact ? 280 : 420 }
       }
     >

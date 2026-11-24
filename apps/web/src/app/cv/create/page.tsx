@@ -2424,7 +2424,7 @@ function CreateCvEditor() {
         <div ref={cvPreviewRef}>
           <CvPreview
             draft={activeDraft}
-            template={selected}
+            template={step >= 2 ? selected : carouselTemplate}
             empty={!analyzed && step === 1}
             exportWidth={794}
             avatarUrl={previewAvatarUrl}
