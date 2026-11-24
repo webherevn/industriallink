@@ -9,6 +9,7 @@ import {
   type AutoAssignCrmLeadsRequest,
   type AutoAssignCrmLeadsResult,
   type CrmConversionQueueItem,
+  type CrmCustomerHealthOverview,
   type CreateCrmPartnerClaimRequest,
   type CreateCrmPartnerRequest,
   type CrmActivityView,
@@ -358,6 +359,12 @@ export class CrmController {
   @ApiOperation({ summary: 'Hàng chờ nhắc việc chuyển đổi: Chưa nộp ĐKKD, Gói Khám phá sắp hết hạn, Báo giá quá hạn.' })
   conversionQueue(@CurrentUser() user: AuthenticatedUser): Promise<CrmConversionQueueItem[]> {
     return this.crm.conversionQueue(user);
+  }
+
+  @Get('customer-health')
+  @ApiOperation({ summary: 'Cảnh báo sức khỏe khách hàng trả phí (Customer Health Score / Churn Alert).' })
+  customerHealth(@CurrentUser() user: AuthenticatedUser): Promise<CrmCustomerHealthOverview> {
+    return this.crm.customerHealth(user);
   }
 
   @Post('leads/auto-assign')

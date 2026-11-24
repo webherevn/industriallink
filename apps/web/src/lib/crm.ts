@@ -458,3 +458,10 @@ export function fetchCrmConversionQueue(): Promise<
 > {
   return apiRequest('/crm/conversion-queue');
 }
+
+
+export function fetchCrmCustomerHealth(): Promise<
+  import('@industriallink/contracts').CrmCustomerHealthOverview
+> {
+  return apiRequest('/crm/customer-health');
+}

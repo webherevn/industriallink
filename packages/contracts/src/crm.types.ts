@@ -1256,3 +1256,29 @@ export interface CrmConversionQueueItem {
   actionLabel: string;
   ageDays: number;
 }
+
+
+export type CrmHealthLevel = 'HEALTHY' | 'WATCH' | 'AT_RISK';
+
+export interface CrmCustomerHealthItem {
+  companyId: string;
+  companyName: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  ownerName: string | null;
+  activePlans: string[];
+  score: number;
+  level: CrmHealthLevel;
+  reasons: string[];
+  publishedJobCount: number;
+  applicantCount: number;
+  soonestExpiryDays: number | null;
+}
+
+export interface CrmCustomerHealthOverview {
+  totalPaidCustomers: number;
+  atRiskCount: number;
+  watchCount: number;
+  healthyCount: number;
+  items: CrmCustomerHealthItem[];
+}

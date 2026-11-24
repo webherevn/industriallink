@@ -11,6 +11,8 @@ import {
   type AutoAssignCrmLeadsRequest,
   type AutoAssignCrmLeadsResult,
   type CrmConversionQueueItem,
+  type CrmCustomerHealthItem,
+  type CrmCustomerHealthOverview,
   type CaptureCrmReferralRequest,
   type CaptureCrmReferralResponse,
   type CreateCrmPartnerClaimRequest,
@@ -3556,6 +3558,198 @@ export class CrmService {
       return b.ageDays - a.ageDays;
     });
     return items.slice(0, 40);
+  }
+
+  /** Cảnh báo sức khỏe khách hàng (Customer Health Score / Churn Alert) cho khách đã mua gói trả phí. */
+  async customerHealth(actor: AuthenticatedUser): Promise<CrmCustomerHealthOverview> {
+    const now = new Date();
+    const dayMs = 86_400_000;
+    const isAll = this.seesAll(actor);
+
+    const scopedLeads = await this.prisma.crmLead.findMany({
+      where: isAll ? { companyId: { not: null } } : { ownerUserId: actor.id, companyId: { not: null } },
+      select: { companyId: true, ownerUserId: true, contactName: true, contactPhone: true },
+    });
+    const leadByCompany = new Map<string, (typeof scopedLeads)[number]>();
+    for (const l of scopedLeads) {
+      if (l.companyId && !leadByCompany.has(l.companyId)) leadByCompany.set(l.companyId, l);
+    }
+    const visibleCompanyIds = [...leadByCompany.keys()];
+    if (!isAll && visibleCompanyIds.length === 0) {
+      return { totalPaidCustomers: 0, atRiskCount: 0, watchCount: 0, healthyCount: 0, items: [] };
+    }
+
+    const companyFilter = isAll ? {} : { companyId: { in: visibleCompanyIds } };
+    const [jobPkgs, huntPkgs] = await Promise.all([
+      this.prisma.billingJobPackage.findMany({
+        where: {
+          ...companyFilter,
+          packageType: { not: 'FREE' },
+          status: { in: ['ACTIVE', 'UNUSED'] },
+        },
+        select: {
+          companyId: true,
+          packageName: true,
+          status: true,
+          purchasedAt: true,
+          expiresAt: true,
+          usedJobs: true,
+        },
+      }),
+      this.prisma.billingHuntPackage.findMany({
+        where: {
+          ...companyFilter,
+          status: { in: ['ACTIVE', 'UNUSED'] },
+        },
+        select: {
+          companyId: true,
+          packageName: true,
+          status: true,
+          purchasedAt: true,
+          expiresAt: true,
+        },
+      }),
+    ]);
+
+    const paidCompanyIds = [...new Set([...jobPkgs.map((p) => p.companyId), ...huntPkgs.map((p) => p.companyId)])];
+    if (paidCompanyIds.length === 0) {
+      return { totalPaidCustomers: 0, atRiskCount: 0, watchCount: 0, healthyCount: 0, items: [] };
+    }
+
+    const [companies, publishedJobs] = await Promise.all([
+      this.prisma.company.findMany({
+        where: { id: { in: paidCompanyIds }, isDeleted: false },
+        select: { id: true, name: true },
+      }),
+      this.prisma.job.findMany({
+        where: { companyId: { in: paidCompanyIds }, isDeleted: false, status: 'published' },
+        select: { id: true, companyId: true, publishedAt: true, createdAt: true },
+      }),
+    ]);
+
+    const jobIds = publishedJobs.map((j) => j.id);
+    const appCounts =
+      jobIds.length > 0
+        ? await this.prisma.application.groupBy({
+            by: ['jobId'],
+            where: { jobId: { in: jobIds } },
+            _count: { id: true },
+          })
+        : [];
+    const appsByJob = new Map(appCounts.map((a) => [a.jobId, a._count.id]));
+
+    const jobsByCompany = new Map<string, { count: number; oldestAgeDays: number; applicants: number }>();
+    for (const j of publishedJobs) {
+      const refTime = (j.publishedAt ?? j.createdAt).getTime();
+      const ageDays = Math.max(0, Math.floor((now.getTime() - refTime) / dayMs));
+      const apps = appsByJob.get(j.id) ?? 0;
+      const cur = jobsByCompany.get(j.companyId) ?? { count: 0, oldestAgeDays: 0, applicants: 0 };
+      cur.count += 1;
+      if (ageDays > cur.oldestAgeDays) cur.oldestAgeDays = ageDays;
+      cur.applicants += apps;
+      jobsByCompany.set(j.companyId, cur);
+    }
+
+    const jobPkgsByCompany = new Map<string, typeof jobPkgs>();
+    for (const p of jobPkgs) {
+      const arr = jobPkgsByCompany.get(p.companyId) ?? [];
+      arr.push(p);
+      jobPkgsByCompany.set(p.companyId, arr);
+    }
+    const huntPkgsByCompany = new Map<string, typeof huntPkgs>();
+    for (const p of huntPkgs) {
+      const arr = huntPkgsByCompany.get(p.companyId) ?? [];
+      arr.push(p);
+      huntPkgsByCompany.set(p.companyId, arr);
+    }
+
+    const ownerIds = [...new Set(paidCompanyIds.map((id) => leadByCompany.get(id)?.ownerUserId).filter((x): x is string => Boolean(x)))];
+    const names = await this.ownerNames(ownerIds);
+
+    const items: CrmCustomerHealthItem[] = [];
+    for (const c of companies) {
+      const cJobPkgs = jobPkgsByCompany.get(c.id) ?? [];
+      const cHuntPkgs = huntPkgsByCompany.get(c.id) ?? [];
+      const jobStat = jobsByCompany.get(c.id) ?? { count: 0, oldestAgeDays: 0, applicants: 0 };
+      const activePlans = [
+        ...new Set([...cJobPkgs.map((p) => p.packageName), ...cHuntPkgs.map((p) => p.packageName)]),
+      ];
+
+      let score = 100;
+      const reasons: string[] = [];
+
+      // 1. Paid job package > 5 days but 0 published jobs
+      const oldestJobPkgDays = cJobPkgs.reduce((max, p) => {
+        const d = Math.floor((now.getTime() - p.purchasedAt.getTime()) / dayMs);
+        return Math.max(max, d);
+      }, 0);
+      if (cJobPkgs.length > 0 && jobStat.count === 0 && oldestJobPkgDays >= 5) {
+        score -= 40;
+        reasons.push(`Mua gói Tin đăng ${oldestJobPkgDays} ngày nhưng chưa có tin đang hiển thị`);
+      }
+
+      // 2. Unused hunt package > 3 days
+      const unusedHuntDays = cHuntPkgs
+        .filter((p) => p.status === 'UNUSED')
+        .reduce((max, p) => Math.max(max, Math.floor((now.getTime() - p.purchasedAt.getTime()) / dayMs)), 0);
+      if (unusedHuntDays >= 3) {
+        score -= 30;
+        reasons.push(`Gói Tin săn mua ${unusedHuntDays} ngày nhưng chưa kích hoạt chiến dịch`);
+      }
+
+      // 3. Published job > 7 days with 0 applicants
+      if (jobStat.count > 0 && jobStat.applicants === 0 && jobStat.oldestAgeDays >= 7) {
+        score -= 25;
+        reasons.push(`Tin đăng đã chạy ${jobStat.oldestAgeDays} ngày nhưng chưa có ứng viên ứng tuyển`);
+      }
+
+      // 4. Expiring within 7 days
+      const expiryDaysList = [
+        ...cJobPkgs.filter((p) => p.expiresAt).map((p) => Math.ceil((p.expiresAt!.getTime() - now.getTime()) / dayMs)),
+        ...cHuntPkgs.filter((p) => p.expiresAt).map((p) => Math.ceil((p.expiresAt!.getTime() - now.getTime()) / dayMs)),
+      ];
+      const soonestExpiryDays = expiryDaysList.length > 0 ? Math.min(...expiryDaysList) : null;
+      if (soonestExpiryDays !== null && soonestExpiryDays <= 7) {
+        score -= 20;
+        reasons.push(
+          soonestExpiryDays <= 0
+            ? 'Gói trả phí đã đến hạn gia hạn'
+            : `Gói trả phí sắp hết hạn sau ${soonestExpiryDays} ngày`,
+        );
+      }
+
+      score = Math.max(0, Math.min(100, score));
+      const level = score <= 55 ? 'AT_RISK' : score <= 80 ? 'WATCH' : 'HEALTHY';
+      const lead = leadByCompany.get(c.id);
+
+      items.push({
+        companyId: c.id,
+        companyName: c.name,
+        contactName: lead?.contactName ?? null,
+        contactPhone: lead?.contactPhone ?? null,
+        ownerName: lead ? names.get(lead.ownerUserId) ?? null : null,
+        activePlans,
+        score,
+        level,
+        reasons,
+        publishedJobCount: jobStat.count,
+        applicantCount: jobStat.applicants,
+        soonestExpiryDays,
+      });
+    }
+
+    items.sort((a, b) => a.score - b.score || a.companyName.localeCompare(b.companyName, 'vi'));
+    const atRiskCount = items.filter((i) => i.level === 'AT_RISK').length;
+    const watchCount = items.filter((i) => i.level === 'WATCH').length;
+    const healthyCount = items.filter((i) => i.level === 'HEALTHY').length;
+
+    return {
+      totalPaidCustomers: items.length,
+      atRiskCount,
+      watchCount,
+      healthyCount,
+      items,
+    };
   }
 
   async owners(actor: AuthenticatedUser): Promise<CrmOwnerOption[]> {

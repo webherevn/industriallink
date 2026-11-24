@@ -34,7 +34,7 @@ import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/
 import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { CrmWorkspaceBoard } from '@/components/crm/workspace-board';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
-import { fetchCrmConversionQueue, fetchCrmCustomers, fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
+import { fetchCrmConversionQueue, fetchCrmCustomerHealth, fetchCrmCustomers, fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
@@ -44,6 +44,7 @@ export function CrmHomePanel() {
   const unclaimed = useQuery({ queryKey: ['crm-unclaimed'], queryFn: fetchCrmUnclaimed });
   const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
   const conversionQueue = useQuery({ queryKey: ['crm-conversion-queue'], queryFn: fetchCrmConversionQueue });
+  const customerHealth = useQuery({ queryKey: ['crm-customer-health'], queryFn: fetchCrmCustomerHealth });
   const [convFilter, setConvFilter] = useState<'all' | 'missing_license' | 'free_expiring' | 'stale_quote'>('all');
   const conversionItems = (conversionQueue.data ?? []).filter(
     (item) => convFilter === 'all' || item.kind === convFilter,
@@ -324,10 +325,11 @@ export function CrmHomePanel() {
           </Link>
           <Link href="/crm/renewals" className="block h-full">
             <CrmCard
-              tone="green"
+              tone={(customerHealth.data?.atRiskCount ?? 0) > 0 ? 'rose' : 'green'}
+              badge={(customerHealth.data?.atRiskCount ?? 0) > 0 ? `${customerHealth.data?.atRiskCount} cảnh báo` : undefined}
               icon={<CalendarClock className="h-5 w-5" />}
               title={`${renewals.isLoading ? '…' : due} sắp gia hạn`}
-              text="Gói tin hoặc gói Săn hết hạn trong 30 ngày, hoặc quá hạn dưới 14 ngày."
+              text={`Gói tin/Săn sắp hết hạn${customerHealth.data ? ` · ${customerHealth.data.atRiskCount} KH nguy cơ rời bỏ, ${customerHealth.data.watchCount} cần theo dõi.` : '.'}`}
             />
           </Link>
           {deals.slice(0, 4).map((deal) => (
