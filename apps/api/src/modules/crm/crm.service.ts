@@ -13,6 +13,11 @@ import {
   type CrmConversionQueueItem,
   type CrmCustomerHealthItem,
   type CrmCustomerHealthOverview,
+  type CrmStaleLeadItem,
+  type ImportCrmLeadsRequest,
+  type ImportCrmLeadsResult,
+  type CrmSalesQuotaBoard,
+  type UpdateCrmSalesQuotasRequest,
   type CaptureCrmReferralRequest,
   type CaptureCrmReferralResponse,
   type CreateCrmPartnerClaimRequest,
@@ -3750,6 +3755,383 @@ export class CrmService {
       healthyCount,
       items,
     };
+  }
+
+  /** Cảnh báo SLA: Lead đang mở quá N giờ (mặc định 24h) nhưng chưa có hoạt động chăm sóc thực tế nào. */
+  async slaAlerts(actor: AuthenticatedUser, hours = 24): Promise<CrmStaleLeadItem[]> {
+    const safeHours = Math.max(1, Math.min(720, Number.isFinite(hours) ? Math.floor(hours) : 24));
+    const now = Date.now();
+    const cutoff = new Date(now - safeHours * 3_600_000);
+
+    const openLeads = await this.prisma.crmLead.findMany({
+      where: {
+        ...this.ownScope(actor),
+        status: 'open',
+        createdAt: { lte: cutoff },
+      },
+      select: {
+        id: true,
+        leadCode: true,
+        companyName: true,
+        contactName: true,
+        contactPhone: true,
+        ownerUserId: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 150,
+    });
+    if (openLeads.length === 0) return [];
+
+    const leadIds = openLeads.map((l) => l.id);
+    const activities = await this.prisma.crmActivity.findMany({
+      where: { leadId: { in: leadIds } },
+      select: { leadId: true, activityType: true, summary: true },
+    });
+    const touched = new Set<string>();
+    for (const a of activities) {
+      if (!a.leadId) continue;
+      const isSystemAuto =
+        a.activityType === 'note' &&
+        (/^(Tạo lead |Chia lead tự động |Thu hồi quá hạn SLA)/.test(a.summary) ||
+          a.summary.startsWith('Import lead '));
+      if (!isSystemAuto) touched.add(a.leadId);
+    }
+
+    const stale = openLeads.filter((l) => !touched.has(l.id));
+    if (stale.length === 0) return [];
+    const names = await this.ownerNames(stale.map((l) => l.ownerUserId));
+    return stale.map((l) => ({
+      leadId: l.id,
+      leadCode: l.leadCode,
+      companyName: l.companyName,
+      contactName: l.contactName,
+      contactPhone: l.contactPhone,
+      ownerUserId: l.ownerUserId,
+      ownerName: names.get(l.ownerUserId) ?? 'Chưa rõ',
+      hoursSinceCreated: Math.max(safeHours, Math.floor((now - l.createdAt.getTime()) / 3_600_000)),
+      createdAt: l.createdAt.toISOString(),
+    }));
+  }
+
+  /** Thu hồi lead quá hạn SLA chưa chăm sóc và chia lại Round-Robin cho sale khác. */
+  async reclaimSlaLeads(
+    actor: AuthenticatedUser,
+    input?: AutoAssignCrmLeadsRequest,
+  ): Promise<AutoAssignCrmLeadsResult> {
+    if (!this.seesAll(actor)) {
+      throw new ForbiddenException('Chỉ trưởng phòng hoặc SuperAdmin mới được thu hồi lead quá hạn SLA');
+    }
+    const staleList = await this.slaAlerts(actor, 24);
+    const requested = new Set((input?.leadIds ?? []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)));
+    const targets = requested.size > 0 ? staleList.filter((s) => requested.has(s.leadId)) : staleList;
+    if (targets.length === 0) return { assignedCount: 0, assignments: [] };
+
+    const activeStaff = await this.prisma.user.findMany({
+      where: { isDeleted: false, status: 'active', role: { in: [UserRole.Sales, UserRole.SalesManager] } },
+      select: { id: true, displayName: true, role: true },
+      orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
+    });
+    const salesOnly = activeStaff.filter((u) => u.role === UserRole.Sales);
+    const pool = salesOnly.length > 0 ? salesOnly : activeStaff;
+    if (pool.length === 0) {
+      throw new BadRequestException('Chưa có nhân viên kinh doanh đang hoạt động để chia lại lead');
+    }
+
+    const openCounts = await this.prisma.crmLead.groupBy({
+      by: ['ownerUserId'],
+      where: { status: 'open', ownerUserId: { in: pool.map((u) => u.id) } },
+      _count: { id: true },
+    });
+    const loadMap = new Map<string, number>();
+    for (const u of pool) loadMap.set(u.id, 0);
+    for (const row of openCounts) loadMap.set(row.ownerUserId, row._count.id);
+
+    const assignments: AutoAssignCrmLeadsResult['assignments'] = [];
+    for (const lead of targets) {
+      const candidates = pool.length > 1 ? pool.filter((u) => u.id !== lead.ownerUserId) : pool;
+      let chosen = candidates[0];
+      let minLoad = loadMap.get(chosen.id) ?? 0;
+      for (let i = 1; i < candidates.length; i++) {
+        const c = candidates[i];
+        const cLoad = loadMap.get(c.id) ?? 0;
+        if (cLoad < minLoad) {
+          chosen = c;
+          minLoad = cLoad;
+        }
+      }
+      if (chosen.id === lead.ownerUserId) continue;
+
+      await this.prisma.crmLead.update({
+        where: { id: lead.leadId },
+        data: { ownerUserId: chosen.id },
+      });
+      await this.prisma.crmActivity.create({
+        data: {
+          leadId: lead.leadId,
+          activityType: 'note',
+          summary: `Thu hồi quá hạn SLA (${lead.hoursSinceCreated}h chưa chăm sóc từ ${lead.ownerName}) và chia lại cho ${chosen.displayName}`,
+          createdByUserId: actor.id,
+        },
+      });
+      loadMap.set(chosen.id, minLoad + 1);
+      loadMap.set(lead.ownerUserId, Math.max(0, (loadMap.get(lead.ownerUserId) ?? 1) - 1));
+      assignments.push({
+        leadId: lead.leadId,
+        leadCode: lead.leadCode,
+        companyName: lead.companyName,
+        ownerUserId: chosen.id,
+        ownerName: chosen.displayName,
+      });
+    }
+    return { assignedCount: assignments.length, assignments };
+  }
+
+  /** Import hàng loạt lead từ CSV/Excel, tự động lọc trùng MST/SĐT và tuỳ chọn chia Round-Robin. */
+  async importLeads(
+    actor: AuthenticatedUser,
+    input: ImportCrmLeadsRequest,
+  ): Promise<ImportCrmLeadsResult> {
+    const rows = Array.isArray(input?.rows) ? input.rows.slice(0, 300) : [];
+    if (rows.length === 0) {
+      throw new BadRequestException('Danh sách import trống');
+    }
+    const source = await this.readLeadSource(input.source);
+    const campaignId = await this.marketing.campaignIdFor(actor, input.campaignId ?? null);
+
+    // Preload existing tax codes & phones for fast duplicate detection
+    const existingLeads = await this.prisma.crmLead.findMany({
+      where: { status: { not: 'unqualified' } },
+      select: { taxCode: true, contactPhone: true },
+    });
+    const seenTax = new Set(existingLeads.map((l) => (l.taxCode ?? '').replace(/\D/g, '')).filter(Boolean));
+    const seenPhone = new Set(existingLeads.map((l) => (l.contactPhone ?? '').replace(/\D/g, '')).filter((p) => p.length >= 8));
+
+    const errors: ImportCrmLeadsResult['errors'] = [];
+    const createdIds: string[] = [];
+    let skippedDuplicateCount = 0;
+    let invalidCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const companyName = (r.companyName ?? '').trim();
+      const contactName = (r.contactName ?? '').trim() || 'Bộ phận HR';
+      const taxRaw = (r.taxCode ?? '').trim().replace(/\s+/g, '');
+      const taxDigits = taxRaw.replace(/\D/g, '');
+      const phone = this.readPhone(r.contactPhone ?? '');
+      const phoneDigits = phone.replace(/\D/g, '');
+
+      if (companyName.length < 2 || taxDigits.length < 10) {
+        invalidCount += 1;
+        errors.push({
+          rowIndex: i + 1,
+          companyName: companyName || `(Dòng ${i + 1})`,
+          reason: 'Thiếu tên công ty hoặc Mã số thuế chưa đủ 10 số',
+        });
+        continue;
+      }
+      if (seenTax.has(taxDigits) || (phoneDigits.length >= 8 && seenPhone.has(phoneDigits))) {
+        skippedDuplicateCount += 1;
+        errors.push({
+          rowIndex: i + 1,
+          companyName,
+          reason: 'Trùng Mã số thuế hoặc Số điện thoại đã tồn tại',
+        });
+        continue;
+      }
+
+      try {
+        const companyId = await this.resolveCompanyId(null, taxRaw);
+        const lead = await this.prisma.crmLead.create({
+          data: {
+            leadCode: await this.nextCode('LD'),
+            companyName: companyName.slice(0, 180),
+            taxCode: taxRaw.slice(0, 32),
+            contactName: contactName.slice(0, 120),
+            contactPhone: phone,
+            contactEmail: r.contactEmail?.trim().slice(0, 160) || null,
+            industry: r.industry?.trim().slice(0, 120) || null,
+            province: r.province?.trim().slice(0, 80) || null,
+            address: r.address?.trim().slice(0, 240) || null,
+            companyId,
+            source: source.code,
+            campaignId,
+            ownerUserId: actor.id,
+          },
+          select: { id: true, leadCode: true },
+        });
+        await this.prisma.crmActivity.create({
+          data: {
+            leadId: lead.id,
+            activityType: 'note',
+            summary: `Import lead ${lead.leadCode} từ ${source.name}`,
+            createdByUserId: actor.id,
+          },
+        });
+        seenTax.add(taxDigits);
+        if (phoneDigits.length >= 8) seenPhone.add(phoneDigits);
+        createdIds.push(lead.id);
+      } catch (err) {
+        invalidCount += 1;
+        errors.push({
+          rowIndex: i + 1,
+          companyName,
+          reason: err instanceof Error ? err.message : 'Lỗi lưu dữ liệu',
+        });
+      }
+    }
+
+    let assignedCount = 0;
+    if (input.autoAssign && this.seesAll(actor) && createdIds.length > 0) {
+      try {
+        const assignRes = await this.autoAssignLeads(actor, { leadIds: createdIds });
+        assignedCount = assignRes.assignedCount;
+      } catch {
+        // Ignore if no active sales staff exists yet; leads stay on actor
+      }
+    }
+
+    return {
+      totalSubmitted: rows.length,
+      createdCount: createdIds.length,
+      skippedDuplicateCount,
+      invalidCount,
+      assignedCount,
+      errors: errors.slice(0, 30),
+    };
+  }
+
+  /** KPI / Chỉ tiêu doanh số tháng theo từng Sale (lưu cấu hình trong bảng Setting sẵn có, không cần migration). */
+  async salesQuotas(actor: AuthenticatedUser, rawMonth = ''): Promise<CrmSalesQuotaBoard> {
+    const shiftedNow = new Date(Date.now() + 7 * 3_600_000);
+    const defaultMonth = `${shiftedNow.getUTCFullYear()}-${String(shiftedNow.getUTCMonth() + 1).padStart(2, '0')}`;
+    const month = /^\d{4}-\d{2}$/.test(rawMonth.trim()) ? rawMonth.trim() : defaultMonth;
+    const [y, m] = month.split('-').map(Number);
+    // Vietnam UTC+7 month boundaries in UTC
+    const startUtc = new Date(Date.UTC(y, m - 1, 1, -7, 0, 0));
+    const endUtc = new Date(Date.UTC(y, m, 1, -7, 0, 0));
+
+    const canEdit = this.seesAll(actor);
+    const [staff, settingRow, paidOrders] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          isDeleted: false,
+          status: 'active',
+          role: { in: [UserRole.Sales, UserRole.SalesManager] },
+          ...(canEdit ? {} : { id: actor.id }),
+        },
+        select: { id: true, displayName: true, role: true },
+        orderBy: { displayName: 'asc' },
+      }),
+      this.prisma.supportChatPromptSetting.findUnique({
+        where: { id: 'crm_sales_quota_v1' },
+      }),
+      this.prisma.billingOrder.findMany({
+        where: {
+          ...this.paidPlanOrderWhere(),
+          paidAt: { gte: startUtc, lt: endUtc },
+        },
+        select: { companyId: true, priceVndSnapshot: true },
+      }),
+    ]);
+
+    const companyIds = [...new Set(paidOrders.map((o) => o.companyId))];
+    const earliestLeadByCompany = new Map<string, string>();
+    if (companyIds.length > 0) {
+      const leads = await this.prisma.crmLead.findMany({
+        where: { companyId: { in: companyIds }, status: { not: 'unqualified' } },
+        orderBy: { createdAt: 'asc' },
+        select: { companyId: true, ownerUserId: true },
+      });
+      for (const l of leads) {
+        if (l.companyId && !earliestLeadByCompany.has(l.companyId)) {
+          earliestLeadByCompany.set(l.companyId, l.ownerUserId);
+        }
+      }
+    }
+
+    const actualByUser = new Map<string, bigint>();
+    const orderCountByUser = new Map<string, number>();
+    for (const o of paidOrders) {
+      const ownerId = earliestLeadByCompany.get(o.companyId);
+      if (!ownerId) continue;
+      actualByUser.set(ownerId, (actualByUser.get(ownerId) ?? 0n) + o.priceVndSnapshot);
+      orderCountByUser.set(ownerId, (orderCountByUser.get(ownerId) ?? 0) + 1);
+    }
+
+    const allQuotas =
+      settingRow?.lines && typeof settingRow.lines === 'object' && !Array.isArray(settingRow.lines)
+        ? (settingRow.lines as Record<string, Record<string, string>>)
+        : {};
+    const monthQuotas = allQuotas[month] ?? {};
+
+    let totalTarget = 0n;
+    let totalActual = 0n;
+    const rows = staff.map((u) => {
+      const rawTarget = String(monthQuotas[u.id] ?? '0').replace(/\D/g, '');
+      const target = rawTarget ? BigInt(rawTarget) : 0n;
+      const actual = actualByUser.get(u.id) ?? 0n;
+      totalTarget += target;
+      totalActual += actual;
+      const percent = target > 0n ? Math.min(999, Math.round((Number(actual) / Number(target)) * 100)) : 0;
+      return {
+        userId: u.id,
+        displayName: u.displayName,
+        role: u.role,
+        targetVnd: target.toString(),
+        actualVnd: actual.toString(),
+        percent,
+        paidOrderCount: orderCountByUser.get(u.id) ?? 0,
+      };
+    });
+
+    rows.sort((a, b) => Number(b.actualVnd) - Number(a.actualVnd) || b.percent - a.percent);
+    const overallPercent =
+      totalTarget > 0n ? Math.min(999, Math.round((Number(totalActual) / Number(totalTarget)) * 100)) : 0;
+
+    return {
+      month,
+      canEdit,
+      totalTargetVnd: totalTarget.toString(),
+      totalActualVnd: totalActual.toString(),
+      overallPercent,
+      rows,
+    };
+  }
+
+  /** Cập nhật chỉ tiêu doanh số tháng cho đội Sale (SuperAdmin / SalesManager). */
+  async updateSalesQuotas(
+    actor: AuthenticatedUser,
+    input: UpdateCrmSalesQuotasRequest,
+  ): Promise<CrmSalesQuotaBoard> {
+    if (!this.seesAll(actor)) {
+      throw new ForbiddenException('Chỉ trưởng phòng hoặc SuperAdmin mới được đặt chỉ tiêu doanh số');
+    }
+    const month = (input.month ?? '').trim();
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new BadRequestException('Tháng chỉ tiêu không hợp lệ (YYYY-MM)');
+    }
+    const existing = await this.prisma.supportChatPromptSetting.findUnique({
+      where: { id: 'crm_sales_quota_v1' },
+    });
+    const current =
+      existing?.lines && typeof existing.lines === 'object' && !Array.isArray(existing.lines)
+        ? { ...(existing.lines as Record<string, Record<string, string>>) }
+        : {};
+    const monthMap: Record<string, string> = { ...(current[month] ?? {}) };
+    for (const item of input.targets ?? []) {
+      if (!/^[0-9a-f-]{36}$/i.test(item.userId)) continue;
+      const digits = String(item.targetVnd ?? '0').replace(/\D/g, '');
+      monthMap[item.userId] = digits || '0';
+    }
+    current[month] = monthMap;
+
+    await this.prisma.supportChatPromptSetting.upsert({
+      where: { id: 'crm_sales_quota_v1' },
+      create: { id: 'crm_sales_quota_v1', lines: current },
+      update: { lines: current },
+    });
+    return this.salesQuotas(actor, month);
   }
 
   async owners(actor: AuthenticatedUser): Promise<CrmOwnerOption[]> {

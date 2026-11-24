@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CircleDot, Plus, Shuffle } from 'lucide-react';
+import { AlertTriangle, Building2, CircleDot, FileSpreadsheet, Plus, Shuffle } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   CrmChip,
@@ -14,9 +14,10 @@ import { CrmDateField, CrmField, CrmSelect } from '@/components/crm/fields';
 import { contactPhoneLabel, errorText, isFresh, leadSourceLabel, leadStatusLabel, matchesQuery, vietnamDay } from '@/components/crm/format';
 import { ColumnPicker, RowActions, RowCheck, RowIconButton, canDeleteOwned, crmTableClass, crmTd, SortableTh, sortRows, stickyActionsHead, stickyCell, stickyCheck, stickyIndex, useColumnSort, useRowSelection, useVisibleColumns } from '@/components/crm/table';
 import { blankLeadDraft, draftFromLead, LeadFormFields, type LeadDraft } from '@/components/crm/lead-form-fields';
+import { CrmLeadImportPanel } from '@/components/crm/lead-import-panel';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { fetchMe } from '@/lib/auth';
-import { autoAssignCrmLeads, createCrmLead, deleteCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
+import { autoAssignCrmLeads, createCrmLead, deleteCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmSlaAlerts, fetchCrmTaxSuggestions, reclaimCrmSlaLeads, updateCrmLead } from '@/lib/crm';
 
 type StatusFilter = 'all' | 'open' | 'converted';
 
@@ -46,6 +47,7 @@ export function CrmLeadsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [assignNotice, setAssignNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [edit, setEdit] = useState<LeadDraft>(blankLeadDraft);
   const [editOwnerId, setEditOwnerId] = useState('');
@@ -56,6 +58,7 @@ export function CrmLeadsPanel() {
   const canReassign = me.data?.role === 'super_admin';
   const canAutoAssign = me.data?.role === 'super_admin' || me.data?.role === 'sales_manager';
   const owners = useQuery({ queryKey: ['crm-owners'], queryFn: fetchCrmOwners, enabled: canReassign });
+  const slaAlerts = useQuery({ queryKey: ['crm-sla-alerts'], queryFn: () => fetchCrmSlaAlerts(24) });
 
   const partners = useQuery({
     queryKey: ['crm-partners'],
@@ -191,11 +194,27 @@ export function CrmLeadsPanel() {
       if (pick.picked.length > 0) pick.toggleVisible(pick.picked);
       void qc.invalidateQueries({ queryKey: ['crm-board'] });
       void qc.invalidateQueries({ queryKey: ['crm-customers'] });
+      void qc.invalidateQueries({ queryKey: ['crm-sla-alerts'] });
     },
     onError: (err) => {
       setAssignNotice(null);
       setError(errorText(err, 'Không chia được lead tự động'));
     },
+  });
+
+  const reclaimSla = useMutation({
+    mutationFn: () => reclaimCrmSlaLeads({}),
+    onSuccess: (res) => {
+      setError(null);
+      if (res.assignedCount === 0) {
+        setAssignNotice('Không có lead quá hạn SLA nào đủ điều kiện chuyển sang sale khác.');
+      } else {
+        setAssignNotice(`Đã thu hồi và chia lại ${res.assignedCount} lead quá hạn SLA (>24h chưa chăm sóc).`);
+      }
+      void qc.invalidateQueries({ queryKey: ['crm-board'] });
+      void qc.invalidateQueries({ queryKey: ['crm-sla-alerts'] });
+    },
+    onError: (err) => setError(errorText(err, 'Không thu hồi được lead quá hạn SLA')),
   });
 
   function onSubmit(event: FormEvent) {
@@ -274,6 +293,18 @@ export function CrmLeadsPanel() {
       }
     >
       <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setImporting((v) => !v);
+            setCreating(false);
+            setEditingId(null);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE6F4] bg-[#EEF4FB] px-3.5 py-2 text-sm font-semibold text-[#072348] transition hover:bg-[#E1ECF9]"
+        >
+          <FileSpreadsheet className="h-4 w-4 text-[#0B468C]" />
+          {importing ? 'Đóng Import' : 'Import CSV'}
+        </button>
         {canAutoAssign ? (
           <button
             type="button"
@@ -317,6 +348,40 @@ export function CrmLeadsPanel() {
             Đóng
           </button>
         </div>
+      ) : null}
+      {(slaAlerts.data?.length ?? 0) > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-900">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+            <div>
+              <p className="font-semibold">
+                Cảnh báo SLA: {slaAlerts.data!.length} lead mở quá 24 giờ nhưng chưa có nhật ký chăm sóc
+              </p>
+              <p className="mt-0.5 text-xs text-rose-700">
+                Ví dụ: {slaAlerts.data!.slice(0, 3).map((s) => `${s.companyName} (${s.ownerName} · ${s.hoursSinceCreated}h)`).join(', ')}
+                {slaAlerts.data!.length > 3 ? ` và ${slaAlerts.data!.length - 3} lead khác.` : '.'}
+              </p>
+            </div>
+          </div>
+          {canAutoAssign ? (
+            <button
+              type="button"
+              disabled={reclaimSla.isPending}
+              onClick={() => reclaimSla.mutate()}
+              className="shrink-0 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50"
+            >
+              {reclaimSla.isPending ? 'Đang thu hồi…' : 'Thu hồi & chia lại Round-Robin'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {importing ? (
+        <CrmLeadImportPanel
+          sources={activeSources}
+          campaigns={campaignOptions}
+          canAutoAssign={canAutoAssign}
+          onClose={() => setImporting(false)}
+        />
       ) : null}
       {creating ? (
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">

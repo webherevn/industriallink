@@ -1,13 +1,14 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Target } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import type { CrmWorkspaceSlice } from '@industriallink/contracts';
 import { CrmEmpty } from '@/components/crm-frame';
 import { CrmMonthField } from '@/components/crm/fields';
-import { formatVnd } from '@/components/crm/format';
-import { fetchCrmWorkspace } from '@/lib/crm';
+import { errorText, formatVnd } from '@/components/crm/format';
+import { fetchCrmSalesQuotas, fetchCrmWorkspace, updateCrmSalesQuotas } from '@/lib/crm';
 
 function currentVietnamMonth(): string {
   const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -23,8 +24,26 @@ function shortVnd(value: string): string {
 }
 
 export function CrmWorkspaceBoard() {
+  const qc = useQueryClient();
   const [month, setMonth] = useState(currentVietnamMonth);
   const report = useQuery({ queryKey: ['crm-workspace', month], queryFn: () => fetchCrmWorkspace(month) });
+  const quotas = useQuery({ queryKey: ['crm-quotas', month], queryFn: () => fetchCrmSalesQuotas(month) });
+  const [editingQuotas, setEditingQuotas] = useState(false);
+  const [quotaDraft, setQuotaDraft] = useState<Record<string, string>>({});
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+  const saveQuotas = useMutation({
+    mutationFn: () =>
+      updateCrmSalesQuotas({
+        month,
+        targets: Object.entries(quotaDraft).map(([userId, targetVnd]) => ({ userId, targetVnd })),
+      }),
+    onSuccess: () => {
+      setEditingQuotas(false);
+      setQuotaError(null);
+      void qc.invalidateQueries({ queryKey: ['crm-quotas', month] });
+    },
+    onError: (err) => setQuotaError(errorText(err, 'Không lưu được chỉ tiêu tháng')),
+  });
   const data = report.data;
   const maxMonth = Math.max(1, ...(data?.months.map((item) => Number(item.paidAmountVnd)) ?? [1]));
   const maxSource = Math.max(1, ...(data?.bySource.map((item) => Number(item.paidAmountVnd)) ?? [1]));
@@ -52,7 +71,7 @@ export function CrmWorkspaceBoard() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <Kpi href="/crm/orders" className="bg-[#072348] text-white" label="Đơn đã trả" value={String(data.orders)} hint={`${data.newLeads} lead mới · ${data.quotes} báo giá`} />
-            <Kpi href="/crm/reports" className="bg-[#4c3ec9] text-white" label="Doanh số đã thu" value={formatVnd(data.paidAmountVnd)} hint="Gói tin và gói Săn, giá lớn hơn 0" />
+            <Kpi href="/crm/reports" className="bg-[#0B468C] text-white" label="Doanh số đã thu" value={formatVnd(data.paidAmountVnd)} hint="Gói tin và gói Săn, giá lớn hơn 0" />
             <Kpi href="/crm/orders" className="bg-white text-slate-900" label="Gói tin" value={formatVnd(data.platformPaidVnd)} hint="Đã thu trong tháng" />
             <Kpi href="/crm/orders" className="bg-white text-slate-900" label="Gói Săn" value={formatVnd(data.sourcingPaidVnd)} hint="Đã thu trong tháng" />
             <Kpi href="/crm/quotes" className="bg-white text-slate-900" label="Đã thu Enterprise" value={formatVnd(data.enterpriseCollectedVnd)} hint="Đợt đã ghi thu trong tháng" />
@@ -71,12 +90,12 @@ export function CrmWorkspaceBoard() {
                       <span className="text-[10px] text-slate-400">{Number(item.paidAmountVnd) > 0 ? shortVnd(item.paidAmountVnd) : ''}</span>
                       <div className="flex h-28 w-full items-end">
                         <div
-                          className={`w-full rounded-t-md ${active ? 'bg-[#4c3ec9]' : 'bg-[#d9d4f5]'}`}
+                          className={`w-full rounded-t-md ${active ? 'bg-[#0B468C]' : 'bg-[#D6E4F5]'}`}
                           style={{ height: `${Math.max(height, Number(item.paidAmountVnd) > 0 ? 8 : 2)}%` }}
                           title={`${item.label}: ${formatVnd(item.paidAmountVnd)}`}
                         />
                       </div>
-                      <span className={`text-[10px] ${active ? 'font-semibold text-[#4c3ec9]' : 'text-slate-400'}`}>{item.label}</span>
+                      <span className={`text-[10px] ${active ? 'font-semibold text-[#0B468C]' : 'text-slate-400'}`}>{item.label}</span>
                     </div>
                   );
                 })}
@@ -96,13 +115,13 @@ export function CrmWorkspaceBoard() {
               <div className="mt-4 flex items-center gap-4">
                 <div
                   className="relative h-24 w-24 shrink-0 rounded-full"
-                  style={{ background: paidTotal === 0 ? '#e7e5f4' : `conic-gradient(#4c3ec9 0deg ${platformTurn}deg, #5eead4 ${platformTurn}deg ${sourcingTurn}deg, #072348 ${sourcingTurn}deg 360deg)` }}
+                  style={{ background: paidTotal === 0 ? '#E8EFF8' : `conic-gradient(#0B468C 0deg ${platformTurn}deg, #E8872A ${platformTurn}deg ${sourcingTurn}deg, #072348 ${sourcingTurn}deg 360deg)` }}
                 >
                   <div className="absolute inset-3 rounded-full bg-white" />
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#4c3ec9]" />Gói tin · {formatVnd(data.platformPaidVnd)}</p>
-                  <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#5eead4]" />Gói Săn · {formatVnd(data.sourcingPaidVnd)}</p>
+                  <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#0B468C]" />Gói tin · {formatVnd(data.platformPaidVnd)}</p>
+                  <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#E8872A]" />Gói Săn · {formatVnd(data.sourcingPaidVnd)}</p>
                   <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#072348]" />Enterprise · {formatVnd(data.enterpriseCollectedVnd)}</p>
                   <p className="text-xs text-slate-400">{data.openDeals} cơ hội đang chạy · giá niêm yết {formatVnd(data.openListPriceVnd)}</p>
                 </div>
@@ -113,12 +132,122 @@ export function CrmWorkspaceBoard() {
                 {data.plans.map((plan, index) => (
                   <li key={plan.key} className="flex items-baseline justify-between gap-3 text-sm">
                     <span className="min-w-0 truncate text-slate-700">{index + 1}. {plan.label}</span>
-                    <span className="shrink-0 font-semibold text-[#4c3ec9]">{formatVnd(plan.paidAmountVnd)}</span>
+                    <span className="shrink-0 font-semibold text-[#0B468C]">{formatVnd(plan.paidAmountVnd)}</span>
                   </li>
                 ))}
               </ol>
             </article>
           </div>
+          {quotas.data && quotas.data.rows.length > 0 ? (
+            <article className="rounded-[22px] border border-[#DCE6F4] bg-white p-5 crm-surface">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#EEF4FB] text-[#072348]">
+                    <Target className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#072348]">
+                      KPI / Chỉ tiêu doanh số tháng {quotas.data.month}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Toàn đội: {formatVnd(quotas.data.totalActualVnd)} / {formatVnd(quotas.data.totalTargetVnd)} ({quotas.data.overallPercent}%)
+                    </p>
+                  </div>
+                </div>
+                {quotas.data.canEdit ? (
+                  editingQuotas ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuotas(false)}
+                        className="rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saveQuotas.isPending}
+                        onClick={() => saveQuotas.mutate()}
+                        className="rounded-xl bg-[#072348] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#0B468C] disabled:opacity-50"
+                      >
+                        {saveQuotas.isPending ? 'Đang lưu…' : 'Lưu chỉ tiêu'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next: Record<string, string> = {};
+                        for (const row of quotas.data!.rows) next[row.userId] = row.targetVnd;
+                        setQuotaDraft(next);
+                        setQuotaError(null);
+                        setEditingQuotas(true);
+                      }}
+                      className="rounded-xl border border-[#DCE6F4] bg-[#EEF4FB] px-3 py-1.5 text-xs font-semibold text-[#072348] hover:bg-[#E1ECF9]"
+                    >
+                      Đặt chỉ tiêu tháng
+                    </button>
+                  )
+                ) : null}
+              </div>
+              {quotaError ? <p className="mt-2 text-xs text-rose-600">{quotaError}</p> : null}
+              <ul className="mt-4 space-y-3">
+                {quotas.data.rows.map((row) => (
+                  <li key={row.userId} className="space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="font-semibold text-[#072348]">
+                        {row.displayName}{' '}
+                        <span className="text-xs font-normal text-slate-400">({row.paidOrderCount} đơn)</span>
+                      </span>
+                      {editingQuotas ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step={1000000}
+                          value={quotaDraft[row.userId] ?? row.targetVnd}
+                          onChange={(e) =>
+                            setQuotaDraft((cur) => ({ ...cur, [row.userId]: e.target.value }))
+                          }
+                          placeholder="Chỉ tiêu VNĐ"
+                          className="w-44 rounded-lg border border-[#C7D9EE] px-2.5 py-1 text-right text-xs font-semibold text-[#072348] outline-none focus:border-[#0B468C]"
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-700">
+                          <span className="text-[#0B468C]">{formatVnd(row.actualVnd)}</span> /{' '}
+                          {Number(row.targetVnd) > 0 ? formatVnd(row.targetVnd) : 'Chưa đặt chỉ tiêu'}
+                          {Number(row.targetVnd) > 0 ? (
+                            <span
+                              className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                row.percent >= 100
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : row.percent >= 60
+                                    ? 'bg-[#EEF4FB] text-[#0B468C]'
+                                    : 'bg-[#FFF4E8] text-[#B85D0B]'
+                              }`}
+                            >
+                              {row.percent}%
+                            </span>
+                          ) : null}
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-[#EEF4FB]">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          row.percent >= 100
+                            ? 'bg-emerald-500'
+                            : row.percent >= 60
+                              ? 'bg-[#0B468C]'
+                              : 'bg-[#E8872A]'
+                        }`}
+                        style={{ width: `${Math.min(100, row.percent)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : null}
           <article className="rounded-[22px] bg-white p-4 crm-surface">
             <h3 className="text-sm font-semibold text-slate-900">Nhân viên xuất sắc</h3>
             <p className="mt-1 text-xs text-slate-400">Xếp theo tiền đã thu trong tháng: đơn gói đã trả và đợt Enterprise đã ghi thu.</p>
@@ -126,7 +255,7 @@ export function CrmWorkspaceBoard() {
             <ol className="mt-4 space-y-3">
               {data.staff.map((person, index) => (
                 <li key={person.key} className="flex items-center gap-3">
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${index === 0 ? 'bg-[#4c3ec9] text-white' : 'bg-[#efeaff] text-[#4c3ec9]'}`}>{index + 1}</span>
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${index === 0 ? 'bg-[#072348] text-[#E8872A]' : 'bg-[#EEF4FB] text-[#072348]'}`}>{index + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-slate-900">{person.label}</span>
                     <span className="block text-xs text-slate-400">{person.orders} đơn gói · Enterprise {formatVnd(person.enterpriseCollectedVnd)}</span>
@@ -163,7 +292,7 @@ export function CrmWorkspaceBoard() {
                         <td className="whitespace-nowrap px-4 py-3 text-slate-700">{person.deals}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-700">{person.quotes}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-700">{person.orders}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-[#4c3ec9]">{formatVnd((BigInt(person.paidAmountVnd) + BigInt(person.enterpriseCollectedVnd)).toString())}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-[#0B468C]">{formatVnd((BigInt(person.paidAmountVnd) + BigInt(person.enterpriseCollectedVnd)).toString())}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -193,10 +322,10 @@ function BarRow({ row, max }: { row: CrmWorkspaceSlice; max: number }) {
     <li>
       <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
         <span className="text-slate-700">{row.label}</span>
-        <span className="font-semibold text-[#4c3ec9]">{formatVnd(row.paidAmountVnd)}</span>
+        <span className="font-semibold text-[#0B468C]">{formatVnd(row.paidAmountVnd)}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-[#f4f2fb]">
-        <div className="h-full rounded-full bg-[#4c3ec9]" style={{ width: `${Math.max(width, Number(row.paidAmountVnd) > 0 ? 6 : 0)}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-[#EEF4FB]">
+        <div className="h-full rounded-full bg-[#0B468C]" style={{ width: `${Math.max(width, Number(row.paidAmountVnd) > 0 ? 6 : 0)}%` }} />
       </div>
     </li>
   );

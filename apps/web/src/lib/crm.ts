@@ -485,3 +485,32 @@ export function diagnoseCrmAiCompanyJds(
 ): Promise<import('@industriallink/contracts').CrmAiJdDiagnosisResponse> {
   return apiRequest(`/crm/ai/companies/${companyId}/jd-diagnosis`, { method: 'POST', body: {} });
 }
+
+
+export function fetchCrmSlaAlerts(hours = 24): Promise<import('@industriallink/contracts').CrmStaleLeadItem[]> {
+  return apiRequest(`/crm/leads/sla-alerts?hours=${hours}`);
+}
+
+export function reclaimCrmSlaLeads(
+  body?: import('@industriallink/contracts').AutoAssignCrmLeadsRequest,
+): Promise<import('@industriallink/contracts').AutoAssignCrmLeadsResult> {
+  return apiRequest('/crm/leads/reclaim-sla', { method: 'POST', body: body ?? {} });
+}
+
+export function importCrmLeads(
+  body: import('@industriallink/contracts').ImportCrmLeadsRequest,
+): Promise<import('@industriallink/contracts').ImportCrmLeadsResult> {
+  return apiRequest('/crm/leads/import', { method: 'POST', body });
+}
+
+export function fetchCrmSalesQuotas(
+  month: string,
+): Promise<import('@industriallink/contracts').CrmSalesQuotaBoard> {
+  return apiRequest(`/crm/quotas?month=${encodeURIComponent(month)}`);
+}
+
+export function updateCrmSalesQuotas(
+  body: import('@industriallink/contracts').UpdateCrmSalesQuotasRequest,
+): Promise<import('@industriallink/contracts').CrmSalesQuotaBoard> {
+  return apiRequest('/crm/quotas', { method: 'PATCH', body });
+}

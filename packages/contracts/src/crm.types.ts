@@ -1318,3 +1318,67 @@ export interface CrmAiJdDiagnosisResponse {
   jobTitles: string[];
   diagnosis: string;
 }
+
+
+export interface CrmStaleLeadItem {
+  leadId: string;
+  leadCode: string;
+  companyName: string;
+  contactName: string;
+  contactPhone: string;
+  ownerUserId: string;
+  ownerName: string;
+  hoursSinceCreated: number;
+  createdAt: string;
+}
+
+export interface CrmImportLeadRow {
+  companyName: string;
+  taxCode: string;
+  contactName: string;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  industry?: string | null;
+  province?: string | null;
+  address?: string | null;
+}
+
+export interface ImportCrmLeadsRequest {
+  source: string;
+  campaignId?: string | null;
+  autoAssign?: boolean;
+  rows: CrmImportLeadRow[];
+}
+
+export interface ImportCrmLeadsResult {
+  totalSubmitted: number;
+  createdCount: number;
+  skippedDuplicateCount: number;
+  invalidCount: number;
+  assignedCount: number;
+  errors: Array<{ rowIndex: number; companyName: string; reason: string }>;
+}
+
+export interface CrmSalesQuotaRow {
+  userId: string;
+  displayName: string;
+  role: string;
+  targetVnd: string;
+  actualVnd: string;
+  percent: number;
+  paidOrderCount: number;
+}
+
+export interface CrmSalesQuotaBoard {
+  month: string;
+  canEdit: boolean;
+  totalTargetVnd: string;
+  totalActualVnd: string;
+  overallPercent: number;
+  rows: CrmSalesQuotaRow[];
+}
+
+export interface UpdateCrmSalesQuotasRequest {
+  month: string;
+  targets: Array<{ userId: string; targetVnd: string }>;
+}

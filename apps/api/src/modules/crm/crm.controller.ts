@@ -10,6 +10,11 @@ import {
   type AutoAssignCrmLeadsResult,
   type CrmConversionQueueItem,
   type CrmCustomerHealthOverview,
+  type CrmStaleLeadItem,
+  type ImportCrmLeadsRequest,
+  type ImportCrmLeadsResult,
+  type CrmSalesQuotaBoard,
+  type UpdateCrmSalesQuotasRequest,
   type CreateCrmPartnerClaimRequest,
   type CreateCrmPartnerRequest,
   type CrmActivityView,
@@ -375,6 +380,53 @@ export class CrmController {
     @Body() body?: AutoAssignCrmLeadsRequest,
   ): Promise<AutoAssignCrmLeadsResult> {
     return this.crm.autoAssignLeads(user, body);
+  }
+
+  @Get('leads/sla-alerts')
+  @ApiOperation({ summary: 'Danh sách lead quá hạn SLA (>24h chưa ghi nhận chăm sóc thực tế).' })
+  slaAlerts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('hours') hours?: string,
+  ): Promise<CrmStaleLeadItem[]> {
+    return this.crm.slaAlerts(user, hours ? Number(hours) : 24);
+  }
+
+  @Post('leads/reclaim-sla')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
+  @ApiOperation({ summary: 'Thu hồi lead quá hạn SLA và chia lại Round-Robin cho sale khác.' })
+  reclaimSlaLeads(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: AutoAssignCrmLeadsRequest,
+  ): Promise<AutoAssignCrmLeadsResult> {
+    return this.crm.reclaimSlaLeads(user, body);
+  }
+
+  @Post('leads/import')
+  @ApiOperation({ summary: 'Import hàng loạt lead từ CSV/Excel, tự động lọc trùng MST/SĐT.' })
+  importLeads(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: ImportCrmLeadsRequest,
+  ): Promise<ImportCrmLeadsResult> {
+    return this.crm.importLeads(user, body);
+  }
+
+  @Get('quotas')
+  @ApiOperation({ summary: 'KPI / Chỉ tiêu doanh số tháng theo nhân viên kinh doanh.' })
+  salesQuotas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('month') month = '',
+  ): Promise<CrmSalesQuotaBoard> {
+    return this.crm.salesQuotas(user, month);
+  }
+
+  @Patch('quotas')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
+  @ApiOperation({ summary: 'Đặt chỉ tiêu doanh số tháng cho đội kinh doanh.' })
+  updateSalesQuotas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateCrmSalesQuotasRequest,
+  ): Promise<CrmSalesQuotaBoard> {
+    return this.crm.updateSalesQuotas(user, body);
   }
 
   @Get('owners')
