@@ -279,14 +279,33 @@ export function JobPackageApplyModal({
             </div>
           )}
 
-          {activeError && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-rose-50 px-3 py-2.5 text-[12.5px] text-rose-600">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {activeError instanceof ApiError
+          {activeError && (() => {
+            const msg =
+              activeError instanceof ApiError
                 ? activeError.message
-                : 'Không thực hiện được thao tác. Vui lòng thử lại.'}
-            </p>
-          )}
+                : 'Không thực hiện được thao tác. Vui lòng thử lại.';
+            const needsLicense = /ĐKKD|Xác minh doanh nghiệp/i.test(msg);
+            return (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-rose-50 px-3 py-2.5 text-[12.5px] text-rose-600">
+                <span className="flex min-w-0 flex-1 items-start gap-1.5">
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{msg}</span>
+                </span>
+                {needsLicense ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      router.push('/company?tab=verification');
+                      onClose();
+                    }}
+                    className="shrink-0 rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-rose-700"
+                  >
+                    Tải ĐKKD ngay →
+                  </button>
+                ) : null}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Footer */}

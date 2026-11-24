@@ -260,7 +260,21 @@ export default function ManageJobsPage() {
 
   const publishMutation = useMutation({
     mutationFn: (id: string) => publishJob(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setTrashFeedback(null);
+    },
+    onError: (err) => {
+      setTrashFeedback({
+        tone: 'err',
+        text:
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Không đăng được tin tuyển dụng.',
+      });
+    },
   });
 
   const statusMutation = useMutation({
@@ -273,7 +287,21 @@ export default function ManageJobsPage() {
           | JobStatus.Closed
           | JobStatus.Draft,
       ),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setTrashFeedback(null);
+    },
+    onError: (err) => {
+      setTrashFeedback({
+        tone: 'err',
+        text:
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Không cập nhật được trạng thái tin tuyển dụng.',
+      });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -283,6 +311,17 @@ export default function ManageJobsPage() {
       setTrashFeedback({
         tone: 'ok',
         text: 'Đã chuyển tin vào Thùng rác (lưu tạm 30 ngày để khôi phục khi cần).',
+      });
+    },
+    onError: (err) => {
+      setTrashFeedback({
+        tone: 'err',
+        text:
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Không chuyển được tin vào Thùng rác.',
       });
     },
   });
@@ -562,20 +601,30 @@ export default function ManageJobsPage() {
       {trashFeedback ? (
         <div
           className={clsx(
-            'mt-3.5 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[12.5px] font-medium',
+            'mt-3.5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[12.5px] font-medium',
             trashFeedback.tone === 'ok'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
               : 'border-rose-200 bg-rose-50 text-rose-700',
           )}
         >
-          <span>{trashFeedback.text}</span>
-          <button
-            type="button"
-            onClick={() => setTrashFeedback(null)}
-            className="text-xs font-semibold opacity-70 hover:opacity-100"
-          >
-            Đóng
-          </button>
+          <span className="min-w-0 flex-1 leading-relaxed">{trashFeedback.text}</span>
+          <div className="flex shrink-0 items-center gap-3">
+            {trashFeedback.tone === 'err' && /ĐKKD|Xác minh doanh nghiệp/i.test(trashFeedback.text) ? (
+              <Link
+                href="/company?tab=verification"
+                className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-rose-700"
+              >
+                Tải ĐKKD ngay →
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setTrashFeedback(null)}
+              className="text-xs font-semibold opacity-70 hover:opacity-100"
+            >
+              Đóng
+            </button>
+          </div>
         </div>
       ) : null}
 
