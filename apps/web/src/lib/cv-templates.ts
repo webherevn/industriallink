@@ -17,7 +17,7 @@ export interface CvTemplate {
   /** Ngành nghề gắn với mẫu; bỏ trống = dùng chung. */
   industry?: Exclude<CvTemplateIndustry, 'all'>;
   accent: string;
-  layout: 'sidebar' | 'classic' | 'split';
+  layout: 'sidebar' | 'classic' | 'split' | 'executive';
 }
 
 export const CV_TEMPLATE_FILTERS: { id: CvTemplateCategory; label: string }[] = [
@@ -37,7 +37,7 @@ export const CV_INDUSTRY_FILTERS: { id: CvTemplateIndustry; label: string }[] = 
 export const CV_TEMPLATES: CvTemplate[] = [
   { id: 'modern-01', name: 'Hiện đại 01', category: 'modern', accent: '#0B3A6E', layout: 'sidebar' },
   { id: 'modern-02', name: 'Hiện đại 02', category: 'modern', accent: '#0E7490', layout: 'split' },
-  { id: 'pro-01', name: 'Chuyên nghiệp 01', category: 'professional', accent: '#1E293B', layout: 'classic' },
+  { id: 'pro-01', name: 'Chuyên nghiệp 01', category: 'professional', accent: '#1E293B', layout: 'executive' },
   { id: 'pro-02', name: 'Chuyên nghiệp 02', category: 'professional', accent: '#334155', layout: 'sidebar' },
   { id: 'creative-01', name: 'Sáng tạo 01', category: 'creative', accent: '#5B21B6', layout: 'split' },
   { id: 'minimal-01', name: 'Tối giản 01', category: 'minimal', accent: '#0F172A', layout: 'classic' },
@@ -47,7 +47,7 @@ export const CV_TEMPLATES: CvTemplate[] = [
     category: 'professional',
     industry: 'sales',
     accent: '#B45309',
-    layout: 'sidebar',
+    layout: 'executive',
   },
   {
     id: 'sales-02',
@@ -63,7 +63,7 @@ export const CV_TEMPLATES: CvTemplate[] = [
     category: 'professional',
     industry: 'technical',
     accent: '#0F766E',
-    layout: 'classic',
+    layout: 'executive',
   },
   {
     id: 'tech-02',
