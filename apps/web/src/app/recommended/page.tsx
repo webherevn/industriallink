@@ -934,22 +934,19 @@ function MatchJobCard({
 
               {/* Hàng 3: Ngành & Sản phẩm */}
               {(job.industry || productsText) && (
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600">
                   {job.industry && (
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
                       <Factory className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span>
+                      <span className="truncate">
                         <strong className="font-semibold text-slate-700">Ngành:</strong> {job.industry}
                       </span>
                     </span>
                   )}
-                  {job.industry && productsText && (
-                    <span className="hidden h-3 w-px bg-slate-200 sm:inline-block" aria-hidden />
-                  )}
                   {productsText && (
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
                       <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span>
+                      <span className="truncate">
                         <strong className="font-semibold text-slate-700">Sản phẩm:</strong> {productsText}
                       </span>
                     </span>

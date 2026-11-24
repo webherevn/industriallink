@@ -3136,15 +3136,25 @@ export default function ProfileEditPage() {
                     <span />
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-400">
                     Bước {step}/{STEPS.length}
                   </span>
                   {step < 6 ? (
-                    <Button type="button" onClick={goNext} disabled={!stepValid}>
-                      Tiếp theo
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={saveMutation.isPending || !form.displayName.trim()}
+                        onClick={() => saveMutation.mutate()}
+                      >
+                        {saveMutation.isPending ? 'Đang lưu...' : 'Lưu hồ sơ'}
+                      </Button>
+                      <Button type="button" onClick={goNext} disabled={!stepValid}>
+                        Tiếp theo
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </>
                   ) : (
                     <Button
                       type="button"
