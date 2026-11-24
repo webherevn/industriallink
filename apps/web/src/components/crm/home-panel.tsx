@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  BellRing,
   BookOpen,
   Building2,
   Contact,
@@ -33,7 +34,7 @@ import { CrmCard, CrmCardGrid, CrmChip, CrmEmpty, CrmFrame } from '@/components/
 import { followUpLabel, formatVnd, formatWhen, isFresh, leadSourceLabel, matchesQuery, renewalLabel } from '@/components/crm/format';
 import { CrmWorkspaceBoard } from '@/components/crm/workspace-board';
 import { useCrmBoard, useCrmRenewals } from '@/components/crm/use-crm-board';
-import { fetchCrmCustomers, fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
+import { fetchCrmConversionQueue, fetchCrmCustomers, fetchCrmFollowUps, fetchCrmInvoices, fetchCrmMarketing, fetchCrmPartners, fetchCrmUnclaimed } from '@/lib/crm';
 
 export function CrmHomePanel() {
   const board = useCrmBoard();
@@ -42,6 +43,11 @@ export function CrmHomePanel() {
   const partners = useQuery({ queryKey: ['crm-partners'], queryFn: fetchCrmPartners });
   const unclaimed = useQuery({ queryKey: ['crm-unclaimed'], queryFn: fetchCrmUnclaimed });
   const followUps = useQuery({ queryKey: ['crm-follow-ups'], queryFn: fetchCrmFollowUps });
+  const conversionQueue = useQuery({ queryKey: ['crm-conversion-queue'], queryFn: fetchCrmConversionQueue });
+  const [convFilter, setConvFilter] = useState<'all' | 'missing_license' | 'free_expiring' | 'stale_quote'>('all');
+  const conversionItems = (conversionQueue.data ?? []).filter(
+    (item) => convFilter === 'all' || item.kind === convFilter,
+  );
   const channels = useQuery({ queryKey: ['crm-marketing'], queryFn: fetchCrmMarketing });
   const customers = useQuery({ queryKey: ['crm-customers', ''], queryFn: () => fetchCrmCustomers('') });
   const hotCustomers = (customers.data ?? [])
@@ -108,6 +114,91 @@ export function CrmHomePanel() {
       }
     >
       {!needle ? <CrmWorkspaceBoard /> : null}
+      {!needle && (conversionQueue.data?.length ?? 0) > 0 ? (
+        <section className="rounded-[22px] border border-[#DCE6F4] bg-white p-5 crm-surface">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FFF4E8] text-[#E8872A]">
+                <BellRing className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-[#072348]">
+                  Hàng chờ chuyển đổi · Khám phá → Trả phí & ĐKKD ({conversionQueue.data?.length ?? 0})
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Nhắc việc tự động: NTD chưa nộp Giấy phép ĐKKD &gt;24h, gói Khám phá sắp hết hạn, báo giá quá 3 ngày chưa chốt.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ['all', 'Tất cả'],
+                  ['missing_license', 'Chưa nộp ĐKKD'],
+                  ['free_expiring', 'Khám phá sắp hết'],
+                  ['stale_quote', 'Báo giá quá hạn'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setConvFilter(key)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                    convFilter === key
+                      ? 'bg-[#072348] text-white'
+                      : 'bg-[#F5F8FC] text-[#072348] hover:bg-[#E8F0FA]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ul className="mt-3 divide-y divide-slate-100">
+            {conversionItems.slice(0, 8).map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                        item.kind === 'missing_license'
+                          ? 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200/80'
+                          : item.kind === 'free_expiring'
+                            ? 'bg-[#FFF4E8] text-[#B85D0B] ring-1 ring-inset ring-[#F5C591]'
+                            : 'bg-[#EEF4FB] text-[#0B468C] ring-1 ring-inset ring-[#C7D9EE]'
+                      }`}
+                    >
+                      {item.title}
+                    </span>
+                    <Link
+                      href={item.actionHref}
+                      className="font-semibold text-[#072348] hover:text-[#0B468C] hover:underline"
+                    >
+                      {item.companyName}
+                    </Link>
+                    {item.contactPhone ? (
+                      <span className="text-xs text-slate-500">{item.contactPhone}</span>
+                    ) : null}
+                    {item.ownerName ? (
+                      <span className="text-xs text-slate-400">· {item.ownerName}</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>
+                </div>
+                <Link
+                  href={item.actionHref}
+                  className="shrink-0 rounded-lg bg-[#072348] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0B468C]"
+                >
+                  {item.actionLabel}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {!needle && hotCustomers.length > 0 ? (
         <section className="rounded-[22px] bg-white p-5 crm-surface">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -126,7 +217,7 @@ export function CrmHomePanel() {
             </div>
             <Link
               href="/crm/customers?filter=hot"
-              className="text-xs font-semibold text-[#4c3ec9] hover:underline"
+              className="text-xs font-semibold text-[#0B468C] hover:underline"
             >
               Xem tất cả trong Sổ khách hàng →
             </Link>
@@ -141,7 +232,7 @@ export function CrmHomePanel() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={`/crm/companies/${row.companyId}`}
-                      className="font-semibold text-slate-900 hover:text-[#4c3ec9] hover:underline"
+                      className="font-semibold text-[#072348] hover:text-[#0B468C] hover:underline"
                     >
                       {row.companyName}
                     </Link>

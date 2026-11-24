@@ -1220,3 +1220,39 @@ export interface UpdateCrmSourcingOutreachStatusRequest {
     | 'applied';
   note?: string | null;
 }
+
+
+export interface AutoAssignCrmLeadsRequest {
+  /** Nếu truyền danh sách leadIds thì chia các lead này; nếu bỏ trống thì chia tất cả lead đang mở chưa gán sale (đang thuộc SuperAdmin). */
+  leadIds?: string[];
+}
+
+export interface AutoAssignCrmLeadsResult {
+  assignedCount: number;
+  assignments: Array<{
+    leadId: string;
+    leadCode: string;
+    companyName: string;
+    ownerUserId: string;
+    ownerName: string;
+  }>;
+}
+
+export type CrmConversionItemKind = 'missing_license' | 'free_expiring' | 'stale_quote';
+export type CrmConversionPriority = 'high' | 'medium';
+
+export interface CrmConversionQueueItem {
+  id: string;
+  kind: CrmConversionItemKind;
+  priority: CrmConversionPriority;
+  companyId: string | null;
+  companyName: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  ownerName: string | null;
+  title: string;
+  detail: string;
+  actionHref: string;
+  actionLabel: string;
+  ageDays: number;
+}

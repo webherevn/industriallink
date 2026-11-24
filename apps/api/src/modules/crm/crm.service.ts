@@ -8,6 +8,9 @@ import {
   type CreateCrmActivityRequest,
   type CreateCrmDealRequest,
   type CreateCrmLeadRequest,
+  type AutoAssignCrmLeadsRequest,
+  type AutoAssignCrmLeadsResult,
+  type CrmConversionQueueItem,
   type CaptureCrmReferralRequest,
   type CaptureCrmReferralResponse,
   type CreateCrmPartnerClaimRequest,
@@ -3256,6 +3259,303 @@ export class CrmService {
     });
     const names = await this.ownerNames(rows.map((lead) => lead.ownerUserId));
     return rows.map((lead) => this.mapLead(lead, names));
+  }
+
+  /** Chia lead tự động theo cơ chế Round-Robin (ưu tiên sale đang giữ ít lead mở nhất). */
+  async autoAssignLeads(
+    actor: AuthenticatedUser,
+    input?: AutoAssignCrmLeadsRequest,
+  ): Promise<AutoAssignCrmLeadsResult> {
+    if (!this.seesAll(actor)) {
+      throw new ForbiddenException('Chỉ trưởng phòng hoặc SuperAdmin mới có quyền chia lead tự động');
+    }
+    const activeStaff = await this.prisma.user.findMany({
+      where: {
+        isDeleted: false,
+        status: 'active',
+        role: { in: [UserRole.Sales, UserRole.SalesManager] },
+      },
+      select: { id: true, displayName: true, role: true },
+      orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
+    });
+    const salesOnly = activeStaff.filter((u) => u.role === UserRole.Sales);
+    const pool = salesOnly.length > 0 ? salesOnly : activeStaff;
+    if (pool.length === 0) {
+      throw new BadRequestException('Chưa có nhân viên kinh doanh đang hoạt động để chia lead');
+    }
+
+    const poolIds = pool.map((u) => u.id);
+    const openCounts = await this.prisma.crmLead.groupBy({
+      by: ['ownerUserId'],
+      where: { status: 'open', ownerUserId: { in: poolIds } },
+      _count: { id: true },
+    });
+    const loadMap = new Map<string, number>();
+    for (const u of pool) loadMap.set(u.id, 0);
+    for (const row of openCounts) loadMap.set(row.ownerUserId, row._count.id);
+
+    const requestedIds = (input?.leadIds ?? []).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    let targetLeads: Array<{ id: string; leadCode: string; companyName: string; ownerUserId: string }> = [];
+    if (requestedIds.length > 0) {
+      targetLeads = await this.prisma.crmLead.findMany({
+        where: { id: { in: requestedIds }, status: 'open' },
+        select: { id: true, leadCode: true, companyName: true, ownerUserId: true },
+        orderBy: { createdAt: 'asc' },
+      });
+    } else {
+      const admins = await this.prisma.user.findMany({
+        where: { isDeleted: false, role: UserRole.SuperAdmin },
+        select: { id: true },
+      });
+      const adminIds = admins.map((a) => a.id);
+      if (adminIds.length > 0) {
+        targetLeads = await this.prisma.crmLead.findMany({
+          where: { status: 'open', ownerUserId: { in: adminIds } },
+          select: { id: true, leadCode: true, companyName: true, ownerUserId: true },
+          orderBy: { createdAt: 'asc' },
+          take: 200,
+        });
+      }
+    }
+
+    if (targetLeads.length === 0) {
+      return { assignedCount: 0, assignments: [] };
+    }
+
+    const assignments: AutoAssignCrmLeadsResult['assignments'] = [];
+    for (const lead of targetLeads) {
+      // Pick the sales member with the lowest open lead count
+      let chosen = pool[0];
+      let minLoad = loadMap.get(chosen.id) ?? 0;
+      for (let i = 1; i < pool.length; i++) {
+        const candidate = pool[i];
+        const candidateLoad = loadMap.get(candidate.id) ?? 0;
+        if (candidateLoad < minLoad) {
+          chosen = candidate;
+          minLoad = candidateLoad;
+        }
+      }
+      if (lead.ownerUserId === chosen.id) continue;
+
+      await this.prisma.crmLead.update({
+        where: { id: lead.id },
+        data: { ownerUserId: chosen.id },
+      });
+      await this.prisma.crmActivity.create({
+        data: {
+          leadId: lead.id,
+          activityType: 'note',
+          summary: `Chia lead tự động (Round-Robin) cho ${chosen.displayName}`,
+          createdByUserId: actor.id,
+        },
+      });
+      loadMap.set(chosen.id, minLoad + 1);
+      assignments.push({
+        leadId: lead.id,
+        leadCode: lead.leadCode,
+        companyName: lead.companyName,
+        ownerUserId: chosen.id,
+        ownerName: chosen.displayName,
+      });
+    }
+
+    return { assignedCount: assignments.length, assignments };
+  }
+
+  /** Hàng chờ nhắc việc chuyển đổi: Chưa nộp ĐKKD >24h, Gói Khám phá sắp hết hạn, Báo giá >3 ngày chưa chốt. */
+  async conversionQueue(actor: AuthenticatedUser): Promise<CrmConversionQueueItem[]> {
+    const now = new Date();
+    const dayMs = 86_400_000;
+    const oneDayAgo = new Date(now.getTime() - dayMs);
+    const threeDaysAgo = new Date(now.getTime() - 3 * dayMs);
+    const fiveDaysAhead = new Date(now.getTime() + 5 * dayMs);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * dayMs);
+
+    const isAll = this.seesAll(actor);
+    const scopedLeads = await this.prisma.crmLead.findMany({
+      where: isAll ? { companyId: { not: null } } : { ownerUserId: actor.id, companyId: { not: null } },
+      select: { companyId: true, ownerUserId: true, contactName: true, contactPhone: true },
+    });
+    const leadByCompany = new Map<string, (typeof scopedLeads)[number]>();
+    for (const l of scopedLeads) {
+      if (l.companyId && !leadByCompany.has(l.companyId)) leadByCompany.set(l.companyId, l);
+    }
+    const visibleCompanyIds = [...leadByCompany.keys()];
+
+    const [recentCompanies, freePkgs, staleQuotes] = await Promise.all([
+      this.prisma.company.findMany({
+        where: {
+          isDeleted: false,
+          createdAt: { lte: oneDayAgo, gte: sixtyDaysAgo },
+          ...(isAll ? {} : { id: { in: visibleCompanyIds } }),
+        },
+        select: { id: true, name: true, profile: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.billingJobPackage.findMany({
+        where: {
+          packageType: 'FREE',
+          status: 'ACTIVE',
+          expiresAt: { gte: threeDaysAgo, lte: fiveDaysAhead },
+          ...(isAll ? {} : { companyId: { in: visibleCompanyIds } }),
+        },
+        select: { id: true, companyId: true, packageName: true, expiresAt: true },
+        orderBy: { expiresAt: 'asc' },
+        take: 60,
+      }),
+      this.prisma.crmQuote.findMany({
+        where: {
+          ...this.ownScope(actor),
+          createdAt: { lte: threeDaysAgo, gte: sixtyDaysAgo },
+        },
+        select: {
+          id: true,
+          quoteCode: true,
+          companyId: true,
+          companyName: true,
+          contactName: true,
+          contactPhone: true,
+          ownerUserId: true,
+          dealId: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 60,
+      }),
+    ]);
+
+    const freeCompanyIds = [...new Set(freePkgs.map((p) => p.companyId))];
+    const quoteCompanyIds = [...new Set(staleQuotes.map((q) => q.companyId).filter((x): x is string => Boolean(x)))];
+    const quoteDealIds = [...new Set(staleQuotes.map((q) => q.dealId).filter((x): x is string => Boolean(x)))];
+    const checkPaidIds = [...new Set([...freeCompanyIds, ...quoteCompanyIds])];
+
+    const [paidOrders, freeCompanies, quoteDeals] = await Promise.all([
+      checkPaidIds.length > 0
+        ? this.prisma.billingOrder.findMany({
+            where: { companyId: { in: checkPaidIds }, status: 'paid', priceVndSnapshot: { gt: 0n } },
+            select: { companyId: true, paidAt: true },
+          })
+        : Promise.resolve([]),
+      freeCompanyIds.length > 0
+        ? this.prisma.company.findMany({
+            where: { id: { in: freeCompanyIds }, isDeleted: false },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+      quoteDealIds.length > 0
+        ? this.prisma.crmDeal.findMany({
+            where: { id: { in: quoteDealIds } },
+            select: { id: true, stage: { select: { code: true } } },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const paidCompanies = new Set(paidOrders.map((o) => o.companyId));
+    const latestPaidByCompany = new Map<string, number>();
+    for (const o of paidOrders) {
+      if (!o.paidAt) continue;
+      const ms = o.paidAt.getTime();
+      if (ms > (latestPaidByCompany.get(o.companyId) ?? 0)) latestPaidByCompany.set(o.companyId, ms);
+    }
+    const freeCompanyById = new Map(freeCompanies.map((c) => [c.id, c]));
+    const dealStageById = new Map(quoteDeals.map((d) => [d.id, d.stage?.code ?? '']));
+
+    const ownerIds = new Set<string>();
+    for (const l of scopedLeads) ownerIds.add(l.ownerUserId);
+    for (const q of staleQuotes) ownerIds.add(q.ownerUserId);
+    const names = await this.ownerNames([...ownerIds]);
+
+    const items: CrmConversionQueueItem[] = [];
+
+    // 1. Missing ĐKKD (>24h since registration, not verified & no licenseDoc)
+    for (const c of recentCompanies) {
+      const prof = (c.profile && typeof c.profile === 'object' ? c.profile : {}) as {
+        verified?: boolean;
+        licenseDoc?: { storageKey?: string } | null;
+      };
+      if (prof.verified || prof.licenseDoc?.storageKey) continue;
+      const ageDays = Math.max(1, Math.floor((now.getTime() - c.createdAt.getTime()) / dayMs));
+      const lead = leadByCompany.get(c.id);
+      items.push({
+        id: `lic-${c.id}`,
+        kind: 'missing_license',
+        priority: 'high',
+        companyId: c.id,
+        companyName: c.name,
+        contactName: lead?.contactName ?? null,
+        contactPhone: lead?.contactPhone ?? null,
+        ownerName: lead ? names.get(lead.ownerUserId) ?? null : null,
+        title: `Chưa tải Giấy phép ĐKKD (${ageDays} ngày)`,
+        detail: 'NTD đã tạo tài khoản nhưng chưa nộp ĐKKD — không thể đăng tin công khai. Nên gọi hỗ trợ tải ĐKKD ngay.',
+        actionHref: `/crm/companies/${c.id}`,
+        actionLabel: 'Mở hồ sơ NTD',
+        ageDays,
+      });
+    }
+
+    // 2. FREE package expiring within 5 days (never paid yet)
+    const seenFreeCompany = new Set<string>();
+    for (const pkg of freePkgs) {
+      if (paidCompanies.has(pkg.companyId) || seenFreeCompany.has(pkg.companyId)) continue;
+      const comp = freeCompanyById.get(pkg.companyId);
+      if (!comp || !pkg.expiresAt) continue;
+      seenFreeCompany.add(pkg.companyId);
+      const daysLeft = Math.ceil((pkg.expiresAt.getTime() - now.getTime()) / dayMs);
+      const lead = leadByCompany.get(pkg.companyId);
+      items.push({
+        id: `free-${pkg.id}`,
+        kind: 'free_expiring',
+        priority: 'high',
+        companyId: pkg.companyId,
+        companyName: comp.name,
+        contactName: lead?.contactName ?? null,
+        contactPhone: lead?.contactPhone ?? null,
+        ownerName: lead ? names.get(lead.ownerUserId) ?? null : null,
+        title:
+          daysLeft <= 0
+            ? `Gói Khám phá vừa hết hạn (${Math.abs(daysLeft)} ngày)`
+            : `Gói Khám phá còn ${daysLeft} ngày`,
+        detail: `${pkg.packageName} sắp hết hiệu lực, chưa phát sinh đơn trả phí. Thời điểm vàng tư vấn nâng cấp lên gói Tin đăng / Tin săn.`,
+        actionHref: `/crm/companies/${pkg.companyId}`,
+        actionLabel: 'Tư vấn nâng cấp',
+        ageDays: Math.max(0, 5 - daysLeft),
+      });
+    }
+
+    // 3. Stale quotes (>3 days old, not won/lost, no paid order after quote)
+    for (const q of staleQuotes) {
+      if (q.dealId) {
+        const stage = dealStageById.get(q.dealId);
+        if (stage === 'won' || stage === 'lost') continue;
+      }
+      if (q.companyId) {
+        const paidMs = latestPaidByCompany.get(q.companyId) ?? 0;
+        if (paidMs >= q.createdAt.getTime()) continue;
+      }
+      const ageDays = Math.max(3, Math.floor((now.getTime() - q.createdAt.getTime()) / dayMs));
+      items.push({
+        id: `quote-${q.id}`,
+        kind: 'stale_quote',
+        priority: 'medium',
+        companyId: q.companyId,
+        companyName: q.companyName,
+        contactName: q.contactName,
+        contactPhone: q.contactPhone,
+        ownerName: names.get(q.ownerUserId) ?? null,
+        title: `Báo giá ${q.quoteCode} quá ${ageDays} ngày chưa chốt`,
+        detail: 'Đã gửi báo giá nhưng chưa ghi nhận thanh toán. Cần gọi follow-up xử lý vướng mắc.',
+        actionHref: `/crm/quotes/${q.id}`,
+        actionLabel: 'Xem báo giá',
+        ageDays,
+      });
+    }
+
+    items.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority === 'high' ? -1 : 1;
+      return b.ageDays - a.ageDays;
+    });
+    return items.slice(0, 40);
   }
 
   async owners(actor: AuthenticatedUser): Promise<CrmOwnerOption[]> {

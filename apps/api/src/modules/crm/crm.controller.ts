@@ -6,6 +6,9 @@ import {
   type CreateCrmActivityRequest,
   type CreateCrmDealRequest,
   type CreateCrmLeadRequest,
+  type AutoAssignCrmLeadsRequest,
+  type AutoAssignCrmLeadsResult,
+  type CrmConversionQueueItem,
   type CreateCrmPartnerClaimRequest,
   type CreateCrmPartnerRequest,
   type CrmActivityView,
@@ -349,6 +352,22 @@ export class CrmController {
   @ApiOperation({ summary: 'Lead đã hẹn gọi lại. Không đổi gói.' })
   followUps(@CurrentUser() user: AuthenticatedUser): Promise<CrmLeadView[]> {
     return this.crm.followUps(user);
+  }
+
+  @Get('conversion-queue')
+  @ApiOperation({ summary: 'Hàng chờ nhắc việc chuyển đổi: Chưa nộp ĐKKD, Gói Khám phá sắp hết hạn, Báo giá quá hạn.' })
+  conversionQueue(@CurrentUser() user: AuthenticatedUser): Promise<CrmConversionQueueItem[]> {
+    return this.crm.conversionQueue(user);
+  }
+
+  @Post('leads/auto-assign')
+  @Roles(UserRole.SuperAdmin, UserRole.SalesManager)
+  @ApiOperation({ summary: 'Chia lead mở tự động theo cơ chế Round-Robin cho nhân sự kinh doanh.' })
+  autoAssignLeads(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: AutoAssignCrmLeadsRequest,
+  ): Promise<AutoAssignCrmLeadsResult> {
+    return this.crm.autoAssignLeads(user, body);
   }
 
   @Get('owners')

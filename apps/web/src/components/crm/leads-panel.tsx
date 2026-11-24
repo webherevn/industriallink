@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CircleDot, Plus } from 'lucide-react';
+import { Building2, CircleDot, Plus, Shuffle } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   CrmChip,
@@ -16,7 +16,7 @@ import { ColumnPicker, RowActions, RowCheck, RowIconButton, canDeleteOwned, crmT
 import { blankLeadDraft, draftFromLead, LeadFormFields, type LeadDraft } from '@/components/crm/lead-form-fields';
 import { useCrmBoard } from '@/components/crm/use-crm-board';
 import { fetchMe } from '@/lib/auth';
-import { createCrmLead, deleteCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
+import { autoAssignCrmLeads, createCrmLead, deleteCrmLead, fetchCrmCompanies, fetchCrmMarketing, fetchCrmOwners, fetchCrmPartners, fetchCrmTaxSuggestions, updateCrmLead } from '@/lib/crm';
 
 type StatusFilter = 'all' | 'open' | 'converted';
 
@@ -44,6 +44,7 @@ export function CrmLeadsPanel() {
   const [taxQuery, setTaxQuery] = useState('');
   const [taxTarget, setTaxTarget] = useState<'create' | 'edit' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [assignNotice, setAssignNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [edit, setEdit] = useState<LeadDraft>(blankLeadDraft);
@@ -53,6 +54,7 @@ export function CrmLeadsPanel() {
 
   const me = useQuery({ queryKey: ['me'], queryFn: fetchMe });
   const canReassign = me.data?.role === 'super_admin';
+  const canAutoAssign = me.data?.role === 'super_admin' || me.data?.role === 'sales_manager';
   const owners = useQuery({ queryKey: ['crm-owners'], queryFn: fetchCrmOwners, enabled: canReassign });
 
   const partners = useQuery({
@@ -172,6 +174,30 @@ export function CrmLeadsPanel() {
     onError: (err) => setError(errorText(err, 'Không xóa được tiềm năng')),
   });
 
+  const autoAssign = useMutation({
+    mutationFn: (leadIds?: string[]) => autoAssignCrmLeads(leadIds && leadIds.length > 0 ? { leadIds } : {}),
+    onSuccess: (res) => {
+      setError(null);
+      if (res.assignedCount === 0) {
+        setAssignNotice('Không có lead mở nào chưa phân công để chia tự động.');
+      } else {
+        const byOwner = new Map<string, number>();
+        for (const a of res.assignments) {
+          byOwner.set(a.ownerName, (byOwner.get(a.ownerName) ?? 0) + 1);
+        }
+        const summary = [...byOwner.entries()].map(([name, n]) => `${name} (${n})`).join(', ');
+        setAssignNotice(`Đã chia đều ${res.assignedCount} lead theo Round-Robin: ${summary}.`);
+      }
+      if (pick.picked.length > 0) pick.toggleVisible(pick.picked);
+      void qc.invalidateQueries({ queryKey: ['crm-board'] });
+      void qc.invalidateQueries({ queryKey: ['crm-customers'] });
+    },
+    onError: (err) => {
+      setAssignNotice(null);
+      setError(errorText(err, 'Không chia được lead tự động'));
+    },
+  });
+
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     addLead.mutate();
@@ -247,7 +273,25 @@ export function CrmLeadsPanel() {
         </>
       }
     >
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {canAutoAssign ? (
+          <button
+            type="button"
+            disabled={autoAssign.isPending}
+            onClick={() => {
+              autoAssign.mutate(pick.picked.length > 0 ? pick.picked : undefined);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#E8872A] px-3.5 py-2 text-sm font-semibold text-white shadow-[0_8px_16px_rgba(232,135,42,0.22)] transition hover:-translate-y-0.5 hover:bg-[#d6781f] disabled:opacity-50"
+            title="Chia đều các lead đang chọn (hoặc tất cả lead mở của SuperAdmin) cho đội Sale đang có ít lead nhất"
+          >
+            <Shuffle className="h-4 w-4" />
+            {autoAssign.isPending
+              ? 'Đang chia lead…'
+              : pick.picked.length > 0
+                ? `Chia tự động (${pick.picked.length} lead)`
+                : 'Chia Lead tự động'}
+          </button>
+        ) : null}
         <button
           type="button"
           className={`${crmButtonClass} inline-flex items-center gap-1.5`}
@@ -262,6 +306,18 @@ export function CrmLeadsPanel() {
           {creating ? 'Đóng' : 'Tạo'}
         </button>
       </div>
+      {assignNotice ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#C7D9EE] bg-[#EEF4FB] px-4 py-2.5 text-sm font-medium text-[#072348]">
+          <span>{assignNotice}</span>
+          <button
+            type="button"
+            onClick={() => setAssignNotice(null)}
+            className="text-xs font-semibold text-[#0B468C] hover:underline"
+          >
+            Đóng
+          </button>
+        </div>
+      ) : null}
       {creating ? (
       <form onSubmit={onSubmit} className="grid gap-3 rounded-[22px] bg-white p-4 crm-surface md:grid-cols-2">
         <LeadFormFields

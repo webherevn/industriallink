@@ -445,3 +445,16 @@ export function updateCrmSourcingOutreachStatus(
 ): Promise<import('@industriallink/contracts').CrmSourcingOutreachItemView> {
   return apiRequest('/crm/sourcing-outreach/status', { method: 'PATCH', body });
 }
+
+
+export function autoAssignCrmLeads(
+  body?: import('@industriallink/contracts').AutoAssignCrmLeadsRequest,
+): Promise<import('@industriallink/contracts').AutoAssignCrmLeadsResult> {
+  return apiRequest('/crm/leads/auto-assign', { method: 'POST', body: body ?? {} });
+}
+
+export function fetchCrmConversionQueue(): Promise<
+  import('@industriallink/contracts').CrmConversionQueueItem[]
+> {
+  return apiRequest('/crm/conversion-queue');
+}
