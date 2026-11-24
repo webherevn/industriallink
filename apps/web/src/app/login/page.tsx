@@ -9,13 +9,14 @@ import { BrandLogo } from '@/components/brand-logo';
 import { GoogleAuthButton } from '@/components/google-auth-button';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError, tokenStore } from '@/lib/api';
-import { clearAuthQueryCache, login, logout, resendLoginOtp, verifyLoginOtp } from '@/lib/auth';
-import { isAdminHostname, isCrmHostname, isRecruiterHostname, navigateAfterLogin } from '@/lib/hosts';
+import { clearAuthQueryCache, login, logout, resendLoginOtp, switchToRecruiter, verifyLoginOtp } from '@/lib/auth';
+import { goToRecruiterApp, isAdminHostname, isCrmHostname, isRecruiterHostname, navigateAfterLogin } from '@/lib/hosts';
 import { registerHref, safeInternalPath } from '@/lib/safe-next';
 
 export default function LoginPage() {
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
+  const [step, setStep] = useState<'credentials' | 'mfa' | 'switch_recruiter'>('credentials');
+  const [switchingRole, setSwitchingRole] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -76,7 +77,26 @@ export default function LoginPage() {
       navigateAfterLogin(role, nextPath && nextPath.startsWith('/admin') ? nextPath : '/admin');
       return;
     }
+    if (role === UserRole.Candidate && typeof window !== 'undefined' && isRecruiterHostname()) {
+      setError(null);
+      setStep('switch_recruiter');
+      return;
+    }
     navigateAfterLogin(role, role === UserRole.Candidate ? nextPath : null);
+  }
+
+  async function onSwitchToRecruiter() {
+    setError(null);
+    setSwitchingRole(true);
+    try {
+      await switchToRecruiter();
+      clearAuthQueryCache(queryClient);
+      goToRecruiterApp('/company');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không thể chuyển đổi tài khoản.');
+    } finally {
+      setSwitchingRole(false);
+    }
   }
 
   async function onSubmitCredentials(e: React.FormEvent) {
@@ -221,6 +241,35 @@ export default function LoginPage() {
               />
             )}
           </>
+        ) : step === 'switch_recruiter' ? (
+          <div className="space-y-4">
+            <h1 className="text-xl font-bold text-slate-900">Tài khoản đang là Ứng viên</h1>
+            <p className="text-sm leading-relaxed text-slate-600">
+              Email này hiện được đăng ký với vai trò <strong>Ứng viên</strong>. Nếu bạn là{' '}
+              <strong>Nhà tuyển dụng</strong> lỡ đăng ký nhầm, bạn có thể chuyển sang tài khoản NTD
+              ngay mà không cần đổi email (hồ sơ tìm việc cũ sẽ được tự động ẩn khỏi tìm kiếm AI).
+            </p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="space-y-2.5 pt-1">
+              <Button
+                type="button"
+                className="w-full"
+                disabled={switchingRole}
+                onClick={onSwitchToRecruiter}
+              >
+                {switchingRole ? 'Đang chuyển đổi...' : 'Chuyển sang tài khoản Nhà tuyển dụng'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                disabled={switchingRole}
+                onClick={() => navigateAfterLogin(UserRole.Candidate, nextPath)}
+              >
+                Tiếp tục vào cổng Ứng viên
+              </Button>
+            </div>
+          </div>
         ) : (
           <>
             <h1 className="text-xl font-bold text-slate-900">Xác thực MFA</h1>

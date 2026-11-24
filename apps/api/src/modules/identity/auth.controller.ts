@@ -17,6 +17,7 @@ import type {
   AccountDeletionStatusResponse,
   AuthUserView,
   LoginResponse,
+  LoginSuccessResponse,
   TotpSetupResponse,
 } from '@industriallink/contracts';
 import { Request, Response } from 'express';
@@ -265,6 +266,26 @@ export class AuthController {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
+  }
+
+  @Post('me/switch-to-recruiter')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Chuyển tài khoản Ứng viên sang Nhà tuyển dụng (1 chiều)' })
+  async switchToRecruiter(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @CorrelationId() correlationId: string,
+  ): Promise<LoginSuccessResponse> {
+    const result = await this.identity.switchCandidateToRecruiter(user, {
+      correlationId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    this.setRefreshCookie(res, result.refreshToken);
+    return result.response;
   }
 
   @Get('me/delete-status')

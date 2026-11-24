@@ -4,6 +4,7 @@ import type {
   DeleteAccountRequest,
   GoogleAuthConfigResponse,
   LoginResponse,
+  LoginSuccessResponse,
   RegisterRequest,
   TotpSetupResponse,
   UserRole,
@@ -100,6 +101,15 @@ export async function confirmTotp(code: string): Promise<AuthUserView> {
 
 export async function disableTotp(): Promise<AuthUserView> {
   return apiRequest('/auth/me/totp/disable', { method: 'POST' });
+}
+
+export async function switchToRecruiter(): Promise<LoginSuccessResponse> {
+  const res = await apiRequest<LoginSuccessResponse>('/auth/me/switch-to-recruiter', {
+    method: 'POST',
+    retryOnUnauthorized: false,
+  });
+  tokenStore.set(res.accessToken);
+  return res;
 }
 
 export async function fetchDeleteAccountStatus(): Promise<AccountDeletionStatusResponse> {

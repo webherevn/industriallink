@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Building2 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -18,9 +18,11 @@ import {
   fetchDeleteAccountStatus,
   fetchMe,
   setupTotp,
+  switchToRecruiter,
   updateMfa,
 } from '@/lib/auth';
 import { getMyCandidate } from '@/lib/candidate';
+import { goToRecruiterApp } from '@/lib/hosts';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -50,6 +52,15 @@ export default function AccountPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleteReason, setDeleteReason] = useState('');
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  const switchRoleMutation = useMutation({
+    mutationFn: switchToRecruiter,
+    onSuccess: () => {
+      clearAuthQueryCache(qc);
+      goToRecruiterApp('/company');
+    },
+  });
 
   const deleteMutation = useMutation({
     mutationFn: () =>
@@ -243,6 +254,75 @@ export default function AccountPage() {
             Chỉ một phương thức MFA có thể bật cùng lúc — bật phương thức mới sẽ tự tắt phương
             thức cũ.
           </p>
+        )}
+
+        {isCandidate && (
+          <Card className="border-sky-200/80 bg-sky-50/30">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-[#072348]">
+                  <Building2 className="h-4 w-4 shrink-0 text-[#0B468C]" />
+                  Bạn là Nhà tuyển dụng lỡ đăng ký nhầm?
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Chuyển tài khoản này sang <strong>Nhà tuyển dụng (NTD)</strong> ngay mà không cần
+                  đổi email. Hồ sơ tìm việc hiện tại sẽ được tự động ẩn khỏi tìm kiếm AI.
+                </p>
+              </div>
+              {!switchOpen && (
+                <button
+                  type="button"
+                  onClick={() => setSwitchOpen(true)}
+                  className="shrink-0 rounded-xl border border-[#0B468C]/30 bg-white px-3.5 py-2 text-xs font-semibold text-[#072348] transition hover:bg-sky-50"
+                >
+                  Chuyển sang tài khoản NTD
+                </button>
+              )}
+            </div>
+
+            {switchOpen && (
+              <div className="mt-4 space-y-3 rounded-xl border border-sky-200 bg-white p-4">
+                <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-slate-700">
+                  <li>
+                    Tài khoản sẽ chuyển <strong>1 chiều</strong> sang vai trò{' '}
+                    <strong>Nhà tuyển dụng</strong> và điều hướng tới cổng{' '}
+                    <code>tuyendung.inlink.vn</code> để thiết lập hồ sơ doanh nghiệp &amp; tải ĐKKD.
+                  </li>
+                  <li>
+                    Hồ sơ Ứng viên cũ sẽ được tự động <strong>ẩn khỏi tìm kiếm AI</strong> và ngừng
+                    nhận email gợi ý việc làm.
+                  </li>
+                </ul>
+                {switchRoleMutation.isError && (
+                  <p className="text-xs font-medium text-rose-600">
+                    {switchRoleMutation.error instanceof ApiError
+                      ? switchRoleMutation.error.message
+                      : 'Không thể chuyển đổi tài khoản. Vui lòng thử lại.'}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={switchRoleMutation.isPending}
+                    onClick={() => switchRoleMutation.mutate()}
+                    className="rounded-xl bg-[#072348] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#0B468C] disabled:opacity-50"
+                  >
+                    {switchRoleMutation.isPending
+                      ? 'Đang chuyển đổi...'
+                      : 'Xác nhận chuyển sang NTD'}
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={switchRoleMutation.isPending}
+                    onClick={() => setSwitchOpen(false)}
+                  >
+                    Hủy
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
         )}
 
         {!isInternalAccount && (

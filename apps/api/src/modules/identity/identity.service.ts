@@ -1145,4 +1145,100 @@ export class IdentityService {
     this.logger.log(`Người dùng ${user.id} (${user.role}) đã tự đóng/ẩn danh tài khoản.`);
     return { message: 'Tài khoản của bạn đã được đóng và ẩn danh hóa thành công.' };
   }
+
+  /**
+   * Chuyển đổi 1 chiều: Ứng viên → Nhà tuyển dụng (khi NTD lỡ đăng ký nhầm mục Ứng viên).
+   * - Chỉ cho phép từ vai trò `candidate` (không cho NTD đổi ngược về Ứng viên).
+   * - Tự động ẩn hồ sơ Ứng viên & gỡ khỏi chỉ mục tìm kiếm AI (CandidateSearchIndex).
+   * - Thu hồi refresh token cũ và cấp phiên đăng nhập mới với vai trò `recruiter`.
+   */
+  async switchCandidateToRecruiter(
+    user: AuthenticatedUser,
+    meta: RequestMeta,
+  ): Promise<{ response: LoginSuccessResponse; refreshToken: string }> {
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        status: true,
+        tenantId: true,
+        mfaEnabled: true,
+        mfaMethod: true,
+        isDeleted: true,
+      },
+    });
+    if (!dbUser || dbUser.isDeleted) {
+      throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị đóng.');
+    }
+    if (dbUser.role !== UserRole.Candidate) {
+      throw new BadRequestException(
+        'Chỉ tài khoản Ứng viên mới có thể chuyển đổi sang tài khoản Nhà tuyển dụng.',
+      );
+    }
+
+    const now = new Date();
+    const updatedUser = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.user.update({
+        where: { id: dbUser.id },
+        data: {
+          role: UserRole.Recruiter,
+          updatedBy: dbUser.id,
+        },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          role: true,
+          status: true,
+          tenantId: true,
+          mfaEnabled: true,
+          mfaMethod: true,
+        },
+      });
+
+      const candidate = await tx.candidate.findUnique({
+        where: { userId: dbUser.id },
+        select: { id: true },
+      });
+      if (candidate) {
+        await tx.candidate.update({
+          where: { id: candidate.id },
+          data: {
+            status: 'inactive',
+            outreachEmailEnabled: false,
+            updatedBy: dbUser.id,
+          },
+        });
+        await tx.candidateSearchIndex.deleteMany({
+          where: { candidateId: candidate.id },
+        });
+      }
+
+      await tx.refreshToken.updateMany({
+        where: { userId: dbUser.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+
+      return next;
+    });
+
+    await this.audit.record({
+      tenantId: updatedUser.tenantId,
+      actorId: updatedUser.id,
+      action: 'account.switch_to_recruiter',
+      entityType: 'user',
+      entityId: updatedUser.id,
+      before: { role: UserRole.Candidate },
+      after: { role: UserRole.Recruiter },
+      correlationId: meta.correlationId,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    this.logger.log(`Người dùng ${updatedUser.id} đã chuyển từ Ứng viên sang Nhà tuyển dụng.`);
+    return this.issueSession(updatedUser, meta);
+  }
 }
